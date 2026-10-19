@@ -396,6 +396,7 @@
   .filterbar .chips{gap:4px;margin-bottom:4px;}
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
+  /* M11 am20 item 4: the ◷ glyph is drawn smaller than ✓ and ✗ at the same font-size (a fallback font); this chip alone is scaled up to match. */
   .row-blocked{background:var(--red-bg);}
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
@@ -453,6 +454,24 @@
   }
   .audit-group.audit-fold table{margin-top:8px;}
   .audit-group.audit-fold table[hidden]{display:none !important;}
+  /* M4d am29 (design lab C): the step fold's body - tally, a line per try with its checks, then the Round table. The marker ends the header. */
+  .audit-fold-body[hidden]{display:none !important;}
+  .audit-fold-body{margin-top:8px;font-size:12px;min-width:0;max-width:100%;}
+  .audit-fold-who{flex:none;margin-left:auto;font-weight:700;font-size:11px;white-space:nowrap;}
+  .audit-fold-who.model{color:var(--cyan);} .audit-fold-who.human{color:var(--magenta,#9854f1);}
+  .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
+  .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
+  .audit-checks{margin:2px 0 6px 14px;}
+  .audit-chk{overflow-wrap:anywhere;}
+  .audit-chk > span{margin-right:6px;}
+  .audit-chk .src,.audit-judged{color:var(--text-faint);}
+  .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
+  .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
+  .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
+  .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
+  .rounds-pager{color:var(--text-faint);font-size:11px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .step-card .step-head .who{font-weight:700;font-size:11px;}
+  .step-card .step-head .who.model{color:var(--cyan);} .step-card .step-head .who.human{color:var(--magenta,#9854f1);}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
      rendered as a <span class="badge STATE">) and its per-try marks
      (<span class="mark STATE">) reuse the SAME color vocabulary the runs
@@ -703,6 +722,12 @@
     }
     td.am-detail .am-d{margin:0 0 3px;}
     td.am-detail .am-d b{color:var(--text);font-weight:600;}
+    /* the Round table keeps its real table layout on a phone and scrolls inside its own box (.audit-table-scroll), never the page */
+    .audit-group table.rounds-table{display:table;width:max-content;min-width:100%;max-width:none;}
+    .audit-group table.rounds-table thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;}
+    .audit-group table.rounds-table tbody{display:table-row-group;}
+    .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
+    .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
   }
 
   /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
@@ -1141,11 +1166,12 @@
         </section>
 
         <section id="panel-runs" class="tabpanel" role="tabpanel" aria-labelledby="tab-runs" hidden>
-          <!-- M11: ONE list. Running now, Needs you and Scheduled are not filtered; the filters below act on Jobs and quiet jobs only. -->
+          <!-- M11: ONE list. Running now and Needs you are never filtered and sit above the grey line; Scheduled (the search also finds it, am17; the ◷ chip shows only it, am19) sits BELOW the search box and chips, above Jobs (am20). -->
           <div id="rl-top" data-testid="rl-top"></div>
           <div class="rl-dash"></div>
-          <div class="rl-faint" data-testid="rl-filter-note">filters below act on Jobs and quiet jobs only</div>
+          <div class="rl-faint" data-testid="rl-filter-note">search also finds Scheduled; ◷ shows only Scheduled</div>
           <div id="runs-filterbar-anchor"></div>
+          <div id="rl-sched" data-testid="rl-sched"></div>
           <div id="wf-list" data-testid="wf-list"></div>
         </section>
 
@@ -1244,7 +1270,11 @@
           <div class="job-card" id="job-card" hidden data-testid="job-card-readonly">
             <h4 id="details-title">Job card — signed</h4>
             <div class="hint" id="details-jobfrom" data-testid="details-jobfrom"></div>
-            <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+            <!-- M4d am28: Model and Thinking side by side on one row (.field-row, the paired-field row bareloop's Job tab uses for its caps) -->
+            <div class="field-row">
+              <div class="field"><label>Model</label><div class="ro-value" id="details-model">—</div></div>
+              <div class="field" id="details-thinking-field"><label>Thinking</label><div class="ro-value" id="details-thinking" data-testid="details-thinking">—</div></div>
+            </div>
             <!-- M9 am6: how this run began, then the workflow's schedule now; both are words built on the server (src/summary-words.js) -->
             <div class="field"><label>Started</label><div class="ro-value" id="details-started" data-testid="details-started">—</div></div>
             <div class="field"><label>Schedule</label><div class="ro-value" id="details-schedule" data-testid="details-schedule">—</div></div>
@@ -1691,6 +1721,7 @@
         // book-derived list, never guessed from `primitives` by exclusion.
         toolsTotal: s.toolsTotal || null, toolsWhy: s.toolsWhy || null, ungranted: s.ungranted || [],
         stoppedReason: s.stoppedReason || null,
+        who: s.who || null, newLine: typeof s.newLine === "string" ? s.newLine : "\u2014", lastAnswerAt: s.lastAnswerAt || null,
         state: s.groupState || "pending",   // the server's one decider (deriveStepGroupState); no group = no row yet = not started
       };
     });
@@ -1867,14 +1898,14 @@
   }
 
   // ---- M11: ONE runs list (docs/wiki/the-module-ladder.md "M11 scope", amendments 1 and 2; docs/product/m11-runs-list-mock.html, the right box).
-  // Top to bottom: Running now, Needs you, Scheduled (never filtered), a dashed line and the filters (they act on Jobs and quiet jobs only), Jobs, the
+  // Top to bottom: Running now, Needs you (never filtered), a dashed line, the search box and chips, Scheduled (am20: the search narrows it), Jobs, the
   // quiet fold. The page works out NOTHING: `live`, the Needs-you tag (`needs`), the job order and quiet split (`jobs`), the Scheduled cards and the two
   // limits all come from GET /api/runs (src/panel/data.js). `rlModel` is pure (payload in, cards out); the rl*Html functions only draw it.
   var rlData = { rows: [], jobs: [], scheduled: [], limits: { quietDays: 0, olderRuns: 0 } };
   // manual fold memory, keyed by flow ("__quiet" is the quiet fold): a per-viewer convenience, reset on reload. A manual click wins over an automatic open.
   var rlOpen = {};
   // the last markup written into each box: an identical repaint (every poll) writes nothing, so focus, scroll and a half-read card survive it
-  var rlLast = { top: null, jobs: null };
+  var rlLast = { top: null, sched: null, jobs: null };
   // The ONE writer of `rlData`: the whole /api/runs payload, as the server sent it.
   function setRunsData(r){
     rlData = { rows: r.rows || [], jobs: r.jobs || [], scheduled: r.scheduled || [], limits: r.limits || rlData.limits };
@@ -1939,12 +1970,27 @@
     if(typeof s.runId !== "string" || s.runId === "") return '<div class="rl-card" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</div>';
     return '<button class="rl-card" type="button" data-rl-jump="' + escapeXml(s.flow + "|" + s.runId) + '" data-testid="rl-sched-' + escapeXml(s.flow) + '">' + body + '</button>';
   }
-  function rlTopHtml(m){
+  // M11 am17: the ONE search box narrows the Scheduled cards by job name (matchesSearch in nameOnly mode: a run number or a date word is skipped, so it narrows only Jobs).
+  // The result and time chips never touch Scheduled. With the `scheduled` chip pressed and nothing matching, the list says so; otherwise an empty Scheduled draws nothing, header included.
+  // M11 am20: Running now and Needs you only (never filtered); they sit above the search box. Scheduled is drawn by rlSchedHtml, below it.
+  function rlTopHtml(m, filters){
     var h = "";
     if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
     if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
-    if(m.scheduled.length) h += rlSectHtml("Scheduled", m.scheduled.length) + m.scheduled.map(rlScheduledCardHtml).join("");
     return h;
+  }
+  // the Scheduled cards the search leaves (the ONE place that narrows them); the count line and rlSchedHtml both read it
+  function rlSchedShown(scheduled, q){
+    return (scheduled || []).filter(function(s){ return matchesSearch(s.flow, null, q, null, true); });
+  }
+  function rlSchedCountText(n){
+    return "showing " + n + " scheduled job" + (n === 1 ? "" : "s");
+  }
+  function rlSchedHtml(m, filters){
+    var shown = rlSchedShown(m.scheduled, filters && filters.search ? filters.search : "");
+    if(shown.length) return rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
+    if(filters && filters.scheduled === true) return '<div class="rl-hint">no scheduled job matches</div>';
+    return "";
   }
   // a run card inside a job: `[sign] run-N  date · model` / `word — why · $cost · wall`
   function rlRunCardHtml(r, selected, hit){
@@ -2021,10 +2067,13 @@
     var groups = filterWorkflows(groupRunsByFlow(rlData.rows), filters, Date.now());
     var m = rlModel(rlData, groups, filters, rlData.limits, { flow: currentFlow, runId: currentRunId }, rlOpen);
     var topEl = document.getElementById("rl-top");
+    var schedEl = document.getElementById("rl-sched");
     var listEl = document.getElementById("wf-list");
-    var top = rlTopHtml(m);
-    var jobs = rlJobsHtml(m);
+    var top = rlTopHtml(m, filters);
+    var sched = rlSchedHtml(m, filters);
+    var jobs = filters.scheduled === true ? "" : rlJobsHtml(m);   // M11 am17: the scheduled chip hides Jobs and the quiet fold
     if(top !== rlLast.top){ rlLast.top = top; withFocusPreserved(topEl, function(){ topEl.innerHTML = top; }); }
+    if(sched !== rlLast.sched){ rlLast.sched = sched; withFocusPreserved(schedEl, function(){ schedEl.innerHTML = sched; }); }
     if(jobs !== rlLast.jobs){ rlLast.jobs = jobs; withFocusPreserved(listEl, function(){ listEl.innerHTML = jobs; }); }
     tickSince();
   }
@@ -2097,6 +2146,7 @@
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="7d" title="last 7 days" data-testid="chip-' + scope + '-time-7d">7d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="time" data-filter-value="30d" title="last 30 days" data-testid="chip-' + scope + '-time-30d">30d</button>' +
           '<button class="chip fchip" type="button" aria-pressed="true" data-filter-group="time" data-filter-value="all" title="all time" data-testid="chip-' + scope + '-time-all">all</button>' +
+          (noSigns ? '' : '<button class="chip fchip" type="button" aria-pressed="false" data-filter-group="view" data-filter-value="scheduled" title="scheduled jobs only" aria-label="scheduled jobs only" data-testid="chip-' + scope + '-scheduled">◷</button>') +
           '<button class="chip fchip" type="button" id="' + scope + '-filter-clear" data-testid="' + scope + '-filter-clear">clear</button>' +
         '</div>' +
         '<div class="hint" id="' + scope + '-filter-count" data-testid="' + scope + '-filter-count"></div>' +
@@ -2111,7 +2161,7 @@
   // shape (src/panel/data.js's listRuns). M11 am5: the search splits at spaces and EVERY word must match, case-insensitive. A word shaped run-N is
   // that run exactly; a word shaped MM/DD, MM-DD or YYYY-MM-DD (a real day) is the run's LOCAL start day (`when`, the time the card shows; MM/DD = any year);
   // any other word (a part date like 10/1 too) is a substring of the flow name or the runId.
-  function matchesSearch(flow, runId, query, when){
+  function matchesSearch(flow, runId, query, when, nameOnly){
     var words = String(query || "").toLowerCase().replace(/[()]/g, "").split(/\s+/).filter(function(w){ return w; });
     if(!words.length) return true;
     var f = String(flow || "").toLowerCase();
@@ -2119,15 +2169,16 @@
     var d = when ? new Date(when) : null;
     var ok = d && !isNaN(d.getTime());
     return words.every(function(w){
-      if(/^run-\d+$/.test(w)) return r === w;
+      if(/^run-\d+$/.test(w)) return nameOnly ? true : r === w;
       var day = /^(?:(\d{4})-)?(\d\d)[-\/](\d\d)$/.exec(w);
       if(day && (day[1] ? w.charAt(4) === "-" && w.charAt(7) === "-" : w.charAt(2) === "/" || w.charAt(2) === "-")){
         var mo = Number(day[2]), da = Number(day[3]);
         if(mo >= 1 && mo <= 12 && da >= 1 && da <= 31){
+          if(nameOnly) return true;
           return !!ok && d.getMonth() + 1 === mo && d.getDate() === da && (!day[1] || d.getFullYear() === Number(day[1]));
         }
       }
-      return f.indexOf(w) !== -1 || r.indexOf(w) !== -1;
+      return f.indexOf(w) !== -1 || (!nameOnly && r.indexOf(w) !== -1);
     });
   }
   function filterRuns(runs, filters, nowMs){
@@ -2158,7 +2209,7 @@
   function createFilterBar(opts){
     var scope = opts.scope;
     var storageKey = opts.storageKey;
-    var state = { results: [], time: "all", search: "" };
+    var state = { results: [], time: "all", search: "", scheduled: false };
     var allItems = [];
 
     function load(){
@@ -2171,6 +2222,7 @@
               results: Array.isArray(parsed.results) ? parsed.results : [],
               time: typeof parsed.time === "string" ? parsed.time : "all",
               search: typeof parsed.search === "string" ? parsed.search : "",
+              scheduled: parsed.scheduled === true,
             };
           }
         }
@@ -2183,7 +2235,7 @@
       document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
         var group = chip.getAttribute("data-filter-group");
         var value = chip.getAttribute("data-filter-value");
-        var active = group === "time" ? state.time === value : state.results.indexOf(value) !== -1;
+        var active = group === "time" ? state.time === value : group === "view" ? state.scheduled : state.results.indexOf(value) !== -1;
         chip.setAttribute("aria-pressed", active ? "true" : "false");
       });
       var searchEl = document.getElementById(scope + "-filter-search");
@@ -2193,7 +2245,7 @@
       var filtered = opts.filterFn(allItems, state, Date.now());
       opts.applyFn(filtered);
       var countEl = document.getElementById(scope + "-filter-count");
-      if(countEl) countEl.textContent = "showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs");
+      if(countEl) countEl.textContent = (opts.countFn && opts.countFn(state)) || ("showing " + filtered.length + " of " + allItems.length + " " + (opts.noun || "runs"));
     }
     document.querySelectorAll('.filterbar[data-scope="' + scope + '"] .chip[data-filter-group]').forEach(function(chip){
       chip.addEventListener("click", function(){
@@ -2201,6 +2253,8 @@
         var value = chip.getAttribute("data-filter-value");
         if(group === "time"){
           state.time = value; // single-select within time
+        } else if(group === "view"){
+          state.scheduled = !state.scheduled; // M11 am17: the scheduled chip, the one writer of state.scheduled
         } else {
           var idx = state.results.indexOf(value);
           if(idx === -1) state.results.push(value); else state.results.splice(idx, 1);
@@ -2213,7 +2267,7 @@
     var clearBtn = document.getElementById(scope + "-filter-clear");
     if(clearBtn){
       clearBtn.addEventListener("click", function(){
-        state = { results: [], time: "all", search: "" };
+        state = { results: [], time: "all", search: "", scheduled: false };
         paint();
         save();
         apply();
@@ -2237,8 +2291,18 @@
     };
   }
 
-  // ONE filter bar, mounted between the unfiltered sections and Jobs (M11). It acts on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
+  // ONE filter bar, mounted below the unfiltered sections (Running now, Needs you); Scheduled and Jobs sit below it (M11 am20). The search narrows Scheduled; the chips act on Jobs and quiet jobs only: `runsFilterFn` keeps a job when ANY of its runs match.
   document.getElementById("runs-filterbar-anchor").innerHTML = filterBarHTML("runs");
+  // M11 am21: ◷'s ink is as tall as ✓'s, whatever font draws it. Canvas measureText of each chip's own font (works in a hidden tab) at 100px; ◷ gets the size that makes its ink match ✓'s.
+  function fitChips(){
+    var cv = document.createElement("canvas").getContext("2d");
+    var ink = function(e){ var cs = getComputedStyle(e); cv.font = cs.fontWeight + " 100px " + cs.fontFamily; var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };
+    var ok = document.querySelector('[data-testid="chip-runs-res-pass"]'), sc = document.querySelector('[data-testid="chip-runs-scheduled"]');
+    if(!ok || !sc || !ink(sc)) return;
+    sc.style.fontSize = (parseFloat(getComputedStyle(ok).fontSize) * ink(ok) / ink(sc)) + "px";
+  }
+  window.fwdloopFitChips = fitChips;
+  fitChips();
 
   function runsFilterFn(items, filters, nowMs){
     return filterWorkflows(groupRunsByFlow(items), filters, nowMs);
@@ -2251,9 +2315,10 @@
     storageKey: "fwdloop-panel-runs-filters",
     filterFn: runsFilterFn,
     applyFn: runsApplyFn,
+    countFn: function(st){ return st.scheduled === true ? rlSchedCountText(rlSchedShown(rlData.scheduled, st.search).length) : null; },   // M11 am20: ◷ pressed, the line counts scheduled jobs
   });
   function currentRunsFilters(){
-    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "" };
+    return runsFilterBar ? runsFilterBar.getState() : { results: [], time: "all", search: "", scheduled: false };
   }
 
   // item 4: phone-only "scroll the run view into view" on row select, and
@@ -2353,14 +2418,18 @@
     // read straight off detail.steps/detail.spendSummary, never re-derived
     // from a second, separately-fetched copy of the audit rows.
     var modelText = detail.model || (detail.modelWhy || "no model call recorded yet");
+    // M9 am21/am22: the run's time follows its cost on the top line, after a middle dot like the cost's: the same number as the `took ...` line (one source, detail.wallMs); a finished run without one says so, never 0; a run still going or waiting shows none.
+    var headTime = !runFinished(detail) ? "" : (typeof detail.wallMs === "number" ? duration(detail.wallMs) : "time not recorded");
     var closeText = closeClassSummaryText(detail.steps) || (detail.stepsWhy || "no steps recorded");
     box.innerHTML =
-      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span>' + signHtml(detail.word, detail.line, detail.label) + ' &middot; <span class="num">' + escapeXml(spendText) + '</span></div>' +
+      '<div class="summary-headline"><span class="' + dotClass(detail.glyph, detail.pulse) + '"></span>' + signHtml(detail.word, detail.line, detail.label) + ' &middot; <span class="num">' + escapeXml(spendText) + '</span>' + (headTime ? ' &middot; ' + escapeXml(headTime) : '') + '</div>' +
       '<div class="summary-row" data-testid="summary-model"><span class="sum-label">model:</span><span class="sum-val">' + escapeXml(modelText) + '</span></div>' +
       '<div class="summary-row"><span class="sum-label">steps:</span><span class="sum-val">' + stepsText + '</span></div>' +
       '<div class="summary-row" data-testid="summary-why"><span class="sum-label">why:</span><span class="sum-val">' + escapeXml(detail.stopReason || detail.stopReasonWhy || "not recorded") + '</span></div>' +
       '<div class="summary-row" data-testid="summary-close"><span class="sum-label">close:</span><span class="sum-val">' + escapeXml(closeText) + '</span></div>' +
-      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>';
+      '<div class="summary-row" data-testid="summary-spend"><span class="sum-label">spend:</span><span class="sum-val">' + spendSummaryText(detail.spendSummary) + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-calls"><span class="sum-label">calls:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.calls) || "\u2014") + '</span></div>' +
+      '<div class="summary-row" data-testid="summary-checks"><span class="sum-label">checks:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.checks) || "\u2014") + '</span></div>';
 
     renderRunActions(detail);
     // amendment 7 item 2: the Draft is the first box of the Map (an arrow runs on to step 1); the steps keep their own numbers
@@ -2381,6 +2450,8 @@
       // unknown" row.
       if(box.attempts.length) card.appendChild(buildStepActionsLineEl(box, idx));
       else card.appendChild(textLineEl("hint", "not attempted yet", "step-card-actions-" + idx));
+      // M4d am29 item 6: the one new line, the server's words (`—` with no record); a human step's answer time is formatted here, in the viewer's clock
+      card.appendChild(textLineEl("step-meta", box.newLine + (box.who === "human" && box.lastAnswerAt ? " \u00b7 " + (new Date(box.lastAnswerAt).toLocaleTimeString()) : ""), "step-card-new-" + idx));
       // Amendment M4a-3 (hamr's request): "tools: read 3 · write 1" (this
       // step's own tool tally, `summarizeStepTools`) plus "allowed: read,
       // write" (the signed grant, unchanged from the old "granted:" line) —
@@ -2515,6 +2586,14 @@
     closeBadge.className = "badge cyan";
     closeBadge.textContent = closeClassLabel(box.closeClass);
     head.appendChild(closeBadge);
+    // M4d am29 item 6: the same marker as the Audit header; only a step with a record has one
+    if(box.who){
+      var who = document.createElement("span");
+      who.className = "who " + box.who;
+      who.setAttribute("data-testid", "step-card-who-" + idx);
+      who.textContent = foldWhoWords(box.who);
+      head.appendChild(who);
+    }
     return head;
   }
   // The actions line: "<time> · <cost> · [N tokens ·] try N <marks>" — every
@@ -2605,7 +2684,7 @@
     // hamr's 2026-09-27 review item (b): a jump from the Run tab must land
     // on an OPEN group even if a human had folded it — never scroll to a
     // collapsed section with nothing visible in it.
-    var table = row.querySelector("table");
+    var table = row.querySelector("table, .audit-fold-body");
     var header = row.querySelector("h4");
     if(table && table.hidden){
       table.hidden = false;
@@ -2648,6 +2727,8 @@
     if(!Array.isArray(r.raw) || r.raw.length === 0) return "";
     return r.raw.map(function(t){ return "<div class=\"audit-raw\">" + escapeXml(String(t)) + "</div>"; }).join("");
   }
+  // M4d am26: ` · thinking off` after a model try's verdict, the server's words (`r.thinkingPhrase`); nothing for a row that has none
+  function auditThinkingHtml(r){ return typeof r.thinkingPhrase === "string" && r.thinkingPhrase.length > 0 ? " \u00b7 " + escapeXml(r.thinkingPhrase) : ""; }
   function buildAuditRowEl(r, includeStep){
     var tr = document.createElement("tr");
     var glyph = verdictGlyph(r.verdict, r.class);
@@ -2666,7 +2747,7 @@
       "<td data-label=\"Action\">" + escapeXml(actionText) + "</td>" +
       "<td data-label=\"Gap\">" + escapeXml(isRejectRow ? "" : auditGapText(r)) + auditRawHtml(r) + "</td>" +
       "<td data-label=\"Cost\">" + escapeXml(auditCostCellText(r)) + "</td>" +
-      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span></td>" +
+      "<td data-label=\"Verdict\"><span class=\"badge " + badgeClass + "\">" + escapeXml(word) + "</span>" + auditThinkingHtml(r) + "</td>" +
       "<td data-label=\"Close\">" + escapeXml(auditCloseText(r)) + "</td>" +
       "<td data-label=\"Time\">" + auditTimeCellHtml(r) + "</td>" +
       // phone-only one-line cells (CSS shows these and hides the rest below 640px; hidden on desktop)
@@ -2764,6 +2845,7 @@
     if(g.draft) return draftLineText(g.summary);
     var line = [p.status, p.name, p.cost].join(" " + p.dot + " ");
     if(p.tries) line += " \u00b7 try " + p.tries.n + " " + p.tries.marks.join("");
+    if(g.fold) line += " " + foldWhoWords(g.fold.who);
     return line;
   }
   // hamr's 2026-09-27 review: the header's status word gets the SAME color
@@ -2841,12 +2923,106 @@
       });
     }
     h4.appendChild(tail);
+    // M4d am29 item 4: the header ends with who acted on the step; only a step with a fold (a run with records) has it
+    if(g.fold){
+      var who = document.createElement("span");
+      who.className = "audit-fold-who " + g.fold.who;
+      who.setAttribute("data-testid", "audit-group-who");
+      who.textContent = foldWhoWords(g.fold.who);
+      h4.appendChild(who);
+    }
     return h4;
   }
   // Grouped view: one section per step, server order preserved (first-seen
   // order of `r.step` across this run's own rows — never re-sorted).
   // review item #1: COLLAPSED by default — a map/step-card click
   // (`openAuditGroup`) is the only thing that force-expands one.
+  // M4d am29 (items 4-6): the step fold's words, all from the server's `fold` (src/audit-fold.js); this page only draws them.
+  function foldWhoWords(who){ return who === "human" ? "[human \u00b7 ask]" : "[model]"; }
+  function foldSize(n){ return n < 1024 ? n + " B" : (n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB"); }
+  function foldEl(tag, cls, text, testId){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(text !== null && text !== undefined) e.textContent = text;
+    if(testId) e.setAttribute("data-testid", testId);
+    return e;
+  }
+  function foldTryEl(t, human){
+    var wrap = document.createElement("div");
+    var line = foldEl("div", "audit-try", null, "audit-try-line");
+    line.appendChild(document.createTextNode("try " + t.n + " "));
+    line.appendChild(foldEl("span", "mark " + auditMarkClass(t.mark), t.mark));
+    var rest = human
+      ? [t.answer, t.about ? "about " + t.about : null]
+      : [t.thinking, t.gap];
+    rest.forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
+    wrap.appendChild(line);
+    if(!human && t.checks && t.checks.length){
+      var box = foldEl("div", "audit-checks", null, "audit-checks");
+      t.checks.forEach(function(c){
+        var row = foldEl("div", "audit-chk", null, "audit-check");
+        row.appendChild(foldEl("span", "mark " + (c.ok ? "green" : "red"), c.ok ? "\u2713" : "\u2717"));
+        row.appendChild(foldEl("span", null, "#" + c.n + " " + c.text + (c.result ? " (" + c.result + ")" : "")));
+        row.appendChild(foldEl("span", "src", "\u00b7 from " + c.source));
+        box.appendChild(row);
+      });
+      if(t.output){
+        var sha = String(t.output.sha256);
+        box.appendChild(foldEl("div", "audit-judged", "output judged: " + t.output.file + " \u00b7 " + foldSize(t.output.bytes) + " \u00b7 sha256 " + sha.slice(0, 4) + "\u2026" + sha.slice(-2), "audit-judged"));
+      }
+      wrap.appendChild(box);
+    }
+    return wrap;
+  }
+  var ROUNDS_PAGE = 20;
+  function foldRowEl(r, prevTry){
+    var tr = document.createElement("tr");
+    if(prevTry !== null && r.try !== prevTry) tr.className = "trysep";
+    [r.round === null || r.round === undefined ? "\u2014" : String(r.round), r.try === null || r.try === undefined ? "\u2014" : String(r.try), r.action, r.path || "\u2014", r.decision, auditShortTime(r)].forEach(function(t){
+      tr.appendChild(foldEl("td", null, t));
+    });
+    return tr;
+  }
+  // the Round table, 20 rows at a time (bareloop's "showing A\u2013B of N" + load more), table scrolling inside its own box
+  function foldRoundsEl(g){
+    var rows = g.fold.rows || [];
+    var wrap = document.createElement("div");
+    wrap.appendChild(foldEl("div", "audit-fold-label", "rounds"));
+    var scroll = foldEl("div", "audit-table-scroll");
+    var table = document.createElement("table");
+    table.className = "rounds-table";
+    table.setAttribute("data-testid", "rounds-table-" + g.step);
+    table.innerHTML = "<thead><tr><th>Round</th><th>Try</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead><tbody></tbody>";
+    var tbody = table.querySelector("tbody");
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
+    var pager = foldEl("div", "rounds-pager", null, "rounds-pager");
+    wrap.appendChild(pager);
+    var shown = 0;
+    function more(){
+      var to = Math.min(rows.length, shown + ROUNDS_PAGE);
+      for(var i = shown; i < to; i += 1) tbody.appendChild(foldRowEl(rows[i], i === 0 ? null : rows[i - 1].try));
+      shown = to;
+      pager.innerHTML = "";
+      pager.appendChild(foldEl("span", null, rows.length === 0 ? "no rows" : "showing 1\u2013" + shown + " of " + rows.length));
+      if(shown < rows.length){
+        var b = foldEl("button", "btn small", "load more", "rounds-load-more");
+        b.type = "button";
+        b.addEventListener("click", function(ev){ ev.stopPropagation(); more(); });
+        pager.appendChild(b);
+      }
+    }
+    more();
+    return wrap;
+  }
+  function buildFoldBodyEl(g){
+    var f = g.fold, human = f.who === "human";
+    var body = foldEl("div", "audit-fold-body", null, "audit-fold-body-" + g.step);
+    if(f.tally) body.appendChild(foldEl("div", "audit-tally", f.tally, "audit-tally"));
+    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human)); });
+    body.appendChild(foldRoundsEl(g));
+    return body;
+  }
   var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
   var auditExpandedRun = null;
   function renderAuditGroups(result){
@@ -2868,10 +3044,12 @@
       sh.className = "audit-status-header";
       sh.setAttribute("role", "button"); sh.setAttribute("tabindex", "0"); sh.setAttribute("aria-expanded", "false");
       sh.style.cursor = "pointer";
-      var sname = document.createElement("span"); sname.className = "audit-fold-name keep"; sname.textContent = "schedule"; sh.appendChild(sname);
+      // M9 am23: sign + word (one badge, as a step header's), then `schedule`, then ` · ` and the parts. The word is the server's (`sc.word`, from SIGN_WORDS); no table here.
       var ssign = document.createElement("span");
       ssign.className = "badge sign-badge " + (sc.sign === "[\u25B6]" ? "amber" : sc.sign === "[\u2717]" ? "red" : "grey");
-      ssign.setAttribute("data-testid", "audit-schedule-sign"); ssign.textContent = sc.sign; sh.appendChild(ssign);
+      ssign.setAttribute("data-testid", "audit-schedule-sign"); ssign.textContent = sc.word ? sc.sign + " " + sc.word : sc.sign; sh.appendChild(ssign);
+      var sname = document.createElement("span"); sname.className = "audit-fold-name keep"; sname.textContent = "schedule"; sh.appendChild(sname);
+      var slead = document.createElement("span"); slead.setAttribute("data-testid", "audit-schedule-lead"); slead.textContent = "\u00b7"; sh.appendChild(slead);   // plain span: a phone keeps this dot (the signed header has it)
       var stail = document.createElement("span"); stail.className = "audit-fold-tail wrap"; stail.setAttribute("data-testid", "audit-schedule-head"); stail.textContent = sc.head; sh.appendChild(stail);
       var sl = document.createElement("table");
       sl.setAttribute("data-testid", "audit-table-schedule"); sl.hidden = true;
@@ -2930,12 +3108,20 @@
       header.style.cursor = "pointer";
       wrap.appendChild(header);
       if(noRecord){ container.appendChild(wrap); return; }   // nothing to open: the header already says "no draft record"
-      var table = document.createElement("table");
-      table.hidden = !isOpen;
-      table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
-      var tbody = table.querySelector("tbody");
-      rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
-      table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
+      // M4d am29: a step with a fold draws it (design lab C); a step without one (an older run, the Draft, the run's own group) keeps its table as before
+      var table, tbody;
+      if(g.fold){
+        table = buildFoldBodyEl(g);
+        table.hidden = !isOpen;
+        rows = [];   // a fold has no per-try table row to open with the group (`syncSingleRow` below leaves it alone)
+      } else {
+        table = document.createElement("table");
+        table.hidden = !isOpen;
+        table.innerHTML = "<thead><tr><th>Attempt</th><th>Action</th><th>Gap</th><th>Cost</th><th>Verdict</th><th>Close</th><th>Time</th></tr></thead><tbody></tbody>";
+        tbody = table.querySelector("tbody");
+        rows.forEach(function(r){ tbody.appendChild(buildAuditRowEl(r, false)); });
+        table.setAttribute("data-testid", "audit-table-grouped-" + g.step);
+      }
       wrap.appendChild(table);
       // M4c-fix amendment 2 (j): a step with exactly one try opens that try's detail with the group, closes with it
       // (the same `.open` tap-detail the row's own tap toggles; only the phone layout shows it).
@@ -3161,6 +3347,7 @@
     document.getElementById("details-model").textContent = job.model
       ? ("model used: " + job.model + " (from this run's rows)")
       : (job.modelWhy || "no model call recorded yet");
+    document.getElementById("details-thinking").textContent = typeof job.thinkingRule === "string" ? job.thinkingRule : "—";
     document.getElementById("details-started").textContent = job.started || "—";
     document.getElementById("details-schedule").textContent = job.schedule || "none";
     // M4e amendment 6 item 5 + amendment 7 item 4: "$<cap> per run · 1h wait · redo up to <n>"; several asks: "waits 1h, 30m", each through plainWait.
@@ -3310,8 +3497,12 @@
   var openRunLive = true;    // is the open run still changing? (true until its detail says otherwise)
   var wasHidden = false;
   // One writer of `openRunLive`: every paint of the open run's detail goes through here.
+  // M9 am21: the ONE decider of a finished run ([✓] [✗] [■]); the open-run poll and the summary line's time both ask it.
+  function runFinished(d){
+    return !!d && (d.glyph === "[\u2713]" || d.glyph === "[\u2717]" || d.glyph === "[\u25A0]");
+  }
   function paintRun(d){
-    openRunLive = !(d && (d.glyph === "[\u2713]" || d.glyph === "[\u2717]" || d.glyph === "[\u25A0]"));
+    openRunLive = !runFinished(d);
     var next = sig(d);
     if(next !== null && next === lastSig.detail) return;
     lastSig.detail = next;

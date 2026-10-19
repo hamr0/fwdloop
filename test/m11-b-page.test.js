@@ -21,11 +21,13 @@ function fnSrc(name) {
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
   'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',
-  'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml',
+  'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlSchedShown', 'rlSchedHtml', 'rlJobsHtml',
 ];
 const lib = new Function(`${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();
 // the ONE short date of every card: local `MM/DD HH:MM`
 const short = (iso) => { const d = new Date(iso); const t = (n) => String(n).padStart(2, '0'); return `${t(d.getMonth() + 1)}/${t(d.getDate())} ${t(d.getHours())}:${t(d.getMinutes())}`; };
+// am20: Scheduled is drawn by rlSchedHtml, in its own box below the search; `both` is the two boxes' markup, Running now / Needs you first
+const both = (m, f) => lib.rlTopHtml(m, f) + lib.rlSchedHtml(m, f);
 const LIMITS = { quietDays: 30, olderRuns: 7 };
 const NONE = { results: [], time: 'all', search: '' };
 
@@ -55,17 +57,17 @@ test('order and hiding: Running now, Needs you, Scheduled, then Jobs, then the q
   ];
   const data = payload(rows, [meta('aging'), meta('inv'), meta('old', true)], [{ flow: 'aging', at: 'today 17:00', in: 'next in 3h', words: 'Weekdays at 17:00' }]);
   const m = model(data);
-  const top = text(lib.rlTopHtml(m));
+  const top = text(both(m));
   const jobs = text(lib.rlJobsHtml(m));
   const at = (s, needle) => { const i = s.indexOf(needle); assert.ok(i !== -1, `"${needle}" missing from ${s}`); return i; };
   assert.ok(at(top, 'Running now (1)') < at(top, 'Needs you (1)') && at(top, 'Needs you (1)') < at(top, 'Scheduled (1)'));
   assert.ok(at(jobs, 'Jobs (2) · run in the last 30 days') < at(jobs, '▸ quiet jobs (1) · no run in 30 days'));
   // nothing running, nobody needs you, nothing scheduled, no jobs: nothing is drawn, not even a header
   const empty = model(payload([], []));
-  assert.equal(lib.rlTopHtml(empty), '');
+  assert.equal(both(empty), '');
   assert.doesNotMatch(text(lib.rlJobsHtml(empty)), /Jobs \(|quiet jobs|Running now|Needs you|Scheduled/);
   const calm = model(payload([run('a', 1)], [meta('a')]));
-  assert.doesNotMatch(text(lib.rlTopHtml(calm)), /Running now|Needs you|Scheduled/);
+  assert.doesNotMatch(text(both(calm)), /Running now|Needs you|Scheduled/);
   assert.doesNotMatch(text(lib.rlJobsHtml(calm)), /quiet jobs/, 'no quiet job: no quiet line');
 });
 
@@ -106,7 +108,7 @@ test('cards: Running now / Needs you jump; the tag is a label; the Scheduled car
     run('inv', 2, { glyph: '[·]', word: 'waiting', label: 'waiting on you', needs: 'Answer', askedAt: null, at: '2026-10-13T19:12:00.000Z' }),
   ];
   const data = payload(rows, [meta('aging'), meta('inv')], [{ flow: 'aging', at: 'tomorrow 09:00', in: 'next in 11h', words: 'Weekdays at 09:00', runId: 'run-12' }]);
-  const html = lib.rlTopHtml(model(data));
+  const html = both(model(data));
   const cards = html.split(/(?=<(?:button|div) class="rl-card)/).filter((c) => /^<(button|div) class="rl-card/.test(c));
   const [run1, need, sched] = [cards[0], cards[1], cards[2]];
   assert.match(run1, /^<button[^>]*data-rl-jump="aging\|run-12"/);
@@ -120,7 +122,7 @@ test('cards: Running now / Needs you jump; the tag is a label; the Scheduled car
   assert.match(sched, /^<button class="rl-card"[^>]*type="button"[^>]*data-rl-jump="aging\|run-12"/, 'same click as Running now: a button, keyboard reachable');
   assert.doesNotMatch(sched, /data-rl-run/);
   assert.equal(text(sched).replace(/\s+/g, ' ').trim(), '[·]aging · tomorrow 09:00next in 11h · Weekdays at 09:00');
-  const bare = lib.rlTopHtml(model(payload(rows, [meta('aging'), meta('inv')], [{ flow: 'x', at: null, in: null, words: 'When in.csv is updated', runId: null }])));
+  const bare = both(model(payload(rows, [meta('aging'), meta('inv')], [{ flow: 'x', at: null, in: null, words: 'When in.csv is updated', runId: null }])));
   assert.match(bare, /<div class="rl-card" data-testid="rl-sched-x"/, 'a job with no run has nothing to open: not a button');
 });
 
@@ -133,7 +135,7 @@ test('Running now: an unknown cost reads "unknown" (never $0, never the long rea
 
 test('a Scheduled card with no clock slot draws no invented time', () => {
   const data = payload([run('a', 1)], [meta('a')], [{ flow: 'a', at: null, in: null, words: 'When in.csv is updated' }]);
-  const t = text(lib.rlTopHtml(model(data))).replace(/\s+/g, ' ');
+  const t = text(both(model(data))).replace(/\s+/g, ' ');
   assert.match(t, /\[·\]a\s*When in\.csv is updated/);
   assert.doesNotMatch(t, /next in|today|tomorrow/);
 });
@@ -304,9 +306,9 @@ test('the old view is gone: no Workflows / History switch, no History list, no s
   assert.doesNotMatch(PAGE, /data-runs-view|runs-view-|id="history-list"|RUNS_VIEW_KEY|renderHistory|loadRunsViewMode|capChildRuns|buildRunRowEl|renderWorkflows/);
   assert.doesNotMatch(PAGE, /select a run from Workflows or History/);
   const panel = PAGE.slice(PAGE.indexOf('<section id="panel-runs"'), PAGE.indexOf('</section>', PAGE.indexOf('<section id="panel-runs"')));
-  const order = ['id="rl-top"', 'data-testid="rl-filter-note">filters below act on Jobs and quiet jobs only', 'id="runs-filterbar-anchor"', 'id="wf-list"'].map((s) => panel.indexOf(s));
+  const order = ['id="rl-top"', 'data-testid="rl-filter-note">search also finds Scheduled; ◷ shows only Scheduled', 'id="runs-filterbar-anchor"', 'id="rl-sched"', 'id="wf-list"'].map((s) => panel.indexOf(s));
   assert.ok(order.every((i) => i !== -1), `panel-runs parts missing: ${order}`);
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'top sections, the dashed note, the filter bar, then Jobs');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'top sections, the dashed note, the filter bar, Scheduled (am20), then Jobs');
   assert.match(panel, /rl-dash/);
 });
 
@@ -321,14 +323,14 @@ test('the limits live on the server only: the page has no literal 7 or 30 for th
 function listHarness() {
   const els = {};
   const mk = (id) => (els[id] = { id, _h: '', writes: 0, get innerHTML() { return this._h; }, set innerHTML(v) { this.writes += 1; this._h = v; }, contains: () => false, querySelectorAll: () => [] });
-  mk('rl-top'); mk('wf-list');
+  mk('rl-top'); mk('rl-sched'); mk('wf-list');
   const body = `
     var rlData = { rows: ROWS, jobs: JOBS, scheduled: [], limits: LIMITS };
-    var rlOpen = {}; var rlLast = { top: null, jobs: null }; var currentFlow = null; var currentRunId = null;
+    var rlOpen = {}; var rlLast = { top: null, sched: null, jobs: null }; var currentFlow = null; var currentRunId = null;
     function tickSince(){}
     function currentRunsFilters(){ return NONE; }
     function withFocusPreserved(el, fn){ fn(); }
-    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
+    ${['escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText', 'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive', 'rlModel', 'rlSectHtml', 'rlJumpCardHtml', 'rlScheduledCardHtml', 'rlRunCardHtml', 'rlJobCardHtml', 'rlTopHtml', 'rlSchedShown', 'rlSchedHtml', 'rlJobsHtml', 'paintRunsList'].map(fnSrc).join('\n')}
     return { paintRunsList, setSel: function(f, r){ currentFlow = f; currentRunId = r; } };`;
   const rows = runsOf('f', 3);
   const api = new Function('document', 'ROWS', 'JOBS', 'LIMITS', 'NONE', body)({ getElementById: (id) => els[id] }, rows, [meta('f')], LIMITS, NONE);

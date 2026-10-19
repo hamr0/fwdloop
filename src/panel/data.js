@@ -43,6 +43,11 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
+import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
+import { readRunThinking } from '../flowmodel.js';
+import {
+  isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
+} from '../audit-fold.js';
 import {
   runLiveness, booksFresh, readResumeLock,
 } from '../liveness.js';
@@ -710,11 +715,6 @@ export function deriveStepTryMarks(closeClass, rows) {
     });
   }
   return rows.map((r) => markForVerdict(r.verdict, closeClass));
-}
-
-/** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). */
-function isTryRow(r) {
-  return r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && !(r.verdict === 'stopped' && !Number.isInteger(r.attempt));
 }
 
 /** The name of the one group for audit rows that name no step. */
@@ -1385,6 +1385,7 @@ function enrichAuditRows(rawRows) {
     action: deriveAuditAction(row),
     tokensDisplay: deriveAuditTokensDisplay(row),
     toolsPhrase: deriveAuditToolsPhrase(row),
+    thinkingPhrase: thinkingTryWords(row.thinking),   // M4d am26: null for a row that kept no thinking record
     atWhy: deriveAuditAtWhy(row),
     blocked: isBlockedVerdict(row.verdict),
   }));
@@ -1549,7 +1550,12 @@ export function getRunDetail({
   // summed copy. A step with no audit rows at all (never attempted) has no
   // entry here — its card falls back to "not started", same as before.
   const auditGroupsByStep = {};
-  for (const g of deriveAuditGroups(enrichAuditRows(ctx.auditRows))) auditGroupsByStep[g.step] = g;
+  // M4d am29 items 5-6: the cards' marker and new line, and the summary's two lines, come from the SAME fold the Audit draws (src/audit-fold.js)
+  const diaries = loadDiaries(run.runDir);
+  for (const g of deriveAuditGroups(enrichAuditRows(ctx.auditRows))) {
+    const fold = g.run ? null : deriveFold(g, diaries);
+    auditGroupsByStep[g.step] = fold ? { ...g, fold } : g;
+  }
 
   let steps = null;
   let stepsWhy = null;
@@ -1618,6 +1624,10 @@ export function getRunDetail({
           // (never attempted) — every field below stays `null`/empty rather
           // than a guessed 0, matching `deriveAuditGroups`'s own honesty
           // rules exactly (it's the SAME group object).
+          // M4d am29 item 6: `[model]` / `[human · ask]` (null for a step with no record), and the one new line (`—` with no record); a human step's time is the page's
+          who: group?.fold?.who ?? null,
+          newLine: cardLine(group?.fold ?? null),
+          lastAnswerAt: group?.fold?.lastAnswer?.at ?? null,
           groupState: group ? group.state : null,
           timeMs: group ? group.timeMs : null,
           cost: group ? group.cost : null,
@@ -1769,6 +1779,8 @@ export function getRunDetail({
     model,
     modelWhy,
     spendSummary,
+    // M4d am29 item 5: `calls: …` and `checks: …` (`—` for a run with no diaries)
+    runLines: summaryLines(diaries),
     wallMs,
     wallMsWhy,
     steps,
@@ -1919,6 +1931,27 @@ export function getDraftBlock(flowDir, runDir) {
 }
 
 /**
+ * M4d am29 items 4-6: put each step group's `fold` (src/audit-fold.js) on it, in place. An ask step's fold names the file it asks about
+ * (the artifact its first `reads` entry made), read from the run's own saved job when it can be read; otherwise the Path shows `—`.
+ * @param {any[]} groups @param {string} runDir @param {string} flowDir @param {{root: string, flow: string, catalogue?: any}} o
+ */
+function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
+  const d = loadDiaries(runDir);
+  let steps = null;
+  if (catalogue) {
+    const job = readRunJob({ root, name: flow, catalogue, runDir }).read;
+    if (job.ok) steps = job.declaration.steps ?? [];
+  }
+  for (const g of groups) {
+    if (g.run) continue;
+    const decl = steps?.find((x) => x.emits === g.step);
+    const read = Array.isArray(decl?.reads) ? decl.reads[0] : null;
+    const fold = deriveFold(g, d, { about: typeof read === 'string' ? `artifacts/${read}.json` : null });
+    if (fold) g.fold = fold;
+  }
+}
+
+/**
  * `GET /api/runs/:flow/:runId/audit` — the Audit/logs tab (M4a scope item
  * 2): the raw `audit.jsonl` rows, scoped strictly to this run (each run's
  * own `audit.jsonl` file already carries only its own rows — there is no
@@ -1941,6 +1974,9 @@ export function getRunAudit({
   // (`tokensDisplay`) and the new Time column's old-row "why" (`atWhy`) are
   // likewise derived here, off this same row, never client-side.
   const rows = enrichAuditRows(rawRows);
+  // M4d am29 items 4 and 7: each step's fold is read off the run's files on disk ($0 replay); a step with no record (an older run) has none and draws as before
+  const groups = deriveAuditGroups(rows);
+  attachFolds(groups, run.runDir, run.flowDir, { root, flow, catalogue });
   return {
     flow,
     runId,
@@ -1948,7 +1984,7 @@ export function getRunAudit({
     // hamr's 2026-09-27 exit-check review #1: the Audit tab's grouped-by-
     // step header pieces, computed here off these SAME enriched rows —
     // never a second, client-side re-grouping.
-    groups: deriveAuditGroups(rows),
+    groups,
     draft: getDraftBlock(run.flowDir, run.runDir),
     // M11 am11 items 3-4: the one row that says why the card left Needs you (by your Remove, or after 7 days); words: src/summary-words.js
     needsLeft: catalogue ? needsLeftWords(getRunNeeds({
@@ -1960,12 +1996,13 @@ export function getRunAudit({
       if (!t) return null;   // no schedule now: scheduleAuditWords still answers for a cancelled job that has am16 rows (M9 am18), else null
       const rec = readTriggerRecord(run.runDir);
       const at = firstPidStartedAt(run.runDir) ?? (rec && typeof rec.at === 'string' ? rec.at : null);   // the fire's own stamp when the run kept no pid row yet
-      return scheduleAuditWords({
+      const sched = scheduleAuditWords({
         trigger: t.trigger, runId, from: t.from ?? null, rec, startMs: at === null || Number.isNaN(Date.parse(at)) ? null : Date.parse(at),
         block: scheduleBlockOf({ root, flowDir: run.flowDir, flow, catalogue, t, home, now }),
         running: jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun }),
         fires: Array.isArray(t.allFires) ? t.allFires : [],
       });
+      return sched === null ? null : { ...sched, word: SIGN_WORDS[sched.sign] ?? null };   // M9 am23: the header's word, from the one sign->word table
     })(),
     empty: rows.length === 0,
     why: rows.length === 0 ? 'audit.jsonl is empty or missing — no attempt has been made yet' : null,
@@ -2068,6 +2105,8 @@ export function getRunJob({
         trigger: f && f.trigger ? f.trigger : null, from: f?.from ?? null, model: f?.model ?? null, destination: f?.destination ?? null, inputs: f?.inputs ?? null, home,
       });
     })(),
+    // M4d am28: the run's rule from its own thinking.json; a run with none (before am25) reads `—` (thinkingRuleWords(null)); the row always shows
+    thinkingRule: thinkingRuleWords(readRunThinking(run.runDir)),
     jobFrom: copy.present ? 'run' : 'current',
     jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,
     model,

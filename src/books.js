@@ -66,7 +66,7 @@ export function readPidRows(runDir) {
  * @param {string} relPath - the book's own file name, relative to baseDir
  * @returns {any[]}
  */
-function readLines(baseDir, relPath) {
+export function readLines(baseDir, relPath) {
   const result = readFileInside(baseDir, relPath);
   if (!result.ok) return [];
   const rows = [];

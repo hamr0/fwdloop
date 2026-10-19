@@ -124,6 +124,15 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 1. The Run tab summary shows how long the run took: `passed · $0.0047` becomes `passed · $0.0047 1m56s`.
 2. The runs list Scheduled section gets its own filter/search, like the other sections.
 
+**Signed as M10 scope: rubric checks and asks for jobs that check a page or a sheet** (hamr, 2026-10-18; M10 scope input, after v0.21.0). Signed by hamr 2026-10-18 as the M10 scope (docs/wiki/the-module-ladder.md, M10); starts after v0.21.0. hamr's goal: an automation job that checks something online (the shape of bareloop's flights job) with actions and asks, and the same for a local sheet when a citation isn't found: "hitl is rubric with hitl", borrow what fits. From bareloop (F226-F228, F234-F238 in `../bareloop/docs/wiki/FINDINGS.md`; build spec `../bareloop/docs/product/ITEM33-BUILD.md` "Idea A core"):
+1. Page words must read a value of the right kind, not just be on the page (run mvdg1xo3 signed `StaticText` and `O` and could never pass).
+2. An AI proposes the page's own words per fact; code keeps only words really on the page and applies small frozen rules; every dropped check is shown as "Not checked" with a plain reason, never dropped silently.
+3. A guardrail with no word on the page (e.g. "not a red-eye") is reshaped into one the page holds (a departure window) and the person is asked before paid drafting whether that is what they mean.
+4. Every question, answer and the fact it confirmed is recorded (draft log, Audit, signed job "you confirmed"); bareloop found it kept them nowhere.
+bareloop's detailed borrow spec: `../bareloop/docs/product/fwd-borrow-from-bareloop-rubric-2026-10-18.md`; fwdloop's own POC 0/40 (the model never used an offered questions field) means code, not the model, decides when to ask.
+
+**Tested, then built: thinking per step** (hamr, 2026-10-17). Idea borrowed from bareloop F230-F233: thinking off on a step's first try, on for retries and Redo, with thinking on everywhere kept as an escape hatch for hard jobs. Pre-registered and run as F69 in `docs/logs/FINDINGS.md`: NO BUILD (am29-walk-2: retries-only passed 1 of 4 vs thinking-on-everywhere 2 of 4). Follow-up F70 (today vs retries only on `m7-walk-2`, n=8): BUILD (8/8 both; retries only about 15% cheaper and 9% faster). F69 and F70 disagree on the job whose first tries fail often. hamr then signed it, and it was built as M4d am25-am28 on branch `m9-am21` (2026-10-17/18): am25 thinking per step with the Chat box as the hatch, am26 thinking words in Audit and the Job tab, am27 the `(no reply)` word, am28 Model and Thinking on one row.
+
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign` — sign needs an interactive terminal and a typed flow name, M6a amendment 2) but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).

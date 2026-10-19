@@ -62,6 +62,12 @@ import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
+import { stepThinkingMode } from './thinking.js';
+import { appendChecks, nextRound } from './diary.js';
+import {
+  doneRecord, happenedRecord, outputRecord, closeRecords,
+} from './try-checks.js';
+import { readJobThinking, writeRunThinking } from './flowmodel.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -667,6 +673,7 @@ function sumKnownUsd(...values) {
 // unchanged.
 function makeAuditRow({
   step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null, tools = null, ungranted = /** @type {string[]|undefined} */ (undefined), refused = /** @type {Array<{verb:string,path:string,rule:string}>} */ ([]),
+  thinking = /** @type {{asked:string, status:string|null}|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -686,6 +693,8 @@ function makeAuditRow({
     refused,
   };
   if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
+  // M4d am25 item 4: the thinking this model call asked for and what bareagent reported back; the ONE writer of the field. A row with no model call has none.
+  if (thinking !== undefined) row.thinking = thinking;
   return row;
 }
 
@@ -708,16 +717,20 @@ function makeAuditRow({
  * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
+ * @param {boolean} [opts.thinkingBox] - M4d am25: the job's "Thinking on" box as this run's copy keeps it (default off)
  * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
  *   defaults to the real wall clock.
  * @param {(() => boolean)|null} [opts.readStop] - amendment 7 item 8: the run's stop reader, asked before every try and (via modelStep's seam) every model call
  * @param {number} [opts.stepNo] - this step's 1-based number, for the words of a stop row
  * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
+ * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
 async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
+  // M4d am25: the job's "Thinking on" box as the run's own copy keeps it; read once by the caller (`readJobThinking`), decided per try below by `stepThinkingMode`.
+  thinkingBox = false,
   // M4a-2: the run's own injected clock (never the bare wall clock) —
   // stamps every audit row's `at` with this attempt's finish time. Defaults
   // to the real wall clock so a caller that doesn't inject one (there are
@@ -729,6 +742,8 @@ async function runStepRalph({
   // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
   // against the limit, so Resume always gets at least one new try).
   readStop = null, stepNo = 0, triesDone = 0,
+  // M4d am29 item 2: the run's folder, where each try saves its checks (`checks.jsonl`, src/diary.js)
+  runDir = null,
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
 }) {
@@ -782,7 +797,8 @@ async function runStepRalph({
     // schema without the executor context ever needing to carry one (M2
     // scope item 3's own invariant: the schema is class-only, and the
     // construction test below proves the context itself stays clean).
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null });
+    // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
@@ -827,7 +843,7 @@ async function runStepRalph({
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       const ranCalls = (turns ?? 0) > 0 || attemptFloorUsd !== null;
       return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), makeAuditRow({
-        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }));
     }
 
@@ -838,7 +854,7 @@ async function runStepRalph({
       // null second cost never zeroes out a known first floor.
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
     }
@@ -855,7 +871,7 @@ async function runStepRalph({
       if (strike) strikes += 1;
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused, thinking: result?.thinking,
       }), red);
       if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
@@ -866,12 +882,22 @@ async function runStepRalph({
 
     if (result.costUsd === null || result.costUsd === undefined) {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
     }
     spent.value += result.costUsd;
     const attemptUsd = sumKnownUsd(attemptFloorUsd, result.costUsd);
+
+    // M4d am29 item 2: this try's checks, in the order they run; `saveTry` writes them (and the output they judged) once, just before the try's audit row
+    const tryChecks = /** @type {any[]} */ ([]);
+    let judged = null;
+    const saveTry = () => {
+      if (runDir === null) return;
+      appendChecks(runDir, {
+        step: step?.emits ?? step?.goal ?? null, try: attempt, at: now(), lastRound: nextRound(runDir, step?.emits ?? step?.goal ?? null) - 1, checks: [...tryChecks].sort((a, b) => a.n - b.n), output: judged,
+      });
+    };
 
     // The model's own word, taken at face value — before the happened check,
     // before any close, no exception (M2 amendment 1 item 1). A halt, not a
@@ -879,22 +905,27 @@ async function runStepRalph({
     // `result.artifact` (done/blocker included) for log.json; everything
     // downstream of a `done: true` gets the STRIPPED artifact.
     const doneCheck = checkDoneBlocker(step, result.artifact);
+    tryChecks.push(doneRecord(doneCheck, result.artifact));
     if (doneCheck.verdict === 'not-done') {
+      saveTry();
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
     }
     const artifact = stripDoneBlocker(result.artifact);
 
     const happened = checkArtifactHappened(step, artifact);
+    tryChecks.push(happenedRecord(happened, artifact));
+    judged = outputRecord(step, artifact);
     if (happened.verdict === 'red') {
+      saveTry();
       // Item 5: "or wrote no artifact" strikes unconditionally, every time
       // (never gated by novelty — an empty artifact is always the same
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: ${happened.red}` };
@@ -904,10 +935,12 @@ async function runStepRalph({
     }
 
     const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
+    tryChecks.push(...closeRecords(step, artifact, closed));
+    saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
       recordAudit(makeAuditRow({
-        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
       return {
         ok: true, artifact, attempts: attempt, hitl: closed.verdict === 'hitl',
@@ -918,7 +951,7 @@ async function runStepRalph({
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
       recordAudit(makeAuditRow({
-        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+        step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
     }
@@ -928,7 +961,7 @@ async function runStepRalph({
     seenGaps.add(normalised);
     if (strike) strikes += 1;
     recordAudit(makeAuditRow({
-      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused,
+      step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
     }), result.artifact);
 
     if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${closed.red}` };
@@ -1071,6 +1104,9 @@ export async function runFlow({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: jobCopy.red, spent: { value: 0 },
     });
   }
+
+  // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
+  writeRunThinking(flowDir, runDir);
 
   const frozen = freezeInputs(runDir, sources ?? []);
   if (!frozen.ok) {
@@ -1423,7 +1459,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, now,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1678,7 +1714,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, now,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {

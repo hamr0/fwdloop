@@ -3078,3 +3078,63 @@ The human named no sections, so the AI made them up. The Fix points at a job lin
 The words are in `src/plain-checks.js` (the first rule, `fix`: "Change the job line to use the section words you want."; it was already the wording the page had shown since M4e am41). The am15 item 3 requirement is one Fix line on every red draft; it does not say which words suit which cause.
 
 Not fixed. A fix that depends on whether the job line names sections at all would need the checker to say which of the two it is.
+
+## F69 — thinking only on retries vs thinking everywhere: pre-registered before any run (2026-10-17)
+
+**Question.** Does turning thinking on only for retries (a step's 2nd+ attempt, and a step redone after Redo) beat thinking on for every step call, on fwdloop's real jobs? Borrowed idea: bareloop F230-F233 (code decides by phase and attempt; per-job tick = on everywhere; on medium code jobs retry-only was cheaper and faster at equal or better pass rate).
+
+**Set up (written before any data, hamr 2026-10-17).**
+- Model: deepseek-flash. Run steps only; drafting is not part of this test (jobs already signed).
+- Jobs: `aging-live-4` (4 steps, short) and `am29-walk-2` (5 steps, retried on its word/heading checks today).
+- Arms, n=4 runs per job per arm (24 runs):
+  1. `today`: no thinking setting sent (what fwdloop does now); record what the provider actually did.
+  2. `on`: thinking on for every step call.
+  3. `retry`: attempt 1 off; attempt 2+ on; a step redone after a human Redo on.
+- Asks are answered `accept` by the harness. Budget: $3 hard stop (hamr 2026-10-17, option A: a run starts only if spend so far plus the job's cap fits; am29-walk-2's cap is $1); an unknown cost stops the batch.
+- Measured per run: pass (green), cost, wall time, turns (model calls) per step and total, attempts per step, thinkingStatus per call, tools called.
+- Harness: `poc/thinking/` (throwaway, never shipped).
+
+**Win rule (hamr 2026-10-17, option A).** BUILD `retry` if, on both jobs, it passes at least as many runs as `on`, AND it is faster (median wall time) or cheaper (median cost) than `on` on at least one job. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
+
+**Result (2026-10-17): NO BUILD.** Batch `~/fwdloop-think-3` (outside the repo), 24 live runs on deepseek-flash, $0.307 spent, harness `poc/thinking/` at 256416c, scored by `poc/thinking/score.mjs` with the win rule above.
+
+| job | arm | passed | median cost | median wall | median turns |
+|---|---|---|---|---|---|
+| aging-live-4 | today | 4/4 | $0.00427 | 17.1s | 5.5 |
+| aging-live-4 | on | 4/4 | $0.00470 | 18.2s | 5.5 |
+| aging-live-4 | retry | 4/4 | $0.00229 | 12.4s | 6.0 |
+| am29-walk-2 | today | 3/4 | $0.01983 | 82.7s | 14.0 |
+| am29-walk-2 | on | 2/4 | $0.01883 | 76.3s | 14.0 |
+| am29-walk-2 | retry | 1/4 | $0.02224 | 82.9s | 14.0 |
+
+- Verdict by the written rule: NO BUILD (am29-walk-2: retry passes 1 < on 2). Every red was `attempt-fallback` on am29-walk-2 (the step ran out of tries on its checks).
+- `today` (no thinking setting sent) costs about the same as `on`: the provider appears to think by default. Not proven: bare-agent reports no thinkingStatus when no mode is sent.
+- On aging-live-4 no step needed a second try, so `retry` there is "thinking off": about half the cost and 30% less time than `today`/`on`, same passes.
+- On am29-walk-2 thinking off on the first try failed more often, and thinking on for the retries did not recover it.
+- n=4 per arm is small; 1 vs 2 passes may be chance. Not rerun to flip the verdict; a follow-up is a new pre-registered question.
+- Two earlier batches stopped before a fair run and are not counted: `~/fwdloop-think-1` (am29 had no model recorded; refused at $0) and `~/fwdloop-think-2` (monthly limit too low for am29's $1 hold; and a send-name collision made one aging run red, fixed in 256416c). Spent in them: $0.0082.
+
+## F70 — thinking only on retries vs today, on a second resume job: pre-registered before any run (2026-10-17)
+
+**Question.** Follow-up to F69 (a new question, not a rerun). On a resume-shaped job, does thinking only on retries (attempt 1 off; attempt 2+ and a Redo on) beat today's setting (no thinking setting sent)?
+
+**Set up (written before any data, hamr 2026-10-17).**
+- Model: deepseek-flash. Run steps only; drafting is not part of this test.
+- Job: `m7-walk-2` (resume + JD → a 3-section summary resume; in-run park/recall). Inputs: the real resume.docx and jd.md of its run-1 (runs 3 and 4 used a CSV as the resume and failed at step 1, so they are not used).
+- Arms, n=8 runs each (16 runs): `today` (no thinking setting sent) and `retry` (attempt 1 off; attempt 2+ on; Redo on).
+- Asks are answered `accept` by the harness. Budget: $3 hard stop (a run starts only if spend so far plus the job's $0.5 cap fits); an unknown cost stops the batch.
+- Measured per run: pass (green), cost, wall time, turns (model calls) per step and total, attempts per step, thinkingStatus per call, tools called.
+- Harness: `poc/thinking/` (throwaway, never shipped).
+
+**Win rule (hamr 2026-10-17, same as F69).** BUILD `retry` if it passes at least as many runs as `today`, AND it is faster (median wall time) or cheaper (median cost) than `today`. Otherwise NO BUILD. Turns are counted and reported; they do not decide.
+
+**Result (2026-10-17): BUILD.** Batch `~/fwdloop-think-f70` (outside the repo), 16 live runs on deepseek-flash, $0.186 spent, inputs from `m7-walk-2` run-1 (resume.docx, jd.md), harness `poc/thinking/` at a51bb43, scored by `poc/thinking/score.mjs --rule f70`.
+
+| job | arm | passed | median cost | median wall | median turns |
+|---|---|---|---|---|---|
+| m7-walk-2 | today | 8/8 | $0.01200 | 55.3s | 14.0 |
+| m7-walk-2 | retry | 8/8 | $0.01024 | 50.2s | 14.0 |
+
+- Verdict by the written rule: BUILD (retry passes 8 = today 8, and is both cheaper, about 15%, and faster, about 9%).
+- Only one run needed a retry (retry run-1102: 20 turns, $0.0183); every other run took 14-15 turns.
+- Read with F69: on am29-walk-2 retries-only passed fewer runs (1/4 vs 2/4, NO BUILD); on m7-walk-2 and aging-live-4 it passed all and cost less. The two results disagree on the job where first tries fail often; n is small in both.

@@ -327,7 +327,7 @@ export async function draftToDir({
   files['target.json'] = targetText;
   // M4d am6 item 6: the pick is remembered beside the draft (written below as model.json, outside the signed files) so the signed job runs with it.
   const recordModel = model ?? result.modelId ?? modelId;
-  const pick = typeof slot === 'string' && typeof recordModel === 'string' && recordModel !== '' ? { slot, model: recordModel } : null;
+  const pick = typeof slot === 'string' && typeof recordModel === 'string' && recordModel !== '' ? { slot, model: recordModel, ...(draftThinking === 'on' ? { thinking: true } : {}) } : null;
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);

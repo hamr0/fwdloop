@@ -1430,6 +1430,81 @@ A Cap at or below what the earlier draft already spent is red: 'The cap must be 
 **M4d amendment 24 — SIGNED by hamr 2026-10-16 ("sign m4d am24").**
 When the Cap is at or below what the earlier draft already spent, Draft is refused with the same red words as the Cap note, and no draft starts.
 
+**M4d amendment 25 — SIGNED by hamr 2026-10-17 ("sign m4d am25"): thinking per step, with the Chat box as the hatch.**
+1. Code decides thinking for each step call of a run, never the model. A step's 1st try thinks **off**. Its 2nd and later tries, and a step redone after **Redo**, think **on**.
+2. The Chat **Thinking on** box (am7) now also covers the job's runs. When it's ticked, every step thinks on every try. The box's state when you sign is kept with the job.
+3. Drafting still follows the box, as am7 says.
+4. Each step call's audit row records the thinking it asked for and what bareagent reported back.
+- **Must fail when:** with the box off, a 1st try asks for thinking on; with the box off, a 2nd try or a Redo asks for thinking off; with the box on, any call asks for thinking off; a step call's audit row has no thinking record.
+- **Done when:** tests that fail first, plus one live run of m7-walk-2 whose audit shows a 1st try off.
+- **Cap:** $0.10.
+
+- **Built after signing — not signed text (2026-10-17), M4d am25:** built in `a3ea43f` (`src/thinking.js`, `src/model-step.js`, `src/runner.js`, `src/flowmodel.js`, `src/authoring.js`); test `test/m4d-am25.test.js`. Live-proven on m7-walk-2 (try 1 off, try 2 on).
+
+**M4d amendment 26 — SIGNED by hamr 2026-10-18 ("sign m4d am26"): thinking shows in Audit and on the Job tab.**
+1. In Audit, each try line inside a step shows its thinking:
+   ```
+   ▾ [✓] passed summary_resume · $0.005 · 3 tries
+       try 1 [✗] · thinking off
+       try 2 [✓] · thinking on
+   ```
+2. When bareagent confirms the setting, the line says `thinking on` or `thinking off`. When it isn't sure, the line uses the same words Chat already uses, from the one place they're kept, for example `thinking on (this model can't change it)` or `thinking off (not confirmed)`.
+3. The Job tab gets one row with the run's rule: `Thinking: on retries (the default)` or `Thinking: on everywhere (ticked)`.
+4. Runs from before am25 show no thinking words. They're never guessed.
+- **Must fail when:** a try line of an am25 run has no thinking word; the word on the page differs from the audit file; an older run shows a thinking word; the Job tab row is missing or names the wrong rule.
+
+- **Built after signing — not signed text (2026-10-18), M4d am26:** built in `5cd4d92`, with `d8f8009` (the Job-tab row placed under Schedule, as the page tests pin) and `fc44ba5` (row-builder tests list the new helper); test `test/m4d-am26.test.js`. Choice where the text was silent: the try words sit in the Audit Verdict cell, after the verdict badge. Item 3's Job-tab words and item 4's hiding of the row are replaced by am28.
+
+**M4d amendment 27 — SIGNED by hamr 2026-10-18 ("sign m4d am27"): a thinking word when the model sends no reply.**
+1. When a try ends with no reply from the model (an error, the time limit, or a Stop before the first reply), the try line names what was asked, plus `(no reply)`:
+   ```
+   try 1 [✗] · thinking off (no reply)
+   try 2 [✓] · thinking on
+   ```
+2. This covers a try that came back empty and a try whose error stopped it outright.
+3. The words are kept in the same one place as the other thinking words. They never say thinking happened; they only say what was asked.
+- **Must fail when:** a try with no reply has no thinking word; it shows `thinking on` or `thinking off` without `(no reply)`; the word on the page differs from the audit file.
+
+- **Built after signing — not signed text (2026-10-18), M4d am27:** built in `204764f`; test `test/m4d-am27.test.js` (and `test/m4d-am26.test.js` updated). Choice: the `(no reply)` words are keyed on a thinking record with no status, not on the verdict; the drafter and Chat words are untouched.
+
+**M4d amendment 28 — SIGNED by hamr 2026-10-18 ("sign m4d am28"): Model and Thinking share one row on the Job tab.**
+1. On the Job tab, Model and Thinking sit side by side on one row, laid out like the `$ cap / Time cap` row.
+2. The Thinking label is `Thinking`. The value is `on retries` (box not ticked) or `always on` (box ticked). This replaces the words in am26 item 3.
+3. The row always shows. A run from before am25 has no record, so it shows `—`, never a guess. This replaces the part of am26 item 4 that hid the row.
+4. The words are kept in one place in the code.
+- **Must fail when:** Model and Thinking are on separate rows; the row is missing on any run; an old run shows `on retries` or `always on`; the words differ from item 2.
+
+- **Built after signing — not signed text (2026-10-18), M4d am28:** built in `b5423db`; test `test/m4d-am28.test.js` (`test/m4d-am26.test.js` trimmed). Choices: fwdloop has no `$ cap / Time cap` row, so the existing `.field-row` (bareloop's Model + Thinking layout) is used; at 320px Thinking wraps under Model; the server field keeps the name `thinkingRule`.
+
+**M4d amendment 29 — SIGNED by hamr 2026-10-18 ("sign m4d am29"): the Audit shows every round, every check and every answer, read from disk ($0 replay).** From the design lab: C, F and G.
+1. **Two new diaries per run, add-only, like bareloop's.** In the run's folder:
+   - one row per model call: step, try, round, cost, tokens (in, out, cache), time, stop reason, thinking asked and status;
+   - one row per tool call: step, try, round, tool, path, and the guard's decision (allow, or deny with its rule). A tool call that doesn't pass through the guard still gets a row, marked `no check`. A denied call keeps its own row.
+2. **Each try saves its checks and its output.** Every check the try ran, numbered, with ✓ or ✗, its result (for example `412 words`), and where it comes from (`every step`, or a job line such as `line 3 ~`). Plus the output it judged: file name, size, sha256.
+3. **Never saved:** what the model said, and what was in any file. Secrets are scrubbed before a row is written. The model can never read these diaries.
+4. **Audit step fold (C).** The header ends with `[model]` or `[human · ask]`. Opened, it shows, in order:
+   - the tool tally (`get 8`);
+   - one line per try: `try 1 ✗ · thinking off · <gap>`;
+   - under each try, every check, e.g. `✓ #1 the output exists and isn't empty (7.9 KB) · from every step`, then `output judged: <file> · <size> · sha256 <short>`;
+   - a Round table: `Round · Try · Action · Path · Decision · Time`, paged like bareloop's (`showing 1–20 of N`). Rounds count from 1 in each step. Action names who acted: `model call`, `model · <tool>`, `check`, `human`. A human row's Decision is `paused for you`, `you said redo: "<your text>"`, `you accepted` or `you cancelled`. A row with no model call shows `—` for Round.
+
+   This replaces M4e amendment 7 item 2's "fwdloop's own columns" for step groups. The Draft group stays as it is.
+5. **Run tab summary (F).** Two new lines: `calls: <n> model · <n> tool · <n> denied` and `checks: <n> run · <n> passed · <n> failed (<step> tries <n>)`.
+6. **Run tab step cards (G).** Each card gets the same `[model]` or `[human · ask]` marker and one new line. A model step: `<n> rounds · checks on the last try <passed>/<run> ✓|✗`. A human step: `last answer: <answer> · <time>`.
+7. **$0 replay.** Everything in Audit and in these new lines is read from files on disk. Opening them never calls a model.
+8. **Old runs.** Runs from before am29 show what they show today. No rounds, checks or outputs are made up. A new line with no record shows `—`.
+- **Must fail when:** a model call or tool call has no row; a denied call is missing; a check that ran is not listed; a check names the wrong job line; an unknown cost shows $0; the model can read a diary; a secret, file content or model text is in one; a model step shows `[human · ask]` or the other way round; the summary or card numbers don't match the Audit rows; an old run shows made-up rounds or checks.
+
+- **Built after signing — not signed text (2026-10-18), M4d am29:** built in `3b1ebeb` (part 1, diaries: `src/diary.js`), `9536956` (part 2, checks: `src/try-checks.js`, `src/closers.js`), `fe60fc1` (parts 3-4, `src/audit-fold.js`, Run summary and cards) and `1ab6a7e` (fixes: no fs in audit-fold, one-try row sync untouched, types); tests `test/m4d-am29-diaries.test.js`, `test/m4d-am29-checks.test.js`, `test/m4d-am29-audit.test.js` (fixture `test/m4d-am29-world.mjs`). Choices where the text was silent or differs:
+  - The text says "two new diaries"; there are three files in the run folder: `calls.jsonl`, `tools.jsonl` and `checks.jsonl`. Checks are kept out of `audit.jsonl` because the model can read it; all three are denied to the model.
+  - The send step has no `[model]` / `[human · ask]` marker.
+  - Rounds keep counting across a step's tries (1, 2, 3 ... within the step).
+  - The per-call thinking status comes from a thin wrapper around the provider call.
+  - `emit_artifact` gets no tool row (it is the step's own output call, not a granted tool).
+  - Paging of the Round table is client-side: 20 rows at a time, with load more.
+  - `you cancelled` maps to a stopped row.
+  - Old runs show `—`; nothing is made up.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2412,10 +2487,61 @@ monthly wall is enforced **by the trigger**, before a run starts.
   5. Schedule lines inside jobs signed before this stop working. Set those schedules again by hand.
   - **Must fail when:** a schedule change changes the job's signature; Cancel stops or changes a starting run; a change leaves a waiting file behind; an old schedule line still fires.
 
+- **M9 amendment 21 — SIGNED by hamr 2026-10-17 ("sign m9 am21"): the Run tab summary shows how long the run took.**
+  1. The SUMMARY box's top line adds the run's time after its cost: `passed · $0.0047` becomes `passed · $0.0047 1m56s`. The time is the same number the `took …` line already uses, formatted the same way.
+  2. If the time isn't recorded, the line says `time not recorded`. It never says 0.
+  3. A run that is still going or waiting shows no time on this line.
+  - **Must fail when:** a finished run with a recorded time shows no time; an unknown time shows as 0; this time differs from the `took …` line.
+
+- **M9 amendment 22 — SIGNED by hamr 2026-10-17 ("sign m9 am22").** The time on the SUMMARY top line has a middle dot before it: `passed · $0.0062 · 3m28s`. This replaces the form in amendment 21 item 1. Everything else in am21 stays.
+  - **Must fail when:** the time has no `·` before it.
+
+- **M9 amendment 23 — SIGNED by hamr 2026-10-18 ("sign m9 am23"): the schedule header reads like the other part headers.**
+  1. The header goes sign, then word, then `schedule`, then the parts separated by ` · `:
+     `▾ [✗] failed schedule · when a new file arrives in ~/fwdloop-in/ · from run-1 · 5 tries started nothing`
+  2. The word comes from the same sign-to-word table as the other headers (`[✗]` failed, `[▶]` running, `[·]` waiting). It's never typed by hand.
+  3. This replaces the order in am9 item 2. The sign rule from am11 stays.
+  - **Must fail when:** `schedule` comes before the sign; the word is missing; the word doesn't match the table.
+- *Built after signing — not signed text:* M9 am23 built in `97981d9` (`src/panel/data.js`, `src/panel/index.html`); test `test/m9-am23.test.js` (`test/m9-am9-am11.test.js` updated for the new order). The word comes from the one sign-to-word table.
+
 ## M10 — real IO
 
 Mail in and out, chat, browse — each behind the signed allow-list and a prior `ask` accept in the
 same run. Scope is stated when its turn comes.
+
+*The paragraph above is superseded by the signed scope below (hamr, 2026-10-18).*
+
+- **M10 scope — SIGNED by hamr 2026-10-18 ("sign m10"): read a page or a sheet, turn every guardrail into a code check, ask while drafting.**
+  0. **Test first.** Before any M10 code is built:
+     - bareloop's Stage A: 3 drafts of a flights-page job, about 1 cent.
+     - Stage B: a $0 replay of the ask triggers.
+     - One local CSV case, where the job's word differs from the column name.
+
+     The pass marks are written into FINDINGS before anything runs. Nothing is built until it passes.
+  1. **A web page as an input.** A signed web address, fetched with barebrowse.
+     - We wait (with a time limit) until the page has finished loading, then freeze it with a fingerprint. This happens at drafting and again at each run start, and a run is checked against its own copy.
+     - An empty page stops at $0, with a plain reason.
+     - A site that blocks us is written down as a finding, never worked around.
+  2. **green grows.** A value points to its source: a cell (as today), a quote on the saved page, or a quote in a doc.
+     - It may also carry a number rule (under, over, between) and a result count ("3 results").
+     - Code checks the quote is word for word in the frozen copy and that the value passes the rule. No model grades.
+  3. **The source's own words.** While drafting, one AI call suggests the page's or sheet's own words for each guardrail. Code keeps only words that are really there and read a value of the right kind. The rules are copied from bareloop: found-on-page, N2, R1, U1/R1L, S1, the currency and unit lists. Plus one more: a label that reads no value is dropped.
+  4. **Reshape and ask, decided by code, never by the model.**
+     - Before paid drafting, at most 2 asks: for a number the AI made up, or a guardrail the source has no words for. A third trigger (a page label that isn't one of the job's words) is used only if the test in item 0 proves it works.
+     - The words are set by code: `Line n, guardrail "<…>": I propose <…>.` Choices: use it, your own words, or leave it Not checked.
+     - Your own words become a `~` rule on that line, word for word.
+     - After two failed drafts, one more ask in the same shape, once.
+  5. **Not checked, shown.** A guardrail that can't become a check shows `Not checked: <reason>` on the plan card, the signed job and the Audit. Never silent. hitl means only Ask lines. This replaces the PRD line "Anything that fits no class falls to hitl".
+  6. **Recorded.** Every question, answer, and the guardrail it settled is in three places: the draft log, the Audit (am29's fold), and the signed job ("you confirmed …"). Code writes it, never the drafter.
+  7. **Sheets and docs.** The same for CSV and .docx. When a job word isn't a column or a heading, code finds one that passes the same tests and asks, e.g. "no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?"
+  8. **Borrowed by copy** from bareloop, with headers. Page actions (click, book) and chat in/out are not in this scope; each gets its own signed scope later.
+  - **Done when:**
+    - A flights job, on a route bareloop never used, drafts with at most 2 code asks, signs, and runs green on deepseek-flash.
+    - Its 3 results' quotes are on the run's own saved page, and their values pass the rules. A separate script checks this, not our own checker.
+    - Every question and answer is in all 3 places.
+    - The CSV case asks once and runs green.
+  - **Must fail when:** a kept word isn't on the page; a signed label reads no value; a guardrail is dropped with no reason; an ask comes from the model choosing; more than 2 asks before drafting; an answer is missing from any of the 3 places; a run is checked against the drafting copy instead of its own; a cheat page (reversed route, "Pay $0") passes.
+  - **Cap:** first test about 2 cents; build $0 (tests only); the exit walk at most 50 cents per run, with your go for each run.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
@@ -2519,3 +2645,36 @@ same run. Scope is stated when its turn comes.
 
 - **M11 amendment 14 — SIGNED by hamr 2026-10-16 ("sign m11 am14").** When the Inbox has no rows, it shows only 'nothing waiting on you — no stops recorded under this root'. The dashed line, the filter note and the search/chips appear once there is at least one row.
 - **M11 amendment 15 — SIGNED by hamr 2026-10-16 ("sign m11 am15").** A job's top row is its waiting run, if it has one. A stuck run that has left Needs you (7 days, M11 am3 item 5) is no longer the top row. The newest run by time is.
+
+- **M11 amendment 16 — SIGNED by hamr 2026-10-17 ("sign m11 am16"): Scheduled gets its own search.**
+  1. The Scheduled section has its own search box under its header. Typing in it narrows the Scheduled cards by job name. When it's empty, every card shows.
+  2. When nothing matches, it says `no scheduled job matches`.
+  3. The main search and filters still never hide a Scheduled card, so M11 item 3 stays as signed. This amendment is an exception to M11's "Not in M11: new filters".
+  - **Must fail when:** the main search hides a Scheduled card; the Scheduled search hides any card outside Scheduled; no match leaves an empty section with nothing said.
+
+- **M11 amendment 17 — SIGNED by hamr 2026-10-17 ("sign m11 am17"): Scheduled is searched by the one search box, plus a `scheduled` chip.** This replaces amendment 16. It also replaces M11 item 3's "Not filtered" and item 5's "Search and filters act on Jobs and quiet jobs only", for Scheduled only.
+  1. **There is no separate Scheduled search box.** The one search box narrows the Scheduled cards by job name, along with Jobs. A run number or a date narrows only Jobs.
+  2. **The ✓ ✗ ■ · ▶ ? and 7d / 30d / all chips never touch Scheduled.**
+  3. **A new `scheduled` chip sits in the filter bar.** When it's pressed, the list shows only Scheduled, Jobs and the quiet fold hide, and the search box narrows only Scheduled. Press it again to go back.
+  4. **Running now and Needs you are never filtered or searched,** chip or not, as signed.
+  5. **If Scheduled has no matching card, it draws nothing,** header included, as for any empty section. With the `scheduled` chip pressed and no match, the list says `no scheduled job matches`.
+  - **Must fail when:** a separate Scheduled search box is drawn; a search for a job name leaves a non-matching Scheduled card shown; a result or time chip hides a Scheduled card; the `scheduled` chip leaves Jobs shown; a search or chip hides a Running now or Needs you card; the `scheduled` chip with no match shows an empty list with nothing said.
+  - *Built after signing — not signed text:* "item 5's" above points to the wrong place: the words "Search and filters act on Jobs and quiet jobs only" are in the bullet under M11's item 6, not in item 5.
+
+- **M11 amendment 18 — SIGNED by hamr 2026-10-17 ("sign m11 am18").** The faint line above the search box (M11 item 4) reads `search also finds Scheduled; the chips act on Jobs only`.
+
+- **M11 amendment 19 — SIGNED by hamr 2026-10-17 ("sign m11 am19").** The `scheduled` chip (am17 item 3) shows `◷`, and hovering it shows `scheduled jobs only`. The faint line becomes `search also finds Scheduled; ◷ shows only Scheduled`. This replaces am18's line.
+  - **Must fail when:** the chip shows the word instead of `◷`; the chip has no hover words.
+
+- **M11 amendment 20 — SIGNED by hamr 2026-10-17 ("sign m11 am20"): Scheduled moves below the search box.**
+  1. The list, top to bottom: Running now, Needs you, then the grey line, the search box and the chips, then **Scheduled**, then Jobs and the quiet fold.
+  2. Above the search box are only the sections that are never filtered. Everything the search or chips act on sits below it.
+  3. With ◷ pressed, the count line says `showing 1 scheduled job` (the real number, `jobs` when there's more than one).
+  4. ◷ is drawn at the same size as ✓ and ✗.
+  - **Must fail when:** a Scheduled card shows above the search box; ◷ is pressed and the count line still counts runs; ◷ is smaller than the other chip symbols.
+
+- **M11 amendment 21 — SIGNED by hamr 2026-10-19 ("sign m11 am21"): ◷ size means the ink you see.** This makes am20 item 4 clear.
+  1. "◷ is drawn at the same size as ✓ and ✗" means the mark you see: ◷'s ink is as tall as ✓'s ink, within 1px, whatever font the computer uses to draw it.
+  2. The page measures ✓ and sizes ◷ to match. There is no fixed size tuned on one machine.
+  3. The empty space around a mark is not judged.
+  - **Must fail when:** ◷'s ink is more than 1px taller or shorter than ✓'s; the test runs with only one font. It must force at least two fonts, one of them a font where a fixed size fails.

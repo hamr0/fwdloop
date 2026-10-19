@@ -53,3 +53,42 @@ export function thinkingSay(status) {
   if (status === 'unknown') return 'thinking off (not confirmed)';
   return null;
 }
+
+/**
+ * M4d am26 items 1-2: the words after a try line in the Audit, from that try's audit-row `thinking` {asked, status} (am25). bareagent confirmed it
+ * ('applied'): `thinking on` / `thinking off`. Any other status: `thinkingSay`'s words above, the same ones Chat uses. A row with no `thinking` (before am25,
+ * or no model call) has no words: nothing is guessed.
+ * M4d am27: a row with a `thinking` record but no status (the model sent no reply: an error, the time limit, a Stop before the first reply) reads
+ * `thinking <asked> (no reply)`, from what was ASKED; the words never say thinking happened. Nothing asked (asked null) has no words.
+ * @param {{asked?: unknown, status?: unknown}|null|undefined} thinking @returns {string|null}
+ */
+export function thinkingTryWords(thinking) {
+  if (thinking === null || typeof thinking !== 'object') return null;
+  const status = typeof thinking.status === 'string' ? thinking.status : null;
+  if (status === null) return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked} (no reply)` : null;
+  if (status === 'applied') return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked}` : null;
+  return thinkingSay(status);
+}
+
+/**
+ * M4d am28 items 2-4 (replaces am26 item 3's words and the hidden row): the Job tab's Thinking value, from the run's own record
+ * (`boxOn` = the Chat "Thinking on" box as the run started). A run with no record (before am25) is `null` and reads `—`, never a guess from model.json.
+ * Words: bareloop's `thinkingJobText`.
+ * // borrowed-from: bareloop src/thinking.js@b79e7d9
+ * @param {boolean|null} boxOn
+ */
+export function thinkingRuleWords(boxOn) {
+  if (boxOn === null) return '—';
+  return boxOn ? 'always on' : 'on retries';
+}
+
+/**
+ * M4d am25 item 1/2: the ONE owner of what thinking a step's model call asks for. Code decides, never the model.
+ * Box ticked (the job's Chat "Thinking on" box, kept with the job): every try 'on'. Box off: the 1st try 'off'; the 2nd and later tries 'on'.
+ * A step redone after a human Redo is numbered from its redo count (the runner's `attemptOffset`), so it is always a 2nd-or-later try and thinks 'on'.
+ * @param {{boxOn: boolean, attempt: number}} a the runner's 1-based attempt number for this step
+ * @returns {'on'|'off'}
+ */
+export function stepThinkingMode({ boxOn, attempt }) {
+  return boxOn === true || (Number.isInteger(attempt) && attempt >= 2) ? 'on' : 'off';
+}

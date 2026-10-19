@@ -32,6 +32,8 @@ import { primitiveFor, loadCatalogue } from './catalogue.js';
 import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 import { makeCtxTools } from './ctx-tools.js';
+import { diaryPaths } from './diary.js';
+import { readdirInside } from './flow.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a
@@ -172,6 +174,9 @@ function sandboxedReadTool(gate, runDir, inputsByRole) {
   };
 }
 
+/** bare-agent's shell_grep default cap (DEFAULT_GREP_MAX_MATCHES, not exported) — mirrored for the entry-by-entry grep. */
+const GREP_DEFAULT_MAX_MATCHES = 200;
+
 function sandboxedGrepTool(gate, runDir, inputsByRole) {
   const real = shellTool('shell_grep');
   const textRoles = Object.keys(inputsByRole).filter((r) => rolePrimitiveFor(inputsByRole[r]) === 'read');
@@ -181,7 +186,31 @@ function sandboxedGrepTool(gate, runDir, inputsByRole) {
     parameters: roleParameters(real, textRoles),
     execute: async (args) => {
       const resolvedPath = await resolveRoleOrPath(gate, 'grep', 'grep', runDir, args, inputsByRole, textRoles);
-      return real.execute({ ...args, path: resolvedPath });
+      // M4d am29 item 3: the gate only denies the diaries by name, and bare-agent's grep stops at its cap with no exclude option. A folder that holds a diary
+      // (the run folder itself) is therefore grepped entry by entry, diaries left out BEFORE the cap, each entry through the same gate.
+      const diaries = new Set(diaryPaths(runDir).map((p) => path.resolve(p)));
+      const dir = path.resolve(resolvedPath);
+      let found;
+      if (dir === path.resolve(runDir)) {
+        const cap = args.maxMatches || GREP_DEFAULT_MAX_MATCHES;
+        const hits = [];
+        let fileCount = 0;
+        for (const name of readdirInside(runDir, '').sort()) {
+          const entry = path.join(dir, name);
+          if (diaries.has(entry) || hits.length >= cap) continue;
+          // not recursive: top-level files only; readdirInside lists a directory's entries and nothing for a file
+          if (args.recursive === false && readdirInside(runDir, name).length) continue;
+          const gated = await resolveAndGate(gate, 'grep', 'grep', runDir, entry);
+          const part = await real.execute({ ...args, path: gated, maxMatches: cap - hits.length });
+          hits.push(...(part?.hits ?? []));
+          fileCount += part?.fileCount ?? 0;
+        }
+        found = { hits, truncated: hits.length >= cap, fileCount };
+      } else {
+        found = await real.execute({ ...args, path: resolvedPath });
+      }
+      // safety net for any other path shape: a diary hit never reaches the model
+      return found && Array.isArray(found.hits) ? { ...found, hits: found.hits.filter((h) => !diaries.has(path.resolve(String(h?.file)))) } : found;
     },
   };
 }
@@ -320,10 +349,22 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   // and a red naming bareguard's own message, so the caller refuses the run.
   let gate;
   try {
-    gate = new Gate({ fs: { readScope, writeScope: [outDir] } });
+    // M4d am29 item 3: the diaries are denied to the model by name (bareloop's `fs.deny` of its audit sidecar path)
+    gate = new Gate({ fs: { readScope, writeScope: [outDir], deny: diaryPaths(runDir) } });
   } catch (err) {
     return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
   }
+
+  // M4d am29 item 1: what the gate last decided and how many times it was asked, so a tool call's diary row can say `allow`, the deny and its rule,
+  // or `no check` (a call that never reached the gate: readDocx, addressCells, a litectx verb with no path). Every tool below carries it as `gateSeen`.
+  const gateSeen = { n: 0, last: /** @type {{outcome:string, rule:string|null}|null} */ (null) };
+  const askGate = gate.check.bind(gate);
+  gate.check = async (action) => {
+    const decision = await askGate(action);
+    gateSeen.n += 1;
+    gateSeen.last = { outcome: decision.outcome, rule: decision.rule ?? null };
+    return decision;
+  };
 
   const tools = {};
   const reds = [];
@@ -379,5 +420,6 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
     }
   }
 
+  for (const verb of Object.keys(tools)) tools[verb] = { ...tools[verb], gateSeen };
   return { tools, reds };
 }

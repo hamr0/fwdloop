@@ -64,6 +64,8 @@ Work in progress. Nothing here is ready to install yet.
 
 The in-run `impact` tool needs ripgrep (`rg`) on PATH; without it the tool is refused with a message, never a wrong answer.
 
+The panel test `test/m11-am20.test.js` forces symbol fonts to prove the ◷ chip is sized by measurement, and fails on purpose when fewer than two of Symbola, FreeSans, Noto Sans Mono Condensed and Adwaita Mono are installed. On Debian/Ubuntu: `sudo apt-get install fonts-symbola fonts-freefont-ttf` (CI installs the same two).
+
 ## License
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
