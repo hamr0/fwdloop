@@ -88,6 +88,12 @@ async function world(t, width) {
   assert.ok(await chrome.waitFor('document.querySelectorAll("[data-testid^=rl-sched-]").length === 3', 20000), 'three Scheduled cards drawn');
   return chrome;
 }
+const forcedFontsSay = (ran, wanted) => `am21 needs at least two forced fonts installed; only ${JSON.stringify(ran)} of ${JSON.stringify(wanted)} found; install them: sudo apt-get install fonts-symbola fonts-freefont-ttf`;
+test('am21 the too-few-fonts failure names the fix', () => {
+  const say = forcedFontsSay(['FreeSans'], ['Symbola', 'FreeSans']);
+  assert.match(say, /sudo apt-get install fonts-symbola fonts-freefont-ttf/);
+  assert.match(say, /\["FreeSans"\]/, 'still says which fonts were found');
+});
 const typeMain = (chrome, v) => chrome.ev(`(function(){ var i = document.getElementById("runs-filter-search"); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
 const chip = (chrome) => chrome.ev('document.querySelector("[data-testid=chip-runs-scheduled]").click(); true');
 const countText = (chrome) => chrome.ev('document.getElementById("runs-filter-count").textContent');
@@ -128,7 +134,7 @@ for (const width of [1280, 390, 320]) {
       console.log(`# am21 at ${width} ${family || '(default)'}: ${JSON.stringify(m)}`);
       assert.ok(Math.abs(m.sched - m.pass) <= 1, `◷ ink height ${m.sched} vs ✓ ${m.pass} under "${family || 'default'}": ${JSON.stringify(m)}`);
     }
-    assert.ok(ran.length >= 2, `am21 needs at least two forced fonts installed; only ${JSON.stringify(ran)} of ${JSON.stringify(fonts.slice(1))} found`);
+    assert.ok(ran.length >= 2, forcedFontsSay(ran, fonts.slice(1)));
     const g = await chrome.ev('({ spill: document.documentElement.scrollWidth - document.documentElement.clientWidth })');
     assert.ok(g.spill <= 0, `sideways scroll ${JSON.stringify(g)}`);
   });
