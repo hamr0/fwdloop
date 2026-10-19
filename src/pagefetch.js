@@ -28,7 +28,7 @@ export const GOTO_TIMEOUT_MS = 30_000;
 /** a page that comes back with fewer characters than this (after trimming) is treated as "nothing came back" */
 export const MIN_PAGE_CHARS = 200;
 /** the page text left after the site's own header, menus and footer are taken out must hold at least this many characters, or the page is
- *  "only site chrome" (L2: a 719-character fetch of Google's header and sign-in passed the 200-character floor) */
+ *  "only site chrome" (L2: a 719-character fetch of a site's header and sign-in passed the 200-character floor) */
 export const MIN_CONTENT_CHARS = 100;
 /** the page reader's landmark roles for a site's own chrome (the ARIA names of header, menu and footer); everything under one is not the page's content */
 const CHROME_ROLES = new Set(['banner', 'navigation', 'contentinfo']);

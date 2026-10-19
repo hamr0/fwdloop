@@ -309,11 +309,11 @@ const ALLOWLIST = {
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json; M10 item 1 (reviewed): `freezePage` writes a fetched web page\'s text as the run\'s own frozen input (one mkdir, one write, one stat of the frozen copy; the sha256 is then taken by hashFile)',
     names: {
       accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
-      mkdirSync: 6, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
-      statSync: 2, unlinkSync: 4, writeFileSync: 7,
+      mkdirSync: 7, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
+      statSync: 3, unlinkSync: 4, writeFileSync: 8,
     },
     readArtifactCallSites: 4,
   },
@@ -334,6 +334,10 @@ const ALLOWLIST = {
   'src/run-store.js': {
     reason: "M7: the ONE remover of a run's litectx store folder (<runs>/.stores/<runId>), called when a fresh run starts so a reused run id never inherits an old store; the path comes only from runStoreDir(runDir). litectx itself opens and writes the store.",
     names: { rmSync: 1 },
+  },
+  'src/pagefetch.js': {
+    reason: "M10 item 1: one read of barebrowse's own package.json (found next to its entry file), only to refuse a version older than 0.21.0; nothing from a run or flow dir",
+    names: { readFileSync: 1 },
   },
   'src/version.js': {
     reason: "M4d am17: the ONE reader of fwdloop's own package.json (the package's own file next to src/, or a copy a test passes), for the panel header's version; one read, JSON-parsed, nothing from a run or flow dir",
