@@ -3138,3 +3138,56 @@ Not fixed. A fix that depends on whether the job line names sections at all woul
 - Verdict by the written rule: BUILD (retry passes 8 = today 8, and is both cheaper, about 15%, and faster, about 9%).
 - Only one run needed a retry (retry run-1102: 20 turns, $0.0183); every other run took 14-15 turns.
 - Read with F69: on am29-walk-2 retries-only passed fewer runs (1/4 vs 2/4, NO BUILD); on m7-walk-2 and aging-live-4 it passed all and cost less. The two results disagree on the job where first tries fail often; n is small in both.
+
+## F71 — M10 Step 0: a page's own words, the ask triggers, and a CSV word that differs from its column: pre-registered before any run (2026-10-19)
+
+**Status.** Pre-registered 2026-10-19, not run. Marks in brackets show where each line came from: **[SIGNED]** the signed M10 text, **[BORROWED]** bareloop (`docs/product/fwd-borrow-from-bareloop-rubric-2026-10-18.md` section 4, `docs/product/ITEM33-BUILD.md`, F226-F238), **[INVENTED]** written by the orchestrator and accepted by hamr 2026-10-19 (the tag stays so the origin is visible).
+
+**Question.** Does bareloop's page-word map plus its code rules (found-on-page, N2, R1, U1/R1L, S1, lists, plus V4 "a label that reads no value is dropped") hold on a flights page for a route bareloop never used, do code-decided asks fire only where they should, and can code find the sheet's own column when the job's word is not a column name? Borrowed from bareloop BORROW section 4 / F226-F238.
+
+**Probes done at $0 before registering** (script `.claude/scratch/m10-probe/probe.mjs`, bareguard 0.25.1, nothing paid, nothing fetched):
+- A result count can be enforced only with a harness-set `count` field: `min` + `max` on it = exact 3. `checkStep` measurements do NOT feed `min`/`max` (red `missing`).
+- A cited quote that spans two lines is green: `quoteIn` is whitespace-blind (so the F237 two-line quote case does not need two quotes).
+- So there is no upstream ask for either.
+
+**Set up (written before any data).**
+- Model: deepseek-flash, drafter thinking OFF. [BORROWED] Rates from Settings. [SIGNED: model]
+- Instrument: throwaway `.claude/scratch/m10/` (gitignored, never shipped): the map prompt and `applyPageRules` copied with `// borrowed-from: bareloop <path>@<commit>` headers; no import. [SIGNED: borrow by copy; hamr 2026-10-19: location]
+- Page: one Google Flights one-way search, route AMS-LIS (Amsterdam to Lisbon), chosen by hamr 2026-10-19, not in {BOS-ORD, JFK-LAX, LAX-JFK, ORD-DEN, SFO-LAX} [BORROWED]. Date: chosen at fetch time, recorded with the page sha256. Fetched once with barebrowse AFTER this entry is committed [BORROWED rule: freeze first, fetch unseen page after] and saved with its sha256. Page needs >= 20 results.
+- Job text (the same for all 3 drafts): "List 3 flights from Amsterdam to Lisbon", `~ under $150`, `~ not a red-eye`, `~ nonstop`. [BORROWED shape; hamr 2026-10-19: route and limit]
+- Test 1, Stage A: 3 drafts of that job through the copied map + rules (map call only; no full run). [SIGNED: 3 drafts]
+- Test 2, Stage B: $0 replay of triggers T1 (a number the AI made up), T2 (a guardrail the page has no words for), T3 (page label is not a job word) over the saved map of every Stage A draft. [SIGNED: replay; T3 only used if proven]
+- Test 3, CSV: one local CSV with a column "Amount" (numbers in every row) and a job that says "price"; the code finds the column that passes the same tests and builds the ask "no column 'Price'; 'Amount' has numbers in N of N rows. Use it?". [SIGNED: one case, job word differs from column] Decoys in the same file, so the finder can fail: a second numeric column "Tax" and a text column "Description". [INVENTED]
+- Cell checks stay on fwdloop's own `closeGreen` (`src/closers.js`); bareguard `cited` is not used for cells. [SIGNED: "a cell, as today"; hamr 2026-10-19]
+- Budget: hard stop $0.02 total [SIGNED: "about 2 cents" first test; INVENTED: $0.02 as a hard stop]. Unknown cost stops the batch. Tests 2 and 3 cost $0.
+
+**Pass marks (all must hold; any one false = NO BUILD).**
+Test 1 (Stage A), per draft unless said:
+- A1 The page is settled: saved page holds >= 20 results (else NOT a bar failure: stop, log a reach/settle finding, pick another route). [BORROWED P1]
+- A2 Every word the map names that survives the rules is found on the saved page (count >= 1, whitespace-blind). Any kept word absent in any draft = FAIL. [BORROWED P2; SIGNED: "kept word isn't on the page" must fail]
+- A3 Every kept label reads a value of its kind: an independent script (not the copied rules) finds, for each kept money/number/time label, >= 1 value after it on the page. Any kept label reading nothing in any draft = FAIL. [SIGNED: "a signed label reads no value" must fail; BORROWED P5]
+- A4 Silent drops = 0: the set of words/rules the rules removed equals the set of listed Not checked reasons. [BORROWED P4/ITEM33 test 3; SIGNED item 5]
+- A5 All 3 drafts parse (map JSON valid, one retry allowed per BORROWED rule); 3 of 3. [INVENTED]
+- A6 Cheat page: the same rules and signed labels run on a reversed-route variant and on a page with "Pay $0" lines must NOT turn green on the planted wrong rows. A pass on a cheat = FAIL. [SIGNED: cheat page must fail; INVENTED: the variant is made by editing a COPY of the saved page, never the original]
+- A7 Cost: total of the 3 map calls <= $0.02. Wall time per draft <= 2 min. [INVENTED limits; SIGNED "about 2 cents"]
+
+Test 2 (Stage B, $0):
+- B1 Asks per draft <= 2. [SIGNED: at most 2]
+- B2 T1 fires on "not a red-eye" (the bound is not in the job's words) in >= 2 of 3 drafts. [BORROWED P3 says it must fire; INVENTED: the 2-of-3 floor, because the map is non-deterministic]
+- B3 T1 and T2 never fire on a guardrail whose limit IS in the person's words ("under $150", and "nonstop" when the page holds the word "Nonstop"). Any such fire in any draft = FAIL. [INVENTED: the false-positive half; BORROWED only "T3 on every label = T3 fails"]
+- B4 Zero asks decided by the model: the trigger tests take only the rules' output as input; a static check that no model field is read by the trigger function. [SIGNED: ask from model choosing must fail; INVENTED: the static check as the test]
+- B5 T3 (third trigger): fires on the "From" price label in >= 2 of 3 drafts AND fires on <= 1 other label per draft AND fires on fewer than half of all kept labels. Else T3 is dropped and the build ships T1+T2 only. [BORROWED: "fires on From, not on every label"; INVENTED: the numbers 2 of 3, <= 1, half]
+- B6 Every ask text is exactly `Line n, guardrail "<...>": I propose <...>.` built from a code table; a golden string compare. [SIGNED: words set by code]
+
+Test 3 (CSV):
+- C1 Exactly 1 ask; it names "Amount" and the count "N of N rows" correctly (checked against the file by an independent script). [SIGNED: CSV case asks once; INVENTED: count must be checked independently]
+- C2 It does NOT propose "Tax" or "Description". Tie rule (hamr 2026-10-19): with "Tax" made a numeric column of equal row coverage, two columns fit equally, so NO ask; the guardrail shows `Not checked: two columns fit ("Amount", "Tax")`. [INVENTED]
+- C3 With the "Amount" column removed from a copy, the finder proposes nothing and the guardrail shows `Not checked: <reason>`. [SIGNED: dropped with no reason must fail]
+- C4 With "Amount" present in only 39 of 40 rows, the ask text says 39 of 40 (not "numbers in 40 of 40"). [INVENTED: true count shown]
+
+**Win rule.** BUILD M10 (items 1-8) only if A1-A7, B1-B4, B6, C1-C4 all hold. B5 decides only whether the third trigger is built (fail = T1+T2 only, still BUILD). [SIGNED: nothing is built until it passes; third trigger only if proven] [INVENTED: the exact grouping]
+Cap: 2 cents for Test 1, $0 for Tests 2-3, per hamr's signed cap. Re-run only as a new pre-registered question; a failing page is a finding, never a re-tune. [BORROWED]
+
+**NO BUILD looks like.** Any of: a kept word absent from the page (A2); a kept label that reads nothing (A3); a silent drop (A4); a planted cheat turning green (A6); more than 2 asks (B1); T1/T2 firing on a user-worded limit (B3); the CSV finder picking a decoy or asking twice (C1-C2); cost over cap (A7). NO BUILD is recorded as a finding with the draft-log, the saved page sha256 and the map `raw`; nothing in `src/` changes; hamr decides: park M10, narrow it, or re-register. A reach failure (page blocked/empty, F227) is NOT a NO BUILD: it is logged as a reach finding and another route is chosen.
+
+**Result.**
