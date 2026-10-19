@@ -1260,6 +1260,19 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
 }
 
 /**
+ * M4d am30: the highest try number a step has used in this run, read from the books (audit.jsonl, the source of truth). A Redo's re-run is
+ * numbered after it, so a number is used once per step. Only the NUMBER moves: the limit counts the re-run's own tries (`n` in `runStepRalph`).
+ * @param {string} runDir @param {string|null} stepId
+ */
+function lastTryNumber(runDir, stepId) {
+  let last = 0;
+  for (const r of readAudit(runDir)) {
+    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && r.attempt > last) last = r.attempt;
+  }
+  return last;
+}
+
+/**
  * One signed ask slot's own loop (M2's ask branch, unchanged in spirit,
  * extracted so `resumeRun` can re-enter the SAME logic mid-ask instead of
  * duplicating it). Returns exactly one of:
@@ -1459,7 +1472,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
