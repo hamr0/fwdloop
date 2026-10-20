@@ -35,8 +35,8 @@
 /**
  * @typedef {object} SourceSlot
  * @property {string} role - `[a-z][a-z0-9_-]*`, unique across sources.
- * @property {'file'} kind - only `file:` sources are available before M9.
- * @property {string} path - everything after `file:` to end of line, trimmed.
+ * @property {'file'|'page'} kind - `file:` (a path) or `page:` (a web address, M10 am3); nothing else is available.
+ * @property {string} path - everything after `file:` / `page:` to end of line, trimmed.
  */
 
 /**

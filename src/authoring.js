@@ -43,6 +43,10 @@ export const LEAK_MARKER_FILE = 'scrub-leak.red';
  *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
 export const QUESTIONS_FILE = 'questions.json';
 export const NOT_CHECKED_FILE = 'not-checked.json';
+/** M10: the drafting copy of each web page input is kept in this folder of the draft folder (a run freezes its own, never this one). */
+export const PAGES_DIR = 'pages';
+/** M10 item 3: what the page-word look kept and dropped, per page input (the map the AI named, the kept facts with their readings, every drop). Not signed. */
+export const PAGE_LOOK_FILE = 'page-look.json';
 export const ANSWER_FILE = (k) => `answer-${k}.json`;
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
 
@@ -249,7 +253,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -308,7 +312,7 @@ export async function draftToDir({
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
   const priorSpend = sessionPriorSpend(dir);
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking,
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -333,6 +337,7 @@ export async function draftToDir({
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
+  if (result.pageLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks, look: result.look }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,

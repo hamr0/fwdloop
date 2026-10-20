@@ -396,14 +396,14 @@ export function checkFreshRunDir(runDir) {
  *  separate files and a run is only ever checked against its own. The fetch is tried once; a refusal names the input and says why in plain words.
  *  @param {string} dir @param {string} id @param {string} url
  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o]
- *  @returns {Promise<{ok: true, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} */
+ *  @returns {Promise<{ok: true, text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} `text` = the frozen text itself, for the caller that reads it (drafting) */
 export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {}) {
   const got = await fetchPage(url);
   if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
   mkdirSync(dir, { recursive: true });
   const frozen = join(dir, `${id}.txt`);
   writeFileSync(frozen, got.text, 'utf8');
-  return { ok: true, entry: { id, source: url, frozen, sha256: hashFile(frozen), bytes: statSync(frozen).size } };
+  return { ok: true, text: got.text, entry: { id, source: url, frozen, sha256: hashFile(frozen), bytes: statSync(frozen).size } };
 }
 
 /** Copy each named source into `<runDir>/inputs/`, hash the FROZEN copy

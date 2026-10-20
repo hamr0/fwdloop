@@ -16,7 +16,13 @@
 // FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync } from 'node:fs';
-import { RATES, MODEL, validArgs, fakeProvider, toolReply } from '../drafter-fixture.mjs';
+import { RATES, MODEL, validArgs, fakeProvider, toolReply, textReply } from '../drafter-fixture.mjs';
+import { pageText } from './m10-page-server.mjs';
+import { MAP_SYSTEM } from '../../src/pagemap.js';
+
+// M10: a job that signs a web page is fetched at drafting. The test provider hands the drafter a fetch seam (any address -> a fixed results page, no network)
+// and answers the page-map call (recognised by its system words) with an empty map: no word kept, none dropped.
+const fetchPage = async (url) => ({ ok: true, text: pageText(), url });
 
 export default function make() {
   const args = validArgs();
@@ -62,6 +68,7 @@ export default function make() {
   const gen = provider.generate.bind(provider);
   let retriesDone = 0;
   provider.generate = async (messages, ...rest) => {
+    if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply('{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round
     const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
     if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
     if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);
@@ -84,5 +91,5 @@ export default function make() {
     const inner = provider.generate.bind(provider);
     provider.generate = async (...a) => ({ ...(await inner(...a)), thinkingStatus: status });
   }
-  return { provider, rates: RATES, modelId: MODEL };
+  return { provider, rates: RATES, modelId: MODEL, fetchPage };
 }

@@ -17,10 +17,12 @@ import { parseCsv } from './csv.js';
 
 /**
  * @param {Array<{kind?:string, role:string, path:string}>} sources arbiter.sources
+ * @param {{pages?: Record<string, {text: string}>}} [o] `pages` (M10 item 1): the drafting copy of each web page input, role -> its frozen text, fetched by the caller. A page
+ *   source with no copy here is a named red (never skipped); it adds no heading facts (a page has none), only its line for the drafter and the Chat card.
  * `list` (M4d am10) is one `{role, detail}` per readable input for the Chat card's list (a CSV: its columns; text: its headings); never hashed.
  * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[]}}
  */
-export function readInputFacts(sources) {
+export function readInputFacts(sources, { pages = {} } = {}) {
   /** @type {Record<string,string[]>} */
   const inputFacts = {};
   const info = [];
@@ -28,6 +30,13 @@ export function readInputFacts(sources) {
   const headingsDetail = (n) => `${n} heading${n === 1 ? '' : 's'}`;
   const reds = [];
   for (const s of sources ?? []) {
+    if (s.kind === 'page') {
+      const page = pages[s.role];
+      if (!page) { reds.push(`input "${s.role}": the web page was not fetched`); continue; }
+      list.push({ role: s.role, detail: `a web page, ${page.text.length} characters` });
+      info.push(`- ${s.role}: a web page (${s.path}), saved at drafting, ${page.text.length} characters`);
+      continue;
+    }
     if (s.kind !== 'file') continue;
     if (String(s.path).toLowerCase().endsWith('.docx')) {
       const r = readDocxText(s.path);

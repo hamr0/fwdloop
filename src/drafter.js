@@ -22,6 +22,10 @@ import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerS
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
+import { freezePage } from './runner.js';
+import { lookAtPage, pageInfoLines } from './pagelook.js';
+import { MAP_SYSTEM } from './pagemap.js';
+import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
@@ -304,11 +308,14 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
- *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[]}>}
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
+ *   look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[]}>}
+ * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
+  draftDir = /** @type {string|null} */ (null), fetchPage = undefined,
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -331,8 +338,9 @@ export async function draft({
   const sumReds = checkGuardrailSums(lines);
   if (sumReds.length) return fail(sumReds);
   const menu = wiredMenu(skills);
-  const facts = readInputFacts(arbiter.sources);
-  if (!facts.ok) return fail(facts.reds);
+  // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
+  const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
+  if (!fileFacts.ok) return fail(fileFacts.reds);
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
@@ -346,9 +354,6 @@ export async function draft({
     }
   }
 
-  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
-  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
-  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   const lineNums = lines.map((l) => l.n);
   // Full catalogue + the wired set: an unwired verb reds "not wired" by name; an unsigned skill reds by skill.
   const cat = loadCatalogue();
@@ -371,6 +376,91 @@ export async function draft({
 
   const meterings = [];
   const log = [];
+  let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
+  let unmetered = 0; // calls that failed with no metering: their cost is unknown
+  const book = (inFlight) => onBook?.({
+    inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+  });
+
+  // M10 item 1: a web page input is fetched once and frozen into the DRAFT folder (the drafting copy). A run freezes its own copy at its own start
+  // (`freezeInputs`), so a run is never checked against this one. Only now, after the $0 price and cap gates: a draft refused for money fetches nothing.
+  const pageSources = (arbiter.sources ?? []).filter((s) => s.kind === 'page');
+  /** @type {Record<string, {text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}>} */
+  const pages = {};
+  if (pageSources.length) {
+    if (typeof draftDir !== 'string' || draftDir === '') return fail(['draft: a web page input needs a folder to keep its drafting copy']);
+    for (const s of pageSources) {
+      const fr = await freezePage(draftDir, s.role, s.path, { fetchPage });
+      if (!fr.ok) return fail([fr.red]); // a copy an earlier page of this job already kept stays in the claimed folder
+      pages[s.role] = { text: fr.text, entry: fr.entry };
+    }
+  }
+  const facts = readInputFacts(arbiter.sources, { pages });
+  if (!facts.ok) return fail(facts.reds);
+
+  // M10 item 3: ONE map call per page input names the page's own words; code keeps what the saved page proves. Every round goes through the
+  // same metering and book as a drafting round, so a pre-send throw from the book stops here with nothing spent.
+  /** @type {{facts: any[], dropped: any[]}} */
+  const look = { facts: [], dropped: [] };
+  /** @type {string[]} */
+  const pageNotChecked = [];
+  /** @type {any[]} */
+  const pageLooks = [];
+  const pageExtras = pageSources.length ? { look, pageLooks } : {};
+  let mapCut = null;
+  const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
+  const pageInfo = [];
+  for (const s of pageSources) {
+    const pg = pages[s.role];
+    const callModel = async (content) => {
+      const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+      if (spentSoFar + roundCeiling > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
+      const roundEvents = [];
+      const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
+      calls += 1;
+      book(true);
+      let res;
+      let threw = null;
+      try {
+        res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: draftThinking });
+      } catch (err) {
+        threw = err;
+        if (roundEvents.length === 0) unmetered += 1;
+      }
+      book(false);
+      const entry = { round: log.length + 1, kind: 'page-map' };
+      if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
+      if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
+      if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message }; }
+      const cutOff = res?.stopReason === 'max_tokens';
+      entry.outcome = cutOff ? 'truncated' : 'answered';
+      log.push(entry);
+      if (res?.error && !cutOff) return { error: String(res.error) };
+      return { text: res?.text ?? '', cutOff };
+    };
+    const got = await lookAtPage({ label: s.role, text: pg.text, jobLines, callModel });
+    if (!got.ok) {
+      const m = sumMeterings(meterings);
+      return {
+        ok: false, declaration: null, reds: [got.reason], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: mapCut ?? 'page-map', log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
+      };
+    }
+    look.facts.push(...got.look.facts);
+    look.dropped.push(...got.look.dropped);
+    for (const l of got.notChecked) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
+    pageLooks.push({
+      role: s.role, address: s.path, sha256: pg.entry.sha256, bytes: pg.entry.bytes, frozen: path.basename(pg.entry.frozen), attempts: got.attempts, mapping: got.mapping,
+    });
+    pageInfo.push(...pageInfoLines({
+      label: s.role, address: s.path, chars: pg.text.length, look: got.look, notChecked: got.notChecked,
+    }));
+  }
+  // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
+  const factsInfo = pageSources.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
+
+  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
+  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   let structureRetries = 0;
   let revisions = 0;
   let lastReds = [];
@@ -381,9 +471,7 @@ export async function draft({
   let stop = null;
   let failedLines = []; // the job lines try 2's reds named: a question is kept only about one of these (amendment 25)
   /** @type {{questions:{line:number, question:string}[], droppedQuestions:object[], notChecked:string[]}} */
-  let extras = { questions: [], droppedQuestions: [], notChecked: [] }; // from the round that produced `lastDecl`, never an earlier one
-  let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
-  let unmetered = 0; // calls that failed with no metering: their cost is unknown
+  let extras = { questions: [], droppedQuestions: [], notChecked: pageNotChecked }; // from the round that produced `lastDecl`, never an earlier one
 
   for (;;) {
     // Budget: spend so far (an unpriced round counts at its ceiling) + one more
@@ -411,9 +499,6 @@ export async function draft({
     let result;
     let threw = null;
     calls += 1;
-    const book = (inFlight) => onBook?.({
-      inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
-    });
     book(true);
     try {
       result = await loop.run(
@@ -495,14 +580,14 @@ export async function draft({
     });
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: cleanNotChecked(rawNotChecked) };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...pageNotChecked, ...cleanNotChecked(rawNotChecked).filter((x) => !pageNotChecked.includes(x))] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras,
       };
     }
     lastReds = [...verdict.reds];
@@ -524,6 +609,6 @@ export async function draft({
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras,
   };
 }

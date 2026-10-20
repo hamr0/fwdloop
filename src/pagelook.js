@@ -110,3 +110,21 @@ export async function lookAtPage({
     if (attempts >= 2) return { ok: false, reason: MAP_UNREADABLE, attempts };
   }
 }
+
+/**
+ * What the drafter is told about a page it cannot read for itself: the words code checked against the saved page (kept), and every drop, so it never
+ * claims a check the page cannot give (bareloop's withDropNotes, told to the drafter as plain lines).
+ * @param {{label: string, address: string, chars: number, look: {facts: any[]}, notChecked: string[]}} o @returns {string[]}
+ */
+export function pageInfoLines({
+  label, address, chars, look, notChecked,
+}) {
+  const say = (/** @type {any} */ f) => `${f.name}${f.forRule === undefined ? '' : ` (rule ${f.forRule})`}: ${f.words.map((/** @type {string} */ w) => `"${w}"`).join(', ') || '(read by its unit)'}`;
+  return [
+    `- ${label}: a web page (${address}), saved at drafting, ${chars} characters. Code checked the page's own words for the job's rules and kept only words the saved page proves.`,
+    ...(look.facts.length ? [`  Kept, line ${[...new Set(look.facts.map((/** @type {any} */ f) => f.line))].join(', ')}: ${look.facts.map(say).join('; ')}`] : ['  Kept: nothing.']),
+    ...(notChecked.length
+      ? ['  Code could not make these a check, so they are Not checked; never claim them as checked:', ...notChecked.map((l) => `  - ${l}`)]
+      : []),
+  ];
+}
