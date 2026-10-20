@@ -491,6 +491,15 @@
   .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
   .job-card h4::before{content:"┤ ";color:var(--text-faint);}
   .job-card h4::after{content:" ├";color:var(--text-faint);}
+  /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules wait for item 5) */
+  .st-word{font-weight:700;color:var(--text);}
+  .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
+  /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
+  #result-body{min-width:0;overflow-wrap:anywhere;}
+  .rs-ok{color:var(--green);font-weight:700;}
+  #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
+  #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
+  .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
   label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
   /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
@@ -1193,6 +1202,7 @@
         <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
         <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
         <button role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-testid="right-tab-ask">Ask</button>
+        <button role="tab" id="tab-result" aria-controls="panel-result" aria-selected="false" data-testid="right-tab-result" hidden>Result</button>
       </div>
 
       <div class="pane-body" id="right-pane-body">
@@ -1314,6 +1324,11 @@
           <div id="ask-list" data-testid="ask-list" hidden></div>
         </section>
 
+        <section id="panel-result" class="tabpanel" role="tabpanel" aria-labelledby="tab-result" hidden data-testid="panel-result">
+          <div id="result-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="result-body" data-testid="result-body" hidden></div>
+        </section>
+
       </div>
     </section>
 
@@ -1346,7 +1361,7 @@
     });
   }
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
-  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
+  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask"), document.getElementById("tab-result")]);
 
   // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
   // the two POSTs below (M4b): /api/answer (a human clicking a door) and
@@ -2343,6 +2358,158 @@
     document.querySelectorAll(".inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
   }
 
+  // borrowed-from: bareloop src/panel/index.html@2959217 :2839 (stateDotHTML)
+  function stateDotHTML(cls, word, testid){
+    return '<span class="step-state" data-testid="' + testid + '"><span class="dot ' + cls + (cls === "amber" ? " pulse" : "") + '"></span><b class="st-word">' + escapeXml(word) + '</b></span>';
+  }
+  // ---- Result tab (M10 am4: a copy of bareloop's, PRD v1.107 Part 6) ----
+  // borrowed-from: bareloop src/panel/index.html@2959217 :3646-3833, adjusted to fwdloop's shape: the run is (flow, runId); the status word is `detail.word`;
+  // the run name is `<flow> (<runId>)`; no Your-call card or pointer here (item 5 waits).
+  // The server decides everything: `detail.hasResult` shows the tab, `/result` carries the signed lines, the facts' own sentences
+  // (src/facts.js factSentence), the rows of the delivered file (sha256-checked against the run's own record) and `passed` (read from the
+  // run's own check-run). The page only draws; it never decides a check and never searches a quote for a word.
+  var resultDetail = null;
+  var resultData = null;
+  function resultTabShown(){ return document.getElementById("tab-result").getAttribute("aria-selected") === "true"; }
+  function clearResult(){
+    resultDetail = null; resultData = null;
+    document.getElementById("result-body").hidden = true;
+    document.getElementById("result-body").innerHTML = "";
+    document.getElementById("result-empty").hidden = false;
+  }
+  // called by renderRun for every detail it draws: shows or removes the tab button
+  function syncResultTab(detail){
+    var btn = document.getElementById("tab-result");
+    var show = detail.hasResult === true;
+    if(!show && resultTabShown()) document.getElementById("tab-run").click();
+    btn.hidden = !show;
+    resultDetail = show ? detail : null;
+    if(show && resultData && resultData.flow === detail.flow && resultData.runId === detail.runId) renderResult();
+    if(!show) clearResult();
+  }
+  function loadResult(flow, runId){
+    return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/result").then(function(data){
+      if(currentFlow !== flow || currentRunId !== runId || !resultDetail || resultDetail.flow !== data.flow || resultDetail.runId !== data.runId) return;
+      resultData = data;
+      renderResult();
+    }).catch(function(){ /* the tab keeps what it last drew */ });
+  }
+  document.getElementById("tab-result").addEventListener("click", function(){ if(currentRunId !== null) loadResult(currentFlow, currentRunId); });
+
+  // a RED run's own file words (the last file its check judged: "the file is gone" / "the file changed after the check") and the one note that says
+  // what those rows are. A DELIVERED file's gone/changed words are said once, in the Saved card, never here.
+  function resultFileWords(file){
+    var note = file && file.judged && file.note ? '<div class="hint" data-testid="result-judged-note">' + escapeXml(file.note) + '</div>' : "";
+    return note + (file && file.judged && file.words ? '<div class="rs-warn" data-testid="result-file-words">' + escapeXml(file.words) + '</div>' : "");
+  }
+  function resultField(label, inner){
+    return '<div class="field"><label>' + escapeXml(label) + '</label>' + inner + '</div>';
+  }
+  // the numbered job line and its ~ rules, one box (the Job tab's "N. text" spelling, a space after the number)
+  function resultLineBox(line){
+    return resultField("The job line", '<div class="ro-value" data-testid="result-linetext">' + escapeXml(line.n + ". " + line.text) +
+      (line.rules || []).map(function(r){ return '<br>~ ' + escapeXml(r); }).join("") + '</div>');
+  }
+  // no saved result to show: one line, never the file-state words (those are in Saved)
+  var RESULT_NONE = "no saved result to show";
+  // the proof quote, with the words the check read marked. The server sends the check's own text and offsets (`r.proof`: bareguard's
+  // `full.evidence`, spans already chosen and merged); the page only cuts the text at those offsets, escapes every piece and marks.
+  // It never searches a quote for a word. No proof (an old run, a quote the check did not read): the plain quote, unmarked.
+  function resultProofHtml(r){
+    var p = r.proof;
+    if(!p || typeof p.text !== "string" || !Array.isArray(p.marks)) return escapeXml(r.quote);
+    var h = "", at = 0;
+    p.marks.forEach(function(m){
+      h += escapeXml(p.text.slice(at, m[0])) + "<mark>" + escapeXml(p.text.slice(m[0], m[1])) + "</mark>";
+      at = m[1];
+    });
+    return h + escapeXml(p.text.slice(at));
+  }
+  function resultFactsLine(line){
+    var facts = line.facts || [];
+    var n = facts.length;
+    var ok = line.passed === true ? ' <span class="rs-ok" data-testid="result-ok">\u2713</span>' : "";
+    var h = resultFileWords(line.file);
+    if(Array.isArray(line.rows) && line.rows.length){
+      h += resultField("Results (" + line.rows.length + ")", '<div class="ro-value" data-testid="result-results">' + line.rows.map(function(r){
+        return '<div class="ro-value" data-testid="result-row" style="margin-bottom:8px">' +
+          '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b style="color:var(--text)">Result ' + r.n + '</b>' +
+          (line.passed === true ? '<span class="rs-ok" data-testid="result-count">' + n + ' of ' + n + ' \u2713</span>' : "") + '</div>' +
+          '<div class="field-row" style="margin-top:6px">' + r.cells.map(function(c, i){
+            return '<div class="field"><label>' + escapeXml(facts[i] ? facts[i].name : "") + '</label><div class="ro-value" data-testid="result-cell">' + escapeXml(c) + ok + '</div></div>';
+          }).join("") + '</div>' +
+          '<details data-testid="result-proof"><summary>proof \u2014 the page\'s own words</summary><div class="ro-value" data-testid="result-quote" style="overflow-wrap:anywhere">' + resultProofHtml(r) + '</div></details></div>';
+      }).join("") + '</div>');
+    } else if(!(line.file && line.file.judged && line.file.words)){
+      h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    }
+    if(facts.length){
+      h += resultField("The checks", '<div class="ro-value" data-testid="result-rules">' +
+        facts.map(function(f){ return escapeXml(f.sentence) + (f.note ? ' ' + escapeXml(f.note) : ""); }).join("<br>") +
+        (line.passed === true && Array.isArray(line.rows) && line.rows.length ? '<br><span class="hint">\u2713 = code checked it against the saved page</span>' : "") + '</div>');
+    }
+    return h;
+  }
+  function resultTextLine(line){
+    var h = resultFileWords(line.file);
+    if(typeof line.answer === "string") h += resultField("Answer", '<div class="ro-value" data-testid="result-answer" style="color:var(--text);white-space:pre-wrap">' + escapeXml(line.answer) + '</div>');
+    else if(!(line.file && line.file.judged && line.file.words)) h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    (line.cites || []).forEach(function(c){
+      h += resultField("Quotes from " + c.label + " (" + c.items.length + ")", '<details data-testid="result-cites"><summary>show</summary><div class="ro-value" style="white-space:pre-wrap">' +
+        c.items.map(function(it){ return '<b>' + escapeXml(it.claim) + '</b>\n' + escapeXml(it.quote); }).join("\n\n") + '</div></details>');
+    });
+    return h;
+  }
+  // a list, one row per item (the Job tab lists the same items one per row)
+  function resultNotChecked(label, items, testid){
+    if(!items || !items.length) return "";
+    return resultField(label, '<div class="ro-value" data-testid="' + testid + '"><ul style="margin:0;padding-left:18px">' +
+      items.map(function(t){ return '<li>' + escapeXml(t) + '</li>'; }).join("") + '</ul></div>');
+  }
+  // the web page a result was read from: a link (http/https only, new tab) and the server's words that the page may have moved on
+  function resultPageLink(url, note, testid){
+    if(typeof url !== "string" || !/^https?:\/\//i.test(url)) return "";
+    return resultField("Page read", '<div class="ro-value" data-testid="' + testid + '" style="overflow-wrap:anywhere"><a href="' + escapeXml(url) +
+      '" target="_blank" rel="noopener noreferrer">' + escapeXml(url) + '</a><div class="hint" data-testid="result-page-note">' + escapeXml(note || "") + '</div></div>');
+  }
+  // `own` = the Result tab read 2+ pages, so this line's box shows its own page
+  function resultLineCard(line, own, note){
+    return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
+      (own ? resultPageLink(line.page, note, "result-page-line") : "") +
+      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) +
+      resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
+  }
+  function renderResult(){
+    var detail = resultDetail, data = resultData;
+    var body = document.getElementById("result-body");
+    if(!detail || !data || data.flow !== detail.flow || data.runId !== detail.runId){ return; }
+    document.getElementById("result-empty").hidden = true;
+    body.hidden = false;
+    var counters = document.getElementById("run-counters").textContent.split(" \u00b7 ");
+    var h = '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
+      resultField("Status", '<div class="ro-value">' + stateDotHTML(glyphClass(detail.glyph), detail.word || "", "result-status") +
+        ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
+      '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
+      resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
+      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+    var ownPages = (data.pages || []).length >= 2;
+    (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
+    if(data.gap){
+      h += '<div class="rs-warn" data-testid="result-gap">The check said: ' + escapeXml(data.gap.line) + (data.gap.moreText ? ' ' + escapeXml(data.gap.moreText) : "") + '</div>';
+    }
+    if((data.notChecked || []).length){
+      h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked("Not checked (the AI's own reading)", data.notChecked, "result-notchecked") + '</div>';
+    }
+    if((data.delivered || []).length){
+      h += '<div class="job-card" data-testid="result-saved"><h4>Saved</h4>' + data.delivered.map(function(d){
+        return resultField(d.name, '<div class="ro-value" data-testid="result-path" style="overflow-wrap:anywhere">' + escapeXml(d.path) + '</div>' +
+          (d.words ? '<div class="rs-warn" data-testid="result-file-gone">' + escapeXml(d.words) + '</div>'
+            : '<div class="run-actions" style="margin:6px 0 0;"><a class="btn" style="text-decoration:none;" data-testid="result-download" download href="/api/runs/' + encodeURIComponent(data.flow) + '/' + encodeURIComponent(data.runId) + '/download?i=' + d.i + '">Download ' + escapeXml(d.name) + '</a></div>'));
+      }).join("") + '</div>';
+    }
+    body.innerHTML = h;
+  }
+
   // ---- Run tab: header + summary + step map + one card per step ATTEMPT
   // (ruling A, 2026-09-26: "no per-round parts") — built off getRunDetail's
   // `steps[]` (declaration.steps joined with audit.jsonl attempts), never a
@@ -2430,6 +2597,7 @@
       '<div class="summary-row" data-testid="summary-checks"><span class="sum-label">checks:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.checks) || "\u2014") + '</span></div>';
 
     renderRunActions(detail);
+    syncResultTab(detail);   // M10 am4: shows or hides the Result tab; the ONE caller
     // amendment 7 item 2: the Draft is the first box of the Map (an arrow runs on to step 1); the steps keep their own numbers
     renderStepMap(stepBoxes.length ? [draftBox(detail.draft)].concat(stepBoxes.map(function(b, i){ return Object.assign({}, b, {n: i + 1}); })) : stepBoxes);
 
@@ -3450,6 +3618,7 @@
     openRunLive = true;   // unknown until this run's own detail says it is finished
     // a different selection: every payload-equality skip for the selection's own panes is void
     lastSig.runs = lastSig.detail = lastSig.asks = lastSig.audit = null;
+    clearResult();
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     // detail, audit, job, and asks each load independently — the Run tab's
     // step cards get everything they need (including a step's own attempt-
@@ -3459,7 +3628,7 @@
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
     // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    getJSON(base).then(function(d){ if(still()) paintRun(d); }).catch(function(e){
+    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
