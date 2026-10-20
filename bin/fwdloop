@@ -833,6 +833,8 @@ async function cmdDraft(rest) {
       out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' },
       // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
       'no-questions': { type: 'boolean' },
+      // M10 piece 3: the rules the person left Not checked ("drop it"), as `<line>.<rule>` pairs, e.g. `1.2,3.1` (the panel passes this to the redraft after the answers)
+      left: { type: 'string' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
@@ -844,6 +846,13 @@ async function cmdDraft(rest) {
   const proseFile = positionals[0];
   if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow>');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
+
+  const leftRules = [];
+  for (const pair of values.left === undefined ? [] : values.left.split(',')) {
+    const m = /^(\d+)\.(\d+)$/.exec(pair.trim());
+    if (m === null || Number(m[1]) < 1 || Number(m[2]) < 1) fail(`draft: --left takes <line>.<rule> pairs like 1.2,3.1, got "${values.left}"`);
+    leftRules.push({ line: Number(m[1]), rule: Number(m[2]) });
+  }
 
   let injected = {};
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_DRAFT_PROVIDER) {
@@ -896,6 +905,7 @@ async function cmdDraft(rest) {
     root: resolve(values.root),
     name: values.name,
     noQuestions: values['no-questions'] === true,
+    ...(leftRules.length ? { leftRules } : {}),
     draftThinking: values.thinking === true ? 'on' : 'off',
     env,
     keyNames: keysLoad.keyNames,
@@ -909,7 +919,8 @@ async function cmdDraft(rest) {
     return;
   }
   process.stdout.write(`draft dir: ${resolve(values.out)}  cost: ${cost}\n`);
-  if (!result.ok) {
+  // M10 piece 3: a draft that stopped to ask what the page look raised is not red: it waits for the person's answers (the panel takes them)
+  if (!result.ok && result.stop !== 'look-asks') {
     process.stderr.write(`fwdloop: draft RED (${result.stop ?? 'scrub'}) — ${result.reds.join('; ')}\n`);
     process.exitCode = 1;
     return;

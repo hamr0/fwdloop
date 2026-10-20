@@ -81,7 +81,8 @@ export function specHash({
  * checks and the page all use it). `questions` = [{ k, line, question, answer|null }], `open` = those with no answer. A blank or unreadable
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -94,8 +95,12 @@ export function readQuestions(planDir) {
     const k = i + 1;
     const a = readFileInside(planDir, ANSWER_FILE(k));
     let answer = null;
-    if (a.ok) { try { const t = JSON.parse(a.text)?.answer; if (typeof t === 'string' && t.trim() !== '') answer = t; } catch { /* unreadable = unanswered */ } }
-    return { k, line: q.line, question: String(q.question), answer };
+    let at;
+    if (a.ok) { try { const j = JSON.parse(a.text); const t = j?.answer; if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; } } catch { /* unreadable = unanswered */ } }
+    return {
+      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }),
+      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null } : {}),
+    };
   });
   return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
 }
@@ -253,7 +258,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -312,7 +317,7 @@ export async function draftToDir({
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
   const priorSpend = sessionPriorSpend(dir);
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage,
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, ...(leftRules === undefined ? {} : { leftRules }),
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }

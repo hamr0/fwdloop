@@ -14,15 +14,17 @@
 //   FWDLOOP_TEST_DRAFT_OFFERED_LOG=<file> -> one line per provider call: "offered" or "not-offered" (was `questions` in the tool schema).
 // FWDLOOP_TEST_DRAFT_THINKING_STATUS=<applied|unsupported|ignored|unknown> -> every reply carries that bareagent `thinkingStatus` (M4d am7).
 // FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
+// FWDLOOP_TEST_DRAFT_MAP=<json> -> the page-map call answers that map (default: an empty map, nothing kept).
+// FWDLOOP_TEST_DRAFT_PAGE=<file> -> the fetched page's text (default: a small Boston-Chicago results page).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply, textReply } from '../drafter-fixture.mjs';
 import { pageText } from './m10-page-server.mjs';
 import { MAP_SYSTEM } from '../../src/pagemap.js';
 
 // M10: a job that signs a web page is fetched at drafting. The test provider hands the drafter a fetch seam (any address -> a fixed results page, no network)
 // and answers the page-map call (recognised by its system words) with an empty map: no word kept, none dropped.
-const fetchPage = async (url) => ({ ok: true, text: pageText(), url });
+const fetchPage = async (url) => ({ ok: true, text: process.env.FWDLOOP_TEST_DRAFT_PAGE ? readFileSync(process.env.FWDLOOP_TEST_DRAFT_PAGE, 'utf8') : pageText(), url }); // FWDLOOP_TEST_DRAFT_PAGE=<file> -> that text is the fetched page
 
 export default function make() {
   const args = validArgs();
@@ -68,7 +70,7 @@ export default function make() {
   const gen = provider.generate.bind(provider);
   let retriesDone = 0;
   provider.generate = async (messages, ...rest) => {
-    if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply('{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round
+    if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_MAP ?? '{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round (FWDLOOP_TEST_DRAFT_MAP=<json> replaces the empty map)
     const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
     if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
     if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);
