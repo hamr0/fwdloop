@@ -2593,6 +2593,23 @@ same run. Scope is stated when its turn comes.
   3. A run that names a different address for a page input is refused at $0, naming the input.
   - **Why:** an address typed per run is not signed, and fetching it sends a request off the machine.
 
+- **M10 amendment 4 — SIGNED by hamr 2026-10-20 ("sign m10 am4"): a Result tab, copied byte for byte from bareloop.**
+  Source: bareloop `feat/thinking-retries @2959217`. index.html Result block :3646-3809, CSS :397-408; server.js `getRunResult` :1347, `getRunDownload` :1470, route :3949; strings at server.js :1165-1308. Spec: its PRD Part 6 :1906, mock `design/result-tab-mock-v2.html` variation B. Tests: `part6-*.test.js`.
+  1. **Place.** A 5th tab, labelled `Result`: **Run · Audit / logs · Job · Ask · Result**. It is shown for M10 jobs (a web page, a CSV or a .docx input) and hidden for other runs, which keep the Run tab as today.
+  2. **Top card.** The status, then `· <check type> · <run name>`, then Money | Time. If the run read one page, a `Page read` link, with "The page may have changed since this run."
+  3. **One card per job line.**
+     - The job line and its `~` rules.
+     - `Results (N)`, with one box per result: `Result k`, `N of N ✓`, a small box per fact (money as the check read it).
+     - A `proof — the page's own words` fold, with the words the check read highlighted.
+     - `The checks`, with `(you confirmed)` where it applies, and "✓ = code checked it against the saved page".
+     - `Not checked` for that line.
+     - With no rows: "no saved result to show".
+  4. **Red run.** "The check said: <line> (+N more)". No Saved card. It shows the last file the check read, marked gone or changed if it is.
+  5. **Your call**, as bareloop: when a run waits for your accept, the Result tab shows "waiting for you — the checks passed; is this what you wanted?" with Accept · Rerun with my words · Pause, and bareloop's messages. Accept also stays on the Run and Ask tabs. All three places use the same accept, so accepting in one is accepted everywhere.
+  6. **Bottom.** `Not checked (the AI's own reading)` when there is any. Then `Saved`: each file with `Download <name>`, marked gone or changed if it is.
+  7. **Empty states**, bareloop's words: "select a run first", and "no such run, or it has no result tab".
+  8. **Phone.** bareloop never checked it on a phone. We verify at 1280, 390 and 320 before calling it done.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
