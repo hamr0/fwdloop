@@ -9,7 +9,7 @@
 // Pure: no I/O, no model. Compared white-space blind. Third outcome, named: a source with no page-read (md text, a page the look never read) is a red
 // `unread` - a check whose words were never proved against the source is never signed. What this throws away: nothing; every red is a sentence.
 
-import { asList, countExact, countPhrase, normLabel, boundInWords, wordsSaidOn } from './pagebits.js';
+import { asList, countExact, countPhrase, normLabel, wordsSaidOn } from './pagebits.js';
 import { dropSentence } from './pagedropwords.js';
 import { factsOfLook } from './citedcheck.js';
 
@@ -88,19 +88,46 @@ export function factWordReds({
 }
 
 /**
+ * The numbers a person said in their words, by KIND. A number inside a time (05:00), a date (2026-11-18) or an amount ($150) is part of that token, not
+ * a bare number: "5" is not said by "05:00", "15" and "50" are not said by "$150". (bareloop's `boundInWords` is a substring test and accepts all of those; this
+ * reader is ours - FINDINGS-worthy, see the commit.) Times compare without a leading zero on the hour ("05:00" = "5:00"), spaces dropped, case folded.
+ * @param {string} text
+ * @returns {{bare: Set<number>, amount: Set<number>, time: Set<string>, date: Set<string>}}
+ */
+export function numbersSaid(text) {
+  const out = { bare: new Set(), amount: new Set(), time: new Set(), date: new Set() };
+  for (const m of String(text).matchAll(/(\d{1,2}:\d{2}(?:\s?[AaPp][Mm])?)|(\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})|([$\u20ac\u00a3]\s?\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)/g)) {
+    if (m[1]) out.time.add(timeKey(m[1]));
+    else if (m[2]) out.date.add(m[2]);
+    else if (m[3]) out.amount.add(Number(m[3].replace(/[^\d.]/g, '')));
+    else out.bare.add(Number(m[4].replace(/,/g, '')));
+  }
+  return out;
+}
+/** @param {string} t @returns {string} a time token as compared: no spaces, lower case, no leading zero on the hour */
+const timeKey = (t) => t.replace(/\s+/g, '').toLowerCase().replace(/^0(?=\d:)/, '');
+
+/**
  * Tighter than bareloop (signed, am7 item 1): every number in a fact's rule must be in the person's own words on this job line (the line and its `~` rules;
- * an agreed reading is a `~` line too). A bound the AI made up is refused.
+ * an agreed reading is a `~` line too), as the right KIND of token: a money or number bound is a bare number or an amount, a time bound is a time, a date bound
+ * is a date. A bound the AI made up, or one that only sits inside another token, is refused.
  * @param {{part: any, jobLine: {n: number, text?: string, rule?: string, rules?: string[]}}} o @returns {WordRed[]}
  */
 export function numberRuleReds({ part, jobLine }) {
   /** @type {WordRed[]} */
   const reds = [];
-  const said = wordsSaidOn(jobLine);
+  const said = numbersSaid(wordsSaidOn(jobLine));
+  const isSaid = (/** @type {string} */ shape, /** @type {unknown} */ b) => {
+    if (shape === 'money' || shape === 'number') return typeof b === 'number' && (said.bare.has(b) || said.amount.has(b));
+    if (shape === 'time') return typeof b === 'string' && said.time.has(timeKey(b));
+    if (shape === 'date') return typeof b === 'string' && said.date.has(b);
+    return false;
+  };
   for (const f of Array.isArray(part.facts) ? part.facts : []) {
     if (!f.rule || typeof f.rule !== 'object') continue;
     const bounds = f.rule.op === 'between' ? [f.rule.lo, f.rule.hi] : [f.rule.value];
     for (const b of bounds) {
-      if (!boundInWords(b, said)) {
+      if (!isSaid(f.shape, b)) {
         reds.push({
           code: 'number-unsigned',
           detail: `line ${jobLine.n}: fact "${f.name}" has the number ${b} in its rule, but ${b} is not in your words on line ${jobLine.n}. A number rule must come from a ~ rule you wrote or a reading you agreed to. Change the ~ rule on line ${jobLine.n} to say it, or leave this rule out.`,
@@ -114,14 +141,16 @@ export function numberRuleReds({ part, jobLine }) {
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 });
 
 /**
- * Signed (am7 item 1): "List 3 ..." is the count, 3 results. A count the person never said (as digits or a word number, a whole word on the line or its `~`
- * rules) is refused. Same source of truth as the number rules: the person's own words on the line.
+ * Signed (am7 item 1): "List 3 ..." is the count, 3 results. A count the person never said as a bare number or a word number (not inside a time, a date or an
+ * amount) is refused. Same reader as the number rules.
  * @param {{part: any, jobLine: {n: number, text?: string, rule?: string, rules?: string[]}}} o @returns {WordRed[]}
  */
 export function countReds({ part, jobLine }) {
   /** @type {WordRed[]} */
   const reds = [];
-  const said = new Set(wordsSaidOn(jobLine).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).map((t) => (/^\d+$/.test(t) ? Number(t) : NUMBER_WORDS[/** @type {'one'} */ (t)])).filter((n) => n !== undefined));
+  const text = wordsSaidOn(jobLine);
+  const said = numbersSaid(text).bare;
+  for (const w of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) { const n = NUMBER_WORDS[/** @type {'one'} */ (w)]; if (n !== undefined) said.add(n); }
   const c = part.count && typeof part.count === 'object' ? part.count : {};
   for (const k of ['min', 'max']) {
     if (c[k] === undefined || said.has(c[k])) continue;

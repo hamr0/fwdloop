@@ -163,9 +163,9 @@ test('a green step with no cited facts and no spreadsheet is still refused (the 
 });
 
 test('a result count that is not a number said on that line or its ~ rules is refused at $0 naming the line (count-unsigned); digits and word numbers both count', () => {
-  const r = reds(decl(part(goodFacts(), { min: 7, max: 7 })));
+  const r = reds(decl(part(goodFacts(), { min: 5, max: 5 })));
   assert.equal(r.length, 2, r.join('\n'));
-  assert.match(r[0], /line 1: the result count has the number 7, but 7 is not in your words on line 1/);
+  assert.match(r[0], /line 1: the result count has the number 5, but 5 is not in your words on line 1/);
   assert.equal(reds(decl(part(goodFacts(), { min: 3, max: 3 }))).length, 0, '"List 3" says 3');
   // a word number: "List three flights" says 3
   const words = parseSignedText(prose().replace('List 3 flights', 'List three flights'));
@@ -173,4 +173,22 @@ test('a result count that is not a number said on that line or its ~ rules is re
   assert.equal(ok.ok, true, ok.ok ? '' : ok.reds.join('\n'));
   // no count at all is not refused here
   assert.deepEqual(reds(decl(part(goodFacts(), null))), []);
+});
+
+test('a number inside a time, a date or a price is not a number the person said on its own: 5 is not in "05:00" or "$150", 15 and 50 are not in "$150"', () => {
+  // the line says 3, $150, 05:00 and 23:59: no bare 5, 15, 50, 23, 59
+  const f = goodFacts();
+  for (const bad of [5, 15, 50]) {
+    const g = goodFacts();
+    g[2] = { ...g[2], rule: { op: 'lt', value: bad } };
+    const r = reds(decl(part(g)));
+    assert.ok(r.some((x) => new RegExp(`has the number ${bad} in its rule, but ${bad} is not in your words`).test(x)), `rule ${bad}: ${r.join('|')}`);
+  }
+  // a count of 150 is not "$150"; a count of 23 is not in "23:59"
+  for (const bad of [150, 23]) {
+    const r = reds(decl(part(f, { min: bad, max: bad })));
+    assert.ok(r.some((x) => x.includes(`the result count has the number ${bad}`)), `count ${bad}: ${r.join('|')}`);
+  }
+  // what IS said still passes: $150 as a price rule, 05:00 and 23:59 as time bounds, 3 as a count
+  assert.deepEqual(reds(decl(part())), []);
 });
