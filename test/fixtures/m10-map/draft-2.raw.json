@@ -1,0 +1,4 @@
+{
+ "draft": 2,
+ "raw": "{\"facts\":[{\"name\":\"destination airport\",\"from\":\"line 1\",\"shape\":\"place\",\"words\":[\"LHR\",\"Heathrow Airport\",\"London\"]},{\"name\":\"origin airport\",\"from\":\"line 1\",\"shape\":\"place\",\"words\":[\"AMS\",\"Amsterdam Airport Schiphol\",\"Amsterdam\"]},{\"name\":\"price\",\"from\":\"line 1 rule 1\",\"shape\":\"money\",\"words\":[\"From\",\"$\"],\"currency\":[\"$\",\"US dollars\"],\"unit\":[\"US dollars\"],\"reading\":{\"op\":\"lt\",\"value\":150}},{\"name\":\"departure time\",\"from\":\"line 1 rule 2\",\"shape\":\"time\",\"words\":[\"Departure time:\"],\"reading\":{\"op\":\"between\",\"lo\":\"05:00\",\"hi\":\"23:59\"}},{\"name\":\"stops\",\"from\":\"line 1 rule 3\",\"shape\":\"phrase\",\"words\":[\"Nonstop\",\"0 stops\"]}]}"
+}
