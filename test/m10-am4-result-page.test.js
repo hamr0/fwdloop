@@ -4,7 +4,9 @@
 // $0: a parked run from the CLI's fake model step (job2 reads a .docx, so it is an M10 job), the real panel, headless chromium.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  readFileSync, writeFileSync, mkdirSync, readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +54,9 @@ export function parkedM10() {
  * In-page, before any script runs: the run's detail answers with `detailPatch` laid over the real one, and the Result route answers `resultBody`.
  * Everything else is the real panel's.
  */
-async function open(width, { detailPatch = {}, resultBody = null, world = parkedM10() } = {}) {
+async function open(width, {
+  detailPatch = {}, resultBody = null, world = parkedM10(), stubAnswer = false,
+} = {}) {
   const chrome = await launchChrome();
   if (!chrome) return null;
   CLOSERS.push(async () => chrome.close());
@@ -60,9 +64,11 @@ async function open(width, { detailPatch = {}, resultBody = null, world = parked
   HANDLES.push(h);
   await chrome.send('Page.enable');
   await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
-    source: `(function(){ var f = window.fetch; var patch = ${JSON.stringify(detailPatch)}; var body = ${JSON.stringify(resultBody)};
-      window.fetch = function(u){
+    source: `(function(){ var f = window.fetch; var patch = ${JSON.stringify(detailPatch)}; var body = ${JSON.stringify(resultBody)}; var stub = ${JSON.stringify(stubAnswer)};
+      window.__posts = [];
+      window.fetch = function(u, init){
         var s = String(u);
+        if(stub && /\\/api\\/answer$/.test(s) && init && init.method === "POST"){ window.__posts.push(JSON.parse(init.body)); return Promise.resolve(new Response(JSON.stringify({ok: true}), {status: 202, headers: {"content-type": "application/json"}})); }
         if(body && /\\/api\\/runs\\/[^/]+\\/[^/]+\\/result$/.test(s)) return Promise.resolve(new Response(JSON.stringify(body), {status: 200, headers: {"content-type": "application/json"}}));
         if(/\\/api\\/runs\\/[^/]+\\/[^/]+$/.test(s)) return f.apply(this, arguments).then(function(r){ return r.json().then(function(d){ return new Response(JSON.stringify(Object.assign(d, patch)), {status: 200, headers: {"content-type": "application/json"}}); }); });
         return f.apply(this, arguments);
@@ -104,15 +110,115 @@ test('browser: empty states use bareloop\'s words ("select a run first"; the pan
   assert.match(page, /<div id="result-empty" class="hint"[^>]*>select a run first<\/div>/);
 });
 
-test('DOM-diff 1280: our renderer, fed bareloop\'s /result JSON for run mvfphtwl, draws bareloop\'s #result-body (minus the Your-call card, not built)', { skip: SKIP && 'no browser' }, async (t) => {
+test('DOM-diff 1280: our renderer, fed bareloop\'s /result JSON for run mvfphtwl, draws bareloop\'s #result-body (the Your-call card minus its Pause button, am5 item 2)', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await open(1280, { detailPatch: DETAIL, resultBody: RESULT });
   if (!o) { t.skip('no chromium installed'); return; }
   await o.chrome.ev('document.getElementById("tab-result").click()');
   assert.ok(await o.chrome.waitFor('document.getElementById("result-body").innerHTML.length > 100'), 'the Result tab drew');
   await o.chrome.ev('document.querySelectorAll("#result-body details").forEach(function(d){ d.open = true; })');
+  // the golden was exported while the run waited for its accept, with the rerun box open (the person pressed "Rerun with my words")
+  await o.chrome.ev('document.querySelector("[data-testid=result-rerun-open]").click()');
   const got = ours(await o.chrome.ev('document.getElementById("result-body").outerHTML'));
-  // the golden was exported while the run waited for its accept; the Your-call card (item 5) is not part of this piece
-  const want = norm(GOLDEN_HTML).replace(/<div class="job-card" id="result-door-card".*?<div id="result-door-msg" data-testid="result-door-msg"><\/div><\/div>/, '');
-  assert.equal(want.includes('result-door'), false, 'the golden minus the door card');
+  // am5 item 2: fwdloop's Your call has no Pause (a run waiting for you stays open and spends nothing). Everything else is bareloop's, byte for byte.
+  const PAUSE = '<button class="btn" type="button" data-testid="result-pause">Pause</button>';
+  assert.ok(norm(GOLDEN_HTML).includes(PAUSE), 'the golden has the Pause button this test removes');
+  const want = norm(GOLDEN_HTML).replace(PAUSE, '');
+  assert.ok(want.includes('id="result-door-card"') && !want.includes('result-pause'));
   assert.equal(got, want);
+});
+
+// ---- M10 am5 item 2: the Your-call card ----
+const resultTab = async (o) => {
+  await o.chrome.ev('document.getElementById("tab-result").click()');
+  assert.ok(await o.chrome.waitFor('document.getElementById("result-body").innerHTML.length > 100'), 'the Result tab drew');
+};
+const doorDetail = { ...DETAIL, flow: 'job2', runId: 'run-1' };
+
+test('the Your-call card has Accept and Rerun with my words, and no Pause; bareloop\'s words come from the server\'s payload', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280, { detailPatch: DETAIL, resultBody: RESULT });
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  assert.deepEqual(await o.chrome.ev('Array.from(document.querySelectorAll("#result-door-card button")).map(function(b){ return b.textContent; })'), ['Accept', 'Rerun with my words', 'Rerun']);
+  assert.equal(await o.chrome.ev('document.querySelector("[data-testid=result-pause]")'), null);
+  assert.equal(await o.chrome.ev('document.querySelector("#result-door-card .st-word").textContent'), 'waiting for you');
+  assert.match(await o.chrome.ev('document.querySelector("#result-door-card .ro-value").textContent'), /the checks passed; is this what you wanted\?$/);
+});
+
+test('no door in the payload, no card (a run nobody is waiting on)', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280, { detailPatch: DETAIL, resultBody: { ...RESULT, door: null } });
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  assert.equal(await o.chrome.ev('document.getElementById("result-door-card")'), null);
+});
+
+// the Result tab's Accept is the Ask tab's Accept: the same route, the same body (ONE writer of the answer)
+test('Accept on the Result tab posts exactly what Accept on the Ask tab posts', { skip: SKIP && 'no browser' }, async (t) => {
+  const ask = await open(1280, { stubAnswer: true });
+  if (!ask) { t.skip('no chromium installed'); return; }
+  await ask.chrome.ev('document.getElementById("tab-ask").click()');
+  assert.ok(await ask.chrome.waitFor('!!document.querySelector("[data-testid=btn-accept]")'), 'the Ask tab has its Accept');
+  await ask.chrome.ev('document.querySelector("[data-testid=btn-accept]").click()');
+  assert.ok(await ask.chrome.waitFor('window.__posts.length === 1'));
+  const fromAsk = await ask.chrome.ev('window.__posts[0]');
+  const res = await open(1280, { stubAnswer: true, world: ask.world });
+  await resultTab(res);
+  assert.ok(await res.chrome.waitFor('!!document.querySelector("[data-testid=result-accept]")'), 'the real run waits, so its real /result carries the door');
+  await res.chrome.ev('document.querySelector("[data-testid=result-accept]").click()');
+  assert.ok(await res.chrome.waitFor('window.__posts.length === 1'));
+  const fromResult = await res.chrome.ev('window.__posts[0]');
+  assert.deepEqual(fromResult, fromAsk);
+  assert.equal(fromResult.decision, 'accept');
+  assert.equal(fromResult.flow, 'job2');
+  assert.match(fromResult.askId, /\S/);
+});
+
+test('Rerun with my words is the Ask tab\'s rerun: decision rerun, the words as the reason; empty words send nothing', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280, { stubAnswer: true });
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  assert.ok(await o.chrome.waitFor('!!document.querySelector("[data-testid=result-rerun-open]")'));
+  await o.chrome.ev('document.querySelector("[data-testid=result-rerun-open]").click()');
+  assert.equal(await o.chrome.ev('document.querySelector("[data-testid=result-rerun]").disabled'), true, 'empty words: the button is off');
+  await o.chrome.ev('document.querySelector("[data-testid=result-rerun]").click()');
+  assert.equal(await o.chrome.ev('window.__posts.length'), 0, 'a click on the disabled button sends nothing');
+  await o.chrome.ev('var t = document.getElementById("result-rerun-text"); t.value = "only morning flights"; t.dispatchEvent(new Event("input"))');
+  assert.equal(await o.chrome.ev('document.querySelector("[data-testid=result-rerun]").disabled'), false);
+  await o.chrome.ev('document.querySelector("[data-testid=result-rerun]").click()');
+  assert.ok(await o.chrome.waitFor('window.__posts.length === 1'));
+  const p = await o.chrome.ev('window.__posts[0]');
+  assert.deepEqual([p.decision, p.reason, p.flow, p.runId], ['rerun', 'only morning flights', 'job2', 'run-1']);
+});
+
+test('words typed in the rerun box (and the open box) survive the tab being drawn again', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280, { stubAnswer: true });
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  assert.ok(await o.chrome.waitFor('!!document.querySelector("[data-testid=result-rerun-open]")'));
+  await o.chrome.ev('document.querySelector("[data-testid=result-rerun-open]").click(); var t = document.getElementById("result-rerun-text"); t.value = "half typed"; t.dispatchEvent(new Event("input"))');
+  await o.chrome.ev('window.__before = document.getElementById("result-door-card"); document.getElementById("tab-result").click()');
+  assert.ok(await o.chrome.waitFor('document.getElementById("result-door-card") !== window.__before'), 'the card was drawn again');
+  assert.equal(await o.chrome.ev('document.getElementById("result-rerun-text").value'), 'half typed');
+  assert.equal(await o.chrome.ev('document.getElementById("result-rerun-box").hidden'), false);
+  assert.equal(await o.chrome.ev('document.querySelector("[data-testid=result-rerun]").disabled'), false);
+});
+
+test('one writer: the page posts an answer from exactly one function, and the door buttons go through it', () => {
+  const page = readFileSync(path.join(REPO, 'src', 'panel', 'index.html'), 'utf8');
+  assert.equal((page.match(/postJSON\("\/api\/answer"/g) ?? []).length, 1);
+  const wire = page.slice(page.indexOf('function wireResultDoor'), page.indexOf('function wireResultDoor') + 1800);
+  assert.equal((wire.match(/sendAnswer\(card, ask, ctx, "/g) ?? []).length, 2);
+  assert.doesNotMatch(wire, /authorPost|postJSON|fetch\(/);
+});
+
+test('a real Accept on the Result tab saves the answer in the run\'s own folder, and the Ask tab then shows no doors for that ask (accepted anywhere is accepted everywhere)', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280);
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  assert.ok(await o.chrome.waitFor('!!document.querySelector("[data-testid=result-accept]")'));
+  await o.chrome.ev('document.querySelector("[data-testid=result-accept]").click()');
+  const saved = () => readdirSync(o.world.runDir).filter((f) => /^answer(\..*consumed)?\.json$/.test(f));
+  for (let i = 0; i < 100 && saved().length === 0; i += 1) await new Promise((r) => { setTimeout(r, 100); }); // eslint-disable-line no-await-in-loop
+  assert.ok(saved().length > 0, 'the answer is on disk');
+  const door = await o.chrome.ev('fetch("/api/runs/job2/run-1/result").then(function(r){ return r.json(); }).then(function(a){ return a.door; })');
+  assert.equal(door, null, 'the Result tab\'s door is gone');
 });

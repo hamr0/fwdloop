@@ -491,7 +491,7 @@
   .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
   .job-card h4::before{content:"┤ ";color:var(--text-faint);}
   .job-card h4::after{content:" ├";color:var(--text-faint);}
-  /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules wait for item 5) */
+  /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules are below, am5 item 2) */
   .st-word{font-weight:700;color:var(--text);}
   .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
   /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
@@ -500,6 +500,11 @@
   #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
   #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
+  /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
+  #result-door-card{border-color:var(--amber);}
+  #result-door-card .st-word{color:var(--amber);}
+  #result-door-card textarea{width:100%;min-height:60px;margin:6px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;padding:6px;box-sizing:border-box;}
+  #result-door-card .stopping{color:var(--amber);font-size:13px;overflow-wrap:anywhere;}
   /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
   #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
@@ -2490,6 +2495,10 @@
     if(!detail || !data || data.flow !== detail.flow || data.runId !== detail.runId){ return; }
     document.getElementById("result-empty").hidden = true;
     body.hidden = false;
+    // keep what the person is typing (and the box they opened) across a poll-driven redraw
+    var keepText = body.querySelector("#result-rerun-text");
+    var typed = keepText ? keepText.value : "";
+    var rerunOpen = !!body.querySelector("#result-rerun-box:not([hidden])");
     var counters = document.getElementById("run-counters").textContent.split(" \u00b7 ");
     var h = '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
       resultField("Status", '<div class="ro-value">' + stateDotHTML(glyphClass(detail.glyph), detail.word || "", "result-status") +
@@ -2505,6 +2514,7 @@
     if((data.notChecked || []).length){
       h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked(data.notCheckedLabel, data.notChecked, "result-notchecked") + '</div>';
     }
+    if(data.door) h += resultDoorHtml(data.door);
     if((data.delivered || []).length){
       h += '<div class="job-card" data-testid="result-saved"><h4>Saved</h4>' + data.delivered.map(function(d){
         return resultField(d.name, '<div class="ro-value" data-testid="result-path" style="overflow-wrap:anywhere">' + escapeXml(d.path) + '</div>' +
@@ -2513,6 +2523,41 @@
       }).join("") + '</div>';
     }
     body.innerHTML = h;
+    var ta = body.querySelector("#result-rerun-text");
+    if(ta){
+      ta.value = typed;
+      if(rerunOpen){ body.querySelector("#result-rerun-box").hidden = false; body.querySelector('[data-testid="result-rerun"]').disabled = typed.trim() === ""; }
+      wireResultDoor(body, data.door, data.flow, data.runId);
+    }
+    paintAnswerMsg();
+  }
+  // M10 am5 item 2: the Your-call card. Bareloop's words and layout; no Pause (a run waiting for you stays open and spends nothing until you answer or its ask wait ends).
+  // Accept and Rerun with my words are the Ask tab's own: the same `sendAnswer` and POST /api/answer (decision accept / rerun, the words as the reason), so an
+  // answer given here is the answer on every tab. The server decides when the card is shown (`door`); the page types none of its words.
+  function resultDoorHtml(door){
+    return '<div class="job-card" id="result-door-card" data-testid="result-door"><h4>Your call</h4><div class="field"><div class="ro-value"><b class="st-word">' + escapeXml(door.head) + '</b> \u2014 ' + escapeXml(door.ask) + '</div></div>' +
+      '<div class="run-actions" style="margin:6px 0 0;"><button class="btn primary" type="button" data-testid="result-accept">Accept</button>' +
+      '<button class="btn" type="button" data-testid="result-rerun-open">Rerun with my words</button></div>' +
+      '<div id="result-rerun-box" data-testid="result-rerun-box" hidden><textarea id="result-rerun-text" data-testid="result-rerun-text" aria-label="your words for the rerun" placeholder="e.g. only morning flights, and show the airline"></textarea>' +
+      '<button class="btn" type="button" data-testid="result-rerun" disabled>Rerun</button></div>' +
+      '<div id="result-door-msg" data-testid="result-door-msg"></div></div>';
+  }
+  function wireResultDoor(body, door, flow, runId){
+    var card = body.querySelector("#result-door-card");
+    if(!card) return;
+    var ask = {askId: door.askId};
+    var ctx = {flow: flow, runId: runId, draftNo: door.draftNo};
+    card.querySelector('[data-testid="result-accept"]').addEventListener("click", function(){ sendAnswer(card, ask, ctx, "accept"); });
+    var box = card.querySelector("#result-rerun-box");
+    var txt = card.querySelector("#result-rerun-text");
+    var go = card.querySelector('[data-testid="result-rerun"]');
+    card.querySelector('[data-testid="result-rerun-open"]').addEventListener("click", function(){ box.hidden = !box.hidden; if(!box.hidden) txt.focus(); });
+    // required: the button stays off while the words are empty, and the click re-checks (the engine refuses empty words too)
+    txt.addEventListener("input", function(){ go.disabled = txt.value.trim() === ""; });
+    go.addEventListener("click", function(){
+      if(txt.value.trim() === ""){ say(flow, runId, "refused", "Write what you want done differently, then press Rerun."); return; }
+      sendAnswer(card, ask, ctx, "rerun");
+    });
   }
 
   // ---- Run tab: header + summary + step map + one card per step ATTEMPT
@@ -4062,6 +4107,13 @@
       el.className = "answer-msg" + (mine ? " " + m.cls : "");
       el.textContent = mine ? m.text : "";
     });
+    // the Result tab's Your-call card shows the same message for its own run (no attribute is added while there is none)
+    var rm = document.getElementById("result-door-msg");
+    if(rm){
+      var m2 = answerMsg;
+      if(m2 && resultDetail && m2.flow === resultDetail.flow && m2.runId === resultDetail.runId){ rm.className = "answer-msg " + m2.cls; rm.textContent = m2.text; }
+      else if(rm.textContent !== "" || rm.hasAttribute("class")){ rm.removeAttribute("class"); rm.textContent = ""; }
+    }
   }
   // Every refusal the page shows is a plain sentence — never an HTTP status, a refusal code, an askId or a path.
   // `r` is { status, body, text } from postJSON; `decision` is the answer word of an answer click (else null).
