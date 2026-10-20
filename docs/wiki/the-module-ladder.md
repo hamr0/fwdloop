@@ -2587,6 +2587,12 @@ same run. Scope is stated when its turn comes.
   4. **Draft log and Audit.** One row per question and answer: the question, the answer, the line, the time, plus the proposal and the rule it added as their own fields (never cut out of the question text). The Audit shows it under the drafting step as `you were asked: …` / `you said: …`. This replaces item 6's "you confirmed …" in the signed job: the new `~` line is what you confirmed.
   5. **Too many asks (am1).** The normal draft-stop message, then the rewrite list, then `Spent so far: <spend or unknown>.`
 
+- **M10 amendment 3 — SIGNED by hamr 2026-10-20 ("sign m10 am3"): a web page's address is signed with the job, never typed per run.** This makes item 1's "a signed web address" exact.
+  1. On the New job card, an inputs line `name: https://…` (or `http://`) is a web page, as in bareloop's Inputs box. It is written into the signed job like a file input, so the job's signature covers the address.
+  2. At the Run door, in a schedule and on a trigger, a page input shows its signed address and can't be changed there. A different address is a changed job (a new workflow `<name>-N`). File inputs still change per run, as today.
+  3. A run that names a different address for a page input is refused at $0, naming the input.
+  - **Why:** an address typed per run is not signed, and fetching it sends a request off the machine.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
