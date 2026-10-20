@@ -1,8 +1,8 @@
 // borrowed-from: bareloop src/pagerules.js@b56f177
-// Copy of bareloop's file; only the import lines point at fwdloop's src/pagebits.js (the pieces of facts.js, factwords.js, labelscan.js, rubricstep.js the rules need).
+// Copy of bareloop's file; the three number patterns (BEFORE, AFTER, AFTER_CUR) are written as literals, not built from NUM (this repo bans dynamic patterns in src/); only the import lines point at fwdloop's src/pagebits.js (the pieces of facts.js, factwords.js, labelscan.js, rubricstep.js the rules need).
 // IDEA A CORE (docs/product/ITEM33-BUILD.md "Addendum 2026-10-18 — Idea A core: build spec", section 4.2): the plain code rules that
 // keep or drop each page word the AI's map named. The AI never grades: it names words, code keeps only what the saved page proves.
-// Pure - no I/O, no clock, no model. The rule bodies are PORTED from the frozen POC (.claude/scratch/idea-a-v2/rules.mjs and
+// Pure - no I/O, no clock, no model. The rule bodies are PORTED from the frozen POC (scratch idea-a-v2/rules.mjs and
 // rules-v3-candidate.mjs; sha256 recorded in commit 0bcc5fe), with the OUT branches (R2, R2a, R2b, R2c, R3, R3U, V4, pageClaims) deleted.
 
 import { lineRules } from './pagebits.js';
@@ -99,10 +99,9 @@ function valueSet(lines, label, shape) {
 const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
 /** a number as the page writes it: digits, thousands commas, optional decimals (a currency sign next to it is not part of it) */
-const NUM = '\\d[\\d,]*(?:\\.\\d+)?';
-const BEFORE = new RegExp(`(${NUM})\\s*$`);
-const AFTER = new RegExp(`^\\s*(?:[$€£]\\s*)?(${NUM})`);
-const AFTER_CUR = new RegExp(`^\\s*(${NUM})`);
+const BEFORE = /(\d[\d,]*(?:\.\d+)?)\s*$/;
+const AFTER = /^\s*(?:[$€£]\s*)?(\d[\d,]*(?:\.\d+)?)/;
+const AFTER_CUR = /^\s*(\d[\d,]*(?:\.\d+)?)/;
 const stripCommas = (/** @type {string} */ s) => s.replace(/,/g, '');
 
 /** @param {string[]} lines @param {string} w @returns {[string, number][]} every occurrence of w as [its line, where it starts] */

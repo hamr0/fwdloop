@@ -9,9 +9,10 @@ export const MAX_UNIT_CHARS = 100;
 export const asList = (/** @type {unknown} */ v) => (Array.isArray(v) ? v.map(String) : (typeof v === 'string' ? [v] : []));
 export const boundOk = (/** @type {string} */ shape, /** @type {unknown} */ v) => (shape === 'number' || shape === 'money' ? typeof v === 'number' && Number.isFinite(v) : typeof v === 'string' && v !== '');
 
-// borrowed-from: bareloop src/factwords.js@18ab77c (squash, loose, countExact, countPhrase)
+// borrowed-from: bareloop src/factwords.js@18ab77c (squash, loose, countExact, countPhrase - rewritten without a built pattern, same count, see test/m10-pagebits.test.js)
 const WS = /[\s   ]+/g;
-const escapeRe = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** a letter or a digit (any script); the character right at the start of the string tested */
+const WORD_CHAR = /^[\p{L}\p{N}]/u;
 
 /** @param {string} t @returns {string} the source with every run of white space made one space */
 export const squash = (t) => String(t ?? '').replace(WS, ' ');
@@ -39,9 +40,19 @@ export function countExact(source, words) {
 export function countPhrase(source, words) {
   const w = loose(words);
   if (w === '') return 0;
-  const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(w)}(?=$|[^\\p{L}\\p{N}])`, 'gu');
+  const hay = loose(source);
+  // The original is one dynamic RegExp, `(^|[^\p{L}\p{N}])<w>(?=$|[^\p{L}\p{N}])` over every match; this repo bans built patterns in src/, so the same count is
+  // taken by hand: a hit has a non-letter-non-digit (or the start) before it and after it, and a hit may not reuse the character the last hit's end left behind.
   let n = 0;
-  for (const _m of loose(source).matchAll(re)) n += 1;
+  let consumedTo = 0;
+  for (let i = hay.indexOf(w); i !== -1; i = hay.indexOf(w, i + 1)) {
+    const prev = i === 0 ? null : /(.)$/su.exec(hay.slice(Math.max(0, i - 2), i))?.[1] ?? null;
+    if (prev !== null && (WORD_CHAR.test(prev) || i - prev.length < consumedTo)) continue;
+    if (WORD_CHAR.test(hay.slice(i + w.length, i + w.length + 2))) continue;
+    n += 1;
+    consumedTo = i + w.length;
+    i += w.length - 1;
+  }
   return n;
 }
 
