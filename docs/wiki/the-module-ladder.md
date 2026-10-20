@@ -2617,6 +2617,11 @@ same run. Scope is stated when its turn comes.
      - They sit inside am2's chat message: `A question the plan raised (K of N), about job line L: <question>`.
   2. **The Result tab's Your call has no Pause.** It shows **Accept · Rerun with my words** only, with bareloop's words. In fwdloop a run waiting for you already stays open and spends nothing until you answer or its ask wait ends. Accept is fwdloop's existing Accept, and Rerun with my words is fwdloop's existing Rerun with a reason, the same ones the Ask tab uses. Accepting or rerunning in one place counts everywhere.
 
+- **M10 amendment 6 — SIGNED by hamr 2026-10-20 ("sign m10 am6"): the too-many-asks message is bareloop's, whole.** This changes am1's quoted message.
+  - With more than 3, the stop message is bareloop's `tooManyAsksText`, word for word: `Your job has N rules I can't check or had to guess. Please rewrite it so each one says what to look for. My readings: line L "<rule>" → <reading>; ….`
+  - A rule code can't check shows `I can't check this on the page` in place of a reading.
+  - It replaces am1's shorter quote. "My readings" is am1's list of each rule with code's reading.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
