@@ -24,7 +24,7 @@ export const FACT_SHAPES = Object.freeze(['money', 'number', 'date', 'time', 'ph
 export const MAX_FACTS = 10;
 /** the step's own checkpoint id in the rubric */
 const CHECKPOINT = 'cited';
-const CITED_ID = 'facts';
+export const CITED_ID = 'facts';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 

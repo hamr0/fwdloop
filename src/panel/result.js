@@ -18,6 +18,7 @@ import { NOT_CHECKED_LABEL } from '../checked.js';
 import { checkSendDestination } from '../runner.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
+import { CITED_CHECKS_FILE } from '../cited-record.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -29,8 +30,8 @@ export const RESULT_YOU_CONFIRMED = '(you confirmed)';
 /** the Your-call card's words (bareloop server.js@2959217 DOOR_WORDS.waiting.head and RESULT_DOOR_ASK); the page types none of them */
 export const RESULT_DOOR_HEAD = 'waiting for you';
 export const RESULT_DOOR_ASK = 'the checks passed; is this what you wanted?';
-/** the M10 cited-check record, in the run's own folder. Its writer is not built yet; `readCitedChecks` is the one reader. */
-export const CITED_CHECKS_FILE = 'cited-checks.json';
+/** the M10 cited-check record, in the run's own folder: `writeCitedLine` (src/cited-record.js) is its one writer, `readCitedChecks` its one reader. */
+export { CITED_CHECKS_FILE };
 
 /** end-row outcomes that are not a failure of the job */
 const NOT_FAILED = new Set(['complete', 'stopped', 'cap-halt', 'rerun', 'ask-expired']);
