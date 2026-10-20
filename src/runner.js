@@ -58,6 +58,8 @@ import {
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
+import { readRunSource } from './cited-source.js';
+import { citedLineOf, writeCitedLine } from './cited-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
@@ -752,7 +754,7 @@ function makeAuditRow({
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
-async function runStepRalph({
+export async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
   // M4d am25: the job's "Thinking on" box as the run's own copy keeps it; read once by the caller (`readJobThinking`), decided per try below by `stepThinkingMode`.
   thinkingBox = false,
@@ -959,7 +961,16 @@ async function runStepRalph({
       continue;
     }
 
-    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
+    // M10 piece 4: a step that cites quotes reads the run's OWN frozen copy of its source (never the drafting copy); the record of what the check said is
+    // written by the one writer, `writeCitedLine`, whatever the verdict - the Result tab says why a line did not pass.
+    const citedPart = step?.close?.class === 'green' ? step?.close?.cited : undefined;
+    const source = citedPart && runDir !== null ? readRunSource(runDir, citedPart.source) : undefined;
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source });
+    if (citedPart && runDir !== null && closed.cited) {
+      writeCitedLine(runDir, citedLineOf({
+        n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
+      }));
+    }
     tryChecks.push(...closeRecords(step, artifact, closed));
     saveTry();
 

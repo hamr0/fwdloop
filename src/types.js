@@ -262,6 +262,7 @@
  * @property {string|null} [red]
  * @property {string[]} [reds]
  * @property {Array<{id:string, text:string, ok:boolean, result:string|null}>} [checks] a softgreen close: every check it ran (M4d am29 item 2)
+ * @property {{part: any, check: any, results?: unknown}} [cited] a cited green close (M10 piece 4): the fact part and the check's own answer, for the run's cited-check record
  */
 
 /**

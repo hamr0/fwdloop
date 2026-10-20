@@ -63,6 +63,7 @@
 // signed text).
 
 import { createRubric, checkStep } from 'bareguard';
+import { checkCited } from './citedcheck.js';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
@@ -252,6 +253,38 @@ export function closeGreen(artifact, ctx) {
 }
 
 /**
+ * M10 piece 4 (item 2, "green grows"): the green close of a step that cites quotes instead of cells. `part` is the step's fact part (`close.cited`, set by
+ * code from the page look's kept facts, never by the model); `source` is the run's OWN frozen copy of the page or doc (`readRunSource`); the artifact is
+ * `{ results: [{ quote, values: { <fact name>: "<value as the quote writes it>" } }] }`. bareguard's `cited` check proves each quote is word for word in
+ * the frozen text, each value is in its quote and passes its rule, and the number of results is as signed. No model grades.
+ * Third outcomes, each named, never green: no readable source or an artifact that is not an object (`unparseable`, a casualty), a part bareguard cannot sign
+ * (`crash`). `cited` carries what the runner writes to the run's cited-check record: the part and the check's own answer.
+ *
+ * @param {any} part
+ * @param {any} artifact
+ * @param {{ok: true, text: string, sha256: string}|{ok: false, red: string}|null|undefined} source
+ * @returns {Promise<CloseVerdict>}
+ */
+export async function closeCited(part, artifact, source) {
+  try {
+    if (!source || source.ok !== true) {
+      const red = source && source.ok === false ? source.red : `input "${part?.source}": the run gave the check no saved copy to read`;
+      return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: `cited close: ${red}`, cited: { part, check: { verdict: 'stopped', gapLines: [], fault: red, sha256: '', claims: [], evidence: [] } } });
+    }
+    if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: 'cited artifact must be an object shaped {results: [{quote, values}]}' });
+    }
+    const check = await checkCited({ part, text: source.text, results: artifact.results });
+    const cited = { part, check, results: artifact.results };
+    if (check.verdict === 'green') return /** @type {CloseVerdict} */ ({ verdict: 'green', red: null, cited });
+    if (check.verdict === 'red') return /** @type {CloseVerdict} */ ({ verdict: 'red', red: check.gapLines.join('\n'), cited });
+    return /** @type {CloseVerdict} */ ({ verdict: 'crash', red: `cited close stopped: ${check.fault}`, cited });
+  } catch (err) {
+    return /** @type {CloseVerdict} */ ({ verdict: 'crash', red: `cited close crashed: ${err.message}` });
+  }
+}
+
+/**
  * M4e amendment 18: the soft checks run on bareguard 0.21.0. `softgreenSpec(shape)` is the ONE place a declared shape
  * becomes a rubric spec (signing and the run both build through `buildSoftgreenRubric`, so a shape that signs is a shape
  * that builds). The checks are in this fixed order, which is the order their sentences read in:
@@ -429,13 +462,15 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any> } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any } }} step
  * @param {unknown} artifact
- * @param {{ reads: Record<string, any>, businessDate: string }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null }} ctx
+ *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeByClass(step, artifact, ctx) {
   const cls = step?.close?.class;
+  if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
   if (cls === 'green') return closeGreen(artifact, ctx);
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
   if (cls === 'hitl') return { verdict: 'hitl', red: null };
