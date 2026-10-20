@@ -6,8 +6,8 @@
 // (a harness-set count with a min and a max). No model grades. The claim TEXT bareguard's number scan reads is written here from the values, never by
 // the step.
 //
-// A fact part is `{source: <input role>, facts: [{name, shape, unit?, currency?, phrase?, anchor?, until?, rule?}], count?: {min?, max?}}`. It is made from
-// the page look's kept facts by `factPartFromLook` (code, never the model).
+// A fact part is `{source: <input role>, facts: [{name, shape, unit?, currency?, phrase?, anchor?, until?, rule?}], count?: {min?, max?}}`. Since M10 am7 item 1
+// the DRAFTER writes it (`close.cited`) and src/citedwords.js proves it at $0; `factsOfLook` is what the page look says a part must hold for a place (R2c).
 //
 // Throws away: a kept fact's alternative labels beyond the first (bareguard signs ONE anchor per fact); a place word R2a / R2b dropped (src/pageplace.js
 // says why in its `trace`; the phrases left are ALL signed, R2c). The evidence offsets are bareguard's and are carried out for the Result tab's proof fold; no verdict is derived from them.
@@ -58,15 +58,6 @@ export function factsOfLook(k) {
   }
   if (isRec(k.reading)) f.rule = { ...k.reading };
   return [f];
-}
-
-/**
- * The fact part for one job line, from the kept look facts (code reads them; the model never writes it).
- * @param {any[]} lookFacts the kept facts of that line @param {string} source the page input's role @param {{min?: number, max?: number}} [count] how many results the job asks for
- * @returns {{source: string, facts: Record<string, any>[], count?: {min?: number, max?: number}}}
- */
-export function factPartFromLook(lookFacts, source, count) {
-  return { source, facts: lookFacts.flatMap(factsOfLook), ...(count === undefined ? {} : { count: { ...count } }) };
 }
 
 /**

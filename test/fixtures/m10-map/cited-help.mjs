@@ -1,8 +1,14 @@
 // Helpers for the M10 piece 4 tests: the fact part F71's draft 3 kept for the AMS-LHR flights job, and result rows read off a saved page.
 import { parseMapAnswer } from '../../../src/pagemap.js';
 import { applyPageWords, lookFactOf } from '../../../src/pagelook.js';
-import { factPartFromLook } from '../../../src/citedcheck.js';
+import { factsOfLook } from '../../../src/citedcheck.js';
 import { PAGE, raw, JOB } from './load.mjs';
+
+/**
+ * The fact part the page look says a job line must hold (the facts a careful drafter writes): a test helper, since the drafter writes the real one.
+ * @param {any[]} lookFacts @param {string} source @param {{min?: number, max?: number}} [count]
+ */
+export const factPartFromLook = (lookFacts, source, count) => ({ source, facts: lookFacts.flatMap(factsOfLook), ...(count === undefined ? {} : { count: { ...count } }) });
 
 /** the fact part (source "flights") the look kept for the job "List 3 flights from Amsterdam to London" and its rules; 3 results exactly */
 export function flightsPart(count = { min: 3, max: 3 }) {

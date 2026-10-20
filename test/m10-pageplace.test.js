@@ -6,8 +6,9 @@ import { test } from 'node:test';
 import { parseMapAnswer } from '../src/pagemap.js';
 import { applyPageWords, lookFactOf } from '../src/pagelook.js';
 import { placePhrases } from '../src/pageplace.js';
-import { checkCited, factPartFromLook, factsOfLook } from '../src/citedcheck.js';
+import { checkCited, factsOfLook } from '../src/citedcheck.js';
 import { PAGE, CHEAT_REVERSED, raw, JOB } from './fixtures/m10-map/load.mjs';
+import { factPartFromLook } from './fixtures/m10-map/cited-help.mjs';
 import { FIXTURE_DIR } from './fixtures/m10-map/load.mjs';
 import { readFileSync } from 'node:fs';
 

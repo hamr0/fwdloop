@@ -4,9 +4,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { checkCited, factPartFromLook, factPartReds, buildCitedSpec, factSentence, countSentence } from '../src/citedcheck.js';
+import { checkCited, factPartReds, buildCitedSpec, factSentence, countSentence } from '../src/citedcheck.js';
 import { CHEAT_REVERSED, FIXTURE_DIR } from './fixtures/m10-map/load.mjs';
-import { flightsPart, flightRows, goodRows, PAGE } from './fixtures/m10-map/cited-help.mjs';
+import { flightsPart, flightRows, goodRows, PAGE, factPartFromLook } from './fixtures/m10-map/cited-help.mjs';
 
 const PAY0 = readFileSync(`${FIXTURE_DIR}/page-ams-lhr.cheat-pay0.txt`, 'utf8');
 
