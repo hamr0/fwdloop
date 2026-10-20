@@ -2610,6 +2610,13 @@ same run. Scope is stated when its turn comes.
   7. **Empty states**, bareloop's words: "select a run first", and "no such run, or it has no result tab".
   8. **Phone.** bareloop never checked it on a phone. We verify at 1280, 390 and 320 before calling it done.
 
+- **M10 amendment 5 — SIGNED by hamr 2026-10-20 ("sign m10 am5"): bareloop's question words, and no Pause.** This changes item 4's question form and am4 item 5.
+  1. **The question words are bareloop's, verbatim.** They replace item 4's `Line n, guardrail "<…>": I propose <…>.` form:
+     - Reading ask: `Your line N says "<rule>". I read it as: <reading>. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line N).`
+     - Can't-check ask: `Your line N says "<rule>". I can't check this on the page. Drop it? Answer "drop it", or type how to check it (your answer is added as a new ~ rule on line N).`
+     - They sit inside am2's chat message: `A question the plan raised (K of N), about job line L: <question>`.
+  2. **The Result tab's Your call has no Pause.** It shows **Accept · Rerun with my words** only, with bareloop's words. In fwdloop a run waiting for you already stays open and spends nothing until you answer or its ask wait ends. Accept is fwdloop's existing Accept, and Rerun with my words is fwdloop's existing Rerun with a reason, the same ones the Ask tab uses. Accepting or rerunning in one place counts everywhere.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
