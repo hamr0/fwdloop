@@ -24,7 +24,8 @@ import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
-import { lookAtPage, pageInfoLines, notCheckedLines } from './pagelook.js';
+import { lookAtPage, pageInfoLines } from './pagelook.js';
+import { leftRuleLine } from './pagedropwords.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
@@ -476,7 +477,7 @@ export async function draft({
     }
     if (left.length) {
       look.dropped.push(...left);
-      const lines = notCheckedLines(left, jobLines);
+      const lines = left.map((d) => leftRuleLine(d.fact));
       for (const x of lines) if (!pageNotChecked.includes(x)) pageNotChecked.push(x);
       pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
     }

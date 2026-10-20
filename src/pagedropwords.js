@@ -27,6 +27,13 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'bad-shape': (d) => `The AI named a kind of value for "${d.fact}" that a check cannot read.`,
 });
 
+/**
+ * M10 am2 item 3: the plan card row for a `~` rule the person chose to leave Not checked ("drop it"), word for word:
+ * `not checked · "<rule>" — You chose to leave it Not checked.` (the rule as the person wrote it; the sentence is the one table's).
+ * @param {string} rule @returns {string}
+ */
+export const leftRuleLine = (rule) => `not checked · "${rule}" — ${WORDS['person-left'](/** @type {Dropped} */ ({}))}`;
+
 /** @param {Dropped} d @returns {string} the plain sentence for one drop */
 export function dropSentence(d) {
   const f = WORDS[d.reason];

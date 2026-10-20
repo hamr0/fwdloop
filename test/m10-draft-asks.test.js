@@ -103,11 +103,18 @@ test('a rule the person left ("drop it") is Not checked with the signed words, t
   const r = await run(p, { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
   assert.ok(!r.look.facts.some((f) => f.line === 1 && f.forRule === 2));
   assert.ok(r.look.dropped.some((d) => d.line === 1 && d.rule === 2 && d.reason === 'person-left'));
-  assert.ok(r.notChecked.includes('line 1: "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
-  assert.ok(p.calls[1].messages[0].content.includes('line 1: "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
+  assert.ok(r.notChecked.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
+  assert.ok(p.calls[1].messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
 });
 
 test('a left rule that does not exist on the job is ignored, not invented', async () => {
   const r = await run(fakeProvider([mapReply(raw(3)), textReply()]), { offerQuestions: false, leftRules: [{ line: 9, rule: 1 }, { line: 1, rule: 7 }] });
   assert.ok(!r.look.dropped.some((d) => d.reason === 'person-left'));
+});
+
+test('am2 item 3: the plan card row for a left rule reads exactly `not checked · "<rule>" — You chose to leave it Not checked.`, and no other row uses that prefix', async () => {
+  const r = await run(fakeProvider([mapReply(raw(3)), textReply()]), { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
+  const left = r.notChecked.filter((x) => x.endsWith('You chose to leave it Not checked.'));
+  assert.deepEqual(left, ['not checked · "not a red-eye" — You chose to leave it Not checked.']);
+  assert.ok(r.notChecked.filter((x) => x.startsWith('not checked · ')).length === 1, 'page drops keep their own line form');
 });

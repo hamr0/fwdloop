@@ -106,7 +106,7 @@ test('drop it (a can\'t-check ask): no ~ line is added; the rule is Not checked 
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, [...READ_RULES, 'pays well', 'departure time between 05:00 and 23:59'], 'only the agreed reading was added');
-  assert.ok(g.notChecked.items.includes('line 1: "pays well" — You chose to leave it Not checked.'), JSON.stringify(g.notChecked));
+  assert.ok(g.notChecked.items.includes('not checked · "pays well" — You chose to leave it Not checked.'), JSON.stringify(g.notChecked));
   const row2 = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-2.json'), 'utf8'));
   assert.deepEqual([row2.source, row2.ask, row2.proposal, row2.rule, row2.answer], ['look', 'cant-check', null, null, 'Drop it.']);
   assert.equal(JSON.parse(readFileSync(path.join(w.dir(id), 'redraft-1.json'), 'utf8')).left[0].rule, 4);
