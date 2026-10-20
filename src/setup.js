@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { scrub } from './authoring.js';
+import { readQuestions, scrub } from './authoring.js';
 import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
 import { readFileInside, readdirInside } from './flow.js';
@@ -59,6 +59,19 @@ function planRow(sessionDir, rel, kind, n) {
 }
 
 /**
+ * M10 am2 item 4: one row per question the page look raised and the person answered, in the plan folder that raised it (the draft log's human rows, read
+ * from the answer files). The question, the answer, the line and the time, plus the proposal and the rule the answer added as their own fields (never cut
+ * out of the question text). A question nobody answered leaves no row.
+ * @param {string} sessionDir @param {string} rel
+ */
+function humanRows(sessionDir, rel) {
+  return readQuestions(join(sessionDir, rel)).questions.filter((q) => q.source === 'look' && q.answer !== null).map((q) => ({
+    kind: 'human', n: q.k, at: q.at ?? null, source: 'look', ask: q.ask, question: q.question, answer: q.answer, line: q.line,
+    ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null,
+  }));
+}
+
+/**
  * The rows of a draft's record, oldest first. `sessionDir` is the panel's draft folder (card.json, draft/, card-<n>.json, draft-<n>/); a CLI
  * draft has none, so its record is its one plan folder (`planDir`, read as `draft`) plus the sign.
  * @param {{ sessionDir?: string, planDir: string, hash: string, signedBy: string, signedAt: string, flowHash?: string }} a
@@ -73,6 +86,7 @@ export function buildSetupRows({
     // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
     const so = readJson(sessionDir, 'started-over-from.json');
     rows.push(planRow(sessionDir, 'draft', typeof so?.startedOverFrom === 'string' ? 'startover' : 'draft', 0));
+    rows.push(...humanRows(sessionDir, 'draft'));
     // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
     const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     for (const n of ns) {
@@ -80,6 +94,7 @@ export function buildSetupRows({
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
       rows.push(planRow(sessionDir, `draft-${n}`, readJson(sessionDir, `redraft-${n}.json`) ? 'redraft' : 'revise', n));
+      rows.push(...humanRows(sessionDir, `draft-${n}`));
     }
   } else {
     const r = planRow(planDir, '.', 'draft', 0);

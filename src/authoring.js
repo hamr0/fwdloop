@@ -82,7 +82,7 @@ export function specHash({
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
  * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -96,9 +96,17 @@ export function readQuestions(planDir) {
     const a = readFileInside(planDir, ANSWER_FILE(k));
     let answer = null;
     let at;
-    if (a.ok) { try { const j = JSON.parse(a.text); const t = j?.answer; if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; } } catch { /* unreadable = unanswered */ } }
+    /** @type {string|null|undefined} the `~` rule the answer added (null = it left the rule Not checked), as the answer file recorded it */
+    let rule;
+    if (a.ok) {
+      try {
+        const j = JSON.parse(a.text);
+        const t = j?.answer;
+        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; }
+      } catch { /* unreadable = unanswered */ }
+    }
     return {
-      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }),
+      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }),
       ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null } : {}),
     };
   });
