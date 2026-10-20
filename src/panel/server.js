@@ -596,7 +596,7 @@ export function handleRequest(req, res, opts) {
     }
     if (sub === 'result') {
       const result = getRunResult({
-        root: opts.root, flow, runId, catalogue,
+        root: opts.root, flow, runId, catalogue, resumeAttempt, now: opts.now,
       });
       if (!result) { sendText(res, 404, 'no such run, or it has no result tab'); return; }
       send(200, result);

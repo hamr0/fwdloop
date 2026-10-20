@@ -26,6 +26,9 @@ export const RESULT_FILE_CHANGED = 'the saved file changed after the run';
 export const RESULT_PAGE_MAY_CHANGE = 'The page may have changed since this run.';
 /** the words after a fact whose limit the person agreed to */
 export const RESULT_YOU_CONFIRMED = '(you confirmed)';
+/** the Your-call card's words (bareloop server.js@2959217 DOOR_WORDS.waiting.head and RESULT_DOOR_ASK); the page types none of them */
+export const RESULT_DOOR_HEAD = 'waiting for you';
+export const RESULT_DOOR_ASK = 'the checks passed; is this what you wanted?';
 /** the M10 cited-check record, in the run's own folder. Its writer is not built yet; `readCitedChecks` is the one reader. */
 export const CITED_CHECKS_FILE = 'cited-checks.json';
 
@@ -201,10 +204,10 @@ function gapOf(text) {
 
 /**
  * The Result tab's JSON for one run (`GET /api/runs/:flow/:runId/result`).
- * @param {{flow: string, runId: string, runDir: string, root: string, flowRead: any, arbiter: any, historyRow: any, auditRows: any[], logJson: any, notChecked: string[], setupRows?: any[]}} a
+ * @param {{flow: string, runId: string, runDir: string, root: string, flowRead: any, arbiter: any, historyRow: any, auditRows: any[], logJson: any, notChecked: string[], setupRows?: any[], door?: {askId: string, draftNo: number}|null}} a
  */
 export function buildResult({
-  flow, runId, runDir, root, flowRead, arbiter, historyRow, auditRows, logJson, notChecked, setupRows = [],
+  flow, runId, runDir, root, flowRead, arbiter, historyRow, auditRows, logJson, notChecked, setupRows = [], door = null,
 }) {
   const declaration = flowRead.declaration;
   const taken = new Set([...(arbiter?.asks ?? []), ...(arbiter?.sends ?? [])].map((x) => x.line));
@@ -247,6 +250,7 @@ export function buildResult({
   const pages = [...new Set(urls.values())];
   return {
     flow, runId, lines, pages, pageNote: pages.length ? RESULT_PAGE_MAY_CHANGE : null, notCheckedLabel: NOT_CHECKED_LABEL.charAt(0).toUpperCase() + NOT_CHECKED_LABEL.slice(1), notChecked, delivered, gap,
+    door: door === null ? null : { head: RESULT_DOOR_HEAD, ask: RESULT_DOOR_ASK, askId: door.askId, draftNo: door.draftNo },
   };
 }
 

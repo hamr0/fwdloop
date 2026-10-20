@@ -2171,12 +2171,26 @@ function resultContext({
 }
 
 /**
+ * M10 am5 item 2: does this run wait for the person's accept? The Ask tab's own rule (`answerControls` kind "doors"): the newest ask is open and either has no saved
+ * answer or its saved answer could not be read. Read from `getRunAsks`, the Ask tab's one reader, so the two tabs can never disagree.
+ * @param {ReturnType<typeof getRunAsks>} asks @returns {{askId: string, draftNo: number}|null}
+ */
+function resultDoorOf(asks) {
+  if (asks === null) return null;
+  const block = asks.blocks.at(-1);
+  const ask = block?.current;
+  if (!ask || ask.open !== true) return null;
+  if (asks.resume && asks.resume.askId === ask.askId && asks.resume.state !== 'broken') return null;
+  return { askId: ask.askId, draftNo: block.draftNo };
+}
+
+/**
  * `GET /api/runs/:flow/:runId/result` — the Result tab (M10 am4). The Not checked list is the Job tab's own (`buildJobPlan`), never a second spelling.
- * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} a
  * @returns {any|null}
  */
 export function getRunResult({
-  root, flow, runId, catalogue,
+  root, flow, runId, catalogue, resumeAttempt, now,
 }) {
   const got = resultContext({
     root, flow, runId, catalogue,
@@ -2188,6 +2202,9 @@ export function getRunResult({
   return buildResult({
     flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items,
     setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
+    door: resultDoorOf(getRunAsks({
+      root, flow, runId, catalogue, resumeAttempt, now,
+    })),
   });
 }
 
