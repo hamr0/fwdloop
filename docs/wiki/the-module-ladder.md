@@ -2622,6 +2622,17 @@ same run. Scope is stated when its turn comes.
   - A rule code can't check shows `I can't check this on the page` in place of a reading.
   - It replaces am1's shorter quote. "My readings" is am1's list of each rule with code's reading.
 
+- **M10 amendment 7 — SIGNED by hamr 2026-10-20 ("sign m10 am7"): where the facts are signed, and a flipped route goes red, both as bareloop.** This makes item 2 and item 3 exact.
+  1. **The facts sit in the step's check, written by the drafter, checked by code.** As bareloop's signed spec: each fact has a name, a kind, the page's own words and a number rule, and the line has a result count.
+     - "List 3 …" is the count: 3 results.
+     - Code checks the draft at $0 and refuses it, naming the line, when: a label isn't one the page-read kept; a word isn't on the page; a label shows up fewer times than the count; a page rule dropped that word.
+     - Every number rule must come from a signed `~` line (your own words, or a reading you agreed to). A number rule that isn't in the signed job is refused at $0. (Tighter than bareloop, which only marks it as the AI's.)
+  2. **A flipped route goes red: R2 copied from bareloop's test lab.**
+     - A place word grows to take in its role word on the left ("Leaves Amsterdam …", "arrives at London …"), and every grown phrase must be in the quote.
+     - Adds R2, R2a, R2b, R2c to item 3's copied rules.
+     - Source: bareloop `.claude/scratch/idea-a-v2`, `FROZEN-RULES.md`. Proof: F235, F236 (10/10 caught with R2, 0/10 without).
+     - First a $0 test on F71's saved page: the honest copy stays green and the flipped copy goes red. If that fails, nothing is built and this item comes back to hamr.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
