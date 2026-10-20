@@ -65,3 +65,12 @@ test('fire: a schedule with no stored inputs still fires a page input from its s
   const st = JSON.parse(readFileSync(path.join(f.w.root, '.starts', f.w.starts().at(-1), 'start.json'), 'utf8'));
   assert.deepEqual(st.sources.find((x) => x.role === 'jd'), { role: 'jd', path: SIGNED });
 });
+
+test('the Job tab Schedule field shows a page input\'s FULL address and a file input\'s name', async () => {
+  const f = await pageWorld();
+  const inputs = [resume(f.w), { role: 'jd', path: '' }];
+  const p = await prepare(f.w, { inputs });
+  assert.equal((await f.w.post('/api/author/trigger', { flow: 'job2', trigger: DAILY, inputs, hash: p.json().hash })).status, 200);
+  const j = (await f.w.get('/api/runs/job2/seed-pass/job')).json();
+  assert.match(j.schedule, new RegExp(` · resume\\.md, ${SIGNED.replace(/[.?/]/g, '\\$&')}$`), j.schedule);
+});

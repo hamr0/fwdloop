@@ -494,7 +494,8 @@ export function createTriggerDoor(opts) {
         from: sc ? sc.from : null,
         model: sc && sc.model ? sc.model.model : (rec ? rec.model : null),
         destination: sc && sc.destination ? sc.destination : (read.ok ? flowValues(read.arbiter).destination : null),
-        inputs: sources.map((p) => basename(String(p))),
+        // M10: a page input shows its FULL signed address (the page cuts it with an ellipsis, the whole on hover); a file shows its name
+        inputs: sources.map((p) => (Object.values(read.ok ? pageAddressesOf(read.arbiter) : {}).includes(String(p)) ? String(p) : basename(String(p)))),
         fires: base.sig === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === base.sig),
         allFires: readOutcomes(flowDir),   // M9 am9 item 4: the Audit's `tries` span every signing
       };

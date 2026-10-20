@@ -633,6 +633,8 @@
   .jf-inrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px;margin-bottom:4px;align-items:start;}
   .jf-inrow .btn.small{height:32px;padding:0 8px;}
   .jf-inrow .jf-role-ro{padding:5px 7px;min-height:32px;overflow-wrap:anywhere;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
+  .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
@@ -983,7 +985,7 @@
                   <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
                 </div>
-                <div class="hint">One line per file: a name, a colon, its full path starting with /. The page never reads the file.</div>
+                <div class="hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
                 <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
               </div>
               <div class="field">
@@ -4922,7 +4924,7 @@
         ro.className = "jf-role-ro"; ro.textContent = role; ro.setAttribute("data-role", role);
         row.appendChild(ro);
         var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
-        if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
+        if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
         row.appendChild(pathEl);
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
@@ -5094,7 +5096,7 @@
     function syncCardLock(){
       var on = cardLocked();
       whenSyncButton();
-      card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
+      card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
@@ -5289,7 +5291,10 @@
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       roleSel.innerHTML = "";
-      ((f && f.roles) || []).forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      // M10: a file trigger watches a FILE; a web-page input is never offered (a job with only page inputs gets the clock options only)
+      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); });
+      fileRoles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
