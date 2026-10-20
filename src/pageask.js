@@ -38,7 +38,7 @@ const asList = (/** @type {unknown} */ v) => (Array.isArray(v) ? v.map(String) :
  * One amount of a money fact in the fact's OWN forms, never a hardcoded sign: `symbolFirst` puts the currency sign before the amount when the fact has one.
  * @param {any} f @param {string|number} n @param {boolean} symbolFirst @returns {string}
  */
-function moneyAs(f, n, symbolFirst) {
+export function moneyAs(f, n, symbolFirst) {
   const cur = asList(f.currency)[0];
   const uni = asList(f.unit)[0];
   if (symbolFirst) return cur !== undefined ? `${cur}${n}` : `${n} ${uni}`;
