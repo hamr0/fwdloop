@@ -1,4 +1,4 @@
-// borrowed-from: bareloop .claude/scratch/idea-a-v2/rules.mjs@ef815eb (bareloop HEAD when copied; that file is untracked there, sha256 1057f690ee79fe3c58d51624255477894d76f4a7222683c5cdd1d8531ef1b64f)
+// borrowed-from: bareloop (its scratch folder) idea-a-v2/rules.mjs@ef815eb (bareloop HEAD when copied; that file is untracked there, sha256 1057f690ee79fe3c58d51624255477894d76f4a7222683c5cdd1d8531ef1b64f)
 // Copy of its growOnce, growLeft and the R2 / R2a / R2b block for a place word; R2c (every kept phrase is a fact of its own, all must be in the quote) is
 // `factsOfLook` in src/citedcheck.js. M10 amendment 7 item 2 (docs/wiki/the-module-ladder.md): a place word grows LEFT to take in its role word
 // ("Leaves Amsterdam Airport Schiphol", "arrives at Heathrow Airport"), so a result that leaves Heathrow and arrives at Amsterdam does not say them.
