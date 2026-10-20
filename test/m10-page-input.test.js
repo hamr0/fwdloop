@@ -6,7 +6,8 @@ import {
 } from '../src/pagefetch.js';
 import { startPageServer, fakeConnect, pageText } from './fixtures/m10-page-server.mjs';
 
-const FAST = { idleMs: 5, idleTimeoutMs: 40, timeoutMs: 400, closeWaitMs: 50 };
+// timeoutMs is the whole-fetch deadline: generous here so a loaded machine can't fire it in the success-path tests; only the deadline test sets a short one
+const FAST = { idleMs: 5, idleTimeoutMs: 40, timeoutMs: 10000, closeWaitMs: 50 };
 
 test('a normal page comes back as its text, read once, browser closed, with the private options', async () => {
   const srv = await startPageServer({ '/ok': { body: pageText() } });
