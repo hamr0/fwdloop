@@ -38,7 +38,7 @@
 
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
-import { numberRuleReds, citedWordReds } from './citedwords.js';
+import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -429,7 +429,7 @@ function checkCitedKey(step, label, c, reds) {
   const jl = { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) };
   // a part that is not valid is not read further: its words would only repeat the same red
   if (factPartReds(part).length) return;
-  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look }) : numberRuleReds({ part, jobLine: jl });
+  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl })];
   for (const r of words) reds.push(`declaration: ${r.detail}`);
 }
 

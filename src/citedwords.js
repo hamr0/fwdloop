@@ -111,6 +111,25 @@ export function numberRuleReds({ part, jobLine }) {
   return reds;
 }
 
+const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 });
+
+/**
+ * Signed (am7 item 1): "List 3 ..." is the count, 3 results. A count the person never said (as digits or a word number, a whole word on the line or its `~`
+ * rules) is refused. Same source of truth as the number rules: the person's own words on the line.
+ * @param {{part: any, jobLine: {n: number, text?: string, rule?: string, rules?: string[]}}} o @returns {WordRed[]}
+ */
+export function countReds({ part, jobLine }) {
+  /** @type {WordRed[]} */
+  const reds = [];
+  const said = new Set(wordsSaidOn(jobLine).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).map((t) => (/^\d+$/.test(t) ? Number(t) : NUMBER_WORDS[/** @type {'one'} */ (t)])).filter((n) => n !== undefined));
+  const c = part.count && typeof part.count === 'object' ? part.count : {};
+  for (const k of ['min', 'max']) {
+    if (c[k] === undefined || said.has(c[k])) continue;
+    reds.push({ code: 'count-unsigned', detail: `line ${jobLine.n}: the result count has the number ${c[k]}, but ${c[k]} is not in your words on line ${jobLine.n}. The count is the number you asked for ("List 3" is 3 results); say it on the line, or leave the count out.` });
+  }
+  return reds;
+}
+
 /**
  * R2c (am7 item 2): a place the page-read grew to phrases must have EVERY phrase as a phrase fact of the part, or a flipped route passes.
  * @param {{part: any, line: number, look: {facts?: any[]}|null|undefined}} o @returns {WordRed[]}
@@ -144,5 +163,5 @@ export function citedWordReds({
   if (typeof text !== 'string' || kept === null) {
     return [{ code: 'unread', detail: `line ${line}: the input "${part.source}" was not read here to prove the words against it, so a check on it cannot be drafted. A check on quotes works on a saved web page.` }];
   }
-  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...placeReds({ part, line, look })];
+  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...countReds({ part, jobLine }), ...placeReds({ part, line, look })];
 }

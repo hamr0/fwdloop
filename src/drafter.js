@@ -284,7 +284,7 @@ function greenReadRule(sources) {
   if (pageRoles.length) {
     out.push(
       `- Web page inputs in this job: ${pageRoles.join(', ')}. A step whose line asks for things found on a web page, and whose guardrail is about them, is "green" and checks quotes: it lists the page's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
-      '- close.cited.count is how many results the line asks for ("List 3" is {min: 3, max: 3}). close.cited.facts is one fact per thing every result must hold, at most 10; a fact name is letters and spaces only (no digit).',
+      '- close.cited.count is how many results the line asks for ("List 3" is {min: 3, max: 3}); the number must be one the person said on the line or its guardrail, as digits or a word. close.cited.facts is one fact per thing every result must hold, at most 10; a fact name is letters and spaces only (no digit).',
       '- Fact shapes: money takes unit or currency, rule, anchor; number, date and time take rule, anchor; text takes anchor and until (until needs an anchor); phrase takes only phrase (fixed words every result must say). Never put a field on a shape that does not take it.',
       '- A label (anchor, until) is PICKED from the kept labels listed under Inputs for that page, never typed. A phrase, a unit or a currency is copied from the page words listed there. A word listed as Not checked or dropped can never be used.',
       '- A place listed under Inputs as "place phrases" must have EVERY one of its phrases as its own phrase fact (one fact per phrase, the phrase word for word). A place name alone does not tell a result that leaves the other way.',

@@ -161,3 +161,16 @@ test('a green step with no cited facts and no spreadsheet is still refused (the 
   assert.match(reds(none).join('\n'), /Line 1's check needs cells/);
   assert.deepEqual(reds(decl(part())), []);
 });
+
+test('a result count that is not a number said on that line or its ~ rules is refused at $0 naming the line (count-unsigned); digits and word numbers both count', () => {
+  const r = reds(decl(part(goodFacts(), { min: 7, max: 7 })));
+  assert.equal(r.length, 2, r.join('\n'));
+  assert.match(r[0], /line 1: the result count has the number 7, but 7 is not in your words on line 1/);
+  assert.equal(reds(decl(part(goodFacts(), { min: 3, max: 3 }))).length, 0, '"List 3" says 3');
+  // a word number: "List three flights" says 3
+  const words = parseSignedText(prose().replace('List 3 flights', 'List three flights'));
+  const ok = validateDeclaration(decl(part()), { arbiter: words.arbiter, lines: words.lines, catalogue: cat.primitives, wired: WIRED_VERBS, fitJobLine: true, pageWords: { texts: { flights: PAGE }, look: lookOf(3) } });
+  assert.equal(ok.ok, true, ok.ok ? '' : ok.reds.join('\n'));
+  // no count at all is not refused here
+  assert.deepEqual(reds(decl(part(goodFacts(), null))), []);
+});
