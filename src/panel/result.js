@@ -16,6 +16,8 @@ import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { NOT_CHECKED_LABEL } from '../checked.js';
 import { checkSendDestination } from '../runner.js';
+import { isAgree, readingOfQuestion } from '../pageask.js';
+import { lineRules } from '../pagebits.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -118,6 +120,26 @@ export function readCitedChecks(runDir) {
   return { present: true, ok: true, lines };
 }
 
+/**
+ * The names of the facts of one job line whose limit came from an `agree` answer, read from the setup record's human rows (bareloop's confirmedFactNames,
+ * server.js@2959217): a look question on THIS line, answered agree / yes, whose reading (read back from the question's one spelling) is a signed `~` rule of
+ * the line word for word. A fact is confirmed when that reading starts with its name. No record, an own-words answer, another line or a reading that is not
+ * in the signed rule confirms nothing; nothing is guessed.
+ * @param {any[]} setupRows @param {number} lineN @param {string} signedRule the line's signed guardrail @param {string[]} factNames
+ * @returns {Set<string>}
+ */
+export function confirmedFactNames(setupRows, lineN, signedRule, factNames) {
+  const names = new Set();
+  const written = lineRules({ rule: signedRule });
+  for (const h of Array.isArray(setupRows) ? setupRows : []) {
+    if (h?.kind !== 'human' || h.source !== 'look' || h.line !== lineN || !isAgree(h.answer)) continue; // eslint-disable-line no-continue
+    const reading = readingOfQuestion(h.question);
+    if (reading === null || !written.includes(reading)) continue; // eslint-disable-line no-continue
+    for (const name of factNames) if (reading.startsWith(`${name} `)) names.add(name);
+  }
+  return names;
+}
+
 /** the signed `page:` sources, role -> address (http(s) only: the parser already refuses any other) @param {any} arbiter @returns {Map<string, string>} */
 function pageUrlsByRole(arbiter) {
   const out = new Map();
@@ -179,10 +201,10 @@ function gapOf(text) {
 
 /**
  * The Result tab's JSON for one run (`GET /api/runs/:flow/:runId/result`).
- * @param {{flow: string, runId: string, runDir: string, root: string, flowRead: any, arbiter: any, historyRow: any, auditRows: any[], logJson: any, notChecked: string[]}} a
+ * @param {{flow: string, runId: string, runDir: string, root: string, flowRead: any, arbiter: any, historyRow: any, auditRows: any[], logJson: any, notChecked: string[], setupRows?: any[]}} a
  */
 export function buildResult({
-  flow, runId, runDir, root, flowRead, arbiter, historyRow, auditRows, logJson, notChecked,
+  flow, runId, runDir, root, flowRead, arbiter, historyRow, auditRows, logJson, notChecked, setupRows = [],
 }) {
   const declaration = flowRead.declaration;
   const taken = new Set([...(arbiter?.asks ?? []), ...(arbiter?.sends ?? [])].map((x) => x.line));
@@ -198,8 +220,9 @@ export function buildResult({
     if (c) {
       out.source = c.source;
       out.page = urls.get(c.source) ?? null;
+      const agreed = confirmedFactNames(setupRows, l.n, isStr(l.guardrail) ? l.guardrail : '', c.facts.map((f) => f.name));
       out.facts = c.facts.map((f) => ({
-        name: f.name, kind: f.kind, sentence: f.sentence, ...(f.confirmed ? { note: RESULT_YOU_CONFIRMED } : {}),
+        name: f.name, kind: f.kind, sentence: f.sentence, ...(f.confirmed || agreed.has(f.name) ? { note: RESULT_YOU_CONFIRMED } : {}),
       }));
       out.rows = c.rows;
     }

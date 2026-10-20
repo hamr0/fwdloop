@@ -2187,6 +2187,7 @@ export function getRunResult({
   const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null);
   return buildResult({
     flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items,
+    setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
   });
 }
 
