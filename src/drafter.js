@@ -23,8 +23,9 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
+import { removeFrozenPages } from './flow.js';
 import { lookAtPage, pageInfoLines } from './pagelook.js';
-import { MAP_SYSTEM } from './pagemap.js';
+import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import {
@@ -367,12 +368,11 @@ export async function draft({
   // M4d am16 item 2: against the remaining money, not the whole cap. Spend by earlier drafts of this job (a revise, the redraft after answers) is taken off first.
   const priorUsd = typeof priorSpend === 'function' ? priorSpend(roundCeiling) : 0;
   const budgetUsd = arbiter.capUsd - priorUsd;
-  if (roundCeiling > budgetUsd) {
-    const capText = usdText(arbiter.capUsd);
-    return fail([priorUsd > 0
-      ? `Cap ${capText} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`
-      : capTooSmallText('drafting', arbiter.capUsd, roundCeiling, modelId)]);
-  }
+  /** the refusal when one round held at `ceiling` does not fit what is left of the cap (the drafter's own words, one place) */
+  const tooSmall = (ceiling) => (priorUsd > 0
+    ? `Cap ${usdText(arbiter.capUsd)} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${ceiling.toFixed(4)}. Raise Cap $ or pick another model.`
+    : capTooSmallText('drafting', arbiter.capUsd, ceiling, modelId));
+  if (roundCeiling > budgetUsd) return fail([tooSmall(roundCeiling)]);
 
   const meterings = [];
   const log = [];
@@ -391,12 +391,12 @@ export async function draft({
     if (typeof draftDir !== 'string' || draftDir === '') return fail(['draft: a web page input needs a folder to keep its drafting copy']);
     for (const s of pageSources) {
       const fr = await freezePage(draftDir, s.role, s.path, { fetchPage });
-      if (!fr.ok) return fail([fr.red]); // a copy an earlier page of this job already kept stays in the claimed folder
+      if (!fr.ok) { removeFrozenPages(draftDir, Object.values(pages).map((pg) => pg.entry.frozen)); return fail([fr.red]); }
       pages[s.role] = { text: fr.text, entry: fr.entry };
     }
   }
   const facts = readInputFacts(arbiter.sources, { pages });
-  if (!facts.ok) return fail(facts.reds);
+  if (!facts.ok) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((pg) => pg.entry.frozen)); return fail(facts.reds); }
 
   // M10 item 3: ONE map call per page input names the page's own words; code keeps what the saved page proves. Every round goes through the
   // same metering and book as a drafting round, so a pre-send throw from the book stops here with nothing spent.
@@ -412,9 +412,15 @@ export async function draft({
   const pageInfo = [];
   for (const s of pageSources) {
     const pg = pages[s.role];
-    const callModel = async (content) => {
+    // The hold of the map call is sized from its own prompt (the saved page is in it): one that cannot fit what is left of the cap is refused here, at $0.
+    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
+    const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    if (spentBefore + mapCeiling > budgetUsd) {
+      if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
+    }
+    const callModel = async (content, attempt) => {
       const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-      if (spentSoFar + roundCeiling > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
+      if (spentSoFar + ceilingCostUsd(rates, content.length + MAP_SYSTEM.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
       const roundEvents = [];
       const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
       calls += 1;
@@ -422,7 +428,7 @@ export async function draft({
       let res;
       let threw = null;
       try {
-        res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: draftThinking });
+        res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
       } catch (err) {
         threw = err;
         if (roundEvents.length === 0) unmetered += 1;

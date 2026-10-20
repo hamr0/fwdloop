@@ -85,8 +85,8 @@ export function lookFactOf(k, source) {
 
 /**
  * Look at ONE page input: the map call (once; once more if the answer is unreadable), then the rules.
- * `callModel(content)` makes and meters ONE model round and returns `{text}`, `{text, cutOff: true}` (the round hit its output cap) or `{error}`.
- * @param {{label: string, text: string, jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], callModel: (content: string) => Promise<{text?: string, cutOff?: boolean, error?: string}>}} o
+ * `callModel(content, attempt)` (attempt 1 or 2) makes and meters ONE model round and returns `{text}`, `{text, cutOff: true}` (the round hit its output cap) or `{error}`.
+ * @param {{label: string, text: string, jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], callModel: (content: string, attempt: number) => Promise<{text?: string, cutOff?: boolean, error?: string}>}} o
  * @returns {Promise<{ok: true, look: {facts: any[], dropped: any[]}, notChecked: string[], mapping: any, attempts: number}|{ok: false, reason: string, attempts: number}>}
  */
 export async function lookAtPage({
@@ -96,7 +96,7 @@ export async function lookAtPage({
   let attempts = 0;
   for (;;) {
     attempts += 1;
-    const r = await callModel(content);
+    const r = await callModel(content, attempts);
     if (r.error !== undefined) return { ok: false, reason: `the call about the page failed: ${r.error}`, attempts };
     const parsed = r.cutOff === true ? { ok: false } : parseMapAnswer(r.text);
     if (parsed.ok) {

@@ -1069,3 +1069,13 @@ export function suggestFlowName(root, name) {
     if (!taken(candidate)) return candidate;
   }
 }
+
+/**
+ * M10: take back the drafting copies of web pages (`files`) a draft froze into `dir` when the draft is then refused at $0, and the folder itself once it is
+ * empty. Only the files named are removed; a folder holding anything else is left.
+ * @param {string} dir @param {string[]} files
+ */
+export function removeFrozenPages(dir, files) {
+  for (const f of files) { try { rmSync(f, { force: true }); } catch { /* best-effort */ } }
+  try { if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true, force: true }); } catch { /* not there */ }
+}

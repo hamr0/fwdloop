@@ -208,9 +208,12 @@ export function readPriceConfig(home) {
  * The money hold (USD) of one round: the picked model's OWN Settings prices (`rates`, per 1K tokens, from
  * `resolveUsableModel`) times the two token bounds above. Not a table, not a fallback.
  * @param {{ in: number, out: number }} rates
+ * @param {number} [promptChars] the length of a prompt known before the call (M10: a page-map prompt carries a whole saved page): the input bound is then
+ *   the larger of the constant and a deliberately high estimate of that prompt (3 characters per token), never less than the constant.
  */
-export function ceilingCostUsd(rates) {
-  return (CEILING_INPUT_TOKENS / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
+export function ceilingCostUsd(rates, promptChars = 0) {
+  const inputTokens = Math.max(CEILING_INPUT_TOKENS, Math.ceil(promptChars / 3));
+  return (inputTokens / 1000) * rates.in + (CEILING_OUTPUT_TOKENS / 1000) * rates.out;
 }
 
 /**

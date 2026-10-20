@@ -193,3 +193,60 @@ test('draftToDir keeps the drafting copy and the page look beside the draft; the
   assert.equal(rows[0].rounds, p.calls.length, 'the booked row counts the map round');
   assert.ok(!existsSync(path.join(dir, 'spec.hash')), 'a red draft is not signable');
 });
+
+// ---- follow-ups: pre-send throw, thinking per try, big pages, leftover folder -------------------------------------------------------------
+test('a ValidationError thrown before the send is booked as one unmetered call (held at the ceiling, spend not complete), never silently uncounted', async () => {
+  const books = [];
+  const p = fakeProvider([mapReply(raw(3))]);
+  p.generate = async () => { const e = new Error('messages: too long'); e.name = 'ValidationError'; throw e; };
+  const r = await run(p, { onBook: (b) => books.push(b) });
+  assert.equal(r.ok, false);
+  assert.equal(r.stop, 'provider-red');
+  assert.equal(r.spendComplete, false, 'the call may have been billed: not complete');
+  assert.equal(r.calls, 1);
+  assert.equal(books.at(-1).unmetered, 1, 'the book sees the call, unmetered, so the ceiling is held for it');
+  assert.equal(r.log[0].kind, 'page-map');
+});
+
+test('thinking per try (M4d am25): try 1 off, the retry on; the ticked hatch forces on for both', async () => {
+  const bad = mapReply('not json');
+  const p = fakeProvider([bad, mapReply(raw(3)), textReply()]);
+  await run(p, { draftThinking: 'off' });
+  assert.deepEqual([p.calls[0].options.thinkingMode, p.calls[1].options.thinkingMode], ['off', 'on']);
+  const q = fakeProvider([bad, mapReply(raw(3)), textReply()]);
+  await run(q, { draftThinking: 'on' });
+  assert.deepEqual([q.calls[0].options.thinkingMode, q.calls[1].options.thinkingMode], ['on', 'on']);
+  assert.equal(q.calls[0].options.toolChoice, undefined);
+});
+
+// a price at which the 32000-token floor fits the $0.25 cap ($0.18) but a 270k-token prompt ($1.35) does not
+const DEAR = { in: 0.005, out: 0.0012 };
+
+test('the map call is held at the size of its own prompt: a huge page that breaks the cap is refused at $0 with the cap words, nothing sent, no copy left', async () => {
+  const huge = `${PAGE}\n${'x '.repeat(400_000)}`;
+  const draftDir = path.join(tmp(), 'pages');
+  const p = fakeProvider([mapReply(raw(3))]);
+  const r = await run(p, { draftDir, fetchPage: fetcher(huge), rates: DEAR });
+  assert.equal(r.stop, 'pre-flight');
+  assert.equal(p.calls.length, 0);
+  assert.equal(r.costUsd, 0);
+  assert.match(r.reds.join(' '), /Cap \$0\.25/);
+  assert.match(r.reds.join(' '), /Raise Cap/);
+  assert.equal(existsSync(draftDir), false);
+});
+
+test('a normal page is not refused by the sized hold (the 32000-token floor still applies)', async () => {
+  const r = await run(fakeProvider([mapReply(raw(3)), textReply()]), { rates: DEAR });
+  assert.notEqual(r.stop, 'pre-flight');
+});
+
+test('a later page that cannot be fetched removes the copy an earlier page kept, and the folder', async () => {
+  const draftDir = path.join(tmp(), 'pages');
+  const two = prose().replace('guardrail: source flights', 'guardrail: source second = page:https://example.com/two\nguardrail: source flights');
+  let n = 0;
+  const fetchPage = async (url) => { n += 1; return n === 1 ? { ok: true, text: PAGE, url } : { ok: false, error: 'the site answered 403 (blocked)' }; };
+  const r = await draft({ proseText: two, provider: fakeProvider([mapReply(raw(3))]), rates: RATES, modelId: MODEL, draftDir, fetchPage });
+  assert.equal(r.stop, 'pre-flight');
+  assert.match(r.reds.join(' '), /input "flights"|input "second"/);
+  assert.equal(existsSync(draftDir), false);
+});
