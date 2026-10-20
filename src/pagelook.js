@@ -11,6 +11,7 @@ import { applyPageRules } from './pagerules.js';
 import { dropRows, dropLine } from './pagedropwords.js';
 import { lineRules, squash } from './pagebits.js';
 import { placePhrases } from './pageplace.js';
+import { ruleWords } from './pageask.js';
 
 /** Our rule (signed item 3): a kept money / number / time label must have a value of its kind written right AFTER it on some page line. */
 const READ = {
@@ -129,7 +130,15 @@ export async function lookAtPage({
 export function pageInfoLines({
   label, address, chars, look, notChecked,
 }) {
-  const say = (/** @type {any} */ f) => `${f.name}${f.forRule === undefined ? '' : ` (rule ${f.forRule})`}: ${f.words.map((/** @type {string} */ w) => `"${w}"`).join(', ') || '(read by its unit)'}`;
+  const q = (/** @type {string} */ w) => `"${w}"`;
+  const say = (/** @type {any} */ f) => {
+    const head = `${f.name}${f.forRule === undefined ? '' : ` (rule ${f.forRule})`}`;
+    // M10 am7 item 2: a place is told as the phrases it must be checked with (R2c: every one is a fact of its own)
+    if (Array.isArray(f.phrases)) return `${head}: place phrases (every one must be its own phrase fact) ${f.phrases.map(q).join(', ')}`;
+    const forms = [...(f.unit ?? []).map((/** @type {string} */ u) => `unit ${q(u)}`), ...(f.currency ?? []).map((/** @type {string} */ c) => `currency ${q(c)}`)];
+    const read = f.reading ? `, limit read from your words: ${ruleWords({ shape: f.shape, unit: f.unit, currency: f.currency, rule: f.reading })}` : '';
+    return `${head}: ${f.shape === 'phrase' ? 'phrase ' : f.words.length ? 'labels ' : ''}${f.words.map(q).join(', ') || '(read by its unit)'}${forms.length ? `, ${forms.join(', ')}` : ''}${read}`;
+  };
   return [
     `- ${label}: a web page (${address}), saved at drafting, ${chars} characters. Code checked the page's own words for the job's rules and kept only words the saved page proves.`,
     ...(look.facts.length ? [`  Kept, line ${[...new Set(look.facts.map((/** @type {any} */ f) => f.line))].join(', ')}: ${look.facts.map(say).join('; ')}`] : ['  Kept: nothing.']),

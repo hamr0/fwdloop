@@ -200,6 +200,16 @@ export function countSentence(part) {
 }
 
 /**
+ * Every plan-card row a fact part carries: its facts, then its count (bareloop's factRows).
+ * @param {any} part @returns {string[]}
+ */
+export function factRows(part) {
+  const rows = (Array.isArray(part.facts) ? part.facts : []).map((/** @type {any} */ f) => factSentence(f, part.source));
+  const c = countSentence(part);
+  return [...rows, ...(c ? [c] : [])];
+}
+
+/**
  * One bareguard `cited` item (`#<result>:d<j>:<reason>[:<detail>]`, or `#<result>:<reason>`) as a sentence. The names and numbers are bareguard's
  * measurements and the signed facts, never inferred here.
  * @param {string} item @param {any} part @returns {string}

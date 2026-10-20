@@ -11,6 +11,8 @@
 /** The label that always sits with the "Not checked" list (am41 item 3: the ONE place these words live; the Job tab and the Chat card read it off their payloads). */
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
+import { factRows } from './citedcheck.js';
+
 const list = (xs) => xs.join(', ');
 
 /**
@@ -28,7 +30,10 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
     const shape = st?.close?.shape && typeof st.close.shape === 'object' ? st.close.shape : {};
     /** @type {string[]} */
     const out = [];
-    if (cls === 'green') {
+    if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
+      // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
+      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited));
+    } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {
       out.push('The reply is checked as plain text only.');
