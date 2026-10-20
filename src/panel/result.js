@@ -83,6 +83,7 @@ function readProof(p) {
 export function readCitedChecks(runDir) {
   const r = readFileInside(runDir, CITED_CHECKS_FILE);
   if (!r.ok) return r.missing ? { present: false } : { present: true, ok: false, red: r.red };
+  /** @param {string} why @returns {{present: true, ok: false, red: string}} */
   const red = (why) => ({ present: true, ok: false, red: `${CITED_CHECKS_FILE}: ${why}` });
   let rec;
   try { rec = JSON.parse(r.text); } catch { return red('not valid JSON'); }
@@ -239,7 +240,7 @@ const DOWNLOAD_TYPES = { '.json': 'application/json', '.md': 'text/plain', '.txt
 
 /**
  * `GET /api/runs/:flow/:runId/download?i=<n>` — saved file `n` (an index into the run's own list), or why not. The path is the books', never the request's.
- * @param {{index: unknown, ctx: Parameters<typeof deliveredOf>[0]}} a
+ * @param {{index: unknown, ctx: any}} a
  * @returns {{ok: true, name: string, type: string, buf: Buffer}|{ok: false, code: number, error: string}}
  */
 export function downloadOf({ index, ctx }) {
