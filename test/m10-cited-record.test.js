@@ -42,7 +42,7 @@ test('a green line is read back by the Result tab\'s reader: facts, one row per 
       assert.ok(row.proof && row.proof.marks.length > 0, 'the reader keeps a proof only when every mark is a real span');
     }
     // phrase cells are the signed words, a money cell is the amount as the quote writes it, a time is the value
-    assert.deepEqual(line.rows[0].cells.slice(0, 2), ['Amsterdam Airport Schiphol', 'Heathrow Airport']);
+    assert.deepEqual(line.rows[0].cells.slice(0, 2), ['Leaves Amsterdam Airport Schiphol', 'arrives at Heathrow Airport']);
     assert.equal(line.rows[0].cells[2], `${results[0].values.price} US dollars`);
     assert.equal(line.rows[0].cells[3], results[0].values['departure time']);
     assert.equal(line.rows[0].cells[4], 'Nonstop');

@@ -10,6 +10,7 @@ import { mapPrompt, parseMapAnswer, MAP_UNREADABLE } from './pagemap.js';
 import { applyPageRules } from './pagerules.js';
 import { dropRows, dropLine } from './pagedropwords.js';
 import { lineRules, squash } from './pagebits.js';
+import { placePhrases } from './pageplace.js';
 
 /** Our rule (signed item 3): a kept money / number / time label must have a value of its kind written right AFTER it on some page line. */
 const READ = {
@@ -47,9 +48,17 @@ export function applyPageWords(text, mapping, jobLines) {
   const r = applyPageRules(text, dedupeMap(mapping), jobLines);
   const lines = text.split('\n').map(squash);
   const dropped = [...r.dropped];
+  /** @type {any[]} */
   const facts = [];
+  // the kept facts say 'phrase' for a place too; the AI's own map says which were places
+  const placeNames = new Set((Array.isArray(mapping?.facts) ? mapping.facts : []).filter((m) => m?.shape === 'place').map((m) => String(m.name)));
   for (const f of r.facts) {
     const shape = f.shape;
+    if (shape === 'phrase' && f.words.length > 0 && placeNames.has(f.name)) {
+      // M10 am7 item 2 (R2, R2a, R2b): a PLACE word grows to its role word; the phrases are all to be in a result's quote (R2c, src/citedcheck.js factsOfLook)
+      facts.push({ ...f, phrases: placePhrases(text, f.words).phrases });
+      continue;
+    }
     if (!(shape === 'money' || shape === 'number' || shape === 'time') || f.words.length === 0) { facts.push(f); continue; }
     const at = { line: f.line, ...(f.forRule === undefined ? {} : { rule: f.forRule }), fact: f.name };
     const keep = [];
@@ -75,6 +84,7 @@ export function lookFactOf(k, source) {
   /** @type {any} */
   const out = { line: k.line, name: k.name, shape: k.shape, source, words: [...k.words] };
   if (k.shape === 'phrase') out.phrase = k.words[0];
+  if (Array.isArray(/** @type {any} */ (k).phrases)) out.phrases = [.../** @type {any} */ (k).phrases];
   else { out.labels = [...k.words]; if (k.words.length) out.label = k.words[0]; }
   if (k.unit) out.unit = [...k.unit];
   if (k.currency) out.currency = [...k.currency];

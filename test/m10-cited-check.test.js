@@ -107,11 +107,12 @@ test('a reversed route is red when the origin and destination are signed as the 
   assert.ok(reversed.gapLines.some((l) => l.includes('origin airport')), reversed.gapLines.join('|'));
 });
 
-test('KNOWN GAP (reported to hamr): a presence phrase for the place passes a reversed route - the look keeps no direction', async () => {
-  // The look's place facts (bareloop: R2 "role grow-left" is OUT of its core) are presence phrases: "Amsterdam Airport Schiphol" and "Heathrow Airport" both
-  // appear in a flight that leaves Heathrow and arrives at Amsterdam. This test pins today's behaviour so the day a direction is signed it must flip.
-  const r = await checkCited({ part: flightsPart(), text: CHEAT_REVERSED, results: goodRows(CHEAT_REVERSED).slice(0, 3) });
-  assert.equal(r.verdict, 'green');
+test('a reversed route is red with the look\'s own place phrases: they grew to "Leaves ..." and "arrives at ..." (M10 am7 item 2, R2; before it this passed)', async () => {
+  const part = flightsPart();
+  assert.deepEqual(part.facts.filter((f) => f.name.includes('airport')).map((f) => f.phrase).sort(), ['Leaves Amsterdam Airport Schiphol', 'arrives at Heathrow Airport']);
+  const r = await checkCited({ part, text: CHEAT_REVERSED, results: goodRows(CHEAT_REVERSED).slice(0, 3) });
+  assert.equal(r.verdict, 'red');
+  assert.ok(r.gapLines.some((l) => /fact "(origin|destination) airport": the quote does not say "(Leaves Amsterdam Airport Schiphol|arrives at Heathrow Airport)"/.test(l)), r.gapLines.join('|'));
 });
 
 test('results that are not a list, or are empty, are red; a part that cannot be signed is stopped; neither is ever green', async () => {

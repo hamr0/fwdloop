@@ -9,8 +9,8 @@
 // A fact part is `{source: <input role>, facts: [{name, shape, unit?, currency?, phrase?, anchor?, until?, rule?}], count?: {min?, max?}}`. It is made from
 // the page look's kept facts by `factPartFromLook` (code, never the model).
 //
-// Throws away: a kept fact's alternative labels beyond the first (bareguard signs ONE anchor per fact); a place fact's other spellings (one phrase is
-// signed). The evidence offsets are bareguard's and are carried out for the Result tab's proof fold; no verdict is derived from them.
+// Throws away: a kept fact's alternative labels beyond the first (bareguard signs ONE anchor per fact); a place word R2a / R2b dropped (src/pageplace.js
+// says why in its `trace`; the phrases left are ALL signed, R2c). The evidence offsets are bareguard's and are carried out for the Result tab's proof fold; no verdict is derived from them.
 // Third outcomes, each named, never green: `stopped` (the rubric could not be built, or bareguard stopped), a source that is not the frozen text.
 
 import { createHash } from 'node:crypto';
@@ -32,14 +32,19 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 export const sha256Text = (t) => createHash('sha256').update(t, 'utf8').digest('hex');
 
 /**
- * A kept look fact as a signed fact: the label that comes first becomes the anchor, a place or phrase becomes a presence phrase, and the limit the look read
- * (`reading`) becomes the number rule. Nothing else is kept.
- * @param {any} k a fact from `lookFactOf` (src/pagelook.js) @returns {Record<string, any>}
+ * A kept look fact as signed facts. The label that comes first becomes the anchor and the limit the look read (`reading`) becomes the number rule. A PLACE
+ * fact (the look gave it `phrases`, src/pageplace.js: R2, R2a, R2b) becomes one phrase fact per phrase, because every one of them must be in the quote
+ * (R2c); the old choice, the first kept word, is gone (in 2 of 3 saved F71 drafts that word was on no result line, FINDINGS F72). A plain phrase fact
+ * ("Nonstop") keeps its first word.
+ * @param {any} k a fact from `lookFactOf` (src/pagelook.js) @returns {Record<string, any>[]}
  */
-export function factOfLook(k) {
+export function factsOfLook(k) {
+  if (k.shape === 'phrase' || k.shape === 'place') {
+    const phrases = Array.isArray(k.phrases) ? k.phrases : [k.phrase ?? k.words?.[0] ?? ''];
+    return phrases.map((/** @type {unknown} */ p, /** @type {number} */ i) => ({ name: phrases.length > 1 ? `${k.name} ${String.fromCharCode(97 + i)}` : String(k.name), shape: 'phrase', phrase: String(p) }));
+  }
   /** @type {Record<string, any>} */
-  const f = { name: String(k.name), shape: k.shape === 'place' ? 'phrase' : k.shape };
-  if (f.shape === 'phrase') { f.phrase = String(k.phrase ?? k.words?.[0] ?? ''); return f; }
+  const f = { name: String(k.name), shape: k.shape };
   const anchor = k.labels?.[0] ?? k.label ?? k.words?.[0];
   if (anchor !== undefined) f.anchor = String(anchor);
   if (f.shape === 'money') {
@@ -47,7 +52,7 @@ export function factOfLook(k) {
     if (k.currency !== undefined) f.currency = [...k.currency];
   }
   if (isRec(k.reading)) f.rule = { ...k.reading };
-  return f;
+  return [f];
 }
 
 /**
@@ -56,7 +61,7 @@ export function factOfLook(k) {
  * @returns {{source: string, facts: Record<string, any>[], count?: {min?: number, max?: number}}}
  */
 export function factPartFromLook(lookFacts, source, count) {
-  return { source, facts: lookFacts.map(factOfLook), ...(count === undefined ? {} : { count: { ...count } }) };
+  return { source, facts: lookFacts.flatMap(factsOfLook), ...(count === undefined ? {} : { count: { ...count } }) };
 }
 
 /**
@@ -68,7 +73,7 @@ export function factPartReds(part) {
   /** @type {string[]} */
   const reds = [];
   if (!isRec(part) || typeof part.source !== 'string' || part.source.trim() === '') return ['a fact part needs the role of the input its quotes come from'];
-  if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) return [`a fact part needs 1 to ${MAX_FACTS} facts`];
+  if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) return [`a fact part needs 1 to ${MAX_FACTS} facts${Array.isArray(part.facts) && part.facts.length > MAX_FACTS ? ` (it has ${part.facts.length}; a place counts one fact for each phrase it needs, so a line with many places or many rules is too much for one check)` : ''}`];
   const seen = new Set();
   part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
     const w = `fact ${j + 1}`;
