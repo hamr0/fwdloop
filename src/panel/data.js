@@ -43,6 +43,7 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
+import { isResultRun, checkTypeOf, buildResult, downloadOf } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readRunThinking } from '../flowmodel.js';
 import {
@@ -1769,6 +1770,9 @@ export function getRunDetail({
     needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
       runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
     })),
+    // M10 am4: the Result tab shows for a job that reads a page, a CSV or a .docx; `checkType` is its distinct close classes (the tab's top card)
+    hasResult: isResultRun(ctx.arbiter),
+    checkType: ctx.flowRead.ok ? checkTypeOf(ctx.flowRead.declaration) : '\u2014',
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
@@ -2146,6 +2150,61 @@ export function getRunJob({
       ? null
       : 'signature.json is missing signedBy/signedAt/flow (hash)',
   };
+}
+
+/**
+ * M10 am4: what `getRunResult` and `getRunDownload` both need of one run: its books and the signed job it ran. `null` = no such run, the job is
+ * unreadable, or it is not an M10 job (the route answers 404 "no such run, or it has no result tab").
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ */
+function resultContext({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !existsSync(run.runDir)) return null;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
+  if (!ctx.flowRead.ok || !isResultRun(ctx.arbiter)) return null;
+  return { run, ctx };
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/result` — the Result tab (M10 am4). The Not checked list is the Job tab's own (`buildJobPlan`), never a second spelling.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ * @returns {any|null}
+ */
+export function getRunResult({
+  root, flow, runId, catalogue,
+}) {
+  const got = resultContext({
+    root, flow, runId, catalogue,
+  });
+  if (!got) return null;
+  const { run, ctx } = got;
+  const sig = ctx.flowRead.signature;
+  const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null);
+  return buildResult({
+    flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items,
+  });
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/download?i=<n>` (M10 am4): one saved file, or why not.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, index: unknown}} a
+ * @returns {ReturnType<typeof downloadOf>}
+ */
+export function getRunDownload({
+  root, flow, runId, catalogue, index,
+}) {
+  const got = resultContext({
+    root, flow, runId, catalogue,
+  });
+  if (!got) return { ok: false, code: 404, error: 'no such run, or it has no result tab' };
+  return downloadOf({
+    index,
+    ctx: {
+      arbiter: got.ctx.arbiter, declaration: got.ctx.flowRead.declaration, runDir: got.run.runDir, root, flow, runId, auditRows: got.ctx.auditRows,
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
