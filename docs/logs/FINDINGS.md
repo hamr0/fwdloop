@@ -3224,3 +3224,4 @@ with T1+T2 only (no third trigger).**
   not show that sentence.
 - **Open.** hamr asked for a 3-ask limit; that needs a signed amendment and is not in force until
   signed.
+- **Known limit (inherited from bareloop):** time labels are read as h:mm AM/PM only; a 24-hour page drops every time label as 'reads no value'.
