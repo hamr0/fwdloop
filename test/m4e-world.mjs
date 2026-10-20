@@ -32,7 +32,9 @@ const HANDLES = [];
 const ROOTS = [];
 
 /** SIGKILL the process group of every live child listed in a root's draft and start folders. */
-function killListedChildren(roots) {
+function killListedChildren(roots, signal = 'SIGKILL') {
+  /** @type {number[]} */
+  const hit = [];
   for (const root of roots) {
     for (const sub of ['.drafts', '.starts']) {
       const dd = path.join(root, sub);
@@ -40,11 +42,21 @@ function killListedChildren(roots) {
       for (const id of readdirSync(dd)) {
         try {
           const pid = JSON.parse(readFileSync(path.join(dd, id, 'pid.json'), 'utf8'));
-          if (isFwdloopAlive(pid.pid, pid.procStart) === true) process.kill(-pid.pid, 'SIGKILL');
+          if (isFwdloopAlive(pid.pid, pid.procStart) === true) { process.kill(-pid.pid, signal); hit.push(pid.pid); }
         } catch { /* none */ }
       }
     }
   }
+  return hit;
+}
+
+/** A child that is mid page-fetch owns a chromium that barebrowse started detached (its own process group): a SIGKILL cannot reach it
+ *  and it is orphaned. SIGTERM lets barebrowse's own handler reap it; wait for the child to exit, then SIGKILL what is left. */
+async function termThenKill(roots) {
+  const hit = killListedChildren(roots, 'SIGTERM');
+  const gone = (pid) => isFwdloopAlive(pid, null) !== true;
+  for (let i = 0; i < 100 && !hit.every(gone); i++) await sleep(50);
+  killListedChildren(roots);
 }
 
 /**
@@ -54,7 +66,7 @@ function killListedChildren(roots) {
  */
 export async function reapChildren(roots = ROOTS, handles = HANDLES) {
   await Promise.all(handles.map((h) => h.close()));
-  killListedChildren(roots);
+  await termThenKill(roots);
   killListedChildren(roots);
 }
 

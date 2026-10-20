@@ -82,7 +82,6 @@ test('a fetch child killed by the test reaper mid-fetch leaves no chromium', asy
 
 test('a refused fetch (private address) whose process exits right after leaves no chromium', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-orphan-'));
-  const dl0 = new Set(dlDirs());
   const { c, exited } = makeChild(root, false);
   const pid = c.pid;
   try {
@@ -95,7 +94,6 @@ test('a refused fetch (private address) whose process exits right after leaves n
   } finally {
     for (const r of chromiumRoots(pid)) { try { process.kill(r, 'SIGKILL'); } catch { /* gone */ } }
     for (const n of profiles(pid)) rmSync(path.join('/tmp', n), { recursive: true, force: true });
-    for (const n of dlDirs()) if (!dl0.has(n)) rmSync(path.join('/tmp', n), { recursive: true, force: true });
     rmSync(root, { recursive: true, force: true });
   }
 });
