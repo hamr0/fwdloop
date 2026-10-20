@@ -3253,3 +3253,22 @@ with T1+T2 only (no third trigger).**
 [SIGNED: honest green, flipped red; BORROWED: 10/10 with R2, 0/10 without; the numbers 19 and 3 drafts are INVENTED]
 
 **Win rule.** BUILD item 2 only if H, X, K and G all hold. A failing page is a finding, never a re-tune of R2. NO BUILD means nothing is built and the item goes back to hamr. Honest limits to record with the result: one page, one route direction, one airline-text shape, place facts only, flipped copies are made by code (no live reverse capture), R3 not tested.
+
+**Result (2026-10-20, $0, no provider call, no fetch).** Script `.claude/scratch/m10-r2/run.mjs` + `r2.mjs` (gitignored POC, not shipped), output `.claude/scratch/m10-r2/result.json`. Our real `checkCited` (bareguard). Numbers are results graded green of 19.
+
+| arm | draft | signed place phrases | honest | flipped F-ii-a | flipped F-ii-b | F-i (vs honest page) |
+|---|---|---|---|---|---|---|
+| **R2** | 1 / 2 / 3 | "Leaves Amsterdam Airport Schiphol" + "arrives at Heathrow Airport" (same in all 3) | 19 / 19 / 19 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| C1 today (first kept word) | 1 | "Amsterdam", "London" | **0** | 0 | 0 | 0 |
+| C1 today | 2 | "LHR", "AMS" | **0** | 0 | 0 | 0 |
+| C1 today | 3 | "Amsterdam Airport Schiphol", "Heathrow Airport" | 19 | **19** | **19** | 0 |
+| C2 no growth (R2a-c only) | 1 / 2 / 3 | "Amsterdam Airport Schiphol", "Heathrow Airport" | 19 / 19 / 19 | **19 / 19 / 19** | **19 / 19 / 19** | 0 / 0 / 0 |
+
+- R2 in detail: "Amsterdam Airport Schiphol" grew to "Leaves Amsterdam Airport Schiphol" and "Heathrow Airport" to "arrives at Heathrow Airport" (38 page occurrences each, all 19 results x link line + details button); "Amsterdam" grew to "Leaves Amsterdam" and was dropped by R2a; "AMS", "LHR", "London" were dropped by R2b (0% of the longest phrase's lines). Every flipped red names the grown phrase ("the quote does not say 'Leaves Amsterdam Airport Schiphol'"), not another reason.
+- Regression (full part: price "From" / US dollars under 150 + the place phrases), draft 1-3 identical: honest rows green 7/19 (the 7 under $150, same as the control in draft 3); "Pay $0" copy 0/19 green; invented quote not on the page 0/1 green. Both with R2 and with today's phrase.
+
+**Verdict against the pre-registered bar: NO BUILD, by the letter.** H holds (honest 19/19 x 3 drafts). X holds (flipped 0/19 green x 2 copies x 3 drafts). G holds. **K fails as written:** it asked that control C1 (today's first kept word) lets a flip pass in EACH draft. It does in draft 3 only (19/19). In drafts 1 and 2 the first kept word is "Amsterdam" / "AMS" with the destination "London" / "LHR", and "London"/"LHR" are not on the result lines at all, so today's check is red on the honest rows too (0/19): the flip is "caught" there only because everything is, which is a worthless catch (bareloop's own F235/F236 note). The control that isolates growth, C2 (all kept phrases, R2a-c, no growth), lets the flip through 19/19 in all three drafts. This is the pre-registered letter, not a re-tune: the item goes back to hamr, who decides whether C2 stands as the control for K. If it does, all four marks hold and R2 is BUILD.
+
+**What the result says plainly.** R2 does what bareloop found: with the grown phrases the flipped route goes red 114/114 and the honest copy stays green 57/57; without growth the flip passes 114/114 (C2) with the same phrases. Two things it surfaced beyond the bar: (1) today's `factOfLook` signs only `words[0]`, and in 2 of 3 saved F71 drafts that word is not on the result line at all (draft 1 "Amsterdam" and "London", draft 2 "LHR" and "AMS"), so those drafts could never go green on an honest row; R2's R2a-R2b filter removes exactly those. (2) R2c turns one place fact into two or more phrase facts, so the fact count per line (bareguard `MAX_FACTS` 10) grows by one per extra phrase.
+
+**Honest limits.** One page, one direction (AMS to LHR), one airline-text shape ("Leaves X at ... arrives at Y"); both flipped copies are made by code from a copy (no live LHR to AMS capture); place facts only, price/time rules left out of the main table so a place red cannot hide; the drafts' maps are F71's three saved maps, no fresh model call, so how often the model names a role-bearing place phrase is not measured; R3 (page-once) not tested and not part of this item; the 19/38 counts depend on this page's markup (a page without "Leaves"/"arrives at" before the place would not grow, and R2 stops at the 90% share, which is the point of the rule).
