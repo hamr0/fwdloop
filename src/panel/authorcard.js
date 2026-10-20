@@ -15,6 +15,7 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
+import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
 import { capTooSmallText } from '../draftspend.js';
@@ -177,6 +178,11 @@ export function cardFields(body) {
   };
 }
 
+/** M10 am3: is this web address whole (a host after the scheme, no spaces)? The ONE reader of a typed page address. @param {string} v */
+export function pageAddressOk(v) {
+  return /^https?:\/\/[^\s/?#]+\S*$/i.test(v);
+}
+
 /** The Run-a-signed-flow door's rows (a role is fixed by the signed flow): what the page sent, as `{role, path}`. @param {any} v */
 export function runInputRows(v) {
   return (Array.isArray(v) ? v : []).map((r) => ({ role: str(r?.role).trim(), path: str(r?.path).trim() }));
@@ -193,7 +199,7 @@ export function cardToProse(card) {
   const out = [...jobFileLines(steps, card.askWait), '', ARBITER_HEADING];
   out.push(`guardrail: cap $${capText(Number(card.capUsd))} per run`);
   if (card.destination !== '') out.push(`guardrail: send at line ${steps.length} to file:${card.destination}`);
-  for (const i of parseInputLines(card.inputs)) out.push(`guardrail: source ${i.role} = file:${i.path}`);
+  for (const i of parseInputLines(card.inputs)) out.push(`guardrail: source ${i.role} = ${isWebUrl(i.path) ? 'page' : 'file'}:${i.path}`); // M10 am3: a web address is a page
   return `${out.join('\n')}\n`;
 }
 
@@ -279,6 +285,10 @@ export function checkInputRows(rows) {
     seen.add(row.role);
     if (row.path === '') { no(`The input "${row.role}" has a role but no path.`); return; }
     if (CONTROL_RE.test(row.path)) { no(`The path for "${row.role}" has a character that cannot be in a path.`); return; }
+    if (isWebUrl(row.path)) { // M10 am3: a web page's address is signed with the job; there is no file to look at
+      if (!pageAddressOk(row.path)) no(`The address for "${row.role}" must be a full http:// or https:// address with no spaces.`);
+      return;
+    }
     if (!isAbsolute(row.path)) { no(`The path for "${row.role}" must be a full path starting with "/".`); return; }
     const why = fileProblem(row.path);
     if (why) no(`The path for "${row.role}" ${why}`);

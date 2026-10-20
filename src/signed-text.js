@@ -357,7 +357,7 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
     }
 
     if (lower.startsWith('source ')) {
-      const fileIdx = lower.indexOf('file:');
+      const fileIdx = lower.search(/(?:file|page):/);
       const afterFile = fileIdx === -1 ? '' : text.slice(fileIdx);
       if (SECOND_SOURCE_RE.test(afterFile)) {
         reds.push(`arbiter: line ${fileLine} field "sources" carries more than one source (";"/"," joined), one source per line: "${text}"`);
@@ -378,6 +378,16 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
       const colon = rhs.indexOf(':');
       const kind = colon === -1 ? rhs : rhs.slice(0, colon);
       const path = colon === -1 ? '' : rhs.slice(colon + 1).trim();
+      if (kind.toLowerCase() === 'page') {
+        // M10 am3: a web page's address is signed with the job (`source <role> = page:<http(s) address>`);
+        if (!/^https?:\/\/[^\s/?#]+/i.test(path)) {
+          reds.push(`arbiter: line ${fileLine} field "sources" page address must be a full http:// or https:// address: "${text}"`);
+          continue;
+        }
+        sourceRolesSeen.add(role);
+        sources.push({ role, kind: 'page', path });
+        continue;
+      }
       if (kind.toLowerCase() !== 'file') {
         reds.push(`arbiter: line ${fileLine} field "sources" source kind "${kind}" is not available until M9`);
         continue;
