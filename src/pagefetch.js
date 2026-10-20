@@ -40,6 +40,17 @@ export function isWebUrl(v) {
   return typeof v === 'string' && /^https?:\/\//i.test(v.trim());
 }
 
+/** M10 am3: the web pages a signed job names, role -> address (`source <role> = page:<address>`). The ONE reader of which roles are pages and what their signed address is.
+ *  @param {{sources?: Array<{role: string, kind?: string, path: string}>}} arbiter @returns {Record<string, string>} */
+export function pageAddressesOf(arbiter) {
+  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page').map((s) => [s.role, s.path]));
+}
+
+/** M10 am3: why a run may not name another address for a page input (the signed address is the job's; a different one is a changed job). @param {string} role @param {string} signed */
+export function pageAddressRefusal(role, signed) {
+  return `the input "${role}" is a web page signed as ${signed}; a run cannot name a different address (a changed address is a changed job, a new workflow). Nothing started.`;
+}
+
 /**
  * How much of a fetched page is the page's own content: the snapshot's header lines (url, size note, hint) and every part of the tree
  * under a banner / navigation / contentinfo landmark are taken out, the page reader's bracketed tags are removed, and what is left is

@@ -60,3 +60,52 @@ test('card: malformed lines refuse with today\'s words; a bad address is refused
   assert.match(f('flights: https://').join('|'), /Line 1:/);
   assert.match(f('flights: relative/file.md')[0], /must be a full path/);
 });
+
+// ---- the CLI: the signed address is the run's; a different one is refused at $0 ----
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { writeFlow } from '../src/flow.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { sandboxSend } from './send-sandbox.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
+const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
+const SIGNED_PAGE = 'http://127.0.0.1:1/signed-page';
+
+function pageFlow() {
+  const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m10am3-cli-'));
+  const prose = sandboxSend(fixture('job2-with-sources.signed.txt')).replace(/guardrail: source jd = file:.*\n?/, `guardrail: source jd = page:${SIGNED_PAGE}\n`);
+  assert.ok(prose.includes(`page:${SIGNED_PAGE}`));
+  const cat = loadCatalogue(); assert.equal(cat.ok, true);
+  const w = writeFlow({
+    root, name: 'job2', proseText: prose, declaration: JSON.parse(fixture('job2.m1.declaration.json')), signedBy: 'hamr', signedAt: '2026-10-20T12:00:00Z', catalogue: cat.primitives,
+  });
+  assert.equal(w.ok, true, w.ok ? '' : w.reds.join('\n'));
+  const resume = path.join(root, 'resume.md'); writeFileSync(resume, 'R');
+  return { root, resume };
+}
+const cli = (args) => spawnSync(process.execPath, [BIN, ...args], {
+  encoding: 'utf8', timeout: 120000, env: { PATH: process.env.PATH ?? '', NODE_ENV: 'test', FWDLOOP_TEST_MODEL_STEP: path.join(HERE, 'fixtures', 'cli-fake-model-step.mjs') },
+});
+
+test('cli: a run naming a different address for a page input is refused at $0, naming the input; no run folder is left', () => {
+  const { root, resume } = pageFlow();
+  const r = cli(['run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', 'jd=https://evil.example/x', '--run-id', 'run-1']);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /the input "jd" is a web page signed as http:\/\/127\.0\.0\.1:1\/signed-page/);
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-1', 'inputs.json')), false);
+});
+
+test('cli: a page input needs no --source; the run fetches the SIGNED address, and a fetch that fails stops at $0 naming the input', () => {
+  const { root, resume } = pageFlow();
+  const r = cli(['run', 'job2', '--root', root, '--source', `resume=${resume}`, '--run-id', 'run-1']);
+  assert.notEqual(r.status, 0, r.stdout);
+  const out = `${r.stdout}${r.stderr}`;
+  assert.match(out, /input "jd"/);
+  assert.match(out, /127\.0\.0\.1:1|signed-page|reach|fetch|load/i);
+  const spend = path.join(root, 'job2', 'runs', 'run-1', 'spend.jsonl');
+  assert.equal(existsSync(spend) ? readFileSync(spend, 'utf8').trim() : '', '', 'nothing spent');
+  assert.deepEqual(readdirSync(path.join(root, 'job2', 'runs')).length > 0, true);
+});
