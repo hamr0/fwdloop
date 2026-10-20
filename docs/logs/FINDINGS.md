@@ -3225,3 +3225,31 @@ with T1+T2 only (no third trigger).**
 - **Open.** hamr asked for a 3-ask limit; that needs a signed amendment and is not in force until
   signed.
 - **Known limit (inherited from bareloop):** time labels are read as h:mm AM/PM only; a 24-hour page drops every time label as 'reads no value'.
+
+## F72 — M10 am7 item 2: does R2 (a place word grows to its role word) catch a flipped route on F71's saved page: pre-registered before any run (2026-10-20)
+
+**Status.** Pre-registered 2026-10-20, not run. $0: no provider call, no fetch. Tags: **[SIGNED]** M10 amendment 7 item 2 (hamr 2026-10-20), **[BORROWED]** bareloop F235/F236, `docs/product/ITEM33-BUILD.md` (R2, R2a, R2b, R2c), `.claude/scratch/idea-a-v2/rules.mjs`, **[INVENTED]** written by the worker.
+
+**Question.** If a place word grows left to take in its role word ("Amsterdam Airport Schiphol" becomes "Leaves Amsterdam Airport Schiphol", "Heathrow Airport" becomes "arrives at Heathrow Airport") and every grown phrase must be in the quote (R2, R2a, R2b, R2c), does the honest copy of F71's page stay green and does the flipped copy go red, where today's single place phrase lets the flip through? [SIGNED: "First a $0 test on F71's saved page: the honest copy stays green and the flipped copy goes red. If that fails, nothing is built and this item comes back to hamr."]
+
+**Set up (written before any run).**
+- Page: F71's saved AMS-LHR page, `.claude/scratch/m10/page-ams-lhr.txt`, sha256 `c56f6fd47677a19c18cc015728c733b28508dfbe08ac4bc8edbab40d2c923f9a`, 19 results. Never edited; every variant below is a COPY made by code. [SIGNED: page]
+- Facts under test: the place facts ("origin airport", "destination airport") of the 3 saved F71 Stage A maps (`.claude/scratch/m10/out/stage-a/draft-1..3.json`, field `kept`), no new model call. The fact part holds ONLY the place facts, so a result can go red for a place and nothing else (price and time rules would add reds that hide what R2 does). [INVENTED]
+- R2 copy: `.claude/scratch/m10-r2/r2.mjs` (gitignored POC code, never shipped), a port of the `R2 / R2a / R2b / R2c` block and `growOnce` / `growLeft` of bareloop `.claude/scratch/idea-a-v2/rules.mjs` (grow up to 2 words, share >= 90%, stop at `"`, `[`, `]`, `=`; contained phrase dropped; same-line share >= 90% of the longest phrase's lines; all kept phrases must be in the quote), counting with our copied `bl/factwords-min.js`. R3 (page-once) is NOT part of this item and is not run. [SIGNED: R2, R2a, R2b, R2c; BORROWED]
+- Check: our real `checkCited` (`src/citedcheck.js`, bareguard 0.25.1) with the place facts as `phrase` facts, one claim per result, quote = the result's own link line. The check is the same in every arm; only the signed phrases differ.
+- Honest set: the 19 result link lines of the saved page, graded against the saved page; for each of the 3 drafts.
+- Flipped set (three ways, the first two decide): [BORROWED F236 "both variants"; the copy is INVENTED]
+  - F-ii-a: the existing F71 cheat copy `.claude/scratch/m10/page-ams-lhr.cheat-reversed.txt` (made by code from a copy; on each result link line "Amsterdam Airport Schiphol" and "Heathrow Airport" swapped, so "Leaves Heathrow Airport ... arrives at Amsterdam Airport Schiphol"). The 19 flipped link lines are the quotes and this copy is the source (the quote exists in the source, so only the signed facts can catch).
+  - F-ii-b: a second copy where the swap is made on EVERY line of the page (headers, combobox, details buttons), source and quotes both from it. Same 19 results, flipped.
+  - F-i (reported, not deciding): the 19 flipped link lines graded against the HONEST page. Caught by "quote not in source" with or without R2, so it proves nothing about R2.
+- Control (same check, no R2): (C1) today's code, `factOfLook`: ONE phrase per place fact (the first kept word). (C2) the kept words with R2a, R2b, R2c but no growth, to show growth is what does the catching. [SIGNED: "0/10 without"; BORROWED]
+- Regression (existing piece-4 cheat cases, must still go red with R2 on): the F71 `page-ams-lhr.cheat-pay0.txt` copy ("Pay $0." in place of "From N US dollars.") and a quote that is not on the page (an invented link line), each graded with a full fact part for draft 3 (price anchor "From" unit US dollars under 150, the R2 place phrases). Planted "Pay $0" rows must be red; the invented quote must be red; the honest rows are the control.
+
+**Pass marks (all must hold, else NO BUILD).**
+- H: with R2, honest results green = all of them, for each of the 3 drafts (19 of 19 x 3). A draft whose R2 leaves no place phrase is refused (reported as refused, and counts as a failure of H unless the same draft's control also has no place phrase).
+- X: with R2, every flipped result in F-ii-a and F-ii-b is red (19 of 19 x 2 x 3 drafts).
+- K: control C1 lets at least one flipped result in F-ii-a pass in each draft (expected 19 of 19). If the control catches the flip, R2 is not needed and the item is NOT BUILD.
+- G: the regression cases above stay red with R2 on (Pay $0 rows 0 green; invented quote 0 green).
+[SIGNED: honest green, flipped red; BORROWED: 10/10 with R2, 0/10 without; the numbers 19 and 3 drafts are INVENTED]
+
+**Win rule.** BUILD item 2 only if H, X, K and G all hold. A failing page is a finding, never a re-tune of R2. NO BUILD means nothing is built and the item goes back to hamr. Honest limits to record with the result: one page, one route direction, one airline-text shape, place facts only, flipped copies are made by code (no live reverse capture), R3 not tested.
