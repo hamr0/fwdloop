@@ -16,6 +16,7 @@ import { basename, join, sep } from 'node:path';
 import { readFileInside } from '../flow.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
+import { NOT_CHECKED_LABEL } from '../checked.js';
 import { checkSendDestination } from '../runner.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
@@ -229,7 +230,7 @@ export function buildResult({
   }
   const pages = [...new Set(urls.values())];
   return {
-    flow, runId, lines, pages, pageNote: pages.length ? RESULT_PAGE_MAY_CHANGE : null, notChecked, delivered, gap,
+    flow, runId, lines, pages, pageNote: pages.length ? RESULT_PAGE_MAY_CHANGE : null, notCheckedLabel: NOT_CHECKED_LABEL.charAt(0).toUpperCase() + NOT_CHECKED_LABEL.slice(1), notChecked, delivered, gap,
   };
 }
 

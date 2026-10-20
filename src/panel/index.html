@@ -500,6 +500,8 @@
   #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
   #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
+  /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
+  #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
   label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
   /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
@@ -2383,9 +2385,10 @@
     var show = detail.hasResult === true;
     if(!show && resultTabShown()) document.getElementById("tab-run").click();
     btn.hidden = !show;
+    var same = !!resultData && resultData.flow === detail.flow && resultData.runId === detail.runId;
+    if(!show || !same) clearResult();   // another run's rows never stay on screen
     resultDetail = show ? detail : null;
-    if(show && resultData && resultData.flow === detail.flow && resultData.runId === detail.runId) renderResult();
-    if(!show) clearResult();
+    if(show && same) renderResult();
   }
   function loadResult(flow, runId){
     return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/result").then(function(data){
@@ -2498,7 +2501,7 @@
       h += '<div class="rs-warn" data-testid="result-gap">The check said: ' + escapeXml(data.gap.line) + (data.gap.moreText ? ' ' + escapeXml(data.gap.moreText) : "") + '</div>';
     }
     if((data.notChecked || []).length){
-      h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked("Not checked (the AI's own reading)", data.notChecked, "result-notchecked") + '</div>';
+      h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked(data.notCheckedLabel, data.notChecked, "result-notchecked") + '</div>';
     }
     if((data.delivered || []).length){
       h += '<div class="job-card" data-testid="result-saved"><h4>Saved</h4>' + data.delivered.map(function(d){
@@ -3618,7 +3621,6 @@
     openRunLive = true;   // unknown until this run's own detail says it is finished
     // a different selection: every payload-equality skip for the selection's own panes is void
     lastSig.runs = lastSig.detail = lastSig.asks = lastSig.audit = null;
-    clearResult();
     var base = "/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId);
     // detail, audit, job, and asks each load independently — the Run tab's
     // step cards get everything they need (including a step's own attempt-

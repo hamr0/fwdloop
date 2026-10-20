@@ -80,7 +80,8 @@ const norm = (h) => h.replace(/\s+/g, ' ').replace(/> </g, '><').replace(/ open=
 const ours = (h) => norm(h).replace('$0.04 of $1.00 cap<', '$0.04 of $1.00<').replace('/api/runs/flight-revised/run-3/download', '/api/runs/mvfphtwl/download');
 
 const DETAIL = { hasResult: true, word: 'passed', glyph: '[✓]', checkType: 'rubric', flow: 'flight-revised', runId: 'run-3', spend: '$0.04', capUsd: 1, wallMs: 91000 };
-const RESULT = { ...GOLDEN_JSON, flow: 'flight-revised', runId: 'run-3' };
+// the label rides the payload (am41 item 3: the page holds no copy of these words); bareloop's page has it in the source, the text drawn is the same
+const RESULT = { ...GOLDEN_JSON, flow: 'flight-revised', runId: 'run-3', notCheckedLabel: "Not checked (the AI's own reading)" };
 delete RESULT.runid;
 
 test('browser 1280: the Result tab sits fifth (Run, Audit / logs, Job, Ask, Result) and is shown for an M10 job', { skip: SKIP && 'no browser' }, async (t) => {
