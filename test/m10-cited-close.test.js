@@ -1,5 +1,5 @@
 // M10 piece 4 (item 2): the green close grows - a step whose close carries a fact part is checked against the quotes it cites in the run's own frozen copy.
-// The carrier of the part on a signed step (`close.cited`) is not signed text yet; these tests build the step by hand. $0, real saved page, no model.
+// The carrier of the part on a signed step is `close.cited` (M10 am7 item 1, test/m10-cited-declaration.test.js); these tests build the step by hand. $0, real saved page, no model.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';

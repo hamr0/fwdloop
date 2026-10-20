@@ -30,6 +30,7 @@ import { GateRefusal } from './primitives.js';
 import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
+import { citedBrief } from './citedcheck.js';
 
 import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
@@ -133,11 +134,32 @@ const HITL_SCHEMA = Object.freeze({
   additionalProperties: true,
 });
 
+// M10 am7 item 3: a green step that quotes a saved web page (its close carries `cited`) answers with the quotes it found, each with the values it read from
+// that quote. The check (src/closers.js closeCited) reads exactly this; nothing else in the artifact is trusted.
+const CITED_SCHEMA = Object.freeze({
+  type: 'object',
+  properties: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { quote: { type: 'string' }, values: { type: 'object' } },
+        required: ['quote', 'values'],
+      },
+    },
+    ...DONE_PROPS,
+  },
+  required: ['results', 'done'],
+  additionalProperties: false,
+});
+
 /**
  * Build the `emit_artifact` tool schema from a step's declared close CLASS
- * only. `stepClass` is `'green' | 'softgreen' | 'hitl' | null | undefined`.
+ * only (plus, for a green step that quotes a saved page, the form of its answer).
+ * `stepClass` is `'green' | 'softgreen' | 'hitl' | null | undefined`; `cited` is true for that green step.
  */
-export function buildEmitArtifactSchema(stepClass) {
+export function buildEmitArtifactSchema(stepClass, cited = false) {
+  if (stepClass === 'green' && cited) return CITED_SCHEMA;
   if (stepClass === 'green') return GREEN_SCHEMA;
   if (stepClass === 'softgreen') return SOFTGREEN_SCHEMA;
   return HITL_SCHEMA;
@@ -288,7 +310,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, cited?:any, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
@@ -329,7 +351,7 @@ export function makeLiveModelStep({
     const runDir = dirname(spendPath);
     const diaryStep = stepMeta.step ?? null;
     const diaryTry = typeof stepMeta.attempt === 'number' ? stepMeta.attempt : null;
-    const toolSchema = buildEmitArtifactSchema(stepMeta.class);
+    const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));
     const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '
       + 'Call emit_artifact exactly once with this step\'s result. Ground every value in the '
@@ -338,6 +360,8 @@ export function makeLiveModelStep({
       goal: executorContext.goal,
       reads: executorContext.reads,
       gap: executorContext.gap,
+      // M10 am7 item 3: a step that quotes a saved page is told the form of its answer and what each result must hold
+      ...(stepMeta.class === 'green' && stepMeta.cited ? { quoting: citedBrief(stepMeta.cited) } : {}),
     });
     const messages = [
       { role: 'system', content: systemPrompt },

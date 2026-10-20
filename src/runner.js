@@ -596,7 +596,7 @@ export function readArtifact(runDir, id) {
  *  indistinguishable from "not written yet") into a step.
  *  @returns {{ok:true, map:Record<string,any>} | {ok:false, red:string}}
  */
-function readArtifactsMapChecked(runDir, ids) {
+export function readArtifactsMapChecked(runDir, ids) {
   const map = {};
   for (const id of ids ?? []) {
     const result = readArtifactResult(runDir, id);
@@ -608,6 +608,12 @@ function readArtifactsMapChecked(runDir, ids) {
       const input = readInputCells(runDir, id);
       if (!input.ok && !input.missing) return { ok: false, red: `input "${id}" — ${input.red}` };
       if (input.ok) { map[id] = input.value; continue; }
+      // M10 am7 item 3: an id that names a saved web page (or a text file) is read as its text, from the RUN'S OWN frozen copy, sha-checked, through the one safe
+      // read gateway (`readFileInside`, in `readRunSource`). By role, text only: a copy that is missing or changed refuses the step; an id that is no text input
+      // of this run is left as it was (undefined).
+      const page = readRunSource(runDir, id);
+      if (page.ok) { map[id] = { kind: 'text', text: page.text }; continue; }
+      if (page.code === 'unreadable') return { ok: false, red: page.red };
     }
     map[id] = result.ok ? result.value : undefined;
   }
@@ -825,7 +831,9 @@ export async function runStepRalph({
     // scope item 3's own invariant: the schema is class-only, and the
     // construction test below proves the context itself stays clean).
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
+    // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 

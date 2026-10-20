@@ -200,6 +200,36 @@ export function countSentence(part) {
 }
 
 /**
+ * One fact as the STEP is told it: what to write for it and where in the quote it sits, in plain words, from the signed fields. A phrase fact has no value to
+ * write - the quote has to say it. (bareloop's factBrief.)
+ * @param {any} f @returns {string}
+ */
+export function factBrief(f) {
+  if (f.shape === 'phrase') return `${f.name} - no value to write; the quote you copy must say "${f.phrase}"`;
+  /** @type {string[]} */
+  const bits = [f.shape === 'money' ? `an amount in ${[...asList(f.unit), ...asList(f.currency)].join(' or ')}` : f.shape === 'text' ? 'words' : `a ${f.shape}`];
+  if (f.anchor !== undefined) bits.push(f.until !== undefined ? `the words right after "${f.anchor}" up to "${f.until}"` : `right after "${f.anchor}"`);
+  if (f.rule) bits.push(`must be ${ruleWords(f)}`);
+  return `${f.name} - ${bits.join(', ')}`;
+}
+
+/**
+ * How a step that quotes a saved page is told to answer: the form of its answer and the facts each result must hold (typed fields in, plain words out).
+ * The step is never told a verdict or a way around the check; it is told what to copy and what to write.
+ * @param {any} part @returns {{answer: string, eachResultHolds: string[], howMany: string|null}}
+ */
+export function citedBrief(part) {
+  const c = isRec(part.count) ? part.count : null;
+  const n = (/** @type {number} */ v) => `${v} result${v === 1 ? '' : 's'}`;
+  const howMany = c === null ? null : c.min !== undefined && c.max !== undefined ? (c.min === c.max ? `Give exactly ${n(c.min)}.` : `Give ${c.min} to ${c.max} results.`) : c.min !== undefined ? `Give at least ${n(c.min)}.` : `Give at most ${n(c.max)}.`;
+  return {
+    answer: `Answer with "results": one entry per thing you found, each {"quote": <the words of that one result, copied word for word from the input "${part.source}">, "values": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused.`,
+    eachResultHolds: part.facts.map(factBrief),
+    howMany,
+  };
+}
+
+/**
  * Every plan-card row a fact part carries: its facts, then its count (bareloop's factRows).
  * @param {any} part @returns {string[]}
  */
