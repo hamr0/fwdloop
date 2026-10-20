@@ -4868,6 +4868,10 @@
       if(!state || state.phase !== "questions-open" || !Array.isArray(state.questions)) return null;
       var q = state.questions.filter(function(x){ return x.k === state.openK; })[0];
       if(!q) return null;
+      // M10 am2 item 1 / am5 item 1: a question the page look raised is ONE plain chat message (bareloop's words); the head and line rows stay empty
+      if(q.source === "look"){
+        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + q.question };
+      }
       return {
         key: String(state.draftId) + ":" + q.k, k: q.k,
         head: "A question the plan raised (" + q.k + " of " + state.total + ")",
@@ -5602,6 +5606,7 @@
       if(v.key !== qKey){
         qKey = v.key;
         qHead.textContent = v.head; qLine.textContent = v.line; qText.textContent = v.question;
+        qHead.hidden = v.head === ""; qLine.hidden = v.line === ""; // a look question is one plain message: no empty rows
         qAnswer.value = ""; qError.textContent = "";
       }
     }

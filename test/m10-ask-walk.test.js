@@ -57,8 +57,9 @@ for (const width of [1280, 600, 390, 320]) {
     await until(async () => (await w.get(`/api/author/${id}`)).json()?.phase === 'questions-open');
     await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
     assert.ok(await chrome.waitFor('!document.getElementById("chat-question").hidden'), 'the Chat box shows the question');
-    const text = await chrome.ev('document.getElementById("chat-q-head").textContent + " | " + document.getElementById("chat-q-line").textContent + " | " + document.getElementById("chat-q-text").textContent');
-    assert.match(text, /^A question the plan raised \(1 of 1\) \| About job line 1: Read my resume, \| Your line 1 says "not a red-eye"\. I read it as: departure time between 05:00 and 23:59\. Agree\? Answer "agree", or type your own reading/);
+    // am2 item 1 / am5 item 1: ONE plain chat message; the head and line rows of the M4e box are not drawn
+    const shown = await chrome.ev('Array.from(document.querySelectorAll("#chat-question .q-head, #chat-question .q-line, #chat-question .q-text")).filter(function(e){ return !e.hidden && e.getBoundingClientRect().height > 0; }).map(function(e){ return e.textContent; })');
+    assert.deepEqual(shown, ['A question the plan raised (1 of 1), about job line 1: Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).']);
     await chrome.ev('var a = document.getElementById("chat-q-answer"); a.value = "leaves after seven in the morning and lands before ten at night, no longunbrokenwordthatcouldpushabox".repeat(2); a.dispatchEvent(new Event("input"))');
     await chrome.ev('document.getElementById("chat-question").scrollIntoView()');
     const m = await chrome.ev(measure('#chat-question'));

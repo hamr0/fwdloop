@@ -41,6 +41,7 @@ test('the draft stops before any drafting round with the look\'s question open; 
   assert.equal(s.phase, 'questions-open', JSON.stringify(s));
   assert.equal(s.total, 1, JSON.stringify(s.questions));
   assert.equal(s.questions[0].line, 1);
+  assert.equal(s.questions[0].source, 'look', 'the state says the question came from the page look (the page draws it as one plain message)');
   assert.equal(s.questions[0].question, 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).');
   const planDir = path.join(w.dir(id), 'draft');
   assert.equal(existsSync(path.join(planDir, 'declaration.json')), false, 'no plan was drafted');

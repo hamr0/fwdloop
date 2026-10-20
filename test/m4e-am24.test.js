@@ -409,6 +409,15 @@ test('P1: the question view says "A question the plan raised (k of n)", one at a
   for (const st of [null, { ...openState, phase: 'green' }, { ...openState, phase: 'redrafting' }, { ...openState, questions: [] }]) assert.equal(load('questionViewFor')(st), null);
 });
 
+test('P1b (M10 am2 item 1, am5 item 1): a look question is ONE plain chat message "A question the plan raised (K of N), about job line L: <question>"; other questions keep the box', () => {
+  const Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).';
+  const look = { ...openState, total: 1, questions: [{ k: 1, line: 1, lineText: 'Read my resume,', question: Q, answered: false, source: 'look' }] };
+  const v = load('questionViewFor')(look);
+  assert.deepEqual([v.head, v.line, v.question], ['', '', `A question the plan raised (1 of 1), about job line 1: ${Q}`]);
+  const m4e = load('questionViewFor')(openState);
+  assert.deepEqual([m4e.head, m4e.line], ['A question the plan raised (1 of 2)', 'About job line 3: write me a summary resume'], 'an M4e question is unchanged');
+});
+
 test('P2: there is no Skip; the box has an answer field and a Send button; ids are unique across the page', () => {
   const block = PAGE.slice(PAGE.indexOf('id="chat-question"'), PAGE.indexOf('id="chat-extras"'));
   assert.doesNotMatch(block, /skip/i);
