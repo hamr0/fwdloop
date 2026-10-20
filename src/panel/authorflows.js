@@ -298,7 +298,7 @@ export function createFlowsDoor(opts) {
     const last = lastSources(flowDir, roles, pageAddressesOf(read.arbiter));
     const { passed, stats } = runsOf(flowDir, name, read, roles);
     return {
-      flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.

@@ -4750,7 +4750,9 @@
         var ro = document.createElement("div");
         ro.className = "jf-role-ro"; ro.textContent = role; ro.setAttribute("data-role", role);
         row.appendChild(ro);
-        row.appendChild(makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : ""));
+        var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
+        if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
+        row.appendChild(pathEl);
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
       });

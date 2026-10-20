@@ -57,4 +57,5 @@ test('run door: the flow entry shows the signed address as the page input\'s val
   const f = (await w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2');
   assert.equal(f.lastSources.jd, SIGNED);
   assert.equal(f.lastSources.resume, '');
+  assert.deepEqual(f.pages, { jd: SIGNED }, 'the page marks which inputs are web pages, so the Run row is read-only');
 });
