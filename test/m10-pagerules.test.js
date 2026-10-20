@@ -2,18 +2,11 @@
 // page (public flights page, no PII). $0, no network. A rule here must be able to fail: each forced red is named in its commit.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { applyPageRules } from '../src/pagerules.js';
 import { dropRows } from '../src/pagedropwords.js';
 import { parseMapAnswer, mapPrompt } from '../src/pagemap.js';
+import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FX = path.join(HERE, 'fixtures', 'm10-map');
-export const PAGE = readFileSync(path.join(FX, 'page-ams-lhr.txt'), 'utf8');
-export const raw = (n) => JSON.parse(readFileSync(path.join(FX, `draft-${n}.raw.json`), 'utf8')).raw;
-export const JOB = [{ n: 1, text: 'List 3 flights from Amsterdam to London', rule: 'under $150; not a red-eye; nonstop' }];
 const sentences = (dropped) => dropRows(dropped).flatMap((r) => r.sentences);
 
 test('F71 draft answers all parse; a non-JSON or wrong-shape answer is unreadable (no repair)', () => {
