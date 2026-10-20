@@ -26,6 +26,11 @@ export const MAX_FACTS = 10;
 const CHECKPOINT = 'cited';
 export const CITED_ID = 'facts';
 
+/** every field a fact part may carry, and every field a fact may carry */
+const PART_FIELDS = Object.freeze(['source', 'facts', 'count']);
+const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anchor', 'until', 'rule']);
+const NAME_RE = /^[A-Za-z][A-Za-z _-]{0,63}$/;
+
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** @param {string} t @returns {string} the sha256 of the text, hex */
@@ -74,15 +79,23 @@ export function factPartReds(part) {
   const reds = [];
   if (!isRec(part) || typeof part.source !== 'string' || part.source.trim() === '') return ['a fact part needs the role of the input its quotes come from'];
   if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) return [`a fact part needs 1 to ${MAX_FACTS} facts${Array.isArray(part.facts) && part.facts.length > MAX_FACTS ? ` (it has ${part.facts.length}; a place counts one fact for each phrase it needs, so a line with many places or many rules is too much for one check)` : ''}`];
+  for (const k of Object.keys(part)) if (!PART_FIELDS.includes(k)) reds.push(`a fact part has no field "${k}" - its fields are ${PART_FIELDS.join(', ')}`);
   const seen = new Set();
   part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
     const w = `fact ${j + 1}`;
     if (!isRec(f) || typeof f.name !== 'string' || f.name.trim() === '') { reds.push(`${w}: needs a name`); return; }
+    for (const k of Object.keys(f)) if (!FACT_FIELDS.includes(k)) reds.push(`${w} "${f.name}": "${k}" is not a field of a fact - its fields are ${FACT_FIELDS.join(', ')}`);
+    // the name is in the claim text bareguard scans for numbers: letters only, so no digit can red the claim
+    if (!NAME_RE.test(f.name)) reds.push(`${w} "${f.name}": a fact's name is letters, spaces, "_" or "-" only (no digits), at most 64 characters`);
     if (seen.has(f.name)) reds.push(`${w}: the name "${f.name}" is used twice`);
     seen.add(f.name);
     if (!FACT_SHAPES.includes(f.shape)) { reds.push(`${w} "${f.name}": the shape is not one of ${FACT_SHAPES.join(', ')}`); return; }
     if (f.shape === 'phrase' && (typeof f.phrase !== 'string' || f.phrase === '')) reds.push(`${w} "${f.name}": a phrase fact needs its words`);
     if (f.shape === 'money' && asList(f.unit).length + asList(f.currency).length === 0) reds.push(`${w} "${f.name}": money needs a unit or a currency`);
+    if (f.shape !== 'money' && (f.unit !== undefined || f.currency !== undefined)) reds.push(`${w} "${f.name}": only money has a unit or a currency`);
+    if (f.shape === 'phrase') for (const k of ['anchor', 'until', 'rule']) if (f[k] !== undefined) reds.push(`${w} "${f.name}": a phrase is fixed words the quote must contain; it has no ${k}`);
+    if (f.shape !== 'phrase' && f.phrase !== undefined) reds.push(`${w} "${f.name}": only a phrase fact carries phrase`);
+    if (f.until !== undefined && (f.anchor === undefined || f.shape !== 'text')) reds.push(`${w} "${f.name}": until closes a text fact that has an anchor, and nothing else`);
     if (asList(f.currency).length > MAX_CURRENCIES) reds.push(`${w} "${f.name}": at most ${MAX_CURRENCIES} currencies`);
     if (asList(f.unit).length > MAX_UNITS || asList(f.unit).some((u) => u.length > MAX_UNIT_CHARS)) reds.push(`${w} "${f.name}": at most ${MAX_UNITS} units of ${MAX_UNIT_CHARS} characters`);
     if (f.rule !== undefined) {

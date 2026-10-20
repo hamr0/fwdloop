@@ -181,6 +181,9 @@ const FIELD_META = {
   shape: {
     level: 'close', required: false, needle: 'shape', retype: () => 42, invalid: () => ({ cap: 1 }),
   },
+  cited: {
+    level: 'close', required: false, needle: 'cited', retype: () => 42, invalid: () => ({}),
+  },
 };
 
 describe('mutation suite', () => {
@@ -276,6 +279,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'picks', level: 'step' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
+  { field: 'cited', level: 'close' },
 ]);
 
 describe('optional fields — removing them is NOT a red', () => {
