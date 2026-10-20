@@ -34,8 +34,9 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 const tmp = () => mkdtempSync(path.join(tmpdir(), 'fwdloop-m10draft-'));
 const mapReply = (text) => ({ ...textReply(text), usage: { inputTokens: 1000, outputTokens: 200 } });
 const fetcher = (text = PAGE) => { const seen = []; const f = async (url) => { seen.push(url); return { ok: true, text, url }; }; f.seen = seen; return f; };
+// offerQuestions:false: these tests are about the drafting round after the look; the look's asks (piece 3) are in test/m10-draft-asks.test.js
 const run = (provider, extra = {}) => draft({
-  proseText: prose(), provider, rates: RATES, modelId: MODEL, draftDir: path.join(tmp(), 'pages'), fetchPage: fetcher(), ...extra,
+  proseText: prose(), provider, rates: RATES, modelId: MODEL, draftDir: path.join(tmp(), 'pages'), fetchPage: fetcher(), offerQuestions: false, ...extra,
 });
 
 test('the page is fetched and frozen into the draft folder, and the drafter is given its text facts', async () => {

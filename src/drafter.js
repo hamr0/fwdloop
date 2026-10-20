@@ -24,8 +24,10 @@ import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
-import { lookAtPage, pageInfoLines } from './pagelook.js';
+import { lookAtPage, pageInfoLines, notCheckedLines } from './pagelook.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
+import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
+import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import {
@@ -316,7 +318,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
-  draftDir = /** @type {string|null} */ (null), fetchPage = undefined,
+  draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -451,15 +453,53 @@ export async function draft({
         ok: false, declaration: null, reds: [got.reason], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: mapCut ?? 'page-map', log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
       };
     }
-    look.facts.push(...got.look.facts);
+    // A rule the person left Not checked ("drop it", asked earlier) is served by no fact, whatever this look found for it.
+    const keptFacts = got.look.facts.filter((f) => !leftRules.some((l) => l.line === f.line && l.rule === f.forRule));
+    look.facts.push(...keptFacts);
     look.dropped.push(...got.look.dropped);
     for (const l of got.notChecked) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
     pageLooks.push({
       role: s.role, address: s.path, sha256: pg.entry.sha256, bytes: pg.entry.bytes, frozen: path.basename(pg.entry.frozen), attempts: got.attempts, mapping: got.mapping,
     });
     pageInfo.push(...pageInfoLines({
-      label: s.role, address: s.path, chars: pg.text.length, look: got.look, notChecked: got.notChecked,
+      label: s.role, address: s.path, chars: pg.text.length, look: { ...got.look, facts: keptFacts }, notChecked: got.notChecked,
     }));
+  }
+  // The rules the person left Not checked: one drop each (the one table writes the words), told to the drafter too, so it never claims them.
+  if (pageSources.length) {
+    /** @type {any[]} */
+    const left = [];
+    for (const l of leftRules) {
+      const jl = jobLines.find((x) => x.n === l.line);
+      const text = jl === undefined ? undefined : lineRules(jl)[l.rule - 1];
+      if (text !== undefined && !left.some((d) => d.line === l.line && d.rule === l.rule)) left.push({ line: l.line, rule: l.rule, fact: text, reason: 'person-left', source: 'person' });
+    }
+    if (left.length) {
+      look.dropped.push(...left);
+      const lines = notCheckedLines(left, jobLines);
+      for (const x of lines) if (!pageNotChecked.includes(x)) pageNotChecked.push(x);
+      pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
+    }
+  }
+  // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
+  // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
+  // The redraft after the answers (offerQuestions false) never asks.
+  if (pageSources.length && offerQuestions) {
+    const askLines = new Set(arbiter.asks.map((a) => a.line));
+    const asks = askableFromLook(look, jobLines.filter((l) => !askLines.has(l.n)));
+    if (asks.length > 0) {
+      const m = sumMeterings(meterings);
+      const spent = m.costUsd === null || unmetered > 0 ? (m.costUsd === null ? 'unknown' : `at least ${usdText(m.costUsd)}`) : usdText(m.costUsd);
+      const tooMany = asks.length > MAX_LOOK_ASKS;
+      if (tooMany) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
+      return {
+        ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(asks)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
+        questions: tooMany ? [] : asks.map((a) => ({
+          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null,
+        })),
+        droppedQuestions: [], notChecked: pageNotChecked, ...pageExtras,
+      };
+    }
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
   const factsInfo = pageSources.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
