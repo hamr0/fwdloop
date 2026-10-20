@@ -144,10 +144,10 @@ test('readDelivered: a file whose real path is not inside the signed folder is g
   const b = mkdtempSync(path.join(tmpdir(), 'fwdloop-m10am4-b-'));
   const f = path.join(a, 'x.json');
   writeFileSync(f, 'same');
-  const good = readDelivered({ path: f, dir: a, sha256: '0967115f2813a3541eaef77de9d9d5773f1c0c04314b0bbfe4ff3b3b1c55b5d5' });
+  const good = readDelivered({ name: 'x.json', dir: a, sha256: '0967115f2813a3541eaef77de9d9d5773f1c0c04314b0bbfe4ff3b3b1c55b5d5' });
   assert.equal(good.state, 'ok', 'in its own folder it is read');
-  assert.equal(readDelivered({ path: f, dir: a, sha256: '00' }).state, 'changed');
-  assert.equal(readDelivered({ path: f, dir: b, sha256: '0967115f2813a3541eaef77de9d9d5773f1c0c04314b0bbfe4ff3b3b1c55b5d5' }).state, 'gone');
+  assert.equal(readDelivered({ name: 'x.json', dir: a, sha256: '00' }).state, 'changed');
+  assert.equal(readDelivered({ name: `../${path.basename(a)}/x.json`, dir: b, sha256: '0967115f2813a3541eaef77de9d9d5773f1c0c04314b0bbfe4ff3b3b1c55b5d5' }).state, 'gone', 'a name that climbs out of the folder is refused, whatever its bytes');
 });
 
 test('a flow symlinked outside --root is refused by name on /result and /download too', async () => {

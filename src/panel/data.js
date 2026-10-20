@@ -2161,7 +2161,7 @@ function resultContext({
   root, flow, runId, catalogue,
 }) {
   const run = resolveRunPath(root, flow, runId);
-  if (!run.ok || !existsSync(run.runDir)) return null;
+  if (!run.ok || !readdirInside(run.flowDir, 'runs').includes(runId)) return null; // the gateway lists real, non-symlink run folders only
   const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
   if (!ctx.flowRead.ok || !isResultRun(ctx.arbiter)) return null;
   return { run, ctx };

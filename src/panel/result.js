@@ -4,14 +4,12 @@
 // fwdloop's books: a run is (flow, runId); the job lines are the run's own signed copy; the saved file is the send step's file, found by the accepted
 // ask's recorded hash; a page link is a signed `page:` source. The tab only SHOWS what the books hold; it never decides a check.
 //
+// Every file read goes through `readFileInside` (src/flow.js); this module imports no fs.
 // What it throws away: any file but the ones a signed send wrote; any record field this module does not name (the cited-check record is read by
 // `readCitedChecks` and nothing else). A malformed cited-check record is "no record" for the tab (the lines say "no saved result to show").
 
-import {
-  lstatSync, readFileSync, realpathSync,
-} from 'node:fs';
 import { createHash } from 'node:crypto';
-import { basename, join, sep } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { readFileInside } from '../flow.js';
 import { isCellsPath } from '../closers.js';
@@ -128,23 +126,17 @@ function pageUrlsByRole(arbiter) {
 }
 
 /**
- * One saved file, read for the tab or a download: it must still be a regular file (lstat: a symlink is "gone", never followed) at the recorded path,
- * whose real path is still inside the signed folder's real path, and whose sha256 equals the recorded one. A mismatch or a missing file is a state,
- * never content: stale bytes are never returned. The check runs at USE time (realpathSync), not when the record was made.
- * @param {{path: string, dir: string|null, sha256: string|null}} rec
+ * One saved file, read for the tab or a download, through the one safe gateway (`readFileInside`: not a symlink, real path inside the signed folder's
+ * real path, checked at USE time). It must also still hash to the recorded sha256. A missing, refused or changed file is a state, never content:
+ * stale bytes are never returned. (Text read, so a file that is not UTF-8 reads as "changed", never as ok.)
+ * @param {{name: string, dir: string|null, sha256: string|null}} rec
  * @returns {{state: 'ok', buf: Buffer}|{state: 'gone'|'changed', buf: null}}
  */
 export function readDelivered(rec) {
-  let st;
-  try { st = lstatSync(rec.path); } catch { return { state: 'gone', buf: null }; }
-  if (!st.isFile() || rec.dir === null) return { state: 'gone', buf: null };
-  let buf;
-  try {
-    const real = realpathSync(rec.path);
-    const base = realpathSync(rec.dir);
-    if (!real.startsWith(base + sep)) return { state: 'gone', buf: null };
-    buf = readFileSync(real);
-  } catch { return { state: 'gone', buf: null }; }
+  if (rec.dir === null) return { state: 'gone', buf: null };
+  const r = readFileInside(rec.dir, rec.name);
+  if (!r.ok) return { state: 'gone', buf: null };
+  const buf = Buffer.from(r.text, 'utf8');
   if (rec.sha256 === null || createHash('sha256').update(buf).digest('hex') !== rec.sha256) return { state: 'changed', buf: null };
   return { state: 'ok', buf };
 }
