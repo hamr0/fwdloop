@@ -375,6 +375,10 @@ const ALLOWLIST = {
     reason: "M9 am20: the ONE writer of `<flow>/schedule.json` (temp file + rename, 0600: a reader sees the old file or the new one) and its ONE remover (rmSync). The job's own files are never opened here. Every READ goes through readFileInside; the queue file goes through src/trigger-files.js and src/jsonl-append.js.",
     names: { renameSync: 1, rmSync: 1, writeFileSync: 1 },
   },
+  'src/cited-record.js': {
+    reason: "M10 piece 4: the ONE writer of `<run>/cited-checks.json` (temp file + rename: a reader sees the old file or the new one). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
+    names: { renameSync: 1, writeFileSync: 1 },
+  },
   'src/jsonl-append.js': {
     reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
     names: {

@@ -7,8 +7,9 @@
 // Extra keys the reader ignores and the separate checker (scripts/check-cited-run.mjs) reads: per line `check` {sha256 of the frozen text, the signed facts,
 // the count} and per row `values`.
 // Throws away: bareguard's evidence beyond the marks of the claim's own spans; a red line's rows (a red run delivers nothing).
-import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
+import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
+import { readFileInside } from './flow.js';
 import { moneyAs } from './pageask.js';
 import { factSentence, countSentence, CITED_ID } from './citedcheck.js';
 
@@ -120,9 +121,10 @@ export function writeCitedLine(runDir, line) {
   const file = join(runDir, CITED_CHECKS_FILE);
   /** @type {Record<string, any>[]} */
   let lines = [];
-  if (existsSync(file)) {
+  const had = readFileInside(runDir, CITED_CHECKS_FILE);
+  if (had.ok) {
     try {
-      const rec = JSON.parse(readFileSync(file, 'utf8'));
+      const rec = JSON.parse(had.text);
       if (rec && Array.isArray(rec.lines)) lines = rec.lines.filter((/** @type {any} */ l) => isRec(l) && l.n !== line.n);
     } catch { lines = []; }
   }
