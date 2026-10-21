@@ -67,13 +67,21 @@ import { checkCited } from './citedcheck.js';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
-const FORMULAS = Object.freeze({
+export const FORMULAS = Object.freeze({
   sum: (vals) => vals.reduce((a, b) => a + b, 0),
   count: (vals) => vals.length,
   min: (vals) => Math.min(...vals),
   max: (vals) => Math.max(...vals),
   sub: (vals) => vals[0] - vals[1],
 });
+
+/**
+ * M10 am10: the one description of the cite forms, told to a step whose check cites cells and named in the red when a cite fits none.
+ * Built from the checker's own formula list (FORMULAS keys + daysBetween, which is handled apart), so the text cannot drift from what is accepted.
+ */
+export function citeForms(names = [...Object.keys(FORMULAS), 'daysBetween']) {
+  return `one cell (\`<input>!C3\`), a field above it (\`#name\`), or ${names.join(', ')} over those`;
+}
 
 /** An input with cells (M4d amendment 8): a file whose name ends `.csv`. The one decider for "this input can be cited". */
 export function isCellsPath(p) {
@@ -191,7 +199,7 @@ function resolveCite(cite, ctx) {
     return { ok: true, computed: fn(vals) };
   }
 
-  return { ok: false, red: `cite "${cite}" does not match the cell or formula grammar` };
+  return { ok: false, red: `cite "${cite}" does not match the cell or formula grammar - the forms are: ${citeForms()}` };
 }
 
 function checkField(name, field, ctx) {

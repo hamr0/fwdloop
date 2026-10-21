@@ -31,6 +31,7 @@ import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
 import { citedBrief } from './citedcheck.js';
+import { citeForms } from './closers.js';
 
 import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
@@ -99,7 +100,7 @@ const GREEN_SCHEMA = Object.freeze({
       type: 'object',
       additionalProperties: {
         type: 'object',
-        properties: { value: {}, cite: { type: 'string' } },
+        properties: { value: {}, cite: { type: 'string', description: `Where the value comes from: ${citeForms()}.` } },
         required: ['value', 'cite'],
       },
     },
