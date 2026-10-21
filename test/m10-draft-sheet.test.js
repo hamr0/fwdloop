@@ -172,3 +172,17 @@ test('the column lock is a row of the readout, so it is signed with the plan', (
   const text = buildReadout({ declaration: d, arbiter: parsed.arbiter, lines: parsed.lines, name: 'x', modelId: MODEL, costUsd: 0, rounds: 1, spendComplete: true, root: 'r' });
   assert.ok(text.includes("cells only from column 'Amount' of aging"), text);
 });
+
+// the sheet-map call books a pre-send throw like the page-map call does (8cd2b7b): one unmetered call, held at the ceiling, never uncounted
+test('a ValidationError thrown before the sheet call is sent is booked as one unmetered call, spend not complete', () => withSheet(async (csv) => {
+  const books = [];
+  const p = fakeProvider([ans(W('amount'))]);
+  p.generate = async () => { const e = new Error('messages: too long'); e.name = 'ValidationError'; throw e; };
+  const r = await run(p, csv, { onBook: (b) => books.push(b) });
+  assert.equal(r.ok, false);
+  assert.equal(r.stop, 'provider-red');
+  assert.equal(r.spendComplete, false);
+  assert.equal(r.calls, 1);
+  assert.equal(books.at(-1).unmetered, 1);
+  assert.equal(r.log[0].kind, 'sheet-map');
+}));
