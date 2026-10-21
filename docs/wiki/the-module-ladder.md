@@ -2633,6 +2633,14 @@ same run. Scope is stated when its turn comes.
      - Source: bareloop `.claude/scratch/idea-a-v2`, `FROZEN-RULES.md`. Proof: F235, F236 (10/10 caught with R2, 0/10 without).
      - First a $0 test on F71's saved page: the honest copy stays green and the flipped copy goes red. If that fails, nothing is built and this item comes back to hamr.
 
+- **M10 amendment 8 — SIGNED by hamr 2026-10-21 ("sign m10 am8"): column asks: their words, a locked column, and no heading asks yet.** This makes item 7 exact.
+  1. **Words.**
+     - A column ask is item 7's example, then: ` Answer "agree", or type your own words (your answer is added as a new ~ rule on line N).`
+     - `agree` adds the `~` line: `use the column '<column>' for '<word>'`.
+     - Not checked reasons: there is no column '<word>'; no column fits '<word>'; two columns fit '<word>' equally; you didn't take the offered column.
+  2. **The column is locked.** Each fact from a sheet names its column in the step's check. Code checks at $0 that it's a real column (and the agreed one, when there was an ask), and at run time that every cited cell comes from that column. A cell from another column is red, naming the column.
+  3. **No heading asks for .docx yet.** A job word that isn't a .docx heading shows `Not checked` with its reason; nothing is asked. Quotes from a .docx are still checked word for word against the run's own copy.
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
