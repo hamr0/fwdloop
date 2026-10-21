@@ -12,6 +12,7 @@
 // is over raw paragraph markup, not a parsed tree).
 
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 
 const EOCD_SIG = 0x06054b50;
@@ -128,7 +129,8 @@ function extractText(xml) {
 }
 
 /** One reader for word/document.xml: the file, the zip entry, the bounded inflate.
- *  @param {string} path @returns {{ok:true,xml:string}|{ok:false,red:string}} */
+ *  `sha256` is of the file's bytes, taken from the SAME read the text comes from (so a text and its hash can never be of two different files).
+ *  @param {string} path @returns {{ok:true,xml:string,sha256:string}|{ok:false,red:string}} */
 function loadDocumentXml(path) {
   let buf;
   try {
@@ -140,7 +142,7 @@ function loadDocumentXml(path) {
   if (entry.red) return { ok: false, red: entry.red };
   const read = readEntryBytes(buf, entry);
   if (read.red || !read.data) return { ok: false, red: read.red ?? 'no data decoded' };
-  return { ok: true, xml: read.data.toString('utf8') };
+  return { ok: true, xml: read.data.toString('utf8'), sha256: createHash('sha256').update(buf).digest('hex') };
 }
 
 /** @param {string} path @returns {{ok:true,text:string,paragraphs:number}|{ok:false,red:string}} */
@@ -149,6 +151,18 @@ export function readDocxText(path) {
   if (!doc.ok) return doc;
   const { text, paragraphs } = extractText(doc.xml);
   return { ok: true, text, paragraphs };
+}
+
+/**
+ * M10 piece 5 (item 2, "a quote in a doc"): the text of a .docx AND the sha256 of its bytes from one read, so a cited check can prove the run's own frozen copy is
+ * the file that was frozen. Same text as {@link readDocxText} (what it throws away is declared at the top of this file).
+ * @param {string} path @returns {{ok:true,text:string,paragraphs:number,sha256:string}|{ok:false,red:string}}
+ */
+export function readDocxSource(path) {
+  const doc = loadDocumentXml(path);
+  if (!doc.ok) return doc;
+  const { text, paragraphs } = extractText(doc.xml);
+  return { ok: true, text, paragraphs, sha256: doc.sha256 };
 }
 
 // Heading paragraphs: <w:pStyle w:val="Heading1"/> .. HeadingN, or Title. The

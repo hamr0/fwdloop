@@ -49,7 +49,7 @@ test('no frozen inputs, an unknown role, a missing file and a spreadsheet are ea
     assert.match(readRunSource(run, 'flights').red, /the frozen copy is missing/);
     mkdirSync(join(run, 'inputs'), { recursive: true });
     writeFileSync(join(run, 'inputs.json'), JSON.stringify([{ id: 'aging', source: 'a.csv', frozen: join(run, 'inputs', 'aging.csv'), sha256: 'x', bytes: 1 }]));
-    assert.match(readRunSource(run, 'aging').red, /a quote can be checked against a web page or a text file here, not "aging.csv"/);
+    assert.match(readRunSource(run, 'aging').red, /a quote can be checked against a web page, a text file or a .docx here, not "aging.csv"/);
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 
