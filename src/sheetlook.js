@@ -9,7 +9,7 @@
 import { parseCsv } from './csv.js';
 import { MAP_UNREADABLE } from './pagemap.js';
 import { tieOf } from './pagerules.js';
-import { lineRules, countPhrase, wordsSaidOn } from './pagebits.js';
+import { lineRules, countPhrase, wordsSaidOn, wordForms } from './pagebits.js';
 import { findColumn, columnQuestion } from './sheetfind.js';
 
 /** how many data rows the prompt shows (the header is always shown): enough to see what a column holds, never the whole sheet */
@@ -97,7 +97,7 @@ export function applySheetWords(text, words, jobLines, label) {
     if (found.kind === 'header') {
       // a real header is kept only when the word is the PERSON'S: in the line or its ~ rules. A header the model picked in the person's place is not a check the person
       // asked for (live walk 2026-10-21: "Price over 500" kept as "Amount", nothing asked)
-      if (jl === undefined || countPhrase(wordsSaidOn(jl), w.word) === 0) dropped.push({ ...rec, reason: 'word-not-yours' });
+      if (jl === undefined || !wordForms(w.word).some((f) => countPhrase(wordsSaidOn(jl), f) > 0)) dropped.push({ ...rec, reason: 'word-not-yours' });
       else facts.push(fact(found.column));
       continue;
     }
@@ -130,7 +130,7 @@ export function applyDocWords(headings, words, jobLines, label) {
     const key = `${at.line}\u0000${at.rule ?? ''}\u0000${w.word.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const hit = headings.find((h) => norm(h) === norm(w.word));
+    const hit = headings.find((h) => norm(h) === norm(w.word)) ?? headings.find((h) => wordForms(w.word).includes(norm(h)));
     if (hit !== undefined) facts.push({ line: at.line, ...(at.rule === undefined ? {} : { forRule: at.rule }), name: hit, shape: 'heading', column: hit, words: [hit], source: label });
     else dropped.push(/** @type {any} */ ({ line: at.line, ...(at.rule === undefined ? {} : { rule: at.rule }), fact: w.word, source: label, reason: 'no-heading' }));
   }

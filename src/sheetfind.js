@@ -7,6 +7,7 @@
 //   optional decimals. One fitting column with the most rows is the one ask. Two or more fitting columns with equal rows offer nothing (F71 C2, hamr 2026-10-19).
 // Throws away: every column but the winner, the cells' values, and everything but the header and the count of number cells.
 import { parseCsv } from './csv.js';
+import { wordForms } from './pagebits.js';
 
 /** a column fits when a plain number fills at least this share of the rows (F71 (b)) */
 export const FIT_RATIO = 0.9;
@@ -29,7 +30,7 @@ const norm = (h) => String(h ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
  */
 export function findColumn(csvText, word) {
   const { header, rows } = parseCsv(csvText);
-  const hit = header.find((h) => norm(h) === norm(word) && norm(h) !== '');
+  const hit = header.find((h) => norm(h) === norm(word) && norm(h) !== '') ?? header.find((h) => norm(h) !== '' && wordForms(word).includes(norm(h)));
   if (hit !== undefined) return { kind: 'header', column: hit };
   const n = rows.length;
   const cols = header.map((h) => ({ h, n: rows.filter((r) => PLAIN_NUMBER.test(String(r.byName[h] ?? '').trim())).length }));

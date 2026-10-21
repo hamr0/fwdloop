@@ -147,7 +147,7 @@ const agingDecl = (columns) => {
   delete d.inputFacts;
   return d;
 };
-const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amount is right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
+const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amounts are right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
 const sheetAnswer = () => ans(W('Amount', 'line 2 rule 2', 'number'));
 
 test('the kept column must be named in the step\'s close.columns: a draft without it is refused naming the line, a draft with it passes', () => withAging(async (proseText) => {
