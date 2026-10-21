@@ -28,6 +28,8 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'no-column': (d) => `there is no column '${d.fact}'`,
   'no-fit': (d) => `no column fits '${d.fact}'`,
   'column-tie': (d) => `two columns fit '${d.fact}' equally`,
+  // M10 piece 5 (live walk 2026-10-21): the sheet look named a word that is none of the person's own; it is not used (words not signed)
+  'word-not-yours': (d) => `the sheet look named '${d.fact}', which is not a word in your job, so it was not used.`,
   'column-declined': () => "you didn't take the offered column",
   // M10 piece 5 (am8 item 3): a job word that is not a .docx heading is Not checked, nothing is asked (the analogue of a missing column; words not signed)
   'no-heading': (d) => `there is no heading '${d.fact}'`,

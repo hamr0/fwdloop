@@ -9,7 +9,7 @@
 import { parseCsv } from './csv.js';
 import { MAP_UNREADABLE } from './pagemap.js';
 import { tieOf } from './pagerules.js';
-import { lineRules, countPhrase } from './pagebits.js';
+import { lineRules, countPhrase, wordsSaidOn } from './pagebits.js';
 import { findColumn, columnQuestion } from './sheetfind.js';
 
 /** how many data rows the prompt shows (the header is always shown): enough to see what a column holds, never the whole sheet */
@@ -42,8 +42,8 @@ export function sheetPrompt({ jobLines, label, text, headings }) {
   const shown = rows.slice(0, SHEET_PROMPT_ROWS).map((r) => header.map((h) => r.byName[h] ?? '').join(' | '));
   return `THE JOB (each ~ rule applies to the line above it):\n${job}\n\n`
     + `${SHEET_MARK} the input "${label}" is a spreadsheet. Its columns, then its first rows:\n${header.join(' | ')}\n${shown.join('\n')}\n\n`
-    + 'For each job line and each ~ rule that is about a value in the sheet, give the JOB\'S OWN WORD for the column it means. If the sheet has a column for it, copy that column\'s name exactly. '
-    + 'If it has none, give the word the job uses. Say whether the word means a column of numbers ("number") or anything else ("other"). Leave out a rule that is not about a column.\n\n'
+    + 'For each job line and each ~ rule that is about a value in the sheet, give the JOB\'S OWN WORD for the column it means, exactly as the job writes it. '
+    + 'Never replace the job\'s word with a column name from the sheet, even when the sheet has a column that seems to mean the same: code matches the word to the sheet. Say whether the word means a column of numbers ("number") or anything else ("other"). Leave out a rule that is not about a column.\n\n'
     + 'Return ONLY a JSON object, no prose, no code fence:\n'
     + '{"facts":[{"from":"<line N | line N rule M>","word":"<the column name, or the job\'s own word>","kind":"number|other"}]}';
 }
@@ -94,7 +94,13 @@ export function applySheetWords(text, words, jobLines, label) {
     const fact = (/** @type {string} */ column) => ({ line: at.line, ...(at.rule === undefined ? {} : { forRule: at.rule }), name: column, shape: /** @type {const} */ ('column'), column, words: [column], source: label });
     const rec = { line: at.line, ...(at.rule === undefined ? {} : { rule: at.rule }), fact: w.word, source: label };
     const found = findColumn(text, w.word);
-    if (found.kind === 'header') { facts.push(fact(found.column)); continue; }
+    if (found.kind === 'header') {
+      // a real header is kept only when the word is the PERSON'S: in the line or its ~ rules. A header the model picked in the person's place is not a check the person
+      // asked for (live walk 2026-10-21: "Price over 500" kept as "Amount", nothing asked)
+      if (jl === undefined || countPhrase(wordsSaidOn(jl), w.word) === 0) dropped.push({ ...rec, reason: 'word-not-yours' });
+      else facts.push(fact(found.column));
+      continue;
+    }
     if (w.kind !== 'number') { dropped.push({ ...rec, reason: 'no-column' }); continue; }
     if (found.kind === 'tie') { dropped.push({ ...rec, reason: 'column-tie', other: found.columns.map((c) => `"${c}"`).join(', ') }); continue; }
     if (found.kind === 'none') { dropped.push({ ...rec, reason: 'no-fit', other: String(found.rows) }); continue; }

@@ -29,7 +29,8 @@ test('parse: strict - a fact needs from, word and a kind; anything else is unrea
 });
 
 test('a word that is a real column is kept; no ask, no drop', () => {
-  const r = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'amount', kind: 'number' }], JOB, 'aging');
+  const said = [{ n: 1, text: 'Add up the price of every invoice', rule: 'amount under 5000; matches the ledger' }]; // the person says "amount": the look's word is the person's own
+  const r = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'amount', kind: 'number' }], said, 'aging');
   assert.deepEqual(r.asks, []);
   assert.deepEqual(r.dropped, []);
   assert.deepEqual(r.facts.map((f) => [f.line, f.forRule, f.column, f.source]), [[1, 1, 'Amount', 'aging']]);

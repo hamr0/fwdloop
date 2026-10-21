@@ -54,7 +54,7 @@ test('a job word that is no column asks once, in the signed words, after the one
 
 test('a job word that IS a column asks nothing: drafting runs and the drafter is told the column the code kept', () => withSheet(async (csv) => {
   const p = fakeProvider([ans(W('amount')), textReply()]);
-  const r = await run(p, csv);
+  const r = await run(p, csv, { guard: 'amount under 5000' }); // the person says "amount": the look's word is the person's own
   assert.notEqual(r.stop, 'look-asks');
   assert.ok(p.calls.length > 1 && p.calls[1].tools[0] === 'emit_declaration');
   const sys = p.calls[1].messages[0].content;
@@ -147,7 +147,7 @@ const agingDecl = (columns) => {
   delete d.inputFacts;
   return d;
 };
-const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amounts are right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
+const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amount is right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
 const sheetAnswer = () => ans(W('Amount', 'line 2 rule 2', 'number'));
 
 test('the kept column must be named in the step\'s close.columns: a draft without it is refused naming the line, a draft with it passes', () => withAging(async (proseText) => {
