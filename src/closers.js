@@ -136,6 +136,12 @@ function resolveCite(cite, ctx) {
     const row = Number(rowStr);
     const raw = getCellRaw(artifact, col, row);
     if (raw === null) return { ok: false, red: `cite "${cite}": cell ${col}${row} does not exist in "${artifactId}"` };
+    // M10 am8 item 2: the step's check names the column(s) its facts come from; a cell from any other column is red, naming it
+    const locked = (Array.isArray(ctx.lock) ? ctx.lock : []).filter((l) => l?.source === artifactId).map((l) => l.column);
+    if (locked.length > 0) {
+      const name = artifact.header?.[colIndexOf(col)];
+      if (!locked.includes(name)) return { ok: false, red: `cite "${cite}": the cell ${col}${row} is in column '${name ?? col}', but this step is locked to column ${locked.map((c) => `'${c}'`).join(' and ')}` };
+    }
     return { ok: true, raw };
   }
 
@@ -227,7 +233,7 @@ function checkField(name, field, ctx) {
  * resolves and matches its cite. First red wins.
  *
  * @param {any} artifact
- * @param {{ reads: Record<string, any>, businessDate: string }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, lock?: {source: string, column: string}[] }} ctx `lock` (M10 am8): the columns the step's check names
  * @returns {CloseVerdict}
  */
 export function closeGreen(artifact, ctx) {
@@ -242,7 +248,7 @@ export function closeGreen(artifact, ctx) {
     /** @type {Record<string, any>} */
     const fieldsSoFar = {};
     for (const name of names) {
-      const result = checkField(name, artifact.fields[name], { reads: ctx.reads, fieldsSoFar, businessDate: ctx.businessDate });
+      const result = checkField(name, artifact.fields[name], { reads: ctx.reads, fieldsSoFar, businessDate: ctx.businessDate, lock: ctx.lock });
       if (result.verdict === 'red') return /** @type {CloseVerdict} */ (result);
       fieldsSoFar[name] = artifact.fields[name];
     }
@@ -462,7 +468,7 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any, columns?: {source: string, column: string}[] } }} step
  * @param {unknown} artifact
  * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
@@ -471,7 +477,7 @@ export async function closeSoftgreen(artifact, shape) {
 export async function closeByClass(step, artifact, ctx) {
   const cls = step?.close?.class;
   if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
-  if (cls === 'green') return closeGreen(artifact, ctx);
+  if (cls === 'green') return closeGreen(artifact, { ...ctx, lock: step?.close?.columns });
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
   if (cls === 'hitl') return { verdict: 'hitl', red: null };
   return { verdict: 'crash', red: `closeByClass: unknown close class ${JSON.stringify(cls)}` };

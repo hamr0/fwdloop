@@ -67,6 +67,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'class',
   'shape',
   'cited',
+  'columns',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -79,7 +80,7 @@ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trig
 
 const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns']);
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -434,6 +435,41 @@ function checkCitedKey(step, label, c, reds) {
 }
 
 /**
+ * M10 am8 item 2: `close.columns` is the column lock of a green step that cites cells: `[{source, column}]`, written by the drafter and checked by code. Its SHAPE is
+ * checked in every mode; with `sheetWords` (draft time) every column is proved to be a real column of its sheet and a column the sheet look kept for this step's
+ * line must be in the list. At run time every cited cell must come from one of these columns (src/closers.js).
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
+ */
+function checkColumnsKey(step, label, c, reds) {
+  const at = `declaration: ${label}.close.columns`;
+  const cols = step.close.columns;
+  if (cols !== undefined) {
+    if (step.close.class !== 'green' || c.effectiveClass !== 'green') reds.push(`${at} is for a green step only (its cells are checked); this step's check is "${step.close.class ?? c.effectiveClass}"`);
+    if (!Array.isArray(cols) || cols.length === 0 || cols.length > 10) { reds.push(`${at} must be a list of 1 to 10 {source, column}`); return; }
+    for (const [j, e] of cols.entries()) {
+      if (!isPlainObject(e) || Object.keys(e).some((k) => k !== 'source' && k !== 'column') || typeof e.source !== 'string' || typeof e.column !== 'string' || e.column.trim() === '') {
+        reds.push(`${at}[${j}] must be {source, column}, both words`);
+      } else if (!c.cellsRoles.includes(e.source)) {
+        reds.push(`${at}[${j}].source "${e.source}" is not a signed spreadsheet input`);
+      } else if (c.reads !== null && !c.reads.includes(e.source)) {
+        reds.push(`${at}[${j}].source "${e.source}" is not in ${label}.reads - the step must read the sheet its cells come from`);
+      }
+    }
+  }
+  const sw = c.sheetWords;
+  if (!sw || !Number.isInteger(step.fromLine)) return;
+  const list = Array.isArray(cols) ? cols.filter((e) => isPlainObject(e) && typeof e.column === 'string') : [];
+  for (const e of list) {
+    const header = sw.headers?.[e.source];
+    if (Array.isArray(header) && !header.includes(e.column)) reds.push(`declaration: line ${step.fromLine}: '${e.column}' is not a real column of "${e.source}" (its columns: ${header.map((h) => `'${h}'`).join(', ')}). Copy a column name exactly.`);
+  }
+  for (const f of sw.facts ?? []) {
+    if (f.line !== step.fromLine || f.shape !== 'column') continue;
+    if (!list.some((e) => e.source === f.source && e.column === f.column)) reds.push(`declaration: line ${step.fromLine}: the check must name the column '${f.column}' of "${f.source}" in close.columns - the code kept it for this line${f.agreed ? ' (the column you agreed to)' : ''}, and every cell must come from it.`);
+  }
+}
+
+/**
  * Validate a drafter declaration against the M1 closed schema. `arbiter`
  * and `lines` are `parseSignedText`'s output; `catalogue` is a plain array
  * of `{ verb, skill, class }`. Never throws — a bad declaration, a bad
@@ -449,11 +485,13 @@ function checkCitedKey(step, label, c, reds) {
  * line or its guardrail is a red. Draft, change and sign turn it on; readFlow does not (signed flows keep running).
  * `pageWords` (optional; M10 am7 item 1): `{texts: {role: drafting copy}, look: {facts, dropped}}`. With `fitJobLine`, the words of every `close.cited` fact are
  * proved on the page at $0; the drafter passes it, sign does not (the draft was already proved, and its files are hash-bound).
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any} }} [context]
+ * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
+ * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine, pageWords } = context;
+  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine, pageWords, sheetWords } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -726,6 +764,7 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
+        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
       }
     }
 
