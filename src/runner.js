@@ -596,7 +596,7 @@ export function readArtifact(runDir, id) {
  *  indistinguishable from "not written yet") into a step.
  *  @returns {{ok:true, map:Record<string,any>} | {ok:false, red:string}}
  */
-export function readArtifactsMapChecked(runDir, ids) {
+export function readArtifactsMapChecked(runDir, ids, { docxRoles = /** @type {string[]} */ ([]) } = {}) {
   const map = {};
   for (const id of ids ?? []) {
     const result = readArtifactResult(runDir, id);
@@ -611,7 +611,7 @@ export function readArtifactsMapChecked(runDir, ids) {
       // M10 am7 item 3: an id that names a saved web page (or a text file) is read as its text, from the RUN'S OWN frozen copy, sha-checked, through the one safe
       // read gateway (`readFileInside`, in `readRunSource`). By role, text only: a copy that is missing or changed refuses the step; an id that is no text input
       // of this run is left as it was (undefined).
-      const page = readRunSource(runDir, id);
+      const page = readRunSource(runDir, id, { docx: docxRoles.includes(id) });
       if (page.ok) { map[id] = { kind: 'text', text: page.text }; continue; }
       if (page.code === 'unreadable') return { ok: false, red: page.red };
     }
@@ -619,6 +619,9 @@ export function readArtifactsMapChecked(runDir, ids) {
   }
   return { ok: true, map };
 }
+
+/** M10 piece 5 (item 2): the role a green step quotes from - the one input whose .docx text its check (and so the step itself) may be handed. @param {any} step @returns {string[]} */
+const citedRolesOf = (step) => (step?.close?.class === 'green' && typeof step.close.cited?.source === 'string' ? [step.close.cited.source] : []);
 
 /** A frozen CSV input as `{kind:'cells', header, rows}` (the shape `addressCells` gives), checked against the sha256 recorded at freeze.
  *  Same three outcomes as `readArtifactResult`: not an input of this run (`missing`), refused (`red`), or the cells. */
@@ -1511,7 +1514,7 @@ async function runAskSlot({
       // swap / unparseable JSON) is tampering, never "not written yet", and
       // must halt the redo rather than silently feed forged/garbage content
       // into the model step that is about to re-run.
-      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads);
+      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads, { docxRoles: citedRolesOf(priorStep) });
       if (!priorReadsResult.ok) {
         return { type: 'halted', outcome: 'red', red: `redo: step "${priorStep.goal}" ${priorReadsResult.red}` };
       }
@@ -1758,7 +1761,7 @@ async function foldFromStep({
     // F48 round 4: every id in `step.reads` names an earlier step in THIS
     // same fold pass, already run and already written — a `red` read here
     // halts rather than silently feeding tampered/unreadable content in.
-    const readsMapResult = readArtifactsMapChecked(runDir, step.reads);
+    const readsMapResult = readArtifactsMapChecked(runDir, step.reads, { docxRoles: citedRolesOf(step) });
     if (!readsMapResult.ok) {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,

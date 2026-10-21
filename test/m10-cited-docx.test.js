@@ -90,3 +90,20 @@ test('without the docx option a .docx is not served (a step that only reads a ro
     assert.equal(got.code, 'not-text');
   } finally { rmSync(run, { recursive: true, force: true }); rmSync(src, { recursive: true, force: true }); }
 });
+
+// item 4 (run side): a cited step over a .docx is handed its text, by role, through the cited path only
+import { readArtifactsMapChecked } from '../src/runner.js';
+test('readArtifactsMapChecked hands a .docx\'s text to a step only when that role is named as a cited source', async () => {
+  const run = tmp('run');
+  const src = tmp('src');
+  try {
+    const f = join(src, 'terms.docx');
+    writeFileSync(f, doc(para(null, 'The fee is 45 dollars per month.')));
+    await freezeInputs(run, [{ id: 'terms', path: f }]);
+    assert.equal(readArtifactsMapChecked(run, ['terms']).map.terms, undefined, 'a plain read is left unread');
+    const got = readArtifactsMapChecked(run, ['terms'], { docxRoles: ['terms'] });
+    assert.deepEqual(got.map.terms, { kind: 'text', text: 'The fee is 45 dollars per month.' });
+    writeFileSync(join(run, 'inputs', 'terms.docx'), doc(para(null, 'changed')));
+    assert.equal(readArtifactsMapChecked(run, ['terms'], { docxRoles: ['terms'] }).ok, false, 'a changed copy halts the step');
+  } finally { rmSync(run, { recursive: true, force: true }); rmSync(src, { recursive: true, force: true }); }
+});
