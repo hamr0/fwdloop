@@ -64,7 +64,7 @@ export function parseSheetAnswer(text) {
  * Keep the words that are real columns; for the rest, find the column to offer (or say why none is). Decided by code from the word, the rule and the sheet.
  * @param {string} text the sheet's text @param {{from: string, word: string, kind: 'number'|'other'}[]} words
  * @param {{n: number, text?: string, rule?: string, rules?: string[]}[]} jobLines @param {string} label the input's role
- * @returns {{facts: {line: number, forRule?: number, name: string, shape: 'column', column: string, words: string[], source: string}[], asks: {line: number, rule: number|null, source: 'look', ask: 'reading', ruleText: string, question: string, reading: string}[], dropped: import('./pagerules.js').Dropped[]}}
+ * @returns {{facts: {line: number, forRule?: number, name: string, shape: 'column', column: string, words: string[], source: string}[], asks: {line: number, rule: number|null, source: 'look', ask: 'reading', ruleText: string, question: string, reading: string, word: string, column: string}[], dropped: import('./pagerules.js').Dropped[]}}
  */
 export function applySheetWords(text, words, jobLines, label) {
   /** @type {any[]} */
@@ -92,7 +92,7 @@ export function applySheetWords(text, words, jobLines, label) {
     // the person already named this column in ANOTHER rule of the line (an answer they gave, or their own words): the word is that column, asked no more
     if (rules.some((r, i) => i + 1 !== at.rule && countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     asks.push({
-      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found), reading: columnRuleWords(w.word, found.column),
+      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });
   }
   return { facts, asks, dropped };

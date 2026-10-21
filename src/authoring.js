@@ -353,7 +353,7 @@ export async function draftToDir({
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
-  if (result.pageLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks, look: result.look }), secrets);
+  if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,

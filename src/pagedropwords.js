@@ -28,6 +28,8 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'no-column': (d) => `There is no column "${d.fact}" in the sheet. Only a column with numbers can be offered in its place.`,
   'no-fit': (d) => `There is no column "${d.fact}" in the sheet, and no other column has numbers in at least 90% of its ${d.other} rows.`,
   'column-tie': (d) => `There is no column "${d.fact}" in the sheet, and two columns fit equally (${d.other}), so none is offered.`,
+  // the redraft after the answers never asks again: the offered column (`other`) was not taken by the person's words
+  'column-declined': (d) => `There is no column "${d.fact}" in the sheet, and the column offered (${d.other}) was not taken.`,
   'bad-shape': (d) => `The AI named a kind of value for "${d.fact}" that a check cannot read.`,
 });
 

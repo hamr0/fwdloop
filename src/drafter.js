@@ -373,7 +373,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
  *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
- *   look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[]}>}
+ *   look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
  * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
  */
 export async function draft({
@@ -469,6 +469,7 @@ export async function draft({
   const pageNotChecked = [];
   /** @type {any[]} */
   const pageLooks = [];
+  /** @type {Record<string, any>} */
   const pageExtras = pageSources.length ? { look, pageLooks } : {};
   let mapCut = null;
   const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
@@ -544,17 +545,55 @@ export async function draft({
       pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
     }
   }
+  // M10 piece 5 (item 7): ONE sheet call per CSV input names the job's own word for each `~` rule; code keeps a word only if it is a real column and finds the column
+  // to offer when it is not (src/sheetlook.js). Only when a non-ask job line carries a `~` rule: a CSV job without one is unchanged (no extra call). A signed ask
+  // line's own guardrail is a human stop, not a sheet check, so it is not sent. Every round goes through the same hold, metering and book as the page's.
+  const askLines = new Set(arbiter.asks.map((a) => a.line));
+  const sheetJobLines = jobLines.filter((l) => !askLines.has(l.n));
+  const sheetRoles = sheetJobLines.some((l) => lineRules(l).length > 0) ? Object.keys(facts.sheets ?? {}) : [];
+  /** @type {any[]} */
+  const sheetAsks = [];
+  /** @type {any[]} */
+  const sheetFacts = [];
+  /** @type {any[]} */
+  const sheetLooks = [];
+  for (const role of sheetRoles) {
+    const text = facts.sheets[role];
+    const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    const hold = ceilingCostUsd(rates, sheetPrompt({ jobLines: sheetJobLines, label: role, text }).length + MAP_SYSTEM.length);
+    if (spentBefore + hold > budgetUsd && meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(hold)]); }
+    const got = await lookAtSheet({ label: role, text, jobLines: sheetJobLines, callModel: makeCallModel('sheet-map') });
+    if (!got.ok) {
+      const m = sumMeterings(meterings);
+      return {
+        ok: false, declaration: null, reds: [got.reason], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: mapCut ?? 'page-map', log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
+      };
+    }
+    // The redraft after the answers never asks: an offer the person's words did not take is Not checked, with that reason (never dropped silently).
+    const declined = offerQuestions ? [] : got.asks.map((a) => ({ line: a.line, ...(a.rule === null ? {} : { rule: a.rule }), fact: a.word, reason: 'column-declined', other: `"${a.column}"`, source: role }));
+    const dropped = [...got.dropped, ...declined];
+    sheetAsks.push(...got.asks); // asked only when the asks block below is open (offerQuestions)
+    sheetFacts.push(...got.facts);
+    sheetLooks.push({ role, attempts: got.attempts, facts: got.facts, asks: got.asks.map((a) => ({ line: a.line, rule: a.rule, word: a.word, column: a.column })), dropped });
+    const lost = dropRows(dropped).map((row) => dropLine(row, jobLines, lineRules));
+    for (const l of lost) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
+    pageInfo.push(
+      ...(got.facts.length ? [`  Code matched the job's words to the columns of "${role}": ${got.facts.map((f) => `line ${f.line}${f.forRule === undefined ? '' : ` rule ${f.forRule}`} is column '${f.column}'`).join('; ')}`] : []),
+      ...(lost.length ? [`  Code could not make these a check on "${role}", so they are Not checked; never claim them as checked:`, ...lost.map((l) => `  - ${l}`)] : []),
+    );
+  }
+  if (sheetLooks.length) pageExtras.sheetLooks = sheetLooks; // kept beside the page looks (src/authoring.js writes both into page-look.json)
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
-  // The redraft after the answers (offerQuestions false) never asks.
-  if (pageSources.length && offerQuestions) {
-    const askLines = new Set(arbiter.asks.map((a) => a.line));
-    const asks = askableFromLook(look, jobLines.filter((l) => !askLines.has(l.n)));
+  // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
+  if ((pageSources.length || sheetAsks.length) && offerQuestions) {
+    const pageAsks = pageSources.length ? askableFromLook({ facts: [...look.facts, ...sheetFacts] }, jobLines.filter((l) => !askLines.has(l.n))) : [];
+    const asks = [...[...pageAsks.filter((a) => a.ask === 'reading'), ...sheetAsks].sort((a, b) => a.line - b.line), ...pageAsks.filter((a) => a.ask !== 'reading')];
     if (asks.length > 0) {
       const m = sumMeterings(meterings);
       const spent = m.costUsd === null || unmetered > 0 ? (m.costUsd === null ? 'unknown' : `at least ${usdText(m.costUsd)}`) : usdText(m.costUsd);
       const tooMany = asks.length > MAX_LOOK_ASKS;
-      if (tooMany) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
+      if (tooMany && pageSources.length) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
       return {
         ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(asks)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
         questions: tooMany ? [] : asks.map((a) => ({
@@ -565,7 +604,7 @@ export async function draft({
     }
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
-  const factsInfo = pageSources.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
+  const factsInfo = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });

@@ -20,11 +20,14 @@ import { parseCsv } from './csv.js';
  * @param {{pages?: Record<string, {text: string}>}} [o] `pages` (M10 item 1): the drafting copy of each web page input, role -> its frozen text, fetched by the caller. A page
  *   source with no copy here is a named red (never skipped); it adds no heading facts (a page has none), only its line for the drafter and the Chat card.
  * `list` (M4d am10) is one `{role, detail}` per readable input for the Chat card's list (a CSV: its columns; text: its headings); never hashed.
- * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[]}}
+ * `sheets` (M10 piece 5): role -> the text of each CSV input, for the sheet-word look (the same read, not a second one).
+ * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[], sheets:Record<string,string>}}
  */
 export function readInputFacts(sources, { pages = {} } = {}) {
   /** @type {Record<string,string[]>} */
   const inputFacts = {};
+  /** @type {Record<string,string>} */
+  const sheets = {};
   const info = [];
   const list = [];
   const headingsDetail = (n) => `${n} heading${n === 1 ? '' : 's'}`;
@@ -53,11 +56,12 @@ export function readInputFacts(sources, { pages = {} } = {}) {
       if (raw.trim() === '') { reds.push(`input "${s.role}": "${s.path}" is empty`); continue; }
       const headings = raw.split(/\r?\n/).filter((l) => /^#{1,6}\s+\S/.test(l)).map((l) => l.replace(/^#{1,6}\s*/, '').trim());
       inputFacts[s.role] = headings;
+      if (isCellsPath(s.path)) sheets[s.role] = raw;
       list.push({ role: s.role, detail: isCellsPath(s.path) ? `${parseCsv(raw).header.length} columns` : headingsDetail(headings.length) });
       info.push(isCellsPath(s.path)
         ? `- ${s.role}: a CSV file with cells (a step reads it by listing "${s.role}" in its reads; or with "read")`
         : `- ${s.role}: a text/markdown file, ~${raw.trim().split(/\s+/).length} words, headings: ${headings.join(', ') || '(none)'} (read it with "read")`);
     }
   }
-  return { ok: reds.length === 0, inputFacts, info, list, reds };
+  return { ok: reds.length === 0, inputFacts, info, list, reds, sheets };
 }
