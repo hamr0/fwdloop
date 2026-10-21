@@ -134,3 +134,31 @@ test('a word that is a .docx heading is kept; one that is not is Not checked wit
   assert.ok(r.notChecked.includes('line 1: "under 5000" — there is no heading \'Price\''), r.notChecked.join('|'));
   assert.ok(p.calls[1].messages[0].content.includes("there is no heading 'Price'"));
 }));
+
+// am8 item 2 at the drafter: the column the code kept for a line must be in that step's close.columns, or the draft is refused naming the line
+import { readFileSync } from 'node:fs';
+import { toolReply } from './drafter-fixture.mjs';
+const AGING = readFileSync(new URL('./fixtures/m4d-am8.aging.signed.txt', import.meta.url), 'utf8');
+const agingDecl = (columns) => {
+  const d = JSON.parse(readFileSync(new URL('./fixtures/m4d-am8.aging.declaration.json', import.meta.url), 'utf8'));
+  d.steps[1].reads = ['aging']; d.steps[2].reads = ['bucket_assignment'];
+  if (columns) d.steps[1].close = { class: 'green', columns };
+  delete d.inputFacts;
+  return d;
+};
+const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amounts are right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
+const sheetAnswer = () => ans(W('Amount', 'line 2 rule 2', 'number'));
+
+test('the kept column must be named in the step\'s close.columns: a draft without it is refused naming the line, a draft with it passes', () => withAging(async (proseText) => {
+  const bad = fakeProvider([sheetAnswer(), toolReply(agingDecl()), toolReply(agingDecl()), toolReply(agingDecl())]);
+  const r = await draft({ proseText, provider: bad, rates: RATES, modelId: MODEL });
+  assert.equal(r.ok, false);
+  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes("'Amount'") && x.includes('close.columns')), JSON.stringify(r.reds));
+  assert.ok(bad.calls[1].messages[0].content.includes("is column 'Amount'"), 'the drafter is told the kept column');
+  const good = fakeProvider([sheetAnswer(), toolReply(agingDecl([{ source: 'aging', column: 'Amount' }]))]);
+  const ok = await draft({ proseText, provider: good, rates: RATES, modelId: MODEL });
+  assert.equal(ok.ok, true, JSON.stringify(ok.reds));
+  assert.deepEqual(ok.declaration.steps[1].close.columns, [{ source: 'aging', column: 'Amount' }]);
+  const made = fakeProvider([sheetAnswer(), toolReply(agingDecl([{ source: 'aging', column: 'Price' }]))]);
+  assert.equal((await draft({ proseText, provider: made, rates: RATES, modelId: MODEL })).ok, false);
+}));

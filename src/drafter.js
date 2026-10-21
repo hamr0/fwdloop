@@ -32,6 +32,7 @@ import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
+import { parseCsv } from './csv.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -48,6 +49,23 @@ export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 
 /** The whole-output-ceiling rule, told once to the drafter (schema and prompt use this string). Amendment 29; no number words (am25). */
 export const WHOLE_OUTPUT_CEILING_RULE = "use the guardrail's ceiling for the whole output";
+
+/** M10 am8 item 2: the column lock of a green step that cites cells (`close.columns`): the exact header(s) its cells come from. */
+const COLUMNS_PROP = Object.freeze({
+  type: 'array',
+  minItems: 1,
+  maxItems: 10,
+  description: "only on a green step that cites cells of a CSV input: the exact column names (the sheet's header) every cited cell comes from. Omit on any other step",
+  items: {
+    type: 'object',
+    properties: {
+      source: { type: 'string', description: 'the role of the CSV input (also in the step\'s reads)' },
+      column: { type: 'string', description: "the column's name, copied exactly from the sheet's header" },
+    },
+    required: ['source', 'column'],
+    additionalProperties: false,
+  },
+});
 
 /** M10 am7 item 1: the facts of a green step that cites quotes from a web page (`close.cited`); the same fields src/citedcheck.js checks. */
 const CITED_PROP = Object.freeze({
@@ -140,6 +158,7 @@ export function buildDeclarationSchema(menu) {
                   description: `only when class is softgreen; keys limited to ${SHAPE_KEYS.join(', ')}`,
                 },
                 cited: CITED_PROP,
+                columns: COLUMNS_PROP,
               },
               required: ['class'],
               additionalProperties: false,
@@ -280,7 +299,7 @@ function greenReadRule(sources) {
   const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
   const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
-    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}.`
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
     : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
   if (pageRoles.length) {
     out.push(
@@ -729,6 +748,7 @@ export async function draft({
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
+      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column') } : undefined,
       pageWords: { texts: Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])), look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null },
     });
     lastDecl = declaration;
