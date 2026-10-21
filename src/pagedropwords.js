@@ -22,7 +22,7 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'limit-currency': (d) => `Only the first 3 currencies are used; "${d.word}" was left out.`,
   'limit-unit': (d) => `Only the first 10 units are used; "${d.word}" was left out.`,
   'unit-too-long': (d) => `"${d.word}" is longer than 100 characters, so it was not used.`,
-  'currency-not-symbol': (d) => `"${d.word}" is not a currency sign ($, € or £); a word the page writes after the amount is read as a unit.`,
+  'reads-no-result': () => "the price rule could not read a price in the page's results, so it is not checked.",
   'person-left': () => 'You chose to leave it Not checked.',
   // M10 piece 5 (item 7, am8 item 1): the signed Not-checked reasons for a job word that is not a column. `fact` = the job's word.
   'no-column': (d) => `there is no column '${d.fact}'`,
