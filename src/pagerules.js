@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/pagerules.js@b56f177
+// borrowed-from: bareloop src/pagerules.js@1a0712b
 // Copy of bareloop's file; the three number patterns (BEFORE, AFTER, AFTER_CUR) are written as literals, not built from NUM (this repo bans dynamic patterns in src/); only the import lines point at fwdloop's src/pagebits.js (the pieces of facts.js, factwords.js, labelscan.js, rubricstep.js the rules need).
 // IDEA A CORE (docs/product/ITEM33-BUILD.md "Addendum 2026-10-18 — Idea A core: build spec", section 4.2): the plain code rules that
 // keep or drop each page word the AI's map named. The AI never grades: it names words, code keeps only what the saved page proves.
@@ -200,7 +200,9 @@ export function applyPageRules(text, mapping, jobLines) {
       /** @type {string[]} */ let uni = [];
       /** @type {string[]} */ let cur = [];
       if (f.shape === 'money') {
-        // the forms: units first (the U1-moved words, then the AI's listed units), then currency signs
+        // the forms: units first (the U1-moved words, then the AI's listed units), then currency signs. SORT, never drop for the box (money
+        // build v2): the box is position only - a sign (before the number) is a currency, any other form (a word after it) is a unit - so every
+        // form the AI listed in either box is pooled and moved to the box its own shape belongs to
         const listedCurrencies = (Array.isArray(f.currency) ? f.currency : []).map(String);
         // a currency SIGN listed in BOTH unit and currency is said once: the unit copy goes (fwd F71 drafts)
         const listedUnits = (Array.isArray(f.unit) ? f.unit : []).map(String).filter((u) => {
@@ -208,12 +210,15 @@ export function applyPageRules(text, mapping, jobLines) {
           drop(f, u, 'sign-twice');
           return false;
         });
-        const units = [...new Set([...moved, ...listedUnits])].filter((u) => {
+        // a WORD listed in both boxes is one form, said once (a record of the double listing is kept, as R1L always said it)
+        for (const w of new Set(listedCurrencies.filter((c) => !CURRENCY_SYMBOLS.includes(c) && listedUnits.includes(c)))) drop(f, w, 'r1l', w);
+        const pool = [...moved, ...listedUnits, ...listedCurrencies];
+        const units = [...new Set(pool.filter((w) => !CURRENCY_SYMBOLS.includes(w)))].filter((u) => {
           if (countPhrase(text, u) >= 1) return true;
           drop(f, u, 'not-on-page');
           return false;
         });
-        const curs = listedCurrencies.filter((c) => {
+        const curs = [...new Set(pool.filter((w) => CURRENCY_SYMBOLS.includes(w)))].filter((c) => {
           if (countExact(text, c) >= 1) return true;
           drop(f, c, 'not-on-page');
           return false;
@@ -230,12 +235,6 @@ export function applyPageRules(text, mapping, jobLines) {
           uni = keep.filter((x) => x.kind === 'unit').map((x) => x.w);
           cur = keep.filter((x) => x.kind === 'currency').map((x) => x.w);
         }
-        // a currency that is a word ("US dollars") is read after the number, so it is a unit, never a currency sign
-        cur = cur.filter((c) => {
-          if (CURRENCY_SYMBOLS.includes(c)) return true;
-          drop(f, c, 'currency-not-symbol');
-          return false;
-        });
         // the guard's list limits (src/facts.js), applied here so a longer list is cut by code and SAID, never refused later: the first forms stay
         uni = uni.filter((u, i) => {
           if (u.length > MAX_UNIT_CHARS) { drop(f, u, 'unit-too-long'); return false; }
