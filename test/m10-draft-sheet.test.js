@@ -112,3 +112,25 @@ test('an unreadable sheet answer twice stops at the sheet call with the plain wo
   assert.match(r.reds[0], /about the sheet was not readable twice/);
   assert.equal(p.calls.length, 2);
 }));
+
+// am8 item 3: a .docx word that is no heading is Not checked with its reason; nothing is asked
+import { makeDocx, para } from './fixtures/docx-make.mjs';
+const withDocx = async (fn) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m10docx-'));
+  const f = path.join(dir, 'terms.docx');
+  writeFileSync(f, makeDocx(para('Heading1', 'Fees') + para(null, 'The fee is 45 dollars.') + para('Heading1', 'Term') + para(null, 'Twelve months.')));
+  try { return await fn(f); } finally { rmSync(dir, { recursive: true, force: true }); }
+};
+test('a word that is a .docx heading is kept; one that is not is Not checked with its reason and nothing is asked', () => withDocx(async (docx) => {
+  const kept = fakeProvider([ans(W('fees', 'line 1 rule 1', 'other')), textReply()]);
+  const a = await run(kept, docx);
+  assert.equal(a.stop === 'look-asks', false);
+  assert.ok(kept.calls[0].messages[1].content.includes('- Fees') && kept.calls[0].messages[1].content.includes(SHEET_MARK));
+  assert.ok(kept.calls[1].messages[0].content.includes("heading 'Fees'"), 'the drafter is told the kept heading');
+  const p = fakeProvider([ans(W('Price', 'line 1 rule 1', 'number')), textReply()]);
+  const r = await run(p, docx);
+  assert.notEqual(r.stop, 'look-asks');
+  assert.deepEqual(r.questions, []);
+  assert.ok(r.notChecked.includes('line 1: "under 5000" — there is no heading \'Price\''), r.notChecked.join('|'));
+  assert.ok(p.calls[1].messages[0].content.includes("there is no heading 'Price'"));
+}));

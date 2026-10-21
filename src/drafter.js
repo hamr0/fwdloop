@@ -550,7 +550,9 @@ export async function draft({
   // line's own guardrail is a human stop, not a sheet check, so it is not sent. Every round goes through the same hold, metering and book as the page's.
   const askLines = new Set(arbiter.asks.map((a) => a.line));
   const sheetJobLines = jobLines.filter((l) => !askLines.has(l.n));
-  const sheetRoles = sheetJobLines.some((l) => lineRules(l).length > 0) ? Object.keys(facts.sheets ?? {}) : [];
+  // am8 item 3: a .docx's headings stand where a sheet's columns do (a word that is no heading is Not checked, nothing is asked)
+  const docxRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && String(s.path).toLowerCase().endsWith('.docx') && Array.isArray(facts.inputFacts[s.role])).map((s) => s.role);
+  const sheetRoles = sheetJobLines.some((l) => lineRules(l).length > 0) ? [...Object.keys(facts.sheets ?? {}), ...docxRoles] : [];
   /** @type {any[]} */
   const sheetAsks = [];
   /** @type {any[]} */
@@ -558,11 +560,12 @@ export async function draft({
   /** @type {any[]} */
   const sheetLooks = [];
   for (const role of sheetRoles) {
-    const text = facts.sheets[role];
+    const headings = docxRoles.includes(role) ? facts.inputFacts[role] : undefined;
+    const text = headings === undefined ? facts.sheets[role] : '';
     const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-    const hold = ceilingCostUsd(rates, sheetPrompt({ jobLines: sheetJobLines, label: role, text }).length + MAP_SYSTEM.length);
+    const hold = ceilingCostUsd(rates, sheetPrompt({ jobLines: sheetJobLines, label: role, text, headings }).length + MAP_SYSTEM.length);
     if (spentBefore + hold > budgetUsd && meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(hold)]); }
-    const got = await lookAtSheet({ label: role, text, jobLines: sheetJobLines, callModel: makeCallModel('sheet-map') });
+    const got = await lookAtSheet({ label: role, text, headings, jobLines: sheetJobLines, callModel: makeCallModel('sheet-map') });
     if (!got.ok) {
       const m = sumMeterings(meterings);
       return {
@@ -578,7 +581,7 @@ export async function draft({
     const lost = dropRows(dropped).map((row) => dropLine(row, jobLines, lineRules));
     for (const l of lost) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
     pageInfo.push(
-      ...(got.facts.length ? [`  Code matched the job's words to the columns of "${role}": ${got.facts.map((f) => `line ${f.line}${f.forRule === undefined ? '' : ` rule ${f.forRule}`} is column '${f.column}'`).join('; ')}`] : []),
+      ...(got.facts.length ? [`  Code matched the job's words to the ${headings === undefined ? 'columns' : 'headings'} of "${role}": ${got.facts.map((f) => `line ${f.line}${f.forRule === undefined ? '' : ` rule ${f.forRule}`} is ${headings === undefined ? 'column' : 'heading'} '${f.column}'`).join('; ')}`] : []),
       ...(lost.length ? [`  Code could not make these a check on "${role}", so they are Not checked; never claim them as checked:`, ...lost.map((l) => `  - ${l}`)] : []),
     );
   }

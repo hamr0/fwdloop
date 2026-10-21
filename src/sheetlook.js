@@ -15,7 +15,7 @@ import { findColumn, columnQuestion } from './sheetfind.js';
 /** how many data rows the prompt shows (the header is always shown): enough to see what a column holds, never the whole sheet */
 export const SHEET_PROMPT_ROWS = 5;
 /** the line every sheet prompt carries, so a test provider can tell a sheet call from a page call (the system words are the same) */
-export const SHEET_MARK = 'THE SHEET:';
+export const SHEET_MARK = 'THE SHEET OR DOCUMENT:';
 
 /**
  * The `~` rule an `agree` writes (signed, am8 item 1); a person's own words replace it.
@@ -25,10 +25,19 @@ export const columnRuleWords = (word, column) => `use the column '${column}' for
 
 /**
  * What the AI is told for ONE sheet: the job, and the sheet's header and first rows. It names the job's word for each rule; it does not pick a column to offer.
- * @param {{jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], label: string, text: string}} o @returns {string}
+ * With `headings` (a .docx input, am8 item 3) the document's headings stand where a sheet's columns do and no data rows are shown.
+ * @param {{jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], label: string, text: string, headings?: string[]}} o @returns {string}
  */
-export function sheetPrompt({ jobLines, label, text }) {
+export function sheetPrompt({ jobLines, label, text, headings }) {
   const job = jobLines.map((l) => `LINE ${l.n}: ${l.text}${lineRules(l).map((r, i) => `\n~ rule ${i + 1}: ${r}`).join('')}`).join('\n');
+  if (headings !== undefined) {
+    return `THE JOB (each ~ rule applies to the line above it):\n${job}\n\n`
+      + `${SHEET_MARK} the input "${label}" is a document. Its headings:\n${headings.map((h) => `- ${h}`).join('\n') || '(none)'}\n\n`
+      + 'For each job line and each ~ rule that is about a part of the document, give the JOB\'S OWN WORD for the heading it means. If the document has a heading for it, copy that heading exactly. '
+      + 'If it has none, give the word the job uses. Say "other" for the kind. Leave out a rule that is not about a heading.\n\n'
+      + 'Return ONLY a JSON object, no prose, no code fence:\n'
+      + '{"facts":[{"from":"<line N | line N rule M>","word":"<the heading, or the job\'s own word>","kind":"other"}]}';
+  }
   const { header, rows } = parseCsv(text);
   const shown = rows.slice(0, SHEET_PROMPT_ROWS).map((r) => header.map((h) => r.byName[h] ?? '').join(' | '));
   return `THE JOB (each ~ rule applies to the line above it):\n${job}\n\n`
@@ -99,20 +108,44 @@ export function applySheetWords(text, words, jobLines, label) {
 }
 
 /**
+ * am8 item 3: a .docx's words. A job word that is a heading is kept (the next steps' quotes are still checked word for word on the run's own copy); one that is not is
+ * Not checked with its reason, and NOTHING is asked. Same shape as {@link applySheetWords}, with no asks.
+ * @param {string[]} headings @param {{from: string, word: string, kind: 'number'|'other'}[]} words
+ * @param {{n: number, text?: string, rule?: string, rules?: string[]}[]} jobLines @param {string} label
+ * @returns {ReturnType<typeof applySheetWords>}
+ */
+export function applyDocWords(headings, words, jobLines, label) {
+  const facts = /** @type {any[]} */ ([]);
+  const dropped = /** @type {import('./pagerules.js').Dropped[]} */ ([]);
+  const seen = new Set();
+  const norm = (/** @type {string} */ h) => h.trim().replace(/\s+/g, ' ').toLowerCase();
+  for (const w of words) {
+    const at = tieOf(w.from, jobLines);
+    const key = `${at.line}\u0000${at.rule ?? ''}\u0000${w.word.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hit = headings.find((h) => norm(h) === norm(w.word));
+    if (hit !== undefined) facts.push({ line: at.line, ...(at.rule === undefined ? {} : { forRule: at.rule }), name: hit, shape: 'heading', column: hit, words: [hit], source: label });
+    else dropped.push({ line: at.line, ...(at.rule === undefined ? {} : { rule: at.rule }), fact: w.word, source: label, reason: 'no-heading' });
+  }
+  return { facts, asks: [], dropped };
+}
+
+/**
  * Look at ONE sheet input: the call (once; once more if the answer is unreadable), then the rules.
  * `callModel(content, attempt)` makes and meters ONE model round and returns `{text}`, `{text, cutOff: true}` or `{error}` (the same seam as `lookAtPage`).
- * @param {{label: string, text: string, jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], callModel: (content: string, attempt: number) => Promise<{text?: string, cutOff?: boolean, error?: string}>}} o
+ * @param {{label: string, text: string, jobLines: {n: number, text: string, rule?: string, rules?: string[]}[], callModel: (content: string, attempt: number) => Promise<{text?: string, cutOff?: boolean, error?: string}>, headings?: string[]}} o
  * @returns {Promise<({ok: true, attempts: number} & ReturnType<typeof applySheetWords>)|{ok: false, reason: string, attempts: number}>}
  */
-export async function lookAtSheet({ label, text, jobLines, callModel }) {
-  const content = sheetPrompt({ jobLines, label, text });
+export async function lookAtSheet({ label, text, jobLines, callModel, headings }) {
+  const content = sheetPrompt({ jobLines, label, text, headings });
   let attempts = 0;
   for (;;) {
     attempts += 1;
     const r = await callModel(content, attempts);
     if (r.error !== undefined) return { ok: false, reason: `the call about the sheet failed: ${r.error}`, attempts };
     const parsed = r.cutOff === true ? { ok: false } : parseSheetAnswer(r.text);
-    if (parsed.ok) return { ok: true, attempts, ...applySheetWords(text, /** @type {any} */ (parsed).words, jobLines, label) };
+    if (parsed.ok) return { ok: true, attempts, ...(headings === undefined ? applySheetWords(text, /** @type {any} */ (parsed).words, jobLines, label) : applyDocWords(headings, /** @type {any} */ (parsed).words, jobLines, label)) };
     if (attempts >= 2) return { ok: false, reason: MAP_UNREADABLE.replace('about the page', 'about the sheet'), attempts };
   }
 }
