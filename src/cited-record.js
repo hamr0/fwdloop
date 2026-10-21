@@ -6,7 +6,7 @@
 //   rows: [{n, quote, cells: [one text per fact], proof?: {text, marks}}] | null, notChecked: string[] } ] }.
 // Extra keys the reader ignores and the separate checker (scripts/check-cited-run.mjs) reads: per line `check` {sha256 of the frozen text, the signed facts,
 // the count} and per row `values`.
-// Throws away: bareguard's evidence beyond the marks of the claim's own spans; a red line's rows (a red run delivers nothing).
+// Throws away: bareguard's evidence beyond the marks of the claim's own spans; nothing: a red line keeps its judged rows (am9); only a stopped check has none.
 import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
@@ -76,7 +76,9 @@ export function citedLineOf({
   const list = Array.isArray(results) ? results : [];
   /** @type {any[]|null} */
   let rows = null;
-  if (passed) {
+  // M10 am9 item 1: a red line keeps the results the check judged (bareloop's readJudged); `passed` stays false, so the page never ticks it. A stopped check
+  // judged nothing: no rows.
+  if (passed || check.verdict === 'red') {
     rows = list.map((/** @type {any} */ r, /** @type {number} */ k) => {
       const values = isRec(r) && isRec(r.values) ? r.values : {};
       const quote = isRec(r) && typeof r.quote === 'string' ? r.quote : '';

@@ -49,7 +49,7 @@ test('a green line is read back by the Result tab\'s reader: facts, one row per 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('a red line has no rows (a red run delivers nothing), passed is false, and the reader takes it', async () => {
+test('a red line keeps the rows the check judged (M10 am9 item 1), passed is false (no tick), and the reader takes it', async () => {
   const part = flightsPart();
   const results = goodRows(PAGE).slice(0, 2);
   const check = await checkCited({ part, text: PAGE, results });
@@ -60,7 +60,8 @@ test('a red line has no rows (a red run delivers nothing), passed is false, and 
     const got = readCitedChecks(dir);
     assert.equal(got.ok, true, got.red);
     assert.equal(got.lines[0].passed, false);
-    assert.equal(got.lines[0].rows, null);
+    assert.equal(got.lines[0].rows.length, 2, 'the judged results stay, so a red run shows what the check read');
+    assert.equal(got.lines[0].rows[0].quote, results[0].quote);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
