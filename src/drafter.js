@@ -25,7 +25,8 @@ import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
 import { lookAtPage, pageInfoLines } from './pagelook.js';
-import { leftRuleLine } from './pagedropwords.js';
+import { lookAtSheet, sheetPrompt } from './sheetlook.js';
+import { leftRuleLine, dropRows, dropLine } from './pagedropwords.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
@@ -472,6 +473,33 @@ export async function draft({
   let mapCut = null;
   const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
   const pageInfo = [];
+  /** one map call (a page's or a sheet's): its hold, its metering and its book are the drafting round's own (the `kind` names it in the round log) */
+  const makeCallModel = (kind) => async (content, attempt) => {
+    const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    if (spentSoFar + ceilingCostUsd(rates, content.length + MAP_SYSTEM.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
+    const roundEvents = [];
+    const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
+    calls += 1;
+    book(true);
+    let res;
+    let threw = null;
+    try {
+      res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
+    } catch (err) {
+      threw = err;
+      if (roundEvents.length === 0) unmetered += 1;
+    }
+    book(false);
+    const entry = { round: log.length + 1, kind };
+    if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
+    if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
+    if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message }; }
+    const cutOff = res?.stopReason === 'max_tokens';
+    entry.outcome = cutOff ? 'truncated' : 'answered';
+    log.push(entry);
+    if (res?.error && !cutOff) return { error: String(res.error) };
+    return { text: res?.text ?? '', cutOff };
+  };
   for (const s of pageSources) {
     const pg = pages[s.role];
     // The hold of the map call is sized from its own prompt (the saved page is in it): one that cannot fit what is left of the cap is refused here, at $0.
@@ -480,32 +508,7 @@ export async function draft({
     if (spentBefore + mapCeiling > budgetUsd) {
       if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
     }
-    const callModel = async (content, attempt) => {
-      const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-      if (spentSoFar + ceilingCostUsd(rates, content.length + MAP_SYSTEM.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
-      const roundEvents = [];
-      const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
-      calls += 1;
-      book(true);
-      let res;
-      let threw = null;
-      try {
-        res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
-      } catch (err) {
-        threw = err;
-        if (roundEvents.length === 0) unmetered += 1;
-      }
-      book(false);
-      const entry = { round: log.length + 1, kind: 'page-map' };
-      if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
-      if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
-      if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message }; }
-      const cutOff = res?.stopReason === 'max_tokens';
-      entry.outcome = cutOff ? 'truncated' : 'answered';
-      log.push(entry);
-      if (res?.error && !cutOff) return { error: String(res.error) };
-      return { text: res?.text ?? '', cutOff };
-    };
+    const callModel = makeCallModel('page-map');
     const got = await lookAtPage({ label: s.role, text: pg.text, jobLines, callModel });
     if (!got.ok) {
       const m = sumMeterings(meterings);
