@@ -37,3 +37,16 @@ test('1: `fwdloop draft` holds the pot left against the month: a limit that fits
   assert.equal(readRuns(roomy).find((x) => x.kind === 'hold').holdUsd, 0.25);
 });
 
+
+// M10 piece 6 item 2 follow-up: the CLI's one read of the prose file goes through the safe gateway, so a symlinked prose file is refused
+test('fwdloop draft refuses a symlinked prose file, nothing drafted', async () => {
+  const { symlinkSync, existsSync } = await import('node:fs');
+  const work = tmp('sym');
+  const link = path.join(work, 'link.txt');
+  symlinkSync(proseAt(work), link);
+  const out = path.join(work, 'd');
+  const r = cli(['draft', link, '--out', out, '--root', path.join(work, 'flows'), '--name', 'x'], newHome(0.3));
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout + r.stderr, /symlink/);
+  assert.equal(existsSync(out), false, 'no draft folder');
+});

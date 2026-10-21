@@ -18,7 +18,7 @@ import { parseArgs } from 'node:util';
 import {
   existsSync, readdirSync, realpathSync, rmdirSync,
 } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
@@ -48,7 +48,7 @@ import {
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, readProseFile, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 
@@ -893,7 +893,12 @@ async function cmdDraft(rest) {
     fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
   }
   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
-  const proseRead = readProseFile(resolve(proseFile));
+  // the ONE read of the prose file goes through the safe gateway (a symlink or an outside path is refused); draftToDir is handed this read
+  const proseAbs = resolve(proseFile);
+  const gate = readFileInside(dirname(proseAbs), basename(proseAbs));
+  const proseRead = gate.ok
+    ? (gate.text.trim() === '' ? { ok: false, red: `prose: "${proseAbs}" is empty` } : gate)
+    : { ok: false, red: gate.missing ? `prose: cannot read "${proseAbs}": ENOENT` : `prose: ${gate.red}` };
   const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
