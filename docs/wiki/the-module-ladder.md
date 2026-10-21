@@ -2649,6 +2649,7 @@ same run. Scope is stated when its turn comes.
 
      A failed check shows `✗` and its reason.
   3. The rows come from the run's own check record, from that step's newest try. Code writes them, never the AI.
+- **M10 amendment 10 — SIGNED by hamr 2026-10-21 ("sign m10 am10").** A step whose check cites cells is told the cite forms the checker accepts: one cell (`<input>!C3`), a field above it (`#name`), or `sum`, `count`, `min`, `max`, `sub`, `daysBetween` over those. The same forms are named in the red when a cite doesn't match. It is told nothing else about its check. This is the second exception to "the step never sees its close", after the page-quoting step.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
