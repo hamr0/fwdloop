@@ -7,6 +7,7 @@ import path from 'node:path';
 import { writeFileSync, rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { draft } from '../src/drafter.js';
+import { parseSignedText } from '../src/signed-text.js';
 import { SHEET_MARK, columnRuleWords } from '../src/sheetlook.js';
 import { RATES, MODEL, fakeProvider, textReply } from './drafter-fixture.mjs';
 
@@ -162,3 +163,12 @@ test('the kept column must be named in the step\'s close.columns: a draft withou
   const made = fakeProvider([sheetAnswer(), toolReply(agingDecl([{ source: 'aging', column: 'Price' }]))]);
   assert.equal((await draft({ proseText, provider: made, rates: RATES, modelId: MODEL })).ok, false);
 }));
+
+import { buildReadout } from '../src/authoring.js';
+test('the column lock is a row of the readout, so it is signed with the plan', () => {
+  const parsed = parseSignedText(AGING);
+  const d = agingDecl([{ source: 'aging', column: 'Amount' }]);
+  d.inputFacts = {};
+  const text = buildReadout({ declaration: d, arbiter: parsed.arbiter, lines: parsed.lines, name: 'x', modelId: MODEL, costUsd: 0, rounds: 1, spendComplete: true, root: 'r' });
+  assert.ok(text.includes("cells only from column 'Amount' of aging"), text);
+});

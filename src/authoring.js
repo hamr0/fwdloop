@@ -198,6 +198,8 @@ export function buildReadout({
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${row}`);
+    // M10 am8 item 2: the column lock, signed with the readout (typed fields)
+    if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
