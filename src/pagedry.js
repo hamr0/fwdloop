@@ -10,10 +10,9 @@ import { linesOf } from './pagerules.js';
 
 /** @typedef {import('./pagerules.js').KeptFact} KeptFact @typedef {import('./pagerules.js').Dropped} Dropped */
 
-/** a number as the page writes it, thousands commas allowed */
-const NUM = '\\d[\\d,]*(?:\\.\\d+)?';
-const AFTER_LABEL = new RegExp(`^\\s*(?:[$€£]\\s*)?(${NUM})`);
-const BEFORE_UNIT = new RegExp(`(${NUM})\\s*$`);
+/** a number as the page writes it, thousands commas allowed: \d[\d,]*(?:\.\d+)?  (written out as literals - this repo bans dynamic patterns in src/) */
+const AFTER_LABEL = /^\s*(?:[$€£]\s*)?(\d[\d,]*(?:\.\d+)?)/;
+const BEFORE_UNIT = /(\d[\d,]*(?:\.\d+)?)\s*$/;
 /** the name every dry-read claim is made under (the checker only needs one name; the fact's own is not read) */
 const CLAIM = 'price';
 const SOURCE = 'page';
