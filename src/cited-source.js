@@ -34,7 +34,9 @@ export function readRunSource(runDir, role) {
   return { ok: true, text: file.text, sha256, frozen: basename(entry.frozen) };
 }
 
-/** the run's own frozen .docx, through the same safe path check as every other read (no symlink, nothing outside the run folder), proved against the recorded sha256 */
+/** the run's own frozen .docx, through the same safe path check as every other read (no symlink, nothing outside the run folder), proved against the recorded sha256
+ *  @param {string} runDir @param {string} role @param {{frozen: string, sha256: string}} entry
+ *  @returns {{ok: true, text: string, sha256: string, frozen: string}|{ok: false, red: string, code: 'unreadable'}} */
 function readRunDocx(runDir, role, entry) {
   const where = resolveInside(runDir, `inputs/${basename(entry.frozen)}`);
   if (!where.ok) return { ok: false, code: 'unreadable', red: where.missing ? `input "${role}": the frozen copy is missing` : `input "${role}": ${where.red}` };
