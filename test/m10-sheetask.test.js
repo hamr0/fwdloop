@@ -105,3 +105,18 @@ test('static: the ask is built from the kept word, the rule and the sheet only -
   for (const k of ['from', 'word', 'kind']) assert.ok(parse.includes(`.${k}`), `parse reads ${k}`);
   assert.ok(!/\b(column|ask|question|reading)\b/.test(parse.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'the parser reads no column, ask, question or reading field');
 });
+
+test('the answer words are am2\'s: agree / yes writes the proposed rule, own words are word for word, and the rule is then a column the next look keeps', async () => {
+  const { ruleOfAnswer } = await import('../src/pageask.js');
+  const r = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'Price', kind: 'number' }], JOB, 'aging');
+  const q = { source: 'look', ask: r.asks[0].ask, proposal: r.asks[0].reading };
+  assert.deepEqual(ruleOfAnswer(q, 'agree'), { rule: "use the column 'Amount' for 'Price'", left: false });
+  assert.deepEqual(ruleOfAnswer(q, 'Yes.'), { rule: "use the column 'Amount' for 'Price'", left: false });
+  assert.deepEqual(ruleOfAnswer(q, 'the Tax column'), { rule: 'the Tax column', left: false });
+  // "drop it" is for a can't-check ask only: on a reading ask it is the person's own words
+  assert.deepEqual(ruleOfAnswer(q, 'drop it'), { rule: 'drop it', left: false });
+  // after the answer is a new ~ line under the same job line, the next look keeps the column
+  const again = [{ n: 1, text: JOB[0].text, rules: ['under 5000', 'matches the ledger', ruleOfAnswer(q, 'agree').rule] }];
+  const next = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'Price', kind: 'number' }], again, 'aging');
+  assert.deepEqual([next.asks.length, next.dropped.length, next.facts.map((f) => f.column)], [0, 0, ['Amount']]);
+});
