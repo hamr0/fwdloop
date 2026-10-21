@@ -222,3 +222,21 @@ test('a real Accept on the Result tab saves the answer in the run\'s own folder,
   const door = await o.chrome.ev('fetch("/api/runs/job2/run-1/result").then(function(r){ return r.json(); }).then(function(a){ return a.door; })');
   assert.equal(door, null, 'the Result tab\'s door is gone');
 });
+
+// ---- M10 am9 item 2: the checks a step ran, one row each ----
+test('browser 1280: a line with checks lists each one, ✓ or ✗, in the Audit try line\'s words (text and the result in brackets); a failed one shows ✗ and its reason', { skip: SKIP && 'no browser' }, async (t) => {
+  const line = {
+    n: 1, text: 'list every expense over 500', rules: [], kind: 'text', passed: false, file: null, notChecked: [],
+    checks: [
+      { ok: true, text: 'cells only from column \'Amount\'', result: null },
+      { ok: true, text: 'every cited cell is in the saved sheet', result: '6 of 6' },
+      { ok: false, text: 'at most 600 words', result: '700 words' },
+    ],
+  };
+  const o = await open(1280, { detailPatch: DETAIL, resultBody: { ...RESULT, lines: [line], pages: [], pageNote: null } });
+  if (!o) { t.skip('no chromium installed'); return; }
+  await resultTab(o);
+  const rows = await o.chrome.ev('Array.from(document.querySelectorAll("[data-testid=result-check]")).map(function(e){ return e.textContent; })');
+  assert.deepEqual(rows, ['\u2713 cells only from column \'Amount\'', '\u2713 every cited cell is in the saved sheet (6 of 6)', '\u2717 at most 600 words (700 words)']);
+  assert.equal(await o.chrome.ev('document.querySelectorAll("[data-testid=result-check] .rs-bad").length'), 1);
+});

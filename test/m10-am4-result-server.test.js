@@ -228,3 +228,36 @@ test('/result with a malformed record: the lines fall back to "no saved result t
   assert.equal(r.status, 200);
   assert.ok(r.body.lines.every((l) => l.kind === 'text'));
 });
+
+// M10 am9 item 2: every job without a web page lists the checks its step ran, from the run's own checks.jsonl, that step's NEWEST try; code writes them.
+test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓ or ✗, in the Audit try line\'s words; the failed one carries its reason', async () => {
+  const w = await world({ mode: 'red' });
+  const r = (await w.get('/api/runs/job2/run-1/result')).body;
+  const l1 = r.lines.find((l) => l.n === 1);
+  assert.deepEqual(l1.checks, [
+    { ok: true, text: 'the output exists and isn\'t empty', result: '27 B' },
+    { ok: true, text: 'the model said done: true', result: null },
+  ]);
+  const l3 = r.lines.find((l) => l.n === 3);
+  assert.equal(l3.checks.length, 5, 'try 3 only, not the three tries together');
+  assert.equal(l3.checks[3].text, 'at most 600 words');
+  assert.equal(l3.checks[3].result, '4 words');
+  assert.equal(l3.checks[4].ok, false);
+  assert.match(l3.checks[4].result, /no line is exactly the heading/, 'a failed check keeps its reason');
+});
+
+test('am9: the checks come from the NEWEST try (a later try replaces an earlier one)', async () => {
+  const w = await world({ mode: 'red' });
+  appendFileSync(path.join(w.root, 'job2', 'runs', 'run-1', 'checks.jsonl'), `${JSON.stringify({
+    step: 'resume-summary', try: 4, at: '2026-10-21T00:00:00Z', lastRound: 0, checks: [{ n: 1, text: 'the output exists and isn\'t empty', ok: true, result: '9 B', source: 'every step' }], output: null,
+  })}\n`);
+  const l3 = (await w.get('/api/runs/job2/run-1/result')).body.lines.find((l) => l.n === 3);
+  assert.deepEqual(l3.checks, [{ ok: true, text: 'the output exists and isn\'t empty', result: '9 B' }]);
+});
+
+test('am9: a page job\'s lines are bareloop\'s card: no checks list', async () => {
+  const URL1 = GOLDEN.pages[0];
+  const w = await world({ mode: 'park', prose: (p) => p.replace(/guardrail: source jd = file:\S+/, `guardrail: source jd = page:${URL1}`) });
+  const r = (await w.get('/api/runs/job2/run-1/result')).body;
+  assert.ok(r.lines.every((l) => l.checks.length === 0));
+});

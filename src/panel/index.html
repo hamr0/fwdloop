@@ -497,6 +497,7 @@
   /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
   #result-body{min-width:0;overflow-wrap:anywhere;}
   .rs-ok{color:var(--green);font-weight:700;}
+  .rs-bad{color:var(--red);font-weight:700;}
   #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
   #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
@@ -2460,6 +2461,16 @@
     }
     return h;
   }
+  // M10 am9 item 2: what the line's step checked, one row each, ✓ or ✗, in the Audit try line's words (the server's `text` and `result`; code wrote them).
+  // A line with none draws nothing.
+  function resultChecksList(line){
+    var cs = line.checks || [];
+    if(!cs.length) return "";
+    return resultField(line.kind === "facts" ? "What the step checked" : "The checks", '<div class="ro-value" data-testid="result-checklist">' + cs.map(function(c){
+      return '<div data-testid="result-check"><span class="' + (c.ok ? "rs-ok" : "rs-bad") + '">' + (c.ok ? "\u2713" : "\u2717") + '</span> ' + escapeXml(c.text) +
+        (c.result ? ' (' + escapeXml(c.result) + ')' : "") + '</div>';
+    }).join("") + '</div>');
+  }
   function resultTextLine(line){
     var h = resultFileWords(line.file);
     if(typeof line.answer === "string") h += resultField("Answer", '<div class="ro-value" data-testid="result-answer" style="color:var(--text);white-space:pre-wrap">' + escapeXml(line.answer) + '</div>');
@@ -2486,7 +2497,7 @@
   function resultLineCard(line, own, note){
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
       (own ? resultPageLink(line.page, note, "result-page-line") : "") +
-      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) +
+      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + resultChecksList(line) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
   function renderResult(){

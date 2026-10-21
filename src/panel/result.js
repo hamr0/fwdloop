@@ -19,6 +19,7 @@ import { checkSendDestination } from '../runner.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
 import { CITED_CHECKS_FILE } from '../cited-record.js';
+import { readChecks } from '../diary.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -195,6 +196,22 @@ export function deliveredOf({
   return out;
 }
 
+/**
+ * M10 am9 item 2: the checks one job line's step(s) ran, from the run's own check record (`checks.jsonl`, written by code at every try), each step's NEWEST
+ * try, in the Audit try line's words (`text`, `result`). Never the AI's words. A line no step ran (an ask, a send) has none.
+ * @param {any[]} stepsOfLine the declaration's steps for the line @param {any[]} diary `readChecks(runDir)`
+ * @returns {{ok: boolean, text: string, result: string|null}[]}
+ */
+function checksOfLine(stepsOfLine, diary) {
+  const out = [];
+  for (const st of stepsOfLine) {
+    const rows = diary.filter((r) => r && r.step === st.emits && isInt(r.try) && Array.isArray(r.checks));
+    const newest = rows.reduce((m, r) => (m === null || r.try >= m.try ? r : m), null);
+    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: c.text, result: isStr(c.result) ? c.result : null });
+  }
+  return out;
+}
+
 /** the check's own gap for a RED run: its first line and how many more @param {string|null} text @returns {{line: string, more: number, moreText: string|null}|null} */
 function gapOf(text) {
   const rows = isStr(text) ? text.split('\n').map((x) => x.trim()).filter((x) => x !== '') : [];
@@ -215,11 +232,14 @@ export function buildResult({
   const cited = readCitedChecks(runDir);
   const record = cited.present && cited.ok ? cited.lines : [];
   const urls = pageUrlsByRole(arbiter);
+  // am9: a page job's card is bareloop's (no checks list); every other job lists what each step checked
+  const diary = urls.size === 0 ? readChecks(runDir) : [];
   const lines = flowRead.lines.filter((l) => !taken.has(l.n)).map((l) => {
     const c = record.find((x) => x.n === l.n) ?? null;
     const out = {
       notChecked: c ? c.notChecked : [], n: l.n, text: l.text, rules: isStr(l.guardrail) && l.guardrail !== '' ? [l.guardrail] : [],
       kind: c ? 'facts' : 'text', passed: c ? c.passed : false, file: null,
+      checks: checksOfLine((declaration?.steps ?? []).filter((st) => st.fromLine === l.n), diary),
     };
     if (c) {
       out.source = c.source;
