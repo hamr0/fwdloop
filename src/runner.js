@@ -972,7 +972,7 @@ export async function runStepRalph({
     // M10 piece 4: a step that cites quotes reads the run's OWN frozen copy of its source (never the drafting copy); the record of what the check said is
     // written by the one writer, `writeCitedLine`, whatever the verdict - the Result tab says why a line did not pass.
     const citedPart = step?.close?.class === 'green' ? step?.close?.cited : undefined;
-    const source = citedPart && runDir !== null ? readRunSource(runDir, citedPart.source) : undefined;
+    const source = citedPart && runDir !== null ? readRunSource(runDir, citedPart.source, { docx: true }) : undefined;
     const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source });
     if (citedPart && runDir !== null && closed.cited) {
       writeCitedLine(runDir, citedLineOf({
