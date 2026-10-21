@@ -18,7 +18,7 @@ import { factsOfLook } from './citedcheck.js';
 /**
  * What the page-word map KEPT and DROPPED for one input: the sets the proof reads.
  * @param {{facts?: any[], dropped?: any[]}|null|undefined} look @param {string} source
- * @returns {{labels: Set<string>, words: Set<string>, dropped: Map<string, any>}|null} null = the page was not read by the map
+ * @returns {{labels: Set<string>|null, words: Set<string>, dropped: Map<string, any>}|null} null = the page was not read by the map; `labels: null` = a document (no map, any label in the text)
  */
 export function keptSetOf(look, source) {
   if (!look || !Array.isArray(look.dropped)) return null;
@@ -58,7 +58,7 @@ export function factWordReds({
     };
     if (f.anchor !== undefined && f.shape !== 'phrase') {
       const label = normLabel(String(f.anchor));
-      if (dropRed('label', f.anchor)) { /* said above */ } else if (!kept.labels.has(label)) {
+      if (dropRed('label', f.anchor)) { /* said above */ } else if (kept.labels !== null && !kept.labels.has(label)) {
         const some = [...kept.labels].slice(0, 12).map((l) => JSON.stringify(l)).join(', ');
         red('label-off-list', `${who}: the label ${JSON.stringify(label)} is not one of the labels the page words for "${src}" kept. A label is picked from those, never typed${some ? `: ${some}` : ' (there are none - leave the label out)'}.`);
       } else if (countExact(text, label) < 1) {
@@ -183,12 +183,13 @@ export function placeReds({ part, line, look }) {
 
 /**
  * Every word red for one cited part, in the order a person fixes them.
- * @param {{part: any, text: string|undefined, line: number, jobLine: any, look: {facts?: any[], dropped?: any[]}|null|undefined}} o @returns {WordRed[]}
+ * @param {{part: any, text: string|undefined, line: number, jobLine: any, look: {facts?: any[], dropped?: any[]}|null|undefined, doc?: boolean}} o @returns {WordRed[]}
  */
 export function citedWordReds({
-  part, text, line, jobLine, look,
+  part, text, line, jobLine, look, doc = false,
 }) {
-  const kept = keptSetOf(look, part.source);
+  // M10 piece 5 (item 2): a DOCUMENT has no page-word map; its words are proved on its text alone (a label need not be one a map kept)
+  const kept = doc ? { labels: null, words: new Set(), dropped: new Map() } : keptSetOf(look, part.source);
   if (typeof text !== 'string' || kept === null) {
     return [{ code: 'unread', detail: `line ${line}: the input "${part.source}" was not read here to prove the words against it, so a check on it cannot be drafted. A check on quotes works on a saved web page.` }];
   }
