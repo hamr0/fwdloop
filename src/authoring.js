@@ -271,7 +271,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, proseRead,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -287,7 +287,7 @@ export async function draftToDir({
   if (!panelDrafts && (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)))) {
     return refuse([`draft: "${dir}" is inside the flows root "${root}" — an unsigned draft would show as a flow; use a --out outside the flows root`]);
   }
-  const read = readProseFile(proseFile);
+  const read = proseRead ?? readProseFile(proseFile); // the CLI reads the file once (for its hold) and hands that read in
   if (!read.ok) return refuse([String(read.red)]);
   const prose = { text: String(read.text) };
   const injected = provider != null;

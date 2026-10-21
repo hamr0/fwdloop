@@ -18,7 +18,7 @@ import { parseArgs } from 'node:util';
 import {
   existsSync, readdirSync, realpathSync, rmdirSync,
 } from 'node:fs';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
@@ -48,7 +48,7 @@ import {
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { draftToDir, readProseFile, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 
@@ -893,7 +893,7 @@ async function cmdDraft(rest) {
     fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
   }
   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
-  const proseRead = readFileInside(dirname(resolve(proseFile)), basename(resolve(proseFile)));
+  const proseRead = readProseFile(resolve(proseFile));
   const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
@@ -901,6 +901,7 @@ async function cmdDraft(rest) {
     // M4d am32: the hold is given back when the draft's result is written, not when this process exits (the exit hook stays as the backstop)
     onResult: ({ ok }) => hold.settle(ok ? 'ended or parked' : 'ended (red)'),
     proseFile: resolve(proseFile),
+    proseRead,
     dir: resolve(values.out),
     root: resolve(values.root),
     name: values.name,

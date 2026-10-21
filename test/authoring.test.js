@@ -770,3 +770,11 @@ test('item 11: a drafter red whose provider error echoes the key is scrubbed bef
   assert.ok(!r.reds.join(' ').includes(KEY), 'the key never leaves in a red');
   assert.match(r.reds.join(' '), /\[redacted-key\]/);
 });
+
+// M10 piece 6 item 2: the CLI reads the prose file once and hands that read to draftToDir; the drafter does not read the file again
+test('draft: a prose read handed in is used, the file is not read a second time', async () => {
+  const fx = job2Fixture();
+  const { r } = await makeDraft({ extra: { proseFile: path.join(tmp('x'), 'gone.txt'), proseRead: { ok: true, text: fx.prose } } });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.equal(r.wrote, true);
+});
