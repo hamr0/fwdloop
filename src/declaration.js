@@ -412,7 +412,7 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
  * `{source, facts, count?}`, src/citedcheck.js). Its SHAPE is checked in every mode (a signed flow is read the same way). With `fitJobLine` the number rules
  * must be the person's own words on the job line; with `pageWords` (the drafting copy of each page and what the page-word map kept) every word is proved on
  * the page at $0 (src/citedwords.js). Each red names the job line, so a redraft can be told which line.
- * @param {any} step @param {string} label @param {{sourceRoles: any[], reads: string[]|null, effectiveClass: string, lines: SignedLine[], fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any}}} c @param {string[]} reds
+ * @param {any} step @param {string} label @param {{sourceRoles: any[], reads: string[]|null, effectiveClass: string, lines: SignedLine[], fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}}} c @param {string[]} reds
  */
 function checkCitedKey(step, label, c, reds) {
   const at = `declaration: ${label}.close.cited`;
@@ -430,7 +430,7 @@ function checkCitedKey(step, label, c, reds) {
   const jl = { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) };
   // a part that is not valid is not read further: its words would only repeat the same red
   if (factPartReds(part).length) return;
-  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl })];
+  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look, doc: Array.isArray(c.pageWords.docs) && c.pageWords.docs.includes(part.source) }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl })];
   for (const r of words) reds.push(`declaration: ${r.detail}`);
 }
 
@@ -485,9 +485,10 @@ function checkColumnsKey(step, label, c, reds) {
  * line or its guardrail is a red. Draft, change and sign turn it on; readFlow does not (signed flows keep running).
  * `pageWords` (optional; M10 am7 item 1): `{texts: {role: drafting copy}, look: {facts, dropped}}`. With `fitJobLine`, the words of every `close.cited` fact are
  * proved on the page at $0; the drafter passes it, sign does not (the draft was already proved, and its files are hash-bound).
+ * `pageWords.docs` (M10 piece 5): the roles that are documents (.docx / .md / .txt): their words are proved on their text alone, with no page-word map.
  * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
  * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
@@ -517,6 +518,8 @@ export function validateDeclaration(declaration, context = {}) {
     ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
   // M10 am7 item 3: a web page is an input too, frozen at run start; a step reads it by its role (its quotes are checked against the run's own copy)
   const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page').map((s) => s.role) : [];
+  // M10 piece 5 (item 2): a document (.docx / .md / .txt) may be READ by a step that quotes it (its close.cited.source), and by no other step
+  const docRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'file' && ['.docx', '.md', '.txt'].some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role) : [];
   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];
   const askLines = asks.map((a) => a.line);
   const sends = Array.isArray(safeArbiter.sends) ? safeArbiter.sends : [];
@@ -710,6 +713,7 @@ export function validateDeclaration(declaration, context = {}) {
       for (const readId of reads) {
         if (cellsRoles.includes(readId) && !declaredEmits.has(readId)) continue; // an input with cells, frozen at run start (M4d amendment 8)
         if (pageRoles.includes(readId) && !declaredEmits.has(readId)) continue; // a web page, frozen at run start (M10 am7 item 3)
+        if (docRoles.includes(readId) && !declaredEmits.has(readId) && step.close?.cited?.source === readId) continue; // a document the step quotes (M10 piece 5)
         if (readId === emits || !declaredEmits.has(readId)) {
           reds.push(`declaration: ${label} reads artifact "${readId}" that no earlier step declared`);
         }

@@ -21,13 +21,16 @@ import { parseCsv } from './csv.js';
  *   source with no copy here is a named red (never skipped); it adds no heading facts (a page has none), only its line for the drafter and the Chat card.
  * `list` (M4d am10) is one `{role, detail}` per readable input for the Chat card's list (a CSV: its columns; text: its headings); never hashed.
  * `sheets` (M10 piece 5): role -> the text of each CSV input, for the sheet-word look (the same read, not a second one).
- * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[], sheets:Record<string,string>}}
+ * `docs` (M10 piece 5, item 2): role -> the text of each document input (.docx paragraphs, .md / .txt as is), the drafting copy a cited fact part's words are proved on.
+ * @returns {{ok:boolean, inputFacts:Record<string,string[]>, info:string[], list:Array<{role:string, detail:string}>, reds:string[], sheets:Record<string,string>, docs:Record<string,string>}}
  */
 export function readInputFacts(sources, { pages = {} } = {}) {
   /** @type {Record<string,string[]>} */
   const inputFacts = {};
   /** @type {Record<string,string>} */
   const sheets = {};
+  /** @type {Record<string,string>} */
+  const docs = {};
   const info = [];
   const list = [];
   const headingsDetail = (n) => `${n} heading${n === 1 ? '' : 's'}`;
@@ -48,6 +51,7 @@ export function readInputFacts(sources, { pages = {} } = {}) {
       if (!h.ok) { reds.push(`input "${s.role}": ${h.red}`); continue; }
       const words = r.text.trim() === '' ? 0 : r.text.trim().split(/\s+/).length;
       inputFacts[s.role] = h.headings;
+      docs[s.role] = r.text;
       list.push({ role: s.role, detail: headingsDetail(h.headings.length) });
       info.push(`- ${s.role}: a .docx file, ${r.paragraphs} paragraphs, ~${words} words, headings: ${h.headings.join(', ') || '(none)'} (read it with "readDocx")`);
     } else {
@@ -56,12 +60,12 @@ export function readInputFacts(sources, { pages = {} } = {}) {
       if (raw.trim() === '') { reds.push(`input "${s.role}": "${s.path}" is empty`); continue; }
       const headings = raw.split(/\r?\n/).filter((l) => /^#{1,6}\s+\S/.test(l)).map((l) => l.replace(/^#{1,6}\s*/, '').trim());
       inputFacts[s.role] = headings;
-      if (isCellsPath(s.path)) sheets[s.role] = raw;
+      if (isCellsPath(s.path)) sheets[s.role] = raw; else docs[s.role] = raw;
       list.push({ role: s.role, detail: isCellsPath(s.path) ? `${parseCsv(raw).header.length} columns` : headingsDetail(headings.length) });
       info.push(isCellsPath(s.path)
         ? `- ${s.role}: a CSV file with cells (a step reads it by listing "${s.role}" in its reads; or with "read")`
         : `- ${s.role}: a text/markdown file, ~${raw.trim().split(/\s+/).length} words, headings: ${headings.join(', ') || '(none)'} (read it with "read")`);
     }
   }
-  return { ok: reds.length === 0, inputFacts, info, list, reds, sheets };
+  return { ok: reds.length === 0, inputFacts, info, list, reds, sheets, docs };
 }

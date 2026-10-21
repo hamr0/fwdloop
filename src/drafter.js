@@ -50,6 +50,12 @@ export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 /** The whole-output-ceiling rule, told once to the drafter (schema and prompt use this string). Amendment 29; no number words (am25). */
 export const WHOLE_OUTPUT_CEILING_RULE = "use the guardrail's ceiling for the whole output";
 
+/** @param {any[]|undefined} sources @returns {string[]} the roles of the document inputs (.docx / .md / .txt) */
+const docRolesOf = (sources) => (sources ?? []).filter((s) => s.kind === 'file' && DOC_EXTS.some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role);
+
+/** the document inputs a quote can come from (M10 piece 5, item 2) */
+const DOC_EXTS = Object.freeze(['.docx', '.md', '.txt']);
+
 /** M10 am8 item 2: the column lock of a green step that cites cells (`close.columns`): the exact header(s) its cells come from. */
 const COLUMNS_PROP = Object.freeze({
   type: 'array',
@@ -70,7 +76,7 @@ const COLUMNS_PROP = Object.freeze({
 /** M10 am7 item 1: the facts of a green step that cites quotes from a web page (`close.cited`); the same fields src/citedcheck.js checks. */
 const CITED_PROP = Object.freeze({
   type: 'object',
-  description: 'only on a green step that checks quotes from a web page input: the facts every result must hold. Omit on any other step',
+  description: 'only on a green step that checks quotes from a web page or a document input: the facts every result must hold. Omit on any other step',
   properties: {
     source: { type: 'string', description: "the role of the web page input the quotes come from (also in the step's reads)" },
     facts: {
@@ -297,19 +303,22 @@ function jobLinesText(lines, asks) {
 function greenReadRule(sources) {
   const csvRoles = (sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path)).map((s) => s.role);
   const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
+  // M10 piece 5 (item 2): a quote in a doc - a .docx / .md / .txt input is quoted the way a page is
+  const docRoles = docRolesOf(sources);
   const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
     ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
     : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
-  if (pageRoles.length) {
+  if (pageRoles.length || docRoles.length) {
     out.push(
-      `- Web page inputs in this job: ${pageRoles.join(', ')}. A step whose line asks for things found on a web page, and whose guardrail is about them, is "green" and checks quotes: it lists the page's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
+      `- ${[pageRoles.length ? `Web page inputs in this job: ${pageRoles.join(', ')}.` : '', docRoles.length ? `Document inputs in this job: ${docRoles.join(', ')}.` : ''].filter(Boolean).join(' ')} A step whose line asks for things found in one of them, and whose guardrail is about them, is "green" and checks quotes: it lists that input's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
       '- close.cited.count is how many results the line asks for ("List 3" is {min: 3, max: 3}); the number must be one the person said on the line or its guardrail, as digits or a word. close.cited.facts is one fact per thing every result must hold, at most 10; a fact name is letters and spaces only (no digit).',
       '- Fact shapes: money takes unit or currency, rule, anchor; number, date and time take rule, anchor; text takes anchor and until (until needs an anchor); phrase takes only phrase (fixed words every result must say). Never put a field on a shape that does not take it.',
       '- A label (anchor, until) is PICKED from the kept labels listed under Inputs for that page, never typed. A phrase, a unit or a currency is copied from the page words listed there. A word listed as Not checked or dropped can never be used.',
       '- A place listed under Inputs as "place phrases" must have EVERY one of its phrases as its own phrase fact (one fact per phrase, the phrase word for word). A place name alone does not tell a result that leaves the other way.',
       '- A fact\'s rule (under, over, between) may only use a number that is in the person\'s own words on that job line (the line or its guardrail). Never make a number up; leave the rule out if the person gave none.',
       '- A label or a phrase that sits in each result must appear on the page at least as many times as close.cited.count.min, or the line is refused.',
+      ...(docRoles.length ? ['- For a document input there is no list of kept labels: a label (anchor) or a phrase is words the document really says, copied from it, and each must be in the document at least as many times as close.cited.count.min.'] : []),
     );
   }
   return out;
@@ -749,7 +758,7 @@ export async function draft({
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column') } : undefined,
-      pageWords: { texts: Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])), look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null },
+      pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
