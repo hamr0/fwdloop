@@ -18,7 +18,7 @@ export const SHEET_PROMPT_ROWS = 5;
 export const SHEET_MARK = 'THE SHEET:';
 
 /**
- * The `~` rule an `agree` writes, and a person's own words replace it: PROPOSED words, not signed (reported to hamr with this piece).
+ * The `~` rule an `agree` writes (signed, am8 item 1); a person's own words replace it.
  * @param {string} word @param {string} column @returns {string}
  */
 export const columnRuleWords = (word, column) => `use the column '${column}' for '${word}'`;
@@ -92,7 +92,7 @@ export function applySheetWords(text, words, jobLines, label) {
     // the person already named this column in ANOTHER rule of the line (an answer they gave, or their own words): the word is that column, asked no more
     if (rules.some((r, i) => i + 1 !== at.rule && countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     asks.push({
-      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
+      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });
   }
   return { facts, asks, dropped };

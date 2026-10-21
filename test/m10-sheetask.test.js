@@ -41,7 +41,7 @@ test('a word that is not a column asks once in the signed words, naming the colu
   assert.equal(r.asks.length, 1);
   assert.deepEqual(r.asks[0], {
     line: 1, rule: 1, source: 'look', ask: 'reading', ruleText: 'under 5000',
-    question: "no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?",
+    question: `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 1).`,
     reading: columnRuleWords('Price', 'Amount'), word: 'Price', column: 'Amount',
   });
   assert.deepEqual(r.facts, []);
@@ -57,13 +57,13 @@ test('two columns fit equally, or none fits, or the word is not a number: no ask
   const w = [{ from: 'line 1 rule 1', word: 'Price', kind: 'number' }];
   const tie = applySheetWords(SHEET(40, 40, 40), w, JOB, 'aging');
   assert.deepEqual(tie.asks, []);
-  assert.deepEqual(notCheckedLines(tie.dropped, JOB), ['line 1: "under 5000" — There is no column "Price" in the sheet, and two columns fit equally ("Amount", "Tax"), so none is offered.']);
+  assert.deepEqual(notCheckedLines(tie.dropped, JOB), ["line 1: \"under 5000\" — two columns fit 'Price' equally"]);
   const none = applySheetWords(`Date,Note\n2026-09-01,a\n2026-09-02,b\n`, w, JOB, 'aging');
   assert.deepEqual(none.asks, []);
-  assert.deepEqual(notCheckedLines(none.dropped, JOB), ['line 1: "under 5000" — There is no column "Price" in the sheet, and no other column has numbers in at least 90% of its 2 rows.']);
+  assert.deepEqual(notCheckedLines(none.dropped, JOB), ["line 1: \"under 5000\" — no column fits 'Price'"]);
   const other = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'Customer', kind: 'other' }], JOB, 'aging');
   assert.deepEqual(other.asks, []);
-  assert.deepEqual(notCheckedLines(other.dropped, JOB), ['line 1: "under 5000" — There is no column "Customer" in the sheet. Only a column with numbers can be offered in its place.']);
+  assert.deepEqual(notCheckedLines(other.dropped, JOB), ["line 1: \"under 5000\" — there is no column 'Customer'"]);
 });
 
 test('the person already named the column in another rule of the line: the word is that column, nothing is asked again', () => {

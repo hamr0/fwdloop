@@ -42,7 +42,8 @@ export function findColumn(csvText, word) {
 }
 
 /**
- * The question, as the signed example words it (item 7): `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?`
- * @param {string} word @param {FoundAsk} found @returns {string}
+ * The question, as signed (item 7's example, then am8 item 1's answer words):
+ * `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line N).`
+ * @param {string} word @param {FoundAsk} found @param {number} line @returns {string}
  */
-export const columnQuestion = (word, found) => `no column '${word}'; '${found.column}' has numbers in ${found.numbers} of ${found.rows} rows. Use it?`;
+export const columnQuestion = (word, found, line) => `no column '${word}'; '${found.column}' has numbers in ${found.numbers} of ${found.rows} rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line ${line}).`;

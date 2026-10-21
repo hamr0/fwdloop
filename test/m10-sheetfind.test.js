@@ -21,7 +21,7 @@ const sheet = (n, amountRows, taxRows, { amount = 'Amount', tax = 'Tax' } = {}) 
 test('a word that is not a column asks once, naming the one column with numbers and its true count', () => {
   const r = findColumn(sheet(40, 40, 10), 'Price');
   assert.deepEqual(r, { kind: 'ask', column: 'Amount', numbers: 40, rows: 40 });
-  assert.equal(columnQuestion('Price', r), "no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?");
+  assert.equal(columnQuestion('Price', r, 1), `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 1).`);
 });
 
 // C2: a decoy never wins; two columns that fit equally offer nothing
@@ -43,7 +43,7 @@ test('no column with numbers: no ask, the rows counted', () => {
 // C4: the count shown is the true count, not the row total
 test('numbers in 39 of 40 rows says 39 of 40', () => {
   const r = findColumn(sheet(40, 39, 0), 'Price');
-  assert.equal(columnQuestion('Price', r), "no column 'Price'; 'Amount' has numbers in 39 of 40 rows. Use it?");
+  assert.equal(columnQuestion('Price', r, 3), `no column 'Price'; 'Amount' has numbers in 39 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 3).`);
 });
 
 test('the word that IS a header (any case, spaces around) is kept as that header: nothing to ask', () => {

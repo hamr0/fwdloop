@@ -33,7 +33,7 @@ const withSheet = async (fn, text = CSV) => {
   try { return await fn(csv); } finally { rmSync(dir, { recursive: true, force: true }); }
 };
 const run = (provider, csv, extra = {}) => draft({ proseText: prose(csv, extra.guard), provider, rates: RATES, modelId: MODEL, ...extra, guard: undefined });
-const ASK_Q = "no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it?";
+const ASK_Q = `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 1).`;
 
 // Done when (signed): the CSV case asks once
 test('a job word that is no column asks once, in the signed words, after the one sheet call and before any drafting round', () => withSheet(async (csv) => {
@@ -64,7 +64,7 @@ test('a job word that IS a column asks nothing: drafting runs and the drafter is
 test('a word that gets no offer is Not checked with its reason, on the result and told to the drafter', () => withSheet(async (csv) => {
   const p = fakeProvider([ans(W('Customer', 'line 1 rule 1', 'other')), textReply()]);
   const r = await run(p, csv);
-  const line = 'line 1: "under 5000" — There is no column "Customer" in the sheet. Only a column with numbers can be offered in its place.';
+  const line = 'line 1: "under 5000" — there is no column \'Customer\'';
   assert.ok(r.notChecked.includes(line), r.notChecked.join('\n'));
   assert.ok(p.calls[1].messages[0].content.includes(line), 'the drafter is told');
 }));
@@ -76,7 +76,7 @@ test('the redraft after the answers never asks; a column the person named in a r
   assert.ok(!named.notChecked.some((l) => l.includes('Price')), named.notChecked.join('|'));
   const declined = await run(fakeProvider([ans(W('Price')), textReply()]), csv, { offerQuestions: false, guard: 'under 5000; the total of the amounts' });
   assert.notEqual(declined.stop, 'look-asks');
-  assert.ok(declined.notChecked.includes('line 1: "under 5000" — There is no column "Price" in the sheet, and the column offered ("Amount") was not taken.'), declined.notChecked.join('|'));
+  assert.ok(declined.notChecked.includes('line 1: "under 5000" — you didn\'t take the offered column'), declined.notChecked.join('|'));
 }));
 
 // must fail (signed): more than 3 asks -> rewrite, at $0 more
