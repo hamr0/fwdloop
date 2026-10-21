@@ -126,7 +126,7 @@ export function applyDocWords(headings, words, jobLines, label) {
     seen.add(key);
     const hit = headings.find((h) => norm(h) === norm(w.word));
     if (hit !== undefined) facts.push({ line: at.line, ...(at.rule === undefined ? {} : { forRule: at.rule }), name: hit, shape: 'heading', column: hit, words: [hit], source: label });
-    else dropped.push({ line: at.line, ...(at.rule === undefined ? {} : { rule: at.rule }), fact: w.word, source: label, reason: 'no-heading' });
+    else dropped.push(/** @type {any} */ ({ line: at.line, ...(at.rule === undefined ? {} : { rule: at.rule }), fact: w.word, source: label, reason: 'no-heading' }));
   }
   return { facts, asks: [], dropped };
 }
