@@ -2641,6 +2641,14 @@ same run. Scope is stated when its turn comes.
      - Not checked reasons: there is no column '<word>'; no column fits '<word>'; two columns fit '<word>' equally; you didn't take the offered column.
   2. **The column is locked.** Each fact from a sheet names its column in the step's check. Code checks at $0 that it's a real column (and the agreed one, when there was an ask), and at run time that every cited cell comes from that column. A cell from another column is red, naming the column.
   3. **No heading asks for .docx yet.** A job word that isn't a .docx heading shows `Not checked` with its reason; nothing is asked. Quotes from a .docx are still checked word for word against the run's own copy.
+- **M10 amendment 9 — SIGNED by hamr 2026-10-21 ("sign m10 am9"): the Result tab shows what was checked.**
+  1. **A page job (a web address input):** each line's card is bareloop's, as am4 says: the results that matter, and what got checked. A red run still shows the results the check read, with no ✓, as bareloop does.
+  2. **Every other job (a sheet, a doc, or no results):** each line's card lists every check the step ran, one row each, with `✓` or `✗`. It uses the same words as the Audit's try line, for example:
+     - `✓ cells only from column 'Amount'`
+     - `✓ every cited cell is in the saved sheet (6 of 6)`
+
+     A failed check shows `✗` and its reason.
+  3. The rows come from the run's own check record, from that step's newest try. Code writes them, never the AI.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
