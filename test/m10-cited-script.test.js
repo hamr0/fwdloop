@@ -123,12 +123,12 @@ test('--expect: the rules come from a file you wrote, not from the record the ru
   } finally { rmSync(run, { recursive: true, force: true }); rmSync(exp, { recursive: true, force: true }); }
 });
 
-test('a red run (no results kept) is not ok, and a missing record is exit 2', async () => {
+test('a red run (its judged rows kept, passed false) is not ok, and a missing record is exit 2', async () => {
   const { run } = await makeRun(goodRows(PAGE).slice(0, 2));
   try {
     const r = check(run);
     assert.equal(r.status, 1);
-    assert.match(r.stdout, /the record holds no results to check/);
+    assert.match(r.stdout, /the line did not pass/);
     rmSync(recordPath(run));
     assert.equal(check(run).status, 2);
   } finally { rmSync(run, { recursive: true, force: true }); }

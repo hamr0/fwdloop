@@ -69,7 +69,7 @@ test('a run closes the step against ITS OWN saved page and writes the record the
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 
-test('the run\'s page is the cheat copy: quotes taken from the real page are red, no row is kept, and the run does not pass', async () => {
+test('the run\'s page is the cheat copy: quotes taken from the real page are red, the judged rows are kept but never ticked (M10 am9 item 1), and the run does not pass', async () => {
   const { run, out, rows } = await runWith(CHEAT_REVERSED, goodRows(PAGE).slice(0, 3));
   try {
     assert.equal(out.ok, false);
@@ -78,7 +78,7 @@ test('the run\'s page is the cheat copy: quotes taken from the real page are red
     const rec = readCitedChecks(run);
     assert.equal(rec.ok, true, rec.red);
     assert.equal(rec.lines[0].passed, false);
-    assert.equal(rec.lines[0].rows, null);
+    assert.equal(rec.lines[0].rows.length, 3, 'the results the check judged stay');
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 

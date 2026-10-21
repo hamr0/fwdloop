@@ -68,7 +68,9 @@ for (const line of record.lines) {
   const page = flat(bytes);
   // 2. the results
   const rows = Array.isArray(line.rows) ? line.rows : [];
-  if (!Array.isArray(line.rows)) bad(n, line.passed === true ? 'the record says passed but holds no results' : 'the record holds no results to check (the line did not pass)');
+  // M10 am9 item 1: a red line keeps the rows the check judged (so the Result tab can show them); they are never a delivered result, so the line is not ok
+  if (line.passed !== true) bad(n, 'the line did not pass (the rows kept are the ones the check judged, not a delivered result)');
+  else if (!Array.isArray(line.rows)) bad(n, 'the record says passed but holds no results');
   rows.forEach((row) => {
     const at = `result ${row.n}`;
     const quote = flat(row.quote ?? '');
