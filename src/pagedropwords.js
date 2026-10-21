@@ -24,6 +24,10 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'unit-too-long': (d) => `"${d.word}" is longer than 100 characters, so it was not used.`,
   'currency-not-symbol': (d) => `"${d.word}" is not a currency sign ($, € or £); a word the page writes after the amount is read as a unit.`,
   'person-left': () => 'You chose to leave it Not checked.',
+  // M10 piece 5 (item 7): a job word that is not a column of the sheet and has no column to offer in its place. `fact` = the job's word, `other` = what the finder saw.
+  'no-column': (d) => `There is no column "${d.fact}" in the sheet. Only a column with numbers can be offered in its place.`,
+  'no-fit': (d) => `There is no column "${d.fact}" in the sheet, and no other column has numbers in at least 90% of its ${d.other} rows.`,
+  'column-tie': (d) => `There is no column "${d.fact}" in the sheet, and two columns fit equally (${d.other}), so none is offered.`,
   'bad-shape': (d) => `The AI named a kind of value for "${d.fact}" that a check cannot read.`,
 });
 
