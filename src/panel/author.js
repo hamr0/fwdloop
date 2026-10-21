@@ -160,7 +160,8 @@ export function createAuthor(opts) {
     const running = childRunning(dir);
     const first = resultOf(dir, 'draft', keys);
     // a first plan that asked questions (green or red) is read by `withRevises` too: it is the ONE function that decides the phase of every plan
-    if (first && (first.phase === 'green' || readQuestions(join(dir, 'draft')).questions.length > 0)) return withRevises(base, dir, first, keys);
+    const firstQs = first && first.phase !== 'green' ? readQuestions(join(dir, 'draft')) : undefined; // read once; withRevises reuses it
+    if (first && (first.phase === 'green' || (firstQs?.questions.length ?? 0) > 0)) return withRevises(base, dir, first, keys, firstQs);
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
     if (running) return { ...base, phase: 'drafting' };
@@ -237,9 +238,9 @@ export function createAuthor(opts) {
    * A red or stopped newest plan means nothing is signable (an older green plan was drafted from a different card), and the card shown is the one
    * last submitted. `phase` is `revising` / `redrafting` only while the newest plan's child runs. A revise uses one of the 2; an answer redraft
    * (marked by `redraft-<n>.json`) uses none. One reader of every such fact: each `card-<n>.json`, its folder and log, its questions and answers.
-   * @param {any} base @param {string} dir @param {any} first the first plan's result (green, or red that asked questions) @param {string[]} keys
+   * @param {any} base @param {string} dir @param {any} first the first plan's result (green, or red that asked questions) @param {string[]} keys @param {ReturnType<typeof readQuestions>} [firstQsRead] the first plan's questions when the caller already read them
    */
-  function withRevises(base, dir, first, keys) {
+  function withRevises(base, dir, first, keys, firstQsRead) {
     const names = readdirInside(dir, '.');
     const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     const redrafts = new Set(ns.filter((n) => readJson(dir, `redraft-${n}.json`) !== null));
@@ -265,14 +266,15 @@ export function createAuthor(opts) {
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
-    const asked = readQuestions(join(dir, 'draft')).questions.length > 0;
+    const firstQs = firstQsRead ?? readQuestions(join(dir, 'draft')); // the first plan's questions, read once per poll
+    const asked = firstQs.questions.length > 0;
     const shared = { ...base, card, revises, revisesLeft, stepList: asked ? stepListOf(dir, 'draft', keys, true) : (first.stepList ?? null) };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
     const res = newest > 0 ? resultOf(dir, rel, keys) : first;
     // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
-    const q = readQuestions(join(dir, rel));
+    const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
     if (q.open.length > 0) {
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
       const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look' } : {}) }));
