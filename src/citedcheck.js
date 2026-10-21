@@ -213,8 +213,9 @@ export function citedBrief(part) {
   const c = isRec(part.count) ? part.count : null;
   const n = (/** @type {number} */ v) => `${v} result${v === 1 ? '' : 's'}`;
   const howMany = c === null ? null : c.min !== undefined && c.max !== undefined ? (c.min === c.max ? `Give exactly ${n(c.min)}.` : `Give ${c.min} to ${c.max} results.`) : c.min !== undefined ? `Give at least ${n(c.min)}.` : `Give at most ${n(c.max)}.`;
+  const money = Array.isArray(part.facts) && part.facts.some((/** @type {any} */ f) => f.shape === 'money');
   return {
-    answer: `Answer with "results": one entry per thing you found, each {"quote": <the words of that one result, copied word for word from the input "${part.source}">, "values": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused.`,
+    answer: `Answer with "results": one entry per thing you found, each {"quote": <the words of that one result, copied word for word from the input "${part.source}">, "values": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused.${money ? ` A money value is only the digits of the amount ("30", not "30 US dollars" and not "$30").` : ''}`,
     eachResultHolds: part.facts.map(factBrief),
     howMany,
   };
@@ -257,7 +258,7 @@ export function plainFactItem(item, part) {
     case 'until-missing': return say(`"${f ? f.until : ''}" does not follow the label "${f ? f.anchor : ''}" in the quote`);
     case 'phrase-missing': return say(`the quote does not say "${detail}"`);
     case 'claim-value-missing': return say('no value was given in "values"');
-    case 'claim-value-malformed': return say('the value is not written as a value of this kind');
+    case 'claim-value-malformed': return say(`the value is not written as a value of this kind${f && f.shape === 'money' ? ' - write only the digits of the amount (for example 30), no unit or sign' : ''}`);
     case 'claim-value-absent': return say('the value is not in the quote as a whole word');
     case 'claim-value-unknown': return say('this value is not one of the signed facts');
     case 'claim-value-mismatch': return say(`the value is not what the quote holds (${detail.replace('!=', ' is not ')})`);
