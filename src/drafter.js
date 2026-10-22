@@ -32,7 +32,7 @@ import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
-import { parseCsv } from './csv.js';
+import { parseCsv, sheetTable } from './csv.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -757,7 +757,7 @@ export async function draft({
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
-      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column') } : undefined,
+      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     lastDecl = declaration;

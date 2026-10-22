@@ -23,6 +23,7 @@ import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration } from './declaration.js';
 import { factRows } from './citedcheck.js';
+import { sheetCheckRows } from './sheetchecks.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
@@ -198,6 +199,8 @@ export function buildReadout({
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${row}`);
+    // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
+    if (Array.isArray(st.close?.sheet)) for (const row of sheetCheckRows(st.close.sheet)) out.push(`     sheet check: ${row}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.

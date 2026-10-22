@@ -39,6 +39,7 @@
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
+import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds } from './sheetchecks.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -68,6 +69,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'shape',
   'cited',
   'columns',
+  'sheet',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -80,7 +82,7 @@ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trig
 
 const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -470,6 +472,31 @@ function checkColumnsKey(step, label, c, reds) {
 }
 
 /**
+ * M10b piece 1: `close.sheet` is the signed bareguard checks of a green step that reads a CSV sheet: a list of bareguard `cells` / `table` check objects
+ * (src/sheetchecks.js), each naming the step's sheet input in `table`. The drafter will offer them (piece 3); fwdloop stores them as data. Its SHAPE is checked in
+ * every mode (a signed flow is read the same way). With `sheetWords.tables` (the drafting copy's table of each sheet, draft time) every column is proved an exact
+ * header of its sheet and bareguard's own sign-time test (`createRubric` over the sheet's `tableSha`) must accept the list; each red names the job line.
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {tables?: Record<string, {header: string[], rows: any[]}>}}} c @param {string[]} reds
+ */
+function checkSheetKey(step, label, c, reds) {
+  const at = `declaration: ${label}.close.sheet`;
+  const list = step.close.sheet;
+  if (step.close.class !== 'green' || c.effectiveClass !== 'green') reds.push(`${at} is for a green step only (its sheet is checked by bareguard); this step's check is "${step.close.class ?? c.effectiveClass}"`);
+  if (!Array.isArray(list) || list.length === 0 || list.length > MAX_SHEET_CHECKS) { reds.push(`${at} must be a list of 1 to ${MAX_SHEET_CHECKS} bareguard checks`); return; }
+  let shapeOk = true;
+  for (const [j, e] of list.entries()) {
+    if (!isPlainObject(e)) { reds.push(`${at}[${j}] must be a check object`); shapeOk = false; continue; }
+    scanForArbiterKeys(e, `${at}[${j}]`, reds);
+    if (!SHEET_RULES.includes(e.rule)) { reds.push(`${at}[${j}].rule must be one of ${SHEET_RULES.join(', ')}`); shapeOk = false; }
+    if (typeof e.table !== 'string' || !c.cellsRoles.includes(e.table)) { reds.push(`${at}[${j}].table ${JSON.stringify(e.table)} is not a signed spreadsheet input`); shapeOk = false; }
+    else if (c.reads !== null && !c.reads.includes(e.table)) { reds.push(`${at}[${j}].table "${e.table}" is not in ${label}.reads - the step must read the sheet its checks come from`); shapeOk = false; }
+  }
+  const tables = c.sheetWords?.tables;
+  if (!shapeOk || !tables || !Number.isInteger(step.fromLine)) return;
+  for (const r of sheetCheckReds(list, step.fromLine, tables)) reds.push(r);
+}
+
+/**
  * Validate a drafter declaration against the M1 closed schema. `arbiter`
  * and `lines` are `parseSignedText`'s output; `catalogue` is a plain array
  * of `{ verb, skill, class }`. Never throws — a bad declaration, a bad
@@ -488,7 +515,8 @@ function checkColumnsKey(step, label, c, reds) {
  * `pageWords.docs` (M10 piece 5): the roles that are documents (.docx / .md / .txt): their words are proved on their text alone, with no page-word map.
  * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
  * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
+ * `sheetWords.tables` (optional; M10b piece 1): `{role: bareguard table}` of the drafting copy. With it, every `close.sheet` check passes bareguard's sign-time test at $0.
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[], tables?: Record<string, {header: string[], rows: any[]}>} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
@@ -768,6 +796,7 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
+        if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
       }
     }

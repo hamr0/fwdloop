@@ -12,6 +12,7 @@
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 import { factRows } from './citedcheck.js';
+import { sheetCheckRows } from './sheetchecks.js';
 import { splitReadNotes, signedFactNames } from './pagedropwords.js';
 
 const list = (xs) => xs.join(', ');
@@ -34,6 +35,9 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
     if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
       // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
       out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited));
+    } else if (cls === 'green' && Array.isArray(st.close.sheet)) {
+      // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
+      out.push('The machine recomputes each of these from the saved sheet and compares it with what the step gave:', ...sheetCheckRows(st.close.sheet));
     } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {

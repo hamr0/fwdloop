@@ -1,0 +1,127 @@
+// M10b piece 1 (docs/wiki/the-module-ladder.md "M10b scope" item 4 and amendment 1): the signed checks of a sheet live in the job, in the step's close
+// (`close.sheet`). Each entry is a bareguard `cells` / `table` check object, kept as DATA exactly as bareguard defines it (src/primitives/rubric.js
+// `rubricVocabulary`); fwdloop has no check language of its own. Three things live here, each once:
+//   - `sheetCheckColumns`  every column name a check holds, wherever bareguard puts one (the code proves each is an exact header of the sheet);
+//   - `sheetCheckReds`     the $0 sign-time test: the checks are built into a bareguard rubric over the drafting copy's table (its `tableSha`), and a
+//                          refusal comes back as a red naming the job line;
+//   - `sheetCheckSentence` the plain words of one check, written from its typed fields, for the plan card and the readout.
+// Throws away: nothing is stored here; the sentence leaves out fields that do not change what the check says (id, claim, range, tolerance, valueKind).
+// Third outcomes, each named, never silently fine: a sheet bareguard cannot read as a table (`tableSha` null: a row with another cell count than the header,
+// a repeated header), a role with no drafting copy, a refusal by `createRubric`.
+
+import { createRubric, tableSha } from 'bareguard';
+
+/** the bareguard rules a sheet check may use (`diff` is out of scope for M10b) */
+export const SHEET_RULES = Object.freeze(['cells', 'table']);
+/** most checks one step may carry */
+export const MAX_SHEET_CHECKS = 20;
+
+const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Every column name one check holds: its own `column`, `keyColumn`, `groupColumn`, `result`, a row-math operand `a` / `b` (a name; `{const}` is no column), the
+ * date cells `from` / `to` / `cell`, and the column of each `where` condition and `dateFormats` entry.
+ * @param {any} check @returns {string[]}
+ */
+export function sheetCheckColumns(check) {
+  if (!isRec(check)) return [];
+  const out = [];
+  for (const k of ['column', 'keyColumn', 'groupColumn', 'result', 'a', 'b']) if (typeof check[k] === 'string') out.push(check[k]);
+  for (const k of ['from', 'to', 'cell']) if (isRec(check[k]) && typeof check[k].column === 'string') out.push(check[k].column);
+  for (const k of ['where', 'dateFormats']) if (Array.isArray(check[k])) for (const e of check[k]) if (isRec(e) && typeof e.column === 'string') out.push(e.column);
+  return out;
+}
+
+const CMP_WORDS = Object.freeze({
+  gt: '>', gte: '>=', lt: '<', lte: '<=', eq: '=', before: 'before', after: 'after', dateOn: 'on', equals: 'is',
+});
+
+/** @param {any} w one `where` condition @returns {string} */
+function conditionWords(w) {
+  if (!isRec(w)) return '?';
+  const col = String(w.column);
+  const v = (/** @type {unknown} */ x) => (typeof x === 'string' ? `"${x}"` : String(x));
+  if (w.cmp === 'between' || w.cmp === 'dateBetween') return `${col} between ${v(w.lo)} and ${v(w.hi)}`;
+  if (w.cmp === 'empty') return `${col} is empty`;
+  if (w.cmp === 'notEmpty') return `${col} is not empty`;
+  const sym = /** @type {Record<string, string>} */ (CMP_WORDS)[w.cmp];
+  return `${col} ${sym ?? String(w.cmp)} ${v(w.value)}`;
+}
+
+/** @param {any} check @returns {string} " where A > 1 and B is empty", or "" */
+const whereWords = (check) => (Array.isArray(check.where) && check.where.length > 0 ? ` where ${check.where.map(conditionWords).join(' and ')}` : '');
+
+/** @param {any} b one band @returns {string} */
+const bandName = (b) => (isRec(b) ? String(b.name) : '?');
+
+/**
+ * The plain words of ONE sheet check, written from its typed fields (never from model text). The ONE function; the plan card, the readout and the Checked
+ * list all call it. An op with no sentence of its own reads `<rule> <op> on <column>` plus its conditions, so a check can never be shown as nothing.
+ * @param {any} check a bareguard cells / table check object @returns {string}
+ */
+export function sheetCheckSentence(check) {
+  if (!isRec(check)) return 'a check that is not readable';
+  const col = typeof check.column === 'string' ? check.column : '';
+  const asOf = typeof check.asOf === 'string' ? ` as of ${check.asOf}` : '';
+  switch (check.op) {
+    case 'rows': return `rows${whereWords(check)}`;
+    case 'countIf': return `count of rows${whereWords(check)}`;
+    case 'count': return `count of ${col}`;
+    case 'sumIf': return `sum of ${col}${whereWords(check)}`;
+    case 'sum': return `sum of ${col}`;
+    case 'averageIf': return `average of ${col}${whereWords(check)}`;
+    case 'average': return `average of ${col}`;
+    case 'band': return `band on ${col}${asOf}: ${(Array.isArray(check.bands) ? check.bands : []).map(bandName).join(', ')}${whereWords(check)}`;
+    case 'daysSince': return `days since ${col || 'a date cell'}${asOf}${whereWords(check)}`;
+    case 'noDuplicates': return `no duplicate ${col}`;
+    case 'noEmpty': return `no empty ${col}`;
+    case 'allNumbers': return `every ${col} is a number`;
+    case 'allDates': return `every ${col} is a date`;
+    case 'rowCount': return `the sheet has ${check.n} rows`;
+    default: return `${check.rule} ${check.op}${col ? ` on ${col}` : ''}${whereWords(check)}`;
+  }
+}
+
+/** The rows for a step's `close.sheet`, one per check, in order. @param {unknown} sheet @returns {string[]} */
+export function sheetCheckRows(sheet) {
+  return Array.isArray(sheet) ? sheet.map(sheetCheckSentence) : [];
+}
+
+/**
+ * The $0 sign-time test of one step's sheet checks (M10b item 4): bareguard's `createRubric` is given the checks and the signed fingerprint of each sheet
+ * they read (`tableSha` of the drafting copy's table). A refusal is a red that names the job line (and the check). A column that is no header of its sheet is
+ * a red naming the line and the column. Never throws.
+ * @param {any[]} checks the step's `close.sheet` (already known to be a list of objects) @param {number} line the job line the step comes from
+ * @param {Record<string, {header: string[], rows: any[]}>} tables the drafting copy's table of each sheet role @returns {string[]} reds, each naming the line
+ */
+export function sheetCheckReds(checks, line, tables) {
+  const reds = [];
+  const at = `declaration: line ${line}:`;
+  /** @type {Map<string, string|null>} */
+  const shas = new Map();
+  for (const c of checks) {
+    if (!isRec(c) || typeof c.table !== 'string' || shas.has(c.table)) continue;
+    const t = tables[c.table];
+    if (!t) { shas.set(c.table, null); reds.push(`${at} the sheet check reads "${c.table}", which has no saved copy to test against`); continue; }
+    shas.set(c.table, tableSha(t));
+    if (shas.get(c.table) === null) reds.push(`${at} bareguard cannot read "${c.table}" as a table (a row with more or fewer cells than the header, or a repeated column name); fix the sheet`);
+  }
+  for (const c of checks) {
+    const t = isRec(c) && typeof c.table === 'string' ? tables[c.table] : undefined;
+    if (!t) continue;
+    for (const name of sheetCheckColumns(c)) {
+      if (!t.header.includes(name)) reds.push(`${at} '${name}' is not a real column of "${c.table}" (its columns: ${t.header.map((h) => `'${h}'`).join(', ')}). Copy a column name exactly.`);
+    }
+  }
+  if (reds.length > 0) return reds;
+  const inputs = [...shas].map(([name, sha256]) => ({ name, sha256 }));
+  try {
+    createRubric({ schema: 1, goal: `line ${line}`, inputs, checkpoints: { sheet: { gating: true, checks } }, maxReds: 3 });
+  } catch (err) {
+    const msg = String(/** @type {any} */ (err).message).replace(/^invalid rubric: /, '');
+    const idx = /checks\[(\d+)\]/.exec(String(/** @type {any} */ (err).path ?? msg));
+    const who = idx && isRec(checks[Number(idx[1])]) && typeof checks[Number(idx[1])].id === 'string' ? ` '${checks[Number(idx[1])].id}'` : '';
+    reds.push(`${at} bareguard refuses the sheet check${who}: ${msg}`);
+  }
+  return reds;
+}
