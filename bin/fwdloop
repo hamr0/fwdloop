@@ -37,7 +37,7 @@ import { resolvePrimitives } from '../src/primitives.js';
 import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
-import { readModelRecord } from '../src/flowmodel.js';
+import { readModelRecord, readRunModel } from '../src/flowmodel.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -168,7 +168,24 @@ function today() {
  * be hit by a user typing `--something`. This is how the test suite drives
  * every CLI scenario at $0 with zero chance of a real network call.
  */
-async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = null) {
+async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = null, continuing = false) {
+  // M4d am33: the ONE decision of which model this run uses. `runModel` is the model the run already has (a continue: the one it started on; a start: the
+  // one it was signed with). `--model` picks any ticked model for a NEW run (the job's recorded model is only the default; model.json is never rewritten);
+  // a run that already has its model keeps it: naming another is refused by name, never silently swapped.
+  const decide = (config) => {
+    const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6 / M4d am33: the model of THIS run, else the one recorded with the job
+    if (runModel !== null && named.model !== undefined && (named.model !== runModel.model || (named.provider !== undefined && named.provider !== runModel.slot))) {
+      throw new Error(continuing
+        ? `This run started on ${runModel.model}; a resume keeps it. Nothing spent.`
+        : `This run was signed with its model (${runModel.slot} · ${runModel.model}); --model cannot change it.`);
+    }
+    if (named.model !== undefined) {
+      const p = pickTicked(config, { model: named.model, provider: named.provider ?? (rec !== null && rec.model === named.model ? rec.slot : undefined) });
+      if (!p.ok) throw new Error(p.say);
+      return p;
+    }
+    return rec;
+  };
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
     const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
     const mod = await import(pathToFileURL(modulePath).href);
@@ -179,36 +196,24 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = 
     // is exercised the way a live run's is); with none, the double holds nothing. It is never refused here: it spends nothing.
     const modelStep = await mod.default({ spendPath });
     let usable = null;
+    let pick = null;
     try {
-      const rec = configDoorHome().skip ? null : (runModel ?? readModelRecord(flowDir));
-      usable = rec === null ? null : resolveUsableModel(rec.slot, { config: readPriceConfig(), model: rec.model });
+      pick = configDoorHome().skip ? null : decide(readPriceConfig());
+      usable = pick === null ? null : resolveUsableModel(pick.slot, { config: readPriceConfig(), model: pick.model });
     } catch (err) {
       if (!(err instanceof ConfigError)) throw err; // a broken config is refused by name at the monthly hold, right after this
     }
-    return { modelStep, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
+    return { modelStep, model: pick === null ? null : { slot: pick.slot, model: pick.model }, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
   }
   // A test process with no config home reads no Settings: say why, not "tick a model".
   if (configDoorHome().skip) throw new Error(NO_CONFIG_HOME_REFUSAL);
-  // The ONE decision of which model runs and at what price (M4d amendments 5 and 6): the model recorded with the job (a job drafted before the record
-  // existed takes `--model`), refused by name, at $0, before a run dir or a book row exists. The per-round hold is that model's own Settings price times the token bounds.
+  // The per-round hold is that model's own Settings price times the token bounds; a refusal comes before a run dir or a book row exists.
   let usable;
   let slot;
   try {
     const config = readPriceConfig();
-    const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6: the model signed for THIS run, else the one recorded with the job
-    // M4d am33: the job's recorded model is only the DEFAULT pick. `--model` picks any ticked model for this run (the run's audit rows record the one
-    // used; model.json is never rewritten). A run already signed with its own model keeps it: naming another is refused, never silently swapped.
-    if (runModel !== null && named.model !== undefined && (named.model !== runModel.model || (named.provider !== undefined && named.provider !== runModel.slot))) {
-      throw new Error(`This run was signed with its model (${runModel.slot} · ${runModel.model}); --model cannot change it.`);
-    }
-    let pick = rec;
-    if (named.model !== undefined) {
-      const p = pickTicked(config, { model: named.model, provider: named.provider ?? (rec !== null && rec.model === named.model ? rec.slot : undefined) });
-      if (!p.ok) throw new Error(p.say);
-      pick = p;
-    } else if (pick === null) {
-      throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
-    }
+    const pick = decide(config);
+    if (pick === null) throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
     slot = pick.slot;
     const keyCheck = checkKeyPreflight(slot, env);
     if (!keyCheck.ok) throw new Error(keyCheck.message);
@@ -220,8 +225,14 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = 
   if (!usable.ok) throw new Error(usable.say);
   return {
     modelStep: makeLiveModelStep({ slot, model: usable.model, spendPath, env }),
+    model: { slot, model: usable.model },
     ceilingUsd: ceilingCostUsd(usable.rates),
   };
+}
+
+/** M4d am33: the model a run being continued keeps: the one it started on (its record), else the one it was signed with; null = an old run, today's pick. */
+function runModelKept(runDir) {
+  return readRunModel(runDir) ?? runModelOf(pickRunValues(runDir));
 }
 
 function parseSourceFlags(list) {
@@ -386,8 +397,9 @@ async function cmdRun(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   let ceilingUsd;
+  let startedModel;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd, model: startedModel } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
   } catch (err) {
     fail(err.message);
     return;
@@ -416,6 +428,7 @@ async function cmdRun(rest) {
     root,
     name: flowName,
     runId,
+    runModel: startedModel ?? undefined,
     sources,
     catalogue,
     modelStep,
@@ -644,7 +657,7 @@ async function cmdResume(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelKept(runDir), true));
   } catch (err) {
     fail(err.message);
     return;
@@ -686,6 +699,7 @@ async function cmdResume(rest) {
     root,
     name: flowName,
     runId,
+    runModel: runModelKept(runDir) ?? undefined,   // a rerun (a new run made by this resume) records the model the resumed run keeps
     catalogue,
     modelStep,
     ceilingUsd,
@@ -745,7 +759,7 @@ async function cmdContinue(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelKept(runDir), true));
   } catch (err) {
     fail(err.message);
     return;

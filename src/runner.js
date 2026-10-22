@@ -69,7 +69,7 @@ import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel } from './flowmodel.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -1052,6 +1052,8 @@ export async function runStepRalph({
  */
 export async function runFlow({
   root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap, fetchPage,
+  // M4d am33: the model this run STARTED on ({ slot, model }); recorded once beside the run, kept by every resume/continue. Absent = nothing recorded.
+  runModel,
   // F45 finding 3's test needs to advance wall time across a park/resume
   // boundary without a real wait, exactly like `clock` already does for ISO
   // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
@@ -1158,6 +1160,7 @@ export async function runFlow({
 
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
   writeRunThinking(flowDir, runDir);
+  if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
 
   const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage });
   if (!frozen.ok) {
@@ -1959,6 +1962,7 @@ function sameRoot(recorded, requested) {
  */
 export async function resumeRun({
   root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
+  runModel, // M4d am33: the model the resumed run keeps; a rerun (a new run) records it too
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
@@ -2301,6 +2305,7 @@ export async function resumeRun({
         clock,
         businessDate,
         ceilingUsd,
+        runModel,
         // Item 7: the reason becomes the new run's FIRST step's starting gap.
         initialGap: reason,
       });

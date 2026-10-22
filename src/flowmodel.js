@@ -65,3 +65,24 @@ export function readRunThinking(runDir) {
 export function writeRunThinking(flowDir, runDir) {
   writeOnce(join(runDir, RUN_THINKING_FILE), { thinking: readModelRecord(flowDir)?.thinking === true });
 }
+
+/** M4d am33: the file in a run's folder that records the model the run STARTED on (write-once; every continue path keeps it). */
+export const RUN_MODEL_FILE = 'run-model.json';
+
+/**
+ * M4d am33: the ONE reader of the model a run started on, or null (a run from before the record, or an unusable one: the caller then keeps today's pick).
+ * @param {string|null} runDir @returns {{ slot: string, model: string }|null}
+ */
+export function readRunModel(runDir) {
+  const r = typeof runDir === 'string' ? readFileInside(runDir, RUN_MODEL_FILE) : null;
+  if (!r?.ok) return null;
+  try {
+    const j = JSON.parse(r.text);
+    return isKeyName(j?.slot) && typeof j?.model === 'string' && j.model !== '' ? { slot: j.slot, model: j.model } : null;
+  } catch { return null; }
+}
+
+/** M4d am33: the ONE writer, called once when a fresh run starts (`runFlow`); never over an existing record. @param {string} runDir @param {{ slot: string, model: string }} pick */
+export function writeRunModel(runDir, { slot, model }) {
+  writeOnce(join(runDir, RUN_MODEL_FILE), { slot, model });
+}
