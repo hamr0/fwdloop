@@ -3339,3 +3339,22 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 **Cost of leaving it.** One of the two route ends is unchecked on any job whose destination is written as a city the results never print; the human sees it only by reading the Not checked list at sign time.
 
 **Where a clean fix may live (not built, none asked).** bareloop's R2 ("place grows to role word", signed in our M10 am7), or the drafter offering the arrival phrase when the city is dropped. Either needs bareloop's view first.
+
+## F76 — POC (M10b item 0): does deepseek-flash, given bareguard 0.26.0's `rubricVocabulary`, draft the right sheet checks for the expenses and aging jobs? (pre-registered 2026-10-22, before any call)
+
+**Status.** Pre-registered, not run. Tags: **[SIGNED]** M10b item 0 (hamr 2026-10-22, "sign m10b"). Cap: M10b's $0.50; this POC expects about $0.02.
+
+**Part A — $0 replay.** bareguard 0.26.0 installed from npm into a scratch folder (fwdloop's `package.json` is not touched until M10b item 1). The two real frozen sheets, read in place: `flows/m10-walk-csv/runs/run-1/inputs/expenses.csv` (40 rows) and `flows/aging-live-4/runs/run-1/inputs/aging.csv` (8 rows). Each check gets an honest claim (computed in plain JS, separately) and a wrong one.
+- Checks: expenses `rows`, `countIf`, `sumIf` with `Amount > 500`; aging `daysSince` per row and `band` as of 2026-10-11 on `Due date`, `noDuplicates` on `Invoice #`, `rows` over the whole table. Plus: the sheet changed by one cell after signing; a claim of 18 rows instead of 17.
+- **Pass:** every honest claim green; every wrong claim red with a reason naming it; the changed sheet stopped; 18 rows red. Any other result fails Part A.
+
+**Part B — paid drafts.** 3 drafts per job on deepseek-flash (thinking off, one forced tool call each; 6 calls). Each call sees the signed job text (`flows/m10-walk-csv-3/signed/prose.txt`, which carries the agreed `use the column 'Amount' for 'Price'`; `flows/aging-live-4/signed/prose.txt`), the sheet's header row and its first 3 data rows, and bareguard's cells/table op list with each op's worked example. It answers with a list of checks in bareguard's signed-check shape. A POC script, not fwdloop code.
+- **A draft passes when all three hold:**
+  1. bareguard's `createRubric` accepts every check it wrote;
+  2. every column it names is a real header, exactly as the sheet spells it;
+  3. it has the checks the job's guardrail needs:
+     - expenses: `rows` on `Amount` with greater-than 500 (a `countIf` / `sumIf` with the same condition may be added, not required);
+     - aging: a `band` on `Due date` as of 2026-10-11 with the 5 names exactly `Current`, `1-30`, `31-60`, `61-90`, `90+`, whose bounds match those names (Current is 0 days or less; 90+ is over 90), and "every invoice appears exactly once" as `noDuplicates` on `Invoice #` (a `rows` over the whole table may be added).
+- **Pass mark:** at least 2 of 3 drafts pass, for each job. Each draft's raw answer, its cost, and which of 1-3 failed are recorded.
+
+**Result rule.** Parts A and B both pass → M10b items 1-8 may be built. Either fails → no build; the result and what it shows are written here, and the next step goes to hamr.
