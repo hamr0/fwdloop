@@ -60,7 +60,7 @@ import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
 import { readRunSource } from './cited-source.js';
 import { citedLineOf, writeCitedLine } from './cited-record.js';
-import { sheetRolesOf, tableShaOfFile, readRunSheets } from './sheetrun.js';
+import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
@@ -442,7 +442,7 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
       id, source: sourcePath, frozen: frozenPath, sha256, bytes,
     };
     if (tableRoles.includes(id)) {
-      const tsha = isCellsPath(frozenPath) ? tableShaOfFile(frozenPath) : null;
+      const tsha = isCellsPath(frozenPath) ? tableShaOfFrozen(runDir, basename(frozenPath)) : null;
       if (tsha === null) return { ok: false, red: `freeze: input "${id}" cannot be read as a table (a row with more or fewer cells than the header, or a repeated column name); fix the sheet` };
       entry.tableSha = tsha;
     }

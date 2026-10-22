@@ -379,6 +379,10 @@ const ALLOWLIST = {
     reason: "M10 piece 4: the ONE writer of `<run>/cited-checks.json` (temp file + rename: a reader sees the old file or the new one). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
     names: { renameSync: 1, writeFileSync: 1 },
   },
+  'src/sheet-record.js': {
+    reason: "M10b piece 2: the ONE writer of `<run>/sheet-checks.json` (temp file + rename: a reader sees the old file or the new one), append-only by (line, try). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
+    names: { renameSync: 1, writeFileSync: 1 },
+  },
   'src/jsonl-append.js': {
     reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
     names: {

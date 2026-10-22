@@ -5,7 +5,6 @@
 // Third outcomes, each named, never green: a sheet the run recorded no fingerprint for, a frozen copy that is missing, a table that no longer gives the recorded
 // `tableSha` (bareguard stops the check; the red names the input), any other stopped check.
 // Throws away: bareguard's `full` (expected values, evidence) is not kept - the red keeps the gaps, which name rows and counts and never a cell's text.
-import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createRubric, checkStep, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
@@ -24,9 +23,14 @@ export function sheetRolesOf(steps) {
   return roles;
 }
 
-/** bareguard's `tableSha` of a CSV file's table (src/csv.js `sheetTable`), or null when bareguard cannot read it as a table (a ragged row, a repeated header). @param {string} file @returns {string|null} */
-export function tableShaOfFile(file) {
-  return tableSha(sheetTable(parseCsv(readFileSync(file, 'utf8'))));
+/**
+ * bareguard's `tableSha` of the run's frozen CSV `<runDir>/inputs/<name>` (its table from src/csv.js `sheetTable`), read through the one safe gateway; null when the copy
+ * cannot be read or bareguard cannot read it as a table (a ragged row, a repeated header).
+ * @param {string} runDir @param {string} name the frozen file's name @returns {string|null}
+ */
+export function tableShaOfFrozen(runDir, name) {
+  const file = readFileInside(runDir, `inputs/${name}`);
+  return file.ok ? tableSha(sheetTable(parseCsv(file.text))) : null;
 }
 
 const SHA_RE = /^[0-9a-f]{64}$/;
