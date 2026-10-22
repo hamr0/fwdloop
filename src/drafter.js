@@ -33,6 +33,7 @@ import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
+import { sheetChecksProp, sheetOfferRules, takeCovers, uncoveredRules } from './sheetoffer.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -124,8 +125,13 @@ const SHAPE_PROPS = Object.freeze({
   mustCarry: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'named fields every line must carry' },
 });
 
-/** The forced tool's parameter schema. `menu` = wiredMenu(). */
-export function buildDeclarationSchema(menu) {
+/**
+ * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
+ * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
+ * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>}} [o]
+ */
+export function buildDeclarationSchema(menu, { sheets } = {}) {
+  const sheetProp = sheets ? sheetChecksProp(sheets) : null;
   const shapeProps = {};
   for (const key of SHAPE_KEYS) {
     if (!SHAPE_PROPS[key]) throw new Error(`schema: SHAPE_KEYS gained "${key}" — add its type to SHAPE_PROPS`);
@@ -165,6 +171,7 @@ export function buildDeclarationSchema(menu) {
                 },
                 cited: CITED_PROP,
                 columns: COLUMNS_PROP,
+                ...(sheetProp ? { sheet: sheetProp } : {}),
               },
               required: ['class'],
               additionalProperties: false,
@@ -231,8 +238,9 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-export function buildRoundSchema(menu, { questions = false } = {}) {
-  const s = buildDeclarationSchema(menu);
+/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined}} [o] */
+export function buildRoundSchema(menu, { questions = false, sheets = undefined } = {}) {
+  const s = buildDeclarationSchema(menu, { sheets });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
   if (questions) {
     extra.questions = {
@@ -309,6 +317,7 @@ function greenReadRule(sources) {
   const out = [csvRoles.length
     ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
     : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+  if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   if (pageRoles.length || docRoles.length) {
     out.push(
       `- ${[pageRoles.length ? `Web page inputs in this job: ${pageRoles.join(', ')}.` : '', docRoles.length ? `Document inputs in this job: ${docRoles.join(', ')}.` : ''].filter(Boolean).join(' ')} A step whose line asks for things found in one of them, and whose guardrail is about them, is "green" and checks quotes: it lists that input's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
@@ -337,6 +346,14 @@ const WHEN_TO_USE = Object.freeze({
 function whenToUse(menu) {
   const on = new Set(menu.map((e) => e.verb));
   return Object.entries(WHEN_TO_USE).filter(([verb]) => on.has(verb)).map(([, line]) => line);
+}
+
+/** M10b piece 3: with a CSV input, the guardrail rules of each line by number (the numbers `covers` names), in the order the validator counts them. Otherwise nothing. */
+function sheetRuleNumbers(lines, arbiter) {
+  const csvRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path));
+  if (csvRoles.length === 0) return [];
+  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}) })).filter((x) => x.rules.length > 0);
+  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((r, i) => `${i + 1}) ${r}`).join(' ')}`)];
 }
 
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
@@ -368,6 +385,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '',
     'The numbered job lines:',
     jobLinesText(lines, arbiter.asks),
+    ...sheetRuleNumbers(lines, arbiter),
   ].join('\n');
 }
 
@@ -638,6 +656,8 @@ export async function draft({
   const factsInfo = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
+  const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
   const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   let structureRetries = 0;
@@ -664,7 +684,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen });
+    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -739,7 +759,7 @@ export async function draft({
     // offered; sent when not offered it stays, and the validator reds it as an unknown key (a stray key, never a silent pass).
     const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
     /** @type {Record<string, any>} */
-    const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
+    let declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
@@ -754,15 +774,19 @@ export async function draft({
         return { ...st, close: { ...st.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
       });
     }
-    const verdict = validateDeclaration(declaration, {
+    // M10b piece 3: `covers` (which ~ rules a check verifies) is read and stripped; it decides what shows under Not checked and is never signed
+    const taken = takeCovers(declaration, jobLines);
+    declaration = taken.declaration;
+    const verdict0 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
-      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) } : undefined,
+      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
+    const verdict = taken.reds.length ? { ok: false, reds: [...('reds' in verdict0 ? verdict0.reds : []), ...taken.reds] } : verdict0;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...pageNotChecked, ...cleanNotChecked(rawNotChecked).filter((x) => !pageNotChecked.includes(x))] };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, taken.covers, jobLines, Object.keys(facts.sheets ?? {}))])] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';
