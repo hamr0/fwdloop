@@ -2650,6 +2650,7 @@ same run. Scope is stated when its turn comes.
      A failed check shows `✗` and its reason.
   3. The rows come from the run's own check record, from that step's newest try. Code writes them, never the AI.
 - **M10 amendment 10 — SIGNED by hamr 2026-10-21 ("sign m10 am10").** A step whose check cites cells is told the cite forms the checker accepts: one cell (`<input>!C3`), a field above it (`#name`), or `sum`, `count`, `min`, `max`, `sub`, `daysBetween` over those. The same forms are named in the red when a cite doesn't match. It is told nothing else about its check. This is the second exception to "the step never sees its close", after the page-quoting step.
+- **M10 amendment 11 — SIGNED by hamr 2026-10-22 ("sign m10 am11").** The Checked list shows each check on its own line, like bareloop's plan card. Code's notes about written forms it did not use move out of "Not checked" into their own list, "How the page was read", copied from bareloop `2d22c0f`. An S1 note ("would read the same value as") moves there too only if hamr rules so in bareloop, copied from their commit.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
