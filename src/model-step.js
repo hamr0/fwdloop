@@ -32,6 +32,7 @@ import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
 import { citedBrief } from './citedcheck.js';
 import { citeForms } from './closers.js';
+import { sheetAnswerProps, sheetBrief } from './sheetclaims.js';
 
 import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
@@ -159,7 +160,13 @@ const CITED_SCHEMA = Object.freeze({
  * only (plus, for a green step that quotes a saved page, the form of its answer).
  * `stepClass` is `'green' | 'softgreen' | 'hitl' | null | undefined`; `cited` is true for that green step.
  */
-export function buildEmitArtifactSchema(stepClass, cited = false) {
+/** @param {string|null|undefined} stepClass @param {boolean} [cited] @param {any[]|null} [sheet] M10b piece 2: the step's `close.sheet` (its claim boxes become the answer) */
+export function buildEmitArtifactSchema(stepClass, cited = false, sheet = null) {
+  if (stepClass === 'green' && Array.isArray(sheet)) {
+    // M10b piece 2: a step that reads a sheet answers in one typed box per claim (bareguard's shapes), never a cite
+    const { properties, required } = sheetAnswerProps(sheet);
+    return { type: 'object', properties: { ...properties, ...DONE_PROPS }, required: [...required, 'done'], additionalProperties: false };
+  }
   if (stepClass === 'green' && cited) return CITED_SCHEMA;
   if (stepClass === 'green') return GREEN_SCHEMA;
   if (stepClass === 'softgreen') return SOFTGREEN_SCHEMA;
@@ -311,7 +318,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, cited?:any, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, cited?:any, sheet?:any[]|null, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
@@ -352,7 +359,7 @@ export function makeLiveModelStep({
     const runDir = dirname(spendPath);
     const diaryStep = stepMeta.step ?? null;
     const diaryTry = typeof stepMeta.attempt === 'number' ? stepMeta.attempt : null;
-    const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));
+    const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited), stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? stepMeta.sheet : null);
     const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '
       + 'Call emit_artifact exactly once with this step\'s result. Ground every value in the '
@@ -363,6 +370,8 @@ export function makeLiveModelStep({
       gap: executorContext.gap,
       // M10 am7 item 3: a step that quotes a saved page is told the form of its answer and what each result must hold
       ...(stepMeta.class === 'green' && stepMeta.cited ? { quoting: citedBrief(stepMeta.cited) } : {}),
+      // M10b piece 2: a step that reads a sheet is told the shape of each claim box (bareguard's worked example), never the check
+      ...(stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? { answering: sheetBrief(stepMeta.sheet) } : {}),
     });
     const messages = [
       { role: 'system', content: systemPrompt },
