@@ -45,9 +45,11 @@ test('sheetTable: cells in header order, header exactly as in the file', () => {
   assert.deepEqual(t.rows, [{ rowNumber: 2, cells: ['INV-1', '2026-01-15', '1,000.00'] }]);
 });
 
-test('a ragged row: short is padded with empty cells, long loses the cells past the header', () => {
+test('a ragged row reaches bareguard raw: short and long rows are not padded or cut, so tableSha refuses the table', () => {
   const t = sheetTable(parseCsv('A,B,C\n1\n1,2,3,4,5\n'));
-  assert.deepEqual(t.rows, [{ rowNumber: 2, cells: ['1', '', ''] }, { rowNumber: 3, cells: ['1', '2', '3'] }]);
+  assert.deepEqual(t.rows, [{ rowNumber: 2, cells: ['1'] }, { rowNumber: 3, cells: ['1', '2', '3', '4', '5'] }]);
+  assert.equal(tableSha(t), null);
+  assert.equal(typeof tableSha(sheetTable(parseCsv('A,B,C\n1,2,3\n'))), 'string');
 });
 
 test('a trailing all-blank row (commas only) is a row of empty cells; a trailing empty line is not a row', () => {

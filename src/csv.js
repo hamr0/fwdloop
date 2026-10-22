@@ -76,7 +76,7 @@ function records(text) {
 
 /**
  * Parse CSV text into { header, rows } (RFC 4180 quoting, see `records`).
- * `rows[i]` is `{ rowNumber, cells: { A: '...', B: '...' }, byName: { Customer: '...' } }`
+ * `rows[i]` is `{ rowNumber, cells: { A: '...', B: '...' }, byName: { Customer: '...' }, raw: ['...', '...'] }` (`raw` is the row's cells exactly as the file has them: no padding, nothing cut)
  * where `rowNumber` is the real sheet line the row starts on (header is row 1; a blank line is skipped but still counted, so it never shifts the rows below).
  */
 export function parseCsv(text) {
@@ -94,20 +94,21 @@ export function parseCsv(text) {
       cells[letter] = val;
       byName[name] = val;
     });
-    rows.push({ rowNumber: recs[i].line, cells, byName });
+    rows.push({ rowNumber: recs[i].line, cells, byName, raw: [...fields] });
   }
   return { header, rows };
 }
 
 /**
- * A parsed sheet as bareguard's table shape: `{ header: string[], rows: [{ rowNumber, cells: string[] }] }`. Cells are in header order (a short row is
- * padded with '', a cell past the header is left out), header strings exactly as the file has them. The one writer of this shape (M10b item 2).
- * @param {{header: string[], rows: {rowNumber: number, cells: Record<string, string>}[]}} sheet from `parseCsv`
+ * A parsed sheet as bareguard's table shape: `{ header: string[], rows: [{ rowNumber, cells: string[] }] }`. Each row's cells are the row exactly as the file
+ * has it (`raw`): a short or a long row is NOT padded or cut here, so bareguard itself stops it (`tableSha` gives null for a ragged row, and the table is
+ * refused). The header strings are exactly as the file has them. The one writer of this shape (M10b item 2).
+ * @param {{header: string[], rows: {rowNumber: number, raw: string[]}[]}} sheet from `parseCsv`
  * @returns {{header: string[], rows: {rowNumber: number, cells: string[]}[]}}
  */
 export function sheetTable(sheet) {
   return {
     header: [...sheet.header],
-    rows: sheet.rows.map((r) => ({ rowNumber: r.rowNumber, cells: sheet.header.map((_, col) => r.cells[colLetter(col)]) })),
+    rows: sheet.rows.map((r) => ({ rowNumber: r.rowNumber, cells: [...r.raw] })),
   };
 }
