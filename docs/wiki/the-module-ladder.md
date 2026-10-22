@@ -1525,6 +1525,8 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 
 **M4d amendment 33 — SIGNED by hamr 2026-10-22 ("sign m4d am33").** A signed job can run on any model ticked in Settings. The run picks the model, and the run records which one it used. A job's recorded model is only the default pick. The signed files, the plan and the cap don't change.
 
+- *Built after signing — not signed text:* `fwdloop run --model <id>` (with `--provider` only when two keys tick the same id) picks any model ticked in Settings with both prices for that new run; the job's recorded `model.json` is only the default and is never rewritten. The run records its pick once in its own folder (`run-model.json`, written once by `writeRunModel`), and `resume` / `continue` keep it: naming another model on a resume is refused by name, at $0. A rerun made by a resume records the model the resumed run keeps. A run with no `run-model.json` (made before this) falls back to the model signed with it, else today's pick.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
