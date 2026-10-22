@@ -1,0 +1,13 @@
+expenses: 40 data rows, 17 over 500, sum 12719.59; aging: 8 rows, days {"2":124,"3":144,"4":152,"5":180,"6":119,"7":194,"8":244,"9":109}
+honest whole-rubric verdict: expenses=green aging=green
+ex-rows      honest=green    wrong=red      gap=rows-missing[38]
+ex-countIf   honest=green    wrong=red      gap=value-mismatch
+ex-sumIf     honest=green    wrong=red      gap=value-mismatch
+ag-days      honest=green    wrong=red      gap=days-mismatch[2]
+ag-band      honest=green    wrong=red      gap=band-mismatch[2]
+ag-rows      honest=green    wrong=red      gap=rows-missing[9]
+ag-nodup     honest=green    wrong=red      gap=duplicate-values[2,3]
+changed-cell  verdict=stopped fault=missing-measurement detail=table expenses does not match its signed sha256
+18-not-17      verdict=red gap=value-mismatch
+(no failures)
+PART A: PASS
