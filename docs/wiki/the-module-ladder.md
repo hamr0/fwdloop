@@ -1523,6 +1523,8 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 2. So when a draft shows done, a new Draft or Start over is never refused with "held by a run in progress".
 - **Must fail when:** a draft reads done but its hold is still there; a Draft posted right after one finishes is refused.
 
+**M4d amendment 33 — SIGNED by hamr 2026-10-22 ("sign m4d am33").** A signed job can run on any model ticked in Settings. The run picks the model, and the run records which one it used. A job's recorded model is only the default pick. The signed files, the plan and the cap don't change.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
@@ -2651,6 +2653,7 @@ same run. Scope is stated when its turn comes.
   3. The rows come from the run's own check record, from that step's newest try. Code writes them, never the AI.
 - **M10 amendment 10 — SIGNED by hamr 2026-10-21 ("sign m10 am10").** A step whose check cites cells is told the cite forms the checker accepts: one cell (`<input>!C3`), a field above it (`#name`), or `sum`, `count`, `min`, `max`, `sub`, `daysBetween` over those. The same forms are named in the red when a cite doesn't match. It is told nothing else about its check. This is the second exception to "the step never sees its close", after the page-quoting step.
 - **M10 amendment 11 — SIGNED by hamr 2026-10-22 ("sign m10 am11").** The Checked list shows each check on its own line, like bareloop's plan card. Code's notes about written forms it did not use move out of "Not checked" into their own list, "How the page was read", copied from bareloop `2d22c0f`. An S1 note ("would read the same value as") moves there too only if hamr rules so in bareloop, copied from their commit.
+- **M10 amendment 12 — SIGNED by hamr 2026-10-22 ("sign m10 am12").** "The CSV case asks once and runs green" is split. The ask part stays: the CSV case asks once, and the answer is in all 3 places. The "runs green" part waits for bareguard's computed-over-cells check, and comes back as its own scope when bareguard delivers. The reason is written in FINDINGS.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
