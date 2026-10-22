@@ -1041,6 +1041,7 @@ export async function runStepRalph({
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1957,6 +1958,7 @@ function sameRoot(recorded, requested) {
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  * @param {(newRunDir:string) => void} [opts.onRerunStart] - amendment 16 C2: called with the new run's folder just before a `rerun` starts it.
  */
