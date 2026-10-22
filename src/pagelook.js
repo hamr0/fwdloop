@@ -8,7 +8,7 @@
 
 import { mapPrompt, parseMapAnswer, MAP_UNREADABLE } from './pagemap.js';
 import { applyPageRules } from './pagerules.js';
-import { dryReadMoney } from './pagedry.js';
+import { dryReadMoney, dryReadPhrases } from './pagedry.js';
 import { dropRows, dropLine } from './pagedropwords.js';
 import { lineRules, squash } from './pagebits.js';
 import { placePhrases } from './pageplace.js';
@@ -116,7 +116,9 @@ export async function lookAtPage({
       const words = applyPageWords(text, mapping, jobLines);
       // F241 "can it read": a money fact whose forms read no result line, by the run's own checker (src/pagedry.js), is Not checked, never signed
       const read = await dryReadMoney(text, words.facts);
-      const kept = { facts: read.facts, dropped: [...words.dropped, ...read.dropped] };
+      // a phrase fact is read against the same result lines (only when the job keeps a money fact; bareloop c550dc8)
+      const phr = await dryReadPhrases(text, read.facts);
+      const kept = { facts: phr.facts, dropped: [...words.dropped, ...read.dropped, ...phr.dropped] };
       const dropped = kept.dropped.map((d) => ({ ...d, source: label }));
       return {
         ok: true, look: { facts: kept.facts.map((f) => lookFactOf(f, label)), dropped }, notChecked: notCheckedLines(kept.dropped, jobLines), mapping, attempts,
