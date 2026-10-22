@@ -396,7 +396,6 @@
   .filterbar .chips{gap:4px;margin-bottom:4px;}
   .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
   .chip.fchip::before,.chip.fchip::after{content:"";}
-  /* M11 am20 item 4: the ◷ glyph is drawn smaller than ✓ and ✗ at the same font-size (a fallback font); this chip alone is scaled up to match. */
   .row-blocked{background:var(--red-bg);}
 
   /* hamr review #5/#6: Audit tab grouped-by-step sections. */
@@ -492,6 +491,23 @@
   .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
   .job-card h4::before{content:"┤ ";color:var(--text-faint);}
   .job-card h4::after{content:" ├";color:var(--text-faint);}
+  /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules are below, am5 item 2) */
+  .st-word{font-weight:700;color:var(--text);}
+  .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
+  /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
+  #result-body{min-width:0;overflow-wrap:anywhere;}
+  .rs-ok{color:var(--green);font-weight:700;}
+  .rs-bad{color:var(--red);font-weight:700;}
+  #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
+  #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
+  .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
+  /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
+  #result-door-card{border-color:var(--amber);}
+  #result-door-card .st-word{color:var(--amber);}
+  #result-door-card textarea{width:100%;min-height:60px;margin:6px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;padding:6px;box-sizing:border-box;}
+  #result-door-card .stopping{color:var(--amber);font-size:13px;overflow-wrap:anywhere;}
+  /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
+  #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
   label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
   /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
@@ -623,6 +639,8 @@
   .jf-inrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px;margin-bottom:4px;align-items:start;}
   .jf-inrow .btn.small{height:32px;padding:0 8px;}
   .jf-inrow .jf-role-ro{padding:5px 7px;min-height:32px;overflow-wrap:anywhere;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
+  .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
@@ -973,7 +991,7 @@
                   <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
                 </div>
-                <div class="hint">One line per file: a name, a colon, its full path starting with /. The page never reads the file.</div>
+                <div class="hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
                 <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
               </div>
               <div class="field">
@@ -1194,6 +1212,7 @@
         <button role="tab" id="tab-audit" aria-controls="panel-audit" aria-selected="false" data-testid="right-tab-audit">Audit / logs</button>
         <button role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" data-testid="right-tab-details">Job</button>
         <button role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="false" data-testid="right-tab-ask">Ask</button>
+        <button role="tab" id="tab-result" aria-controls="panel-result" aria-selected="false" data-testid="right-tab-result" hidden>Result</button>
       </div>
 
       <div class="pane-body" id="right-pane-body">
@@ -1315,6 +1334,11 @@
           <div id="ask-list" data-testid="ask-list" hidden></div>
         </section>
 
+        <section id="panel-result" class="tabpanel" role="tabpanel" aria-labelledby="tab-result" hidden data-testid="panel-result">
+          <div id="result-empty" class="hint" style="font-size:13px;padding:24px 0;">select a run first</div>
+          <div id="result-body" data-testid="result-body" hidden></div>
+        </section>
+
       </div>
     </section>
 
@@ -1347,7 +1371,7 @@
     });
   }
   wireTabs([document.getElementById("tab-chat"), document.getElementById("tab-runs"), document.getElementById("tab-inbox")]);
-  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask")]);
+  wireTabs([document.getElementById("tab-run"), document.getElementById("tab-audit"), document.getElementById("tab-details"), document.getElementById("tab-ask"), document.getElementById("tab-result")]);
 
   // ---- fetch helpers. Reads are GET. The ONLY non-GET requests on this page are
   // the two POSTs below (M4b): /api/answer (a human clicking a door) and
@@ -2301,7 +2325,6 @@
     if(!ok || !sc || !ink(sc)) return;
     sc.style.fontSize = (parseFloat(getComputedStyle(ok).fontSize) * ink(ok) / ink(sc)) + "px";
   }
-  window.fwdloopFitChips = fitChips;
   fitChips();
 
   function runsFilterFn(items, filters, nowMs){
@@ -2343,6 +2366,212 @@
 
   function clearSelection(selector){
     document.querySelectorAll(".inbox-row").forEach(function(r){ r.classList.remove("selected"); r.setAttribute("aria-pressed","false"); });
+  }
+
+  // borrowed-from: bareloop src/panel/index.html@2959217 :2839 (stateDotHTML)
+  function stateDotHTML(cls, word, testid){
+    return '<span class="step-state" data-testid="' + testid + '"><span class="dot ' + cls + (cls === "amber" ? " pulse" : "") + '"></span><b class="st-word">' + escapeXml(word) + '</b></span>';
+  }
+  // ---- Result tab (M10 am4: a copy of bareloop's, PRD v1.107 Part 6) ----
+  // borrowed-from: bareloop src/panel/index.html@2959217 :3646-3833, adjusted to fwdloop's shape: the run is (flow, runId); the status word is `detail.word`;
+  // the run name is `<flow> (<runId>)`; no Your-call card or pointer here (item 5 waits).
+  // The server decides everything: `detail.hasResult` shows the tab, `/result` carries the signed lines, the facts' own sentences
+  // (src/facts.js factSentence), the rows of the delivered file (sha256-checked against the run's own record) and `passed` (read from the
+  // run's own check-run). The page only draws; it never decides a check and never searches a quote for a word.
+  var resultDetail = null;
+  var resultData = null;
+  function resultTabShown(){ return document.getElementById("tab-result").getAttribute("aria-selected") === "true"; }
+  function clearResult(){
+    resultDetail = null; resultData = null;
+    document.getElementById("result-body").hidden = true;
+    document.getElementById("result-body").innerHTML = "";
+    document.getElementById("result-empty").hidden = false;
+  }
+  // called by renderRun for every detail it draws: shows or removes the tab button
+  function syncResultTab(detail){
+    var btn = document.getElementById("tab-result");
+    var show = detail.hasResult === true;
+    if(!show && resultTabShown()) document.getElementById("tab-run").click();
+    btn.hidden = !show;
+    var same = !!resultData && resultData.flow === detail.flow && resultData.runId === detail.runId;
+    if(!show || !same) clearResult();   // another run's rows never stay on screen
+    resultDetail = show ? detail : null;
+    if(show && same) renderResult();
+  }
+  function loadResult(flow, runId){
+    return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/result").then(function(data){
+      if(currentFlow !== flow || currentRunId !== runId || !resultDetail || resultDetail.flow !== data.flow || resultDetail.runId !== data.runId) return;
+      resultData = data;
+      renderResult();
+    }).catch(function(){ /* the tab keeps what it last drew */ });
+  }
+  document.getElementById("tab-result").addEventListener("click", function(){ if(currentRunId !== null) loadResult(currentFlow, currentRunId); });
+
+  // a RED run's own file words (the last file its check judged: "the file is gone" / "the file changed after the check") and the one note that says
+  // what those rows are. A DELIVERED file's gone/changed words are said once, in the Saved card, never here.
+  function resultFileWords(file){
+    var note = file && file.judged && file.note ? '<div class="hint" data-testid="result-judged-note">' + escapeXml(file.note) + '</div>' : "";
+    return note + (file && file.judged && file.words ? '<div class="rs-warn" data-testid="result-file-words">' + escapeXml(file.words) + '</div>' : "");
+  }
+  function resultField(label, inner){
+    return '<div class="field"><label>' + escapeXml(label) + '</label>' + inner + '</div>';
+  }
+  // the numbered job line and its ~ rules, one box (the Job tab's "N. text" spelling, a space after the number)
+  function resultLineBox(line){
+    return resultField("The job line", '<div class="ro-value" data-testid="result-linetext">' + escapeXml(line.n + ". " + line.text) +
+      (line.rules || []).map(function(r){ return '<br>~ ' + escapeXml(r); }).join("") + '</div>');
+  }
+  // no saved result to show: one line, never the file-state words (those are in Saved)
+  var RESULT_NONE = "no saved result to show";
+  // the proof quote, with the words the check read marked. The server sends the check's own text and offsets (`r.proof`: bareguard's
+  // `full.evidence`, spans already chosen and merged); the page only cuts the text at those offsets, escapes every piece and marks.
+  // It never searches a quote for a word. No proof (an old run, a quote the check did not read): the plain quote, unmarked.
+  function resultProofHtml(r){
+    var p = r.proof;
+    if(!p || typeof p.text !== "string" || !Array.isArray(p.marks)) return escapeXml(r.quote);
+    var h = "", at = 0;
+    p.marks.forEach(function(m){
+      h += escapeXml(p.text.slice(at, m[0])) + "<mark>" + escapeXml(p.text.slice(m[0], m[1])) + "</mark>";
+      at = m[1];
+    });
+    return h + escapeXml(p.text.slice(at));
+  }
+  function resultFactsLine(line){
+    var facts = line.facts || [];
+    var n = facts.length;
+    var ok = line.passed === true ? ' <span class="rs-ok" data-testid="result-ok">\u2713</span>' : "";
+    var h = resultFileWords(line.file);
+    if(Array.isArray(line.rows) && line.rows.length){
+      h += resultField("Results (" + line.rows.length + ")", '<div class="ro-value" data-testid="result-results">' + line.rows.map(function(r){
+        return '<div class="ro-value" data-testid="result-row" style="margin-bottom:8px">' +
+          '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b style="color:var(--text)">Result ' + r.n + '</b>' +
+          (line.passed === true ? '<span class="rs-ok" data-testid="result-count">' + n + ' of ' + n + ' \u2713</span>' : "") + '</div>' +
+          '<div class="field-row" style="margin-top:6px">' + r.cells.map(function(c, i){
+            return '<div class="field"><label>' + escapeXml(facts[i] ? facts[i].name : "") + '</label><div class="ro-value" data-testid="result-cell">' + escapeXml(c) + ok + '</div></div>';
+          }).join("") + '</div>' +
+          '<details data-testid="result-proof"><summary>proof \u2014 the page\'s own words</summary><div class="ro-value" data-testid="result-quote" style="overflow-wrap:anywhere">' + resultProofHtml(r) + '</div></details></div>';
+      }).join("") + '</div>');
+    } else if(!(line.file && line.file.judged && line.file.words)){
+      h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    }
+    if(facts.length){
+      h += resultField("The checks", '<div class="ro-value" data-testid="result-rules">' +
+        facts.map(function(f){ return escapeXml(f.sentence) + (f.note ? ' ' + escapeXml(f.note) : ""); }).join("<br>") +
+        (line.passed === true && Array.isArray(line.rows) && line.rows.length ? '<br><span class="hint">\u2713 = code checked it against the saved page</span>' : "") + '</div>');
+    }
+    return h;
+  }
+  // M10 am9 item 2: what the line's step checked, one row each, ✓ or ✗, in the Audit try line's words (the server's `text` and `result`; code wrote them).
+  // A line with none draws nothing.
+  function resultChecksList(line){
+    var cs = line.checks || [];
+    if(!cs.length) return "";
+    return resultField(line.kind === "facts" ? "What the step checked" : "The checks", '<div class="ro-value" data-testid="result-checklist">' + cs.map(function(c){
+      return '<div data-testid="result-check"><span class="' + (c.ok ? "rs-ok" : "rs-bad") + '">' + (c.ok ? "\u2713" : "\u2717") + '</span> ' + escapeXml(c.text) +
+        (c.result ? ' (' + escapeXml(c.result) + ')' : "") + '</div>';
+    }).join("") + '</div>');
+  }
+  function resultTextLine(line){
+    var h = resultFileWords(line.file);
+    if(typeof line.answer === "string") h += resultField("Answer", '<div class="ro-value" data-testid="result-answer" style="color:var(--text);white-space:pre-wrap">' + escapeXml(line.answer) + '</div>');
+    else if(!(line.file && line.file.judged && line.file.words)) h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    (line.cites || []).forEach(function(c){
+      h += resultField("Quotes from " + c.label + " (" + c.items.length + ")", '<details data-testid="result-cites"><summary>show</summary><div class="ro-value" style="white-space:pre-wrap">' +
+        c.items.map(function(it){ return '<b>' + escapeXml(it.claim) + '</b>\n' + escapeXml(it.quote); }).join("\n\n") + '</div></details>');
+    });
+    return h;
+  }
+  // a list, one row per item (the Job tab lists the same items one per row)
+  function resultNotChecked(label, items, testid){
+    if(!items || !items.length) return "";
+    return resultField(label, '<div class="ro-value" data-testid="' + testid + '"><ul style="margin:0;padding-left:18px">' +
+      items.map(function(t){ return '<li>' + escapeXml(t) + '</li>'; }).join("") + '</ul></div>');
+  }
+  // the web page a result was read from: a link (http/https only, new tab) and the server's words that the page may have moved on
+  function resultPageLink(url, note, testid){
+    if(typeof url !== "string" || !/^https?:\/\//i.test(url)) return "";
+    return resultField("Page read", '<div class="ro-value" data-testid="' + testid + '" style="overflow-wrap:anywhere"><a href="' + escapeXml(url) +
+      '" target="_blank" rel="noopener noreferrer">' + escapeXml(url) + '</a><div class="hint" data-testid="result-page-note">' + escapeXml(note || "") + '</div></div>');
+  }
+  // `own` = the Result tab read 2+ pages, so this line's box shows its own page
+  function resultLineCard(line, own, note){
+    return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
+      (own ? resultPageLink(line.page, note, "result-page-line") : "") +
+      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + resultChecksList(line) +
+      resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
+  }
+  function renderResult(){
+    var detail = resultDetail, data = resultData;
+    var body = document.getElementById("result-body");
+    if(!detail || !data || data.flow !== detail.flow || data.runId !== detail.runId){ return; }
+    document.getElementById("result-empty").hidden = true;
+    body.hidden = false;
+    // keep what the person is typing (and the box they opened) across a poll-driven redraw
+    var keepText = body.querySelector("#result-rerun-text");
+    var typed = keepText ? keepText.value : "";
+    var rerunOpen = !!body.querySelector("#result-rerun-box:not([hidden])");
+    var counters = document.getElementById("run-counters").textContent.split(" \u00b7 ");
+    var h = '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
+      resultField("Status", '<div class="ro-value">' + stateDotHTML(glyphClass(detail.glyph), detail.word || "", "result-status") +
+        ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
+      '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
+      resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
+      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+    var ownPages = (data.pages || []).length >= 2;
+    (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
+    if(data.gap){
+      h += '<div class="rs-warn" data-testid="result-gap">The check said: ' + escapeXml(data.gap.line) + (data.gap.moreText ? ' ' + escapeXml(data.gap.moreText) : "") + '</div>';
+    }
+    if((data.notChecked || []).length){
+      h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked(data.notCheckedLabel, data.notChecked, "result-notchecked") + '</div>';
+    }
+    if((data.readNotes || []).length){
+      h += '<div class="job-card"><h4>How the page was read</h4>' + resultNotChecked("How the page was read \u00b7 " + data.readNotes.length, data.readNotes, "result-readnotes") + '</div>';
+    }
+    if(data.door) h += resultDoorHtml(data.door);
+    if((data.delivered || []).length){
+      h += '<div class="job-card" data-testid="result-saved"><h4>Saved</h4>' + data.delivered.map(function(d){
+        return resultField(d.name, '<div class="ro-value" data-testid="result-path" style="overflow-wrap:anywhere">' + escapeXml(d.path) + '</div>' +
+          (d.words ? '<div class="rs-warn" data-testid="result-file-gone">' + escapeXml(d.words) + '</div>'
+            : '<div class="run-actions" style="margin:6px 0 0;"><a class="btn" style="text-decoration:none;" data-testid="result-download" download href="/api/runs/' + encodeURIComponent(data.flow) + '/' + encodeURIComponent(data.runId) + '/download?i=' + d.i + '">Download ' + escapeXml(d.name) + '</a></div>'));
+      }).join("") + '</div>';
+    }
+    body.innerHTML = h;
+    var ta = body.querySelector("#result-rerun-text");
+    if(ta){
+      ta.value = typed;
+      if(rerunOpen){ body.querySelector("#result-rerun-box").hidden = false; body.querySelector('[data-testid="result-rerun"]').disabled = typed.trim() === ""; }
+      wireResultDoor(body, data.door, data.flow, data.runId);
+    }
+    paintAnswerMsg();
+  }
+  // M10 am5 item 2: the Your-call card. Bareloop's words and layout; no Pause (a run waiting for you stays open and spends nothing until you answer or its ask wait ends).
+  // Accept and Rerun with my words are the Ask tab's own: the same `sendAnswer` and POST /api/answer (decision accept / rerun, the words as the reason), so an
+  // answer given here is the answer on every tab. The server decides when the card is shown (`door`); the page types none of its words.
+  function resultDoorHtml(door){
+    return '<div class="job-card" id="result-door-card" data-testid="result-door"><h4>Your call</h4><div class="field"><div class="ro-value"><b class="st-word">' + escapeXml(door.head) + '</b> \u2014 ' + escapeXml(door.ask) + '</div></div>' +
+      '<div class="run-actions" style="margin:6px 0 0;"><button class="btn primary" type="button" data-testid="result-accept">Accept</button>' +
+      '<button class="btn" type="button" data-testid="result-rerun-open">Rerun with my words</button></div>' +
+      '<div id="result-rerun-box" data-testid="result-rerun-box" hidden><textarea id="result-rerun-text" data-testid="result-rerun-text" aria-label="your words for the rerun" placeholder="e.g. only morning flights, and show the airline"></textarea>' +
+      '<button class="btn" type="button" data-testid="result-rerun" disabled>Rerun</button></div>' +
+      '<div id="result-door-msg" data-testid="result-door-msg"></div></div>';
+  }
+  function wireResultDoor(body, door, flow, runId){
+    var card = body.querySelector("#result-door-card");
+    if(!card) return;
+    var ask = {askId: door.askId};
+    var ctx = {flow: flow, runId: runId, draftNo: door.draftNo};
+    card.querySelector('[data-testid="result-accept"]').addEventListener("click", function(){ sendAnswer(card, ask, ctx, "accept"); });
+    var box = card.querySelector("#result-rerun-box");
+    var txt = card.querySelector("#result-rerun-text");
+    var go = card.querySelector('[data-testid="result-rerun"]');
+    card.querySelector('[data-testid="result-rerun-open"]').addEventListener("click", function(){ box.hidden = !box.hidden; if(!box.hidden) txt.focus(); });
+    // required: the button stays off while the words are empty, and the click re-checks (the engine refuses empty words too)
+    txt.addEventListener("input", function(){ go.disabled = txt.value.trim() === ""; });
+    go.addEventListener("click", function(){
+      if(txt.value.trim() === ""){ say(flow, runId, "refused", "Write what you want done differently, then press Rerun."); return; }
+      sendAnswer(card, ask, ctx, "rerun");
+    });
   }
 
   // ---- Run tab: header + summary + step map + one card per step ATTEMPT
@@ -2432,6 +2661,7 @@
       '<div class="summary-row" data-testid="summary-checks"><span class="sum-label">checks:</span><span class="sum-val">' + escapeXml((detail.runLines && detail.runLines.checks) || "\u2014") + '</span></div>';
 
     renderRunActions(detail);
+    syncResultTab(detail);   // M10 am4: shows or hides the Result tab; the ONE caller
     // amendment 7 item 2: the Draft is the first box of the Map (an arrow runs on to step 1); the steps keep their own numbers
     renderStepMap(stepBoxes.length ? [draftBox(detail.draft)].concat(stepBoxes.map(function(b, i){ return Object.assign({}, b, {n: i + 1}); })) : stepBoxes);
 
@@ -3272,7 +3502,9 @@
     fold.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
     fold.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
     fold.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
-    fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
+    // M10 am11: each check sentence is its own row
+    if(st.ask || !(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : "")));
+    else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
     return fold;
   }
   // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
@@ -3293,6 +3525,17 @@
     else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
     else nc.items.forEach(function(it){ fold.appendChild(textDiv("plan-row", it)); });
     tail.appendChild(fold);
+    // M10 am11: code's notes about written forms it did not use, their own fold after Not checked (none = no fold)
+    if((nc.readNotes || []).length){
+      var rn = document.createElement("details");
+      rn.className = "plan-fold plan-readnotes";
+      var rs = document.createElement("summary");
+      rs.className = "plan-sum";
+      rs.textContent = "How the page was read";
+      rn.appendChild(rs);
+      nc.readNotes.forEach(function(it){ rn.appendChild(textDiv("plan-row", it)); });
+      tail.appendChild(rn);
+    }
   }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
@@ -3461,7 +3704,7 @@
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
     // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    getJSON(base).then(function(d){ if(still()) paintRun(d); }).catch(function(e){
+    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
@@ -3891,6 +4134,13 @@
       el.className = "answer-msg" + (mine ? " " + m.cls : "");
       el.textContent = mine ? m.text : "";
     });
+    // the Result tab's Your-call card shows the same message for its own run (no attribute is added while there is none)
+    var rm = document.getElementById("result-door-msg");
+    if(rm){
+      var m2 = answerMsg;
+      if(m2 && resultDetail && m2.flow === resultDetail.flow && m2.runId === resultDetail.runId){ rm.className = "answer-msg " + m2.cls; rm.textContent = m2.text; }
+      else if(rm.textContent !== "" || rm.hasAttribute("class")){ rm.removeAttribute("class"); rm.textContent = ""; }
+    }
   }
   // Every refusal the page shows is a plain sentence — never an HTTP status, a refusal code, an askId or a path.
   // `r` is { status, body, text } from postJSON; `decision` is the answer word of an answer click (else null).
@@ -4645,6 +4895,10 @@
       if(!state || state.phase !== "questions-open" || !Array.isArray(state.questions)) return null;
       var q = state.questions.filter(function(x){ return x.k === state.openK; })[0];
       if(!q) return null;
+      // M10 am2 item 1 / am5 item 1: a question the page look raised is ONE plain chat message (bareloop's words); the head and line rows stay empty
+      if(q.source === "look"){
+        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + q.question };
+      }
       return {
         key: String(state.draftId) + ":" + q.k, k: q.k,
         head: "A question the plan raised (" + q.k + " of " + state.total + ")",
@@ -4662,11 +4916,18 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
-      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
-        return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
-      })});
+      // M10 am11: each check sentence is its own line (the step's label leads its first; the rest sit under it)
+      var checkedLines = [];
+      state.checked.forEach(function(c){
+        c.sentences.forEach(function(s, i){
+          checkedLines.push(i === 0 ? (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + s : "  " + s);
+        });
+      });
+      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
       var nc = state.notChecked || {};
       blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      // M10 am11: code's notes about written forms it did not use are their own list, after Not checked (none = no block)
+      if(nc.readNotes && nc.readNotes.length) blocks.push({id: "chat-readnotes", head: "How the page was read", sub: "", lines: nc.readNotes.map(function(x){ return "- " + x; })});
       return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)
@@ -4752,7 +5013,9 @@
         var ro = document.createElement("div");
         ro.className = "jf-role-ro"; ro.textContent = role; ro.setAttribute("data-role", role);
         row.appendChild(ro);
-        row.appendChild(makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : ""));
+        var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
+        if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
+        row.appendChild(pathEl);
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
       });
@@ -4923,7 +5186,7 @@
     function syncCardLock(){
       var on = cardLocked();
       whenSyncButton();
-      card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on; el.classList.toggle("locked", on); });
+      card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
@@ -5118,7 +5381,10 @@
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       roleSel.innerHTML = "";
-      ((f && f.roles) || []).forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      // M10: a file trigger watches a FILE; a web-page input is never offered (a job with only page inputs gets the clock options only)
+      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); });
+      fileRoles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
@@ -5374,6 +5640,7 @@
       if(v.key !== qKey){
         qKey = v.key;
         qHead.textContent = v.head; qLine.textContent = v.line; qText.textContent = v.question;
+        qHead.hidden = v.head === ""; qLine.hidden = v.line === ""; // a look question is one plain message: no empty rows
         qAnswer.value = ""; qError.textContent = "";
       }
     }

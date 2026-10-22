@@ -31,7 +31,7 @@ import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, nextRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
@@ -146,10 +146,8 @@ export function createStarter(opts) {
     if (!planRun) {
       const flowDir = join(realpathSync(root), flow);
       if (runId === '') {
-        const next = nextRunId(flowDir);
-        const r = resolveRunDir(flowDir, next);
+        const r = freeRunId(flowDir); // the decider claimRunId uses: a stray file under a run name is skipped, not refused
         if (!r.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: `${r.red.replace(/^run: /, '')}.` } };
-        if (existsSync(r.runDir)) return { status: 400, body: { ok: false, refused: 'run-id', say: `There is already a run "${next}" of this flow. Use a new run id.` } };
       } else {
         const run = checkRun(flow, runId);
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };

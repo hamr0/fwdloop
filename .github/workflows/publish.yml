@@ -83,6 +83,8 @@ jobs:
         run: npm run typecheck --if-present
       - name: Install ripgrep (litectx impact needs rg)
         run: sudo apt-get update && sudo apt-get install -y ripgrep fonts-symbola fonts-freefont-ttf
+      - name: Let chromium use its sandbox (Ubuntu 24.04 blocks unprivileged user namespaces; barebrowse starts chromium sandboxed)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Warm up chromium (the first start on a fresh runner is slow; browser tests allow 10 s per start)
         run: |
           for i in 1 2; do

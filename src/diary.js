@@ -4,7 +4,7 @@
 //   tools.jsonl  one row per TOOL CALL:   step, try, round, tool, path, the guard's decision (allow / deny + rule / no check)
 //   checks.jsonl one row per TRY that ran checks: each check numbered, ✓/✗, its result, where it comes from, and the output it judged
 // Never saved: what the model said, what was in any file (a tool row names a path, never its content). Every string is scrubbed with the
-// ONE secret inventory (`redactSecrets`, src/ctx-tools.js) before the row is written. The model can never read these files: the step's
+// ONE secret inventory (`redactSecrets`, src/redact.js) before the row is written. The model can never read these files: the step's
 // bareguard Gate denies them (src/primitives.js) and a grep over the run folder drops their hits.
 // Rounds count from 1 in EACH STEP (they keep counting across that step's tries); `nextRound` reads the count off the diary.
 //
@@ -12,7 +12,7 @@
 import { join } from 'node:path';
 import { appendRow } from './jsonl-append.js';
 import { readLines } from './books.js';
-import { redactSecrets } from './ctx-tools.js';
+import { redactSecrets } from './redact.js';
 
 export const DIARY_FILES = Object.freeze({ calls: 'calls.jsonl', tools: 'tools.jsonl', checks: 'checks.jsonl' });
 

@@ -169,7 +169,7 @@ test('file-updated: a queued version replaced before its turn is "changed"; the 
   const id = ls(path.join(g.flowDir, 'runs')).filter((n) => /^run-\d+$/.test(n)).at(-1);
   writeFileSync(g.w.gate, 'go');
   await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 202 ? true : null));
-  await until(async () => ((await g.w.get('/api/author/flows')).json().flows.find((x) => x.flow === 'job2').edit.ok === true ? true : null));
+  await until(async () => ((await g.w.post('/api/stop', { flow: 'job2', runId: id })).status === 409 ? true : null));   // over when Stop answers "not running" (`edit.ok` is the Reuse card; it never waited)
   unlinkSync(g.w.gate);
   polls(); polls();
   assert.equal(started(), 2, 'v2 never ran, v3 ran once');

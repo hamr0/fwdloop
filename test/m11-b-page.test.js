@@ -6,18 +6,10 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`  function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  let depth = 0;
-  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
-    if (PAGE[i] === '{') depth++;
-    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
-  }
-  assert.fail(`function ${name} has no closing brace`);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '  ');
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
   'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',

@@ -35,8 +35,8 @@
 /**
  * @typedef {object} SourceSlot
  * @property {string} role - `[a-z][a-z0-9_-]*`, unique across sources.
- * @property {'file'} kind - only `file:` sources are available before M9.
- * @property {string} path - everything after `file:` to end of line, trimmed.
+ * @property {'file'|'page'} kind - `file:` (a path) or `page:` (a web address, M10 am3); nothing else is available.
+ * @property {string} path - everything after `file:` / `page:` to end of line, trimmed.
  */
 
 /**
@@ -262,6 +262,7 @@
  * @property {string|null} [red]
  * @property {string[]} [reds]
  * @property {Array<{id:string, text:string, ok:boolean, result:string|null}>} [checks] a softgreen close: every check it ran (M4d am29 item 2)
+ * @property {{part: any, check: any, results?: unknown}} [cited] a cited green close (M10 piece 4): the fact part and the check's own answer, for the run's cited-check record
  */
 
 /**

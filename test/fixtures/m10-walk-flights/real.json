@@ -1,0 +1,65 @@
+{
+ "part": {
+  "source": "flights",
+  "count": {
+   "min": 3,
+   "max": 3
+  },
+  "facts": [
+   {
+    "name": "departure airport",
+    "shape": "phrase",
+    "phrase": "Leaves Adolfo Suárez Madrid-Barajas Airport"
+   },
+   {
+    "name": "arrival airport",
+    "shape": "phrase",
+    "phrase": "arrives at Leonardo da Vinci International Airport"
+   },
+   {
+    "name": "price",
+    "shape": "money",
+    "anchor": "From",
+    "unit": [
+     "US dollars"
+    ],
+    "currency": [
+     "$"
+    ],
+    "rule": {
+     "op": "lt",
+     "value": 150
+    }
+   },
+   {
+    "name": "nonstop",
+    "shape": "phrase",
+    "phrase": "Nonstop"
+   }
+  ]
+ },
+ "modelOutput": {
+  "results": [
+   {
+    "quote": "From 30 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. Operated by Malta Air. Leaves Adolfo Suárez Madrid-Barajas Airport at 9:35 AM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:00 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+    "values": {
+     "price": "30 US dollars"
+    }
+   },
+   {
+    "quote": "From 33 US dollars.This price does not include overhead bin access. Nonstop flight with Wizz Air. Leaves Adolfo Suárez Madrid-Barajas Airport at 9:25 AM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 11:55 AM on Wednesday, November 25. Total duration 2 hr 30 min. Select flight",
+    "values": {
+     "price": "33 US dollars"
+    }
+   },
+   {
+    "quote": "From 63 US dollars. Nonstop flight with Air Europa. Operated by Air Europa Express. Leaves Adolfo Suárez Madrid-Barajas Airport at 12:40 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 3:05 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+    "values": {
+     "price": "63 US dollars"
+    }
+   }
+  ],
+  "done": true,
+  "blocker": null
+ }
+}

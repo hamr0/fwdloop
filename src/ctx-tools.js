@@ -14,11 +14,11 @@
 //   - no spine `emit`: model-step already tallies each tool a step called;
 //   - `remember`/`forget` are NOT here: memory lasts one run (PRD: no learning
 //     between flows), so they stay refused.
-//   - redactSecrets is bareloop's src/validate.js@07215d6 inventory (SECRET_PATTERNS).
+//   - redactSecrets lives in src/redact.js (bareloop's src/validate.js@07215d6 inventory).
 
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { redact } from 'bareguard';
+import { redactSecrets } from './redact.js';
 import { withRunStore } from './run-store.js';
 
 const require = createRequire(import.meta.url);
@@ -27,18 +27,6 @@ const { compress: compressNode, StalePointerError } = require('litectx');
 /** One stashed item holds at most this many bytes (measured after secrets are masked,
  *  because that is what enters the store). Bareloop's number, signed in M7 item 3. */
 export const ISOLATE_MAX_BYTES = 65536;
-
-const SECRET_PATTERNS = [
-  /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}/,
-  /(?<![A-Za-z0-9_-])ghp_[A-Za-z0-9]{20,}/,
-  /(?<![A-Za-z0-9_-])github_pat_[A-Za-z0-9_]{20,}/,
-  /(?<![A-Za-z0-9_-])AKIA[0-9A-Z]{16}/,
-  /(?<![A-Za-z0-9_-])xox[bap]-[A-Za-z0-9-]{10,}/,
-  /(?<![A-Za-z0-9_-])AIza[0-9A-Za-z_-]{35}/,
-];
-
-/** Mask known secret shapes. @param {unknown} raw */
-export const redactSecrets = (raw) => redact(String(raw ?? ''), { patterns: SECRET_PATTERNS });
 
 const LINE_SPACE = 'Line numbers are 0-based; copy them between recall and get as printed.';
 

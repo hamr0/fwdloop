@@ -75,3 +75,12 @@ test('the Audit tries already cover revise and redraft plan rows (setup.jsonl ke
   const rows = buildSetupRows({ sessionDir: s, planDir: path.join(s, 'draft-2'), hash: 'h', signedBy: 'a', signedAt: '2026-10-12T10:00:00Z' });
   assert.deepEqual(rows.filter((r) => ['draft', 'revise', 'redraft'].includes(r.kind)).map((r) => [r.kind, Array.isArray(r.tries)]), [['draft', false], ['revise', true], ['redraft', true]]);
 });
+
+test('2 (M10 piece 3): a draft that stopped to ask what the page look raised has no plan yet: nothing is red while its question is open', () => {
+  const lookLog = log({ ok: false, reds: [], stop: 'look-asks', rounds: 1, log: [{ round: 1, kind: 'page-map', outcome: 'answered' }] });
+  const l = draftStepList({ log: lookLog, declaration: null, questionOpen: true });
+  assert.ok(!l.some((x) => x.status === 'failed'), JSON.stringify(l));
+  assert.equal(l.find((x) => x.id === 'drafted').status, 'done');
+  const dead = draftStepList({ log: log({ ok: false, reds: ['provider-red: down'], rounds: 1, log: [{ round: 1, kind: 'first', outcome: 'provider-red: down' }] }), declaration: null });
+  assert.equal(dead.find((x) => x.id === 'drafted').status, 'failed', 'a draft with no plan and a red still reads failed');
+});

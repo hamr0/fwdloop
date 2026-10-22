@@ -34,6 +34,7 @@ import { checkValues } from './authorvalues.js';
 import { getRunControls, getRunGlyph } from './data.js';
 import { SCHEDULE_BUSY_SAY } from '../summary-words.js';
 import { providerKeys } from './spawn.js';
+import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
@@ -89,22 +90,22 @@ export function createFlowsDoor(opts) {
     };
   }
 
-  /** The source paths one run froze: role -> path, from that run's `inputs.json`. Blank = none. @param {string} runDir @param {string[]} roles */
-  function sourcesOf(runDir, roles) {
+  /** The source paths one run froze: role -> path, from that run's `inputs.json`. Blank = none. @param {string} runDir @param {string[]} roles @param {Record<string, string>} [pages] M10 am3: page role -> signed address */
+  function sourcesOf(runDir, roles, pages = {}) {
     /** @type {Record<string, string>} */
-    const out = Object.fromEntries(roles.map((r) => [r, '']));
+    const out = Object.fromEntries(roles.map((r) => [r, pages[r] ?? ''])); // M10 am3: a page input shows its signed address, whatever a run froze
     if (runDir === '') return out;
     const f = readFileInside(runDir, 'inputs.json');
     let rows = [];
     try { rows = f.ok ? JSON.parse(f.text) : []; } catch { rows = []; }
     for (const row of Array.isArray(rows) ? rows : []) {
-      if (row && typeof row.id === 'string' && roles.includes(row.id) && typeof row.source === 'string') out[row.id] = row.source;
+      if (row && typeof row.id === 'string' && roles.includes(row.id) && !Object.hasOwn(pages, row.id) && typeof row.source === 'string') out[row.id] = row.source;
     }
     return out;
   }
 
-  /** The source paths the newest run of this flow used: role -> path, from that run's `inputs.json`. Blank = none. @param {string} flowDir @param {string[]} roles */
-  function lastSources(flowDir, roles) {
+  /** The source paths the newest run of this flow used: role -> path, from that run's `inputs.json`. Blank = none. @param {string} flowDir @param {string[]} roles @param {Record<string, string>} [pages] */
+  function lastSources(flowDir, roles, pages = {}) {
     let newest = null;
     for (const id of listRunIds(flowDir)) {
       const r = resolveRunDir(flowDir, id);
@@ -113,8 +114,8 @@ export function createFlowsDoor(opts) {
       try { t = lstatSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
       if (newest === null || t > newest.t || (t === newest.t && id > newest.id)) newest = { t, id, runDir: r.runDir };
     }
-    if (newest === null) return { runId: null, sources: sourcesOf('', roles) };
-    return { runId: newest.id, sources: sourcesOf(newest.runDir, roles) };
+    if (newest === null) return { runId: null, sources: sourcesOf('', roles, pages) };
+    return { runId: newest.id, sources: sourcesOf(newest.runDir, roles, pages) };
   }
 
   /** The values one run ran with: the flow's own, with the run's newest signed version laid over (`applyRunValues`). Unreadable = the flow's own. @param {any} read @param {string} name @param {string} runDir */
@@ -140,7 +141,7 @@ export function createFlowsDoor(opts) {
       if (end === null) continue;   // not ended (running, parked, died): neither green nor not green
       if (end.outcome === 'complete') {
         green += 1;
-        passed.push({ runId: id, ...runValuesOf(read, name, r.runDir), sources: sourcesOf(r.runDir, roles) });
+        passed.push({ runId: id, ...runValuesOf(read, name, r.runDir), sources: sourcesOf(r.runDir, roles, pageAddressesOf(read.arbiter)) });
       } else notGreen += 1;
       if (end.spendComplete === true && Number.isFinite(end.spentUsd) && end.spentUsd >= 0) { spendSum += end.spentUsd; spendN += 1; }
       if (Number.isFinite(end.wallMs) && end.wallMs > 0) { wallSum += end.wallMs; wallN += 1; }
@@ -220,11 +221,16 @@ export function createFlowsDoor(opts) {
     /** @type {{field: string, say: string}[]} */
     const refusals = checked.ok ? [...modelReds] : [...checked.refusals, ...modelReds];
     if (!checked.ok && checked.status === 409) return reply(409, { refused: 'monthly', say: checked.say });
-    const rows = runInputRows(body?.inputs);
+    // M10 am3: a page input's address is the job's, signed; the page shows it read-only, a blank row is the signed one, and any other address is refused naming the input
+    const pages = pageAddressesOf(read.arbiter);
+    const rows = runInputRows(body?.inputs).map((r) => (Object.hasOwn(pages, r.role) && r.path === '' ? { ...r, path: pages[r.role] } : r));
     refusals.push(...checkInputRows(rows));
+    rows.forEach((r, n) => {
+    if (Object.hasOwn(pages, r.role) && r.path !== pages[r.role]) refusals.push({ field: `inputs.${n}`, say: pageAddressRefusal(r.role, pages[r.role]) });
+    });
     const declared = (read.arbiter.sources ?? []).map((s) => s.role);
     for (const role of declared) {
-    if (!rows.some((r) => r.role === role)) refusals.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
+    if (!Object.hasOwn(pages, role) && !rows.some((r) => r.role === role)) refusals.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
     }
     rows.forEach((r, n) => {
     if (r.role !== '' && !declared.includes(r.role)) refusals.push({ field: `inputs.${n}`, say: `This flow has no input named "${r.role}" (it takes: ${declared.join(', ') || 'none'}).` });
@@ -240,7 +246,7 @@ export function createFlowsDoor(opts) {
     flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
+    ok: /** @type {true} */ (true), flow, read, declared, rows: declared.map((role) => rows.find((r) => r.role === role) ?? { role, path: pages[role] }), runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
     };
   }
 
@@ -289,10 +295,10 @@ export function createFlowsDoor(opts) {
   function entryFor(realRoot, name, read, left) {
     const roles = (read.arbiter.sources ?? []).map((s) => s.role);
     const flowDir = join(realRoot, name);
-    const last = lastSources(flowDir, roles);
+    const last = lastSources(flowDir, roles, pageAddressesOf(read.arbiter));
     const { passed, stats } = runsOf(flowDir, name, read, roles);
     return {
-      flow: name, capUsd: read.arbiter.capUsd, roles, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
@@ -411,7 +417,7 @@ export function createFlowsDoor(opts) {
       return {
         status: 200,
         body: {
-          ok: true, flow: entryFor(realRoot, flow, read, leftThisMonth()), pick: { runId, ...runValuesOf(read, flow, rr.runDir), sources: sourcesOf(rr.runDir, roles) },
+          ok: true, flow: entryFor(realRoot, flow, read, leftThisMonth()), pick: { runId, ...runValuesOf(read, flow, rr.runDir), sources: sourcesOf(rr.runDir, roles, pageAddressesOf(read.arbiter)) },
         },
       };
     },

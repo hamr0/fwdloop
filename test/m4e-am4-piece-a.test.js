@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { REFUSAL_SENTENCE } from '../src/monthly.js';
 import { capFloorUsd } from '../src/panel/authorcard.js';
 import { ceilingCostUsd } from '../src/provider.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 import {
   JOB, killChildrenAfter, until, world, tickedConfig } from './m4e-world.mjs';
 
@@ -20,11 +21,7 @@ killChildrenAfter();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
-function fnSrc(src, name, indent = '    ') {
-  const start = src.indexOf(`${indent}function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return src.slice(start, src.indexOf(`\n${indent}}\n`, start) + indent.length + 2);
-}
+const fnSrc = (src, name, indent = '    ') => cutFn(src, name, indent);
 const PICK = { provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked' };
 const check = (w, cap) => w.get(`/api/author/monthly-check?cap=${encodeURIComponent(cap)}&provider=DEEPSEEK_API_KEY&model=fake-ticked`);
 

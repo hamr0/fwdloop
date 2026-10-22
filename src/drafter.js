@@ -22,7 +22,17 @@ import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerS
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { readInputFacts } from './input-facts.js';
+import { freezePage } from './runner.js';
+import { removeFrozenPages } from './flow.js';
+import { lookAtPage, pageInfoLines } from './pagelook.js';
+import { lookAtSheet, sheetPrompt } from './sheetlook.js';
+import { leftRuleLine, dropRows, dropLine } from './pagedropwords.js';
+import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
+import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
+import { lineRules } from './pagebits.js';
+import path from 'node:path';
 import { isCellsPath } from './closers.js';
+import { parseCsv } from './csv.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -39,6 +49,73 @@ export const CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 
 /** The whole-output-ceiling rule, told once to the drafter (schema and prompt use this string). Amendment 29; no number words (am25). */
 export const WHOLE_OUTPUT_CEILING_RULE = "use the guardrail's ceiling for the whole output";
+
+/** @param {any[]|undefined} sources @returns {string[]} the roles of the document inputs (.docx / .md / .txt) */
+const docRolesOf = (sources) => (sources ?? []).filter((s) => s.kind === 'file' && DOC_EXTS.some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role);
+
+/** the document inputs a quote can come from (M10 piece 5, item 2) */
+const DOC_EXTS = Object.freeze(['.docx', '.md', '.txt']);
+
+/** M10 am8 item 2: the column lock of a green step that cites cells (`close.columns`): the exact header(s) its cells come from. */
+const COLUMNS_PROP = Object.freeze({
+  type: 'array',
+  minItems: 1,
+  maxItems: 10,
+  description: "only on a green step that cites cells of a CSV input: the exact column names (the sheet's header) every cited cell comes from. Omit on any other step",
+  items: {
+    type: 'object',
+    properties: {
+      source: { type: 'string', description: 'the role of the CSV input (also in the step\'s reads)' },
+      column: { type: 'string', description: "the column's name, copied exactly from the sheet's header" },
+    },
+    required: ['source', 'column'],
+    additionalProperties: false,
+  },
+});
+
+/** M10 am7 item 1: the facts of a green step that cites quotes from a web page (`close.cited`); the same fields src/citedcheck.js checks. */
+const CITED_PROP = Object.freeze({
+  type: 'object',
+  description: 'only on a green step that checks quotes from a web page or a document input: the facts every result must hold. Omit on any other step',
+  properties: {
+    source: { type: 'string', description: "the role of the web page input the quotes come from (also in the step's reads)" },
+    facts: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 10,
+      description: 'one fact per thing a result must hold; at most 10',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'letters and spaces only, no digits' },
+          shape: { type: 'string', enum: ['money', 'number', 'date', 'time', 'phrase', 'text'] },
+          unit: { type: ['string', 'array'], items: { type: 'string' }, description: 'money only: the words the page writes after the amount, copied from the page' },
+          currency: { type: ['string', 'array'], items: { type: 'string' }, description: 'money only: $, € or £' },
+          phrase: { type: 'string', description: 'phrase only: the fixed words every result must say, copied from the page' },
+          anchor: { type: 'string', description: 'the label right before the value, picked from the kept labels listed under Inputs; never typed' },
+          until: { type: 'string', description: 'text only: the words that close the value' },
+          rule: {
+            type: 'object',
+            description: 'under (lt, lte), over (gt, gte) or between: only a number that is in the person\'s own words on the job line',
+            properties: { op: { type: 'string', enum: ['lt', 'lte', 'gt', 'gte', 'between'] }, value: {}, lo: {}, hi: {} },
+            required: ['op'],
+            additionalProperties: false,
+          },
+        },
+        required: ['name', 'shape'],
+        additionalProperties: false,
+      },
+    },
+    count: {
+      type: 'object',
+      description: 'how many results the job line asks for ("List 3" is min 3, max 3)',
+      properties: { min: { type: 'integer', minimum: 1 }, max: { type: 'integer', minimum: 1 } },
+      additionalProperties: false,
+    },
+  },
+  required: ['source', 'facts'],
+  additionalProperties: false,
+});
 
 const SHAPE_PROPS = Object.freeze({
   maxWords: { type: 'integer', minimum: 1, description: `the whole output's word ceiling; ${WHOLE_OUTPUT_CEILING_RULE}` },
@@ -86,6 +163,8 @@ export function buildDeclarationSchema(menu) {
                   additionalProperties: false,
                   description: `only when class is softgreen; keys limited to ${SHAPE_KEYS.join(', ')}`,
                 },
+                cited: CITED_PROP,
+                columns: COLUMNS_PROP,
               },
               required: ['class'],
               additionalProperties: false,
@@ -219,13 +298,30 @@ function jobLinesText(lines, asks) {
     .join('\n');
 }
 
-/** M4d amendment 8: the green step must read an input with cells, so the drafter is told the rule and which inputs have cells. */
+/** M4d amendment 8: the green step must read an input with cells, so the drafter is told the rule and which inputs have cells.
+ *  M10 am7: and when the job signs a web page, how a green step checks quotes from it - every rule below is one the validator enforces at $0. */
 function greenReadRule(sources) {
   const csvRoles = (sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path)).map((s) => s.role);
+  const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
+  // M10 piece 5 (item 2): a quote in a doc - a .docx / .md / .txt input is quoted the way a page is
+  const docRoles = docRolesOf(sources);
   const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
-  return [csvRoles.length
-    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}.`
-    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl".`];
+  const out = [csvRoles.length
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
+    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+  if (pageRoles.length || docRoles.length) {
+    out.push(
+      `- ${[pageRoles.length ? `Web page inputs in this job: ${pageRoles.join(', ')}.` : '', docRoles.length ? `Document inputs in this job: ${docRoles.join(', ')}.` : ''].filter(Boolean).join(' ')} A step whose line asks for things found in one of them, and whose guardrail is about them, is "green" and checks quotes: it lists that input's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
+      '- close.cited.count is how many results the line asks for ("List 3" is {min: 3, max: 3}); the number must be one the person said on the line or its guardrail, as digits or a word. close.cited.facts is one fact per thing every result must hold, at most 10; a fact name is letters and spaces only (no digit).',
+      '- Fact shapes: money takes unit or currency, rule, anchor; number, date and time take rule, anchor; text takes anchor and until (until needs an anchor); phrase takes only phrase (fixed words every result must say). Never put a field on a shape that does not take it.',
+      '- A label (anchor, until) is PICKED from the kept labels listed under Inputs for that page, never typed. A phrase, a unit or a currency is copied from the page words listed there. A word listed as Not checked or dropped can never be used.',
+      '- A place listed under Inputs as "place phrases" must have EVERY one of its phrases as its own phrase fact (one fact per phrase, the phrase word for word). A place name alone does not tell a result that leaves the other way.',
+      '- A fact\'s rule (under, over, between) may only use a number that is in the person\'s own words on that job line (the line or its guardrail). Never make a number up; leave the rule out if the person gave none.',
+      '- A label or a phrase that sits in each result must appear on the page at least as many times as close.cited.count.min, or the line is refused.',
+      ...(docRoles.length ? ['- For a document input there is no list of kept labels: a label (anchor) or a phrase is words the document really says, copied from it, and each must be in the document at least as many times as close.cited.count.min.'] : []),
+    );
+  }
+  return out;
 }
 
 /** M7 piece 6 (signed scope item 1): a granted verb ships WITH the line that says when to reach for it, or the
@@ -304,11 +400,14 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
- *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[]}>}
+ *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
+ *   look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
+ * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
+  draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -331,8 +430,9 @@ export async function draft({
   const sumReds = checkGuardrailSums(lines);
   if (sumReds.length) return fail(sumReds);
   const menu = wiredMenu(skills);
-  const facts = readInputFacts(arbiter.sources);
-  if (!facts.ok) return fail(facts.reds);
+  // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
+  const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
+  if (!fileFacts.ok) return fail(fileFacts.reds);
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
@@ -346,9 +446,6 @@ export async function draft({
     }
   }
 
-  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
-  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo: facts.info });
-  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   const lineNums = lines.map((l) => l.n);
   // Full catalogue + the wired set: an unwired verb reds "not wired" by name; an unsigned skill reds by skill.
   const cat = loadCatalogue();
@@ -362,15 +459,187 @@ export async function draft({
   // M4d am16 item 2: against the remaining money, not the whole cap. Spend by earlier drafts of this job (a revise, the redraft after answers) is taken off first.
   const priorUsd = typeof priorSpend === 'function' ? priorSpend(roundCeiling) : 0;
   const budgetUsd = arbiter.capUsd - priorUsd;
-  if (roundCeiling > budgetUsd) {
-    const capText = usdText(arbiter.capUsd);
-    return fail([priorUsd > 0
-      ? `Cap ${capText} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${roundCeiling.toFixed(4)}. Raise Cap $ or pick another model.`
-      : capTooSmallText('drafting', arbiter.capUsd, roundCeiling, modelId)]);
-  }
+  /** the refusal when one round held at `ceiling` does not fit what is left of the cap (the drafter's own words, one place) */
+  const tooSmall = (ceiling) => (priorUsd > 0
+    ? `Cap ${usdText(arbiter.capUsd)} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${ceiling.toFixed(4)}. Raise Cap $ or pick another model.`
+    : capTooSmallText('drafting', arbiter.capUsd, ceiling, modelId));
+  if (roundCeiling > budgetUsd) return fail([tooSmall(roundCeiling)]);
 
   const meterings = [];
   const log = [];
+  let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
+  let unmetered = 0; // calls that failed with no metering: their cost is unknown
+  const book = (inFlight) => onBook?.({
+    inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+  });
+
+  // M10 item 1: a web page input is fetched once and frozen into the DRAFT folder (the drafting copy). A run freezes its own copy at its own start
+  // (`freezeInputs`), so a run is never checked against this one. Only now, after the $0 price and cap gates: a draft refused for money fetches nothing.
+  const pageSources = (arbiter.sources ?? []).filter((s) => s.kind === 'page');
+  /** @type {Record<string, {text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}>} */
+  const pages = {};
+  if (pageSources.length) {
+    if (typeof draftDir !== 'string' || draftDir === '') return fail(['draft: a web page input needs a folder to keep its drafting copy']);
+    for (const s of pageSources) {
+      const fr = await freezePage(draftDir, s.role, s.path, { fetchPage });
+      if (!fr.ok) { removeFrozenPages(draftDir, Object.values(pages).map((pg) => pg.entry.frozen)); return fail([fr.red]); }
+      pages[s.role] = { text: fr.text, entry: fr.entry };
+    }
+  }
+  const facts = readInputFacts(arbiter.sources, { pages });
+  if (!facts.ok) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((pg) => pg.entry.frozen)); return fail(facts.reds); }
+
+  // M10 item 3: ONE map call per page input names the page's own words; code keeps what the saved page proves. Every round goes through the
+  // same metering and book as a drafting round, so a pre-send throw from the book stops here with nothing spent.
+  /** @type {{facts: any[], dropped: any[]}} */
+  const look = { facts: [], dropped: [] };
+  /** @type {string[]} */
+  const pageNotChecked = [];
+  /** @type {any[]} */
+  const pageLooks = [];
+  /** @type {Record<string, any>} */
+  const pageExtras = pageSources.length ? { look, pageLooks } : {};
+  let mapCut = null;
+  const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
+  const pageInfo = [];
+  /** one map call (a page's or a sheet's): its hold, its metering and its book are the drafting round's own (the `kind` names it in the round log) */
+  const makeCallModel = (kind) => async (content, attempt) => {
+    const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    if (spentSoFar + ceilingCostUsd(rates, content.length + MAP_SYSTEM.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
+    const roundEvents = [];
+    const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
+    calls += 1;
+    book(true);
+    let res;
+    let threw = null;
+    try {
+      res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
+    } catch (err) {
+      threw = err;
+      if (roundEvents.length === 0) unmetered += 1;
+    }
+    book(false);
+    const entry = { round: log.length + 1, kind };
+    if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
+    if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
+    if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message }; }
+    const cutOff = res?.stopReason === 'max_tokens';
+    entry.outcome = cutOff ? 'truncated' : 'answered';
+    log.push(entry);
+    if (res?.error && !cutOff) return { error: String(res.error) };
+    return { text: res?.text ?? '', cutOff };
+  };
+  for (const s of pageSources) {
+    const pg = pages[s.role];
+    // The hold of the map call is sized from its own prompt (the saved page is in it): one that cannot fit what is left of the cap is refused here, at $0.
+    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
+    const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    if (spentBefore + mapCeiling > budgetUsd) {
+      if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
+    }
+    const callModel = makeCallModel('page-map');
+    const got = await lookAtPage({ label: s.role, text: pg.text, jobLines, callModel });
+    if (!got.ok) {
+      const m = sumMeterings(meterings);
+      return {
+        ok: false, declaration: null, reds: [got.reason], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: mapCut ?? 'page-map', log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
+      };
+    }
+    // A rule the person left Not checked ("drop it", asked earlier) is served by no fact, whatever this look found for it.
+    const keptFacts = got.look.facts.filter((f) => !leftRules.some((l) => l.line === f.line && l.rule === f.forRule));
+    look.facts.push(...keptFacts);
+    look.dropped.push(...got.look.dropped);
+    for (const l of got.notChecked) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
+    pageLooks.push({
+      role: s.role, address: s.path, sha256: pg.entry.sha256, bytes: pg.entry.bytes, frozen: path.basename(pg.entry.frozen), attempts: got.attempts, mapping: got.mapping,
+    });
+    pageInfo.push(...pageInfoLines({
+      label: s.role, address: s.path, chars: pg.text.length, look: { ...got.look, facts: keptFacts }, notChecked: got.notChecked,
+    }));
+  }
+  // The rules the person left Not checked: one drop each (the one table writes the words), told to the drafter too, so it never claims them.
+  if (pageSources.length) {
+    /** @type {any[]} */
+    const left = [];
+    for (const l of leftRules) {
+      const jl = jobLines.find((x) => x.n === l.line);
+      const text = jl === undefined ? undefined : lineRules(jl)[l.rule - 1];
+      if (text !== undefined && !left.some((d) => d.line === l.line && d.rule === l.rule)) left.push({ line: l.line, rule: l.rule, fact: text, reason: 'person-left', source: 'person' });
+    }
+    if (left.length) {
+      look.dropped.push(...left);
+      const lines = left.map((d) => leftRuleLine(d.fact));
+      for (const x of lines) if (!pageNotChecked.includes(x)) pageNotChecked.push(x);
+      pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
+    }
+  }
+  // M10 piece 5 (item 7): ONE sheet call per CSV input names the job's own word for each `~` rule; code keeps a word only if it is a real column and finds the column
+  // to offer when it is not (src/sheetlook.js). Only when a non-ask job line carries a `~` rule: a CSV job without one is unchanged (no extra call). A signed ask
+  // line's own guardrail is a human stop, not a sheet check, so it is not sent. Every round goes through the same hold, metering and book as the page's.
+  const askLines = new Set(arbiter.asks.map((a) => a.line));
+  const sheetJobLines = jobLines.filter((l) => !askLines.has(l.n));
+  // am8 item 3: a .docx's headings stand where a sheet's columns do (a word that is no heading is Not checked, nothing is asked)
+  const docxRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && String(s.path).toLowerCase().endsWith('.docx') && Array.isArray(facts.inputFacts[s.role])).map((s) => s.role);
+  const sheetRoles = sheetJobLines.some((l) => lineRules(l).length > 0) ? [...Object.keys(facts.sheets ?? {}), ...docxRoles] : [];
+  /** @type {any[]} */
+  const sheetAsks = [];
+  /** @type {any[]} */
+  const sheetFacts = [];
+  /** @type {any[]} */
+  const sheetLooks = [];
+  for (const role of sheetRoles) {
+    const headings = docxRoles.includes(role) ? facts.inputFacts[role] : undefined;
+    const text = headings === undefined ? facts.sheets[role] : '';
+    const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+    const hold = ceilingCostUsd(rates, sheetPrompt({ jobLines: sheetJobLines, label: role, text, headings }).length + MAP_SYSTEM.length);
+    if (spentBefore + hold > budgetUsd && meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(hold)]); }
+    const got = await lookAtSheet({ label: role, text, headings, jobLines: sheetJobLines, callModel: makeCallModel('sheet-map') });
+    if (!got.ok) {
+      const m = sumMeterings(meterings);
+      return {
+        ok: false, declaration: null, reds: [got.reason], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: mapCut ?? 'page-map', log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
+      };
+    }
+    // The redraft after the answers never asks: an offer the person's words did not take is Not checked, with that reason (never dropped silently).
+    const declined = offerQuestions ? [] : got.asks.map((a) => ({ line: a.line, ...(a.rule === null ? {} : { rule: a.rule }), fact: a.word, reason: 'column-declined', other: `"${a.column}"`, source: role }));
+    const dropped = [...got.dropped, ...declined];
+    sheetAsks.push(...got.asks); // asked only when the asks block below is open (offerQuestions)
+    sheetFacts.push(...got.facts);
+    sheetLooks.push({ role, attempts: got.attempts, facts: got.facts, asks: got.asks.map((a) => ({ line: a.line, rule: a.rule, word: a.word, column: a.column })), dropped });
+    const lost = dropRows(dropped).map((row) => dropLine(row, jobLines, lineRules));
+    for (const l of lost) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
+    pageInfo.push(
+      ...(got.facts.length ? [`  Code matched the job's words to the ${headings === undefined ? 'columns' : 'headings'} of "${role}": ${got.facts.map((f) => `line ${f.line}${f.forRule === undefined ? '' : ` rule ${f.forRule}`} is ${headings === undefined ? 'column' : 'heading'} '${f.column}'`).join('; ')}`] : []),
+      ...(lost.length ? [`  Code could not make these a check on "${role}", so they are Not checked; never claim them as checked:`, ...lost.map((l) => `  - ${l}`)] : []),
+    );
+  }
+  if (sheetLooks.length) pageExtras.sheetLooks = sheetLooks; // kept beside the page looks (src/authoring.js writes both into page-look.json)
+  // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
+  // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
+  // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
+  if ((pageSources.length || sheetAsks.length) && offerQuestions) {
+    const pageAsks = pageSources.length ? askableFromLook({ facts: [...look.facts, ...sheetFacts] }, jobLines.filter((l) => !askLines.has(l.n))) : [];
+    const asks = [...[...pageAsks.filter((a) => a.ask === 'reading'), ...sheetAsks].sort((a, b) => a.line - b.line), ...pageAsks.filter((a) => a.ask !== 'reading')];
+    if (asks.length > 0) {
+      const m = sumMeterings(meterings);
+      const spent = m.costUsd === null || unmetered > 0 ? (m.costUsd === null ? 'unknown' : `at least ${usdText(m.costUsd)}`) : usdText(m.costUsd);
+      const tooMany = asks.length > MAX_LOOK_ASKS;
+      if (tooMany && pageSources.length) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
+      return {
+        ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(asks)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
+        questions: tooMany ? [] : asks.map((a) => ({
+          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null,
+        })),
+        droppedQuestions: [], notChecked: pageNotChecked, ...pageExtras,
+      };
+    }
+  }
+  // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
+  const factsInfo = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
+
+  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
+  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   let structureRetries = 0;
   let revisions = 0;
   let lastReds = [];
@@ -381,9 +650,7 @@ export async function draft({
   let stop = null;
   let failedLines = []; // the job lines try 2's reds named: a question is kept only about one of these (amendment 25)
   /** @type {{questions:{line:number, question:string}[], droppedQuestions:object[], notChecked:string[]}} */
-  let extras = { questions: [], droppedQuestions: [], notChecked: [] }; // from the round that produced `lastDecl`, never an earlier one
-  let calls = 0; // provider calls made (a call that threw before metering is in `calls`, not in `rounds`)
-  let unmetered = 0; // calls that failed with no metering: their cost is unknown
+  let extras = { questions: [], droppedQuestions: [], notChecked: pageNotChecked }; // from the round that produced `lastDecl`, never an earlier one
 
   for (;;) {
     // Budget: spend so far (an unpriced round counts at its ceiling) + one more
@@ -411,9 +678,6 @@ export async function draft({
     let result;
     let threw = null;
     calls += 1;
-    const book = (inFlight) => onBook?.({
-      inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
-    });
     book(true);
     try {
       result = await loop.run(
@@ -492,17 +756,20 @@ export async function draft({
     }
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+      // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
+      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column') } : undefined,
+      pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: cleanNotChecked(rawNotChecked) };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...pageNotChecked, ...cleanNotChecked(rawNotChecked).filter((x) => !pageNotChecked.includes(x))] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras,
       };
     }
     lastReds = [...verdict.reds];
@@ -524,6 +791,6 @@ export async function draft({
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
   return {
-    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras,
+    ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras,
   };
 }

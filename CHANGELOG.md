@@ -5,6 +5,83 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-10-22
+
+M10 (read a web page, a CSV sheet or a .docx / .md / .txt document, with cited checks and code-forced
+asks) with amendments 1-12, the M10 ports from bareloop (money forms, phrase dry read), M4d amendments
+30-33 (try numbers after a Redo, a draft frees its cap, a run picks its model) and a books fix.
+
+### Added
+- A job can read a web page. A web address on the New job card is signed with the job as
+  `source <role> = page:<address>`; the page is fetched with barebrowse, frozen with a sha256 at run
+  start like a file, and an empty page stops the run at $0. A run uses only the signed address: the
+  Run row shows it read-only, the CLI and a schedule carry it, and another address is refused at $0. A
+  file-arrival trigger is never offered for a page.
+- A job can quote a sheet or a document. A CSV sheet and a .docx, .md or .txt document are read from
+  the run's own frozen copy (sha256 checked), and a .docx is handed to the cited check only as text.
+- Cited checks. A step's check can carry the facts it quotes (`close.cited`): the drafter writes
+  them, code checks them at $0 and refuses the draft naming the line, and at run time each quote must
+  be word for word in the run's own frozen copy, each value read after its label, each number rule
+  met, and the result count right. A number rule must come from a signed `~` line, and the result
+  count must be a number you said on the line. No model grades; the run writes `cited-checks.json`.
+  A place word grows to its role word ("Leaves Amsterdam ...") so a flipped route goes red. A step
+  that quotes a page is told its fact rules and the form of its answer; a step that cites cells is
+  told the cite forms the checker accepts, and the red for a cite that fits none names them.
+- Column lock. For a sheet, a fact names its column in the step's check (`close.columns`). Code checks
+  at $0 that it is a real column, and at run time a cell from another column is red, naming it.
+- Code-forced asks, at drafting and before any model draft. Code reads the job's `~` rules against
+  the page or sheet and asks about what it cannot check: up to 3 asks, each a plain Chat message
+  (`A question the plan raised (K of N), about job line L: ...`) answered with `agree`, your own
+  words, or `drop it`. An agreed reading or your words becomes a new `~` line under that job line; `drop
+  it` leaves the rule Not checked. More than 3 asks stops the draft at $0 with the rewrite list and
+  `Spent so far`. A column ask for a sheet word that is no column offers the one column of numbers. The
+  questions and answers are in the draft log and the Audit (`you were asked` / `you said`). The CLI
+  has `--left` for a left rule.
+- Result tab, copied from bareloop's: the results that matter and what got checked for a page job, a
+  Your call card to Accept or Rerun with your words, and a Download button. Every other job (a sheet,
+  a document) lists each check its step ran, newest try, with ✓ or ✗ and its reason. A red page line
+  keeps the rows the check judged, never a tick.
+- The Chat Checked list shows each check on its own line (also on the Job tab step rows), and a new
+  How the page was read list (Chat, Job tab, Result tab) holds code's notes about written forms it did
+  not use. Not checked reasons use the signed words, for example `there is no column '<word>'`.
+- `fwdloop run --model <id>` picks any model ticked in Settings with both prices for that new run (M4d
+  am33). The job's recorded model stays the default and is never rewritten. The run records its pick
+  once (`run-model.json`), and resume and continue keep it: another `--model` on a resume is refused by
+  name at $0.
+- `scripts/check-cited-run.mjs`, a separate checker of a run's cited results that shares no code with
+  fwdloop. It re-reads the run's saved page, `inputs.json` and `cited-checks.json`.
+
+### Changed
+- The AI's money forms are sorted by code (a sign is a currency, any other form a unit), and a price
+  fact that reads no result line is Not checked. A kept phrase fact is read on the same result lines
+  as the money facts, and one that reads none is Not checked as `phrase-no-result` (ports from
+  bareloop).
+- A simple plural matches a column or heading: your "amounts" is the column "Amount". A real header
+  the sheet look names is kept only when it is your own word; otherwise it is Not checked.
+- A step quoting a page is told a money value is only the digits, and the refusal names the form.
+- A number inside a time, a date or an amount is no longer read as a bare number you said, for the
+  result count and for number rules.
+- A .docx gets the same word look as a page; a job word that is no heading is Not checked with its
+  reason, and nothing is asked.
+- Try numbers keep counting after a Redo (M4d am30): try 1 and 2, Redo, then try 3 and 4. A try's
+  checks and output are paired by its number.
+- A draft frees its hold on the monthly limit when its result is written (M4d am32), so a Draft
+  posted right after one finishes is no longer refused as held by a run in progress.
+- Dependencies: bareguard `^0.25.1` and barebrowse `^0.21.0`. The package now needs Node >= 22
+  (bareguard's requirement; CI and publish already ran 22).
+
+### Fixed
+- A try that ends with no artifact (a length stop) now adds its cost to the run's spend, so the
+  history total equals the audit sum and the cap check sees it.
+- The separate checker no longer calls a red line ok: it keeps the rows it judged.
+- The CLI's one prose read goes through the safe file gateway, so a symlinked prose file is refused;
+  `fwdloop draft` reads the prose file once, and a plan's questions file is read once per poll.
+- `canStart` asks the same decider as claiming a run id, so a stray `runs/run-N` file no longer
+  refuses a Run.
+
+M10's CSV case asks once and the answer is kept in the draft log, the Audit and the signed job; its
+cited checks going green waits for bareguard's computed-over-cells check (M10 am12).
+
 ## [0.21.0] - 2026-10-19
 
 M4d amendments 25-29 (thinking per step, run diaries and the Audit step fold), M9 amendments 21-23

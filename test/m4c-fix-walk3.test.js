@@ -14,6 +14,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { getRunAsks, listStops } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -29,11 +30,7 @@ const ROOTS = [];
 after(() => { for (const r of ROOTS) rmSync(r, { recursive: true, force: true }); });
 const cliRaw = (args) => spawnSync(process.execPath, [BIN, ...args], { env, encoding: 'utf8', timeout: 30_000 });
 
-function fnSrc(name) {
-  const start = page.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return page.slice(start, page.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(page, name, '');
 
 /** job2 with the given run ids parked at the ask. */
 function parked(tag, runIds) {

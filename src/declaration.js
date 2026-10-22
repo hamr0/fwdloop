@@ -37,6 +37,8 @@
 // greps all of src/ for that, and it must keep passing with this file added.
 
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
+import { factPartReds } from './citedcheck.js';
+import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -64,6 +66,8 @@ export const DECLARATION_FIELDS = Object.freeze([
   // close level
   'class',
   'shape',
+  'cited',
+  'columns',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -76,7 +80,7 @@ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trig
 
 const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns']);
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -404,6 +408,68 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
 }
 
 /**
+ * M10 amendment 7 item 1: `close.cited` is the facts a green step checks its quotes against, written by the drafter (a fact part:
+ * `{source, facts, count?}`, src/citedcheck.js). Its SHAPE is checked in every mode (a signed flow is read the same way). With `fitJobLine` the number rules
+ * must be the person's own words on the job line; with `pageWords` (the drafting copy of each page and what the page-word map kept) every word is proved on
+ * the page at $0 (src/citedwords.js). Each red names the job line, so a redraft can be told which line.
+ * @param {any} step @param {string} label @param {{sourceRoles: any[], reads: string[]|null, effectiveClass: string, lines: SignedLine[], fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}}} c @param {string[]} reds
+ */
+function checkCitedKey(step, label, c, reds) {
+  const at = `declaration: ${label}.close.cited`;
+  const part = step.close.cited;
+  if (!isPlainObject(part)) { reds.push(`${at} must be an object {source, facts, count}`); return; }
+  if (step.close.class !== 'green' || c.effectiveClass !== 'green') reds.push(`${at} is for a green step only (its quotes are checked against the page); this step's check is "${step.close.class ?? c.effectiveClass}"`);
+  for (const r of factPartReds(part)) reds.push(`${at}: ${r}`);
+  if (typeof part.source === 'string' && part.source.trim() !== '') {
+    if (!c.sourceRoles.includes(part.source)) reds.push(`${at}.source "${part.source}" is not one of the signed source roles`);
+    else if (c.reads !== null && !c.reads.includes(part.source)) reds.push(`${at}.source "${part.source}" is not in ${label}.reads - the step must read the input its quotes come from`);
+  }
+  if (c.fitJobLine !== true || !Number.isInteger(step.fromLine)) return;
+  const jobLine = c.lines.find((l) => l.n === step.fromLine);
+  if (!jobLine) return;
+  const jl = { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) };
+  // a part that is not valid is not read further: its words would only repeat the same red
+  if (factPartReds(part).length) return;
+  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look, doc: Array.isArray(c.pageWords.docs) && c.pageWords.docs.includes(part.source) }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl })];
+  for (const r of words) reds.push(`declaration: ${r.detail}`);
+}
+
+/**
+ * M10 am8 item 2: `close.columns` is the column lock of a green step that cites cells: `[{source, column}]`, written by the drafter and checked by code. Its SHAPE is
+ * checked in every mode; with `sheetWords` (draft time) every column is proved to be a real column of its sheet and a column the sheet look kept for this step's
+ * line must be in the list. At run time every cited cell must come from one of these columns (src/closers.js).
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
+ */
+function checkColumnsKey(step, label, c, reds) {
+  const at = `declaration: ${label}.close.columns`;
+  const cols = step.close.columns;
+  if (cols !== undefined) {
+    if (step.close.class !== 'green' || c.effectiveClass !== 'green') reds.push(`${at} is for a green step only (its cells are checked); this step's check is "${step.close.class ?? c.effectiveClass}"`);
+    if (!Array.isArray(cols) || cols.length === 0 || cols.length > 10) { reds.push(`${at} must be a list of 1 to 10 {source, column}`); return; }
+    for (const [j, e] of cols.entries()) {
+      if (!isPlainObject(e) || Object.keys(e).some((k) => k !== 'source' && k !== 'column') || typeof e.source !== 'string' || typeof e.column !== 'string' || e.column.trim() === '') {
+        reds.push(`${at}[${j}] must be {source, column}, both words`);
+      } else if (!c.cellsRoles.includes(e.source)) {
+        reds.push(`${at}[${j}].source "${e.source}" is not a signed spreadsheet input`);
+      } else if (c.reads !== null && !c.reads.includes(e.source)) {
+        reds.push(`${at}[${j}].source "${e.source}" is not in ${label}.reads - the step must read the sheet its cells come from`);
+      }
+    }
+  }
+  const sw = c.sheetWords;
+  if (!sw || !Number.isInteger(step.fromLine)) return;
+  const list = Array.isArray(cols) ? cols.filter((e) => isPlainObject(e) && typeof e.column === 'string') : [];
+  for (const e of list) {
+    const header = sw.headers?.[e.source];
+    if (Array.isArray(header) && !header.includes(e.column)) reds.push(`declaration: line ${step.fromLine}: '${e.column}' is not a real column of "${e.source}" (its columns: ${header.map((h) => `'${h}'`).join(', ')}). Copy a column name exactly.`);
+  }
+  for (const f of sw.facts ?? []) {
+    if (f.line !== step.fromLine || f.shape !== 'column') continue;
+    if (!list.some((e) => e.source === f.source && e.column === f.column)) reds.push(`declaration: line ${step.fromLine}: the check must name the column '${f.column}' of "${f.source}" in close.columns - the code kept it for this line${f.agreed ? ' (the column you agreed to)' : ''}, and every cell must come from it.`);
+  }
+}
+
+/**
  * Validate a drafter declaration against the M1 closed schema. `arbiter`
  * and `lines` are `parseSignedText`'s output; `catalogue` is a plain array
  * of `{ verb, skill, class }`. Never throws — a bad declaration, a bad
@@ -417,11 +483,16 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
  * text as its goal, exactly. Off by default so already-signed flows keep running; draft and sign turn it on.
  * `fitJobLine` (optional boolean; M4e amendment 6): when true, a `close.shape` whose sections/maxWords fight the step's job
  * line or its guardrail is a red. Draft, change and sign turn it on; readFlow does not (signed flows keep running).
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean }} [context]
+ * `pageWords` (optional; M10 am7 item 1): `{texts: {role: drafting copy}, look: {facts, dropped}}`. With `fitJobLine`, the words of every `close.cited` fact are
+ * proved on the page at $0; the drafter passes it, sign does not (the draft was already proved, and its files are hash-bound).
+ * `pageWords.docs` (M10 piece 5): the roles that are documents (.docx / .md / .txt): their words are proved on their text alone, with no page-word map.
+ * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
+ * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine } = context;
+  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine, pageWords, sheetWords } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -445,6 +516,10 @@ export function validateDeclaration(declaration, context = {}) {
   // M4d amendment 8: the inputs with cells (a spreadsheet file). A step may read one by its role; a green step must.
   const cellsRoles = Array.isArray(safeArbiter.sources)
     ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
+  // M10 am7 item 3: a web page is an input too, frozen at run start; a step reads it by its role (its quotes are checked against the run's own copy)
+  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page').map((s) => s.role) : [];
+  // M10 piece 5 (item 2): a document (.docx / .md / .txt) may be READ by a step that quotes it (its close.cited.source), and by no other step
+  const docRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'file' && ['.docx', '.md', '.txt'].some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role) : [];
   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];
   const askLines = asks.map((a) => a.line);
   const sends = Array.isArray(safeArbiter.sends) ? safeArbiter.sends : [];
@@ -637,6 +712,8 @@ export function validateDeclaration(declaration, context = {}) {
     if (reads !== null && emits !== null) {
       for (const readId of reads) {
         if (cellsRoles.includes(readId) && !declaredEmits.has(readId)) continue; // an input with cells, frozen at run start (M4d amendment 8)
+        if (pageRoles.includes(readId) && !declaredEmits.has(readId)) continue; // a web page, frozen at run start (M10 am7 item 3)
+        if (docRoles.includes(readId) && !declaredEmits.has(readId) && step.close?.cited?.source === readId) continue; // a document the step quotes (M10 piece 5)
         if (readId === emits || !declaredEmits.has(readId)) {
           reds.push(`declaration: ${label} reads artifact "${readId}" that no earlier step declared`);
         }
@@ -644,7 +721,7 @@ export function validateDeclaration(declaration, context = {}) {
     }
     const earlierEmits = [...declaredEmits]; // outputs of EARLIER steps, in order (the nearest is last)
     if (emits !== null) declaredEmits.add(emits);
-    if (fitJobLine === true && emits !== null && cellsRoles.includes(emits)) reds.push(`declaration: ${label}.emits "${emits}" is also a signed input — one id, one meaning`);
+    if (fitJobLine === true && emits !== null && (cellsRoles.includes(emits) || pageRoles.includes(emits))) reds.push(`declaration: ${label}.emits "${emits}" is also a signed input — one id, one meaning`);
 
     // fromLine + class derivation — the key itself is required (value may be
     // null, meaning "no line"; the key being entirely absent is not the same
@@ -690,6 +767,8 @@ export function validateDeclaration(declaration, context = {}) {
             if (fitJobLine === true) checkShapeFitsJobLine(step, i, safeLines, reds);
           }
         }
+        if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
+        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
       }
     }
 
@@ -701,7 +780,8 @@ export function validateDeclaration(declaration, context = {}) {
 
     // M4d amendment 8: a step whose check is green (every figure cites a source cell) must read an input with cells; a text
     // output of an earlier step has no cells to cite.
-    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && !reads.some((r) => cellsRoles.includes(r))) {
+    // M10 am7: a green step that cites quotes (`close.cited`) reads a web page, which has no cells; its source is checked above.
+    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && !reads.some((r) => cellsRoles.includes(r)) && !isPlainObject(step.close?.cited)) {
       const n = fromLine;
       const reading = reads.length === 0 ? 'it reads nothing' : `it reads only ${reads.join(', ')}`;
       const want = cellsRoles.length === 0 ? 'a spreadsheet input, and this job signs none' : cellsRoles.join(' or ');

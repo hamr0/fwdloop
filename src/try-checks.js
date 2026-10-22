@@ -50,6 +50,12 @@ export function closeRecords(step, artifact, closed) {
       n: 3, text: 'the close could run', ok: false, result: closed.verdict, source,
     }];
   }
+  if (step?.close?.class === 'green' && step?.close?.cited) {
+    const n = Array.isArray(artifact?.results) ? artifact.results.length : 0;
+    return [{
+      n: 3, text: 'every result is quoted from the saved copy and passes its rules', ok: closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
+    }];
+  }
   if (step?.close?.class === 'green') {
     const n = Object.keys(artifact?.fields ?? {}).length;
     return [{

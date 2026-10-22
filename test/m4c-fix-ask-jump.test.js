@@ -7,13 +7,10 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '');
 class El {
   constructor(id, attrs = {}) { this.id = id; this.attrs = { ...attrs }; this.listeners = []; this.hidden = false; const c = new Set(); this.classList = { add: (x) => c.add(x), remove: (x) => c.delete(x) }; }
   setAttribute(k, v) { this.attrs[k] = v; }

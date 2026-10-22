@@ -16,6 +16,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { listRuns, orderRuns } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -112,11 +113,7 @@ test('(c) real books: a parked run with no end row sits above a newer finished r
 });
 
 // ---- (a) and (b): the page's own functions over a fake DOM --------------------------------------
-function fnSrc(name) {
-  const start = PAGE.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '');
 class El {
   constructor(id, attrs = {}) {
     this.id = id; this.attrs = { ...attrs }; this.hidden = false; this.listeners = [];

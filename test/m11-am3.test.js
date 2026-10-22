@@ -10,18 +10,10 @@ import { fileURLToPath } from 'node:url';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter, world } from './m4e-world.mjs';
 import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`  function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  let depth = 0;
-  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
-    if (PAGE[i] === '{') depth++;
-    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
-  }
-  assert.fail(`function ${name} has no closing brace`);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '  ');
 const NAMES = ['matchesSearch', 'inboxHeadText', 'inboxMatchesSearch', 'inboxFilterRows'];
 const HEADS = [/ {2}var INBOX_HEADS = [^\n]*/, / {2}var INBOX_CHIP_WORD = [^\n]*/].map((re) => PAGE.match(re)[0]).join('\n');
 const lib = new Function(`${HEADS}\n${NAMES.map(fnSrc).join('\n')}\nreturn {${NAMES.join(',')}};`)();

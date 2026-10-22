@@ -167,7 +167,8 @@ test('a live resume after a redo is section 2 "working on your redo" with a puls
   answer(root, askId, 'redo', 'shorter');
   const resume = cli(['resume', 'r1', '--flow', 'job2', '--root', root], HANG);
   await waitFor(() => existsSync(path.join(runDirOf(root, 'r1'), 'pids.jsonl'))
-    && existsSync(path.join(runDirOf(root, 'r1'), `answer.${askId}.consumed.json`)));
+    && existsSync(path.join(runDirOf(root, 'r1'), `answer.${askId}.consumed.json`))
+    && rowsOf(root, 'r1')[0]?.working === 'redo');
   const [row] = rowsOf(root, 'r1');
   assert.equal(row.section, 2);
   assert.equal(row.working, 'redo');

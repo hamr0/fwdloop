@@ -24,7 +24,7 @@ const turn = (toolCalls, stopReason = 'tool_calls') => ({
 });
 
 /** A model that, per step goal, reads a file, tries something it may not (the summary step), emits its artifact, then stops. The summary's first try is far too long. */
-function fakeProvider() {
+function fakeProvider(redoFails = false) {
   let summaries = 0;
   return {
     generate: async (messages) => {
@@ -33,7 +33,7 @@ function fakeProvider() {
       const emit = (a) => turn([{ id: `e${n}`, name: 'emit_artifact', arguments: { ...a, done: true } }]);
       if (goal.includes('Draft the summary')) {
         if (n === 0) return turn([{ id: 'r1', name: 'read', arguments: { path: 'inputs/jd.md' } }, { id: 'r2', name: 'read', arguments: { path: 'calls.jsonl' } }]);
-        if (n === 2) { summaries += 1; return emit({ text: summaries === 1 ? `## summary of work history blurb\n${'word '.repeat(700)}` : SECTIONS }); }
+        if (n === 2) { summaries += 1; return emit({ text: summaries === 1 || (redoFails && summaries >= 3) ? `## summary of work history blurb\n${'word '.repeat(700)}` : SECTIONS }); }
         return turn([], 'stop');
       }
       if (goal.includes('job description markdown')) {
@@ -47,10 +47,10 @@ function fakeProvider() {
 }
 
 /**
- * @param {{redo?: boolean}} [o] `redo`: the human asks for one redo (with a reason) before accepting.
+ * @param {{redo?: boolean, redoFails?: boolean}} [o] `redo`: the human asks for one redo (with a reason) before accepting. `redoFails`: every try of the redone step is too long (am30: the Redo's limit).
  * @returns {Promise<{root: string, home: string, runDir: string, result: any}>}
  */
-export async function buildWorld({ redo = false } = {}) {
+export async function buildWorld({ redo = false, redoFails = false } = {}) {
   const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-am29w-'));
   const root = path.join(base, 'flows');
   const src = path.join(base, 'src');
@@ -65,7 +65,7 @@ export async function buildWorld({ redo = false } = {}) {
   const runDir = path.join(root, 'job2', 'runs', 'run-1');
   const inputs = [{ id: 'resume', frozen: path.join(runDir, 'inputs', 'resume.docx') }, { id: 'jd', frozen: path.join(runDir, 'inputs', 'jd.md') }];
   const { tools } = resolvePrimitives(CAT, ['read', 'write', 'readDocx'], { runDir, inputs });
-  const modelStep = makeLiveModelStep({ spendPath: path.join(runDir, 'spend.jsonl'), provider: fakeProvider(), rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
+  const modelStep = makeLiveModelStep({ spendPath: path.join(runDir, 'spend.jsonl'), provider: fakeProvider(redoFails), rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
   let asked = 0;
   const askStep = async () => { asked += 1; return redo && asked === 1 ? { decision: 'redo', reason: 'make it shorter' } : { decision: 'accept' }; };
   const result = await runFlow({

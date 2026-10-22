@@ -69,7 +69,7 @@ export function draftStepList({ log, declaration, questionOpen = false }) {
   const reds = Array.isArray(log.reds) ? log.reds.map(String) : [];
   const facts = ['drafted', who, `${n} round${n === 1 ? '' : 's'}`, money(log)];
   if (!gotPlan && reds.length > 0) facts.push(reds[0]); // no plan at all (provider red, cut off): its own words, there is no checker text
-  out.push({ id: 'drafted', label: facts.join(' · '), status: /** @type {'done'|'failed'} */ (gotPlan ? 'done' : 'failed'), details: [] });
+  out.push({ id: 'drafted', label: facts.join(' · '), status: /** @type {'done'|'failed'} */ (gotPlan || (questionOpen && reds.length === 0) ? 'done' : 'failed'), details: [] }); // a draft that stopped to ask (the page look's question, no plan yet) has not failed
 
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const rubricReds = [];

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CHILD = path.join(HERE, 'fixtures', 'resume-efbig-child.mjs');
@@ -28,11 +29,7 @@ test('takeResumeLock: a holder write that fails (real EFBIG) leaves no resume.lo
 
 // ---- amendment 2 (b): a failed load is a plain sentence, never an HTTP code, a path or a status number ----
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in the page`);
-  return PAGE.slice(start, PAGE.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '');
 // the page's real getJSON and its one failure-to-words function, over a fake fetch
 const load = new Function('fetch', `${fnSrc('getJSON')}\n${fnSrc('loadFailureText')}\nreturn { getJSON, loadFailureText };`);
 const failureOf = async (fakeFetch) => {

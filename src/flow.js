@@ -274,22 +274,38 @@ export function nextRunId(flowDir) {
 const CLAIM_TRIES = 50;
 
 /**
+ * The ONE decider of an unnamed run's id: the first `run-<n>` from `from` (default: nextRunId) with nothing by that name (a stray file counts as taken, as
+ * `mkdir` EEXIST does). Only LOOKS; `claimRunId` claims it and `canStart` (src/panel/authorstart.js) asks it.
+ * @param {string} flowDir @param {number} [from]
+ * @returns {{ok:true, runId:string, runDir:string, n:number}|{ok:false, red:string}}
+ */
+export function freeRunId(flowDir, from = Number(nextRunId(flowDir).slice(4))) {
+  for (let n = from; n < from + CLAIM_TRIES; n += 1) {
+    const runId = `run-${n}`;
+    const r = resolveRunDir(flowDir, runId);
+    if (!r.ok) return r;
+    try { lstatSync(r.runDir); } catch { return { ok: true, runId, runDir: r.runDir, n }; }
+  }
+  return { ok: false, red: `run: could not claim a run name after ${CLAIM_TRIES} tries` };
+}
+
+/**
  * @param {string} flowDir
  * @returns {{ok:true, runId:string, runDir:string}|{ok:false, red:string}}
  */
 export function claimRunId(flowDir) {
   const runsDir = path.join(flowDir, RUNS_DIR);
-  let n = Number(nextRunId(flowDir).slice(4));
-  for (let i = 0; i < CLAIM_TRIES; i += 1, n += 1) {
-    const runId = `run-${n}`;
-    const r = resolveRunDir(flowDir, runId);
-    if (!r.ok) return r;
+  let from = Number(nextRunId(flowDir).slice(4));
+  for (let i = 0; i < CLAIM_TRIES; i += 1) {
+    const f = freeRunId(flowDir, from);
+    if (!f.ok) return f;
     try {
       mkdirSync(runsDir, { recursive: true });
-      mkdirSync(r.runDir); // NOT recursive: the exclusive create IS the claim
-      return { ok: true, runId, runDir: r.runDir };
+      mkdirSync(f.runDir); // NOT recursive: the exclusive create IS the claim
+      return { ok: true, runId: f.runId, runDir: f.runDir };
     } catch (err) {
       if (/** @type {any} */ (err)?.code !== 'EEXIST') return { ok: false, red: `run: could not claim a run name — ${/** @type {Error} */ (err).message}` };
+      from = f.n + 1; // taken between the look and the claim
     }
   }
   return { ok: false, red: `run: could not claim a run name after ${CLAIM_TRIES} tries` };
@@ -1052,4 +1068,14 @@ export function suggestFlowName(root, name) {
     const candidate = `${base.slice(0, 64 - tail.length)}${tail}`;
     if (!taken(candidate)) return candidate;
   }
+}
+
+/**
+ * M10: take back the drafting copies of web pages (`files`) a draft froze into `dir` when the draft is then refused at $0, and the folder itself once it is
+ * empty. Only the files named are removed; a folder holding anything else is left.
+ * @param {string} dir @param {string[]} files
+ */
+export function removeFrozenPages(dir, files) {
+  for (const f of files) { try { rmSync(f, { force: true }); } catch { /* best-effort */ } }
+  try { if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true, force: true }); } catch { /* not there */ }
 }

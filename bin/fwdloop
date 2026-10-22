@@ -37,7 +37,7 @@ import { resolvePrimitives } from '../src/primitives.js';
 import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
-import { readModelRecord } from '../src/flowmodel.js';
+import { readModelRecord, readRunModel } from '../src/flowmodel.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -50,8 +50,9 @@ import { panelMain } from '../src/panel/server.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
+import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 
-// This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it (`model.json`, written when it was drafted:
+// This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
 // Whether that model may be used is `resolveUsableModel` (ticked in Settings > Providers with both prices): this file names no model and no price.
 
@@ -75,7 +76,9 @@ const keyedEnv = () => keyedLoad().env;
  * that does not fit refuses at $0 with the one refusal text. A hold that fits is given back when this
  * process ends or parks (the `exit` hook runs on every exit path; a SIGKILL leaves it for the next check,
  * which settles it as "process gone").
- * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void }}
+ * M4d am32: the draft door also gets `settle(why)`, called when the draft's result is written: the hold is given back then, not at exit. The exit hook calls the same
+ * function as a backstop; it settles once (a second call is a no-op), so a hold is never settled twice.
+ * @returns {{ addRunDir: (d: string) => void, nameRunDir: (d: string) => void, settle: (why: string) => void }}
  */
 const NO_CONFIG_HOME_REFUSAL = 'NODE_ENV=test is set without FWDLOOP_CONFIG_HOME, so the keys file, prices and monthly limit would be skipped. Nothing spent. Unset NODE_ENV, or set FWDLOOP_CONFIG_HOME.';
 
@@ -90,7 +93,7 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     if (!(process.env.NODE_ENV === 'test' && process.env[hook])) {
       fail(NO_CONFIG_HOME_REFUSAL);
     }
-    return { addRunDir: () => {}, nameRunDir: () => {} };
+    return { addRunDir: () => {}, nameRunDir: () => {}, settle: () => {} };
   }
   let claim;
   try {
@@ -102,12 +105,17 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
   }
   if (!claim.ok) fail(monthlyRefusalText(claim.room));
-  if (claim.holdId !== null) {
-    process.on('exit', () => settleHold({
-      holdId: claim.holdId, why: process.exitCode ? 'ended (red)' : 'ended or parked', home, alsoRunDirs: also,
-    }));
-  }
+  let settled = false;
+  const settle = (why) => {
+    if (settled || claim.holdId === null) return;
+    settled = true;
+    settleHold({
+      holdId: claim.holdId, why, home, alsoRunDirs: also,
+    });
+  };
+  if (claim.holdId !== null) process.on('exit', () => settle(process.exitCode ? 'ended (red)' : 'ended or parked'));
   return {
+    settle,
     addRunDir: (d) => also.push(d),
     // C2: a rerun's new run dir is named in the money record the moment it starts.
     nameRunDir: (d) => { also.push(d); nameRunDir({ holdId: claim.holdId, runDir: d, home }); },
@@ -160,7 +168,24 @@ function today() {
  * be hit by a user typing `--something`. This is how the test suite drives
  * every CLI scenario at $0 with zero chance of a real network call.
  */
-async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = null) {
+async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = null, continuing = false) {
+  // M4d am33: the ONE decision of which model this run uses. `runModel` is the model the run already has (a continue: the one it started on; a start: the
+  // one it was signed with). `--model` picks any ticked model for a NEW run (the job's recorded model is only the default; model.json is never rewritten);
+  // a run that already has its model keeps it: naming another is refused by name, never silently swapped.
+  const decide = (config) => {
+    const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6 / M4d am33: the model of THIS run, else the one recorded with the job
+    if (runModel !== null && named.model !== undefined && (named.model !== runModel.model || (named.provider !== undefined && named.provider !== runModel.slot))) {
+      throw new Error(continuing
+        ? `This run started on ${runModel.model}; a resume keeps it. Nothing spent.`
+        : `This run was signed with its model (${runModel.slot} · ${runModel.model}); --model cannot change it.`);
+    }
+    if (named.model !== undefined) {
+      const p = pickTicked(config, { model: named.model, provider: named.provider ?? (rec !== null && rec.model === named.model ? rec.slot : undefined) });
+      if (!p.ok) throw new Error(p.say);
+      return p;
+    }
+    return rec;
+  };
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_MODEL_STEP) {
     const modulePath = resolve(process.env.FWDLOOP_TEST_MODEL_STEP);
     const mod = await import(pathToFileURL(modulePath).href);
@@ -171,33 +196,24 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = 
     // is exercised the way a live run's is); with none, the double holds nothing. It is never refused here: it spends nothing.
     const modelStep = await mod.default({ spendPath });
     let usable = null;
+    let pick = null;
     try {
-      const rec = configDoorHome().skip ? null : (runModel ?? readModelRecord(flowDir));
-      usable = rec === null ? null : resolveUsableModel(rec.slot, { config: readPriceConfig(), model: rec.model });
+      pick = configDoorHome().skip ? null : decide(readPriceConfig());
+      usable = pick === null ? null : resolveUsableModel(pick.slot, { config: readPriceConfig(), model: pick.model });
     } catch (err) {
       if (!(err instanceof ConfigError)) throw err; // a broken config is refused by name at the monthly hold, right after this
     }
-    return { modelStep, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
+    return { modelStep, model: pick === null ? null : { slot: pick.slot, model: pick.model }, ...(usable?.ok ? { ceilingUsd: ceilingCostUsd(usable.rates) } : {}) };
   }
   // A test process with no config home reads no Settings: say why, not "tick a model".
   if (configDoorHome().skip) throw new Error(NO_CONFIG_HOME_REFUSAL);
-  // The ONE decision of which model runs and at what price (M4d amendments 5 and 6): the model recorded with the job (a job drafted before the record
-  // existed takes `--model`), refused by name, at $0, before a run dir or a book row exists. The per-round hold is that model's own Settings price times the token bounds.
+  // The per-round hold is that model's own Settings price times the token bounds; a refusal comes before a run dir or a book row exists.
   let usable;
   let slot;
   try {
     const config = readPriceConfig();
-    const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6: the model signed for THIS run, else the one recorded with the job
-    if (rec !== null && named.model !== undefined && (named.model !== rec.model || (named.provider !== undefined && named.provider !== rec.slot))) {
-      throw new Error(`This job already has its model recorded (${rec.slot} · ${rec.model}); --model cannot change it.`);
-    }
-    let pick = rec;
-    if (pick === null) {
-      if (named.model === undefined) throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
-      const p = pickTicked(config, named);
-      if (!p.ok) throw new Error(p.say);
-      pick = p;
-    }
+    const pick = decide(config);
+    if (pick === null) throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
     slot = pick.slot;
     const keyCheck = checkKeyPreflight(slot, env);
     if (!keyCheck.ok) throw new Error(keyCheck.message);
@@ -209,8 +225,14 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = 
   if (!usable.ok) throw new Error(usable.say);
   return {
     modelStep: makeLiveModelStep({ slot, model: usable.model, spendPath, env }),
+    model: { slot, model: usable.model },
     ceilingUsd: ceilingCostUsd(usable.rates),
   };
+}
+
+/** M4d am33: the model a run being continued keeps: the one it started on (its record), else the one it was signed with; null = an old run, today's pick. */
+function runModelKept(runDir) {
+  return readRunModel(runDir) ?? runModelOf(pickRunValues(runDir));
 }
 
 function parseSourceFlags(list) {
@@ -221,7 +243,7 @@ function parseSourceFlags(list) {
     const role = entry.slice(0, eq);
     const value = entry.slice(eq + 1);
     if (value.length === 0) throw new Error(`--source "${entry}" has an empty path`);
-    out[role] = resolve(value);
+    out[role] = value; // resolved at use: a file role is a path, a signed page role is an address (M10 am3)
   }
   return out;
 }
@@ -324,6 +346,13 @@ async function cmdRun(rest) {
     return;
   }
   const declaredRoles = (read.arbiter.sources ?? []).map((s) => s.role);
+  // M10 am3: a web page input's address is signed with the job; the run takes it from there, and naming any other address is refused at $0
+  const pages = pageAddressesOf(read.arbiter);
+  for (const role of Object.keys(pages)) {
+    if (Object.hasOwn(parsedSources, role) && parsedSources[role] !== pages[role]) fail(`run: ${pageAddressRefusal(role, pages[role])}`);
+    parsedSources[role] = pages[role];
+  }
+  for (const role of Object.keys(parsedSources)) if (!Object.hasOwn(pages, role)) parsedSources[role] = resolve(parsedSources[role]);
   for (const role of declaredRoles) {
     if (!Object.hasOwn(parsedSources, role)) {
       fail(`run: flow "${flowName}" declares source role "${role}" — pass --source ${role}=<path>`);
@@ -336,7 +365,7 @@ async function cmdRun(rest) {
   }
   const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
   for (const src of sources) {
-    if (!existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
+    if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
   }
 
   // M4e amendment 3: no --run-id -> the ONE claim (`run-<n>`, the folder created exclusively). A typed id is checked as before; its
@@ -368,8 +397,9 @@ async function cmdRun(rest) {
   const spendPath = join(runDir, 'spend.jsonl');
   let modelStep;
   let ceilingUsd;
+  let startedModel;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd, model: startedModel } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
   } catch (err) {
     fail(err.message);
     return;
@@ -398,6 +428,7 @@ async function cmdRun(rest) {
     root,
     name: flowName,
     runId,
+    runModel: startedModel ?? undefined,
     sources,
     catalogue,
     modelStep,
@@ -626,7 +657,7 @@ async function cmdResume(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelKept(runDir), true));
   } catch (err) {
     fail(err.message);
     return;
@@ -668,6 +699,7 @@ async function cmdResume(rest) {
     root,
     name: flowName,
     runId,
+    runModel: runModelKept(runDir) ?? undefined,   // a rerun (a new run made by this resume) records the model the resumed run keeps
     catalogue,
     modelStep,
     ceilingUsd,
@@ -727,7 +759,7 @@ async function cmdContinue(rest) {
   let modelStep;
   let ceilingUsd;
   try {
-    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelOf(pickRunValues(runDir))));
+    ({ modelStep, ceilingUsd } = await resolveModelStep(spendPath, env, join(root, flowName), values, runModelKept(runDir), true));
   } catch (err) {
     fail(err.message);
     return;
@@ -818,6 +850,8 @@ async function cmdDraft(rest) {
       out: { type: 'string' }, root: { type: 'string' }, name: { type: 'string' },
       // M4e amendment 24 item 4: the redraft after the human's answers never asks (the panel passes this; a plain draft may ask on try 3)
       'no-questions': { type: 'boolean' },
+      // M10 piece 3: the rules the person left Not checked ("drop it"), as `<line>.<rule>` pairs, e.g. `1.2,3.1` (the panel passes this to the redraft after the answers)
+      left: { type: 'string' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
@@ -829,6 +863,13 @@ async function cmdDraft(rest) {
   const proseFile = positionals[0];
   if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow>');
   for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
+
+  const leftRules = [];
+  for (const pair of values.left === undefined ? [] : values.left.split(',')) {
+    const m = /^(\d+)\.(\d+)$/.exec(pair.trim());
+    if (m === null || Number(m[1]) < 1 || Number(m[2]) < 1) fail(`draft: --left takes <line>.<rule> pairs like 1.2,3.1, got "${values.left}"`);
+    leftRules.push({ line: Number(m[1]), rule: Number(m[2]) });
+  }
 
   let injected = {};
   if (process.env.NODE_ENV === 'test' && process.env.FWDLOOP_TEST_DRAFT_PROVIDER) {
@@ -869,16 +910,25 @@ async function cmdDraft(rest) {
     fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
   }
   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
-  const proseRead = readFileInside(dirname(resolve(proseFile)), basename(resolve(proseFile)));
-  takeMonthlyHold({
+  // the ONE read of the prose file goes through the safe gateway (a symlink or an outside path is refused); draftToDir is handed this read
+  const proseAbs = resolve(proseFile);
+  const gate = readFileInside(dirname(proseAbs), basename(proseAbs));
+  const proseRead = gate.ok
+    ? (gate.text.trim() === '' ? { ok: false, red: `prose: "${proseAbs}" is empty` } : gate)
+    : { ok: false, red: gate.missing ? `prose: cannot read "${proseAbs}": ENOENT` : `prose: ${gate.red}` };
+  const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
   const result = await draftToDir({
+    // M4d am32: the hold is given back when the draft's result is written, not when this process exits (the exit hook stays as the backstop)
+    onResult: ({ ok }) => hold.settle(ok ? 'ended or parked' : 'ended (red)'),
     proseFile: resolve(proseFile),
+    proseRead,
     dir: resolve(values.out),
     root: resolve(values.root),
     name: values.name,
     noQuestions: values['no-questions'] === true,
+    ...(leftRules.length ? { leftRules } : {}),
     draftThinking: values.thinking === true ? 'on' : 'off',
     env,
     keyNames: keysLoad.keyNames,
@@ -892,7 +942,8 @@ async function cmdDraft(rest) {
     return;
   }
   process.stdout.write(`draft dir: ${resolve(values.out)}  cost: ${cost}\n`);
-  if (!result.ok) {
+  // M10 piece 3: a draft that stopped to ask what the page look raised is not red: it waits for the person's answers (the panel takes them)
+  if (!result.ok && result.stop !== 'look-asks') {
     process.stderr.write(`fwdloop: draft RED (${result.stop ?? 'scrub'}) — ${result.reds.join('; ')}\n`);
     process.exitCode = 1;
     return;

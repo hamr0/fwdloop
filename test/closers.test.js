@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  closeByClass, closeGreen, closeSoftgreen,
+  closeByClass, closeGreen, closeSoftgreen, citeForms, FORMULAS,
 } from '../src/closers.js';
 
 const AGING = {
@@ -94,4 +94,21 @@ test('closeSoftgreen: an extra key (e.g. lines) is red by name, even when the te
   assert.equal(v.verdict, 'red');
   assert.match(v.red, /"lines"/);
   assert.equal((await closeSoftgreen({ text: 'hello' }, { maxWords: 10 })).verdict, 'green');
+});
+
+// M10 am10: the cite forms are one text, built from the checker's own list
+const FORMS_EXPECT = 'one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, sub, daysBetween over those';
+
+test('citeForms: one text naming the cell form, the field form and exactly the checker\'s formulas', () => {
+  assert.equal(citeForms(), FORMS_EXPECT);
+  for (const k of [...Object.keys(FORMULAS), 'daysBetween']) assert.ok(citeForms().includes(k), k);
+  // built from the list: a list with one more key changes the text
+  assert.match(citeForms([...Object.keys(FORMULAS), 'daysBetween', 'avg']), /daysBetween, avg over those/);
+});
+
+test('closeGreen: a cite that fits no form is red and the red names every form', () => {
+  const v = closeGreen({ fields: { t: { value: 1, cite: 'banana' } } }, { reads: { aging: AGING }, businessDate: '2026-06-01' });
+  assert.equal(v.verdict, 'red');
+  assert.ok(v.red.includes('cite "banana" does not match the cell or formula grammar'), v.red);
+  assert.ok(v.red.includes(FORMS_EXPECT), v.red);
 });

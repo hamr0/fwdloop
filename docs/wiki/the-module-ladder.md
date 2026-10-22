@@ -1419,6 +1419,7 @@ Exit: SIGNED by hamr 2026-10-01 ("sign m4c exit")
   - The Chat list of a draft (am10) is built by one function, `draftStepList` (`src/draft-steps.js`), from the draft's own `log.json` and declaration; the draft's input facts ride in `log.json`, never in the hashed files.
   - The Ask tab no longer rebuilds on a refresh tick: `timeLeftMs` is left out of the page's change signature, "time left" counts down in place, and a real redraw keeps each evidence box's scroll position.
   - F64: a malformed tool call's raw arguments are shown as the first 2000 characters, then `… (N more chars)`.
+  - M10 piece 6 (2026-10-21): the page-map call (`8cd2b7b`) and the sheet-map call books a pre-send throw as one unmetered call, each with a test; a drafting round that throws before anything is sent still books one unmetered call at the ceiling (the 2c48649 tradeoff, kept).
   - A key name is a name that ends in `_KEY`, capitals (`isKeyName` in `src/keysfile.js`, commit 1b15bfb). Only such lines of the keys file are listed as Settings rows; a configured name that is not one never reaches a child's env; and the provider, model, Test and models routes refuse any other slot by name (`not-a-key-name`, nothing saved). This replaces the "other names are still listed" words of amendment 16 item C4 and the "every name with a value is a row" words of amendment 6 (signed text, unchanged). A `config.json` that already names a slot without `_KEY` is not broken: that row is simply not shown and its keys-file line is not passed on.
 
 **M4d amendment 22 — SIGNED by hamr 2026-10-16 ("sign m4d am22").**
@@ -1504,6 +1505,27 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
   - Paging of the Round table is client-side: 20 rows at a time, with load more.
   - `you cancelled` maps to a stopped row.
   - Old runs show `—`; nothing is made up.
+
+**M4d amendment 30 — SIGNED by hamr 2026-10-19 ("sign m4d am30"): try numbers keep counting after a Redo.** This fixes am29.
+1. In one step, try numbers never restart. Try 1 and try 2, then Redo, then try 3 and try 4. Each number is used once in a step.
+2. The Audit, the diaries and the step card all use that same number. Each try's checks and output are matched to it, never guessed.
+3. How many tries a Redo allows stays the same. Only the number shown changes.
+- **Must fail when:** a step shows the same try number twice; a try shows another try's checks or output; a try that saved no checks borrows a later try's.
+
+**M4d amendment 31 — SIGNED by hamr 2026-10-19 ("sign m4d am31"): a torn spend line stops the run by name.**
+1. If a line in the spend log can't be read (a crash cut it in half), every model call stops at $0 with: `spend log line <n> is torn — fix or remove that line`.
+2. The torn line is never skipped and never counted as $0.
+- **Must fail when:** a torn line throws a raw error; a call goes ahead past a torn line; the total leaves the torn line out.
+- **Not built — not signed text (hamr, 2026-10-19):** parked until a torn spend line is actually seen. Reading the code found the cap check named in the ledger (`readSpendTotal`) has no caller, and `readSpendRows` skips a torn line (counted as $0). A first build touched 17 files for a case never seen, so it was discarded; the finding stays in the fix ledger.
+
+**M4d amendment 32 — SIGNED by hamr 2026-10-19 ("sign m4d am32"): a draft frees its cap when its result is written.**
+1. A draft's hold on the monthly limit is freed as soon as the draft's result (green or red) is written. It doesn't wait for the process to exit.
+2. So when a draft shows done, a new Draft or Start over is never refused with "held by a run in progress".
+- **Must fail when:** a draft reads done but its hold is still there; a Draft posted right after one finishes is refused.
+
+**M4d amendment 33 — SIGNED by hamr 2026-10-22 ("sign m4d am33").** A signed job can run on any model ticked in Settings. The run picks the model, and the run records which one it used. A job's recorded model is only the default pick. The signed files, the plan and the cap don't change.
+
+- *Built after signing — not signed text:* `fwdloop run --model <id>` (with `--provider` only when two keys tick the same id) picks any model ticked in Settings with both prices for that new run; the job's recorded `model.json` is only the default and is never rewritten. The run records its pick once in its own folder (`run-model.json`, written once by `writeRunModel`), and `resume` / `continue` keep it: naming another model on a resume is refused by name, at $0. A rerun made by a resume records the model the resumed run keeps. A run with no `run-model.json` (made before this) falls back to the model signed with it, else today's pick.
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
@@ -2542,6 +2564,100 @@ same run. Scope is stated when its turn comes.
     - The CSV case asks once and runs green.
   - **Must fail when:** a kept word isn't on the page; a signed label reads no value; a guardrail is dropped with no reason; an ask comes from the model choosing; more than 2 asks before drafting; an answer is missing from any of the 3 places; a run is checked against the drafting copy instead of its own; a cheat page (reversed route, "Pay $0") passes.
   - **Cap:** first test about 2 cents; build $0 (tests only); the exit walk at most 50 cents per run, with your go for each run.
+
+- **M10 amendment 1 — SIGNED by hamr 2026-10-19 ("sign m10 am1"): up to 3 asks before drafting; more than 3 means rewrite the job.** Copied from bareloop (`MAX_QUESTIONS` 3, `tooManyAsksText`).
+  - **Item 4:** "at most 2 asks" becomes **at most 3 asks**.
+    - If code finds more than 3, nothing is asked. Drafting stops at $0 and says: "Your job has N rules I can't check or had to guess. Please rewrite it." Each of those rules is listed, with code's reading of it.
+    - An answer is needed for each ask. There's no skip.
+    - The one extra ask after two failed drafts stays as it is. It comes after drafting, so it isn't one of the 3.
+  - **Done when:** "drafts with at most 2 code asks" becomes "drafts with at most 3 code asks".
+  - **Must fail when:** "more than 2 asks before drafting" becomes "more than 3 asks before drafting, or a 4th rule is asked instead of stopping at $0".
+  - **Why:** F71. Many asks means weak guardrails, so the person rewrites the job instead of code asking more. Same as bareloop.
+
+- **M10 amendment 2 — SIGNED by hamr 2026-10-19 ("sign m10 am2"): how an ask shows up, copied from bareloop.** This changes item 4's choices and item 6's "you confirmed".
+  1. **While drafting.** An ask is a plain chat message: `A question the plan raised (K of N), about job line L: <question>`. Reading asks come first, then can't-check asks, in line order.
+     - You type the answer in the chat box. There are no buttons.
+     - A blank answer gets: `An answer is needed here — there is no skip. Type it in the box below and press Send.`
+  2. **Answer words, as bareloop.** These replace item 4's "use it, your own words, or leave it Not checked".
+     - `agree` (or `yes`) takes code's reading.
+     - Your own words are taken word for word.
+     - `drop it` (can't-check asks only) leaves the rule Not checked.
+  3. **In the job and the approved plan.** An agreed reading, or your own words, becomes a new `~` line under that job line. Your original rule stays. Example:
+     ```
+     1. List 3 flights from Boston to Chicago
+     ~ under $450; not a red-eye; nonstop
+     ~ departure time between 05:00 and 21:59
+     ```
+     The signed job and the approved plan both show the new `~` line. `drop it` adds no line, and the plan card shows `not checked · "<rule>" — You chose to leave it Not checked.`
+  4. **Draft log and Audit.** One row per question and answer: the question, the answer, the line, the time, plus the proposal and the rule it added as their own fields (never cut out of the question text). The Audit shows it under the drafting step as `you were asked: …` / `you said: …`. This replaces item 6's "you confirmed …" in the signed job: the new `~` line is what you confirmed.
+  5. **Too many asks (am1).** The normal draft-stop message, then the rewrite list, then `Spent so far: <spend or unknown>.`
+
+- **M10 amendment 3 — SIGNED by hamr 2026-10-20 ("sign m10 am3"): a web page's address is signed with the job, never typed per run.** This makes item 1's "a signed web address" exact.
+  1. On the New job card, an inputs line `name: https://…` (or `http://`) is a web page, as in bareloop's Inputs box. It is written into the signed job like a file input, so the job's signature covers the address.
+  2. At the Run door, in a schedule and on a trigger, a page input shows its signed address and can't be changed there. A different address is a changed job (a new workflow `<name>-N`). File inputs still change per run, as today.
+  3. A run that names a different address for a page input is refused at $0, naming the input.
+  - **Why:** an address typed per run is not signed, and fetching it sends a request off the machine.
+
+- **M10 amendment 4 — SIGNED by hamr 2026-10-20 ("sign m10 am4"): a Result tab, copied byte for byte from bareloop.**
+  Source: bareloop `feat/thinking-retries @2959217`. index.html Result block :3646-3809, CSS :397-408; server.js `getRunResult` :1347, `getRunDownload` :1470, route :3949; strings at server.js :1165-1308. Spec: its PRD Part 6 :1906, mock `design/result-tab-mock-v2.html` variation B. Tests: `part6-*.test.js`.
+  1. **Place.** A 5th tab, labelled `Result`: **Run · Audit / logs · Job · Ask · Result**. It is shown for M10 jobs (a web page, a CSV or a .docx input) and hidden for other runs, which keep the Run tab as today.
+  2. **Top card.** The status, then `· <check type> · <run name>`, then Money | Time. If the run read one page, a `Page read` link, with "The page may have changed since this run."
+  3. **One card per job line.**
+     - The job line and its `~` rules.
+     - `Results (N)`, with one box per result: `Result k`, `N of N ✓`, a small box per fact (money as the check read it).
+     - A `proof — the page's own words` fold, with the words the check read highlighted.
+     - `The checks`, with `(you confirmed)` where it applies, and "✓ = code checked it against the saved page".
+     - `Not checked` for that line.
+     - With no rows: "no saved result to show".
+  4. **Red run.** "The check said: <line> (+N more)". No Saved card. It shows the last file the check read, marked gone or changed if it is.
+  5. **Your call**, as bareloop: when a run waits for your accept, the Result tab shows "waiting for you — the checks passed; is this what you wanted?" with Accept · Rerun with my words · Pause, and bareloop's messages. Accept also stays on the Run and Ask tabs. All three places use the same accept, so accepting in one is accepted everywhere.
+  6. **Bottom.** `Not checked (the AI's own reading)` when there is any. Then `Saved`: each file with `Download <name>`, marked gone or changed if it is.
+  7. **Empty states**, bareloop's words: "select a run first", and "no such run, or it has no result tab".
+  8. **Phone.** bareloop never checked it on a phone. We verify at 1280, 390 and 320 before calling it done.
+
+- **M10 amendment 5 — SIGNED by hamr 2026-10-20 ("sign m10 am5"): bareloop's question words, and no Pause.** This changes item 4's question form and am4 item 5.
+  1. **The question words are bareloop's, verbatim.** They replace item 4's `Line n, guardrail "<…>": I propose <…>.` form:
+     - Reading ask: `Your line N says "<rule>". I read it as: <reading>. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line N).`
+     - Can't-check ask: `Your line N says "<rule>". I can't check this on the page. Drop it? Answer "drop it", or type how to check it (your answer is added as a new ~ rule on line N).`
+     - They sit inside am2's chat message: `A question the plan raised (K of N), about job line L: <question>`.
+  2. **The Result tab's Your call has no Pause.** It shows **Accept · Rerun with my words** only, with bareloop's words. In fwdloop a run waiting for you already stays open and spends nothing until you answer or its ask wait ends. Accept is fwdloop's existing Accept, and Rerun with my words is fwdloop's existing Rerun with a reason, the same ones the Ask tab uses. Accepting or rerunning in one place counts everywhere.
+
+- **M10 amendment 6 — SIGNED by hamr 2026-10-20 ("sign m10 am6"): the too-many-asks message is bareloop's, whole.** This changes am1's quoted message.
+  - With more than 3, the stop message is bareloop's `tooManyAsksText`, word for word: `Your job has N rules I can't check or had to guess. Please rewrite it so each one says what to look for. My readings: line L "<rule>" → <reading>; ….`
+  - A rule code can't check shows `I can't check this on the page` in place of a reading.
+  - It replaces am1's shorter quote. "My readings" is am1's list of each rule with code's reading.
+
+- **M10 amendment 7 — SIGNED by hamr 2026-10-20 ("sign m10 am7"): where the facts are signed, and a flipped route goes red, both as bareloop.** This makes item 2 and item 3 exact.
+  1. **The facts sit in the step's check, written by the drafter, checked by code.** As bareloop's signed spec: each fact has a name, a kind, the page's own words and a number rule, and the line has a result count.
+     - "List 3 …" is the count: 3 results.
+     - Code checks the draft at $0 and refuses it, naming the line, when: a label isn't one the page-read kept; a word isn't on the page; a label shows up fewer times than the count; a page rule dropped that word.
+     - Every number rule must come from a signed `~` line (your own words, or a reading you agreed to). A number rule that isn't in the signed job is refused at $0. (Tighter than bareloop, which only marks it as the AI's.)
+  2. **A flipped route goes red: R2 copied from bareloop's test lab.**
+     - A place word grows to take in its role word on the left ("Leaves Amsterdam …", "arrives at London …"), and every grown phrase must be in the quote.
+     - Adds R2, R2a, R2b, R2c to item 3's copied rules.
+     - Source: bareloop `.claude/scratch/idea-a-v2`, `FROZEN-RULES.md`. Proof: F235, F236 (10/10 caught with R2, 0/10 without).
+     - First a $0 test on F71's saved page: the honest copy stays green and the flipped copy goes red. If that fails, nothing is built and this item comes back to hamr.
+
+- **M10 amendment 8 — SIGNED by hamr 2026-10-21 ("sign m10 am8"): column asks: their words, a locked column, and no heading asks yet.** This makes item 7 exact.
+  1. **Words.**
+     - A column ask is item 7's example, then: ` Answer "agree", or type your own words (your answer is added as a new ~ rule on line N).`
+     - `agree` adds the `~` line: `use the column '<column>' for '<word>'`.
+     - Not checked reasons: there is no column '<word>'; no column fits '<word>'; two columns fit '<word>' equally; you didn't take the offered column.
+  2. **The column is locked.** Each fact from a sheet names its column in the step's check. Code checks at $0 that it's a real column (and the agreed one, when there was an ask), and at run time that every cited cell comes from that column. A cell from another column is red, naming the column.
+  3. **No heading asks for .docx yet.** A job word that isn't a .docx heading shows `Not checked` with its reason; nothing is asked. Quotes from a .docx are still checked word for word against the run's own copy.
+- **M10 amendment 9 — SIGNED by hamr 2026-10-21 ("sign m10 am9"): the Result tab shows what was checked.**
+  1. **A page job (a web address input):** each line's card is bareloop's, as am4 says: the results that matter, and what got checked. A red run still shows the results the check read, with no ✓, as bareloop does.
+  2. **Every other job (a sheet, a doc, or no results):** each line's card lists every check the step ran, one row each, with `✓` or `✗`. It uses the same words as the Audit's try line, for example:
+     - `✓ cells only from column 'Amount'`
+     - `✓ every cited cell is in the saved sheet (6 of 6)`
+
+     A failed check shows `✗` and its reason.
+  3. The rows come from the run's own check record, from that step's newest try. Code writes them, never the AI.
+- **M10 amendment 10 — SIGNED by hamr 2026-10-21 ("sign m10 am10").** A step whose check cites cells is told the cite forms the checker accepts: one cell (`<input>!C3`), a field above it (`#name`), or `sum`, `count`, `min`, `max`, `sub`, `daysBetween` over those. The same forms are named in the red when a cite doesn't match. It is told nothing else about its check. This is the second exception to "the step never sees its close", after the page-quoting step.
+- **M10 amendment 11 — SIGNED by hamr 2026-10-22 ("sign m10 am11").** The Checked list shows each check on its own line, like bareloop's plan card. Code's notes about written forms it did not use move out of "Not checked" into their own list, "How the page was read", copied from bareloop `2d22c0f`. An S1 note ("would read the same value as") moves there too only if hamr rules so in bareloop, copied from their commit.
+- **M10 amendment 12 — SIGNED by hamr 2026-10-22 ("sign m10 am12").** "The CSV case asks once and runs green" is split. The ask part stays: the CSV case asks once, and the answer is in all 3 places. The "runs green" part waits for bareguard's computed-over-cells check, and comes back as its own scope when bareguard delivers. The reason is written in FINDINGS.
+
+**M10 EXIT SIGNED — hamr, 2026-10-22** ("sign m10 exit"). **M10 exit — met 2026-10-22.** The flights job `m10-walk-flights-4` (run-1), a route bareloop never used, drafted with 0 asks on deepseek-flash, signed, and ran green. Its 3 quotes were checked against the run's own saved page by `scripts/check-cited-run.mjs` (ok). The CSV case `m10-walk-csv-3` asked once, and the answer is in the draft log, the Audit and the signed job. CSV "runs green" waits for bareguard (am12).
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 

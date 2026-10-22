@@ -14,7 +14,8 @@ const repo = join(here, '..', '..');
 const engine = join(here, 'engine');
 
 export function makeEngine() {
-  const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  let sha = 'no-git'; // a tracked-files-only copy (git archive) has no .git; the header only
+  try { sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* keep no-git */ }
   const header = `// POC copy of src/ @${sha} — throwaway, never shipped\n`;
   rmSync(engine, { recursive: true, force: true });
   mkdirSync(engine, { recursive: true });
@@ -28,11 +29,11 @@ export function makeEngine() {
     writeFileSync(p, s.replace(from, () => to));
   };
   patch('src/runner.js',
-    'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });',
+    "const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });",
     'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, stepId: step.emits ?? step.goal ?? null }); // POC patch (src now carries attempt + thinkingMode since M4d am25; the POC arm overrides the mode)');
   patch('src/model-step.js',
-    'const toolSchema = buildEmitArtifactSchema(stepMeta.class);',
-    "const poc = pocBegin(provider, stepMeta); // POC patch\n    const toolSchema = buildEmitArtifactSchema(stepMeta.class);");
+    "const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));",
+    "const poc = pocBegin(provider, stepMeta); // POC patch\n    const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));");
   patch('src/model-step.js',
     "result = await loop.run(messages, tools, { maxTokens: 16000, ...(thinkingMode ? { thinkingMode } : {}) });",
     'result = await loop.run(messages, tools, { maxTokens: 16000, ...poc.opts }); // POC patch (the arm decides, not src\'s am25 mode)');

@@ -58,6 +58,8 @@ import {
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
+import { readRunSource } from './cited-source.js';
+import { citedLineOf, writeCitedLine } from './cited-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
@@ -67,7 +69,8 @@ import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel } from './flowmodel.js';
+import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -390,14 +393,38 @@ export function checkFreshRunDir(runDir) {
   return { ok: true };
 }
 
+/** M10 item 1: fetch a web page and freeze its text as `<dir>/<id>.txt`; the sha256 is of the FROZEN bytes, like a file input. The ONE writer of a
+ *  page's frozen copy: drafting calls it with its draft folder, a run start (via `freezeInputs`) with the run's `inputs/`, so the two are
+ *  separate files and a run is only ever checked against its own. The fetch is tried once; a refusal names the input and says why in plain words.
+ *  @param {string} dir @param {string} id @param {string} url
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o]
+ *  @returns {Promise<{ok: true, text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} `text` = the frozen text itself, for the caller that reads it (drafting) */
+export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {}) {
+  const got = await fetchPage(url);
+  if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+  mkdirSync(dir, { recursive: true });
+  const frozen = join(dir, `${id}.txt`);
+  writeFileSync(frozen, got.text, 'utf8');
+  return { ok: true, text: got.text, entry: { id, source: url, frozen, sha256: hashFile(frozen), bytes: statSync(frozen).size } };
+}
+
 /** Copy each named source into `<runDir>/inputs/`, hash the FROZEN copy
  *  (never the original again after this), write `inputs.json`. An
- *  unreadable source refuses by name. */
-export function freezeInputs(runDir, sources) {
+ *  unreadable source refuses by name. A source that is a web address
+ *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
+ *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o] */
+export async function freezeInputs(runDir, sources, { fetchPage } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
   for (const { id, path: sourcePath } of sources ?? []) {
+    if (isWebUrl(sourcePath)) {
+      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
+      if (!page.ok) return page;
+      manifest.push(page.entry);
+      continue;
+    }
     if (!existsSync(sourcePath)) {
       return { ok: false, red: `freeze: input "${id}" is unreadable at ${sourcePath}` };
     }
@@ -569,7 +596,7 @@ export function readArtifact(runDir, id) {
  *  indistinguishable from "not written yet") into a step.
  *  @returns {{ok:true, map:Record<string,any>} | {ok:false, red:string}}
  */
-function readArtifactsMapChecked(runDir, ids) {
+export function readArtifactsMapChecked(runDir, ids, { docxRoles = /** @type {string[]} */ ([]) } = {}) {
   const map = {};
   for (const id of ids ?? []) {
     const result = readArtifactResult(runDir, id);
@@ -581,11 +608,20 @@ function readArtifactsMapChecked(runDir, ids) {
       const input = readInputCells(runDir, id);
       if (!input.ok && !input.missing) return { ok: false, red: `input "${id}" — ${input.red}` };
       if (input.ok) { map[id] = input.value; continue; }
+      // M10 am7 item 3: an id that names a saved web page (or a text file) is read as its text, from the RUN'S OWN frozen copy, sha-checked, through the one safe
+      // read gateway (`readFileInside`, in `readRunSource`). By role, text only: a copy that is missing or changed refuses the step; an id that is no text input
+      // of this run is left as it was (undefined).
+      const page = readRunSource(runDir, id, { docx: docxRoles.includes(id) });
+      if (page.ok) { map[id] = { kind: 'text', text: page.text }; continue; }
+      if (page.code === 'unreadable') return { ok: false, red: page.red };
     }
     map[id] = result.ok ? result.value : undefined;
   }
   return { ok: true, map };
 }
+
+/** M10 piece 5 (item 2): the role a green step quotes from - the one input whose .docx text its check (and so the step itself) may be handed. @param {any} step @returns {string[]} */
+const citedRolesOf = (step) => (step?.close?.class === 'green' && typeof step.close.cited?.source === 'string' ? [step.close.cited.source] : []);
 
 /** A frozen CSV input as `{kind:'cells', header, rows}` (the shape `addressCells` gives), checked against the sha256 recorded at freeze.
  *  Same three outcomes as `readArtifactResult`: not an input of this run (`missing`), refused (`red`), or the cells. */
@@ -727,7 +763,7 @@ function makeAuditRow({
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
-async function runStepRalph({
+export async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
   // M4d am25: the job's "Thinking on" box as the run's own copy keeps it; read once by the caller (`readJobThinking`), decided per try below by `stepThinkingMode`.
   thinkingBox = false,
@@ -798,7 +834,9 @@ async function runStepRalph({
     // scope item 3's own invariant: the schema is class-only, and the
     // construction test below proves the context itself stays clean).
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
+    // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
@@ -865,6 +903,9 @@ async function runStepRalph({
       // step's own failure to produce, not a system halt), strike-eligible
       // like any other close red.
       const red = result?.red ?? 'model step failed with no artifact';
+      // The try may have cost money (a length stop: "truncated: N tokens, no tool call"). Its row carries that cost below, so the run's spend
+      // - the cap check, the history total - takes it here, the same one add as the stop and transport branches (books must balance).
+      if (typeof result?.costUsd === 'number') spent.value += result.costUsd;
       const normalised = normaliseGap(red);
       const strike = seenGaps.has(normalised);
       seenGaps.add(normalised);
@@ -934,7 +975,16 @@ async function runStepRalph({
       continue;
     }
 
-    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate });
+    // M10 piece 4: a step that cites quotes reads the run's OWN frozen copy of its source (never the drafting copy); the record of what the check said is
+    // written by the one writer, `writeCitedLine`, whatever the verdict - the Result tab says why a line did not pass.
+    const citedPart = step?.close?.class === 'green' ? step?.close?.cited : undefined;
+    const source = citedPart && runDir !== null ? readRunSource(runDir, citedPart.source, { docx: true }) : undefined;
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source });
+    if (citedPart && runDir !== null && closed.cited) {
+      writeCitedLine(runDir, citedLineOf({
+        n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
+      }));
+    }
     tryChecks.push(...closeRecords(step, artifact, closed));
     saveTry();
 
@@ -991,16 +1041,20 @@ async function runStepRalph({
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
  *   own rerun path.
+ * @param {(url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>} [opts.fetchPage] - M10: the web-page fetch (default barebrowse via src/pagefetch.js); a test injects one.
  * @param {() => number} [opts.nowMs] - F45 finding 3: returns the current
  *   epoch ms; defaults to the wall clock. Mirrors `clock` (ISO) so a test
  *   can advance wall time across a park/resume boundary without a real wait.
  */
 export async function runFlow({
-  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap,
+  root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap, fetchPage,
+  // M4d am33: the model this run STARTED on ({ slot, model }); recorded once beside the run, kept by every resume/continue. Absent = nothing recorded.
+  runModel,
   // F45 finding 3's test needs to advance wall time across a park/resume
   // boundary without a real wait, exactly like `clock` already does for ISO
   // timestamps — `nowMs` is the same idea for epoch-ms wall-clock reads.
@@ -1107,8 +1161,9 @@ export async function runFlow({
 
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
   writeRunThinking(flowDir, runDir);
+  if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
 
-  const frozen = freezeInputs(runDir, sources ?? []);
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
@@ -1257,6 +1312,19 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
     }
     return { decision: 'park' };
   };
+}
+
+/**
+ * M4d am30: the highest try number a step has used in this run, read from the books (audit.jsonl, the source of truth). A Redo's re-run is
+ * numbered after it, so a number is used once per step. Only the NUMBER moves: the limit counts the re-run's own tries (`n` in `runStepRalph`).
+ * @param {string} runDir @param {string|null} stepId
+ */
+function lastTryNumber(runDir, stepId) {
+  let last = 0;
+  for (const r of readAudit(runDir)) {
+    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && r.attempt > last) last = r.attempt;
+  }
+  return last;
 }
 
 /**
@@ -1453,13 +1521,13 @@ async function runAskSlot({
       // swap / unparseable JSON) is tampering, never "not written yet", and
       // must halt the redo rather than silently feed forged/garbage content
       // into the model step that is about to re-run.
-      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads);
+      const priorReadsResult = readArtifactsMapChecked(runDir, priorStep.reads, { docxRoles: citedRolesOf(priorStep) });
       if (!priorReadsResult.ok) {
         return { type: 'halted', outcome: 'red', red: `redo: step "${priorStep.goal}" ${priorReadsResult.red}` };
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: redone, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1700,7 +1768,7 @@ async function foldFromStep({
     // F48 round 4: every id in `step.reads` names an earlier step in THIS
     // same fold pass, already run and already written — a `red` read here
     // halts rather than silently feeding tampered/unreadable content in.
-    const readsMapResult = readArtifactsMapChecked(runDir, step.reads);
+    const readsMapResult = readArtifactsMapChecked(runDir, step.reads, { docxRoles: citedRolesOf(step) });
     if (!readsMapResult.ok) {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
@@ -1890,11 +1958,13 @@ function sameRoot(recorded, requested) {
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  * @param {(newRunDir:string) => void} [opts.onRerunStart] - amendment 16 C2: called with the new run's folder just before a `rerun` starts it.
  */
 export async function resumeRun({
   root, name, runId, catalogue, modelStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd,
+  runModel, // M4d am33: the model the resumed run keeps; a rerun (a new run) records it too
   // F45 finding 3 (see `runFlow`'s own `nowMs`): additive, defaults to the
   // real `Date.now` for every existing caller.
   nowMs,
@@ -2237,6 +2307,7 @@ export async function resumeRun({
         clock,
         businessDate,
         ceilingUsd,
+        runModel,
         // Item 7: the reason becomes the new run's FIRST step's starting gap.
         initialGap: reason,
       });

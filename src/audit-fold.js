@@ -103,11 +103,15 @@ export function deriveFold(group, d, info = {}) {
       });
     }
   } else {
+    // M4d am30: a try's checks are the check row with ITS number. A number is used once per step, so that is exact. A run from before am30 may repeat a number
+    // (the old Redo restarted it): those tries are paired in order only when every one of them saved (as many check rows as try rows); otherwise none is guessed.
     const seen = new Map();
     tryRows.forEach((r, i) => {
       const k = seen.get(r.attempt) ?? 0;
       seen.set(r.attempt, k + 1);
-      const rec = checkRows.filter((c) => c.try === r.attempt)[k] ?? null;
+      const saved = checkRows.filter((c) => c.try === r.attempt);
+      const alike = tryRows.filter((t) => t.attempt === r.attempt).length;
+      const rec = saved.length === alike ? saved[k] : null;
       tries.push({
         n: r.attempt, mark: group.tryMarks[i] ?? '·', thinking: r.thinkingPhrase ?? null, gap: r.gap || null, answer: null, about: null, checks: rec?.checks ?? [], output: rec?.output ?? null,
       });

@@ -16,6 +16,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { listRuns, getRunDetail } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -30,11 +31,7 @@ const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 const flush = () => new Promise((r) => { setTimeout(r, 0); });
 
 // ---- the page's functions, cut out by name ------------------------------------------------------
-function fnSrc(name) {
-  const start = page.indexOf(`function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  return page.slice(start, page.indexOf('\n  }', start) + 4);
-}
+const fnSrc = (name) => cutFn(page, name, '');
 
 /**
  * The refresh loop with a fake server (`world`) and fake timers. `real` adds the real renderAsk

@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
+import { ruleOfAnswer } from '../pageask.js';
 import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -47,7 +48,7 @@ import {
 import {
   appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
-import { checkedLines, notCheckedBlock } from '../checked.js';
+import { checkedLines, notCheckedView } from '../checked.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
 } from '../provider.js';
@@ -89,6 +90,8 @@ const LIVE_PHASES = new Set(['drafting', 'revising', 'redrafting']);
 const ANSWERS_NOT_DRAFTED_SAY = 'Your answers are saved, but the plan was not drafted again with them (the process did not start). Nothing was signed. Draft again from the card.';
 const REDRAFT_RED_SAY = 'The plan drafted with your answers did not pass the checks. Nothing can be signed until a plan is green. Your answers are kept in the card: change it and draft again.';
 const BLANK_ANSWER_SAY = 'Write an answer. A question can\'t be skipped; the plan waits for it.';
+/** M10 am2 item 1: the sentence for a blank answer to a question the page look raised (bareloop's words). */
+const LOOK_BLANK_ANSWER_SAY = 'An answer is needed here — there is no skip. Type it in the box below and press Send.';
 const ONE_LINE_ANSWER_SAY = 'Write the answer on one line. It is added to your job as one guardrail line.';
 const PLAN_DIR_RE = /^draft-(\d+)$/;
 const REVISE_RED_SAY = 'The revised plan did not pass the checks. Nothing can be signed until a plan is green. Your edits are kept: change the card and draft again.';
@@ -157,7 +160,8 @@ export function createAuthor(opts) {
     const running = childRunning(dir);
     const first = resultOf(dir, 'draft', keys);
     // a first plan that asked questions (green or red) is read by `withRevises` too: it is the ONE function that decides the phase of every plan
-    if (first && (first.phase === 'green' || readQuestions(join(dir, 'draft')).questions.length > 0)) return withRevises(base, dir, first, keys);
+    const firstQs = first && first.phase !== 'green' ? readQuestions(join(dir, 'draft')) : undefined; // read once; withRevises reuses it
+    if (first && (first.phase === 'green' || (firstQs?.questions.length ?? 0) > 0)) return withRevises(base, dir, first, keys, firstQs);
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
     if (running) return { ...base, phase: 'drafting' };
@@ -234,9 +238,9 @@ export function createAuthor(opts) {
    * A red or stopped newest plan means nothing is signable (an older green plan was drafted from a different card), and the card shown is the one
    * last submitted. `phase` is `revising` / `redrafting` only while the newest plan's child runs. A revise uses one of the 2; an answer redraft
    * (marked by `redraft-<n>.json`) uses none. One reader of every such fact: each `card-<n>.json`, its folder and log, its questions and answers.
-   * @param {any} base @param {string} dir @param {any} first the first plan's result (green, or red that asked questions) @param {string[]} keys
+   * @param {any} base @param {string} dir @param {any} first the first plan's result (green, or red that asked questions) @param {string[]} keys @param {ReturnType<typeof readQuestions>} [firstQsRead] the first plan's questions when the caller already read them
    */
-  function withRevises(base, dir, first, keys) {
+  function withRevises(base, dir, first, keys, firstQsRead) {
     const names = readdirInside(dir, '.');
     const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     const redrafts = new Set(ns.filter((n) => readJson(dir, `redraft-${n}.json`) !== null));
@@ -262,17 +266,18 @@ export function createAuthor(opts) {
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
-    const asked = readQuestions(join(dir, 'draft')).questions.length > 0;
+    const firstQs = firstQsRead ?? readQuestions(join(dir, 'draft')); // the first plan's questions, read once per poll
+    const asked = firstQs.questions.length > 0;
     const shared = { ...base, card, revises, revisesLeft, stepList: asked ? stepListOf(dir, 'draft', keys, true) : (first.stepList ?? null) };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
     if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
     const res = newest > 0 ? resultOf(dir, rel, keys) : first;
     // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
-    const q = readQuestions(join(dir, rel));
+    const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
     if (q.open.length > 0) {
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
-      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null }));
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look' } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
@@ -292,7 +297,7 @@ export function createAuthor(opts) {
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
     const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line) } : { hasAsk: true };
-    return { checked: checkedLines(decl, opts), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
+    return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
@@ -697,22 +702,34 @@ export function createAuthor(opts) {
       if (v.phase !== 'questions-open') return { status: 409, body: { ok: false, refused: 'no-question-open', say: 'This draft has no question waiting for an answer.' } };
       const b = body && typeof body === 'object' ? body : {};
       if (b.k !== v.openK) return { status: 409, body: { ok: false, refused: 'stale-question', say: 'That is not the question now open. Reload and answer the one shown.' } };
-      const answer = typeof b.answer === 'string' ? b.answer.trim() : '';
-      if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: BLANK_ANSWER_SAY } };
-      if (/[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
+      const planDir = join(dir, v.plan);
+      const full = readQuestions(planDir).questions;
+      const q = full.find((x) => x.k === v.openK);
+      if (q === undefined) return { status: 409, body: { ok: false, refused: 'stale-question', say: 'That is not the question now open. Reload and answer the one shown.' } };
+      // M10 piece 3 (am2): a question the page look raised takes bareloop's answer words. A blank answer gets bareloop's sentence; a newline is folded to a
+      // space (one `~` line is one line) instead of refused. Every other question keeps its own gate (blank, one line).
+      const look = q.source === 'look';
+      const answer = typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim() : '';
+      if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: look ? LOOK_BLANK_ANSWER_SAY : BLANK_ANSWER_SAY } };
+      if (!look && /[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
       if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
-      const planDir = join(dir, v.plan);
-      const q = v.questions.find((x) => x.k === v.openK);
       const last = v.questions.filter((x) => !x.answered).length === 1;
       const answerFile = join(planDir, ANSWER_FILE(v.openK));
+      const at = new Date().toISOString();
+      // what this answer does (ruleOfAnswer, the one place): the `~` rule it adds, or the rule it leaves Not checked
+      const effect = ruleOfAnswer(q, answer);
       // the whole redraft is checked at $0 BEFORE the answer is written, so a refusal leaves the question open and nothing on disk
       /** @type {any} */
       let redraft = null;
       if (last) {
-        const all = readQuestions(planDir).questions.map((x) => ({ line: x.line, question: x.question, answer: x.k === v.openK ? answer : x.answer }));
-        const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', /** @type {{line:number, answer:string}[]} */ (all));
-        if (grown.added !== all.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
+        const all = full.map((x) => {
+          const typed = x.k === v.openK ? answer : x.answer;
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo };
+        });
+        const adds = all.filter((x) => x.rule !== null);
+        const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', adds.map((x) => ({ line: x.line, answer: /** @type {string} */ (x.rule) })));
+        if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
         const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
@@ -720,10 +737,14 @@ export function createAuthor(opts) {
           const ov = view(other, keys);
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
-        redraft = { vet, all };
+        redraft = { vet, all, left: all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo })) };
       }
       try {
-        writeFileSync(answerFile, `${JSON.stringify({ k: v.openK, line: q.line, question: q.question, answer, at: new Date().toISOString() })}\n`, { mode: 0o600, flag: 'wx' });
+        // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
+        writeFileSync(answerFile, `${JSON.stringify({
+          k: v.openK, line: q.line, question: q.question, answer, at,
+          ...(look ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: effect.rule } : {}),
+        })}\n`, { mode: 0o600, flag: 'wx' });
       } catch (e) {
         return { status: 409, body: { ok: false, refused: 'already-answered', say: /** @type {any} */ (e)?.code === 'EEXIST' ? 'That question already has an answer.' : 'The answer could not be saved. Nothing was sent.' } };
       }
@@ -735,10 +756,10 @@ export function createAuthor(opts) {
       try {
         writeFileSync(files[0], `${JSON.stringify(redraft.vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         writeFileSync(files[1], redraft.vet.prose, { mode: 0o600, flag: 'wx' });
-        writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })) })}\n`, { mode: 0o600, flag: 'wx' });
+        writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });

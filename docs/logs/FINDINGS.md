@@ -3138,3 +3138,204 @@ Not fixed. A fix that depends on whether the job line names sections at all woul
 - Verdict by the written rule: BUILD (retry passes 8 = today 8, and is both cheaper, about 15%, and faster, about 9%).
 - Only one run needed a retry (retry run-1102: 20 turns, $0.0183); every other run took 14-15 turns.
 - Read with F69: on am29-walk-2 retries-only passed fewer runs (1/4 vs 2/4, NO BUILD); on m7-walk-2 and aging-live-4 it passed all and cost less. The two results disagree on the job where first tries fail often; n is small in both.
+
+## F71 — M10 Step 0: a page's own words, the ask triggers, and a CSV word that differs from its column: pre-registered before any run (2026-10-19)
+
+**Status.** Pre-registered 2026-10-19, not run. Marks in brackets show where each line came from: **[SIGNED]** the signed M10 text, **[BORROWED]** bareloop (`docs/product/fwd-borrow-from-bareloop-rubric-2026-10-18.md` section 4, `docs/product/ITEM33-BUILD.md`, F226-F238), **[INVENTED]** written by the orchestrator and accepted by hamr 2026-10-19 (the tag stays so the origin is visible).
+
+**Question.** Does bareloop's page-word map plus its code rules (found-on-page, N2, R1, U1/R1L, S1, lists, plus V4 "a label that reads no value is dropped") hold on a flights page for a route bareloop never used, do code-decided asks fire only where they should, and can code find the sheet's own column when the job's word is not a column name? Borrowed from bareloop BORROW section 4 / F226-F238.
+
+**Probes done at $0 before registering** (script `.claude/scratch/m10-probe/probe.mjs`, bareguard 0.25.1, nothing paid, nothing fetched):
+- A result count can be enforced only with a harness-set `count` field: `min` + `max` on it = exact 3. `checkStep` measurements do NOT feed `min`/`max` (red `missing`).
+- A cited quote that spans two lines is green: `quoteIn` is whitespace-blind (so the F237 two-line quote case does not need two quotes).
+- So there is no upstream ask for either.
+
+**Set up (written before any data).**
+- Model: deepseek-flash, drafter thinking OFF. [BORROWED] Rates from Settings. [SIGNED: model]
+- Instrument: throwaway `.claude/scratch/m10/` (gitignored, never shipped): the map prompt and `applyPageRules` copied with `// borrowed-from: bareloop <path>@<commit>` headers; no import. [SIGNED: borrow by copy; hamr 2026-10-19: location]
+- Page: one Google Flights one-way search, route AMS-LIS (Amsterdam to Lisbon), chosen by hamr 2026-10-19, not in {BOS-ORD, JFK-LAX, LAX-JFK, ORD-DEN, SFO-LAX} [BORROWED]. Date: chosen at fetch time, recorded with the page sha256. Fetched once with barebrowse AFTER this entry is committed [BORROWED rule: freeze first, fetch unseen page after] and saved with its sha256. Page needs >= 20 results.
+- Job text (the same for all 3 drafts): "List 3 flights from Amsterdam to Lisbon", `~ under $150`, `~ not a red-eye`, `~ nonstop`. [BORROWED shape; hamr 2026-10-19: route and limit]
+- Test 1, Stage A: 3 drafts of that job through the copied map + rules (map call only; no full run). [SIGNED: 3 drafts]
+- Test 2, Stage B: $0 replay of triggers T1 (a number the AI made up), T2 (a guardrail the page has no words for), T3 (page label is not a job word) over the saved map of every Stage A draft. [SIGNED: replay; T3 only used if proven]
+- Test 3, CSV: one local CSV with a column "Amount" (numbers in every row) and a job that says "price"; the code finds the column that passes the same tests and builds the ask "no column 'Price'; 'Amount' has numbers in N of N rows. Use it?". [SIGNED: one case, job word differs from column] Decoys in the same file, so the finder can fail: a second numeric column "Tax" and a text column "Description". [INVENTED]
+- Cell checks stay on fwdloop's own `closeGreen` (`src/closers.js`); bareguard `cited` is not used for cells. [SIGNED: "a cell, as today"; hamr 2026-10-19]
+- Budget: hard stop $0.02 total [SIGNED: "about 2 cents" first test; INVENTED: $0.02 as a hard stop]. Unknown cost stops the batch. Tests 2 and 3 cost $0.
+
+**Pass marks (all must hold; any one false = NO BUILD).**
+Test 1 (Stage A), per draft unless said:
+- A1 The page is settled: saved page holds >= 20 results (else NOT a bar failure: stop, log a reach/settle finding, pick another route). [BORROWED P1]
+- A2 Every word the map names that survives the rules is found on the saved page (count >= 1, whitespace-blind). Any kept word absent in any draft = FAIL. [BORROWED P2; SIGNED: "kept word isn't on the page" must fail]
+- A3 Every kept label reads a value of its kind: an independent script (not the copied rules) finds, for each kept money/number/time label, >= 1 value after it on the page. Any kept label reading nothing in any draft = FAIL. [SIGNED: "a signed label reads no value" must fail; BORROWED P5]
+- A4 Silent drops = 0: the set of words/rules the rules removed equals the set of listed Not checked reasons. [BORROWED P4/ITEM33 test 3; SIGNED item 5]
+- A5 All 3 drafts parse (map JSON valid, one retry allowed per BORROWED rule); 3 of 3. [INVENTED]
+- A6 Cheat page: the same rules and signed labels run on a reversed-route variant and on a page with "Pay $0" lines must NOT turn green on the planted wrong rows. A pass on a cheat = FAIL. [SIGNED: cheat page must fail; INVENTED: the variant is made by editing a COPY of the saved page, never the original]
+- A7 Cost: total of the 3 map calls <= $0.02. Wall time per draft <= 2 min. [INVENTED limits; SIGNED "about 2 cents"]
+
+Test 2 (Stage B, $0):
+- B1 Asks per draft <= 2. [SIGNED: at most 2]
+- B2 T1 fires on "not a red-eye" (the bound is not in the job's words) in >= 2 of 3 drafts. [BORROWED P3 says it must fire; INVENTED: the 2-of-3 floor, because the map is non-deterministic]
+- B3 T1 and T2 never fire on a guardrail whose limit IS in the person's words ("under $150", and "nonstop" when the page holds the word "Nonstop"). Any such fire in any draft = FAIL. [INVENTED: the false-positive half; BORROWED only "T3 on every label = T3 fails"]
+- B4 Zero asks decided by the model: the trigger tests take only the rules' output as input; a static check that no model field is read by the trigger function. [SIGNED: ask from model choosing must fail; INVENTED: the static check as the test]
+- B5 T3 (third trigger): fires on the "From" price label in >= 2 of 3 drafts AND fires on <= 1 other label per draft AND fires on fewer than half of all kept labels. Else T3 is dropped and the build ships T1+T2 only. [BORROWED: "fires on From, not on every label"; INVENTED: the numbers 2 of 3, <= 1, half]
+- B6 Every ask text is exactly `Line n, guardrail "<...>": I propose <...>.` built from a code table; a golden string compare. [SIGNED: words set by code]
+
+Test 3 (CSV):
+- C1 Exactly 1 ask; it names "Amount" and the count "N of N rows" correctly (checked against the file by an independent script). [SIGNED: CSV case asks once; INVENTED: count must be checked independently]
+- C2 It does NOT propose "Tax" or "Description". Tie rule (hamr 2026-10-19): with "Tax" made a numeric column of equal row coverage, two columns fit equally, so NO ask; the guardrail shows `Not checked: two columns fit ("Amount", "Tax")`. [INVENTED]
+- C3 With the "Amount" column removed from a copy, the finder proposes nothing and the guardrail shows `Not checked: <reason>`. [SIGNED: dropped with no reason must fail]
+- C4 With "Amount" present in only 39 of 40 rows, the ask text says 39 of 40 (not "numbers in 40 of 40"). [INVENTED: true count shown]
+
+**Win rule.** BUILD M10 (items 1-8) only if A1-A7, B1-B4, B6, C1-C4 all hold. B5 decides only whether the third trigger is built (fail = T1+T2 only, still BUILD). [SIGNED: nothing is built until it passes; third trigger only if proven] [INVENTED: the exact grouping]
+Cap: 2 cents for Test 1, $0 for Tests 2-3, per hamr's signed cap. Re-run only as a new pre-registered question; a failing page is a finding, never a re-tune. [BORROWED]
+
+**NO BUILD looks like.** Any of: a kept word absent from the page (A2); a kept label that reads nothing (A3); a silent drop (A4); a planted cheat turning green (A6); more than 2 asks (B1); T1/T2 firing on a user-worded limit (B3); the CSV finder picking a decoy or asking twice (C1-C2); cost over cap (A7). NO BUILD is recorded as a finding with the draft-log, the saved page sha256 and the map `raw`; nothing in `src/` changes; hamr decides: park M10, narrow it, or re-register. A reach failure (page blocked/empty, F227) is NOT a NO BUILD: it is logged as a reach finding and another route is chosen.
+
+**Added after registering, before any draft ran (2026-10-19).**
+- (a) Route is now AMS-LHR (Amsterdam to London Heathrow), one way, under $150. Reason: AMS-LIS held 9 results, below the 20 bar (reach finding: URL `https://www.google.com/travel/flights?q=Flights+from+AMS+to+LIS+on+2026-11-17+one+way&hl=en&curr=USD`, sha256 `a600bf760377914d092834e91415c0961be8ce46fdc15aa573e2fb92a26a1452`, 9 results; the page says "9 results returned."). Same job shape: "List 3 flights from Amsterdam to London", `~ under $150`, `~ not a red-eye`, `~ nonstop`, each on its own `~` line. The AMS-LIS page cost $0 and no draft ran on it.
+- (b) CSV fill-ins already used: a column fits when a plain number fills at least 90% of the rows (FIT_RATIO 0.9); C1-C4 passed 2026-10-19 at $0, and a forced red at FIT_RATIO 0.4 was seen (the test can fail).
+- (c) T1 and T2 are bareloop's two code-decided ask kinds (reading ask, can't-check ask), taken from the copied `askableFromLook`, rendered in our signed form `Line n, guardrail "<...>": I propose <...>.`. T3 compares a label only with the words of the one guardrail it serves (fwd's own; not in bareloop).
+- (d) A7: the cap is checked before each call and after each round, so one call may overshoot slightly.
+- (e) New gate G0 ($0, before the paid run): replay mvez8s54's saved raw map (bareloop session `~/.config/bareloop/panel-sessions/smvez1a4asm7k`, draft-log) through our copied `parseMapAnswer` + `applyPageRules` + `askableFromLook`. Kept facts, drops (with reasons) and asks must equal what bareloop recorded in that draft-log, else the copy is wrong and NO paid run happens. Caveat: that run's 3 rules sat on one `~` line.
+- (f) A1 bar: hamr ruled 2026-10-19, after seeing the AMS-LHR page with 19 results (sha256 `c56f6fd47677a19c18cc015728c733b28508dfbe08ac4bc8edbab40d2c923f9a`, flight date 2026-11-18), that 19 is fine for this test; A1 is scored as met by hamr's ruling, not by the >=20 bar.
+- (g) G0 caveat: bareloop's draft-log for mvez8s54 records no kept/drop lists and that run had no drops, so G0 proves keep and ask, not drops.
+
+**Result.** Page AMS-LHR, 2026-11-18, sha256 `c56f6fd4...`, 19 results. Total spend $0.020014. **Verdict: BUILD M10
+with T1+T2 only (no third trigger).**
+
+- **G0 PASS.** Our copy replaying bareloop's mvez8s54 matched its kept facts and asks exactly. Drops
+  are not proven: that run had none and its log has no drop list.
+- **Test 1.** A1 met by hamr's ruling (19 results). A2-A5 PASS. A6 PASS but weak: only draft 3 had real
+  green rows (7 real, 0 on either cheat); drafts 1 and 2 had 0 real rows because "Departure time:" is
+  not on the result line. **A7 FAIL by the letter:** $0.020014 against $0.02 (drafts $0.006666 /
+  $0.006667 / $0.006680), wall times under 2 s. hamr accepted the overshoot 2026-10-19 ("prices
+  adjusted, it's fine").
+- **B5 FAIL, so T3 is dropped** per the frozen rule. T3 fired on "From" 3/3, but also on "Departure
+  time:" 3/3 and on "Leaves Amsterdam Airport Schiphol at" 1/3. The bareloop `loop` session
+  (2026-10-19) confirmed T3 was its unproven proposal: code cannot spot a meaning ambiguity from
+  strings, and bareloop has no T3.
+- **B1:** 3 / 3 / 4 asks counting T3 (FAIL as measured). With T3 dropped, the win rule's "T1+T2 only", it
+  is 1 ask per draft (PASS). Both numbers stand.
+- **B2 PASS:** T1 fired 3/3 on "not a red-eye" (read as 05:00-23:59; bareloop's run-1 read 05:00-21:59,
+  which is model spread and why it is an ask). B3, B4, B6 PASS. T2 never fired, as expected: every
+  rule was tied to a page word.
+- **Test 3 (CSV), $0:** C1-C4 all PASS; the forced red at FIT_RATIO 0.4 was seen on C3.
+- **Side finding.** The copied r1l drops `US dollars` / `$` with a self-comparing Not-checked sentence
+  ("does not show the same amounts as 'US dollars'"). Bareloop was told to loop on it. fwd's port must
+  not show that sentence.
+- **Open.** hamr asked for a 3-ask limit; that needs a signed amendment and is not in force until
+  signed.
+- **Known limit (inherited from bareloop):** time labels are read as h:mm AM/PM only; a 24-hour page drops every time label as 'reads no value'.
+
+## F72 — M10 am7 item 2: does R2 (a place word grows to its role word) catch a flipped route on F71's saved page: pre-registered before any run (2026-10-20)
+
+**Status.** Pre-registered 2026-10-20, not run. $0: no provider call, no fetch. Tags: **[SIGNED]** M10 amendment 7 item 2 (hamr 2026-10-20), **[BORROWED]** bareloop F235/F236, `docs/product/ITEM33-BUILD.md` (R2, R2a, R2b, R2c), `.claude/scratch/idea-a-v2/rules.mjs`, **[INVENTED]** written by the worker.
+
+**Question.** If a place word grows left to take in its role word ("Amsterdam Airport Schiphol" becomes "Leaves Amsterdam Airport Schiphol", "Heathrow Airport" becomes "arrives at Heathrow Airport") and every grown phrase must be in the quote (R2, R2a, R2b, R2c), does the honest copy of F71's page stay green and does the flipped copy go red, where today's single place phrase lets the flip through? [SIGNED: "First a $0 test on F71's saved page: the honest copy stays green and the flipped copy goes red. If that fails, nothing is built and this item comes back to hamr."]
+
+**Set up (written before any run).**
+- Page: F71's saved AMS-LHR page, `.claude/scratch/m10/page-ams-lhr.txt`, sha256 `c56f6fd47677a19c18cc015728c733b28508dfbe08ac4bc8edbab40d2c923f9a`, 19 results. Never edited; every variant below is a COPY made by code. [SIGNED: page]
+- Facts under test: the place facts ("origin airport", "destination airport") of the 3 saved F71 Stage A maps (`.claude/scratch/m10/out/stage-a/draft-1..3.json`, field `kept`), no new model call. The fact part holds ONLY the place facts, so a result can go red for a place and nothing else (price and time rules would add reds that hide what R2 does). [INVENTED]
+- R2 copy: `.claude/scratch/m10-r2/r2.mjs` (gitignored POC code, never shipped), a port of the `R2 / R2a / R2b / R2c` block and `growOnce` / `growLeft` of bareloop `.claude/scratch/idea-a-v2/rules.mjs` (grow up to 2 words, share >= 90%, stop at `"`, `[`, `]`, `=`; contained phrase dropped; same-line share >= 90% of the longest phrase's lines; all kept phrases must be in the quote), counting with our copied `bl/factwords-min.js`. R3 (page-once) is NOT part of this item and is not run. [SIGNED: R2, R2a, R2b, R2c; BORROWED]
+- Check: our real `checkCited` (`src/citedcheck.js`, bareguard 0.25.1) with the place facts as `phrase` facts, one claim per result, quote = the result's own link line. The check is the same in every arm; only the signed phrases differ.
+- Honest set: the 19 result link lines of the saved page, graded against the saved page; for each of the 3 drafts.
+- Flipped set (three ways, the first two decide): [BORROWED F236 "both variants"; the copy is INVENTED]
+  - F-ii-a: the existing F71 cheat copy `.claude/scratch/m10/page-ams-lhr.cheat-reversed.txt` (made by code from a copy; on each result link line "Amsterdam Airport Schiphol" and "Heathrow Airport" swapped, so "Leaves Heathrow Airport ... arrives at Amsterdam Airport Schiphol"). The 19 flipped link lines are the quotes and this copy is the source (the quote exists in the source, so only the signed facts can catch).
+  - F-ii-b: a second copy where the swap is made on EVERY line of the page (headers, combobox, details buttons), source and quotes both from it. Same 19 results, flipped.
+  - F-i (reported, not deciding): the 19 flipped link lines graded against the HONEST page. Caught by "quote not in source" with or without R2, so it proves nothing about R2.
+- Control (same check, no R2): (C1) today's code, `factOfLook`: ONE phrase per place fact (the first kept word). (C2) the kept words with R2a, R2b, R2c but no growth, to show growth is what does the catching. [SIGNED: "0/10 without"; BORROWED]
+- Regression (existing piece-4 cheat cases, must still go red with R2 on): the F71 `page-ams-lhr.cheat-pay0.txt` copy ("Pay $0." in place of "From N US dollars.") and a quote that is not on the page (an invented link line), each graded with a full fact part for draft 3 (price anchor "From" unit US dollars under 150, the R2 place phrases). Planted "Pay $0" rows must be red; the invented quote must be red; the honest rows are the control.
+
+**Pass marks (all must hold, else NO BUILD).**
+- H: with R2, honest results green = all of them, for each of the 3 drafts (19 of 19 x 3). A draft whose R2 leaves no place phrase is refused (reported as refused, and counts as a failure of H unless the same draft's control also has no place phrase).
+- X: with R2, every flipped result in F-ii-a and F-ii-b is red (19 of 19 x 2 x 3 drafts).
+- K: control C1 lets at least one flipped result in F-ii-a pass in each draft (expected 19 of 19). If the control catches the flip, R2 is not needed and the item is NOT BUILD.
+- G: the regression cases above stay red with R2 on (Pay $0 rows 0 green; invented quote 0 green).
+[SIGNED: honest green, flipped red; BORROWED: 10/10 with R2, 0/10 without; the numbers 19 and 3 drafts are INVENTED]
+
+**Win rule.** BUILD item 2 only if H, X, K and G all hold. A failing page is a finding, never a re-tune of R2. NO BUILD means nothing is built and the item goes back to hamr. Honest limits to record with the result: one page, one route direction, one airline-text shape, place facts only, flipped copies are made by code (no live reverse capture), R3 not tested.
+
+**Result (2026-10-20, $0, no provider call, no fetch).** Script `.claude/scratch/m10-r2/run.mjs` + `r2.mjs` (gitignored POC, not shipped), output `.claude/scratch/m10-r2/result.json`. Our real `checkCited` (bareguard). Numbers are results graded green of 19.
+
+| arm | draft | signed place phrases | honest | flipped F-ii-a | flipped F-ii-b | F-i (vs honest page) |
+|---|---|---|---|---|---|---|
+| **R2** | 1 / 2 / 3 | "Leaves Amsterdam Airport Schiphol" + "arrives at Heathrow Airport" (same in all 3) | 19 / 19 / 19 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| C1 today (first kept word) | 1 | "Amsterdam", "London" | **0** | 0 | 0 | 0 |
+| C1 today | 2 | "LHR", "AMS" | **0** | 0 | 0 | 0 |
+| C1 today | 3 | "Amsterdam Airport Schiphol", "Heathrow Airport" | 19 | **19** | **19** | 0 |
+| C2 no growth (R2a-c only) | 1 / 2 / 3 | "Amsterdam Airport Schiphol", "Heathrow Airport" | 19 / 19 / 19 | **19 / 19 / 19** | **19 / 19 / 19** | 0 / 0 / 0 |
+
+- R2 in detail: "Amsterdam Airport Schiphol" grew to "Leaves Amsterdam Airport Schiphol" and "Heathrow Airport" to "arrives at Heathrow Airport" (38 page occurrences each, all 19 results x link line + details button); "Amsterdam" grew to "Leaves Amsterdam" and was dropped by R2a; "AMS", "LHR", "London" were dropped by R2b (0% of the longest phrase's lines). Every flipped red names the grown phrase ("the quote does not say 'Leaves Amsterdam Airport Schiphol'"), not another reason.
+- Regression (full part: price "From" / US dollars under 150 + the place phrases), draft 1-3 identical: honest rows green 7/19 (the 7 under $150, same as the control in draft 3); "Pay $0" copy 0/19 green; invented quote not on the page 0/1 green. Both with R2 and with today's phrase.
+
+**Verdict against the pre-registered bar: NO BUILD, by the letter.** H holds (honest 19/19 x 3 drafts). X holds (flipped 0/19 green x 2 copies x 3 drafts). G holds. **K fails as written:** it asked that control C1 (today's first kept word) lets a flip pass in EACH draft. It does in draft 3 only (19/19). In drafts 1 and 2 the first kept word is "Amsterdam" / "AMS" with the destination "London" / "LHR", and "London"/"LHR" are not on the result lines at all, so today's check is red on the honest rows too (0/19): the flip is "caught" there only because everything is, which is a worthless catch (bareloop's own F235/F236 note). The control that isolates growth, C2 (all kept phrases, R2a-c, no growth), lets the flip through 19/19 in all three drafts. This is the pre-registered letter, not a re-tune: the item goes back to hamr, who decides whether C2 stands as the control for K. If it does, all four marks hold and R2 is BUILD.
+
+**What the result says plainly.** R2 does what bareloop found: with the grown phrases the flipped route goes red 114/114 and the honest copy stays green 57/57; without growth the flip passes 114/114 (C2) with the same phrases. Two things it surfaced beyond the bar: (1) today's `factOfLook` signs only `words[0]`, and in 2 of 3 saved F71 drafts that word is not on the result line at all (draft 1 "Amsterdam" and "London", draft 2 "LHR" and "AMS"), so those drafts could never go green on an honest row; R2's R2a-R2b filter removes exactly those. (2) R2c turns one place fact into two or more phrase facts, so the fact count per line (bareguard `MAX_FACTS` 10) grows by one per extra phrase.
+
+**Honest limits.** One page, one direction (AMS to LHR), one airline-text shape ("Leaves X at ... arrives at Y"); both flipped copies are made by code from a copy (no live LHR to AMS capture); place facts only, price/time rules left out of the main table so a place red cannot hide; the drafts' maps are F71's three saved maps, no fresh model call, so how often the model names a role-bearing place phrase is not measured; R3 (page-once) not tested and not part of this item; the 19/38 counts depend on this page's markup (a page without "Leaves"/"arrives at" before the place would not grow, and R2 stops at the 90% share, which is the point of the rule).
+
+## F73 — POC: does deepseek-flash write spreadsheet-style cites (ranges, countif/sumif/averageif, average) that code can recompute? (pre-registered 2026-10-22, before any call)
+
+**Status.** Pre-registered 2026-10-22, not run. Tags: **[SIGNED]** none (a POC; no build is asked), **[RULING]** hamr 2026-10-22 "spreadsheet if they will write it and use that as a check", **[INVENTED]** written by the worker. Superseded by F74 before any call ($0).
+
+**Question.** If a cells step is told spreadsheet-style forms, does deepseek-flash actually WRITE them, so code can recompute them as the check? Context: `flows/m10-walk-csv-3` run-1 failed 4 of 4 tries: today's grammar (`src/closers.js`: one cell, `#field`, sum/count/min/max/sub/daysBetween over those, no ranges, no condition) cannot express "count of Amount > 500", and the model kept writing ranges (`expenses!C2:C41`, `#match1..#match17`, `count of ... where Amount > 500`).
+
+**Set up (frozen before any call).**
+- Scope: `.claude/scratch/m10/countif-poc/` only (gitignored). No product code touched; `src/closers.js` and `src/model-step.js` are copied from, never edited.
+- Inputs: `.claude/scratch/m10/csv/base.csv`, sha256 `d1b4bae83062a04d1ca634d3977fbcff76a35553e7da6cb8b62efd4c1758ad5e` (40 data rows, rows 2-41; Amount is column C). The runner refuses if the sha differs. Read as `expenses` (the shape `readInputCells` gives: `{kind:'cells', header, rows}`), column lock Amount.
+  - J1: goal `list every expense over 500,`
+  - J2: goal `give the count, total and average of the expenses over 500,`
+- Arms:
+  - **A (control):** today's forms text, `citeForms()` verbatim, in the `cite` property description of `emit_artifact`: `Where the value comes from: one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, sub, daysBetween over those.` + today's checker (copied, no ranges, no conditions).
+  - **B:** G2 forms text, same slot and style: `Where the value comes from: one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, average, sub, daysBetween over those (a range such as `<input>!C2:C41` works inside them, e.g. `sum(<input>!C2:C41)`, `average(<input>!C2:C41)`), or countif(`<input>!C2:C41`, ">500"), sumif(`<input>!C2:C41`, ">500"), averageif(`<input>!C2:C41`, ">500") with > >= < <= = and a number.` + G2 checker.
+- G2 checker (code recomputes everything): arm A's grammar PLUS a range `<id>!<COL><R1>:<COL><R2>` as an argument inside sum/count/min/max/average/sub, `average(...)`, and `countif/sumif/averageif(range, ">N")` with ops `> >= < <= =` and a number (quotes around the condition optional). A range must stay inside the locked column (Amount) and on existing data rows (2-41) or it is red. Blank cells in a range are skipped; a non-number is red; `averageif` matching nothing is red.
+- Compare, the same function in BOTH arms: cell values as `closers.js` (source precision); a computed value is compared with both sides rounded to 2 decimals. This is a deliberate deviation from `closers.js`' exact `!==` on a computed value, so float noise in a 17-term sum or an average cannot decide a pass. [INVENTED]
+- Pass of ONE call = a tool call `emit_artifact` with `done: true`, at least one field, EVERY field's cite resolves in that arm's grammar AND its value equals the recomputed value. Recorded per call: forms used, first red, tokens, cost.
+- Request: `deepseek-flash` through `bare-agent/providers` `OpenAI` (base URL and `legacyMaxTokens` from `~/.config/fwdloop/config.json` row `DEEPSEEK_API_KEY`), thinking off, `maxTokens` 16000, timeout 300s / deadline 240s; the SAME system prompt as `src/model-step.js`; user content `{goal, reads, gap:null}`; the schema is `GREEN_SCHEMA` (fields/value/cite + `done`/`blocker`) with the arm's forms text. Known difference: the real step is also granted the `read` tool; here only `emit_artifact` is offered (the cells are already in `reads`). ONE `generate` call per row, no retry loop: it measures the first answer.
+- Calls: 5 per (arm, job) = 20, interleaved (J1A, J1B, J2A, J2B, repeat). Price `deepseek-flash` $0.60 in / $1.20 out per M tokens; cost counted at full input price for cached tokens too (never under-counts). Cap **$0.10** hard: the runner skips (and logs) a call when spent + max(0.01, 1.5 x the largest call so far) would cross it.
+- Frozen code (sha256): `g2.mjs` `07ddd569407ab9c89874971e96f6b02d8d7b9588907e38cf55df18693a46fbc2`, `forms.mjs` `845137d6b21966b6ba56709fcab74e921bdd11ca01dc9df9a1ebb14085844a1c`, `run.mjs` `52d0d39f2dca8b2d4e3ada05cbf6c9d7ba6cc3ee24928a4424911a39c1ea9d16`, `selftest.mjs` `b194f7ac4187185b8d3e4732a39cefd86a61ac3079d8e00532d6829a533c7e29` (13 hand cases of the checker, $0, all as expected before any call). Ground truth, from code: 17 of the 40 amounts are over 500, their sum 12719.59, their average 748.2112.
+
+**Pass rule.** B passes on >= 4/5 for J1 AND >= 4/5 for J2, AND B beats A on both (B's passes strictly greater than A's, per job). Any other result = FAIL, logged as a finding. No change to text, forms, checker or rules after the first number; a rerun needs a new pre-registration.
+
+**Honest limits.** One sheet, one model, thinking off, one try, 5 samples per cell, so a 4/5 bar is coarse. J1 ("list") can be answered by listing cells, which passes in arm A too; the "beats A" clause then decides it by the frozen rule, not by judgment. A pass proves the model WRITES a form the code can recompute, not that the answer is the one the human meant (the goal is not graded beyond "values equal what the cites compute").
+
+## F74 — sheet checks wait for bareguard: the step authors its own cite, and deepseek-flash can't express a filtered list in fwdloop's cell grammar (2026-10-22)
+
+**Status.** Finding, no build. Tags: **[SIGNED]** M10 amendment 12 (hamr 2026-10-22, "sign m10 am12"), **[RULING]** hamr 2026-10-22 (below), **[MEASURED]** the audit rows named below. F73 (pre-registered, never run, $0) is superseded by this finding.
+
+**What happened.** `flows/m10-walk-csv-2` run-1 and `flows/m10-walk-csv-3` run-1 (read only): the column ask worked (1 ask, recorded), then the green step `over_500_list` went red 4 of 4 tries in each run. The reds are in each run's `audit.jsonl`:
+- Ranges the grammar has no form for: `expenses!C2:C41`, `count of expenses!C2:C41 where Amount > 500`, `expenses!A3:D3, expenses!A6:D6, ...`.
+- A reference to the model's own invented fields: `count over #match1..#match17`.
+- Prose cites: `expenses rows 2-41; Amount column (C) values strictly greater than 500`.
+- The column lock refusing a Date cell (`expenses!A3` while the step is locked to Amount).
+- A single-cell cite that disagrees with the value (`17 ≠ cite expenses!C3 = 817.68`).
+
+M10 am10 (the cite forms told to the step) moved deepseek-flash from prose to real cells but not to green. Sonnet passed (`flows/m10-walk-csv` run-1), so the grammar is writable; the question is who should have to write it.
+
+**Cause, by design.** `src/closers.js` lets the STEP write its own cite or formula, so the step half-authors its own check. The grammar has one cell, a field, and sum, count, min, max, sub, daysBetween over those. It has no range, no condition and no average, so "the expenses over 500" cannot be said in it at all.
+
+**Ruling (hamr 2026-10-22).** Sheet checks belong in bareguard's rubric as one generic "cells" check with a closed op list in `rubricVocabulary`. The drafter suggests checks from that list, the person signs them, bareguard's `checkStep` judges, and the step only gives values. Asked of bareguard (guard session) 2026-10-22; bareguard POC first. No fwdloop code changes until that lands.
+
+**Also found, open.** `src/csv.js` `parseCsv` is a naive comma split: a quoted cell such as `"1,200.50"` breaks the row into two cells. Cost of leaving it: any CSV with a quoted comma shifts every later column and the column lock and cites then point at the wrong cells.
+
+## F75 — a dropped destination leaves the route half-checked: "Rome" went Not checked and nothing took its place, though every result says "arrives at Leonardo da Vinci International Airport" (run m10-walk-flights-4 run-1, 2026-10-22; open)
+
+**Status.** Finding, no build. Open. Tags: **[MEASURED]** the files named below (read only), **[SIGNED]** M10 amendment 7 (R2, "place grows to role word"), **[BORROWED]** the phrase dry read, our copy of bareloop c550dc8. Told bareloop (`loop` session) 2026-10-22 as FYI.
+
+**What happened.** `flows/m10-walk-flights-4` run-1 (read only) is complete, green on try 1, $0.0794826, books balance, and `scripts/check-cited-run.mjs` says ok (3 results). It met the signed M10 exit. But the signed facts in `declaration.json` are only:
+- origin airport: phrase "Leaves Adolfo Suárez Madrid-Barajas Airport"
+- price: money, anchor "From", unit "US dollars", currency "$", lt 150
+- stops: phrase "Nonstop"
+
+There is no destination fact. The sign row in `setup.jsonl` says why, under notChecked: `line 1: "destination airport" — "Rome" is on the page but in none of its results, so it is not checked.` and `destination airport Rome (not on the page's results)`.
+
+**Measured.** `runs/run-1/inputs/flights.txt` has 18 result lines (`link "From`). "arrives at Leonardo da Vinci International Airport" is in 18 of 18 of them; "Rome" is in 0 of 18 (it appears only in page chrome: the "Where to? Rome FCO" box and two "Track prices from Madrid to Rome" switches).
+
+**Earlier runs of the same job.**
+- flights-3 signed the destination phrase "Rome": red on every try, because no result says it. Fixed by the phrase dry read port, which drops a word no result says.
+- flights-2 had "arrives at Leonardo da Vinci International Airport" as a signed arrival-airport phrase.
+
+**Cause.** The dry read is right to drop "Rome", but nothing then offers the role word the results DO say for that place. The drop leaves the destination unchecked and nothing takes its place. A Madrid to Barcelona page (or any page leaving Madrid nonstop under $150) would pass this signed plan. The reversed route still fails, on the origin phrase. The gap is shown to the human under Not checked, not hidden.
+
+**Cost of leaving it.** One of the two route ends is unchecked on any job whose destination is written as a city the results never print; the human sees it only by reading the Not checked list at sign time.
+
+**Where a clean fix may live (not built, none asked).** bareloop's R2 ("place grows to role word", signed in our M10 am7), or the drafter offering the arrival phrase when the city is dropped. Either needs bareloop's view first.

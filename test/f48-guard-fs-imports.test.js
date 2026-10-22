@@ -301,19 +301,19 @@ function scanFsUsage(text) {
 const ALLOWLIST = {
   'src/flow.js': {
     // M6 am9 (reviewed): `writeRunPlan` and `copyRunPlan` write a run's own kept plan (`<run>/job/*` + `plan.json`, write-once) and remove it again on a failed write; `readPlan`/`runOwnsPlan` test the marker.
-    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `recoverSwap` (F2: after a hard kill, the .replace-* folders of a dead pid: readdir, existsSync, rename back, rm) and `hasSwapLeftover` (one readdir of the flow folder to look for such folders on a green read) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it)',
+    reason: 'M6: `replaceSigned` (the all-or-nothing swap of a signed job: stage folder, backup folder, renames both ways, rollback, cleanup) and `recoverSwap` (F2: after a hard kill, the .replace-* folders of a dead pid: readdir, existsSync, rename back, rm) and `hasSwapLeftover` (one readdir of the flow folder to look for such folders on a green read) and `writeRunJobCopy`/`readRunJobCopy` (the run\'s write-once copy of its job: one mkdir, three `wx` writes, one existsSync); M6 am5: `suggestFlowName` (one read-only lstat of a candidate name); M4e amendment 43: writeFlow also makes the write-once signed/ copy (one mkdir, two `wx` writes, one existsSync refusing an existing signed/); the safe-read implementation itself (readFileInside/readdirInside/writeFlow/readFlow) — the one gateway every book reader is expected to route through, plus its own symlink-guard checks and atomic-write plumbing, plus claimRunId (M4e amendment 3: the exclusive mkdir of the next run-<n> folder, and the runs/ folder above it) and freeRunId (its one lstat of a candidate run-<n>: the one decider claimRunId and canStart share); M10: `removeFrozenPages` (a refused draft takes back the web-page copies it froze: two rm, one readdir to see the folder is empty)',
     names: {
-      accessSync: 1, constants: 2, existsSync: 14, lstatSync: 6, mkdirSync: 11,
-      readdirSync: 5, readFileSync: 2, realpathSync: 5, renameSync: 5, rmSync: 13,
+      accessSync: 1, constants: 2, existsSync: 14, lstatSync: 7, mkdirSync: 11,
+      readdirSync: 6, readFileSync: 2, realpathSync: 5, renameSync: 5, rmSync: 15,
       writeFileSync: 15,
     },
   },
   'src/runner.js': {
-    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json',
+    reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json; M10 item 1 (reviewed): `freezePage` writes a fetched web page\'s text as the run\'s own frozen input (one mkdir, one write, one stat of the frozen copy; the sha256 is then taken by hashFile)',
     names: {
       accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
-      mkdirSync: 6, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
-      statSync: 2, unlinkSync: 4, writeFileSync: 7,
+      mkdirSync: 7, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
+      statSync: 3, unlinkSync: 4, writeFileSync: 8,
     },
     readArtifactCallSites: 4,
   },
@@ -334,6 +334,10 @@ const ALLOWLIST = {
   'src/run-store.js': {
     reason: "M7: the ONE remover of a run's litectx store folder (<runs>/.stores/<runId>), called when a fresh run starts so a reused run id never inherits an old store; the path comes only from runStoreDir(runDir). litectx itself opens and writes the store.",
     names: { rmSync: 1 },
+  },
+  'src/pagefetch.js': {
+    reason: "M10 item 1: one read of barebrowse's own package.json (found next to its entry file), only to refuse a version older than 0.21.0; nothing from a run or flow dir",
+    names: { readFileSync: 1 },
   },
   'src/version.js': {
     reason: "M4d am17: the ONE reader of fwdloop's own package.json (the package's own file next to src/, or a copy a test passes), for the panel header's version; one read, JSON-parsed, nothing from a run or flow dir",
@@ -370,6 +374,10 @@ const ALLOWLIST = {
   'src/schedule.js': {
     reason: "M9 am20: the ONE writer of `<flow>/schedule.json` (temp file + rename, 0600: a reader sees the old file or the new one) and its ONE remover (rmSync). The job's own files are never opened here. Every READ goes through readFileInside; the queue file goes through src/trigger-files.js and src/jsonl-append.js.",
     names: { renameSync: 1, rmSync: 1, writeFileSync: 1 },
+  },
+  'src/cited-record.js': {
+    reason: "M10 piece 4: the ONE writer of `<run>/cited-checks.json` (temp file + rename: a reader sees the old file or the new one). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
+    names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/jsonl-append.js': {
     reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
@@ -454,9 +462,9 @@ const ALLOWLIST = {
     },
   },
   'src/panel/authorstart.js': {
-    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; M9: trigger.json 0600, once, the reason a triggered start has, inside the run folder it just claimed; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of the new run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
+    reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; M9: trigger.json 0600, once, the reason a triggered start has, inside the run folder it just claimed; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of a typed run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 2, mkdirSync: 5, realpathSync: 10, rmSync: 2, rmdirSync: 1, writeFileSync: 4,
+      existsSync: 1, mkdirSync: 5, realpathSync: 10, rmSync: 2, rmdirSync: 1, writeFileSync: 4,
     },
   },
   'src/panel/authortrigger.js': {

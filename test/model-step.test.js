@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  existsSync, readFileSync,
+  existsSync, readFileSync, rmSync,
 } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
@@ -605,4 +605,34 @@ test('buildEmitArtifactSchema: softgreen offers only text + done/blocker, and re
   const s = buildEmitArtifactSchema('softgreen');
   assert.deepEqual(Object.keys(s.properties).sort(), ['blocker', 'done', 'text']);
   assert.equal(s.additionalProperties, false);
+});
+
+// M10 am10: a green cells step is told the cite forms, in the cite property of its tool; nothing else of its close
+test('M10 am10: only the green cells step\'s cite is described with the forms; cited, softgreen and hitl are not', async () => {
+  const { citeForms } = await import('../src/closers.js');
+  const cite = buildEmitArtifactSchema('green').properties.fields.additionalProperties.properties.cite;
+  assert.equal(cite.description, `Where the value comes from: ${citeForms()}.`);
+  for (const sc of ['softgreen', 'hitl']) assert.equal(JSON.stringify(buildEmitArtifactSchema(sc)).includes('daysBetween'), false, sc);
+  assert.equal(JSON.stringify(buildEmitArtifactSchema('green', true)).includes('daysBetween'), false, 'a page-quoting step');
+});
+
+test('M10 am10: the request of a cells step carries the forms and nothing of its close; a page-quoting and a hitl step do not carry them', async () => {
+  const d = mkdtempSync(path.join(tmpdir(), 'fwdloop-am10-'));
+  const firstRequest = async (stepMeta) => {
+    let first = null;
+    const provider = { generate: async (messages, tools) => {
+      first ??= JSON.stringify({ messages, tools });
+      return { text: null, toolCalls: [{ id: 'e', name: 'emit_artifact', arguments: { fields: {}, done: true } }], usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: 'deepseek-flash' };
+    } };
+    const step = makeLiveModelStep({ spendPath: path.join(d, 'spend.jsonl'), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
+    await step({ goal: 'Total column E', primitives: [], reads: {}, gap: null }, {}, stepMeta);
+    return first;
+  };
+  try {
+    const cells = await firstRequest({ class: 'green', cited: null });
+    assert.ok(cells.includes('one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, sub, daysBetween over those'), cells);
+    assert.equal((await firstRequest({ class: 'hitl', cited: null })).includes('daysBetween'), false);
+    const part = (await import('./fixtures/m10-map/cited-help.mjs')).flightsPart();
+    assert.equal((await firstRequest({ class: 'green', cited: part })).includes('daysBetween'), false, 'a page-quoting step');
+  } finally { rmSync(d, { recursive: true, force: true }); }
 });

@@ -32,6 +32,7 @@ import { scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { readModelRecord } from '../flowmodel.js';
+import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import {
   carryQueue, dropQueue, finishCarry, isArmed, ledgerOf, readSchedule, recordCancelled, removeSchedule, sameTarget, sigOf, writeSchedule,
 } from '../schedule.js';
@@ -168,6 +169,9 @@ export function createTriggerDoor(opts) {
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
     // M9 am20 item 3: neither Cancel nor a new schedule is refused because a run is starting, working or waiting: a run carries on from its own copy and
     // keeps its own signed values; the next fire uses the new schedule. (A schedule never touches the job, so there is nothing for a run to collide with.)
+    if (trigger !== null && 'role' in trigger && Object.hasOwn(pageAddressesOf(read.arbiter), trigger.role)) {
+      return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
+    }
     if (trigger !== null && 'role' in trigger) {
       try {
         checkTarget(trigger.kind === 'new-file' ? 'new' : 'updated', trigger.kind === 'new-file' ? trigger.folder : trigger.path);
@@ -203,13 +207,16 @@ export function createTriggerDoor(opts) {
         scheduledDestination = body.destination.trim();
       }
       if (Array.isArray(body?.inputs)) {
-        const rows = runInputRows(body.inputs);
+        // M10 am3: a page input's address is the job's, signed: a blank row is the signed one, any other address is refused naming the input
+        const pages = pageAddressesOf(read.arbiter);
+        const rows = runInputRows(body.inputs).map((r) => (Object.hasOwn(pages, r.role) && r.path === '' ? { ...r, path: pages[r.role] } : r));
         const declared = roles;
         const bad = [...checkInputRows(rows)];
-        for (const role of declared) if (!rows.some((r) => r.role === role)) bad.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
+        rows.forEach((r, n) => { if (Object.hasOwn(pages, r.role) && r.path !== pages[r.role]) bad.push({ field: `inputs.${n}`, say: pageAddressRefusal(r.role, pages[r.role]) }); });
+        for (const role of declared) if (!Object.hasOwn(pages, role) && !rows.some((r) => r.role === role)) bad.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
         for (const r of rows) if (!declared.includes(r.role)) bad.push({ field: 'inputs', say: `This flow has no input named "${r.role}" (it takes: ${declared.join(', ') || 'none'}).` });
         if (bad.length > 0) return reply(400, { refused: 'bad-inputs', say: `${bad[0].say} Nothing was changed.`, refusals: bad });
-        scheduledInputs = declared.map((role) => ({ role, path: /** @type {{path: string}} */ (rows.find((r) => r.role === role)).path }));
+        scheduledInputs = declared.map((role) => ({ role, path: Object.hasOwn(pages, role) ? pages[role] : /** @type {{path: string}} */ (rows.find((r) => r.role === role)).path }));
       }
     }
     // M6 am9: the schedule uses the plan of the run it was set from. The workflow's own plan = nothing to bind; a different kept plan is verified now and
@@ -399,7 +406,9 @@ export function createTriggerDoor(opts) {
       let last = flowsDoor.lastSourcesOf(flow, roles).sources;
       if (schedule.inputs !== null) last = { ...last, ...Object.fromEntries(schedule.inputs.map((r) => [r.role, r.path])) };
       const sources = [];
+      const pages = pageAddressesOf(read.arbiter);
       for (const role of roles) {
+        if (Object.hasOwn(pages, role)) { sources.push({ role, path: pages[role] }); continue; } // M10 am3: a page input is its signed address, never an earlier run's or an arriving file
         const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
         if (!p) return done({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
         try { sources.push({ role, path: realpathSync(p) }); } catch { return done({ outcome: 'refused', why: `The input "${role}" is not there (${p}). Nothing started.` }); }
@@ -485,7 +494,8 @@ export function createTriggerDoor(opts) {
         from: sc ? sc.from : null,
         model: sc && sc.model ? sc.model.model : (rec ? rec.model : null),
         destination: sc && sc.destination ? sc.destination : (read.ok ? flowValues(read.arbiter).destination : null),
-        inputs: sources.map((p) => basename(String(p))),
+        // M10: a page input shows its FULL signed address (the page cuts it with an ellipsis, the whole on hover); a file shows its name
+        inputs: sources.map((p) => (Object.values(read.ok ? pageAddressesOf(read.arbiter) : {}).includes(String(p)) ? String(p) : basename(String(p)))),
         fires: base.sig === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === base.sig),
         allFires: readOutcomes(flowDir),   // M9 am9 item 4: the Audit's `tries` span every signing
       };

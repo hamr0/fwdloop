@@ -362,6 +362,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   assert.equal(g.phase, 'green', JSON.stringify(g));
   assert.equal(g.notChecked.label, NOT_CHECKED_LABEL);
   assert.deepEqual(g.notChecked.items, ['whether the tone suits the role']);
+  assert.deepEqual(g.notChecked.readNotes, [], 'no code note on this plan: the list is there and empty');
   assert.equal(g.checked.length, 5, 'one entry per step');
   assert.ok(g.checked.every((c) => c.sentences.length > 0));
   assert.equal(g.checked[2].class, 'softgreen');
@@ -384,20 +385,17 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const w2 = await world();
   const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
-  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [] });
+  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [], readNotes: [] });
 });
 
 // ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------
 // eslint-disable-next-line import/first
 import { rq } from './m4e-world.mjs';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
-function fnSrc(name) {
-  const start = CHAT.indexOf(`    function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found in the Chat block`);
-  return CHAT.slice(start, CHAT.indexOf('\n    }\n', start) + 7);
-}
+const fnSrc = (name) => cutFn(CHAT, name, '    ');
 const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 const openState = { draftId: 'd-1', phase: 'questions-open', openK: 1, total: 2, questions: [
   { k: 1, line: 3, lineText: 'write me a summary resume', question: 'What does "3 sections" mean?', answered: false },
@@ -410,6 +408,15 @@ test('P1: the question view says "A question the plan raised (k of n)", one at a
   assert.equal(v.question, 'What does "3 sections" mean?');
   assert.equal(load('questionViewFor')({ ...openState, openK: 2 }).head, 'A question the plan raised (2 of 2)');
   for (const st of [null, { ...openState, phase: 'green' }, { ...openState, phase: 'redrafting' }, { ...openState, questions: [] }]) assert.equal(load('questionViewFor')(st), null);
+});
+
+test('P1b (M10 am2 item 1, am5 item 1): a look question is ONE plain chat message "A question the plan raised (K of N), about job line L: <question>"; other questions keep the box', () => {
+  const Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).';
+  const look = { ...openState, total: 1, questions: [{ k: 1, line: 1, lineText: 'Read my resume,', question: Q, answered: false, source: 'look' }] };
+  const v = load('questionViewFor')(look);
+  assert.deepEqual([v.head, v.line, v.question], ['', '', `A question the plan raised (1 of 1), about job line 1: ${Q}`]);
+  const m4e = load('questionViewFor')(openState);
+  assert.deepEqual([m4e.head, m4e.line], ['A question the plan raised (1 of 2)', 'About job line 3: write me a summary resume'], 'an M4e question is unchanged');
 });
 
 test('P2: there is no Skip; the box has an answer field and a Send button; ids are unique across the page', () => {

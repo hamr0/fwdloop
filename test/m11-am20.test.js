@@ -10,22 +10,14 @@ import { fileURLToPath } from 'node:url';
 import { greenWorld } from './m9-trigger-world.mjs';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter } from './m4e-world.mjs';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 
 killChildrenAfter();
 const CLOSERS = [];
 after(async () => { for (const c of CLOSERS) await c(); });
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-function fnSrc(name) {
-  const start = PAGE.indexOf(`  function ${name}(`);
-  assert.ok(start !== -1, `function ${name} not found`);
-  let depth = 0;
-  for (let i = PAGE.indexOf('{', start); i < PAGE.length; i++) {
-    if (PAGE[i] === '{') depth++;
-    else if (PAGE[i] === '}' && --depth === 0) return PAGE.slice(start, i + 1);
-  }
-  assert.fail(`function ${name} has no closing brace`);
-}
+const fnSrc = (name) => cutFn(PAGE, name, '  ');
 const NAMES = [
   'escapeXml', 'duration', 'glyphClass', 'dotClass', 'signHtml', 'readableDateTime', 'runSpendText', 'runWallText', 'runAtText',
   'rlShortDate', 'groupRunsByFlow', 'matchesSearch', 'filterRuns', 'filterWorkflows', 'filtersActive',
@@ -88,6 +80,12 @@ async function world(t, width) {
   assert.ok(await chrome.waitFor('document.querySelectorAll("[data-testid^=rl-sched-]").length === 3', 20000), 'three Scheduled cards drawn');
   return chrome;
 }
+const forcedFontsSay = (ran, wanted) => `am21 needs at least two forced fonts installed; only ${JSON.stringify(ran)} of ${JSON.stringify(wanted)} found; install them: sudo apt-get install fonts-symbola fonts-freefont-ttf`;
+test('am21 the too-few-fonts failure names the fix', () => {
+  const say = forcedFontsSay(['FreeSans'], ['Symbola', 'FreeSans']);
+  assert.match(say, /sudo apt-get install fonts-symbola fonts-freefont-ttf/);
+  assert.match(say, /\["FreeSans"\]/, 'still says which fonts were found');
+});
 const typeMain = (chrome, v) => chrome.ev(`(function(){ var i = document.getElementById("runs-filter-search"); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
 const chip = (chrome) => chrome.ev('document.querySelector("[data-testid=chip-runs-scheduled]").click(); true');
 const countText = (chrome) => chrome.ev('document.getElementById("runs-filter-count").textContent');
@@ -111,14 +109,28 @@ for (const width of [1280, 390, 320]) {
     assert.equal(await countText(chrome), 'showing 0 scheduled jobs');
     // M11 am21: the ink you see. ◷'s ink HEIGHT (canvas measureText of the chip's own font) is within 1px of ✓'s, under the default font AND under forced fonts
     // (a fixed size fits one font and not another). The empty space around a mark is not judged.
-    const measure = (family) => chrome.ev('(function(){ var fam = ' + JSON.stringify(family) + '; var id = "am21-force"; var st = document.getElementById(id); if(st) st.remove();' +
-      ' if(fam){ st = document.createElement("style"); st.id = id; st.textContent = \'.chip.fchip[data-filter-value="scheduled"]{font-family:"\' + fam + \'" !important;}\'; document.head.appendChild(st); }' +
-      ' document.querySelector("[data-testid=chip-runs-scheduled]").style.fontSize = ""; window.fwdloopFitChips();' +
-      ' var cv = document.createElement("canvas").getContext("2d"); var h = function(sel, f){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
-      ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + (f || cs.fontFamily); var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };' +
-      ' var sc = "[data-testid=chip-runs-scheduled]"; var own = h(sc);' +
-      ' var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
-      ' return { sched: own, pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: !fam || big(JSON.stringify(fam)) !== big("NoSuchFontAnywhere123") }; })()');
+    // The page's OWN fitChips does the fit: each forced font is injected before the page's scripts run (Page.addScriptToEvaluateOnNewDocument) and the page is reloaded.
+    const measure = async (family) => {
+      const seen = await chrome.ev('(function(){ var cv = document.createElement("canvas").getContext("2d"); var big = function(f){ cv.font = "100px " + f; var m = cv.measureText("◷"); return m.width + "/" + m.actualBoundingBoxAscent + "/" + m.actualBoundingBoxDescent; };' +
+        ' return ' + JSON.stringify(!family) + ' || big(' + JSON.stringify(JSON.stringify(family)) + ') !== big("NoSuchFontAnywhere123"); })()');
+      if (!seen) return { installed: false };
+      if (forceId) { await chrome.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: forceId }); forceId = null; }
+      if (family) {
+        await chrome.send('Page.enable'); // without it the new-document script does not run on reload
+        const css = `.chip.fchip[data-filter-value="scheduled"]{font-family:"${family}" !important;}`;
+        const src = `(function(){ var add = function(){ var st = document.createElement("style"); st.textContent = ${JSON.stringify(css)}; document.documentElement.appendChild(st); };` +
+          ' if(document.documentElement) add(); else new MutationObserver(function(_, o){ if(document.documentElement){ o.disconnect(); add(); } }).observe(document, { childList: true }); })()';
+        forceId = (await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: src })).identifier;
+      }
+      await chrome.ev('window.__beforeReload = 1; true');
+      await chrome.send('Page.reload');
+      assert.ok(await chrome.waitFor('!window.__beforeReload && document.readyState === "complete" && !!document.querySelector("[data-testid=chip-runs-scheduled]")', 30000), `page reloaded under "${family || 'default'}"`);
+      return chrome.ev('(function(){ var cv = document.createElement("canvas").getContext("2d"); var h = function(sel){ var e = document.querySelector(sel); var cs = getComputedStyle(e);' +
+        ' cv.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily; var m = cv.measureText(e.textContent); return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent; };' +
+        ' var sc = "[data-testid=chip-runs-scheduled]";' +
+        ' return { sched: h(sc), pass: h("[data-testid=chip-runs-res-pass]"), fail: h("[data-testid=chip-runs-res-fail]"), fs: getComputedStyle(document.querySelector(sc)).fontSize, installed: true }; })()');
+    };
+    let forceId = null;
     const fonts = ['', 'Noto Sans Mono Condensed', 'Symbola', 'FreeSans', 'Adwaita Mono'];
     const ran = [];
     for (const family of fonts) {
@@ -128,7 +140,7 @@ for (const width of [1280, 390, 320]) {
       console.log(`# am21 at ${width} ${family || '(default)'}: ${JSON.stringify(m)}`);
       assert.ok(Math.abs(m.sched - m.pass) <= 1, `◷ ink height ${m.sched} vs ✓ ${m.pass} under "${family || 'default'}": ${JSON.stringify(m)}`);
     }
-    assert.ok(ran.length >= 2, `am21 needs at least two forced fonts installed; only ${JSON.stringify(ran)} of ${JSON.stringify(fonts.slice(1))} found`);
+    assert.ok(ran.length >= 2, forcedFontsSay(ran, fonts.slice(1)));
     const g = await chrome.ev('({ spill: document.documentElement.scrollWidth - document.documentElement.clientWidth })');
     assert.ok(g.spill <= 0, `sideways scroll ${JSON.stringify(g)}`);
   });

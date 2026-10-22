@@ -22,6 +22,7 @@ import path from 'node:path';
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration } from './declaration.js';
+import { factRows } from './citedcheck.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
@@ -43,6 +44,10 @@ export const LEAK_MARKER_FILE = 'scrub-leak.red';
  *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
 export const QUESTIONS_FILE = 'questions.json';
 export const NOT_CHECKED_FILE = 'not-checked.json';
+/** M10: the drafting copy of each web page input is kept in this folder of the draft folder (a run freezes its own, never this one). */
+export const PAGES_DIR = 'pages';
+/** M10 item 3: what the page-word look kept and dropped, per page input (the map the AI named, the kept facts with their readings, every drop). Not signed. */
+export const PAGE_LOOK_FILE = 'page-look.json';
 export const ANSWER_FILE = (k) => `answer-${k}.json`;
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
 
@@ -77,7 +82,8 @@ export function specHash({
  * checks and the page all use it). `questions` = [{ k, line, question, answer|null }], `open` = those with no answer. A blank or unreadable
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -90,8 +96,20 @@ export function readQuestions(planDir) {
     const k = i + 1;
     const a = readFileInside(planDir, ANSWER_FILE(k));
     let answer = null;
-    if (a.ok) { try { const t = JSON.parse(a.text)?.answer; if (typeof t === 'string' && t.trim() !== '') answer = t; } catch { /* unreadable = unanswered */ } }
-    return { k, line: q.line, question: String(q.question), answer };
+    let at;
+    /** @type {string|null|undefined} the `~` rule the answer added (null = it left the rule Not checked), as the answer file recorded it */
+    let rule;
+    if (a.ok) {
+      try {
+        const j = JSON.parse(a.text);
+        const t = j?.answer;
+        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; }
+      } catch { /* unreadable = unanswered */ }
+    }
+    return {
+      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }),
+      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null } : {}),
+    };
   });
   return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
 }
@@ -178,6 +196,10 @@ export function buildReadout({
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
+    // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
+    if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${row}`);
+    // M10 am8 item 2: the column lock, signed with the readout (typed fields)
+    if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
@@ -246,9 +268,10 @@ export function draftKeyRefusal(slot, env) {
  * writer (appendSpendRow); an unpriced round books null, never 0.
  *
  * Test seam: `provider`/`rates`/`modelId` are injected; without them a live provider is built.
+ * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, proseRead,
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -264,7 +287,7 @@ export async function draftToDir({
   if (!panelDrafts && (rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)))) {
     return refuse([`draft: "${dir}" is inside the flows root "${root}" — an unsigned draft would show as a flow; use a --out outside the flows root`]);
   }
-  const read = readProseFile(proseFile);
+  const read = proseRead ?? readProseFile(proseFile); // the CLI reads the file once (for its hold) and hands that read in
   if (!read.ok) return refuse([String(read.red)]);
   const prose = { text: String(read.text) };
   const injected = provider != null;
@@ -307,7 +330,7 @@ export async function draftToDir({
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
   const priorSpend = sessionPriorSpend(dir);
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking,
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, ...(leftRules === undefined ? {} : { leftRules }),
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -332,6 +355,7 @@ export async function draftToDir({
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
+  if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
@@ -376,6 +400,8 @@ export async function draftToDir({
       startedAt,
       wallMs: startedAt === null ? null : Math.max(0, Date.now() - Date.parse(startedAt)),
     });
+    // M4d am32: the spend is booked, and the result files are about to be written: the monthly hold is given back now, so a draft never reads done while its hold is still held
+    if (typeof onResult === 'function') onResult({ ok: result.ok });
     for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
     if (pick !== null) writeModelRecord(dir, pick);
     leaks = sweepForSecrets(dir, secrets);

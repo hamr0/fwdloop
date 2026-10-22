@@ -63,16 +63,25 @@
 // signed text).
 
 import { createRubric, checkStep } from 'bareguard';
+import { checkCited } from './citedcheck.js';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
-const FORMULAS = Object.freeze({
+export const FORMULAS = Object.freeze({
   sum: (vals) => vals.reduce((a, b) => a + b, 0),
   count: (vals) => vals.length,
   min: (vals) => Math.min(...vals),
   max: (vals) => Math.max(...vals),
   sub: (vals) => vals[0] - vals[1],
 });
+
+/**
+ * M10 am10: the one description of the cite forms, told to a step whose check cites cells and named in the red when a cite fits none.
+ * Built from the checker's own formula list (FORMULAS keys + daysBetween, which is handled apart), so the text cannot drift from what is accepted.
+ */
+export function citeForms(names = [...Object.keys(FORMULAS), 'daysBetween']) {
+  return `one cell (\`<input>!C3\`), a field above it (\`#name\`), or ${names.join(', ')} over those`;
+}
 
 /** An input with cells (M4d amendment 8): a file whose name ends `.csv`. The one decider for "this input can be cited". */
 export function isCellsPath(p) {
@@ -135,6 +144,12 @@ function resolveCite(cite, ctx) {
     const row = Number(rowStr);
     const raw = getCellRaw(artifact, col, row);
     if (raw === null) return { ok: false, red: `cite "${cite}": cell ${col}${row} does not exist in "${artifactId}"` };
+    // M10 am8 item 2: the step's check names the column(s) its facts come from; a cell from any other column is red, naming it
+    const locked = (Array.isArray(ctx.lock) ? ctx.lock : []).filter((l) => l?.source === artifactId).map((l) => l.column);
+    if (locked.length > 0) {
+      const name = artifact.header?.[colIndexOf(col)];
+      if (!locked.includes(name)) return { ok: false, red: `cite "${cite}": the cell ${col}${row} is in column '${name ?? col}', but this step is locked to column ${locked.map((c) => `'${c}'`).join(' and ')}` };
+    }
     return { ok: true, raw };
   }
 
@@ -184,7 +199,7 @@ function resolveCite(cite, ctx) {
     return { ok: true, computed: fn(vals) };
   }
 
-  return { ok: false, red: `cite "${cite}" does not match the cell or formula grammar` };
+  return { ok: false, red: `cite "${cite}" does not match the cell or formula grammar - the forms are: ${citeForms()}` };
 }
 
 function checkField(name, field, ctx) {
@@ -226,7 +241,7 @@ function checkField(name, field, ctx) {
  * resolves and matches its cite. First red wins.
  *
  * @param {any} artifact
- * @param {{ reads: Record<string, any>, businessDate: string }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, lock?: {source: string, column: string}[] }} ctx `lock` (M10 am8): the columns the step's check names
  * @returns {CloseVerdict}
  */
 export function closeGreen(artifact, ctx) {
@@ -241,13 +256,45 @@ export function closeGreen(artifact, ctx) {
     /** @type {Record<string, any>} */
     const fieldsSoFar = {};
     for (const name of names) {
-      const result = checkField(name, artifact.fields[name], { reads: ctx.reads, fieldsSoFar, businessDate: ctx.businessDate });
+      const result = checkField(name, artifact.fields[name], { reads: ctx.reads, fieldsSoFar, businessDate: ctx.businessDate, lock: ctx.lock });
       if (result.verdict === 'red') return /** @type {CloseVerdict} */ (result);
       fieldsSoFar[name] = artifact.fields[name];
     }
     return { verdict: 'green', red: null };
   } catch (err) {
     return { verdict: 'crash', red: `green close crashed: ${err.message}` };
+  }
+}
+
+/**
+ * M10 piece 4 (item 2, "green grows"): the green close of a step that cites quotes instead of cells. `part` is the step's fact part (`close.cited`, set by
+ * code from the page look's kept facts, never by the model); `source` is the run's OWN frozen copy of the page or doc (`readRunSource`); the artifact is
+ * `{ results: [{ quote, values: { <fact name>: "<value as the quote writes it>" } }] }`. bareguard's `cited` check proves each quote is word for word in
+ * the frozen text, each value is in its quote and passes its rule, and the number of results is as signed. No model grades.
+ * Third outcomes, each named, never green: no readable source or an artifact that is not an object (`unparseable`, a casualty), a part bareguard cannot sign
+ * (`crash`). `cited` carries what the runner writes to the run's cited-check record: the part and the check's own answer.
+ *
+ * @param {any} part
+ * @param {any} artifact
+ * @param {{ok: true, text: string, sha256: string}|{ok: false, red: string}|null|undefined} source
+ * @returns {Promise<CloseVerdict>}
+ */
+export async function closeCited(part, artifact, source) {
+  try {
+    if (!source || source.ok !== true) {
+      const red = source && source.ok === false ? source.red : `input "${part?.source}": the run gave the check no saved copy to read`;
+      return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: `cited close: ${red}`, cited: { part, check: { verdict: 'stopped', gapLines: [], fault: red, sha256: '', claims: [], evidence: [] } } });
+    }
+    if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: 'cited artifact must be an object shaped {results: [{quote, values}]}' });
+    }
+    const check = await checkCited({ part, text: source.text, results: artifact.results });
+    const cited = { part, check, results: artifact.results };
+    if (check.verdict === 'green') return /** @type {CloseVerdict} */ ({ verdict: 'green', red: null, cited });
+    if (check.verdict === 'red') return /** @type {CloseVerdict} */ ({ verdict: 'red', red: check.gapLines.join('\n'), cited });
+    return /** @type {CloseVerdict} */ ({ verdict: 'crash', red: `cited close stopped: ${check.fault}`, cited });
+  } catch (err) {
+    return /** @type {CloseVerdict} */ ({ verdict: 'crash', red: `cited close crashed: ${err.message}` });
   }
 }
 
@@ -429,14 +476,16 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any> } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any, columns?: {source: string, column: string}[] } }} step
  * @param {unknown} artifact
- * @param {{ reads: Record<string, any>, businessDate: string }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null }} ctx
+ *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeByClass(step, artifact, ctx) {
   const cls = step?.close?.class;
-  if (cls === 'green') return closeGreen(artifact, ctx);
+  if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
+  if (cls === 'green') return closeGreen(artifact, { ...ctx, lock: step?.close?.columns });
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
   if (cls === 'hitl') return { verdict: 'hitl', red: null };
   return { verdict: 'crash', red: `closeByClass: unknown close class ${JSON.stringify(cls)}` };

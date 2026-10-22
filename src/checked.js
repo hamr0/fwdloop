@@ -11,6 +11,9 @@
 /** The label that always sits with the "Not checked" list (am41 item 3: the ONE place these words live; the Job tab and the Chat card read it off their payloads). */
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
+import { factRows } from './citedcheck.js';
+import { splitReadNotes, signedFactNames } from './pagedropwords.js';
+
 const list = (xs) => xs.join(', ');
 
 /**
@@ -28,7 +31,10 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
     const shape = st?.close?.shape && typeof st.close.shape === 'object' ? st.close.shape : {};
     /** @type {string[]} */
     const out = [];
-    if (cls === 'green') {
+    if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
+      // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
+      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited));
+    } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {
       out.push('The reply is checked as plain text only.');
@@ -51,4 +57,15 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
 export function notCheckedBlock(items) {
   const clean = Array.isArray(items) ? items.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
   return { label: NOT_CHECKED_LABEL, items: clean };
+}
+
+/**
+ * M10 am11: the Not checked block split for showing. The drafter's list and code's drop lines are one list on disk (and in the sign row, unchanged);
+ * the page shows code's notes about written forms it did not use apart, as "How the page was read" (`readNotes`). The signed facts decide an s1 note.
+ * @param {unknown} items @param {any} declaration the plan's declaration (its cited facts are the signed ones)
+ */
+export function notCheckedView(items, declaration) {
+  const block = notCheckedBlock(items);
+  const { notChecked, readNotes } = splitReadNotes(block.items, signedFactNames(declaration));
+  return { label: block.label, items: notChecked, readNotes };
 }

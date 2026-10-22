@@ -38,11 +38,12 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
-import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
+import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
 import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
+import { isResultRun, checkTypeOf, buildResult, downloadOf } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readRunThinking } from '../flowmodel.js';
 import {
@@ -1769,6 +1770,9 @@ export function getRunDetail({
     needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
       runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
     })),
+    // M10 am4: the Result tab shows for a job that reads a page, a CSV or a .docx; `checkType` is its distinct close classes (the tab's top card)
+    hasResult: isResultRun(ctx.arbiter),
+    checkType: ctx.flowRead.ok ? checkTypeOf(ctx.flowRead.declaration) : '\u2014',
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
     resume: ctx.resume,
@@ -1881,6 +1885,7 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'startover') happened.push(r.verdict === 'green' ? `starting over${retry(r)}` : 'start over red');
       else if (r.kind === 'revise') happened.push(r.verdict === 'red' ? 'revise red' : `revising${retry(r)}`);
       else if (r.kind === 'redraft') happened.push(r.verdict === 'red' ? 'redraft red' : `redrafting with your answers${retry(r)}`);
+      else if (r.kind === 'human') happened.push('your answer');
       else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
         const c = r.card && typeof r.card === 'object' ? r.card : {};
@@ -1888,6 +1893,8 @@ export function getDraftBlock(flowDir, runDir) {
           typeof c.inputs === 'string' && c.inputs.trim() ? `inputs: ${c.inputs.trim().replace(/\n+/g, ' / ')}` : null, `job: ${String(c.job ?? '').trim().replace(/\n+/g, ' / ')}`].filter(Boolean).join(' · ');
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
+      // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
+      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${r.question}`, gap: `you said: ${r.answer}` }));
       else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }
@@ -2042,7 +2049,8 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
   const ofThisJob = !!signRow && (typeof signRow.flowHash !== 'string' || flowHash === null || signRow.flowHash === flowHash);
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
-  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: recorded ? notCheckedBlock(nc.items).items : [], recorded } };
+  const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
+  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: view.items, readNotes: view.readNotes, recorded } };
 }
 
 /**
@@ -2146,6 +2154,79 @@ export function getRunJob({
       ? null
       : 'signature.json is missing signedBy/signedAt/flow (hash)',
   };
+}
+
+/**
+ * M10 am4: what `getRunResult` and `getRunDownload` both need of one run: its books and the signed job it ran. `null` = no such run, the job is
+ * unreadable, or it is not an M10 job (the route answers 404 "no such run, or it has no result tab").
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ */
+function resultContext({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok || !readdirInside(run.flowDir, 'runs').includes(runId)) return null; // the gateway lists real, non-symlink run folders only
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
+  if (!ctx.flowRead.ok || !isResultRun(ctx.arbiter)) return null;
+  return { run, ctx };
+}
+
+/**
+ * M10 am5 item 2: does this run wait for the person's accept? The Ask tab's own rule (`answerControls` kind "doors"): the newest ask is open and either has no saved
+ * answer or its saved answer could not be read. Read from `getRunAsks`, the Ask tab's one reader, so the two tabs can never disagree.
+ * @param {ReturnType<typeof getRunAsks>} asks @returns {{askId: string, draftNo: number}|null}
+ */
+function resultDoorOf(asks) {
+  if (asks === null) return null;
+  const block = asks.blocks.at(-1);
+  const ask = block?.current;
+  if (!ask || ask.open !== true) return null;
+  if (asks.resume && asks.resume.askId === ask.askId && asks.resume.state !== 'broken') return null;
+  return { askId: ask.askId, draftNo: block.draftNo };
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/result` — the Result tab (M10 am4). The Not checked list is the Job tab's own (`buildJobPlan`), never a second spelling.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, resumeAttempt?: (flow: string, runId: string) => any, now?: () => number}} a
+ * @returns {any|null}
+ */
+export function getRunResult({
+  root, flow, runId, catalogue, resumeAttempt, now,
+}) {
+  const got = resultContext({
+    root, flow, runId, catalogue,
+  });
+  if (!got) return null;
+  const { run, ctx } = got;
+  const sig = ctx.flowRead.signature;
+  const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null);
+  return buildResult({
+    flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items, readNotes: plan.notChecked.readNotes,
+    setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
+    door: resultDoorOf(getRunAsks({
+      root, flow, runId, catalogue, resumeAttempt, now,
+    })),
+  });
+}
+
+/**
+ * `GET /api/runs/:flow/:runId/download?i=<n>` (M10 am4): one saved file, or why not.
+ * @param {{root: string, flow: string, runId: string, catalogue: any, index: unknown}} a
+ * @returns {ReturnType<typeof downloadOf>}
+ */
+export function getRunDownload({
+  root, flow, runId, catalogue, index,
+}) {
+  const got = resultContext({
+    root, flow, runId, catalogue,
+  });
+  if (!got) return { ok: false, code: 404, error: 'no such run, or it has no result tab' };
+  return downloadOf({
+    index,
+    ctx: {
+      arbiter: got.ctx.arbiter, declaration: got.ctx.flowRead.declaration, runDir: got.run.runDir, root, flow, runId, auditRows: got.ctx.auditRows,
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------

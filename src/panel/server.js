@@ -60,7 +60,7 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { createResumer } from './resume.js';
 import { createScheduler } from './scheduler.js';
@@ -551,8 +551,8 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  // /api/runs/:flow/:runId(/audit|/job|/asks)?
-  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks))?$/.exec(pathname);
+  // /api/runs/:flow/:runId(/audit|/job|/asks|/result|/download)?
+  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks|result|download))?$/.exec(pathname);
   if (runMatch) {
     let flow;
     let runId;
@@ -592,6 +592,30 @@ export function handleRequest(req, res, opts) {
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
+      return;
+    }
+    if (sub === 'result') {
+      const result = getRunResult({
+        root: opts.root, flow, runId, catalogue, resumeAttempt, now: opts.now,
+      });
+      if (!result) { sendText(res, 404, 'no such run, or it has no result tab'); return; }
+      send(200, result);
+      return;
+    }
+    if (sub === 'download') {
+      const got = getRunDownload({
+        root: opts.root, flow, runId, catalogue, index: url.searchParams.get('i'),
+      });
+      if (!got.ok) { sendText(res, got.code, got.error); return; }
+      // the name is the saved file's own basename; quotes and control characters never reach the header
+      const plain = got.name.replace(/[^A-Za-z0-9._-]/g, '_');
+      res.writeHead(200, {
+        'content-type': `${got.type}; charset=utf-8`,
+        'content-length': got.buf.length,
+        'content-disposition': `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(got.name)}`,
+        'x-content-type-options': 'nosniff',
+      });
+      if (method === 'HEAD') res.end(); else res.end(got.buf);
       return;
     }
     const result = getRunDetail({
