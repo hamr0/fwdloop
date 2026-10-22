@@ -3316,3 +3316,26 @@ M10 am10 (the cite forms told to the step) moved deepseek-flash from prose to re
 **Ruling (hamr 2026-10-22).** Sheet checks belong in bareguard's rubric as one generic "cells" check with a closed op list in `rubricVocabulary`. The drafter suggests checks from that list, the person signs them, bareguard's `checkStep` judges, and the step only gives values. Asked of bareguard (guard session) 2026-10-22; bareguard POC first. No fwdloop code changes until that lands.
 
 **Also found, open.** `src/csv.js` `parseCsv` is a naive comma split: a quoted cell such as `"1,200.50"` breaks the row into two cells. Cost of leaving it: any CSV with a quoted comma shifts every later column and the column lock and cites then point at the wrong cells.
+
+## F75 — a dropped destination leaves the route half-checked: "Rome" went Not checked and nothing took its place, though every result says "arrives at Leonardo da Vinci International Airport" (run m10-walk-flights-4 run-1, 2026-10-22; open)
+
+**Status.** Finding, no build. Open. Tags: **[MEASURED]** the files named below (read only), **[SIGNED]** M10 amendment 7 (R2, "place grows to role word"), **[BORROWED]** the phrase dry read, our copy of bareloop c550dc8. Told bareloop (`loop` session) 2026-10-22 as FYI.
+
+**What happened.** `flows/m10-walk-flights-4` run-1 (read only) is complete, green on try 1, $0.0794826, books balance, and `scripts/check-cited-run.mjs` says ok (3 results). It met the signed M10 exit. But the signed facts in `declaration.json` are only:
+- origin airport: phrase "Leaves Adolfo Suárez Madrid-Barajas Airport"
+- price: money, anchor "From", unit "US dollars", currency "$", lt 150
+- stops: phrase "Nonstop"
+
+There is no destination fact. The sign row in `setup.jsonl` says why, under notChecked: `line 1: "destination airport" — "Rome" is on the page but in none of its results, so it is not checked.` and `destination airport Rome (not on the page's results)`.
+
+**Measured.** `runs/run-1/inputs/flights.txt` has 18 result lines (`link "From`). "arrives at Leonardo da Vinci International Airport" is in 18 of 18 of them; "Rome" is in 0 of 18 (it appears only in page chrome: the "Where to? Rome FCO" box and two "Track prices from Madrid to Rome" switches).
+
+**Earlier runs of the same job.**
+- flights-3 signed the destination phrase "Rome": red on every try, because no result says it. Fixed by the phrase dry read port, which drops a word no result says.
+- flights-2 had "arrives at Leonardo da Vinci International Airport" as a signed arrival-airport phrase.
+
+**Cause.** The dry read is right to drop "Rome", but nothing then offers the role word the results DO say for that place. The drop leaves the destination unchecked and nothing takes its place. A Madrid to Barcelona page (or any page leaving Madrid nonstop under $150) would pass this signed plan. The reversed route still fails, on the origin phrase. The gap is shown to the human under Not checked, not hidden.
+
+**Cost of leaving it.** One of the two route ends is unchecked on any job whose destination is written as a city the results never print; the human sees it only by reading the Not checked list at sign time.
+
+**Where a clean fix may live (not built, none asked).** bareloop's R2 ("place grows to role word", signed in our M10 am7), or the drafter offering the arrival phrase when the city is dropped. Either needs bareloop's view first.
