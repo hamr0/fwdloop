@@ -2655,6 +2655,8 @@ same run. Scope is stated when its turn comes.
 - **M10 amendment 11 — SIGNED by hamr 2026-10-22 ("sign m10 am11").** The Checked list shows each check on its own line, like bareloop's plan card. Code's notes about written forms it did not use move out of "Not checked" into their own list, "How the page was read", copied from bareloop `2d22c0f`. An S1 note ("would read the same value as") moves there too only if hamr rules so in bareloop, copied from their commit.
 - **M10 amendment 12 — SIGNED by hamr 2026-10-22 ("sign m10 am12").** "The CSV case asks once and runs green" is split. The ask part stays: the CSV case asks once, and the answer is in all 3 places. The "runs green" part waits for bareguard's computed-over-cells check, and comes back as its own scope when bareguard delivers. The reason is written in FINDINGS.
 
+**M10 EXIT SIGNED — hamr, 2026-10-22** ("sign m10 exit"). **M10 exit — met 2026-10-22.** The flights job `m10-walk-flights-4` (run-1), a route bareloop never used, drafted with 0 asks on deepseek-flash, signed, and ran green. Its 3 quotes were checked against the run's own saved page by `scripts/check-cited-run.mjs` (ok). The CSV case `m10-walk-csv-3` asked once, and the answer is in the draft log, the Audit and the signed job. CSV "runs green" waits for bareguard (am12).
+
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
 - **M11 scope — SIGNED by hamr 2026-10-13 ("sign m11").**
