@@ -52,7 +52,7 @@ import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsR
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 
-// This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it (`model.json`, written when it was drafted:
+// This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
 // Whether that model may be used is `resolveUsableModel` (ticked in Settings > Providers with both prices): this file names no model and no price.
 
@@ -196,15 +196,18 @@ async function resolveModelStep(spendPath, env, flowDir, named = {}, runModel = 
   try {
     const config = readPriceConfig();
     const rec = runModel ?? readModelRecord(flowDir);   // M6 am5/am6: the model signed for THIS run, else the one recorded with the job
-    if (rec !== null && named.model !== undefined && (named.model !== rec.model || (named.provider !== undefined && named.provider !== rec.slot))) {
-      throw new Error(`This job already has its model recorded (${rec.slot} · ${rec.model}); --model cannot change it.`);
+    // M4d am33: the job's recorded model is only the DEFAULT pick. `--model` picks any ticked model for this run (the run's audit rows record the one
+    // used; model.json is never rewritten). A run already signed with its own model keeps it: naming another is refused, never silently swapped.
+    if (runModel !== null && named.model !== undefined && (named.model !== runModel.model || (named.provider !== undefined && named.provider !== runModel.slot))) {
+      throw new Error(`This run was signed with its model (${runModel.slot} · ${runModel.model}); --model cannot change it.`);
     }
     let pick = rec;
-    if (pick === null) {
-      if (named.model === undefined) throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
-      const p = pickTicked(config, named);
+    if (named.model !== undefined) {
+      const p = pickTicked(config, { model: named.model, provider: named.provider ?? (rec !== null && rec.model === named.model ? rec.slot : undefined) });
       if (!p.ok) throw new Error(p.say);
       pick = p;
+    } else if (pick === null) {
+      throw new Error('This job has no model recorded. Name one with --model <id>, a model ticked in Settings > Providers with both prices.');
     }
     slot = pick.slot;
     const keyCheck = checkKeyPreflight(slot, env);
