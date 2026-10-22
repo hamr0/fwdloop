@@ -2672,6 +2672,7 @@ same run. Scope is stated when its turn comes.
   - **Done when:** two live runs on deepseek-flash, each drafted, signed and green: the expenses job (the rows over 500, their count and sum) and the aging job (days past due as of its date, each invoice in its bucket, every invoice once). Books balance on both. A separate script re-runs each run's signed checks against its saved sheet and says ok.
   - **Negative:** the same expenses job with its saved sheet changed by one cell after signing stops at $0, naming the input. A run whose step claims 18 rows over 500 instead of 17 is red, naming the row.
   - **Not in scope:** .xlsx; bareguard's `diff` ops; any change to page (M10) checks; sheet checks a person writes as a formula.
+- **M10b amendment 1 — SIGNED by hamr 2026-10-22 ("sign m10b am1"): the sheet is locked per run.** Replaces item 3 and the Negative line. A job's sheet may change from run to run; the signature locks the job, not the file. At run start, the table made from the run's frozen copy gets its `tableSha`, written down once with that run's inputs. Every check in that run uses that recorded `tableSha`. If the run's saved sheet no longer gives the same table, the check stops at $0, naming the input. A new sheet on a new run is fine, as today. **Negative (replaces):** a run whose saved sheet is changed by one cell after its start stops at $0, naming the input. A run whose step claims 18 rows over 500 instead of 17 is red, naming the row.
 
 ## M11 — one runs list (Running now · Needs you · Scheduled · Jobs)
 
