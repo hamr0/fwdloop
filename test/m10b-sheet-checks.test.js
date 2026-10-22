@@ -16,7 +16,8 @@ import { sheetCheckSentence, sheetCheckRows } from '../src/sheetchecks.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fx = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
-const parsed = parseSignedText(fx('m4d-am8.aging.signed.txt'));
+// piece 3: a number in a check must be in the person's words on the line, so the line says the 500 the checks use
+const parsed = parseSignedText(fx('m4d-am8.aging.signed.txt').replace('exactly once', 'exactly once; amounts over 500 are flagged'));
 const cat = loadCatalogue();
 const AGING = fx('m10b-sheets/aging.csv');
 const ISO = [{ column: 'Due date', format: 'YYYY-MM-DD' }];

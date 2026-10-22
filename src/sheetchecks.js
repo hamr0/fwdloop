@@ -10,6 +10,8 @@
 // a repeated header), a role with no drafting copy, a refusal by `createRubric`.
 
 import { createRubric, tableSha } from 'bareguard';
+import { numbersSaid } from './citedwords.js';
+import { wordsSaidOn } from './pagebits.js';
 
 /** the bareguard rules a sheet check may use (`diff` is out of scope for M10b) */
 export const SHEET_RULES = Object.freeze(['cells', 'table']);
@@ -17,6 +19,15 @@ export const SHEET_RULES = Object.freeze(['cells', 'table']);
 export const MAX_SHEET_CHECKS = 20;
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** the fields of a check that hold a column name as a plain string (the ONE list: {@link sheetCheckColumns} reads it, the drafter's tool schema offers a header enum on each) */
+export const COLUMN_STRING_FIELDS = Object.freeze(['column', 'keyColumn', 'groupColumn', 'result']);
+/** the row-math operands: a column name, or (for `b`) `{const}` */
+export const COLUMN_OPERAND_FIELDS = Object.freeze(['a', 'b']);
+/** the date-cell fields: `{column, row}` */
+export const COLUMN_CELL_FIELDS = Object.freeze(['from', 'to', 'cell']);
+/** the list fields whose entries hold a `column` */
+export const COLUMN_LIST_FIELDS = Object.freeze(['where', 'dateFormats']);
 
 /**
  * Every column name one check holds: its own `column`, `keyColumn`, `groupColumn`, `result`, a row-math operand `a` / `b` (a name; `{const}` is no column), the
@@ -26,9 +37,9 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 export function sheetCheckColumns(check) {
   if (!isRec(check)) return [];
   const out = [];
-  for (const k of ['column', 'keyColumn', 'groupColumn', 'result', 'a', 'b']) if (typeof check[k] === 'string') out.push(check[k]);
-  for (const k of ['from', 'to', 'cell']) if (isRec(check[k]) && typeof check[k].column === 'string') out.push(check[k].column);
-  for (const k of ['where', 'dateFormats']) if (Array.isArray(check[k])) for (const e of check[k]) if (isRec(e) && typeof e.column === 'string') out.push(e.column);
+  for (const k of [...COLUMN_STRING_FIELDS, ...COLUMN_OPERAND_FIELDS]) if (typeof check[k] === 'string') out.push(check[k]);
+  for (const k of COLUMN_CELL_FIELDS) if (isRec(check[k]) && typeof check[k].column === 'string') out.push(check[k].column);
+  for (const k of COLUMN_LIST_FIELDS) if (Array.isArray(check[k])) for (const e of check[k]) if (isRec(e) && typeof e.column === 'string') out.push(e.column);
   return out;
 }
 
@@ -124,4 +135,47 @@ export function sheetCheckReds(checks, line, tables) {
     reds.push(`${at} bareguard refuses the sheet check${who}: ${msg}`);
   }
   return reds;
+}
+
+const NUMBER_CMPS = Object.freeze(['gt', 'gte', 'lt', 'lte', 'eq', 'between']);
+const DATE_CMPS = Object.freeze(['before', 'after', 'dateOn', 'dateBetween']);
+
+/**
+ * M10b piece 3: a number or a date in a check comes from the job, never from the model. Every number in a `where` condition (gt gte lt lte eq between) must be a
+ * number the person said on the job line or its `~` rules (the SAME reader as the page number rules, src/citedwords.js `numbersSaid`: a bare number or an amount,
+ * not a piece of a time, a date or another amount), and every date (`asOf`, and the values of before / after / dateOn / dateBetween) must be a date they wrote
+ * exactly. Throws away: a text value (`equals`, `needle`), band bounds, `n`, `tolerance`, `range` are not read here (the job's words do not have to carry them).
+ * @param {any[]} checks the step's `close.sheet` @param {{n: number, text?: string, rule?: string, rules?: string[]}} jobLine @returns {string[]} reds, each naming the line
+ */
+export function sheetCheckWordReds(checks, jobLine) {
+  const said = numbersSaid(wordsSaidOn(jobLine));
+  const reds = [];
+  const n = jobLine.n;
+  const who = (/** @type {any} */ c) => (isRec(c) && typeof c.id === 'string' ? ` '${c.id}'` : '');
+  const num = (/** @type {any} */ c, /** @type {unknown} */ v, /** @type {string} */ where) => {
+    if (typeof v === 'number' && !said.bare.has(v) && !said.amount.has(v)) reds.push(`declaration: line ${n}: the sheet check${who(c)} has the number ${v} (${where}), but ${v} is not in your words on line ${n}. A number in a check must come from the job line or a ~ rule you wrote. Say it there, or leave the condition out.`);
+  };
+  const date = (/** @type {any} */ c, /** @type {unknown} */ v, /** @type {string} */ where) => {
+    if (typeof v === 'string' && !said.date.has(v)) reds.push(`declaration: line ${n}: the sheet check${who(c)} has the date ${v} (${where}), but ${v} is not a date in your words on line ${n}. A date in a check must be written on the job line or a ~ rule, as YYYY-MM-DD. Say it there, or leave it out.`);
+  };
+  for (const c of checks) {
+    if (!isRec(c)) continue;
+    if (c.asOf !== undefined) date(c, c.asOf, 'as of');
+    for (const w of Array.isArray(c.where) ? c.where : []) {
+      if (!isRec(w)) continue;
+      const at = `where ${String(w.column)}`;
+      if (NUMBER_CMPS.includes(w.cmp)) for (const k of w.cmp === 'between' ? ['lo', 'hi'] : ['value']) num(c, w[k], at);
+      else if (DATE_CMPS.includes(w.cmp)) for (const k of w.cmp === 'dateBetween' ? ['lo', 'hi'] : ['value']) date(c, w[k], at);
+    }
+  }
+  return reds;
+}
+
+/**
+ * M10b piece 3: a step whose sheet checks are ALL `table` checks has nothing to answer (a table check judges the sheet itself and carries no claim), so the
+ * step would be asked for nothing. Refused at $0, naming the line. @param {any[]} checks @param {number} line @returns {string[]}
+ */
+export function sheetNoClaimReds(checks, line) {
+  if (checks.length === 0 || !checks.every((c) => isRec(c) && c.rule === 'table')) return [];
+  return [`declaration: line ${line}: every sheet check on this step is a table check, which judges the sheet itself and leaves the step nothing to answer. Pair it with at least one cells check that has a claim (for example rows, countIf, sumIf or band).`];
 }

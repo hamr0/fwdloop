@@ -39,7 +39,7 @@
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
-import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds } from './sheetchecks.js';
+import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds } from './sheetchecks.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -476,7 +476,9 @@ function checkColumnsKey(step, label, c, reds) {
  * (src/sheetchecks.js), each naming the step's sheet input in `table`. The drafter will offer them (piece 3); fwdloop stores them as data. Its SHAPE is checked in
  * every mode (a signed flow is read the same way). With `sheetWords.tables` (the drafting copy's table of each sheet, draft time) every column is proved an exact
  * header of its sheet and bareguard's own sign-time test (`createRubric` over the sheet's `tableSha`) must accept the list; each red names the job line.
- * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {tables?: Record<string, {header: string[], rows: any[]}>}}} c @param {string[]} reds
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, lines?: SignedLine[], fitJobLine?: boolean, sheetWords?: {tables?: Record<string, {header: string[], rows: any[]}>}}} c @param {string[]} reds
+ * M10b piece 3: with `fitJobLine` a number or a date in a check must be in the person's own words on the job line (src/sheetchecks.js `sheetCheckWordReds`), and a list of
+ * only `table` checks (nothing for the step to answer) is refused; each red names the line.
  */
 function checkSheetKey(step, label, c, reds) {
   const at = `declaration: ${label}.close.sheet`;
@@ -490,6 +492,11 @@ function checkSheetKey(step, label, c, reds) {
     if (!SHEET_RULES.includes(e.rule)) { reds.push(`${at}[${j}].rule must be one of ${SHEET_RULES.join(', ')}`); shapeOk = false; }
     if (typeof e.table !== 'string' || !c.cellsRoles.includes(e.table)) { reds.push(`${at}[${j}].table ${JSON.stringify(e.table)} is not a signed spreadsheet input`); shapeOk = false; }
     else if (c.reads !== null && !c.reads.includes(e.table)) { reds.push(`${at}[${j}].table "${e.table}" is not in ${label}.reads - the step must read the sheet its checks come from`); shapeOk = false; }
+  }
+  if (shapeOk && c.fitJobLine === true && Number.isInteger(step.fromLine)) {
+    const jobLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
+    if (jobLine) for (const r of sheetCheckWordReds(list, { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) })) reds.push(r);
+    for (const r of sheetNoClaimReds(list, step.fromLine)) reds.push(r);
   }
   const tables = c.sheetWords?.tables;
   if (!shapeOk || !tables || !Number.isInteger(step.fromLine)) return;
@@ -796,7 +803,7 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
-        if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
+        if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
       }
     }
