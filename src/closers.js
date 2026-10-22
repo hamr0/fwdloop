@@ -64,6 +64,7 @@
 
 import { createRubric, checkStep } from 'bareguard';
 import { checkCited } from './citedcheck.js';
+import { closeSheet } from './sheetrun.js';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
@@ -476,15 +477,17 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any, columns?: {source: string, column: string}[] } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any, columns?: {source: string, column: string}[], sheet?: any[] } }} step
  * @param {unknown} artifact
- * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
+ *   `sheet` (M10b piece 2) = the run's own tables and recorded `tableSha`s a step with `close.sheet` is checked on, from `readRunSheets`
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeByClass(step, artifact, ctx) {
   const cls = step?.close?.class;
   if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
+  if (cls === 'green' && Array.isArray(step?.close?.sheet)) return await closeSheet(step.close.sheet, artifact, ctx.sheet);
   if (cls === 'green') return closeGreen(artifact, { ...ctx, lock: step?.close?.columns });
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
   if (cls === 'hitl') return { verdict: 'hitl', red: null };

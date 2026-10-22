@@ -50,6 +50,12 @@ export function closeRecords(step, artifact, closed) {
       n: 3, text: 'the close could run', ok: false, result: closed.verdict, source,
     }];
   }
+  if (step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) && Array.isArray(closed.checks)) {
+    // M10b piece 2: each signed sheet check is its own row, worded by `sheetCheckSentence`, judged by bareguard
+    return closed.checks.map((c, i) => ({
+      n: 3 + i, text: c.text, ok: c.ok, result: c.result, source,
+    }));
+  }
   if (step?.close?.class === 'green' && step?.close?.cited) {
     const n = Array.isArray(artifact?.results) ? artifact.results.length : 0;
     return [{
