@@ -84,8 +84,8 @@ export function dropLine(row, jobLines, rulesOf) {
 
 // HOW THE PAGE WAS READ (M10 am11). // borrowed-from: bareloop src/pagedropwords.js@2d22c0f (isReadNote, splitReadNotes) and @e818c3f (the s1 note with a signed other fact)
 // A drop of ONE WORD whose fact is still checked is a NOTE about the form code did not use, not something left unchecked; a drop of a whole fact
-// stays under Not checked. Classified from the line's own words, so it holds for a signed record already on disk. bareloop builds a RegExp from the
-// WORDS table; src/ has no `new RegExp(` (test/signed-text.test.js), so the same sentence shapes are matched as literal pieces here: each template is
+// stays under Not checked. Classified from the line's own words, so it holds for a signed record already on disk. bareloop builds a regular expression from the
+// WORDS table; src/ builds none dynamically (test/signed-text.test.js), so the same sentence shapes are matched as literal pieces here: each template is
 // the WORDS sentence written once with placeholders, cut at the placeholders; a placeholder reads up to the next `"` (at least one character).
 const WORD_REASONS = ['not-on-page', 'no-value', 'n2', 'r1', 'sign-twice', 'r1l', 'limit-currency', 'limit-unit', 'unit-too-long'];
 const MARK = '\u0001';

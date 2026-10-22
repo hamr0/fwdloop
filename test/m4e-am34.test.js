@@ -59,7 +59,7 @@ test('the ask step carries its wait; other steps do not', () => {
 
 test('Not checked is read word for word from the setup.jsonl sign row, label always', () => {
   const { plan } = world([SIGN(['tone', 'the JD match'])]).job();
-  assert.deepEqual(plan.notChecked, { label: NOT_CHECKED_LABEL, items: ['tone', 'the JD match'], recorded: true });
+  assert.deepEqual(plan.notChecked, { label: NOT_CHECKED_LABEL, items: ['tone', 'the JD match'], readNotes: [], recorded: true });
 });
 
 test('a flow signed before amendment 36 says "not recorded", never an empty list', () => {
@@ -200,7 +200,8 @@ test('the open detail shows from line, reads, makes, may do and its check (same 
   const fold = lineEls(render(JOB))[2].children[2];
   assert.deepEqual(walk(fold).slice(2), [
     'plan-head|step 2 · from line 3', 'plan-row|reads: resume-text, jd-text', 'plan-row|makes: resume-summary', 'plan-row|may do: read',
-    'plan-row|check: The reply is checked as plain text only. The whole output is under 600 words.',
+    'plan-row|check: The reply is checked as plain text only.',
+    'plan-row|check: The whole output is under 600 words.',
   ]);
 });
 
