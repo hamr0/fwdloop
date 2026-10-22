@@ -2525,6 +2525,9 @@
     if((data.notChecked || []).length){
       h += '<div class="job-card"><h4>Not checked</h4>' + resultNotChecked(data.notCheckedLabel, data.notChecked, "result-notchecked") + '</div>';
     }
+    if((data.readNotes || []).length){
+      h += '<div class="job-card"><h4>How the page was read</h4>' + resultNotChecked("How the page was read \u00b7 " + data.readNotes.length, data.readNotes, "result-readnotes") + '</div>';
+    }
     if(data.door) h += resultDoorHtml(data.door);
     if((data.delivered || []).length){
       h += '<div class="job-card" data-testid="result-saved"><h4>Saved</h4>' + data.delivered.map(function(d){
@@ -3499,7 +3502,9 @@
     fold.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
     fold.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
     fold.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
-    fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : (st.check || []).join(" "))));
+    // M10 am11: each check sentence is its own row
+    if(st.ask || !(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : "")));
+    else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
     return fold;
   }
   // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
@@ -3520,6 +3525,17 @@
     else if(!(nc.items || []).length) fold.appendChild(textDiv("plan-row", "the AI listed nothing"));
     else nc.items.forEach(function(it){ fold.appendChild(textDiv("plan-row", it)); });
     tail.appendChild(fold);
+    // M10 am11: code's notes about written forms it did not use, their own fold after Not checked (none = no fold)
+    if((nc.readNotes || []).length){
+      var rn = document.createElement("details");
+      rn.className = "plan-fold plan-readnotes";
+      var rs = document.createElement("summary");
+      rs.className = "plan-sum";
+      rs.textContent = "How the page was read";
+      rn.appendChild(rs);
+      nc.readNotes.forEach(function(it){ rn.appendChild(textDiv("plan-row", it)); });
+      tail.appendChild(rn);
+    }
   }
   function renderJob(job){
     var empty = document.getElementById("job-empty");
@@ -4900,11 +4916,18 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
-      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: state.checked.map(function(c){
-        return (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + c.sentences.join(" ");
-      })});
+      // M10 am11: each check sentence is its own line (the step's label leads its first; the rest sit under it)
+      var checkedLines = [];
+      state.checked.forEach(function(c){
+        c.sentences.forEach(function(s, i){
+          checkedLines.push(i === 0 ? (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + s : "  " + s);
+        });
+      });
+      blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
       var nc = state.notChecked || {};
       blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      // M10 am11: code's notes about written forms it did not use are their own list, after Not checked (none = no block)
+      if(nc.readNotes && nc.readNotes.length) blocks.push({id: "chat-readnotes", head: "How the page was read", sub: "", lines: nc.readNotes.map(function(x){ return "- " + x; })});
       return {blocks: blocks};
     }
     // pure: did this POST succeed (one decision for every handler)
