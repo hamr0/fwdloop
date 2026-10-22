@@ -3275,7 +3275,7 @@ with T1+T2 only (no third trigger).**
 
 ## F73 — POC: does deepseek-flash write spreadsheet-style cites (ranges, countif/sumif/averageif, average) that code can recompute? (pre-registered 2026-10-22, before any call)
 
-**Status.** Pre-registered 2026-10-22, not run. Tags: **[SIGNED]** none (a POC; no build is asked), **[RULING]** hamr 2026-10-22 "spreadsheet if they will write it and use that as a check", **[INVENTED]** written by the worker.
+**Status.** Pre-registered 2026-10-22, not run. Tags: **[SIGNED]** none (a POC; no build is asked), **[RULING]** hamr 2026-10-22 "spreadsheet if they will write it and use that as a check", **[INVENTED]** written by the worker. Superseded by F74 before any call ($0).
 
 **Question.** If a cells step is told spreadsheet-style forms, does deepseek-flash actually WRITE them, so code can recompute them as the check? Context: `flows/m10-walk-csv-3` run-1 failed 4 of 4 tries: today's grammar (`src/closers.js`: one cell, `#field`, sum/count/min/max/sub/daysBetween over those, no ranges, no condition) cannot express "count of Amount > 500", and the model kept writing ranges (`expenses!C2:C41`, `#match1..#match17`, `count of ... where Amount > 500`).
 
@@ -3297,3 +3297,22 @@ with T1+T2 only (no third trigger).**
 **Pass rule.** B passes on >= 4/5 for J1 AND >= 4/5 for J2, AND B beats A on both (B's passes strictly greater than A's, per job). Any other result = FAIL, logged as a finding. No change to text, forms, checker or rules after the first number; a rerun needs a new pre-registration.
 
 **Honest limits.** One sheet, one model, thinking off, one try, 5 samples per cell, so a 4/5 bar is coarse. J1 ("list") can be answered by listing cells, which passes in arm A too; the "beats A" clause then decides it by the frozen rule, not by judgment. A pass proves the model WRITES a form the code can recompute, not that the answer is the one the human meant (the goal is not graded beyond "values equal what the cites compute").
+
+## F74 — sheet checks wait for bareguard: the step authors its own cite, and deepseek-flash can't express a filtered list in fwdloop's cell grammar (2026-10-22)
+
+**Status.** Finding, no build. Tags: **[SIGNED]** M10 amendment 12 (hamr 2026-10-22, "sign m10 am12"), **[RULING]** hamr 2026-10-22 (below), **[MEASURED]** the audit rows named below. F73 (pre-registered, never run, $0) is superseded by this finding.
+
+**What happened.** `flows/m10-walk-csv-2` run-1 and `flows/m10-walk-csv-3` run-1 (read only): the column ask worked (1 ask, recorded), then the green step `over_500_list` went red 4 of 4 tries in each run. The reds are in each run's `audit.jsonl`:
+- Ranges the grammar has no form for: `expenses!C2:C41`, `count of expenses!C2:C41 where Amount > 500`, `expenses!A3:D3, expenses!A6:D6, ...`.
+- A reference to the model's own invented fields: `count over #match1..#match17`.
+- Prose cites: `expenses rows 2-41; Amount column (C) values strictly greater than 500`.
+- The column lock refusing a Date cell (`expenses!A3` while the step is locked to Amount).
+- A single-cell cite that disagrees with the value (`17 ≠ cite expenses!C3 = 817.68`).
+
+M10 am10 (the cite forms told to the step) moved deepseek-flash from prose to real cells but not to green. Sonnet passed (`flows/m10-walk-csv` run-1), so the grammar is writable; the question is who should have to write it.
+
+**Cause, by design.** `src/closers.js` lets the STEP write its own cite or formula, so the step half-authors its own check. The grammar has one cell, a field, and sum, count, min, max, sub, daysBetween over those. It has no range, no condition and no average, so "the expenses over 500" cannot be said in it at all.
+
+**Ruling (hamr 2026-10-22).** Sheet checks belong in bareguard's rubric as one generic "cells" check with a closed op list in `rubricVocabulary`. The drafter suggests checks from that list, the person signs them, bareguard's `checkStep` judges, and the step only gives values. Asked of bareguard (guard session) 2026-10-22; bareguard POC first. No fwdloop code changes until that lands.
+
+**Also found, open.** `src/csv.js` `parseCsv` is a naive comma split: a quoted cell such as `"1,200.50"` breaks the row into two cells. Cost of leaving it: any CSV with a quoted comma shifts every later column and the column lock and cites then point at the wrong cells.
