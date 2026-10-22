@@ -903,6 +903,9 @@ export async function runStepRalph({
       // step's own failure to produce, not a system halt), strike-eligible
       // like any other close red.
       const red = result?.red ?? 'model step failed with no artifact';
+      // The try may have cost money (a length stop: "truncated: N tokens, no tool call"). Its row carries that cost below, so the run's spend
+      // - the cap check, the history total - takes it here, the same one add as the stop and transport branches (books must balance).
+      if (typeof result?.costUsd === 'number') spent.value += result.costUsd;
       const normalised = normaliseGap(red);
       const strike = seenGaps.has(normalised);
       seenGaps.add(normalised);
