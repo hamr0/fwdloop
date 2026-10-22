@@ -17,9 +17,9 @@ import { raw } from './fixtures/m10-map/load.mjs';
 killChildrenAfter();
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'm10-map');
 const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
-// the fake drafter's plan is the five-line BOX_JOB shape: the page rules sit on line 1; line 3's own guardrail is served by a page phrase in the map ('results returned') (so it is not asked)
+// the fake drafter's plan is the five-line BOX_JOB shape: the page rules sit on line 1; line 3's own guardrail is served by a page phrase in the map ('Select flight', on every result line: the phrase dry read drops one that is on none) (so it is not asked)
 const jobOf = (rules) => ['Read my resume,', ...rules.map((r) => `~ ${r}`), 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ 3 sections, all under 600 words', 'Ask 30m: check it with me,', '~ nothing goes out before I accept', 'and once I accept, write it out.'].join('\n');
-const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['results returned'] }] });
+const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
 const READ_RULES = ['under $150', 'not a red-eye', 'nonstop'];
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
 const settleOn = (w, id, phases) => until(async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });

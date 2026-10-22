@@ -27,7 +27,7 @@ test('Revise with a Cap at or below what the draft already spent is refused 400 
 });
 
 test('the answer that redrafts, with a Cap at or below what the draft already spent, is refused 400 and the answer is not saved', async () => {
-  const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['results returned'] }] });
+  const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt') } });
   const jobOf = (rules) => ['Read my resume,', ...rules.map((r) => `~ ${r}`), 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ 3 sections, all under 600 words', 'Ask 30m: check it with me,', '~ nothing goes out before I accept', 'and once I accept, write it out.'].join('\n');
   const job = jobOf(['under $150', 'not a red-eye', 'nonstop']);
