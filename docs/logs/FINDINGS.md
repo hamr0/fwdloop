@@ -3342,7 +3342,7 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 
 ## F76 — POC (M10b item 0): does deepseek-flash, given bareguard 0.26.0's `rubricVocabulary`, draft the right sheet checks for the expenses and aging jobs? (pre-registered 2026-10-22, before any call)
 
-**Status.** Pre-registered, not run. Tags: **[SIGNED]** M10b item 0 (hamr 2026-10-22, "sign m10b"). Cap: M10b's $0.50; this POC expects about $0.02.
+**Status.** Run 2026-10-22: PASS (Part A and Part B). Tags: **[SIGNED]** M10b item 0 (hamr 2026-10-22, "sign m10b"). Cap: M10b's $0.50; this POC expects about $0.02.
 
 **Part A — $0 replay.** bareguard 0.26.0 installed from npm into a scratch folder (fwdloop's `package.json` is not touched until M10b item 1). The two real frozen sheets, read in place: `flows/m10-walk-csv/runs/run-1/inputs/expenses.csv` (40 rows) and `flows/aging-live-4/runs/run-1/inputs/aging.csv` (8 rows). Each check gets an honest claim (computed in plain JS, separately) and a wrong one.
 - Checks: expenses `rows`, `countIf`, `sumIf` with `Amount > 500`; aging `daysSince` per row and `band` as of 2026-10-11 on `Due date`, `noDuplicates` on `Invoice #`, `rows` over the whole table. Plus: the sheet changed by one cell after signing; a claim of 18 rows instead of 17.
@@ -3358,3 +3358,8 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 - **Pass mark:** at least 2 of 3 drafts pass, for each job. Each draft's raw answer, its cost, and which of 1-3 failed are recorded.
 
 **Result rule.** Parts A and B both pass → M10b items 1-8 may be built. Either fails → no build; the result and what it shows are written here, and the next step goes to hamr.
+
+**Result (2026-10-22).**
+- **Part A: PASS** (`poc/m10b/replay.mjs`, `poc/m10b/results/partA-1.txt`, $0). Every honest claim green, every wrong claim red naming it (`rows-missing`, `value-mismatch`, `days-mismatch`, `band-mismatch`, `duplicate-values`); the sheet changed by one cell after signing → `stopped` ("table expenses does not match its signed sha256"); 18 instead of 17 → red. Caveat: all 8 real aging rows are 90+ (109 to 244 days), so the real data proves the band check only for that band.
+- **Part B: PASS** (`poc/m10b/drafts.mjs --tag f76-1`, `poc/m10b/results/f76-1.json`, deepseek-flash, thinking off, 6 calls, $0.02414). Expenses 3 of 3 drafts pass. Aging 2 of 3: draft 1 wrote a correct `band` (Due date, asOf 2026-10-11, the 5 names with matching bounds) but no `noDuplicates` on `Invoice #`, so it fails criterion 3 ("every invoice appears exactly once" unchecked). Drafts 2 and 3 have both; draft 3 also added `noEmpty`, `allDates`, `allNumbers` checks (allowed, not required).
+- **What it shows.** Given bareguard's op list and worked examples, deepseek-flash picks the right ops, exact headers and the signed date on the first try; the one miss is dropping the second guardrail check. M10b items 1-8 may be built (F76 rule). A drafted plan that leaves a guardrail with no check must still show it as Not checked (M10 item 5), so a draft like aging #1 is visible to the person at sign time.

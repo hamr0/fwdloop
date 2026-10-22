@@ -1,0 +1,409 @@
+{
+ "tag": "f76-1",
+ "model": "deepseek-flash",
+ "prices": {
+  "inPerM": 0.6,
+  "cachedInPerM": 0.6,
+  "outPerM": 1.2
+ },
+ "startedAt": "2026-10-22T21:35:55.915Z",
+ "jobs": {
+  "expenses": {
+   "promptChars": 15473,
+   "promptSha256": "b0d105d9fdeb590f6ae127fc39506e590986746dbfdad9d95f47988f855e9dbe",
+   "drafts": [
+    {
+     "n": 1,
+     "pass": true,
+     "c1": true,
+     "c2": true,
+     "c3": true,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": null
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.0038783999999999997,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 6236,
+      "outputTokens": 114,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "expenses-over-500",
+        "rule": "cells",
+        "table": "expenses",
+        "op": "rows",
+        "claim": "result",
+        "where": [
+         {
+          "column": "Amount",
+          "cmp": "gt",
+          "value": 500
+         }
+        ],
+        "text": "Every expense row with Price (column 'Amount') over 500, by row number."
+       }
+      ]
+     },
+     "rawMalformed": null
+    },
+    {
+     "n": 2,
+     "pass": true,
+     "c1": true,
+     "c2": true,
+     "c3": true,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": null
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.0038771999999999995,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 220,
+      "outputTokens": 113,
+      "cacheReadTokens": 6016,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "rows-over-500",
+        "rule": "cells",
+        "table": "expenses",
+        "claim": "answer",
+        "op": "rows",
+        "where": [
+         {
+          "column": "Amount",
+          "cmp": "gt",
+          "value": 500
+         }
+        ],
+        "text": "Every expense with Amount over 500, as row numbers, no extra and none missing."
+       }
+      ]
+     },
+     "rawMalformed": null
+    },
+    {
+     "n": 3,
+     "pass": true,
+     "c1": true,
+     "c2": true,
+     "c3": true,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": null
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.003849599999999999,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 220,
+      "outputTokens": 90,
+      "cacheReadTokens": 6016,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "rows-over-500",
+        "rule": "cells",
+        "table": "expenses",
+        "claim": "answer",
+        "op": "rows",
+        "where": [
+         {
+          "column": "Amount",
+          "cmp": "gt",
+          "value": 500
+         }
+        ]
+       }
+      ]
+     },
+     "rawMalformed": null
+    }
+   ]
+  },
+  "aging": {
+   "promptChars": 15697,
+   "promptSha256": "ccf7f79b40349fa6f71dbd563db92498cfe14a35312b16730c4a1bbee3a8c25f",
+   "drafts": [
+    {
+     "n": 1,
+     "pass": false,
+     "c1": true,
+     "c2": true,
+     "c3": false,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": "no table noDuplicates on Invoice #"
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.0040674,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 563,
+      "outputTokens": 228,
+      "cacheReadTokens": 5760,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "band-overdue",
+        "rule": "cells",
+        "table": "aging",
+        "claim": "buckets",
+        "op": "band",
+        "column": "Due date",
+        "asOf": "2026-10-11",
+        "dateFormats": [
+         {
+          "column": "Due date",
+          "format": "YYYY-MM-DD"
+         }
+        ],
+        "bands": [
+         {
+          "name": "Current",
+          "lte": 0
+         },
+         {
+          "name": "1-30",
+          "gte": 1,
+          "lte": 30
+         },
+         {
+          "name": "31-60",
+          "gte": 31,
+          "lte": 60
+         },
+         {
+          "name": "61-90",
+          "gte": 61,
+          "lte": 90
+         },
+         {
+          "name": "90+",
+          "gt": 90
+         }
+        ],
+        "text": "Each invoice's days overdue as of 2026-10-11 falls in exactly one bucket."
+       }
+      ]
+     },
+     "rawMalformed": null
+    },
+    {
+     "n": 2,
+     "pass": true,
+     "c1": true,
+     "c2": true,
+     "c3": true,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": null
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.004143,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 179,
+      "outputTokens": 291,
+      "cacheReadTokens": 6144,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "aging-band",
+        "rule": "cells",
+        "table": "aging",
+        "claim": "buckets",
+        "op": "band",
+        "column": "Due date",
+        "asOf": "2026-10-11",
+        "dateFormats": [
+         {
+          "column": "Due date",
+          "format": "YYYY-MM-DD"
+         }
+        ],
+        "bands": [
+         {
+          "name": "Current",
+          "lte": 0
+         },
+         {
+          "name": "1-30",
+          "gte": 1,
+          "lte": 30
+         },
+         {
+          "name": "31-60",
+          "gte": 31,
+          "lte": 60
+         },
+         {
+          "name": "61-90",
+          "gte": 61,
+          "lte": 90
+         },
+         {
+          "name": "90+",
+          "gt": 90
+         }
+        ],
+        "text": "Each invoice's due date falls in exactly one signed overdue bucket as of 2026-10-11; a row in no band is red."
+       },
+       {
+        "id": "aging-no-dup-invoice",
+        "rule": "table",
+        "table": "aging",
+        "op": "noDuplicates",
+        "column": "Invoice #",
+        "text": "Every invoice appears exactly once: no repeated Invoice #."
+       }
+      ]
+     },
+     "rawMalformed": null
+    },
+    {
+     "n": 3,
+     "pass": true,
+     "c1": true,
+     "c2": true,
+     "c3": true,
+     "why": {
+      "c1": null,
+      "c2": null,
+      "c3": null
+     },
+     "stop": null,
+     "stopReason": "tool_use",
+     "costUsd": 0.004324199999999999,
+     "rounds": 1,
+     "tokens": {
+      "inputTokens": 179,
+      "outputTokens": 442,
+      "cacheReadTokens": 6144,
+      "cacheCreationTokens": 0
+     },
+     "modelReturned": "deepseek-flash",
+     "args": {
+      "checks": [
+       {
+        "id": "aging-band",
+        "rule": "cells",
+        "table": "aging",
+        "op": "band",
+        "claim": "aging",
+        "column": "Due date",
+        "asOf": "2026-10-11",
+        "dateFormats": [
+         {
+          "column": "Due date",
+          "format": "YYYY-MM-DD"
+         }
+        ],
+        "bands": [
+         {
+          "name": "Current",
+          "lte": 0
+         },
+         {
+          "name": "1-30",
+          "gte": 1,
+          "lte": 30
+         },
+         {
+          "name": "31-60",
+          "gte": 31,
+          "lte": 60
+         },
+         {
+          "name": "61-90",
+          "gte": 61,
+          "lte": 90
+         },
+         {
+          "name": "90+",
+          "gt": 90
+         }
+        ],
+        "text": "Each invoice falls in exactly one overdue bucket as of 2026-10-11."
+       },
+       {
+        "id": "aging-invoice-unique",
+        "rule": "table",
+        "table": "aging",
+        "op": "noDuplicates",
+        "column": "Invoice #",
+        "text": "Every invoice appears exactly once."
+       },
+       {
+        "id": "aging-invoice-noempty",
+        "rule": "table",
+        "table": "aging",
+        "op": "noEmpty",
+        "column": "Invoice #",
+        "text": "Every invoice row carries an invoice number."
+       },
+       {
+        "id": "aging-duedate-format",
+        "rule": "table",
+        "table": "aging",
+        "op": "allDates",
+        "column": "Due date",
+        "dateFormats": [
+         {
+          "column": "Due date",
+          "format": "YYYY-MM-DD"
+         }
+        ],
+        "text": "Due dates are real dates in YYYY-MM-DD."
+       },
+       {
+        "id": "aging-amount-number",
+        "rule": "table",
+        "table": "aging",
+        "op": "allNumbers",
+        "column": "Amount",
+        "text": "Amounts are numeric."
+       }
+      ]
+     },
+     "rawMalformed": null
+    }
+   ]
+  }
+ },
+ "totalCostUsd": 0.0241398,
+ "costComplete": true,
+ "part": "PASS",
+ "finishedAt": "2026-10-22T21:36:06.699Z"
+}
