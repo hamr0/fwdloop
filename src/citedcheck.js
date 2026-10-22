@@ -37,6 +37,21 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 export const sha256Text = (t) => createHash('sha256').update(t, 'utf8').digest('hex');
 
 /**
+ * A money unit list with an entry listed twice, equal after the whitespace normalization bareguard's quote matcher applies (bareguard 0.26.0: its
+ * rubric refuses such a list), keeps the first of them. The one place a unit list is built into a signed fact.
+ * @param {string[]} units @returns {string[]}
+ */
+function unitsOnce(units) {
+  const seen = new Set();
+  return units.filter((u) => {
+    const key = String(u).split('**').join('').split('__').join('').replace(/\s+/g, ' ').trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
  * A kept look fact as signed facts. The label that comes first becomes the anchor and the limit the look read (`reading`) becomes the number rule. A PLACE
  * fact (the look gave it `phrases`, src/pageplace.js: R2, R2a, R2b) becomes one phrase fact per phrase, because every one of them must be in the quote
  * (R2c); the old choice, the first kept word, is gone (in 2 of 3 saved F71 drafts that word was on no result line, FINDINGS F72). A plain phrase fact
@@ -53,7 +68,7 @@ export function factsOfLook(k) {
   const anchor = k.labels?.[0] ?? k.label ?? k.words?.[0];
   if (anchor !== undefined) f.anchor = String(anchor);
   if (f.shape === 'money') {
-    if (k.unit !== undefined) f.unit = [...k.unit];
+    if (k.unit !== undefined) f.unit = unitsOnce(k.unit);
     if (k.currency !== undefined) f.currency = [...k.currency];
   }
   if (isRec(k.reading)) f.rule = { ...k.reading };
