@@ -362,6 +362,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   assert.equal(g.phase, 'green', JSON.stringify(g));
   assert.equal(g.notChecked.label, NOT_CHECKED_LABEL);
   assert.deepEqual(g.notChecked.items, ['whether the tone suits the role']);
+  assert.deepEqual(g.notChecked.readNotes, [], 'no code note on this plan: the list is there and empty');
   assert.equal(g.checked.length, 5, 'one entry per step');
   assert.ok(g.checked.every((c) => c.sentences.length > 0));
   assert.equal(g.checked[2].class, 'softgreen');
@@ -384,7 +385,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const w2 = await world();
   const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
-  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [] });
+  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [], readNotes: [] });
 });
 
 // ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------

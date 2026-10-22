@@ -81,3 +81,91 @@ export function dropLine(row, jobLines, rulesOf) {
   const rule = row.rule === undefined || !jl ? undefined : rulesOf(jl)[row.rule - 1];
   return `line ${row.line}: "${rule ?? row.fact}" — ${row.sentences.join(' ')}`;
 }
+
+// HOW THE PAGE WAS READ (M10 am11). // borrowed-from: bareloop src/pagedropwords.js@2d22c0f (isReadNote, splitReadNotes) and @e818c3f (the s1 note with a signed other fact)
+// A drop of ONE WORD whose fact is still checked is a NOTE about the form code did not use, not something left unchecked; a drop of a whole fact
+// stays under Not checked. Classified from the line's own words, so it holds for a signed record already on disk. bareloop builds a RegExp from the
+// WORDS table; src/ has no `new RegExp(` (test/signed-text.test.js), so the same sentence shapes are matched as literal pieces here: each template is
+// the WORDS sentence written once with placeholders, cut at the placeholders; a placeholder reads up to the next `"` (at least one character).
+const WORD_REASONS = ['not-on-page', 'no-value', 'n2', 'r1', 'sign-twice', 'r1l', 'limit-currency', 'limit-unit', 'unit-too-long'];
+const MARK = '\u0001';
+/** @param {string} reason @param {boolean} [same] r1l has two sentences: a word listed twice (word = other) and a second way to write the price @returns {{lits: string[], gaps: string[]}} */
+function templateOf(reason, same = false) {
+  const s = WORDS[reason](/** @type {any} */ ({ word: `${MARK}w${MARK}`, other: same ? `${MARK}w${MARK}` : `${MARK}o${MARK}`, fact: `${MARK}f${MARK}`, reason, line: 0 }));
+  const parts = s.split(MARK); // lit, name, lit, name, ... : the odd pieces are the placeholders' names
+  return { lits: parts.filter((_, i) => i % 2 === 0), gaps: parts.filter((_, i) => i % 2 === 1) };
+}
+const WORD_TEMPLATES = [...WORD_REASONS.flatMap((r) => (r === 'r1l' ? [templateOf(r, true), templateOf(r, false)] : [templateOf(r)]))];
+const S1_TEMPLATE = templateOf('s1');
+
+/**
+ * Read ONE sentence of `template` at `at` in `text`. Returns where it ended and what each placeholder read, or null.
+ * @param {string} text @param {number} at @param {{lits: string[], gaps: string[]}} template @returns {{end: number, got: Record<string, string>}|null}
+ */
+function readSentence(text, at, template) {
+  /** @type {Record<string, string>} */
+  const got = {};
+  let pos = at;
+  for (let i = 0; i < template.lits.length; i += 1) {
+    if (!text.startsWith(template.lits[i], pos)) return null;
+    pos += template.lits[i].length;
+    if (i < template.gaps.length) {
+      const stop = text.indexOf('"', pos);
+      if (stop <= pos) return null;
+      got[template.gaps[i]] = text.slice(pos, stop);
+      pos = stop;
+    }
+  }
+  return { end: pos, got };
+}
+
+/**
+ * `text` as a run of sentences, each one a word note (or an s1 note whose OTHER fact is signed): true when every sentence is one, and there is at least one.
+ * @param {string} text @param {Set<string>} signed @returns {boolean}
+ */
+function allReadNotes(text, signed) {
+  let pos = 0;
+  let found = 0;
+  while (pos < text.length) {
+    let next = null;
+    for (const t of WORD_TEMPLATES) { next = readSentence(text, pos, t); if (next) break; }
+    if (!next) {
+      const s1 = readSentence(text, pos, S1_TEMPLATE);
+      if (s1 && signed.has(s1.got.o)) next = s1; // borrowed-from: bareloop e818c3f - an S1 copy of a SIGNED fact is a note; the other fact unsigned stays Not checked
+    }
+    if (!next) return false;
+    found += 1;
+    pos = next.end;
+    if (pos < text.length) { if (text[pos] !== ' ') return false; pos += 1; }
+  }
+  return found > 0;
+}
+
+/**
+ * @param {string} text one Not-checked line @param {string[]|null|undefined} [signed] the names of the facts the plan signs (none given: an s1 sentence stays Not checked)
+ * @returns {boolean} true when the line only says which written forms of a still-checked fact were not used
+ */
+export function isReadNote(text, signed) {
+  const s = String(text);
+  if (!s.startsWith('line ')) return false;
+  let i = 5;
+  while (i < s.length && s[i] >= '0' && s[i] <= '9') i += 1;
+  if (i === 5 || !s.startsWith(': "', i)) return false;
+  const close = s.indexOf('"', i + 3); // the rule or fact name carries no quote
+  if (close < 0 || !s.startsWith(' \u2014 ', close + 1)) return false;
+  return allReadNotes(s.slice(close + 4), new Set(Array.isArray(signed) ? signed : []));
+}
+
+/** @param {string[]|null|undefined} items @param {string[]|null|undefined} [signed] names of the signed facts (see isReadNote)
+ * @returns {{notChecked: string[], readNotes: string[]}} the lines split: what is left unchecked, and how the page was read */
+export function splitReadNotes(items, signed) {
+  const all = Array.isArray(items) ? items : [];
+  return { notChecked: all.filter((t) => !isReadNote(t, signed)), readNotes: all.filter((t) => isReadNote(t, signed)) };
+}
+
+/** The names of the facts a signed declaration checks (every cited fact of every step). Pure. @param {any} declaration @returns {string[]} */
+export function signedFactNames(declaration) {
+  const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  return steps.flatMap((/** @type {any} */ st) => (Array.isArray(st?.close?.cited?.facts) ? st.close.cited.facts : [])
+    .map((/** @type {any} */ f) => f?.name).filter((/** @type {any} */ n) => typeof n === 'string'));
+}

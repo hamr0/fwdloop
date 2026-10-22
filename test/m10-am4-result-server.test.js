@@ -43,7 +43,7 @@ test('/result (green): one card per working line (not the ask or the send), the 
   const w = await world();
   const r = await w.get('/api/runs/job2/run-1/result');
   assert.equal(r.status, 200, r.raw);
-  assert.deepEqual(Object.keys(r.body).sort(), ['delivered', 'door', 'flow', 'gap', 'lines', 'notChecked', 'notCheckedLabel', 'pageNote', 'pages', 'runId']);
+  assert.deepEqual(Object.keys(r.body).sort(), ['delivered', 'door', 'flow', 'gap', 'lines', 'notChecked', 'notCheckedLabel', 'pageNote', 'pages', 'readNotes', 'runId']);
   assert.equal(r.body.flow, 'job2');
   assert.equal(r.body.runId, 'run-1');
   assert.deepEqual(r.body.lines.map((l) => l.n), [1, 2, 3], 'line 4 is the ask, line 5 the send');

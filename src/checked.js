@@ -12,6 +12,7 @@
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 import { factRows } from './citedcheck.js';
+import { splitReadNotes, signedFactNames } from './pagedropwords.js';
 
 const list = (xs) => xs.join(', ');
 
@@ -56,4 +57,15 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
 export function notCheckedBlock(items) {
   const clean = Array.isArray(items) ? items.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
   return { label: NOT_CHECKED_LABEL, items: clean };
+}
+
+/**
+ * M10 am11: the Not checked block split for showing. The drafter's list and code's drop lines are one list on disk (and in the sign row, unchanged);
+ * the page shows code's notes about written forms it did not use apart, as "How the page was read" (`readNotes`). The signed facts decide an s1 note.
+ * @param {unknown} items @param {any} declaration the plan's declaration (its cited facts are the signed ones)
+ */
+export function notCheckedView(items, declaration) {
+  const block = notCheckedBlock(items);
+  const { notChecked, readNotes } = splitReadNotes(block.items, signedFactNames(declaration));
+  return { label: block.label, items: notChecked, readNotes };
 }

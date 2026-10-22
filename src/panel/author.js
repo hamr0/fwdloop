@@ -48,7 +48,7 @@ import {
 import {
   appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
-import { checkedLines, notCheckedBlock } from '../checked.js';
+import { checkedLines, notCheckedView } from '../checked.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
 } from '../provider.js';
@@ -297,7 +297,7 @@ export function createAuthor(opts) {
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
     const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line) } : { hasAsk: true };
-    return { checked: checkedLines(decl, opts), notChecked: notCheckedBlock(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked) };
+    return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */

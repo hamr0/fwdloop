@@ -38,7 +38,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
-import { checkedLines, notCheckedBlock, NOT_CHECKED_LABEL } from '../checked.js';
+import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
 import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
@@ -2049,7 +2049,8 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
   const ofThisJob = !!signRow && (typeof signRow.flowHash !== 'string' || flowHash === null || signRow.flowHash === flowHash);
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
-  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: recorded ? notCheckedBlock(nc.items).items : [], recorded } };
+  const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
+  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: view.items, readNotes: view.readNotes, recorded } };
 }
 
 /**
@@ -2200,7 +2201,7 @@ export function getRunResult({
   const sig = ctx.flowRead.signature;
   const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null);
   return buildResult({
-    flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items,
+    flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items, readNotes: plan.notChecked.readNotes,
     setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
     door: resultDoorOf(getRunAsks({
       root, flow, runId, catalogue, resumeAttempt, now,
