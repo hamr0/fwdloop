@@ -8,6 +8,7 @@ import { rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { closeByClass } from '../src/closers.js';
 import { freezeInputs, runStepRalph } from '../src/runner.js';
+import { closeRecords } from '../src/try-checks.js';
 import { readRunSource } from '../src/cited-source.js';
 import { readCitedChecks } from '../src/panel/result.js';
 import { flightsPart, goodRows, PAGE } from './fixtures/m10-map/cited-help.mjs';
@@ -100,4 +101,15 @@ test('a frozen copy edited after the freeze halts the step as a casualty (never 
     assert.equal(rec.lines[0].passed, false);
     assert.ok(rec.lines[0].notChecked.some((t) => t.includes('changed since it was frozen')), JSON.stringify(rec.lines[0].notChecked));
   } finally { rmSync(run, { recursive: true, force: true }); }
+});
+
+test('the try record of a cited close is one row whose tick follows the close verdict and whose result counts the results', () => {
+  const art = { results: [{}, {}], done: true };
+  const green = closeRecords(step(), art, { verdict: 'green' });
+  assert.equal(green.length, 1);
+  assert.equal(green[0].ok, true);
+  assert.equal(green[0].result, '2 results');
+  const red = closeRecords(step(), { results: [{}], done: true }, { verdict: 'red', red: 'x' });
+  assert.equal(red[0].ok, false);
+  assert.equal(red[0].result, '1 result');
 });
