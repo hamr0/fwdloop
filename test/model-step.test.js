@@ -51,11 +51,11 @@ test('isTransportFailure: false for an ordinary HTTP-status error', () => {
 });
 
 test('buildEmitArtifactSchema: class-only — green/softgreen/hitl differ, and no key ever holds a shape word', () => {
-  const green = buildEmitArtifactSchema('green');
+  const green = buildEmitArtifactSchema('green', true);
   const softgreen = buildEmitArtifactSchema('softgreen');
   const hitl = buildEmitArtifactSchema('hitl');
   const fallback = buildEmitArtifactSchema(undefined);
-  assert.ok('fields' in green.properties);
+  assert.ok('results' in green.properties);
   assert.ok('text' in softgreen.properties);
   assert.deepEqual(hitl, fallback);
   const serialised = JSON.stringify([green, softgreen, hitl]).toLowerCase();
@@ -69,7 +69,7 @@ test('buildEmitArtifactSchema: class-only — green/softgreen/hitl differ, and n
 // model's own word at face value before any close runs.
 test('buildEmitArtifactSchema: every class gains a required "done" boolean and a "blocker" string|null', () => {
   for (const cls of ['green', 'softgreen', 'hitl', undefined]) {
-    const schema = buildEmitArtifactSchema(cls);
+    const schema = buildEmitArtifactSchema(cls, cls === 'green');
     assert.equal(schema.properties.done.type, 'boolean', cls);
     assert.deepEqual(schema.properties.blocker.type, ['string', 'null'], cls);
     assert.ok(schema.required.includes('done'), `${cls}: "done" must be required`);
@@ -607,32 +607,14 @@ test('buildEmitArtifactSchema: softgreen offers only text + done/blocker, and re
   assert.equal(s.additionalProperties, false);
 });
 
-// M10 am10: a green cells step is told the cite forms, in the cite property of its tool; nothing else of its close
-test('M10 am10: only the green cells step\'s cite is described with the forms; cited, softgreen and hitl are not', async () => {
-  const { citeForms } = await import('../src/closers.js');
-  const cite = buildEmitArtifactSchema('green').properties.fields.additionalProperties.properties.cite;
-  assert.equal(cite.description, `Where the value comes from: ${citeForms()}.`);
-  for (const sc of ['softgreen', 'hitl']) assert.equal(JSON.stringify(buildEmitArtifactSchema(sc)).includes('daysBetween'), false, sc);
-  assert.equal(JSON.stringify(buildEmitArtifactSchema('green', true)).includes('daysBetween'), false, 'a page-quoting step');
-});
-
-test('M10 am10: the request of a cells step carries the forms and nothing of its close; a page-quoting and a hitl step do not carry them', async () => {
-  const d = mkdtempSync(path.join(tmpdir(), 'fwdloop-am10-'));
-  const firstRequest = async (stepMeta) => {
-    let first = null;
-    const provider = { generate: async (messages, tools) => {
-      first ??= JSON.stringify({ messages, tools });
-      return { text: null, toolCalls: [{ id: 'e', name: 'emit_artifact', arguments: { fields: {}, done: true } }], usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: 'deepseek-flash' };
-    } };
-    const step = makeLiveModelStep({ spendPath: path.join(d, 'spend.jsonl'), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
-    await step({ goal: 'Total column E', primitives: [], reads: {}, gap: null }, {}, stepMeta);
-    return first;
-  };
-  try {
-    const cells = await firstRequest({ class: 'green', cited: null });
-    assert.ok(cells.includes('one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, sub, daysBetween over those'), cells);
-    assert.equal((await firstRequest({ class: 'hitl', cited: null })).includes('daysBetween'), false);
-    const part = (await import('./fixtures/m10-map/cited-help.mjs')).flightsPart();
-    assert.equal((await firstRequest({ class: 'green', cited: part })).includes('daysBetween'), false, 'a page-quoting step');
-  } finally { rmSync(d, { recursive: true, force: true }); }
+// M10b piece 5 (item 8): the cell cite retired for CSV. A green step answers in quotes (close.cited) or claim boxes (close.sheet); no cite form is told to a step,
+// and a green step with neither has no answer form at all (a job signed that way is refused at start, src/canrun.js).
+test('M10b piece 5: no green answer form asks for a cite, and a green step with neither close.cited nor close.sheet has no form', () => {
+  assert.throws(() => buildEmitArtifactSchema('green'), /cell cite retired/);
+  assert.throws(() => buildEmitArtifactSchema('green', false, null), /cell cite retired/);
+  const sheet = [{ id: 't', rule: 'cells', table: 'aging', claim: 'total', op: 'sum', column: 'Amount', covers: [] }];
+  for (const schema of [buildEmitArtifactSchema('green', true), buildEmitArtifactSchema('green', false, sheet)]) {
+    assert.equal(JSON.stringify(schema).includes('cite"'), false);
+    assert.equal(JSON.stringify(schema).includes('daysBetween'), false);
+  }
 });

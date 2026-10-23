@@ -12,6 +12,8 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { writeFlow, readFlow } from '../src/flow.js';
 import { runFlow } from '../src/runner.js';
 import { canFlowRun } from '../src/canrun.js';
+import { checkedLines } from '../src/checked.js';
+import { sheetLineBlocks, csvRolesOf } from '../src/sheetblock.js';
 import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -54,4 +56,12 @@ test('the panel run door (canFlowRun) says the same; the old job still reads for
   assert.equal(can.ok, false);
   assert.ok(can.red.includes(SENTENCE), can.red);
   assert.equal(parseSignedText(prose).ok, true);
+});
+
+test('an old cite-close job still displays: its Checked lines, sheet blocks and cited columns build without throwing', () => {
+  const { root } = oldSignedJob();
+  const read = readFlow({ root, name: 'aging', catalogue: cat.primitives });
+  const rows = checkedLines(read.declaration, { hasAsk: true, lines: read.lines, csvRoles: csvRolesOf(read.arbiter) }).find((l) => l.line === 2).sentences;
+  assert.ok(rows.some((x) => x.includes('Every figure must cite its source cell')), JSON.stringify(rows));
+  assert.doesNotThrow(() => sheetLineBlocks({ declaration: read.declaration, lines: read.lines, csvRoles: csvRolesOf(read.arbiter), record: null }));
 });

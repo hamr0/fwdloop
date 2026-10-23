@@ -293,14 +293,12 @@ test('the box per op is generated from bareguard\'s worked example: required key
   assert.equal(typeOk(sheetAnswerProps(EXP_CHECKS()).properties.over, { rows: [2.5] }), false);
 });
 
-test('the tool schema of a sheet step: one box per claim plus done, no cite, no fields; a step without close.sheet is unchanged', () => {
+test('the tool schema of a sheet step: one box per claim plus done, no cite, no fields', () => {
   const s = buildEmitArtifactSchema('green', false, [...AGING_CHECKS()]);
   assert.deepEqual(Object.keys(s.properties).sort(), ['bands', 'blocker', 'days', 'done'], 'the table check has no claim, so no box');
   assert.deepEqual(s.required.sort(), ['bands', 'days', 'done']);
   assert.equal(s.additionalProperties, false);
   assert.equal(JSON.stringify(s).includes('cite'), false);
-  assert.deepEqual(buildEmitArtifactSchema('green'), buildEmitArtifactSchema('green', false, null));
-  assert.ok(buildEmitArtifactSchema('green').properties.fields.additionalProperties.properties.cite);
   assert.deepEqual(sheetClaims(AGING_CHECKS()).map((c) => c.claim), ['days', 'bands']);
 });
 

@@ -2,63 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  closeByClass, closeGreen, closeSoftgreen, citeForms, FORMULAS,
+  closeByClass, closeSoftgreen,
 } from '../src/closers.js';
-
-const AGING = {
-  kind: 'cells',
-  rows: [
-    { rowNumber: 2, cells: { A: 'Acme Corp', B: 'INV-1', C: '2026-05-01', D: '2026-05-15', E: '150.00' } },
-    { rowNumber: 3, cells: { A: 'Acme Corp', B: 'INV-2', C: '2026-05-05', D: '2026-05-20', E: '50.50' } },
-  ],
-};
-
-test('closeGreen: a field whose cite resolves to the same value is green', () => {
-  const artifact = { fields: { total: { value: 150, cite: 'aging!E2' } } };
-  const verdict = closeGreen(artifact, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'green');
-});
-
-test('closeGreen: a field whose stated value disagrees with its cite is red, naming the field', () => {
-  const artifact = { fields: { total: { value: 999, cite: 'aging!E2' } } };
-  const verdict = closeGreen(artifact, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'red');
-  assert.match(verdict.red, /"total" 999.*aging!E2 = 150/);
-});
-
-test('closeGreen: a sum formula over two cell cites resolves correctly', () => {
-  const artifact = { fields: { total_owed: { value: 200.5, cite: 'sum(aging!E2,aging!E3)' } } };
-  const verdict = closeGreen(artifact, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'green');
-});
-
-test('closeGreen: a field ref (#name) chains to an earlier resolved field', () => {
-  const artifact = {
-    fields: {
-      a: { value: 150, cite: 'aging!E2' },
-      b: { value: 50.5, cite: 'aging!E3' },
-      total: { value: 200.5, cite: 'sum(#a,#b)' },
-    },
-  };
-  const verdict = closeGreen(artifact, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'green');
-});
-
-test('closeGreen: daysBetween(cite) against businessDate', () => {
-  const artifact = { fields: { days_overdue: { value: 17, cite: 'daysBetween(aging!D2)' } } };
-  const verdict = closeGreen(artifact, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'green');
-});
-
-test('closeGreen: an artifact with no fields is unparseable, not red', () => {
-  const verdict = closeGreen({ fields: {} }, { reads: {}, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'unparseable');
-});
-
-test('closeGreen: a non-object artifact is unparseable', () => {
-  const verdict = closeGreen('nope', { reads: {}, businessDate: '2026-06-01' });
-  assert.equal(verdict.verdict, 'unparseable');
-});
 
 test('closeSoftgreen: reports EVERY failing check, not just the first (F38)', async () => {
   const text = 'one two three\n## Wrong Heading\nfour';
@@ -96,19 +41,9 @@ test('closeSoftgreen: an extra key (e.g. lines) is red by name, even when the te
   assert.equal((await closeSoftgreen({ text: 'hello' }, { maxWords: 10 })).verdict, 'green');
 });
 
-// M10 am10: the cite forms are one text, built from the checker's own list
-const FORMS_EXPECT = 'one cell (`<input>!C3`), a field above it (`#name`), or sum, count, min, max, sub, daysBetween over those';
-
-test('citeForms: one text naming the cell form, the field form and exactly the checker\'s formulas', () => {
-  assert.equal(citeForms(), FORMS_EXPECT);
-  for (const k of [...Object.keys(FORMULAS), 'daysBetween']) assert.ok(citeForms().includes(k), k);
-  // built from the list: a list with one more key changes the text
-  assert.match(citeForms([...Object.keys(FORMULAS), 'daysBetween', 'avg']), /daysBetween, avg over those/);
-});
-
-test('closeGreen: a cite that fits no form is red and the red names every form', () => {
-  const v = closeGreen({ fields: { t: { value: 1, cite: 'banana' } } }, { reads: { aging: AGING }, businessDate: '2026-06-01' });
-  assert.equal(v.verdict, 'red');
-  assert.ok(v.red.includes('cite "banana" does not match the cell or formula grammar'), v.red);
-  assert.ok(v.red.includes(FORMS_EXPECT), v.red);
+// M10b piece 5 (item 8): the cell cite retired. A green step with neither close.cited nor close.sheet never closes green (a job signed that way is refused at start).
+test('closeByClass: a green step with no close.sheet or close.cited is a crash, never a silent pass', async () => {
+  const verdict = await closeByClass({ close: { class: 'green' } }, { fields: { t: { value: 1, cite: 'aging!E2' } } }, { reads: {}, businessDate: '2026-06-01' });
+  assert.equal(verdict.verdict, 'crash');
+  assert.match(verdict.red, /retired cell cite/);
 });
