@@ -52,9 +52,12 @@ test('declaration with the sheet: the column the code kept (an agreed one) must 
   const missing = base(); missing.steps[1].close = { class: 'green', columns: [{ source: 'aging', column: 'Tax' }] };
   const r = check(missing, { sheetWords });
   assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes("'Amount'")), JSON.stringify(r.reds));
-  const none = base(); none.steps[1].close = { class: 'green', sheet: CLAIMS };
+  // M10b am3: a step WITH close.sheet is no longer held to the list by a kept word (test/m10b-am3.test.js); one without it is
+  const none = base(); none.steps[1].close = { class: 'green', columns: [{ source: 'aging', column: 'Tax' }, { source: 'aging', column: 'Date' }] };
   assert.ok(check(none, { sheetWords }).reds.some((x) => x.includes('line 2') && x.includes("'Amount'")));
-  assert.equal(check(none, { sheetWords: { headers: sheetWords.headers, facts: [] } }).ok, true);
+  const sheetOnly = base(); sheetOnly.steps[1].close = { class: 'green', sheet: CLAIMS };
+  assert.equal(check(sheetOnly, { sheetWords: { headers: sheetWords.headers, facts: [] } }).ok, true);
+  assert.equal(check(sheetOnly, { sheetWords }).ok, true); // kept word, not agreed, sheet checks present: no lock (am3)
   const ok = base(); ok.steps[1].close = { class: 'green', columns: LOCK, sheet: CLAIMS };
   assert.equal(check(ok, { sheetWords }).ok, true, JSON.stringify(check(ok, { sheetWords }).reds));
 });

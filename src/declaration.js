@@ -39,7 +39,9 @@
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
-import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
+import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
+import { lineRules } from './pagebits.js';
+import { isColumnChoiceRule } from './sheetoffer.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -439,8 +441,8 @@ function checkCitedKey(step, label, c, reds) {
 /**
  * M10 am8 item 2: `close.columns` is the column choice of a green step that reads a sheet: `[{source, column}]`, written by the drafter and checked by code (the old cell-cite check that enforced it at run time retired in M10b piece 5; a job signed with it still reads). Its SHAPE is
  * checked in every mode; with `sheetWords` (draft time) every column is proved to be a real column of its sheet and a column the sheet look kept for this step's
- * line must be in the list.
- * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
+ * line must be in the list. M10b am3: a step with `close.sheet` is exempt from the list; an AGREED column must instead be used by one of its checks.
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, lines?: SignedLine[], sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
  */
 function checkColumnsKey(step, label, c, reds) {
   const at = `declaration: ${label}.close.columns`;
@@ -465,8 +467,17 @@ function checkColumnsKey(step, label, c, reds) {
     const header = sw.headers?.[e.source];
     if (Array.isArray(header) && !header.includes(e.column)) reds.push(`declaration: line ${step.fromLine}: '${e.column}' is not a real column of "${e.source}" (its columns: ${header.map((h) => `'${h}'`).join(', ')}). Copy a column name exactly.`);
   }
+  const sheet = Array.isArray(step.close.sheet) ? step.close.sheet : null;
+  const covLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
   for (const f of sw.facts ?? []) {
     if (f.line !== step.fromLine || f.shape !== 'column') continue;
+    if (sheet !== null) {
+      // M10b am3: with sheet checks a job word that matches a header does nothing by itself; only a column the person AGREED to (a column ask wrote
+      // "use the column 'X' for 'Y'" on the line) must be used by at least one of this line's checks
+      const agreed = f.agreed === true || lineRules(covLine).some((r) => isColumnChoiceRule(r) && r.startsWith(`use the column '${f.column}' for '`));
+      if (agreed && !sheet.some((chk) => chk?.table === f.source && sheetCheckColumns(chk).includes(f.column))) reds.push(`declaration: line ${step.fromLine}: a check must use the column '${f.column}' of "${f.source}" - the column you agreed to for this line.`);
+      continue;
+    }
     if (!list.some((e) => e.source === f.source && e.column === f.column)) reds.push(`declaration: line ${step.fromLine}: the check must name the column '${f.column}' of "${f.source}" in close.columns - the code kept it for this line${f.agreed ? ' (the column you agreed to)' : ''}, and every cell must come from it.`);
   }
 }
@@ -808,7 +819,7 @@ export function validateDeclaration(declaration, context = {}) {
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
-        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
+        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);
       }
     }
 

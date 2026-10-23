@@ -316,7 +316,7 @@ function greenReadRule(sources) {
   const docRoles = docRolesOf(sources);
   const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be checked against its sheet; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
-    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. A step that has close.sheet is not held to close.columns by a word that merely matches a header (such as a bucket name); but when a line carries a rule "use the column 'X' for ...", at least one of that line's close.sheet checks must use that column. Leave close.columns out when the line names no column.`
     : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
   if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   if (pageRoles.length || docRoles.length) {
