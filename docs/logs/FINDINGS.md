@@ -3590,3 +3590,28 @@ Read before trusting the result: the second m7-walk-2 note describes a broken re
 Leaning, stated as **unscored** (not a verdict, 2 pairs a cell): B is no better. m7-walk-2 B red step tries 5 vs A 2; m10b-expenses B 1 vs A 2; total B 6 vs A 4; B cost is over A + 10% ($0.1876 vs a limit of $0.1775). The next tag decides.
 
 **[RULING] hamr 2026-10-23, after f81-1.** First: raise the cap by $0.50 ("2" = raise the cap, then "raise it to 0.50"). Then, superseding it: "i am fine with the limit, run as much as you need to finish it, no need to stop for a cap". So spend does not end f81-2 before it finishes n=3 and n=4 for both jobs (8 samples). This was changed **after calls were made** (f81-1 ran under the pre-registered $0.50 and stopped on it); the bar itself is not changed. In code: `SPEND_STOP_USD = 2.5` is a runaway guard only, not a decider (worst case 8 samples x 2 x $0.10 job cap = $1.60, plus the $0.386 ledger, plus $0.20 headroom, about $2.2); the per-sample job cap stays $0.10 and the $0.07 minimum rule is unchanged. Pooling: a later tag adds to an earlier one instead of starting over. Samples pair by (tag, job, n), so f81-1's unpaired A3 never pairs with f81-2's B3. Continuation tag **f81-2**, from n=3 (`--start-n 3 --pool results-f81-1.json`); its results file holds only its own records plus the pooled summary, and `results-f81-1.json` is never rewritten. A pool file that is missing, unreadable, from another model or another job set is refused by name at $0.
+
+**[MEASURED] f81-2 (pooled with f81-1) (2026-10-23, run by hamr; results `poc/m8-step/results-f81-2.json`, ledger `poc/m8-step/spend.jsonl`).** Ran 8 of 8 requested samples (from n=3), no stop (`stoppedBy` null). Ledger: $0.303818 for tag f81-2, $0.68966 across all tags (f81-1 $0.385842). Verdict, pooled over f81-1 and f81-2: **HELPS** (pass true), on **4 paired samples per arm per job** (16 paired samples). The unpaired f81-1 m7-walk-2 A3 is dropped (1 dropped).
+
+Bars (A = no notes, B = notes), pooled:
+1. B's total red step tries < A's: **B 9 vs A 14** (ok).
+2. B's red runs + failed drafts <= A's: **B 2 vs A 3** (ok).
+3. B's total cost <= A's + 10%: **B $0.308825 vs A $0.343957**, limit $0.378353 (ok, no unknown cost).
+
+Per job, pooled (A / B):
+
+| job | samples | failed drafts | red runs | paused runs | step tries | red step tries | cost |
+|---|---|---|---|---|---|---|---|
+| m7-walk-2 | 4 / 4 | 0 / 1 | 2 / 1 | 2 / 2 | 17 / 14 | 7 / 6 | $0.167898 / $0.153124 |
+| m10b-expenses | 4 / 4 | 0 / 0 | 1 / 0 | 3 / 4 | 14 / 11 | 7 / 3 | $0.176059 / $0.155701 |
+| total | 8 / 8 | 0 / 1 | 3 / 1 | 5 / 6 | 31 / 25 | 14 / 9 | $0.343957 / $0.308825 |
+
+Both jobs pass all three bars on their own (m7-walk-2: red step tries 6 vs 7, red runs + failed drafts 2 vs 2, cost $0.153124 vs limit $0.184688; m10b-expenses: 3 vs 7, 0 vs 1, $0.155701 vs limit $0.193665).
+
+Caveats, plain:
+- (a) The cap was raised after f81-1's calls were made, and the continuation reached exactly the pre-registered 4 per arm per job, with no extra samples. The bar itself is unchanged.
+- (b) The m7-walk-2 margin is thin: red step tries B 6 vs A 7, and red runs + failed drafts B 2 vs A 2 (an equal count, which the bar allows). One B draft failed at the validator (m7-walk-2 B4, stop `validator`, two declaration reds: steps[0] and steps[1] read an artifact no earlier step declared).
+- (c) 4 pairs per job on one model (deepseek-flash) is a small sample.
+- (d) Every run stops at its first ask, so steps after the ask are not measured (the gap already stated in the pre-registration).
+
+**Outcome.** Per the pre-registered rule, step-failure notes are **NOT dropped**. Building them stays under M8's signed scope and waits for its own order.
