@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learn.js@v0.46.0 (8b3d815)
-// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js. Nothing else changed.
+// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js; line 17 names bareloop's proofs without its scratch path (E1 guard, test/m4d-am6-e.test.js). Nothing else changed.
 // Cross-run learnings, CODE ONLY (ITEM33-BUILD.md "Addendum 2026-10-22 (rev 2)"; hamr's RULING 1: no model call
 // anywhere in learnings — not to label, fold, rephrase, rank, judge or render). A lesson is a HINT made entirely by
 // code from a run's own record: every field below is COPIED from the spine / gate audit, never written by a model.
@@ -14,7 +14,7 @@
 //   countLedger  fold a run's cards into the ONE ledger (+1 per run per row), climbing, decay
 //   renderHints  the one function that turns the ledger into the block the PLANNER reads (2,000 chars, one render)
 //
-// Graduated from the proofs in .claude/scratch/poc-learn/ (pocA2 candidates, pocC cards, pocE2 fold) as a REWRITE.
+// Graduated from bareloop's own proofs (pocA2 candidates, pocC cards, pocE2 fold) as a REWRITE.
 // The 60% threshold is FITTED on known cards (a fit, not a proof; the unseen-card proof is OPEN 2).
 
 import { redactSecrets } from './redact.js';
