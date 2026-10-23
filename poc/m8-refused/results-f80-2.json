@@ -1,0 +1,1202 @@
+{
+  "summary": {
+    "tag": "f80-2",
+    "model": "deepseek-flash",
+    "ran": 17,
+    "of": 18,
+    "stoppedBy": "spend: ledger $0.2123 + one round's ceiling $0.0384 would pass $0.25",
+    "ledgerTotalUsd": 0.21228,
+    "roundCeilingUsd": 0.0384,
+    "verdict": "INCONCLUSIVE: the run stopped before all 18 drafts",
+    "pass": false,
+    "bars": {
+      "refusalRounds": {
+        "A": 13,
+        "B": 17,
+        "ok": false
+      },
+      "failed": {
+        "A": 2,
+        "B": 5,
+        "ok": false
+      },
+      "cost": {
+        "A": 0.09337,
+        "B": 0.088862,
+        "ok": true,
+        "unknown": false
+      }
+    },
+    "A": {
+      "drafts": 9,
+      "failed": 2,
+      "refusalRounds": 13,
+      "structureRetries": 3,
+      "rounds": 32,
+      "costUsd": 0.09337,
+      "unknownCostDrafts": 0,
+      "refusedDrafts": 8
+    },
+    "B": {
+      "drafts": 8,
+      "failed": 5,
+      "refusalRounds": 17,
+      "structureRetries": 2,
+      "rounds": 30,
+      "costUsd": 0.088862,
+      "unknownCostDrafts": 0,
+      "refusedDrafts": 7
+    },
+    "perJob": {
+      "aging": {
+        "A": {
+          "drafts": 3,
+          "failed": 0,
+          "refusalRounds": 2,
+          "structureRetries": 2,
+          "rounds": 10,
+          "costUsd": 0.043847,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 2
+        },
+        "B": {
+          "drafts": 3,
+          "failed": 0,
+          "refusalRounds": 2,
+          "structureRetries": 1,
+          "rounds": 9,
+          "costUsd": 0.038814,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 2
+        }
+      },
+      "m7-walk-2": {
+        "A": {
+          "drafts": 3,
+          "failed": 0,
+          "refusalRounds": 5,
+          "structureRetries": 1,
+          "rounds": 12,
+          "costUsd": 0.027727,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 3
+        },
+        "B": {
+          "drafts": 3,
+          "failed": 3,
+          "refusalRounds": 9,
+          "structureRetries": 1,
+          "rounds": 13,
+          "costUsd": 0.031145,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 3
+        }
+      },
+      "am29-walk-2": {
+        "A": {
+          "drafts": 3,
+          "failed": 2,
+          "refusalRounds": 6,
+          "structureRetries": 0,
+          "rounds": 10,
+          "costUsd": 0.021796,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 3
+        },
+        "B": {
+          "drafts": 2,
+          "failed": 2,
+          "refusalRounds": 6,
+          "structureRetries": 0,
+          "rounds": 8,
+          "costUsd": 0.018903,
+          "unknownCostDrafts": 0,
+          "refusedDrafts": 2
+        }
+      }
+    }
+  },
+  "hints": {
+    "aging": {
+      "text": "Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):\n1. [this job, seen 5 times] check \"the drafted plan\" failed; refused by the plan check; fixed in a later round of the same draft.\n   It said: declaration: steps[1].close.shape.sections names \"Total Owed\", which is not in the job line's words — change the job line on the card to change what…\n2. [this job, seen 2 times] check \"the drafted plan\" failed; refused by the plan check; the draft failed.\n   It said: declaration: steps[1] the job line says Amount Owed, then Customer; the check says Customer, then Amount Owed — change the job line on the card to…\n3. [this job, seen 1 time] check \"the drafted plan\" failed; refused by the plan check; the draft failed.\n   It said: declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can…\n4. [this job, seen 1 time] check \"the drafted plan\" failed; refused by the plan check; the draft failed.\n   It said: declaration: steps[1].close.shape has mustCarry but no linesPerInvoice — they work as a pair, so the check needs both",
+      "info": {
+        "hints": 4,
+        "chars": 1158,
+        "cards": 9,
+        "rows": 4,
+        "earlierDrafts": 11
+      }
+    },
+    "m7-walk-2": {
+      "text": "Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):\n1. [this job, seen 1 time] check \"the drafted plan\" failed; refused by the plan check; fixed in a later round of the same draft.\n   It said: declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+      "info": {
+        "hints": 1,
+        "chars": 319,
+        "cards": 1,
+        "rows": 1,
+        "earlierDrafts": 1
+      }
+    },
+    "am29-walk-2": {
+      "text": "Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):\n1. [this job, seen 1 time] check \"the drafted plan\" failed; refused by the plan check; fixed in a later round of the same draft.\n   It said: declaration: line 4 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can…",
+      "info": {
+        "hints": 1,
+        "chars": 389,
+        "cards": 1,
+        "rows": 1,
+        "earlierDrafts": 1
+      }
+    }
+  },
+  "records": [
+    {
+      "job": "aging",
+      "arm": "A",
+      "n": 1,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 1,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.018609,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1149 (line 1 column 1150))",
+          "reds": []
+        },
+        {
+          "round": 3,
+          "kind": "structure-retry",
+          "outcome": "validator: 4 red(s)",
+          "reds": [
+            "declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"green\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+            "declaration: steps[1].close.sheet[0].table \"aging\" is not in steps[1].reads - the step must read the sheet its checks come from",
+            "declaration: steps[1].close.columns[0].source \"aging\" is not in steps[1].reads - the step must read the sheet its cells come from",
+            "declaration: Line 2's check needs cells, but it reads only aging_report. Line 2 must read aging."
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          18546,
+          18546,
+          18546
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 8917
+    },
+    {
+      "job": "aging",
+      "arm": "B",
+      "n": 1,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 0,
+      "structureRetries": 1,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.012933,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1267 (line 1 column 1268))",
+          "reds": []
+        },
+        {
+          "round": 3,
+          "kind": "structure-retry",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 2,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          19906,
+          19906
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 6680
+    },
+    {
+      "job": "aging",
+      "arm": "A",
+      "n": 2,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 0,
+      "structureRetries": 1,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.0126702,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1402 (line 1 column 1403))",
+          "reds": []
+        },
+        {
+          "round": 3,
+          "kind": "structure-retry",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          18609,
+          18609
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5970
+    },
+    {
+      "job": "aging",
+      "arm": "B",
+      "n": 2,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.012921599999999998,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 1 red(s)",
+          "reds": [
+            "declaration: line 2: bareguard refuses the sheet check 'totals-by-customer': spec.checkpoints.sheet.checks[0].claim is required for cells"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 2,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          19905,
+          19905
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5547
+    },
+    {
+      "job": "aging",
+      "arm": "A",
+      "n": 3,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.0125682,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 1 red(s)",
+          "reds": [
+            "declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"green\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          18546,
+          18546
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5560
+    },
+    {
+      "job": "aging",
+      "arm": "B",
+      "n": 3,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.0129594,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: line 2 is marked unjudgeable but guardrailClasses proposes \"green\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+            "declaration: job line 1 (\"Read the aging report\") is neither served by any step's fromLine nor refused with a reason"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 2,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          19799,
+          19799
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5918
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 1,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 2,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.009304799999999998,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9263,
+          9263,
+          9263
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 7794
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "B",
+      "n": 1,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.0092664,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+      ],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 3,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9353,
+          9353,
+          9353
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 8102
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 2,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 2,
+      "structureRetries": 1,
+      "rounds": 5,
+      "meteredRounds": 5,
+      "calls": 5,
+      "costUsd": 0.012072,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1019 (line 1 column 1020))",
+          "reds": []
+        },
+        {
+          "round": 3,
+          "kind": "structure-retry",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 3 red(s)",
+          "reds": [
+            "declaration: unjudgeable names line 2, which has no guardrail to be unjudgeable about",
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 5,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 4,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 5,
+        "drafterCalls": 4,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9000,
+          9000,
+          9000,
+          9000
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 9608
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "B",
+      "n": 2,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.009246,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 3 red(s)",
+          "reds": [
+            "declaration: line 3 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+      ],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 3,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9225,
+          9225,
+          9225
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 7557
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 3,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.006349799999999999,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9355,
+          9355
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5516
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "B",
+      "n": 3,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 1,
+      "rounds": 5,
+      "meteredRounds": 5,
+      "calls": 5,
+      "costUsd": 0.012632399999999998,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "structure: the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 956 (line 1 column 957))",
+          "reds": []
+        },
+        {
+          "round": 4,
+          "kind": "structure-retry",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 5,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+      ],
+      "draftRounds": 4,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 5,
+        "drafterCalls": 4,
+        "carriedHint": 4,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9770,
+          9770,
+          9770,
+          9770
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 10358
+    },
+    {
+      "job": "am29-walk-2",
+      "arm": "A",
+      "n": 1,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.0092484,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 4 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared",
+            "declaration: steps[1].picks[\"jd\"] names \"Applied AI Architect\" — invented name, not in declaration.inputFacts[\"jd\"] (Applied AI Architect, Startups — Anthropic, Role Description, Responsibilities, Required Qualifications)",
+            "declaration: steps[1].picks[\"jd\"] names \"Startups — Anthropic\" — invented name, not in declaration.inputFacts[\"jd\"] (Applied AI Architect, Startups — Anthropic, Role Description, Responsibilities, Required Qualifications)"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared",
+        "declaration: steps[1].picks[\"jd\"] names \"Applied AI Architect\" — invented name, not in declaration.inputFacts[\"jd\"] (Applied AI Architect, Startups — Anthropic, Role Description, Responsibilities, Required Qualifications)",
+        "declaration: steps[1].picks[\"jd\"] names \"Startups — Anthropic\" — invented name, not in declaration.inputFacts[\"jd\"] (Applied AI Architect, Startups — Anthropic, Role Description, Responsibilities, Required Qualifications)"
+      ],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          8817,
+          8817,
+          8817
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 8131
+    },
+    {
+      "job": "am29-walk-2",
+      "arm": "B",
+      "n": 1,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.009340799999999998,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 4 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared",
+            "declaration: step 3's check reads its reply, so it can't write files. The send step writes the result out.",
+            "declaration: step 4's check reads its reply, so it can't write files. The send step writes the result out."
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+      ],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 3,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          8989,
+          8989,
+          8989
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 8522
+    },
+    {
+      "job": "am29-walk-2",
+      "arm": "A",
+      "n": 2,
+      "ok": true,
+      "stop": null,
+      "refusalRounds": 1,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.006178199999999999,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 3 red(s)",
+          "reds": [
+            "declaration: line 4 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "valid",
+          "reds": []
+        }
+      ],
+      "finalReds": [],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          8598,
+          8598
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 5573
+    },
+    {
+      "job": "am29-walk-2",
+      "arm": "B",
+      "n": 2,
+      "ok": false,
+      "stop": "validator",
+      "refusalRounds": 3,
+      "structureRetries": 0,
+      "rounds": 4,
+      "meteredRounds": 4,
+      "calls": 4,
+      "costUsd": 0.0095622,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 4,
+          "kind": "revision",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+      ],
+      "draftRounds": 3,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 4,
+        "drafterCalls": 3,
+        "carriedHint": 3,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9386,
+          9386,
+          9386
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 8363
+    },
+    {
+      "job": "am29-walk-2",
+      "arm": "A",
+      "n": 3,
+      "ok": false,
+      "stop": "budget",
+      "refusalRounds": 2,
+      "structureRetries": 0,
+      "rounds": 3,
+      "meteredRounds": 3,
+      "calls": 3,
+      "costUsd": 0.006369,
+      "spendComplete": true,
+      "roundLog": [
+        {
+          "round": 1,
+          "kind": "sheet-map",
+          "outcome": "answered",
+          "reds": []
+        },
+        {
+          "round": 2,
+          "kind": "first",
+          "outcome": "validator: 2 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared"
+          ]
+        },
+        {
+          "round": 3,
+          "kind": "revision",
+          "outcome": "validator: 3 red(s)",
+          "reds": [
+            "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+            "declaration: steps[1] reads artifact \"jd\" that no earlier step declared",
+            "declaration: steps[2].close.shape.sections names \"How I Match the JD\", which is not in the job line's words — change the job line on the card to change what it names"
+          ]
+        }
+      ],
+      "finalReds": [
+        "declaration: steps[0] reads artifact \"resume\" that no earlier step declared",
+        "declaration: steps[1] reads artifact \"jd\" that no earlier step declared",
+        "declaration: steps[2].close.shape.sections names \"How I Match the JD\", which is not in the job line's words — change the job line on the card to change what it names"
+      ],
+      "draftRounds": 2,
+      "mapRounds": 1,
+      "requests": {
+        "calls": 3,
+        "drafterCalls": 2,
+        "carriedHint": 0,
+        "carriedOnNonDrafter": 0,
+        "systemChars": [
+          188,
+          9020,
+          9020
+        ]
+      },
+      "modelReturned": "deepseek-flash",
+      "wallMs": 6437
+    }
+  ]
+}

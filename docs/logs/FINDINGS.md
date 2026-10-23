@@ -3499,4 +3499,32 @@ Each job is drafted from its own recorded `prose.txt` with its own recorded inpu
 
 **PASS bar (B wins only if all three):** (1) B's total refusal rounds < A's; (2) B's failed drafts <= A's; (3) B's total cost <= A's. Otherwise refused-plan notes are dropped. Also reported per job.
 
-**Result.** (to be written after the run)
+**Result (2026-10-23, paid, deepseek-flash only).** Tags: **[MEASURED]** `poc/m8-refused/results-f80-2.json` (records, hint text per job, per-round reds, per-draft request proof). Code `poc/m8-refused/` (`notes.mjs`, `run.mjs`, `learn-poc.mjs` = `src/learn.js` copy with the plan-note lesson ending; 11 tests at $0, the arm-B injection test was made to fail once by removing the append, then restored).
+
+**Deviation from the pre-registration (stated plainly).** The pre-registered method said "the real `draft()`, as today". The first paid run `f80-1` (aborted by me after 9 drafts, log kept as `f80-1-aborted.log`) showed that "as today" does not draft the aging job: the sheet look ran first and `draft()` returned `stop: look-asks` (it stops to ask the human about a column) in 5 of the 6 aging drafts, before any drafting round, in both arms. Nothing could be measured there. For the rerun `f80-2` `draft()` is called with `offerQuestions: false` (the redraft mode: an offer the person did not take becomes Not checked and drafting goes on). This applies to ALL 18 drafts of BOTH arms; it is a deviation from "draft as today". The aborted run's spend ($0.0301, 9 drafts, one in-flight draft killed unbooked) counts toward the $0.25 cap: one ledger (`spend.jsonl`) was kept across both runs, the drafter's own budget per draft = $0.25 less the ledger total (`priorSpend`), and the harness stops before a draft when ledger + one round's ceiling ($0.0384) would pass $0.25.
+
+**Request proof.** [MEASURED] Every drafting-round request of arm B carried the block (e.g. `carriedHint` = drafter calls on all 9 B records) and none of arm A's did; no sheet-map call carried it (`carriedOnNonDrafter` 0 on every record). The wrapper only appends to the drafter's own system prompt.
+
+**Hint text (the notes arm B had).** aging: 4 hints, 1,158 chars, from 9 refused-plan cards over 11 earlier drafts (1: "seen 5 times ... fixed in a later round of the same draft. It said: declaration: steps[1].close.shape.sections names "Total Owed", which is not in the job line's words ..."; 2: seen 2 times, the draft failed, "the job line says Amount Owed, then Customer; the check says Customer, then Amount Owed ..."; 3: the draft failed, "line 2 is marked unjudgeable but guardrailClasses proposes "softgreen" ..."; 4: the draft failed, "steps[1].close.shape has mustCarry but no linesPerInvoice ..."). m7-walk-2: 1 hint, 319 chars, "fixed in a later round of the same draft. It said: declaration: steps[0] reads artifact "resume" that no earlier step declared". am29-walk-2: 1 hint, "line 4 is marked unjudgeable but guardrailClasses proposes "softgreen" ...". Full text is in the results file.
+
+**Numbers (17 of 18 drafts ran; am29-walk-2 B3 did not: the cap stop).**
+
+| | A drafts | A failed | A refusal rounds | A rounds | A cost | B drafts | B failed | B refusal rounds | B rounds | B cost |
+|---|---|---|---|---|---|---|---|---|---|---|
+| aging | 3 | 0 | 2 | 10 | $0.0438 | 3 | 0 | 2 | 9 | $0.0388 |
+| m7-walk-2 | 3 | 0 | 5 | 12 | $0.0277 | 3 | 3 | 9 | 13 | $0.0311 |
+| am29-walk-2 | 3 | 2 | 6 | 10 | $0.0218 | 2 | 2 | 6 | 8 | $0.0189 |
+| **total** | 9 | 2 | 13 | 32 | $0.0934 | 8 | 5 | 17 | 30 | $0.0889 |
+
+Structure retries: A 3, B 2. No draft had an unknown cost. Spend: f80-1 $0.0301 + f80-2 $0.1822 = **$0.2123** of $0.25.
+
+**Bars.** (1) B refusal rounds < A: **FAIL** (17 vs 13). (2) B failed <= A: **FAIL** (5 vs 2). (3) B cost <= A: pass (0.0889 vs 0.0934), but B ran one draft fewer, so this bar is not a fair pass.
+
+**Oddities (read before trusting the table).**
+- The cap stopped the run before am29-walk-2 B3. B's missing draft can only add refusals and failures, so bars 1 and 2 cannot flip to a pass; the harness still prints INCONCLUSIVE for an incomplete run, because the pre-registered rule says so.
+- am29-walk-2 A3 failed with `stop: budget`: the drafter's own budget (cap less ledger) ran out after 2 draft rounds. That failure is caused by the cap, not by the model; it counts against A, so A's failed count (2) is, if anything, overstated.
+- m7-walk-2 B failed 3 of 3 on exactly the refusal its note describes ("reads artifact resume that no earlier step declared"), where A passed 3 of 3. With 3 drafts per cell this is weather-sized, but it is the opposite of the hoped direction. The am29-walk-2 job's note is about "unjudgeable" (the recorded refusal), yet its real refusals in both arms were the resume/jd "no earlier step declared" ones, so that job's note did not match what the model did.
+- aging: no failure and 2 refusal rounds in each arm, so nothing to tell there.
+- Costs include the map call (aging, m7, am29 each ran one sheet-map call per draft, both arms); the map call does not carry the note.
+
+**Verdict: DOES NOT HELP.** The bars are pre-registered; bars 1 and 2 failed and cannot be rescued by the one draft the cap left out. The run is formally incomplete (17 of 18), which the harness reports as INCONCLUSIVE; I read it as DOES NOT HELP because the missing draft cannot change either failing bar. On this data refused-plan notes did not reduce refusals or failures; they are dropped. Caveats: 3 drafts per cell, one model, redraft mode (offerQuestions false), and the notes were not written for what the model actually got wrong in two of the three jobs.
