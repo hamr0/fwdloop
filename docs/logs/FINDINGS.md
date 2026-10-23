@@ -3406,3 +3406,24 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 (c) No code fix was made for (b), on hamr's ruling: a send-back loop would fit code to one job.
 
 **Status of the exit.** M10b exit is open on the aging job only. Next: reopen after bareloop's learnings, copied byte for byte (UI and inner working), on hamr's word 2026-10-23.
+
+## F79 — POC: does bareloop's learnings card shape, copied as is, make worthy notes from fwdloop's real runs? (pre-registered 2026-10-23, before any run)
+
+**Status.** Pre-registered 2026-10-23, not run. $0: no provider call anywhere. Tags: **[RULING]** hamr 2026-10-23: copy bareloop's learnings; for what a fwdloop note / flagged line / kind is, "start with bareloop shape and assess on pocs". **[MEASURED]** none yet. Branch `learnings`. Nothing here is shipped; code lives under `poc/learn/`. `flows/` holds real PII and is gitignored: this entry carries counts and scrubbed shapes only (`<name>`, `<amount>`).
+
+**Question.** If bareloop's card shape (`src/learn.js@1a41097`: buildCards' card fields, flaggedText, errorKinds, saidLine, quoteLines, cardsMatch, foldCards, countLedger, climb, readableRows, renderHints, parseHintBlock) is copied as is and fed fwdloop's real recorded runs through ONE adapter, does it make worthy notes?
+
+**Data.** `find flows -name log.json` gives 121 run logs (55 have `attempts`). Shape: `{runId, outcome, red, attempts:[{step, attempt, class, verdict, gap, refused, modelOutput}], artifacts}`. Run order per workflow. No new run, no paid call.
+
+**Method.**
+- **Adapter (one):** fwdloop `log.json` -> the event list buildCards reads (`check-run` / `close-verdict` / `job-start` / `job-end`). Check name = step + its guardrail number / close class as recorded. A red try then a later green try of the same step in the same run = FIXED; red on every try = NEVER FIXED. Gap text -> the red lines. Fix touched = the artifact name the passing try wrote. What changed = a unified -U1 line diff of the failing try's `modelOutput` vs the passing try's (JSON pretty-printed first). Map, never invent; every field that cannot be mapped is listed.
+- **Arm A (bareloop shape exactly):** run all logs in run order per workflow, ledger in memory. Report: (a) per run cards / FIXED / NEVER FIXED / noise / CHECK-SUSPECT / TOO-THIN; (b) share of cards with kinds `['other']`; (c) It said: flaggedText match vs fallback quote line vs empty; (d) fold: lessons seen >= 2 (same workflow), climbing to place / all jobs; (e) share with non-empty Fix touched / What changed; (f) renderHints block for the 3 workflows with most red runs: chars, parseHintBlock round-trip; (g) 10 cards hand-read, evenly picked: does It said name the real reason the step went red, yes/no; (h) the aging question: for the m10b-aging* runs (F77/F78), does ANY card mention the bucket check (a check the drafter dropped never runs, so none is expected).
+- **Arm A pass bars ("bareloop shape fits as is"):**
+  1. >= 50% of FIXED + NEVER FIXED cards survive (not TOO-THIN).
+  2. >= 8 of the 10 hand-read It said lines name the real red.
+  3. At least one lesson with seen >= 2 in a workflow with >= 2 red runs.
+  Any bar missed = does not fit as is.
+- **Arm B (only if A misses a bar):** the smallest change that fits fwdloop (e.g. flagged line = the close's red line; kind = the close class). One change at a time, re-measured on the same bars, each change named. A candidate, not a build.
+- **The POC must be able to fail:** if every bar passes on arrival, a case it would fail on is shown.
+
+**Result.** (to be written below after the run)
