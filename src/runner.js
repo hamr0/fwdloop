@@ -67,6 +67,7 @@ import {
 } from './books.js';
 import { learnAtRunEnd, releaseRun } from './learnstore.js';
 import { redactSecrets } from './redact.js';
+import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import { stepThinkingMode } from './thinking.js';
 import { appendChecks, nextRound } from './diary.js';
@@ -698,8 +699,8 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 // ---------------------------------------------------------------------------
 
 const NOT_A_RUN_END = new Set(['paused', 'stopped', 'cap-halt', 'stop-failed']);
-/** where a failed run-end tally is recorded (write-once, in the run's own folder): the run itself is unaffected */
-export const LEARN_ERROR_FILE = 'learn-error.json';
+/** where a failed run-end tally is recorded (one appended row, in the run's own folder): the run itself is unaffected */
+export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
 /**
  * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, askStepEmits: Set<string>|null, accepted: Map<string, any>|null, now: () => string}} o
@@ -724,7 +725,7 @@ function recordRunNotes({
     }
   } catch (/** @type {any} */ e) {
     try {
-      writeFileSync(join(runDir, LEARN_ERROR_FILE), `${JSON.stringify({ at: now(), error: redactSecrets(String(e?.message ?? e)).split('\n')[0] }, null, 2)}\n`, { flag: 'wx' });
+      appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(String(e?.message ?? e)).split('\n')[0] });
     } catch { /* the record of the failure is itself best-effort */ }
   }
 }

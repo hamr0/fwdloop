@@ -136,7 +136,7 @@ test('item 4: a failure of the note code never fails the run, and is recorded in
   writeFileSync(path.join(s.home, 'learn', 'ledger.json'), '{ not json');
   const r = await runFlow({ ...s.args({ askStep: async () => ({ decision: 'accept' }) }), sources: s.sources });
   assert.equal(r.outcome, 'complete', r.red);
-  const rec = JSON.parse(readFileSync(path.join(r.runDir, LEARN_ERROR_FILE), 'utf8'));
+  const rec = JSON.parse(readFileSync(path.join(r.runDir, LEARN_ERROR_FILE), 'utf8').trim());
   assert.match(rec.error, /not readable JSON/);
   assert.equal(readFileSync(path.join(s.home, 'learn', 'ledger.json'), 'utf8'), '{ not json', 'the bad ledger is not reset');
 });

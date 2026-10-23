@@ -7,8 +7,8 @@
 // scratch home and never create the real directory). It lives outside every person's repo, is written atomically
 // (temp file + rename) and mode 600, and every string in it passes the one secret inventory before it is written.
 
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
 import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth, buildCards, placeOf } from './learn.js';
 import { readAudit } from './books.js';
@@ -233,12 +233,9 @@ export function eventsOfRun(runDir, workflow) {
   return { events, questions, model, source: typeof inputs?.[0]?.source === 'string' ? inputs[0].source : null };
 }
 
-/** a path resolved to its real location when it exists, else as written @param {string} p */
-const realOr = (p) => { try { return realpathSync(p); } catch { return p; } };
-
 /**
  * THE RUN-END TALLY ($0, code only, no model; M8 item 2): turn a finished run's folder into cards and fold them into the ledger.
- * The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). `trust` 'rubric' HOLDS
+ * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). `trust` 'rubric' HOLDS
  * the cards until releaseRun (a run with a signed ask: M8 item 4); 'deterministic' counts at once (a run with no ask). It runs
  * whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
  * the run's checks.jsonl, so a check with no checks.jsonl row (a run from before am29) has no `meaning`.
@@ -252,6 +249,6 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, trust, 
   const runid = `${workflow}/${runId}`;
   const build = buildCards({ runid, events: rec.events, spec: { job: workflow }, model: rec.model, questions: rec.questions });
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
-  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, realOr), specHash, trust, at, now });
+  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolve), specHash, trust, at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
 }
