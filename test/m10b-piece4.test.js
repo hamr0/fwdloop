@@ -2,8 +2,8 @@
 // hash), stripped only on the way into bareguard (`bareguardChecks`); ONE builder (src/sheetblock.js `sheetLineBlocks`) makes the per-line block every surface draws; after a
 // run the block carries ✓ / ✗ and what was found, from the run's own sheet-checks.json. $0: synthetic sheets (test/fixtures/m10b-sheets), real bareguard, no model.
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { readFileSync, rmSync } from 'node:fs';
+import { test, after } from 'node:test';
+import { readFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,9 @@ import { freezeInputs } from '../src/runner.js';
 import { closeSheet, readRunSheets, sheetRolesOf } from '../src/sheetrun.js';
 import { writeSheetLine, readSheetChecks } from '../src/sheet-record.js';
 import { buildResult } from '../src/panel/result.js';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
+import { world } from './m10-am4-world.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHEETS = path.join(HERE, 'fixtures', 'm10b-sheets');
@@ -234,6 +237,11 @@ test('Result after a green run: ✓ count checked — N, with the step\'s own cl
     assert.deepEqual(line.sheet.checked.map((c) => c.ok), [true, true, true]);
     assert.deepEqual(line.sheet.checked.map((c) => c.found), [`rows checked — ${over.length} rows`, `count checked — ${over.length}`, `sum checked — ${total}`]);
     assert.equal(line.sheet.notChecked, 'none');
+    // the Audit's try line carries the same words (`name \u2014 words`, what was claimed as its result); the saved record keeps no result for a green check
+    assert.deepEqual(closed.checks.map((c) => [c.text, c.ok, c.result]), [
+      ['rows \u2014 rows where Amount > 500', true, `${over.length} rows`], ['count \u2014 count of rows where Amount > 500', true, String(over.length)], ['sum \u2014 sum of Amount where Amount > 500', true, String(total)],
+    ]);
+    assert.ok(readSheetChecks(run).lines[0].results.every((r) => r.ok && r.result === null));
     assert.ok(line.sheet.checked.every((c) => c.words && c.coversWords.startsWith('covers "')), 'the plain words and covers ride along');
     assert.deepEqual(res.lines.filter((l) => l.n !== 2).map((l) => l.sheet), [null, null, null], 'a line that reads no sheet has no block');
   } finally { rmSync(run, { recursive: true, force: true }); }
@@ -292,3 +300,120 @@ test('a run that never reached the check shows the plan block with no mark; the 
     rmSync(red.run, { recursive: true, force: true });
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
+
+// ---- 5a. the Job tab step rows (the page's own functions, a fake DOM) ------------------------------------------------------------------------------
+test('Job tab: a step that reads a sheet shows its line\'s block under its check sentence, one row each; a step with none draws no block rows', () => {
+  const PAGE0 = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+  const mk = () => ({ children: [], className: '', textContent: '', appendChild(c) { this.children.push(c); return c; } });
+  const document = { createElement: mk };
+  const src = ['plainWait', 'textDiv', 'sheetBlockLines', 'stepSummaryText', 'jobStepFold'].map((n) => cutFn(PAGE0, n, '  ')).join('\n');
+  const { jobStepFold } = new Function('document', `${src}\nreturn { jobStepFold };`)(document);
+  const plan = checkedLines(agingDecl(), { askLines: [3], lines: agingJob.lines, csvRoles: ['aging'] }).find((x) => x.line === 2);
+  const st = { step: 2, line: 2, reads: ['aging'], makes: 'figures', mayDo: ['read'], check: plan.sentences, checkClass: 'green', ask: false, waitMs: null, sheet: plan.sheet };
+  const rows = jobStepFold(st, {}).children.map((c) => c.textContent);
+  assert.deepEqual(rows.slice(rows.findIndex((r) => r === 'Guardrails:')), [
+    'Guardrails:', '- every invoice appears exactly once', '- amounts over 500 are flagged', 'Checked:',
+    '- no duplicate Invoice # \u2014 covers "every invoice appears exactly once"', '- rows \u2014 rows where Amount > 500 \u2014 covers "amounts over 500 are flagged"',
+    '- bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+', 'Not checked: none',
+  ]);
+  assert.equal(jobStepFold({ ...st, sheet: null }, {}).children.some((c) => c.textContent === 'Checked:'), false);
+});
+
+// ---- 5. the page: the plan card and the Result tab, in a real browser at 1280, 390 and 320 -------------------------------------------------------
+const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
+const OUT = process.env.FWDLOOP_WALK_OUT || null;
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
+const CLOSERS = [];
+after(() => Promise.all(CLOSERS.map((c) => c())));
+const LONG = `${'a guardrail that is long enough to wrap on a phone '.repeat(2)}and one unbroken word ${'x'.repeat(70)}`;
+
+/** the Result tab's JSON for the aging job run on the sheet that repeats an invoice (✗), with one extra long guardrail no check covers */
+async function redBody() {
+  const { run } = await ran(AGING_DUP, 'aging', AGING_CHECKS(), { over: { rows: [] }, bands: { bands: bandsOf(AGING_DUP) } });
+  try {
+    const res = result(run, agingDecl(), agingJob);
+    const line = res.lines.find((l) => l.n === 2);
+    line.sheet.notChecked = line.sheet.notChecked === 'none' ? [LONG] : [...line.sheet.notChecked, LONG];
+    return { ...res, flow: 'job2', runId: 'run-1' };
+  } finally { rmSync(run, { recursive: true, force: true }); }
+}
+/** the plan card's state: the real `checkedLines` of the aging plan (one guardrail left uncovered, one very long) */
+function planState() {
+  const d = agingDecl(); d.steps[1].close.sheet[1].covers = [];
+  const job = { ...agingJob, lines: agingJob.lines.map((l) => (l.n === 2 ? { ...l, guardrail: `${l.guardrail}; ${LONG}` } : l)) };
+  d.steps[1].close.sheet[0].covers = [3];
+  return { phase: 'green', answers: [], checked: checkedLines(d, { askLines: [3], lines: job.lines, csvRoles: ['aging'] }), notChecked: { label: 'x', items: [], readNotes: [] } };
+}
+const MEASURE = (root) => `(function(){
+  var vw = document.documentElement.clientWidth, worst = 0, over = [], boxes = 0;
+  document.querySelectorAll(${JSON.stringify(root)}).forEach(function(r){ r.querySelectorAll("*").forEach(function(e){
+    var b = e.getBoundingClientRect();
+    if(b.width === 0 && b.height === 0) return;
+    boxes++;
+    if(b.right - vw > worst) worst = b.right - vw;
+    if(b.right > vw + 0.5 || b.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(b.right));
+  }); });
+  return { vw: vw, docW: document.documentElement.scrollWidth, boxes: boxes, worst: Math.round(worst), over: over.slice(0, 8) };
+})()`;
+
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}px: the plan card block and the Result tab block draw the same lines and spill nothing`, { skip: SKIP && 'no browser' }, async (t) => {
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    const body = await redBody();
+    const w = await world();
+    await chrome.send('Page.enable');
+    await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `(function(){ var f = window.fetch; var body = ${JSON.stringify(body)};
+        window.fetch = function(u){ if(/\\/api\\/runs\\/[^/]+\\/[^/]+\\/result$/.test(String(u))) return Promise.resolve(new Response(JSON.stringify(body), {status: 200, headers: {"content-type": "application/json"}})); return f.apply(this, arguments); }; })()`,
+    });
+    await chrome.open(`http://127.0.0.1:${w.port}/`, width);
+    // ---- the plan card (Chat): the page's own extrasFor / sheetBlockLines, drawn the way renderExtras draws, into the real #chat-extras ----
+    const src = `${cutFn(PAGE, 'sheetBlockLines', '  ')}\n${cutFn(PAGE, 'extrasFor', '    ')}\n${cutFn(PAGE, 'escapeXml', '  ')}`;
+    const lines = await chrome.ev(`(function(){
+      ${src}
+      var v = extrasFor(${JSON.stringify(planState())});
+      document.getElementById("chat-extras").innerHTML = v.blocks.map(function(b){
+        return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' + (b.lines.length ? '\\n' + b.lines.map(escapeXml).join("\\n") : '') + '</div>';
+      }).join("");
+      return v.blocks.find(function(b){ return b.id === "chat-checked"; }).lines;
+    })()`);
+    assert.deepEqual(lines.slice(1, 13), [
+      'line 2: The machine recomputes each of these from the saved sheet and compares it with what the step gave:',
+      '  Guardrails:', '  - every invoice appears exactly once', '  - amounts over 500 are flagged', `  - ${LONG}`,
+      '  Checked:',
+      '  - no duplicate Invoice # \u2014 covers "' + LONG + '"',
+      '  - rows \u2014 rows where Amount > 500',
+      '  - bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+',
+      '  Not checked:', '  - every invoice appears exactly once', '  - amounts over 500 are flagged',
+    ]);
+    const plan = await chrome.ev(MEASURE('#chat-extras'));
+    assert.ok(plan.boxes > 0, 'the plan card is on screen');
+    if (OUT) { mkdirSync(OUT, { recursive: true }); await chrome.ev('document.getElementById("chat-extras").scrollIntoView()'); await chrome.screenshot(path.join(OUT, `plan-card-${width}.png`)); }
+    assert.ok(plan.docW <= plan.vw, `the document is ${plan.docW}px wide on a ${plan.vw}px screen`);
+    assert.deepEqual(plan.over, [], `plan card boxes past the right edge: worst ${plan.worst}px`);
+    // ---- the Result tab, fed the server's real JSON ----
+    const card = 'document.querySelector("[data-testid=rl-run-job2-run-1]")';
+    assert.ok(await chrome.waitFor(`!!${card}`), 'the Runs list shows the run');
+    await chrome.ev(`${card}.click()`);
+    assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden'), 'the run opened');
+    await chrome.ev('document.getElementById("tab-result").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#result-body [data-testid=result-sheet-check]").length === 3'), 'the Result tab drew three sheet checks');
+    const shown = await chrome.ev('Array.from(document.querySelectorAll("#result-body [data-testid=result-sheet-check]")).map(function(e){ return e.textContent; })');
+    assert.equal(shown[0].startsWith('\u2717 no duplicate Invoice # \u2014 rows sharing a value: 2, 3'), true, shown[0]);
+    assert.equal(shown[1].startsWith('\u2713 rows checked \u2014 0 rows'), true, shown[1]);
+    assert.equal(shown[2].startsWith('\u2713 bucket checked \u2014 8 rows'), true, shown[2]);
+    assert.ok(shown[0].includes('covers "every invoice appears exactly once"'));
+    assert.equal(await chrome.ev('document.querySelector("#result-body [data-testid=result-sheet-notchecked]").textContent.includes("unbroken word")'), true, 'Not checked lists the uncovered guardrail');
+    assert.equal(await chrome.ev('document.querySelectorAll("#result-body [data-testid=result-checklist]").length'), 0, 'the sheet block replaces the generic check list, never beside it');
+    const ids = await chrome.ev('Array.from(document.querySelectorAll("[id]")).map(function(e){ return e.id; })');
+    assert.equal(new Set(ids).size, ids.length, 'every id on the page is unique');
+    const m = await chrome.ev(MEASURE('#result-body'));
+    console.log(`# p4 ${width}px plan ${JSON.stringify(plan)} result ${JSON.stringify(m)}`);
+    await chrome.ev('document.querySelector("#result-body [data-testid=result-sheet-checked]").scrollIntoView()');
+    if (OUT) await chrome.screenshot(path.join(OUT, `result-${width}.png`));
+    assert.ok(m.docW <= m.vw, `the document is ${m.docW}px wide on a ${m.vw}px screen`);
+    assert.deepEqual(m.over, [], `result boxes past the right edge: worst ${m.worst}px`);
+  });
+}

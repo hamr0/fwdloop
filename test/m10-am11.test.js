@@ -83,7 +83,7 @@ test('the other lines never read as a note: wrong head, no dash, the drafter\'s 
 
 // ---- the page: each check on its own line --------------------------------------------------------------------------------------------------------
 const CHAT = PAGE;
-const load = (name) => new Function(`${cutFn(CHAT, name, '    ')}\nreturn ${name};`)();
+const load = (name) => new Function(`${cutFn(CHAT, 'sheetBlockLines', '  ')}\n${cutFn(CHAT, name, '    ')}\nreturn ${name};`)();
 const green = (extra) => ({
   phase: 'green', answers: [],
   checked: [{ step: 1, line: 1, sentences: ['A one.', 'B two.', 'C three.'] }, { step: 2, line: null, sentences: ['D four.'] }],
@@ -119,7 +119,7 @@ const jobFn = (name) => cutFn(PAGE, name, '  ');
 
 test('Job tab: each check sentence of a step is its own row; How the page was read is its own fold after Not checked, none = no fold', () => {
   const document = fakeDom();
-  const src = ['plainWait', 'textDiv', 'stepSummaryText', 'jobStepFold', 'paintJobPlan'].map(jobFn).join('\n');
+  const src = ['plainWait', 'textDiv', 'sheetBlockLines', 'stepSummaryText', 'jobStepFold', 'paintJobPlan'].map(jobFn).join('\n');
   const { paintJobPlan } = new Function('document', `${src}\nreturn { paintJobPlan };`)(document);
   const step = { step: 1, line: 1, reads: [], makes: 'a', mayDo: [], check: ['A one.', 'B two.'], checkClass: 'green', ask: false, waitMs: null };
   const plan = (readNotes) => ({ steps: [step], notChecked: { label: NOT_CHECKED_LABEL, recorded: true, items: ['tone'], readNotes } });
@@ -157,7 +157,7 @@ test('browser: each check of the Checked block renders on its own text line (sho
   CLOSERS.push(async () => chrome.close());
   const w = await world();
   await chrome.open(`http://127.0.0.1:${w.port}/`, 390);
-  const src = cutFn(CHAT, 'extrasFor', '    ');
+  const src = `${cutFn(CHAT, 'sheetBlockLines', '  ')}\n${cutFn(CHAT, 'extrasFor', '    ')}`;
   const lines = await chrome.ev(`(function(){
     ${src}
     var v = extrasFor(${JSON.stringify(green({ checked: [{ step: 1, line: 1, sentences: ['A one.', 'B two.', 'C three.'] }] }))});

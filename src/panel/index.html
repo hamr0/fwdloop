@@ -2413,6 +2413,37 @@
     var note = file && file.judged && file.note ? '<div class="hint" data-testid="result-judged-note">' + escapeXml(file.note) + '</div>' : "";
     return note + (file && file.judged && file.words ? '<div class="rs-warn" data-testid="result-file-words">' + escapeXml(file.words) + '</div>' : "");
   }
+  // M10b am2: what a job line that reads a sheet shows, drawn from the server's ONE block ({guardrails, checked: [{text, ...}], notChecked: [..] | "none"}): its
+  // guardrails, "Checked:" with one line per sheet check (name, plain words, covers), then "Not checked:" with the guardrails no check covers, or "none".
+  // Pure: the Chat plan card and the Job tab step rows both draw these strings; the server wrote every one of them.
+  function sheetBlockLines(sheet){
+    if(!sheet) return [];
+    var out = [];
+    if((sheet.guardrails || []).length){
+      out.push("Guardrails:");
+      sheet.guardrails.forEach(function(g){ out.push("- " + g); });
+    }
+    out.push("Checked:");
+    (sheet.checked || []).forEach(function(c){ out.push("- " + c.text); });
+    if(sheet.notChecked === "none" || !(sheet.notChecked || []).length) out.push("Not checked: none");
+    else { out.push("Not checked:"); sheet.notChecked.forEach(function(g){ out.push("- " + g); }); }
+    return out;
+  }
+  // the Result tab's drawing of the same block, after the run: each check carries \u2713 or \u2717 and what was found (the server's `found`), then its plain words and
+  // covers; "Not checked" again. A check with no verdict (the run never reached it) draws with no mark. Every string is escaped.
+  function resultSheetBlock(sheet){
+    if(!sheet) return "";
+    var rows = (sheet.checked || []).map(function(c){
+      var mark = c.ok === true ? '<span class="rs-ok">\u2713</span> ' : (c.ok === false ? '<span class="rs-bad">\u2717</span> ' : "");
+      var more = [c.words, c.coversWords].filter(function(x){ return x; }).join(" \u00b7 ");
+      return '<div data-testid="result-sheet-check">' + mark + escapeXml(typeof c.found === "string" ? c.found : c.name) +
+        (more ? ' <span class="hint">' + escapeXml(more) + '</span>' : "") + '</div>';
+    }).join("");
+    var nc = sheet.notChecked === "none" || !(sheet.notChecked || []).length ? "none" : null;
+    return resultField("Checked", '<div class="ro-value" data-testid="result-sheet-checked">' + rows + '</div>') +
+      resultField("Not checked", nc !== null ? '<div class="ro-value" data-testid="result-sheet-notchecked">none</div>' :
+        '<div class="ro-value" data-testid="result-sheet-notchecked"><ul style="margin:0;padding-left:18px">' + sheet.notChecked.map(function(t){ return '<li>' + escapeXml(t) + '</li>'; }).join("") + '</ul></div>');
+  }
   function resultField(label, inner){
     return '<div class="field"><label>' + escapeXml(label) + '</label>' + inner + '</div>';
   }
@@ -2497,7 +2528,7 @@
   function resultLineCard(line, own, note){
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
       (own ? resultPageLink(line.page, note, "result-page-line") : "") +
-      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + resultChecksList(line) +
+      (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
   function renderResult(){
@@ -3505,6 +3536,8 @@
     // M10 am11: each check sentence is its own row
     if(st.ask || !(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : "")));
     else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
+    // M10b am2: a step that reads a sheet shows its line's block under the check sentence
+    sheetBlockLines(st.sheet).forEach(function(t){ fold.appendChild(textDiv("plan-row", t)); });
     return fold;
   }
   // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
@@ -4922,6 +4955,8 @@
         c.sentences.forEach(function(s, i){
           checkedLines.push(i === 0 ? (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + s : "  " + s);
         });
+        // M10b am2: a line that reads a sheet: its guardrails, Checked (name, words, covers), Not checked
+        sheetBlockLines(c.sheet).forEach(function(t){ checkedLines.push("  " + t); });
       });
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
       var nc = state.notChecked || {};
