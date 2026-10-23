@@ -139,7 +139,7 @@ const claimShow = (/** @type {unknown} */ v) => (typeof v === 'string' ? v : JSO
 export function claimLines(claims) {
   const out = [];
   if (!isRec(claims)) return out;
-  for (const [name, box] of Object.entries(claims)) {
+  for (const [name, box] of Object.entries(/** @type {Record<string, any>} */ (claims))) {
     if (!isRec(box)) { out.push(`${name}: ${claimShow(box)}`); continue; }
     for (const [key, v] of Object.entries(box)) {
       if (Array.isArray(v)) {
