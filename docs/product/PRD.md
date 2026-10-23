@@ -206,6 +206,8 @@ Deliberately not borrowed (no home in fwdloop v1): the across-run learning items
 bits per knob, one-knob mutation, toggle coverage, order-from-noise pre-flight. fwdloop does
 not yet learn across runs; if it ever does, those come in as their own signed module.
 
+*Built after signing — not signed text: M8 (learnings, signed by hamr 2026-10-23) is that signed module; scope in docs/wiki/the-module-ladder.md under M8.*
+
 ## Stack — vanilla JS
 
 **Vanilla JavaScript, ESM, node stdlib.** No TypeScript, no framework, no build step; types go in

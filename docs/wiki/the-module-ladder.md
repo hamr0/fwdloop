@@ -2382,6 +2382,25 @@ and every model or provider change, with the incident loop detect → diagnose �
 - **Exit:** a model swap that breaks a case is refused at accept, naming the case
   (docs/archive/PRD.md:621-621).
 
+*The paragraph and Exit above are superseded by the signed scope below (hamr, 2026-10-23).*
+
+SIGNED by hamr 2026-10-23 ("sign m8"), the text exactly as shown:
+
+**M8 scope — learnings: notes from earlier runs, handed to the drafter and to retries. Spend cap $0.50.**
+0. **Test first — done.** F79 ($0, 51 real runs): bareloop's shape copied as is fails to add up a mistake across runs; with B1 (a fwdloop note's text is its check's red line) it does. Nothing more is tested before the build.
+1. **Copied from bareloop's released tag**, by copy with headers, never import. The note code, the ledger, the hint text, and the Audit box are bareloop's exact shape. The one change is B1. We tune only after it is seen working live.
+2. **Notes, by code only, $0, no model call.** At run end, a step whose check went red then passed in the same run is a FIXED note; red on every try is a NEVER FIXED note, dropped as bareloop does. Refused drafts and redos make no note.
+3. **One ledger per user**, under ~/.config/fwdloop, file mode 600. It keeps every row. Age (56 days), job version and level are worked out when read. "This job" means the same workflow name: run-1, run-2, run-3 of aging-1 share notes; aging-1 and aging-2 do not, except by climbing (this place, all jobs). Secret keys are masked; nothing else is stripped.
+4. **A run's notes wait for your Accept.** All of a run's notes count only when its last signed ask is accepted. A redo or an expired ask never releases them; after 60 days they are dropped. A run with no ask counts at run end.
+5. **Who gets the hints, at most 2,000 characters.**
+   a. The drafter, at a run's draft (its revise rounds and the redraft after answers get the same block).
+   b. A step on a retry, on a redo at an ask, and on a rerun — the same places thinking switches on. This is new, not bareloop's; it is built after (a) is seen working live.
+   Setting `learningHints` in Settings, per user, OFF by default; when OFF, notes are still counted, nothing is handed.
+6. **Shown read-only in the Audit tab**: one fold at the top, bareloop's box, header `[✓] learnings  What the planner was told from earlier runs · N hints`. Hidden when a run was handed nothing. Checked at 1280, 390 and 320 wide.
+7. **Known gap, not built:** two runs ending at the same moment can lose a note (bareloop has the same); it goes in the fix ledger.
+- **Done when:** on deepseek-flash with `learningHints` ON, a real job has a step fixed on a retry in run-1; after the Accept, run-2's draft is handed that note, and the Audit box shows the exact text handed; and a step retry in run-2 is handed the hints. A separate script checks the ledger, the hint text and the Audit record agree.
+- **Negative:** with the setting OFF nothing is handed; a note older than 56 days, from another workflow, or from a run not yet accepted is never handed; no model call anywhere in the note code.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
