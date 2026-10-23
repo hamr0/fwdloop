@@ -2025,7 +2025,7 @@ export function getRunAudit({
  * M6: a sign row that names another signing than the job being shown (`flowHash`) is not this job's record: `recorded:false`, never the new job's words.
  * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir @param {string|null} [flowHash] the signature hash of the job being shown
  */
-function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = undefined, csvRoles = []) {
+function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /** @type {any[]|undefined} */ (undefined), csvRoles = /** @type {string[]} */ ([])) {
   const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line), lines: jobLines, csvRoles });
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {

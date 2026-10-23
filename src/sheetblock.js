@@ -41,8 +41,8 @@ export function sheetCheckName(check) {
  * @param {any} check @param {unknown} claims the step's answer @returns {string|null}
  */
 export function sheetFoundWords(check, claims) {
-  if (!isRec(check) || typeof check.claim !== 'string' || !isRec(claims) || !isRec(claims[check.claim])) return null;
-  const box = /** @type {Record<string, any>} */ (claims[check.claim]);
+  if (!isRec(check) || typeof check.claim !== 'string' || !isRec(claims) || !isRec(/** @type {any} */ (claims)[check.claim])) return null;
+  const box = /** @type {Record<string, any>} */ (/** @type {any} */ (claims)[check.claim]);
   const plural = (/** @type {number} */ n, /** @type {string} */ one, /** @type {string} */ many) => `${n} ${n === 1 ? one : many}`;
   if (typeof box.value === 'number' || typeof box.value === 'boolean') return typeof box.value === 'boolean' ? (box.value ? 'yes' : 'no') : String(box.value);
   if (Array.isArray(box.rows)) return plural(box.rows.length, 'row', 'rows');
@@ -104,7 +104,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       return e;
     });
     const notChecked = guardrails.filter((r, i) => !isColumnChoiceRule(r) && !covered.has(i + 1));
-    out.push({ line: st.fromLine, guardrails, checked, notChecked: notChecked.length === 0 ? 'none' : notChecked });
+    out.push({ line: st.fromLine, guardrails, checked, notChecked: notChecked.length === 0 ? /** @type {'none'} */ ('none') : notChecked });
   }
   return out;
 }

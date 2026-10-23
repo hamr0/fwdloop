@@ -24,7 +24,7 @@ const list = (xs) => xs.join(', ');
  * Checked with `covers`, Not checked), and its sentences are only the lead sentence; the surfaces draw the block. Without `lines` the older one-row-per-check sentences.
  * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[], lines?: any[], csvRoles?: string[] }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
  *   askLines = the job lines of the signed asks, which also lets a step after the LAST ask read "you check it after you accept" (am41 item 2, am42: the ONE place for these words)
- * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[] }[]}
+ * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[], sheet?: ReturnType<typeof sheetLineBlocks>[number] }[]}
  */
 export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvRoles = [] } = {}) {
   const blocks = Array.isArray(lines) ? sheetLineBlocks({ declaration, lines, csvRoles }) : [];
