@@ -88,7 +88,8 @@ export function parseJobBox(text) {
  * M4e amendment 24 item 3: the submitted job box with each answer added WORD FOR WORD as a `~` line under the job line it is about, after
  * that line's own `~` lines (several answers for one line keep their order). The job box's own lines are untouched; the card -> prose path
  * (`cardToProse`) then writes the answer as that line's guardrail, so it reaches the signed text and the hash. Pure. An answer for a line
- * the box does not have is NOT added (the caller sees the count).
+ * the box does not have is NOT added (the caller sees the count). An answer equal (exact string, after trim) to a `~` rule already on that line is not added
+ * again, and still counts: it is taken, the line already says it.
  * @param {string} job @param {{ line: number, answer: string }[]} answers
  * @returns {{ job: string, added: number }}
  */
@@ -96,12 +97,15 @@ export function appendAnswersToJob(job, answers) {
   const raw = String(job).split('\n');
   /** @type {Map<number, number>} the index of the last non-empty box line that belongs to each step (its own line or a `~` under it) */
   const lastOf = new Map();
+  /** @type {Map<number, Set<string>>} the `~` rules each step already has */
+  const have = new Map();
   let step = 0;
   raw.forEach((l, i) => {
     const t = l.trim();
     if (t === '') return;
     if (!t.startsWith('~')) step += 1;
     if (step > 0) lastOf.set(step, i);
+    if (step > 0 && t.startsWith('~')) have.set(step, (have.get(step) ?? new Set()).add(t.slice(1).trim()));
   });
   /** @type {Map<number, string[]>} */
   const after = new Map();
@@ -109,8 +113,11 @@ export function appendAnswersToJob(job, answers) {
   for (const a of answers) {
     if (!lastOf.has(a.line)) continue;
     const at = /** @type {number} */ (lastOf.get(a.line));
-    after.set(at, [...(after.get(at) ?? []), `~ ${a.answer}`]);
     added += 1;
+    const rules = have.get(a.line) ?? new Set();
+    if (rules.has(a.answer.trim())) continue;
+    have.set(a.line, rules.add(a.answer.trim()));
+    after.set(at, [...(after.get(at) ?? []), `~ ${a.answer}`]);
   }
   const out = [];
   raw.forEach((l, i) => { out.push(l); for (const g of after.get(i) ?? []) out.push(g); });
