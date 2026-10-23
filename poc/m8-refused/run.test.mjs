@@ -166,3 +166,11 @@ test('DRAFTS_PER_ARM is 3 and the stop line is the signed $0.25', () => {
   assert.equal(DRAFTS_PER_ARM, 3);
   assert.equal(SPEND_STOP_USD, 0.25);
 });
+
+test('draft() is called with offerQuestions:false and the prior-spend hook (no stop for a human question)', async () => {
+  const seen = [];
+  const draftFn = async (a) => { seen.push(a); return { ok: true, log: [], rounds: 1, calls: 1, costUsd: 0.001, spendComplete: true, structureRetries: 0 }; };
+  await runBatch({ tag: 'o1', jobs: mkJobs().slice(0, 1), outDir: outDir(), injected: { provider: ruleProvider(always), rates: RATES, modelId: MODEL }, draftFn, writeLine: quiet });
+  assert.equal(seen.length, 6);
+  assert.ok(seen.every((a) => a.offerQuestions === false && typeof a.priorSpend === 'function'));
+});

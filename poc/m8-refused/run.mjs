@@ -152,6 +152,8 @@ export async function runBatch({
           r = await withDeadline(draftFn({
             proseText: job.proseText, provider, rates: live.rates, modelId: live.modelId, model, env,
             priorSpend: () => ledgerTotalUsd(spendPath),
+            // the redraft mode: a sheet-map offer is Not checked, never a stop for a human (f80-1 aborted: 5 of 6 aging drafts stopped at look-asks before any drafting round)
+            offerQuestions: false,
           }), deadlineMs);
         } catch (err) {
           r = { ok: false, reds: [`crash: ${err.message}`], rounds: null, costUsd: null, stop: 'crash', log: [] };
