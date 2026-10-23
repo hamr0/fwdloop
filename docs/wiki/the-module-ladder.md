@@ -2416,6 +2416,12 @@ SIGNED by hamr 2026-10-23 ("sign m8 am2"), the text exactly as shown:
 4. "Fix touched" is not printed in the hint; it stays in the ledger.
 5. These replace item 1's "The one change is B1."
 
+SIGNED by hamr 2026-10-23 ("sign m8 am3"), the text exactly as shown:
+
+**M8 amendment 3 — a NEVER FIXED note is kept.**
+1. Amendment 2's line 2 replaces item 2's "dropped as bareloop does": a step red on every try is a NEVER FIXED note, and it is kept.
+2. Everything else in item 2 stands.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
