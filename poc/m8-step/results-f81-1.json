@@ -1,0 +1,747 @@
+{
+  "summary": {
+    "tag": "f81-1",
+    "model": "deepseek-flash",
+    "ran": 9,
+    "requested": 16,
+    "stoppedBy": "spend: ledger $0.3858; a sample cap of $0.0571 is under the $0.0700 minimum (one round's ceiling is $0.0384) under the $0.50 stop",
+    "ledgerTotalUsd": 0.38584,
+    "roundCeilingUsd": 0.0384,
+    "verdict": "INCONCLUSIVE: m7-walk-2 (INCONCLUSIVE: 2 A / 2 B paired samples, fewer than 3); m10b-expenses (INCONCLUSIVE: 2 A / 2 B paired samples, fewer than 3)",
+    "pass": false,
+    "bars": {
+      "redStepTries": {
+        "A": 4,
+        "B": 6,
+        "ok": false
+      },
+      "redRunsPlusFailedDrafts": {
+        "A": 1,
+        "B": 1,
+        "ok": true
+      },
+      "cost": {
+        "A": 0.161378,
+        "B": 0.187586,
+        "limitB": 0.177516,
+        "ok": false,
+        "unknown": false
+      }
+    },
+    "A": {
+      "samples": 4,
+      "failedDrafts": 0,
+      "runs": 4,
+      "redRuns": 1,
+      "pausedRuns": 3,
+      "stepTries": 13,
+      "redStepTries": 4,
+      "costUsd": 0.161378,
+      "unknownCostSamples": 0
+    },
+    "B": {
+      "samples": 4,
+      "failedDrafts": 0,
+      "runs": 4,
+      "redRuns": 1,
+      "pausedRuns": 3,
+      "stepTries": 15,
+      "redStepTries": 6,
+      "costUsd": 0.187586,
+      "unknownCostSamples": 0
+    },
+    "perJob": {
+      "m7-walk-2": {
+        "A": {
+          "samples": 2,
+          "failedDrafts": 0,
+          "runs": 2,
+          "redRuns": 1,
+          "pausedRuns": 1,
+          "stepTries": 7,
+          "redStepTries": 2,
+          "costUsd": 0.066687,
+          "unknownCostSamples": 0
+        },
+        "B": {
+          "samples": 2,
+          "failedDrafts": 0,
+          "runs": 2,
+          "redRuns": 1,
+          "pausedRuns": 1,
+          "stepTries": 10,
+          "redStepTries": 5,
+          "costUsd": 0.105467,
+          "unknownCostSamples": 0
+        },
+        "bars": {
+          "redStepTries": {
+            "A": 2,
+            "B": 5,
+            "ok": false
+          },
+          "redRunsPlusFailedDrafts": {
+            "A": 1,
+            "B": 1,
+            "ok": true
+          },
+          "cost": {
+            "A": 0.066687,
+            "B": 0.105467,
+            "limitB": 0.073356,
+            "ok": false,
+            "unknown": false
+          }
+        },
+        "pass": false,
+        "verdict": "INCONCLUSIVE: 2 A / 2 B paired samples, fewer than 3"
+      },
+      "m10b-expenses": {
+        "A": {
+          "samples": 2,
+          "failedDrafts": 0,
+          "runs": 2,
+          "redRuns": 0,
+          "pausedRuns": 2,
+          "stepTries": 6,
+          "redStepTries": 2,
+          "costUsd": 0.094691,
+          "unknownCostSamples": 0
+        },
+        "B": {
+          "samples": 2,
+          "failedDrafts": 0,
+          "runs": 2,
+          "redRuns": 0,
+          "pausedRuns": 2,
+          "stepTries": 5,
+          "redStepTries": 1,
+          "costUsd": 0.082119,
+          "unknownCostSamples": 0
+        },
+        "bars": {
+          "redStepTries": {
+            "A": 2,
+            "B": 1,
+            "ok": true
+          },
+          "redRunsPlusFailedDrafts": {
+            "A": 0,
+            "B": 0,
+            "ok": true
+          },
+          "cost": {
+            "A": 0.094691,
+            "B": 0.082119,
+            "limitB": 0.10416,
+            "ok": true,
+            "unknown": false
+          }
+        },
+        "pass": true,
+        "verdict": "INCONCLUSIVE: 2 A / 2 B paired samples, fewer than 3"
+      }
+    },
+    "pairedSamples": 8,
+    "unpairedDropped": 1
+  },
+  "hints": {
+    "m7-walk-2": {
+      "text": "Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):\n1. [this job, seen 2 times] check \"summary_resume (line 3, softgreen)\" (at most 600 words) failed; fixed later in the same run.\n   It said: 1889 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\n2. [this job, seen 2 times] check \"resume_parked (line 1, hitl)\" failed; got stuck here, never fixed.\n   It said: step \"resume_parked\" reports done: false — readDocx refused the resume file: no End Of Central Directory record (0x06054b50) was found, so the file…",
+      "info": {
+        "hints": 2,
+        "chars": 639
+      }
+    },
+    "m10b-expenses": {
+      "text": "Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):\n1. [this job, seen 1 time] check \"large_expenses (line 2, green)\" (sum — sum of Amount where Amount > 500) failed; fixed later in the same run.\n   It said: over-500-total: claimed value does not match (11950.05)\n   What changed: -\"value\": 11950.05\n                 +\"value\": 12719.59",
+      "info": {
+        "hints": 1,
+        "chars": 386
+      }
+    }
+  },
+  "records": [
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 1,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 3,
+        "calls": 3,
+        "costUsd": 0.0059574,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 6017
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "not-done",
+        "kind": "red",
+        "red": "step \"summary_resume\" reports done: false — Resume and JD read fine, but my step toolset allows only one artifact emission and I emitted a partial draft before finishing the work history blurb, profes",
+        "steps": [
+          {
+            "step": "resume_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "jd_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "summary_resume",
+            "class": "softgreen",
+            "tries": 1,
+            "redTries": 1,
+            "ended": "red",
+            "redLines": [
+              "step \"summary_resume\" reports done: false — Resume and JD read fine, but my step toolset allows only one artifact emission and I emitted a partial draft before finishing the work history blurb, profes"
+            ]
+          }
+        ],
+        "costUsd": 0.019876199999999997,
+        "spendComplete": true,
+        "wallMs": 28683
+      },
+      "costUsd": 0.025834,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 2,
+        "drafterCarried": 0,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 11,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "B",
+      "n": 1,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 6,
+        "calls": 6,
+        "costUsd": 0.015940799999999998,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 12675
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "resume_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "jd_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "summary_resume",
+            "class": "softgreen",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "1231 words, limit 600"
+            ]
+          }
+        ],
+        "costUsd": 0.029683199999999996,
+        "spendComplete": true,
+        "wallMs": 48779
+      },
+      "costUsd": 0.045624,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 5,
+        "drafterCarried": 5,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 14,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m10b-expenses",
+      "arm": "A",
+      "n": 1,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 3,
+        "calls": 3,
+        "costUsd": 0.012298199999999999,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 7019
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "expenses_sheet",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "over_500_list",
+            "class": "green",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "over500-count: claimed value does not match (16); over500-total: claimed value does not match (12160.85)"
+            ]
+          }
+        ],
+        "costUsd": 0.026137799999999996,
+        "spendComplete": true,
+        "wallMs": 14085
+      },
+      "costUsd": 0.038436,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 2,
+        "drafterCarried": 0,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 7,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m10b-expenses",
+      "arm": "B",
+      "n": 1,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 4,
+        "calls": 4,
+        "costUsd": 0.0185694,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 8581
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "expenses_sheet",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "large_expenses",
+            "class": "green",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "over-500-count: claimed value does not match (13); over-500-total: claimed value does not match (9747.63); over-500-rows: claim omits rows: 26"
+            ]
+          }
+        ],
+        "costUsd": 0.026967599999999998,
+        "spendComplete": true,
+        "wallMs": 14853
+      },
+      "costUsd": 0.045537,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 3,
+        "drafterCarried": 3,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 7,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 2,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 5,
+        "calls": 5,
+        "costUsd": 0.011673,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 9257
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "resume_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "jd_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "summary_resume",
+            "class": "softgreen",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "1254 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)"
+            ]
+          }
+        ],
+        "costUsd": 0.029180400000000002,
+        "spendComplete": true,
+        "wallMs": 48357
+      },
+      "costUsd": 0.040853,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 4,
+        "drafterCarried": 0,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 14,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "B",
+      "n": 2,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 4,
+        "calls": 4,
+        "costUsd": 0.009522599999999999,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 8187
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "attempt-fallback",
+        "kind": "red",
+        "red": "attempt-fallback: step \"Write me a summary resume from the parked resume and JD: how it matches the JD, with a work history blurb, professional skills and soft skills\" — no line is exactly the heading",
+        "steps": [
+          {
+            "step": "resume_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "jd_parked",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "summary_resume",
+            "class": "softgreen",
+            "tries": 4,
+            "redTries": 4,
+            "ended": "red",
+            "redLines": [
+              "1150 words, limit 600",
+              "no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Professional Skills\" (a heading is a line that is only t",
+              "1719 words, limit 600",
+              "no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Professional Skills\" (a heading is a line that is only t"
+            ]
+          }
+        ],
+        "costUsd": 0.050320199999999995,
+        "spendComplete": true,
+        "wallMs": 83423
+      },
+      "costUsd": 0.059843,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 3,
+        "drafterCarried": 3,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 20,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m10b-expenses",
+      "arm": "A",
+      "n": 2,
+      "capUsd": 0.1,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 6,
+        "calls": 6,
+        "costUsd": 0.0303054,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 12757
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "expenses_text",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "expenses_over_500",
+            "class": "green",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "over-500-total: claimed value does not match (12101.42)"
+            ]
+          }
+        ],
+        "costUsd": 0.025949399999999997,
+        "spendComplete": true,
+        "wallMs": 13342
+      },
+      "costUsd": 0.056255,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 5,
+        "drafterCarried": 0,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 7,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m10b-expenses",
+      "arm": "B",
+      "n": 2,
+      "capUsd": 0.094,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 4,
+        "calls": 4,
+        "costUsd": 0.017799,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 7085
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "expenses_sheet_read",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "large_expenses",
+            "class": "green",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          }
+        ],
+        "costUsd": 0.018783,
+        "spendComplete": true,
+        "wallMs": 7716
+      },
+      "costUsd": 0.036582,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 3,
+        "drafterCarried": 3,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 5,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    },
+    {
+      "job": "m7-walk-2",
+      "arm": "A",
+      "n": 3,
+      "capUsd": 0.076,
+      "draft": {
+        "ok": true,
+        "stop": null,
+        "rounds": 2,
+        "calls": 2,
+        "costUsd": 0.0032711999999999993,
+        "spendComplete": true,
+        "reds": [],
+        "wallMs": 3633
+      },
+      "sign": {
+        "ok": true,
+        "signedBy": "poc-f81",
+        "reds": []
+      },
+      "run": {
+        "outcome": "paused",
+        "kind": "paused-at-ask",
+        "red": null,
+        "steps": [
+          {
+            "step": "parked_resume",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "parked_jd",
+            "class": "hitl",
+            "tries": 1,
+            "redTries": 0,
+            "ended": "green",
+            "redLines": []
+          },
+          {
+            "step": "summary_resume",
+            "class": "softgreen",
+            "tries": 2,
+            "redTries": 1,
+            "ended": "green",
+            "redLines": [
+              "1359 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)"
+            ]
+          }
+        ],
+        "costUsd": 0.0336072,
+        "spendComplete": true,
+        "wallMs": 52609
+      },
+      "costUsd": 0.036878,
+      "requests": {
+        "ok": true,
+        "drafterCalls": 1,
+        "drafterCarried": 0,
+        "draftCallsOnOtherPrompts": 1,
+        "stepCalls": 14,
+        "stepCarried": 0
+      },
+      "injectionOk": true,
+      "timedOut": false
+    }
+  ]
+}
