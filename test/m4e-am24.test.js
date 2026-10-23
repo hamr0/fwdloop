@@ -396,6 +396,7 @@ import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
 const fnSrc = (name) => cutFn(CHAT, name, '    ');
+const SHEET_LINES = cutFn(PAGE, 'sheetBlockLines', '  '); // M10b piece 4: extrasFor draws a sheet line's block with the page's one function
 const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 const openState = { draftId: 'd-1', phase: 'questions-open', openK: 1, total: 2, questions: [
   { k: 1, line: 3, lineText: 'write me a summary resume', question: 'What does "3 sections" mean?', answered: false },
@@ -473,7 +474,7 @@ test('P5: Send posts k and the text to the answer route; a refusal shows the ser
 });
 
 test('P6: Your answers sit under their line; Checked is listed; Not checked always carries its label; none of it shows without a green plan', () => {
-  const ex = load('extrasFor');
+  const ex = load('extrasFor', SHEET_LINES);
   const green = {
     phase: 'green', answers: [{ line: 3, lineText: 'write me a summary resume', question: 'q', answer: 'Skills, Fit and History' }],
     checked: [{ step: 1, line: 3, sentences: ['The whole output is under 600 words.'] }, { step: 2, line: null, sentences: ['No machine check of the content: you check it at the ask.'] }],
