@@ -3469,3 +3469,11 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 - Sample size: 10 FIXED cards over 5 workflows, 51 runs; every fold is in one workflow (m7-walk-2). Nothing here tests climbing or the 56-day memory rules.
 
 **Verdict: FITS WITH B1** (flagged line = the close's red line). Bars with B1: (1) 50% (borderline, passes), (2) 10 of 10, (3) 2 lessons. **B2** (kind = close class) is recommended on top, so NEVER FIXED cards are not all discarded (bar 1 100%), but it retires the TOO-THIN filter and is a ruling for hamr. Not solved by either: What changed (empty on 6 of 10, a text blob on prose, content leaks into the prompt), and the aging omission (no card can see it). Next step goes to hamr.
+
+**Fold count ($0, 2026-10-23, asked by hamr via `loop`; read by hamr).** v0.46.0 learn.js shape + B1, the F79 cards, `JACCARD_MIN` 0.6 with numbers counted.
+- Every card pair with the same job and the same check: 6 pairs, all in `m7-walk-2` / `summary_resume (line 3, softgreen)`, all FIXED. All 6 score 0.889 (fold); without digit-only tokens all 6 score 1.000.
+- Same mistake but split by score: 0. Would fold only without numbers: 0. False folds: 0.
+- The two `m7-walk-2` ledger rows (run-1 + run-2, specHash `c0403232…`; run-5 + run-6, specHash `f522c1c3…`) are split by the job-version rule as ruled (a new specHash opens its own rows), not by the score.
+- Red lines (4 runs; only the count differs): `864 / 1277 / 1357 / 1889 words, limit 600; no line is exactly the heading "Work History" (a heading is a line that is only that text, optionally after #)`.
+- No change on either side: `JACCARD_MIN` stays 0.6, numbers counted (hamr, 2026-10-23).
+- Caveat: there was one repeating check, so this says nothing about false folds.
