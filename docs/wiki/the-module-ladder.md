@@ -2407,6 +2407,15 @@ SIGNED by hamr 2026-10-23 ("sign m8 am1"), the text exactly as shown:
 1. `learningHints` is a line in config.json, per user, OFF when absent. The Settings page shows nothing for it. Item 5's "Setting `learningHints` in Settings" means this line.
 2. Everything else in item 5 stands: when OFF, notes are still counted and nothing is handed.
 
+SIGNED by hamr 2026-10-23 ("sign m8 am2"), the text exactly as shown:
+
+**M8 amendment 2 — the shape of a note, from a review of every real note (2026-10-23).**
+1. "It said" stays exactly as bareloop's, with B1.
+2. A NEVER FIXED note is kept: bareloop's too-thin filter applies only to FIXED notes.
+3. "What changed" shows a changed line only when it fits whole in 150 characters; a longer line is left out, never cut.
+4. "Fix touched" is not printed in the hint; it stays in the ledger.
+5. These replace item 1's "The one change is B1."
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
