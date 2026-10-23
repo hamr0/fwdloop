@@ -20,8 +20,8 @@ const parsed = parseSignedText(prose);
 assert.equal(parsed.ok, true, JSON.stringify(parsed.reds));
 const check = (decl, extra = {}) => validateDeclaration(decl, { arbiter: parsed.arbiter, lines: parsed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, ...extra });
 const fit = (decl) => check(decl, { fitJobLine: true });
-// the fixture's green step also needs cells (am8); give it so only the ask is in question
-const fixed = () => { const d = asDrafted(); d.steps[1].reads = ['aging']; return d; };
+// the fixture's green step also needs cells (am8) and, since M10b piece 5, close.sheet instead of the old cell cite; give it so only the ask is in question
+const fixed = () => { const d = asDrafted(); d.steps[1].reads = ['aging']; d.steps[1].close = { class: 'green', sheet: [{ id: 'n', rule: 'cells', table: 'aging', claim: 'n', op: 'count', column: 'Amount', covers: [] }] }; return d; };
 
 test('(a) the aging-live-1 ask, as drafted (reads nothing), is refused at $0 with the sentence', () => {
   const r = fit(asDrafted());

@@ -42,10 +42,11 @@ test('(a) a green step that reads nothing is refused too; no cells input signed 
 });
 
 test('(b) the same plan with step 2 reading `aging` passes the checker', () => {
-  const d = asDrafted(); d.steps[1].reads = ['aging']; d.steps[2].reads = ['bucket_assignment']; // am9: the ask reads what it asks about
+  const sheet = [{ id: 'n', rule: 'cells', table: 'aging', claim: 'n', op: 'count', column: 'Amount', covers: [] }]; // M10b piece 5: a green step on a CSV carries close.sheet, not the old cell cite
+  const d = asDrafted(); d.steps[1].reads = ['aging']; d.steps[1].close = { class: 'green', sheet }; d.steps[2].reads = ['bucket_assignment']; // am9: the ask reads what it asks about
   const r = check(d);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  const d2 = asDrafted(); d2.steps[1].reads = ['aging_text', 'aging']; d2.steps[2].reads = ['bucket_assignment'];
+  const d2 = asDrafted(); d2.steps[1].reads = ['aging_text', 'aging']; d2.steps[1].close = { class: 'green', sheet }; d2.steps[2].reads = ['bucket_assignment'];
   assert.equal(check(d2).ok, true);
 });
 

@@ -176,14 +176,15 @@ test('covers that names a rule the line does not have is refused, naming the lin
   assert.ok(r.reds.some((x) => x.includes("line 2") && x.includes("'nodup'") && x.includes('covers')), r.reds.join('\n'));
 });
 
-test('a guardrail rule no check covers shows under Not checked (F76 aging draft 1: noDuplicates dropped); a step with no close.sheet lists every rule', async () => {
+test('a guardrail rule no check covers shows under Not checked (F76 aging draft 1: noDuplicates dropped); a step with no close.sheet is refused', async () => {
   const dropped = CHECKS().slice(1); // the noDuplicates check is gone
   const { r } = await run(dropped);
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — no sheet check covers it']);
+  // M10b piece 5: a green step with no close.sheet is the old cell cite; it no longer drafts, so there is no step left to list every rule for
   const none = await run(undefined);
-  assert.equal(none.r.ok, true, none.r.reds.join('\n'));
-  assert.deepEqual(none.r.notChecked, ['line 2: "every invoice appears exactly once" — no sheet check covers it', 'line 2: "flag amounts over 500" — no sheet check covers it']);
+  assert.equal(none.r.ok, false);
+  assert.ok(none.r.reds.some((x) => x.includes("Line 2's check cannot cite cells any more")), none.r.reds.join('\n'));
 });
 
 test('the column choice an agreed ask wrote is not a rule to cover, and the header the drafter may pick from is the whole sheet', async () => {

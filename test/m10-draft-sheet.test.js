@@ -143,7 +143,8 @@ const AGING = readFileSync(new URL('./fixtures/m4d-am8.aging.signed.txt', import
 const agingDecl = (columns) => {
   const d = JSON.parse(readFileSync(new URL('./fixtures/m4d-am8.aging.declaration.json', import.meta.url), 'utf8'));
   d.steps[1].reads = ['aging']; d.steps[2].reads = ['bucket_assignment'];
-  if (columns) d.steps[1].close = { class: 'green', columns };
+  // M10b piece 5: the green step carries close.sheet (the old cell cite no longer drafts)
+  d.steps[1].close = { class: 'green', ...(columns ? { columns } : {}), sheet: [{ id: 'n', rule: 'cells', table: 'aging', claim: 'n', op: 'count', column: 'Amount', covers: [] }] };
   delete d.inputFacts;
   return d;
 };

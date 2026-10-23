@@ -40,10 +40,12 @@ const check = (d, tables = tablesOf()) => validateDeclaration(d, {
 });
 const redsOf = (sheet, tables) => check(base(sheet), tables).reds.join('\n');
 
-test('valid sheet checks sign (rows, band, noDuplicates over the real header), and a draft with no close.sheet is unchanged', () => {
+test('valid sheet checks sign (rows, band, noDuplicates over the real header), and a draft with no close.sheet is refused (M10b piece 5: the old cell cite retired)', () => {
   const r = check(base(CHECKS()));
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(check(base()).ok, true);
+  const old = check(base());
+  assert.equal(old.ok, false);
+  assert.ok(old.reds.some((x) => x.includes("Line 2's check cannot cite cells any more")), JSON.stringify(old.reds));
 });
 
 test('a column that is no header of the sheet is refused, naming the line and the column', () => {

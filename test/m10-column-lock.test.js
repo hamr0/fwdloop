@@ -18,6 +18,8 @@ const step = (columns) => ({ close: { class: 'green', ...(columns === undefined 
 const art = (cite, value) => ({ fields: { total: { value, cite } } });
 const ctx = { reads, businessDate: '2026-10-11' };
 const LOCK = [{ source: 'aging', column: 'Amount' }];
+// M10b piece 5: a green step that reads a CSV now carries close.sheet (the old cell cite no longer drafts), so each close these declaration tests expect to pass has one
+const CLAIMS = [{ id: 'n', rule: 'cells', table: 'aging', claim: 'n', op: 'count', column: 'Amount', covers: [] }];
 
 test('a cell from the locked column is green; with no lock a cell from any column is green, as today', async () => {
   assert.equal((await closeByClass(step(LOCK), art('aging!C2', 429.34), ctx)).verdict, 'green');
@@ -61,7 +63,7 @@ const sheetWords = { headers: { aging: SHEET.header }, facts: [{ line: 2, source
 const check = (d, extra = {}) => validateDeclaration(d, { arbiter: parsed.arbiter, lines: parsed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true, ...extra });
 
 test('declaration: columns is a green step\'s list of {source, column}; any other shape is refused', () => {
-  const d = base(); d.steps[1].close = { class: 'green', columns: LOCK };
+  const d = base(); d.steps[1].close = { class: 'green', columns: LOCK, sheet: CLAIMS };
   assert.equal(check(d).ok, true, JSON.stringify(check(d).reds));
   for (const bad of ['Amount', [], [{ source: 'aging' }], [{ source: 'aging', column: '' }], [{ source: 'aging', column: 'Amount', x: 1 }], [{ source: 'nope', column: 'Amount' }]]) {
     const e = base(); e.steps[1].close = { class: 'green', columns: bad };
@@ -83,9 +85,9 @@ test('declaration with the sheet: the column the code kept (an agreed one) must 
   const missing = base(); missing.steps[1].close = { class: 'green', columns: [{ source: 'aging', column: 'Tax' }] };
   const r = check(missing, { sheetWords });
   assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes("'Amount'")), JSON.stringify(r.reds));
-  const none = base(); none.steps[1].close = { class: 'green' };
+  const none = base(); none.steps[1].close = { class: 'green', sheet: CLAIMS };
   assert.ok(check(none, { sheetWords }).reds.some((x) => x.includes('line 2') && x.includes("'Amount'")));
   assert.equal(check(none, { sheetWords: { headers: sheetWords.headers, facts: [] } }).ok, true);
-  const ok = base(); ok.steps[1].close = { class: 'green', columns: LOCK };
+  const ok = base(); ok.steps[1].close = { class: 'green', columns: LOCK, sheet: CLAIMS };
   assert.equal(check(ok, { sheetWords }).ok, true, JSON.stringify(check(ok, { sheetWords }).reds));
 });
