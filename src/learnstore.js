@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learnstore.js@v0.46.0 (8b3d815)
-// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; stageQuestionsByName, learnAtRunEnd, learningHintsOn and hintsForRun are NOT copied (they need the run-end wiring, the learningHints config line and stage questions, none built yet: M8 item 5 / am1); imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
+// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is NOT copied (it hands hints to the drafter, M8 item 5a, not built yet); stageQuestionsByName is not copied either (see learnAtRunEnd); imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
 // The thin reader/writer around src/learn.js (cross-run learnings, ITEM33-BUILD.md rev 2). All file IO lives here and
 // the pure rules live in learn.js; nothing in either file can reach a model.
 //
@@ -9,7 +9,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { configHome, configDoorHome } from './config.js';
+import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth } from './learn.js';
 
 /**
@@ -99,4 +99,27 @@ export function releaseRun({ home, runid, now = new Date() }) {
   const r = releasePending(cur.ledger, runid, now);
   if (r.ledger !== cur.ledger) writeLedger(r.ledger, home);
   return { released: r.released, problem: null };
+}
+
+/**
+ * M8 am1: the ONE setting, `learningHints` in config.json. Ships OFF (absent = off). OFF still writes the tally ($0); the drafter
+ * is simply handed nothing. Copied from bareloop learnstore.js@v0.46.0:104 (borrowed-from header above). Difference: bareloop's
+ * `readConfig` returns a problem, fwdloop's THROWS ConfigError on an unreadable / non-JSON / invalid file. The safe reading is kept:
+ * a bad or unreadable config reads as OFF (never ON). Under a test process with no explicit home and no FWDLOOP_CONFIG_HOME it
+ * reads nothing (OFF), so a test can never reach the real ~/.config/fwdloop.
+ * @param {string} [home]
+ * @returns {boolean}
+ */
+export function learningHintsOn(home) {
+  let h = home;
+  if (h === undefined) {
+    const door = configDoorHome();
+    if (door.skip) return false;
+    h = door.home;
+  }
+  try {
+    return readConfig({ home: h }).learningHints === true;
+  } catch {
+    return false;
+  }
 }

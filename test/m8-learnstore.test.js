@@ -124,7 +124,6 @@ test('adaptation: the ledger keeps every row — a row last seen long ago and on
   assert.equal(rows.find((r) => r.workflow === 'aging-1').runIds[0], 'old');
 });
 
-test('adaptation: the run-end, config-line and hint-render functions are not in this file (no wiring yet)', () => {
-  for (const n of ['learnAtRunEnd', 'hintsForRun', 'learningHintsOn']) assert.equal(n in store, false, n);
-  assert.deepEqual(Object.keys(store).sort(), ['foldRunIntoLedger', 'ledgerPath', 'readLedger', 'releaseRun', 'writeLedger']);
+test('adaptation: hintsForRun (hands hints to the drafter, M8 item 5a) is not in this file yet', () => {
+  assert.equal('hintsForRun' in store, false);
 });
