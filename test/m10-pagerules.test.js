@@ -2,7 +2,7 @@
 // page (public flights page, no PII). $0, no network. A rule here must be able to fail: each forced red is named in its commit.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyPageRules } from '../src/pagerules.js';
+import { applyPageRules, numberAtEnd } from '../src/pagerules.js';
 import { dropRows } from '../src/pagedropwords.js';
 import { parseMapAnswer, mapPrompt } from '../src/pagemap.js';
 import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
@@ -55,4 +55,13 @@ test('the same word listed as a unit and a currency is said once, in plain words
   assert.ok(all.every((s) => !/"US dollars" does not show the same amounts as "US dollars"/.test(s)), all.join(' | '));
   assert.deepEqual(r.facts[0].unit, ['US dollars']);
   assert.ok(all.some((s) => /"US dollars" was listed twice/.test(s)), all.join(' | '));
+});
+
+test('numberAtEnd reads the number before a label in linear time: a 50000-char "1,1,...x" and "111...x" prefix returns at once (the backtracking regex took many seconds)', () => {
+  const t0 = performance.now();
+  assert.equal(numberAtEnd('1,'.repeat(25000) + 'x'), undefined);
+  assert.equal(numberAtEnd('1'.repeat(50000) + 'x'), undefined);
+  assert.equal(numberAtEnd('Total 1,234.50 '), '1,234.50');
+  assert.equal(numberAtEnd('x,5'), '5');
+  assert.ok(performance.now() - t0 < 1000, `took ${performance.now() - t0} ms`);
 });

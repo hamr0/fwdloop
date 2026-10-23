@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/pagedry.js@c550dc8 (c61d227 + dryReadPhrases) (adapted: the REAL checker here is fwdloop's run-time `checkCited`, src/citedcheck.js, fed the fact exactly as it would be signed, `factsOfLook`).
+// borrowed-from: bareloop src/pagedry.js@c550dc8 (c61d227 + dryReadPhrases; numberAtEnd shared from pagerules.js, bareloop @95f14b4) (adapted: the REAL checker here is fwdloop's run-time `checkCited`, src/citedcheck.js, fed the fact exactly as it would be signed, `factsOfLook`).
 // "CAN IT READ" (F241). After the page rules, a $0 dry read asks of each kept money fact whether the run-time checker can read a price on the page's own
 // result lines. For every result line it checks an HONEST claim (quote = that line, value = the line's amount) with `checkCited`, the one reader the run
 // itself uses - no copy of its logic here. A fact that reads no result line is dropped as `reads-no-result` and shows under Not checked.
@@ -6,13 +6,12 @@
 // No limits, no counts, no pass bar: only "can it read". No I/O, no clock, no model. The caller is src/pagelook.js `lookAtPage`.
 
 import { checkCited, factsOfLook } from './citedcheck.js';
-import { linesOf } from './pagerules.js';
+import { linesOf, numberAtEnd } from './pagerules.js';
 
 /** @typedef {import('./pagerules.js').KeptFact} KeptFact @typedef {import('./pagerules.js').Dropped} Dropped */
 
 /** a number as the page writes it, thousands commas allowed: \d[\d,]*(?:\.\d+)?  (written out as literals - this repo bans dynamic patterns in src/) */
 const AFTER_LABEL = /^\s*(?:[$€£]\s*)?(\d[\d,]*(?:\.\d+)?)/;
-const BEFORE_UNIT = /(\d[\d,]*(?:\.\d+)?)\s*$/;
 /** the name every dry-read claim is made under (the checker only needs one name; the fact's own is not read) */
 const CLAIM = 'price';
 const SOURCE = 'page';
@@ -37,7 +36,7 @@ export function moneyResultLines(text, k) {
       }
     } else {
       for (const u of k.unit ?? []) {
-        for (let at = ln.indexOf(u); at !== -1 && amount === undefined; at = ln.indexOf(u, at + u.length)) amount = BEFORE_UNIT.exec(ln.slice(0, at))?.[1];
+        for (let at = ln.indexOf(u); at !== -1 && amount === undefined; at = ln.indexOf(u, at + u.length)) amount = numberAtEnd(ln.slice(0, at));
         if (amount !== undefined) break;
       }
     }
