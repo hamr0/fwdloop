@@ -3528,3 +3528,51 @@ Structure retries: A 3, B 2. No draft had an unknown cost. Spend: f80-1 $0.0301 
 - Costs include the map call (aging, m7, am29 each ran one sheet-map call per draft, both arms); the map call does not carry the note.
 
 **Verdict: DOES NOT HELP.** The bars are pre-registered; bars 1 and 2 failed and cannot be rescued by the one draft the cap left out. The run is formally incomplete (17 of 18), which the harness reports as INCONCLUSIVE; I read it as DOES NOT HELP because the missing draft cannot change either failing bar. On this data refused-plan notes did not reduce refusals or failures; they are dropped. Caveats: 3 drafts per cell, one model, redraft mode (offerQuestions false), and the notes were not written for what the model actually got wrong in two of the three jobs.
+
+## F81 — POC: do step-failure notes (M8 shape) make the next run of the same job better? (pre-registered 2026-10-23, before any call)
+
+**Status.** Pre-registered 2026-10-23, before any call. Tags: **[RULING]** hamr 2026-10-23: cap $0.50 ("A 0.50"); if step-failure notes do not make the next run better, they are dropped. **[RULING]** hamr 2026-10-23, main session, on how a fresh plan can run: "oh, you sign it it's fine" (a POC-only signature, limits below). **[MEASURED]** none yet. Branch `learnings`. Model `deepseek-flash` only (never a Claude model). Code lives under `poc/m8-step/`; `src/` is not changed. The paid run is **launched by hamr from his own terminal**; no agent starts a paid call. `flows/` holds real PII and is gitignored: this entry and the results file carry counts, red lines and hint text only, never an input or an artifact.
+
+**Question.** F80 showed notes made from the drafter's own refused plans made drafts worse. M8 (ladder, scope item 5a + am2) hands STEP-failure notes (a step's check went red in an earlier real run of the same job) to the drafter the same way, and that is untested. Does a draft made with those notes give a better RUN of the same job than a draft made without them?
+
+**Limits on the POC signature (hamr's words are the ruling; these limits are mine and are quoted here so they bind the code).**
+1. The signer is recorded as `poc-f81`, never "hamr".
+2. Signing happens only inside a `mkdtemp` root (never under `flows/`, never a real job's folder). The config home is the test door: `FWDLOOP_CONFIG_HOME` inside the temp root with `NODE_ENV=test` (`configDoorHome` in `src/config.js`), never `~/.config/fwdloop`; the harness copies only the deepseek provider row and the deepseek-flash price row from the real config into that temp config (read-only), so the price is Settings' price. Each temp root is removed after its record is written.
+3. A run stops at its first ask pause. Code never answers or accepts an ask; the send step is a stub that refuses. Gap, stated before the run: **the steps after the first ask are not measured** (the send, anything past the human), and a job whose plan has a red step before the ask is measured only up to that red.
+
+**Data (two jobs, both real, both with LOCAL inputs and a first ask the plan reaches unattended).**
+1. **m7-walk-2** (resume + JD to a summary resume; ask at line 4). Inputs: the recorded `resume.docx` and `jd.md` under `poc/m0/out/job2-probe-1/inputs/` (both read; the docx is a valid docx). Reds in 6 real runs: the `summary_resume` word-limit and heading check (softgreen) twice-seen, and `resume_parked` once. Chosen because it is the job with the most red runs and a softgreen close.
+2. **m10b-expenses** (expenses CSV, sum over 500; ask at line 3). Input: the recorded `.claude/scratch/m10/csv/base.csv`. One real run, one FIXED note on a cells-checked (green) step. Chosen for the other close class (a cells check judged by bareguard) and for being the cheapest.
+- **Not chosen: am29-walk-2.** Same inputs and the same `summary_resume` red as m7-walk-2 (it would repeat one lesson), and the dearest of the three to run (real runs $0.028 to $0.042, against $0.002 to $0.025 for m7-walk-2). Three jobs at 3 samples per arm do not fit $0.50: about $0.03 a sample is 18 samples = $0.54. Two jobs: 12 samples about $0.36.
+
+**Notes (arm B): the exact block, per job, built by code from the real runs ($0, no model call).** Shape: `poc/m8-step/learn-ours.mjs` = `src/learn.js` (bareloop v0.46.0 + B1) with M8 am2 (FIXED-only too-thin filter, no "Fix touched", a changed line over 150 characters left out whole), cards from `poc/learn/adapter.mjs` over every run in `flows/`, rendered with `renderHints` for that workflow, nothing edited. Block handed to the drafter:
+
+m7-walk-2 (2 hints, 639 chars):
+
+    Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):
+    1. [this job, seen 2 times] check "summary_resume (line 3, softgreen)" (at most 600 words) failed; fixed later in the same run.
+       It said: 1889 words, limit 600; no line is exactly the heading "Work History" (a heading is a line that is only that text, optionally after #)
+    2. [this job, seen 2 times] check "resume_parked (line 1, hitl)" failed; got stuck here, never fixed.
+       It said: step "resume_parked" reports done: false — readDocx refused the resume file: no End Of Central Directory record (0x06054b50) was found, so the file…
+
+m10b-expenses (1 hint, 386 chars):
+
+    Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):
+    1. [this job, seen 1 time] check "large_expenses (line 2, green)" (sum — sum of Amount where Amount > 500) failed; fixed later in the same run.
+       It said: over-500-total: claimed value does not match (11950.05)
+       What changed: -"value": 11950.05
+                     +"value": 12719.59
+
+Read before trusting the result: the second m7-walk-2 note describes a broken resume file in two of the real runs; the POC's resume is a valid docx, so that note is stale for these samples. That is what a note from an earlier run can be, and it is not removed. The m10b-expenses block carries two amounts (a claimed total and the correct total) from the recorded test sheet.
+
+**Method.** Per sample, in a fresh `mkdtemp` root: (1) the real `draftToDir()` of `src/authoring.js` (unchanged; deepseek-flash, thinking off, its own metering, its own tries) drafts the job with `noQuestions: true` (the redraft mode, `offerQuestions: false`, as F80, in BOTH arms, because a plain draft may stop to ask the person); (2) if the draft is green, `signDraft()` signs it as `poc-f81` with the draft's own hash; (3) the real `runFlow()` runs the signed plan with the real model step (`makeLiveModelStep`, its own thinking-per-step rule, its own metering), `makeParkingAskStep()` (the run parks at its first ask, which ends the sample), the job's own inputs. A red or refused draft is a sample with no run: it counts as a failed draft.
+- **Arm A** = draft + sign + run, no notes. **Arm B** = the same with the block appended to the DRAFTER system prompt only, by wrapping the provider's `generate` (the F80 wrapper, `armProvider` of `poc/m8-refused/run.mjs`; `src/` unchanged). Both arms use the same wrappers (the run's provider is wrapped too, appending nothing) and record per call whether the request carried the block. Proof required in the results: every drafter request of B carried it, none of A's did, no step request of either arm did.
+- **Order.** Round-robin over the jobs: for sample n = 1, 2, ...: for each job: A_n then B_n. So a cap stop leaves the jobs with equal samples, and provider weather is spread over both arms. Requested 4 per arm per job; stops at the cap; aim at least 3 per arm per job.
+- **Cap $0.50** across every tag (one ledger, `poc/m8-step/spend.jsonl`). Before each sample: the cap line of the job text is set to `min($0.10, (0.50 - ledger)/2)` (ledger = booked spend, an unpriced or incomplete row counted at its ceiling); that cap bounds the draft's own budget and the run's cap, so one sample cannot spend more than `2 x` it; the sample is not started when that cap is below 1.25 x one round's ceiling (priced from the deepseek-flash row of Settings; an unpriced model is refused; an empty key is refused at $0 before any ledger write). The draft and the run are booked as separate ledger rows.
+- **Results** to `poc/m8-step/results-<tag>.json`, written once (`wx`), a tag is never overwritten: counts, red lines (each cut to 200 chars, secret-masked), hint text. Never an artifact or input.
+
+**Measures per sample.** Draft ok / failed (and its stop and red count); per step: tries, red tries, ended green or red; run outcome (green / paused-at-ask / red, by the runner's own outcome); cost USD of the draft plus the run from fwdloop's own metering (an unknown cost is never 0: the sample's cost is unknown, and an unknown cost counts against B).
+
+**PASS bar (B helps only if all three):** (1) B's total red step tries < A's; (2) B's red runs + failed drafts <= A's; (3) B's total cost <= A's + 10%. Per job too; <3 samples per arm in a job = INCONCLUSIVE for that job. Also INCONCLUSIVE overall if either job is, or if neither arm had any red step try (the test cannot tell). Otherwise, if any bar fails, step-failure notes do not help and are dropped.
+
+**The POC can fail.** Real drafts and real runs, the same inputs in both arms, a pre-registered bar; the injection test of the harness was made to fail once by removing the append (see the result). Known weak points, said before the run: 3 to 4 samples per cell, one model, the redraft mode, a stale note in m7-walk-2, one note only in m10b-expenses, and nothing after the first ask measured.
