@@ -16,7 +16,7 @@ test('a normal page comes back as its text, read once, browser closed, with the 
     const r = await fetchPageText(`${srv.base}/ok`, { connect: fc.connect, ...FAST });
     assert.equal(r.ok, true);
     assert.equal(r.ok && r.text, pageText());
-    assert.deepEqual(fc.calls.connect, [CONNECT_OPTIONS]);
+    assert.deepEqual(fc.calls.connect, [{ incognito: true, blockPrivateNetwork: true }]);
     assert.equal(fc.calls.goto.length, 1);
     assert.equal(fc.calls.closed, 1);
   } finally { await srv.close(); }
