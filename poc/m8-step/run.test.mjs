@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { ceilingCostUsd } from '../../src/provider.js';
 import {
-  runBatch, evaluate, totals, paired, stepsOf, injectionProof, sampleCap, gateJobs, SPEND_STOP_USD, PER_ARM, SIGNER, SLOT, MIN_SAMPLE_CAP_USD,
+  runBatch, evaluate, totals, paired, stepsOf, injectionProof, sampleCap, gateJobs, loadPool, SPEND_STOP_USD, PER_ARM, SIGNER, SLOT, MIN_SAMPLE_CAP_USD,
 } from './run.mjs';
 import { withCap, JOB_CAP_USD, loadJobs, FLOWS_ROOT } from './notes.mjs';
 import { HINT_HEADER } from './learn-ours.mjs';
@@ -170,9 +170,21 @@ test('cap stop: stops before a sample whose cap would be under the minimum; the 
 
 test('sampleCap: the job cap, or half of what is left', () => {
   assert.equal(sampleCap(0), JOB_CAP_USD);
-  assert.equal(sampleCap(0.3), 0.1);
-  assert.ok(Math.abs(sampleCap(0.4) - 0.05) < 1e-9);
-  assert.ok(sampleCap(0.5) <= 0);
+  assert.equal(sampleCap(0.3, 0.5), 0.1);
+  assert.ok(Math.abs(sampleCap(0.4, 0.5) - 0.05) < 1e-9);
+  assert.ok(sampleCap(0.5, 0.5) <= 0);
+});
+
+test('runaway guard: with the f81-1 ledger ($0.38584) and $0.20 spent per sample, all 8 samples of n=3..4 still start', () => {
+  const ceiling = ceilingCostUsd(RATES);
+  const minCap = Math.max(MIN_SAMPLE_CAP_USD, 1.25 * ceiling);
+  let ledger = 0.38584;
+  for (let i = 0; i < 8; i += 1) {
+    const cap = sampleCap(ledger);
+    assert.ok(cap >= minCap, `sample ${i + 1} would be refused: ledger $${ledger.toFixed(4)}, cap $${cap.toFixed(4)}`);
+    assert.equal(cap, JOB_CAP_USD, 'the per-sample job cap is unchanged');
+    ledger += 0.2;
+  }
 });
 
 test('a draft that never goes green is a failed draft: no sign, no run, its cost kept; counts against the arm', async () => {
@@ -267,9 +279,9 @@ test('the gate refuses a job whose send folder or input is missing, by name, at 
   assert.throws(() => gateJobs(noIn, path.join(tmpdir(), 'x')), /inputs do not read|does not parse/);
 });
 
-test('constants: HINT_HEADER is the one string F80 used; the stop line is the ruled $0.50; withCap only touches the cap line', () => {
+test('constants: HINT_HEADER is the one string F80 used; the stop line is the 2.5 runaway guard (hamr: no cap stop); withCap only touches the cap line', () => {
   assert.equal(HINT_HEADER, F80_HEADER);
-  assert.equal(SPEND_STOP_USD, 0.5);
+  assert.equal(SPEND_STOP_USD, 2.5);
   assert.equal(PER_ARM >= 3, true);
   const prose = 'x\n\nArbiter guardrails (y):\nguardrail: cap $1 per run\nguardrail: send at line 2 to file:/a\n';
   assert.equal(withCap(prose, 0.1), prose.replace('cap $1 per', 'cap $0.1 per'));
@@ -282,4 +294,66 @@ test('the real jobs (only where flows/ exists): each block is a hint block, ever
   for (const j of jobs) assert.ok(j.hint.startsWith(HINT_HEADER) && j.hint.length <= 2000);
   gateJobs(jobs, path.join(tmpdir(), 'x'));
   assert.deepEqual(readdirSync(tmpdir()).filter(() => false), []);
+});
+
+test('pooling: a second tag from --start-n adds to the first; the totals sum both, the results file keeps only its own records, the first file is untouched', async () => {
+  const dir = outDir();
+  const inj = (p) => ({ provider: p, rates: RATES, modelId: MODEL });
+  const first = await runBatch({
+    tag: 'p1', jobs: mkJobs(), outDir: dir, injected: inj(scenario({ listens: false })), writeLine: quiet, perArm: 1,
+  });
+  assert.equal(first.records.length, 4);
+  const before = readFileSync(path.join(dir, 'results-p1.json'), 'utf8');
+  const lines = [];
+  const second = await runBatch({
+    tag: 'p2', jobs: mkJobs(), outDir: dir, injected: inj(scenario({ listens: false })), writeLine: (l) => lines.push(l), perArm: 3, startN: 2, pool: ['results-p1.json'],
+  });
+  assert.deepEqual(second.records.map((r) => r.n).filter((n, i, a) => a.indexOf(n) === i), [2, 3], 'runs n = 2 and 3 only');
+  assert.ok(second.records.every((r) => r.tag === 'p2'));
+  assert.equal(second.summary.ran, 8);
+  assert.equal(second.summary.requested, 8);
+  assert.deepEqual(second.summary.pooled, [{ tag: 'p1', records: 4 }, { tag: 'p2', records: 8 }]);
+  assert.equal(second.summary.pairedSamples, 12);
+  assert.equal(second.summary.A.samples, 6, 'A of both tags together');
+  assert.equal(second.summary.B.samples, 6);
+  assert.equal(second.summary.perJob.j1.A.samples, 3, 'three paired samples per arm per job only because the tags are pooled');
+  assert.ok(!second.summary.perJob.j1.verdict.startsWith('INCONCLUSIVE: 2 A') && !/fewer than 3/.test(second.summary.perJob.j1.verdict));
+  assert.ok(lines.some((l) => /^POOLED p1=4 p2=8 records/.test(l)));
+  const file = JSON.parse(readFileSync(path.join(dir, 'results-p2.json'), 'utf8'));
+  assert.equal(file.records.length, 8, 'the new file holds only its own records');
+  assert.equal(readFileSync(path.join(dir, 'results-p1.json'), 'utf8'), before, 'the first results file is never rewritten');
+});
+
+test('pairing keys on (tag, job, n): one tag\'s unpaired A3 never pairs with another tag\'s B3', () => {
+  const rec = (tag, arm, n) => ({
+    tag, job: 'j', arm, n, draft: { ok: true }, sign: { ok: true }, run: { kind: 'paused-at-ask', steps: [] }, costUsd: 0.01,
+  });
+  const cross = [rec('t1', 'A', 3), rec('t2', 'B', 3)];
+  assert.equal(paired(cross).length, 0);
+  const ev = evaluate(cross, { minPerArm: 1 });
+  assert.equal(ev.pairedSamples, 0);
+  assert.equal(ev.unpairedDropped, 2);
+  assert.equal(paired([...cross, rec('t1', 'B', 3), rec('t2', 'A', 3)]).length, 4, 'each tag now has its own pair');
+});
+
+test('a bad pool file is refused by name at $0, before any ledger write: missing, unreadable, other model, other job set, same tag, bad --start-n', async () => {
+  const dir = outDir();
+  const inj = { provider: scenario({ listens: true }), rates: RATES, modelId: MODEL };
+  const mkFile = (name, o = {}) => writeFileSync(path.join(dir, name), JSON.stringify({ summary: { tag: name.replace(/^results-|\.json$/g, ''), model: MODEL === 'x' ? 'y' : 'deepseek-flash', ...o.summary }, hints: o.hints ?? { j1: {}, j2: {} }, records: [] }));
+  writeFileSync(path.join(dir, 'results-junk.json'), '{not json');
+  mkFile('results-othermodel.json', { summary: { model: 'some-other-model' } });
+  mkFile('results-otherjobs.json', { hints: { j1: {}, zzz: {} } });
+  mkFile('results-same.json', { summary: { tag: 't9' } });
+  const go = (pool, extra = {}) => runBatch({
+    tag: 't9', jobs: mkJobs(), outDir: dir, injected: inj, writeLine: quiet, perArm: 1, pool, ...extra,
+  });
+  await assert.rejects(go(['results-nope.json']), /--pool results-nope\.json does not exist/);
+  await assert.rejects(go(['results-junk.json']), /--pool results-junk\.json is unreadable/);
+  await assert.rejects(go(['results-othermodel.json']), /is model "some-other-model"/);
+  await assert.rejects(go(['results-otherjobs.json']), /is for jobs \[j1,zzz\]/);
+  await assert.rejects(go(['results-same.json']), /the tag of this run/);
+  await assert.rejects(go([], { startN: 2 }), /--start-n must be an integer from 1 to 1/);
+  assert.throws(() => loadPool(['results-nope.json'], { outDir: dir, model: 'deepseek-flash', jobIds: ['j1', 'j2'], tag: 'x' }), /does not exist/);
+  assert.ok(!existsSync(path.join(dir, 'spend.jsonl')), 'no ledger written');
+  assert.ok(!existsSync(path.join(dir, 'results-t9.json')), 'nothing written for the refused tag');
 });

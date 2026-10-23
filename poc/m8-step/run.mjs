@@ -2,7 +2,7 @@
 // PAID. hamr launches it from his own terminal (see docs/logs/FINDINGS.md F81); no agent starts it.
 //
 //   export DEEPSEEK_API_KEY="$(pass amr/deepseek_api | head -n1 | tr -d '\r\n')"
-//   setsid nohup timeout 2400 node poc/m8-step/run.mjs --tag f81-1 > poc/m8-step/f81-1.log 2>&1 &
+//   setsid nohup timeout 2400 node poc/m8-step/run.mjs --tag f81-2 --start-n 3 --pool results-f81-1.json > poc/m8-step/f81-2.log 2>&1 &
 //
 // Per sample, in a fresh mkdtemp root: draftToDir() (real, unchanged, noQuestions) -> signDraft() as `poc-f81` -> runFlow() with the real model
 // step and a parking ask (the run ends at its first ask; code never answers it, the send step refuses).
@@ -11,13 +11,16 @@
 // Limits on the POC signature (F81): signer `poc-f81`; only inside a mkdtemp root; config home = the test door (NODE_ENV=test +
 // FWDLOOP_CONFIG_HOME inside the temp root, a copy of the deepseek rows only); the temp roots are removed once their record is written.
 // Gates ($0, before any ledger write): empty key, used tag, unpriced model, a job that does not parse / whose inputs or send folder do not read.
-// Cap $0.50 over every tag (one ledger). Results: counts, red lines (cut, masked) and hint text only; never an artifact or an input.
+// Runaway guard $2.50 over every tag (one ledger; not a decider, F81 [RULING]); per-sample job cap stays $0.10.
+// A later tag pools with an earlier one: `--tag f81-2 --start-n 3 --pool results-f81-1.json` runs n = 3..PER_ARM and judges both tags' records, paired by (tag, job, n). Results: counts, red lines (cut, masked) and hint text only; never an artifact or an input.
 
 import {
-  existsSync, writeFileSync, mkdirSync, rmSync, chmodSync,
+  existsSync, writeFileSync, mkdirSync, rmSync, chmodSync, readFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname, extname } from 'node:path';
+import {
+  join, dirname, extname, isAbsolute,
+} from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { draftToDir, signDraft } from '../../src/authoring.js';
@@ -39,7 +42,9 @@ import { HINT_HEADER } from './learn-ours.mjs';
 import { loadJobs, withCap, JOB_CAP_USD } from './notes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const SPEND_STOP_USD = 0.5;
+// Runaway guard ONLY, not a decider (hamr 2026-10-23 after f81-1: "run as much as you need to finish it, no need to stop for a cap"; F81 [RULING]).
+// Worst case n=3..4: 8 samples x 2 x $0.10 job cap = $1.60 + $0.386 ledger + $0.20 headroom = about $2.2, under this line.
+export const SPEND_STOP_USD = 2.5;
 export const PER_ARM = 4; // requested; the cap decides; aim at least MIN_PER_ARM
 export const MIN_PER_ARM = 3;
 /** A sample is not started under this cap: the runner holds one round's ceiling ($0.0384) per attempt, so a smaller cap would cap-halt a run the plan did not earn. */
@@ -109,10 +114,33 @@ export function totals(recs) {
   };
 }
 
-/** Only samples whose pair (same job, same n) both ran: a cap stop between A_n and B_n must not skew the totals. */
+/** Only samples whose pair (same tag, same job, same n) both ran: a cap stop between A_n and B_n must not skew the totals, and one tag's A3 never pairs with another tag's B3. */
 export function paired(records) {
-  const has = (job, n, arm) => records.some((r) => r.job === job && r.n === n && r.arm === arm);
-  return records.filter((r) => has(r.job, r.n, 'A') && has(r.job, r.n, 'B'));
+  const has = (tag, job, n, arm) => records.some((r) => r.tag === tag && r.job === job && r.n === n && r.arm === arm);
+  return records.filter((r) => has(r.tag, r.job, r.n, 'A') && has(r.tag, r.job, r.n, 'B'));
+}
+
+/** Read earlier tags' results files for pooling. Refuses by name, before any ledger write: missing, unreadable, another model, another job set, the current tag. */
+export function loadPool(files, {
+  outDir, model, jobIds, tag,
+}) {
+  const pools = [];
+  for (const f of files) {
+    const p = isAbsolute(f) ? f : join(outDir, f);
+    if (!existsSync(p)) throw new Error(`run: --pool ${f} does not exist`);
+    let data;
+    try { data = JSON.parse(readFileSync(p, 'utf8')); } catch (err) { throw new Error(`run: --pool ${f} is unreadable: ${err.message}`); }
+    const ptag = data?.summary?.tag;
+    if (typeof ptag !== 'string' || !Array.isArray(data.records)) throw new Error(`run: --pool ${f} is not a results file (no summary.tag or records)`);
+    if (ptag === tag) throw new Error(`run: --pool ${f} is tag "${ptag}", the tag of this run`);
+    if (pools.some((x) => x.tag === ptag)) throw new Error(`run: --pool ${f} repeats tag "${ptag}"`);
+    if (data.summary.model !== model) throw new Error(`run: --pool ${f} is model "${data.summary.model}", this run is "${model}"`);
+    const theirs = Object.keys(data.hints ?? {}).sort().join(',');
+    const ours = [...jobIds].sort().join(',');
+    if (theirs !== ours) throw new Error(`run: --pool ${f} is for jobs [${theirs}], this run is for [${ours}]`);
+    pools.push({ tag: ptag, records: data.records.map((r) => ({ ...r, tag: ptag })) });
+  }
+  return pools;
 }
 
 function judge(A, B) {
@@ -182,7 +210,7 @@ async function runSample({
   const draftCalls = [];
   const runCalls = [];
   const rec = {
-    job: job.id, arm, n, capUsd: Number(capUsd.toFixed(3)),
+    tag, job: job.id, arm, n, capUsd: Number(capUsd.toFixed(3)),
     draft: { ok: false, stop: null, rounds: null, calls: null, costUsd: null, spendComplete: false, reds: [], wallMs: null },
     sign: { ok: false, signedBy: null, reds: [] },
     run: null, costUsd: null, requests: null, injectionOk: false, timedOut: false,
@@ -266,7 +294,7 @@ async function runSample({
 }
 
 export async function runBatch({
-  tag, jobs, outDir = __dirname, spendPath = join(outDir, 'spend.jsonl'), stopUsd = SPEND_STOP_USD, perArm = PER_ARM, minPerArm = MIN_PER_ARM, env = process.env, injected, model = DEFAULT_MODEL, realConfigHome,
+  tag, jobs, startN = 1, pool = [], outDir = __dirname, spendPath = join(outDir, 'spend.jsonl'), stopUsd = SPEND_STOP_USD, perArm = PER_ARM, minPerArm = MIN_PER_ARM, env = process.env, injected, model = DEFAULT_MODEL, realConfigHome,
   deadlines = { draft: DRAFT_DEADLINE_MS, run: RUN_DEADLINE_MS }, wrapDrafter = armProvider, writeLine = (s) => process.stdout.write(`${s}\n`), flowsRoot = join(tmpdir(), 'fwdloop-f81-gate'),
 }) {
   // ---- $0 gates, before any ledger write ---------------------------------------------------
@@ -277,6 +305,10 @@ export async function runBatch({
   }
   const resultsPath = join(outDir, `results-${tag}.json`);
   if (existsSync(resultsPath)) throw new Error(`run: tag "${tag}" already has results — use a new --tag, never overwrite evidence`);
+  if (!Number.isInteger(startN) || startN < 1 || startN > perArm) throw new Error(`run: --start-n must be an integer from 1 to ${perArm}`);
+  const pools = loadPool(pool, {
+    outDir, model, jobIds: jobs.map((j) => j.id), tag,
+  });
   const cfgHome = mkdtempSync(join(tmpdir(), 'fwdloop-f81-cfg-'));
   const prevEnv = { NODE_ENV: process.env.NODE_ENV, FWDLOOP_CONFIG_HOME: process.env.FWDLOOP_CONFIG_HOME };
   const secrets = secretsFromEnv(env[SLOT]);
@@ -306,7 +338,7 @@ export async function runBatch({
     const records = [];
     let stoppedBy = null;
     outer:
-    for (let n = 1; n <= perArm; n += 1) {
+    for (let n = startN; n <= perArm; n += 1) {
       for (const job of jobs) {
         for (const arm of ['A', 'B']) {
           const total = ledgerTotalUsd(spendPath);
@@ -346,12 +378,14 @@ export async function runBatch({
       }
     }
 
-    const ev = evaluate(records, { minPerArm });
+    const pooledRecords = [...pools.flatMap((p) => p.records), ...records];
+    const ev = evaluate(pooledRecords, { minPerArm });
     const summary = {
-      tag, model, ran: records.length, requested: jobs.length * perArm * 2, stoppedBy, ledgerTotalUsd: Number(ledgerTotalUsd(spendPath).toFixed(5)), roundCeilingUsd: roundCeiling, verdict: ev.verdict, pass: ev.verdict === 'HELPS', bars: ev.bars, A: ev.A, B: ev.B, perJob: ev.perJob, pairedSamples: ev.pairedSamples, unpairedDropped: ev.unpairedDropped,
+      tag, model, ran: records.length, requested: jobs.length * (perArm - startN + 1) * 2, startN, pooled: [...pools.map((p) => ({ tag: p.tag, records: p.records.length })), { tag, records: records.length }], stoppedBy, ledgerTotalUsd: Number(ledgerTotalUsd(spendPath).toFixed(5)), roundCeilingUsd: roundCeiling, verdict: ev.verdict, pass: ev.verdict === 'HELPS', bars: ev.bars, A: ev.A, B: ev.B, perJob: ev.perJob, pairedSamples: ev.pairedSamples, unpairedDropped: ev.unpairedDropped,
     };
     const hints = Object.fromEntries(jobs.map((j) => [j.id, { text: j.hint, info: j.hintInfo ?? null }]));
     writeFileSync(resultsPath, scrub(`${JSON.stringify({ summary, hints, records }, null, 2)}\n`, secrets), { flag: 'wx' });
+    writeLine(`POOLED ${summary.pooled.map((p) => `${p.tag}=${p.records}`).join(' ')} records; judged together, paired by (tag, job, n)`);
     writeLine(`SUMMARY ${JSON.stringify({ ...summary, perJob: undefined })}`);
     for (const [id, v] of Object.entries(ev.perJob)) writeLine(`  ${id}: ${v.verdict} | A ${JSON.stringify(v.A)} | B ${JSON.stringify(v.B)}`);
     writeLine(`BARS: red step tries B<A ${ev.bars.redStepTries.ok} (${ev.bars.redStepTries.B} vs ${ev.bars.redStepTries.A}); red runs + failed drafts B<=A ${ev.bars.redRunsPlusFailedDrafts.ok} (${ev.bars.redRunsPlusFailedDrafts.B} vs ${ev.bars.redRunsPlusFailedDrafts.A}); cost B<=A+10% ${ev.bars.cost.ok} (${ev.bars.cost.B} vs ${ev.bars.cost.A})`);
@@ -367,7 +401,11 @@ export async function runBatch({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const arg = (k) => { const i = process.argv.indexOf(k); return i !== -1 ? process.argv[i + 1] : undefined; };
   const per = arg('--per-arm');
-  runBatch({ tag: arg('--tag'), jobs: loadJobs(), ...(per ? { perArm: Number(per) } : {}) }).then(
+  const start = arg('--start-n');
+  const pool = process.argv.flatMap((a, i) => (a === '--pool' && process.argv[i + 1] ? process.argv[i + 1].split(',').filter(Boolean) : []));
+  runBatch({
+    tag: arg('--tag'), jobs: loadJobs(), pool, ...(per ? { perArm: Number(per) } : {}), ...(start ? { startN: Number(start) } : {}),
+  }).then(
     () => process.exit(0),
     (err) => { process.stderr.write(`REFUSED: ${scrub(err.message, secretsFromEnv(process.env[SLOT]))}\n`); process.exit(1); },
   );
