@@ -2401,6 +2401,12 @@ SIGNED by hamr 2026-10-23 ("sign m8"), the text exactly as shown:
 - **Done when:** on deepseek-flash with `learningHints` ON, a real job has a step fixed on a retry in run-1; after the Accept, run-2's draft is handed that note, and the Audit box shows the exact text handed; and a step retry in run-2 is handed the hints. A separate script checks the ledger, the hint text and the Audit record agree.
 - **Negative:** with the setting OFF nothing is handed; a note older than 56 days, from another workflow, or from a run not yet accepted is never handed; no model call anywhere in the note code.
 
+SIGNED by hamr 2026-10-23 ("sign m8 am1"), the text exactly as shown:
+
+**M8 amendment 1 — the learnings setting lives in config.json, like bareloop; no control on the Settings page for now.**
+1. `learningHints` is a line in config.json, per user, OFF when absent. The Settings page shows nothing for it. Item 5's "Setting `learningHints` in Settings" means this line.
+2. Everything else in item 5 stands: when OFF, notes are still counted and nothing is handed.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
