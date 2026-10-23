@@ -1,0 +1,164 @@
+{
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "aging"
+      ],
+      "emits": "aging_report",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the aging report"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "aging"
+      ],
+      "emits": "bucket_assignment",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "columns": [
+          {
+            "source": "aging",
+            "column": "Invoice #"
+          },
+          {
+            "source": "aging",
+            "column": "Due date"
+          },
+          {
+            "source": "aging",
+            "column": "Days overdue"
+          },
+          {
+            "source": "aging",
+            "column": "Current"
+          },
+          {
+            "source": "aging",
+            "column": "1-30"
+          },
+          {
+            "source": "aging",
+            "column": "31-60"
+          },
+          {
+            "source": "aging",
+            "column": "61-90"
+          },
+          {
+            "source": "aging",
+            "column": "90+"
+          }
+        ],
+        "sheet": [
+          {
+            "id": "days-since-due",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "daysPastDue",
+            "op": "daysSince",
+            "column": "Due date",
+            "asOf": "2026-10-11",
+            "dateFormats": [
+              {
+                "column": "Due date",
+                "format": "YYYY-MM-DD"
+              }
+            ],
+            "covers": [
+              3
+            ]
+          },
+          {
+            "id": "bucket-per-row",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "bucketByRow",
+            "op": "band",
+            "column": "Due date",
+            "asOf": "2026-10-11",
+            "dateFormats": [
+              {
+                "column": "Due date",
+                "format": "YYYY-MM-DD"
+              }
+            ],
+            "bands": [
+              {
+                "name": "Current",
+                "lte": 0
+              },
+              {
+                "name": "1-30",
+                "gte": 1,
+                "lte": 30
+              },
+              {
+                "name": "31-60",
+                "gte": 31,
+                "lte": 60
+              },
+              {
+                "name": "61-90",
+                "gte": 61,
+                "lte": 90
+              },
+              {
+                "name": "90+",
+                "gt": 90
+              }
+            ],
+            "covers": [
+              2,
+              3
+            ]
+          }
+        ]
+      },
+      "goal": "For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "bucket_assignment"
+      ],
+      "emits": "bucket_review",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "bucket_review"
+      ],
+      "emits": "aging_buckets_out",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out"
+    }
+  ],
+  "inputFacts": {
+    "aging": []
+  }
+}

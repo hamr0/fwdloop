@@ -39,6 +39,8 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
+import { csvRolesOf, askSheetCard } from '../sheetblock.js';
+import { readSheetChecks } from '../sheet-record.js';
 import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
@@ -2024,8 +2026,8 @@ export function getRunAudit({
  * M6: a sign row that names another signing than the job being shown (`flowHash`) is not this job's record: `recorded:false`, never the new job's words.
  * @param {any} declaration @param {Array<{line:number, ttlMs?:number}>} asks @param {string} flowDir @param {string|null} [flowHash] the signature hash of the job being shown
  */
-function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
-  const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line) });
+function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /** @type {any[]|undefined} */ (undefined), csvRoles = /** @type {string[]} */ ([])) {
+  const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line), lines: jobLines, csvRoles });
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
@@ -2037,6 +2039,7 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null) {
       mayDo: Array.isArray(st.primitives) ? st.primitives : [],
       check: lines[i].sentences,
       checkClass: lines[i].class,
+      sheet: lines[i].sheet ?? null,
       ask: !!ak,
       waitMs: ak && typeof ak.ttlMs === 'number' ? ak.ttlMs : null,
     };
@@ -2146,7 +2149,7 @@ export function getRunJob({
     guardrails: flowRead.lines
       .filter((l) => typeof l.guardrail === 'string' && l.guardrail.length > 0)
       .map((l) => ({ line: l.n, guardrail: l.guardrail })),
-    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null),
+    plan: buildJobPlan(flowRead.declaration, asks, run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null, flowRead.lines, csvRolesOf(a)),
     signature: (sig && typeof sig.signedBy === 'string' && typeof sig.signedAt === 'string' && typeof sig.flow === 'string')
       ? { signedBy: sig.signedBy, signedAt: sig.signedAt, hash: sig.flow }
       : null,
@@ -2199,7 +2202,7 @@ export function getRunResult({
   if (!got) return null;
   const { run, ctx } = got;
   const sig = ctx.flowRead.signature;
-  const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null);
+  const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null, ctx.flowRead.lines, csvRolesOf(ctx.arbiter));
   return buildResult({
     flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items, readNotes: plan.notChecked.readNotes,
     setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
@@ -2337,6 +2340,7 @@ function flattenEvidence(evidence) {
     draft: evidence.draft ? evidence.draft.text : null,
     unjudged: evidence.unjudged,
     why: evidence.why,
+    ...(evidence.claims ? { claims: evidence.claims } : {}),
   };
 }
 
@@ -2686,7 +2690,18 @@ export function getRunAsks({
     }
   }
   const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
-  const asks = ordered.map((ask, i) => ({
+  // M10b am4: an ask whose evidence is a sheet step's claim boxes carries that step's block and answer (the Result tab's block), and loses the "unrecognised shape" line
+  const sheetRecord = ordered.some((a) => a.evidence?.claims) ? readSheetChecks(run.runDir) : null;
+  const sheetArbiter = flowRead.ok ? flowRead.arbiter : null;
+  const withSheet = (/** @type {any} */ ask) => {
+    const { claims, ...ev } = ask.evidence ?? {};
+    if (!claims) return ask;
+    const card = flowRead.ok ? askSheetCard({ claims, declaration: flowRead.declaration, lines: flowRead.lines, csvRoles: csvRolesOf(sheetArbiter), record: sheetRecord }) : null;
+    if (card === null) return { ...ask, evidence: ev };
+    const { why: _gone, ...rest } = ev;
+    return { ...ask, evidence: { ...rest, sheet: card } };
+  };
+  const asks = ordered.map(withSheet).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),

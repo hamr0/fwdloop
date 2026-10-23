@@ -29,7 +29,7 @@ function fakeDom() {
 }
 function render(job) {
   const document = fakeDom();
-  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = ['duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   new Function('document', `${src}\nreturn { renderJob };`)(document).renderJob(job);
   return document;
 }

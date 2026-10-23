@@ -61,7 +61,6 @@ test('a step that quotes a page answers in {results: [{quote, values}], done}, a
   const s = buildEmitArtifactSchema('green', true);
   assert.deepEqual(Object.keys(s.properties).sort(), ['blocker', 'done', 'results']);
   assert.deepEqual(s.required, ['results', 'done']);
-  assert.deepEqual(Object.keys(buildEmitArtifactSchema('green').properties).sort(), ['blocker', 'done', 'fields'], 'a green step with cells is unchanged');
   const sent = [];
   const provider = {
     generate: async (messages, tools) => {
@@ -81,7 +80,7 @@ test('a step that quotes a page answers in {results: [{quote, values}], done}, a
   assert.equal(user.quoting.howMany, 'Give exactly 3 results.');
   // a step with no cited close is told nothing of the kind
   const before = sent.length;
-  await step({ goal: 'x', primitives: [], reads: {}, gap: null }, {}, { class: 'green', cited: null });
+  await step({ goal: 'x', primitives: [], reads: {}, gap: null }, {}, { class: 'hitl', cited: null });
   assert.equal('quoting' in JSON.parse(sent[before].messages.find((m) => m.role === 'user').content), false);
 });
 

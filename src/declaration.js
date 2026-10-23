@@ -39,6 +39,9 @@
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
+import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
+import { lineRules } from './pagebits.js';
+import { isColumnChoiceRule } from './sheetoffer.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -68,6 +71,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'shape',
   'cited',
   'columns',
+  'sheet',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -80,7 +84,7 @@ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trig
 
 const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -435,10 +439,10 @@ function checkCitedKey(step, label, c, reds) {
 }
 
 /**
- * M10 am8 item 2: `close.columns` is the column lock of a green step that cites cells: `[{source, column}]`, written by the drafter and checked by code. Its SHAPE is
+ * M10 am8 item 2: `close.columns` is the column choice of a green step that reads a sheet: `[{source, column}]`, written by the drafter and checked by code (the old cell-cite check that enforced it at run time retired in M10b piece 5; a job signed with it still reads). Its SHAPE is
  * checked in every mode; with `sheetWords` (draft time) every column is proved to be a real column of its sheet and a column the sheet look kept for this step's
- * line must be in the list. At run time every cited cell must come from one of these columns (src/closers.js).
- * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
+ * line must be in the list. M10b am3: a step with `close.sheet` is exempt from the list; an AGREED column must instead be used by one of its checks.
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, lines?: SignedLine[], sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
  */
 function checkColumnsKey(step, label, c, reds) {
   const at = `declaration: ${label}.close.columns`;
@@ -463,10 +467,55 @@ function checkColumnsKey(step, label, c, reds) {
     const header = sw.headers?.[e.source];
     if (Array.isArray(header) && !header.includes(e.column)) reds.push(`declaration: line ${step.fromLine}: '${e.column}' is not a real column of "${e.source}" (its columns: ${header.map((h) => `'${h}'`).join(', ')}). Copy a column name exactly.`);
   }
+  const sheet = Array.isArray(step.close.sheet) ? step.close.sheet : null;
+  const covLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
   for (const f of sw.facts ?? []) {
     if (f.line !== step.fromLine || f.shape !== 'column') continue;
+    if (sheet !== null) {
+      // M10b am3: with sheet checks a job word that matches a header does nothing by itself; only a column the person AGREED to (a column ask wrote
+      // "use the column 'X' for 'Y'" on the line) must be used by at least one of this line's checks
+      const agreed = f.agreed === true || lineRules(covLine).some((r) => isColumnChoiceRule(r) && r.startsWith(`use the column '${f.column}' for '`));
+      if (agreed && !sheet.some((chk) => chk?.table === f.source && sheetCheckColumns(chk).includes(f.column))) reds.push(`declaration: line ${step.fromLine}: a check must use the column '${f.column}' of "${f.source}" - the column you agreed to for this line.`);
+      continue;
+    }
     if (!list.some((e) => e.source === f.source && e.column === f.column)) reds.push(`declaration: line ${step.fromLine}: the check must name the column '${f.column}' of "${f.source}" in close.columns - the code kept it for this line${f.agreed ? ' (the column you agreed to)' : ''}, and every cell must come from it.`);
   }
+}
+
+/**
+ * M10b piece 1: `close.sheet` is the signed bareguard checks of a green step that reads a CSV sheet: a list of bareguard `cells` / `table` check objects
+ * (src/sheetchecks.js), each naming the step's sheet input in `table`. The drafter will offer them (piece 3); fwdloop stores them as data. Its SHAPE is checked in
+ * every mode (a signed flow is read the same way). With `sheetWords.tables` (the drafting copy's table of each sheet, draft time) every column is proved an exact
+ * header of its sheet and bareguard's own sign-time test (`createRubric` over the sheet's `tableSha`) must accept the list; each red names the job line.
+ * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, lines?: SignedLine[], fitJobLine?: boolean, sheetWords?: {tables?: Record<string, {header: string[], rows: any[]}>}}} c @param {string[]} reds
+ * M10b piece 3: with `fitJobLine` a number or a date in a check must be in the person's own words on the job line (src/sheetchecks.js `sheetCheckWordReds`), and a list of
+ * only `table` checks (nothing for the step to answer) is refused; each red names the line.
+ */
+function checkSheetKey(step, label, c, reds) {
+  const at = `declaration: ${label}.close.sheet`;
+  const list = step.close.sheet;
+  if (step.close.class !== 'green' || c.effectiveClass !== 'green') reds.push(`${at} is for a green step only (its sheet is checked by bareguard); this step's check is "${step.close.class ?? c.effectiveClass}"`);
+  if (!Array.isArray(list) || list.length === 0 || list.length > MAX_SHEET_CHECKS) { reds.push(`${at} must be a list of 1 to ${MAX_SHEET_CHECKS} bareguard checks`); return; }
+  let shapeOk = true;
+  for (const [j, e] of list.entries()) {
+    if (!isPlainObject(e)) { reds.push(`${at}[${j}] must be a check object`); shapeOk = false; continue; }
+    scanForArbiterKeys(e, `${at}[${j}]`, reds);
+    if (!SHEET_RULES.includes(e.rule)) { reds.push(`${at}[${j}].rule must be one of ${SHEET_RULES.join(', ')}`); shapeOk = false; }
+    if (typeof e.table !== 'string' || !c.cellsRoles.includes(e.table)) { reds.push(`${at}[${j}].table ${JSON.stringify(e.table)} is not a signed spreadsheet input`); shapeOk = false; }
+    else if (c.reads !== null && !c.reads.includes(e.table)) { reds.push(`${at}[${j}].table "${e.table}" is not in ${label}.reads - the step must read the sheet its checks come from`); shapeOk = false; }
+  }
+  if (shapeOk && Number.isInteger(step.fromLine)) {
+    const covLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
+    if (covLine) for (const r of sheetCoversReds(list, { n: covLine.n, ...(covLine.guardrail ? { rule: covLine.guardrail } : {}) })) reds.push(r);
+  }
+  if (shapeOk && c.fitJobLine === true && Number.isInteger(step.fromLine)) {
+    const jobLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
+    if (jobLine) for (const r of sheetCheckWordReds(list, { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) })) reds.push(r);
+    for (const r of sheetNoClaimReds(list, step.fromLine)) reds.push(r);
+  }
+  const tables = c.sheetWords?.tables;
+  if (!shapeOk || !tables || !Number.isInteger(step.fromLine)) return;
+  for (const r of sheetCheckReds(list, step.fromLine, tables)) reds.push(r);
 }
 
 /**
@@ -488,7 +537,8 @@ function checkColumnsKey(step, label, c, reds) {
  * `pageWords.docs` (M10 piece 5): the roles that are documents (.docx / .md / .txt): their words are proved on their text alone, with no page-word map.
  * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
  * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[]} }} [context]
+ * `sheetWords.tables` (optional; M10b piece 1): `{role: bareguard table}` of the drafting copy. With it, every `close.sheet` check passes bareguard's sign-time test at $0.
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[], tables?: Record<string, {header: string[], rows: any[]}>} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
@@ -768,7 +818,8 @@ export function validateDeclaration(declaration, context = {}) {
           }
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
-        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, sheetWords }, reds);
+        if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
+        if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);
       }
     }
 
@@ -786,6 +837,13 @@ export function validateDeclaration(declaration, context = {}) {
       const reading = reads.length === 0 ? 'it reads nothing' : `it reads only ${reads.join(', ')}`;
       const want = cellsRoles.length === 0 ? 'a spreadsheet input, and this job signs none' : cellsRoles.join(' or ');
       reds.push(`declaration: Line ${n}'s check needs cells, but ${reading}. Line ${n} must read ${want}.`);
+    }
+
+    // M10b piece 5 (item 8): the old cell cite retires for CSV. A green step that reads a spreadsheet answers in bareguard's claim boxes (`close.sheet`);
+    // one with neither `close.sheet` nor `close.cited` would be the old cite close, which a new plan no longer offers. Signed flows keep running (fitJobLine only).
+    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && reads.some((r) => cellsRoles.includes(r))
+      && !isPlainObject(step.close?.cited) && !Array.isArray(step.close?.sheet)) {
+      reds.push(`declaration: Line ${fromLine}'s check cannot cite cells any more. Line ${fromLine} must carry close.sheet: bareguard's checks of ${reads.filter((r) => cellsRoles.includes(r)).join(' or ')}.`);
     }
 
     // M4d amendment 9: an ask step shows you something: its FIRST read must be the output of an earlier step. A read is not a

@@ -34,7 +34,7 @@ const rows = (el) => el.children.map((c) => `${c.className}|${c.textContent}`);
 
 function render(job) {
   const document = fakeDom();
-  const src = ['duration', 'plainWait', 'textDiv', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = ['duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   const run = new Function('document', `${src}\nreturn { renderJob, plainWait };`)(document);
   run.renderJob(job);
   return { document, plainWait: run.plainWait };

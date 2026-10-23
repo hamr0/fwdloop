@@ -20,6 +20,8 @@ import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
 import { CITED_CHECKS_FILE } from '../cited-record.js';
 import { readChecks } from '../diary.js';
+import { sheetLineBlocks, csvRolesOf } from '../sheetblock.js';
+import { readSheetChecks } from '../sheet-record.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -234,12 +236,16 @@ export function buildResult({
   const urls = pageUrlsByRole(arbiter);
   // am9: a page job's card is bareloop's (no checks list); every other job lists what each step checked
   const diary = urls.size === 0 ? readChecks(runDir) : [];
+  // M10b am2: the block of every job line that reads a sheet (guardrails, Checked with ✓ / ✗ and what was found, Not checked), from the signed job and the run's
+  // sheet-checks.json; it is there with no rows found and when the result is written to a doc
+  const sheetBlocks = sheetLineBlocks({ declaration, lines: flowRead.lines, csvRoles: csvRolesOf(arbiter), record: readSheetChecks(runDir) });
   const lines = flowRead.lines.filter((l) => !taken.has(l.n)).map((l) => {
     const c = record.find((x) => x.n === l.n) ?? null;
     const out = {
       notChecked: c ? c.notChecked : [], n: l.n, text: l.text, rules: isStr(l.guardrail) && l.guardrail !== '' ? [l.guardrail] : [],
       kind: c ? 'facts' : 'text', passed: c ? c.passed : false, file: null,
       checks: checksOfLine((declaration?.steps ?? []).filter((st) => st.fromLine === l.n), diary),
+      sheet: sheetBlocks.find((b) => b.line === l.n) ?? null,
     };
     if (c) {
       out.source = c.source;

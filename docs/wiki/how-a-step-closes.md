@@ -161,8 +161,10 @@ guardrail on each line where it applies. Explicit and repeated beats clever and 
 
 Both are checked at draft time, at $0, and the drafter is told the same rule in its prompt.
 
-- **A green step must read an input with cells.** A green close makes every figure cite its source
-  cell, and only a spreadsheet input (a `.csv` file) has cells; a text output of an earlier step has
+- **A green step must read an input with cells.** A green close on a sheet is bareguard's `cells` /
+  `table` checks run on the run's saved copy of the sheet (M10b: the step answers in typed claim boxes,
+  and the old "every figure cites its source cell" close is retired), and only a spreadsheet input
+  (a `.csv` file) has cells; a text output of an earlier step has
   none. A plan whose green step reads only other steps is refused by name: "Line N's check needs
   cells, but it reads only … Line N must read …". With no CSV input signed, the guardrail cannot be green.
 - **An ask step must show you something.** Its first read must be the output of an earlier step, the

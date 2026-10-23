@@ -117,18 +117,14 @@ function makeJob1ModelStep({ step3Behavior = 'green', step1Behavior = 'green' } 
         return {
           ok: true,
           costUsd: 0.001,
-          artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: true },
+          artifact: { total_owed: { value: 999 }, done: true },
         };
       }
       return {
         ok: true,
         costUsd: 0.001,
         artifact: {
-          fields: {
-            invoice1: { value: 150, cite: 'aging_cells!E2' },
-            invoice2: { value: 50.5, cite: 'aging_cells!E3' },
-            total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
-          },
+          total_owed: { value: 200.5 },
           done: true,
         },
       };
@@ -453,7 +449,7 @@ test('negative (ii): the same close-red gap twice strikes out at the second stri
   });
 
   assert.equal(result.outcome, 'struck-out');
-  assert.match(result.red, /"total_owed" 999/);
+  assert.match(result.red, /total: claimed value does not match \(999\)/);
 
   const auditPath = path.join(root, 'job1', 'runs', 'run-1', 'audit.jsonl');
   const rows = readFileSync(auditPath, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
@@ -869,7 +865,7 @@ test('M2 amendment 1 item 1: done:false halts "not-done", names the step and blo
   const aging = writeTempCsv(srcDir);
 
   const { fn: modelStep, goalsSeen } = makeJob1ModelStepDoneVariant({
-    fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: false, blocker: 'jd not readable',
+    total_owed: { value: 999 }, done: false, blocker: 'jd not readable',
   });
 
   const result = await runFlow({
@@ -925,10 +921,7 @@ test('M2 amendment 1 item 1: a missing/non-boolean "done" halts naming the step,
 
   // A legacy/non-compliant provider that never emits "done" at all.
   const { fn: modelStep } = makeJob1ModelStepDoneVariant({
-    fields: {
-      invoice1: { value: 150, cite: 'aging_cells!E2' },
-      total_owed: { value: 150, cite: '#invoice1' },
-    },
+    total_owed: { value: 150 },
   });
 
   const result = await runFlow({
@@ -978,7 +971,7 @@ test('M2 amendment 1 item 1: done:true proves nothing — a bad shape still reds
   });
 
   assert.equal(result.outcome, 'struck-out');
-  assert.match(result.red, /"total_owed" 999/);
+  assert.match(result.red, /total: claimed value does not match \(999\)/);
 });
 
 // ---------------------------------------------------------------------------
@@ -1104,11 +1097,11 @@ const TWO_ASK_DECLARATION = {
     {
       goal: 'For the matched customer, pull their open invoices, total owed, earliest due date, and count of invoices overdue as of the business date, each figure tied to the cell or formula it came from.',
       primitives: ['addressCells'],
-      reads: ['aging_cells', 'customer_confirmed'],
+      reads: ['aging', 'aging_cells', 'customer_confirmed'],
       emits: 'invoice_facts',
       picks: { aging: ['Customer', 'Invoice #', 'Due date', 'Amount'] },
       fromLine: 4,
-      close: { class: 'green' },
+      close: { class: 'green', sheet: [{ id: 'total', rule: 'cells', table: 'aging', claim: 'total_owed', op: 'sum', column: 'Amount', covers: [] }] },
     },
     {
       goal: 'Write a short reply to the customer containing one line per open invoice.',
@@ -1451,17 +1444,13 @@ test('log.json: a red attempt 1 then a green attempt 2 both appear in "attempts"
       calls += 1;
       if (calls === 1) {
         // Attempt 1: a deliberately wrong artifact — must close-red.
-        return { ok: true, costUsd: 0.001, artifact: { fields: { total_owed: { value: 999, cite: 'aging_cells!E2' } }, done: true } };
+        return { ok: true, costUsd: 0.001, artifact: { total_owed: { value: 999 }, done: true } };
       }
       return {
         ok: true,
         costUsd: 0.001,
         artifact: {
-          fields: {
-            invoice1: { value: 150, cite: 'aging_cells!E2' },
-            invoice2: { value: 50.5, cite: 'aging_cells!E3' },
-            total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' },
-          },
+          total_owed: { value: 200.5 },
           done: true,
         },
       };
@@ -1494,10 +1483,10 @@ test('log.json: a red attempt 1 then a green attempt 2 both appear in "attempts"
   assert.equal(invoiceAttempts.length, 2, 'both the red attempt 1 and the green attempt 2 must be recorded');
   assert.equal(invoiceAttempts[0].attempt, 1);
   assert.equal(invoiceAttempts[0].verdict, 'red');
-  assert.equal(invoiceAttempts[0].modelOutput.fields.total_owed.value, 999, 'attempt 1\'s own (wrong) output must be kept, not overwritten by attempt 2');
+  assert.equal(invoiceAttempts[0].modelOutput.total_owed.value, 999, 'attempt 1\'s own (wrong) output must be kept, not overwritten by attempt 2');
   assert.equal(invoiceAttempts[1].attempt, 2);
   assert.equal(invoiceAttempts[1].verdict, 'green');
-  assert.equal(invoiceAttempts[1].modelOutput.fields.total_owed.value, 200.5);
+  assert.equal(invoiceAttempts[1].modelOutput.total_owed.value, 200.5);
 });
 
 test('log.json: a struck-out run still keeps every attempt\'s output', async () => {
@@ -1530,7 +1519,7 @@ test('log.json: a struck-out run still keeps every attempt\'s output', async () 
   const invoiceAttempts = logJson.attempts.filter((a) => a.step === 'invoice_facts');
   assert.equal(invoiceAttempts.length, 3, 'every attempt before striking out must be kept, including the model\'s output each time');
   for (const a of invoiceAttempts) {
-    assert.equal(a.modelOutput.fields.total_owed.value, 999);
+    assert.equal(a.modelOutput.total_owed.value, 999);
   }
 });
 

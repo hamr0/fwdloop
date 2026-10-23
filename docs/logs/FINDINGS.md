@@ -3339,3 +3339,70 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 **Cost of leaving it.** One of the two route ends is unchecked on any job whose destination is written as a city the results never print; the human sees it only by reading the Not checked list at sign time.
 
 **Where a clean fix may live (not built, none asked).** bareloop's R2 ("place grows to role word", signed in our M10 am7), or the drafter offering the arrival phrase when the city is dropped. Either needs bareloop's view first.
+
+## F76 — POC (M10b item 0): does deepseek-flash, given bareguard 0.26.0's `rubricVocabulary`, draft the right sheet checks for the expenses and aging jobs? (pre-registered 2026-10-22, before any call)
+
+**Status.** Run 2026-10-22: PASS (Part A and Part B). Tags: **[SIGNED]** M10b item 0 (hamr 2026-10-22, "sign m10b"). Cap: M10b's $0.50; this POC expects about $0.02.
+
+**Part A — $0 replay.** bareguard 0.26.0 installed from npm into a scratch folder (fwdloop's `package.json` is not touched until M10b item 1). The two real frozen sheets, read in place: `flows/m10-walk-csv/runs/run-1/inputs/expenses.csv` (40 rows) and `flows/aging-live-4/runs/run-1/inputs/aging.csv` (8 rows). Each check gets an honest claim (computed in plain JS, separately) and a wrong one.
+- Checks: expenses `rows`, `countIf`, `sumIf` with `Amount > 500`; aging `daysSince` per row and `band` as of 2026-10-11 on `Due date`, `noDuplicates` on `Invoice #`, `rows` over the whole table. Plus: the sheet changed by one cell after signing; a claim of 18 rows instead of 17.
+- **Pass:** every honest claim green; every wrong claim red with a reason naming it; the changed sheet stopped; 18 rows red. Any other result fails Part A.
+
+**Part B — paid drafts.** 3 drafts per job on deepseek-flash (thinking off, one forced tool call each; 6 calls). Each call sees the signed job text (`flows/m10-walk-csv-3/signed/prose.txt`, which carries the agreed `use the column 'Amount' for 'Price'`; `flows/aging-live-4/signed/prose.txt`), the sheet's header row and its first 3 data rows, and bareguard's cells/table op list with each op's worked example. It answers with a list of checks in bareguard's signed-check shape. A POC script, not fwdloop code.
+- **A draft passes when all three hold:**
+  1. bareguard's `createRubric` accepts every check it wrote;
+  2. every column it names is a real header, exactly as the sheet spells it;
+  3. it has the checks the job's guardrail needs:
+     - expenses: `rows` on `Amount` with greater-than 500 (a `countIf` / `sumIf` with the same condition may be added, not required);
+     - aging: a `band` on `Due date` as of 2026-10-11 with the 5 names exactly `Current`, `1-30`, `31-60`, `61-90`, `90+`, whose bounds match those names (Current is 0 days or less; 90+ is over 90), and "every invoice appears exactly once" as `noDuplicates` on `Invoice #` (a `rows` over the whole table may be added).
+- **Pass mark:** at least 2 of 3 drafts pass, for each job. Each draft's raw answer, its cost, and which of 1-3 failed are recorded.
+
+**Result rule.** Parts A and B both pass → M10b items 1-8 may be built. Either fails → no build; the result and what it shows are written here, and the next step goes to hamr.
+
+**Result (2026-10-22).**
+- **Part A: PASS** (`poc/m10b/replay.mjs`, `poc/m10b/results/partA-1.txt`, $0). Every honest claim green, every wrong claim red naming it (`rows-missing`, `value-mismatch`, `days-mismatch`, `band-mismatch`, `duplicate-values`); the sheet changed by one cell after signing → `stopped` ("table expenses does not match its signed sha256"); 18 instead of 17 → red. Caveat: all 8 real aging rows are 90+ (109 to 244 days), so the real data proves the band check only for that band.
+- **Part B: PASS** (`poc/m10b/drafts.mjs --tag f76-1`, `poc/m10b/results/f76-1.json`, deepseek-flash, thinking off, 6 calls, $0.02414). Expenses 3 of 3 drafts pass. Aging 2 of 3: draft 1 wrote a correct `band` (Due date, asOf 2026-10-11, the 5 names with matching bounds) but no `noDuplicates` on `Invoice #`, so it fails criterion 3 ("every invoice appears exactly once" unchecked). Drafts 2 and 3 have both; draft 3 also added `noEmpty`, `allDates`, `allNumbers` checks (allowed, not required).
+- **What it shows.** Given bareguard's op list and worked examples, deepseek-flash picks the right ops, exact headers and the signed date on the first try; the one miss is dropping the second guardrail check. M10b items 1-8 may be built (F76 rule). A drafted plan that leaves a guardrail with no check must still show it as Not checked (M10 item 5), so a draft like aging #1 is visible to the person at sign time.
+
+## F77 — M10b live aging walk 2026-10-23: three gaps and one retracted (ask card, missing buckets, doubled answer; numeric column guess retracted) (run m10b-aging run-1; open)
+
+**Status.** Finding, no build. Open, recorded unsigned until hamr signs. Tags: **[MEASURED]** the files named below (read only), **[SIGNED]** M10b amendment 3 (commit d1180f0). Branch m10b.
+
+**What happened.** `flows/m10b-aging` run-1 (job text `flows/m10b-aging/prose.txt`, sheet `fixtures/ar-aging.csv`, 8 invoices) drafted, signed and reached its ask. Three gaps showed on the way, and a fourth was retracted. Run spend: 4 provider calls in `runs/run-1/spend.jsonl`, $0.040626 in total (the earlier drafts under `flows/.drafts/d-00mvkmbx5j-a98a` are not in that sum; draft-1 of the redraft alone cost $0.0197).
+
+**Earlier red, already fixed.** The redraft (`.drafts/d-00mvkmbx5j-a98a/redraft-1.log`) went RED (validator): `line 2: the check must name the column 'Current' of "aging" in close.columns` (same for `1-30`, `31-60`, `61-90`, `90+`). The bucket names are also headers of the sheet, so a job word matching a header locked `close.columns`. Fixed by M10b am3 (d1180f0, test 28e255c).
+
+**Gap 1 — the ask card cannot show a sheet answer.** [MEASURED] The ask card printed: `ask.json "evidence" has neither ".artifact.text" (M3) nor ".text" (M2) — unrecognised shape: keys ["artifact","unjudged"]`. `runs/run-1/ask.json` `evidence.artifact` is the claim boxes of the `close.sheet` step: `invoiceCount {value: 8}` and `daysPastDue {days: {"2":124 ... "9":109}}`, with no text. M10b piece 4 put the sheet block on the plan card and the Result tab, not on the ask card, which is where the human verifies. Cost of leaving it: at the ask the human is shown an error, not the answer they are asked to check.
+
+**Gap 2 — no buckets, and nothing caught it.** [MEASURED] `runs/run-1/sheet-checks.json` has two checks: `count` on `Invoice #` (covers [1]) and `daysSince` on `Due date` (covers [2,3]). There is no `band` and no `noDuplicates`, so `artifacts/bucket_assignment.json` has no buckets at all (only `invoiceCount` and `daysPastDue`). The job line asks for buckets (`put it in its bucket: Current, 1-30, 31-60, 61-90, 90+`), but buckets were not in a guardrail, so Not checked had nothing to list. "every invoice appears exactly once" was tagged as covered by a `count`, which cannot catch a repeat. The first draft of the same job (`draft-1/declaration.rejected.json`) did have `band` (Due date, asOf 2026-10-11, the 5 names) and `noDuplicates` on `Invoice #`: drafter variance, as F76 aging draft 1 showed in the other direction. Cost of leaving it: a green run with no bucket check and a repeat-blind duplicate check.
+
+**Gap 3 — a doubled answer.** [MEASURED] `prose.txt` line 2 guardrail reads `every invoice appears exactly once; days past due = days since 'Due date' as of 2026-10-11; days past due = days since 'Due date' as of 2026-10-11`. hamr answered the same column ask in two drafts; the second draft kept the first answer and added it again as a new `~` rule. Cost of leaving it: effect on the checks not tested, but the signed guardrail carries the same rule twice.
+
+**Gap 4 — retracted 2026-10-23: works as signed (M10 item 7); the human answer corrected it.** [MEASURED] The ask in `.drafts/d-00mvkmbx5j-a98a/draft/questions.json` offered `'Amount' has numbers in 8 of 8 rows` for the job word "days past due". M10 scope item 7 (signed, `docs/wiki/the-module-ladder.md`) says the column ask offers a column that passes the number test. hamr's own-words answer is the safeguard, and it corrected the guess. Not a gap.
+
+**Proposed next steps (unsigned, none built).**
+1. Job text: add `guardrail: each invoice is in one bucket` so buckets are a guardrail and an unchecked bucket shows under Not checked.
+2. An amendment for the ask card to show the sheet block (the claim boxes) as the plan card does.
+3. Drop an identical `~` rule on redraft instead of appending it again.
+
+## F78 — M10b exit walks 2026-10-23: expenses green; aging open (drafter drops or mis-tags the bucket check) (open)
+
+**Status.** Finding, no build. Recorded unsigned until hamr signs. Tags: **[MEASURED]** the flow files named below (read only). Lessons are observations, not proven causes. Branch m10b.
+
+**Expenses — green.** [MEASURED] `flows/m10b-expenses-a` run-1: try 1 was red by bareguard (it claimed 19 rows / 13821.17 and named rows 40 and 41, which do not qualify); try 2 was green: 17 rows, 12719.59. Books balance: history `spentUsd` 0.027801 = audit sum 0.027801. `node scripts/m10b-recheck.mjs flows m10b-expenses-a run-1` gives ok. This meets that half of the done-when.
+
+**Aging — open.** [MEASURED] Six drafts today across `m10b-aging`, `m10b-aging-2`, `-3`, `-4` (unsigned) and two more unsigned drafts. Each flow's declaration `close.sheet`:
+- `m10b-aging` run-1: count + daysSince, no band.
+- `m10b-aging-2`: daysSince + band, no noDuplicates; "every invoice appears exactly once" is under Not checked. Green, all 8 in 90+, books 0.013728 = 0.013728, recheck ok.
+- `m10b-aging-3`: daysSince only; two guardrails under Not checked; no buckets written; books 0.0143922 balanced; recheck ok on what it signed.
+- `m10b-aging-4` readout (unsigned): noDuplicates, noEmpty, an all-numbers check on the empty 'Days overdue' tagged as covering "each invoice is in one bucket", a count tagged as covering buckets; no band, no daysSince.
+- A later unsigned draft: "every invoice appears exactly once — no sheet check covers it", and the AI wrote "no invoice column in the report".
+- Final unsigned draft, job words naming the headers exactly ("each Invoice #", "days since Due date"): no column ask fired, noDuplicates present, daysSince present, still no band; count tagged as covering "each Invoice # is in one bucket".
+- Only the first draft of the day (rejected, `flows/.drafts/d-00mvkmbx5j-a98a/draft-1/declaration.rejected.json`) had band + noDuplicates + daysSince together.
+
+**Lessons (observations, unsigned).**
+(a) Job words that do not match the headers ("invoice" vs 'Invoice #') get "there is no column 'invoice'", and the drafter then claimed no invoice column exists. Naming the header exactly fixed the duplicate check (1 draft; cause not proven).
+(b) deepseek-flash repeatedly omits the band check and mis-tags a count or numbers check as covering the bucket guardrail. The plan card showed the tag (am2 works as designed: the tag is shown, the human catches it).
+(c) No code fix was made for (b), on hamr's ruling: a send-back loop would fit code to one job.
+
+**Status of the exit.** M10b exit is open on the aging job only. Next: reopen after bareloop's learnings, copied byte for byte (UI and inner working), on hamr's word 2026-10-23.

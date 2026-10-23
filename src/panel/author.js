@@ -49,6 +49,7 @@ import {
   appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
+import { csvRolesOf } from '../sheetblock.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
 } from '../provider.js';
@@ -296,7 +297,7 @@ export function createAuthor(opts) {
     const decl = readJson(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line) } : { hasAsk: true };
+    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true };
     return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
   }
 

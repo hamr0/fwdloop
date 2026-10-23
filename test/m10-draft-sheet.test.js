@@ -143,18 +143,18 @@ const AGING = readFileSync(new URL('./fixtures/m4d-am8.aging.signed.txt', import
 const agingDecl = (columns) => {
   const d = JSON.parse(readFileSync(new URL('./fixtures/m4d-am8.aging.declaration.json', import.meta.url), 'utf8'));
   d.steps[1].reads = ['aging']; d.steps[2].reads = ['bucket_assignment'];
-  if (columns) d.steps[1].close = { class: 'green', columns };
+  // M10b piece 5: the green step carries close.sheet (the old cell cite no longer drafts)
+  d.steps[1].close = { class: 'green', ...(columns ? { columns } : {}), sheet: [{ id: 'n', rule: 'cells', table: 'aging', claim: 'n', op: 'count', column: 'Amount', covers: [] }] };
   delete d.inputFacts;
   return d;
 };
 const withAging = (fn) => withSheet(async (csv) => fn(AGING.replace(/source aging = file:.*/, `source aging = file:${csv}`).replace('   guardrail: every invoice appears exactly once', '   guardrail: every invoice appears exactly once; amounts are right')), 'Invoice,Amount\nA1,10.5\nA2,20\nA3,30\n');
 const sheetAnswer = () => ans(W('Amount', 'line 2 rule 2', 'number'));
 
-test('the kept column must be named in the step\'s close.columns: a draft without it is refused naming the line, a draft with it passes', () => withAging(async (proseText) => {
-  const bad = fakeProvider([sheetAnswer(), toolReply(agingDecl()), toolReply(agingDecl()), toolReply(agingDecl())]);
+test('the kept column is told to the drafter; with close.sheet a draft that leaves it out passes (M10b am3), one that names a made-up column is refused', () => withAging(async (proseText) => {
+  const bad = fakeProvider([sheetAnswer(), toolReply(agingDecl())]);
   const r = await draft({ proseText, provider: bad, rates: RATES, modelId: MODEL });
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes("'Amount'") && x.includes('close.columns')), JSON.stringify(r.reds));
+  assert.equal(r.ok, true, JSON.stringify(r.reds)); // M10b am3: a header-matching word alone does not lock the column when the step has close.sheet
   assert.ok(bad.calls[1].messages[0].content.includes("is column 'Amount'"), 'the drafter is told the kept column');
   const good = fakeProvider([sheetAnswer(), toolReply(agingDecl([{ source: 'aging', column: 'Amount' }]))]);
   const ok = await draft({ proseText, provider: good, rates: RATES, modelId: MODEL });

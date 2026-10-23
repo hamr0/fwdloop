@@ -60,6 +60,8 @@ import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
 import { readRunSource } from './cited-source.js';
 import { citedLineOf, writeCitedLine } from './cited-record.js';
+import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
+import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
@@ -413,8 +415,11 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  unreadable source refuses by name. A source that is a web address
  *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
  *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
- *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o] */
-export async function freezeInputs(runDir, sources, { fetchPage } = {}) {
+ *  M10b amendment 1: a CSV input named in `tableRoles` (the sheets a step's `close.sheet` reads) also gets its `tableSha` (bareguard's fingerprint of the table made
+ *  from the FROZEN copy) in its manifest entry - the ONE place it is written, once, with the run's inputs; every sheet check of the run uses this recorded value.
+ *  A sheet bareguard cannot read as a table refuses the run here, naming the input.
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[]}} [o] */
+export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [] } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
@@ -432,9 +437,16 @@ export async function freezeInputs(runDir, sources, { fetchPage } = {}) {
     copyFileSync(sourcePath, frozenPath);
     const sha256 = hashFile(frozenPath);
     const { size: bytes } = statSync(frozenPath);
-    manifest.push({
+    /** @type {Record<string, any>} */
+    const entry = {
       id, source: sourcePath, frozen: frozenPath, sha256, bytes,
-    });
+    };
+    if (tableRoles.includes(id)) {
+      const tsha = isCellsPath(frozenPath) ? tableShaOfFrozen(runDir, basename(frozenPath)) : null;
+      if (tsha === null) return { ok: false, red: `freeze: input "${id}" cannot be read as a table (a row with more or fewer cells than the header, or a repeated column name); fix the sheet` };
+      entry.tableSha = tsha;
+    }
+    manifest.push(entry);
   }
   writeFileSync(join(runDir, 'inputs.json'), JSON.stringify(manifest, null, 2));
   return { ok: true, manifest };
@@ -836,7 +848,7 @@ export async function runStepRalph({
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
     // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
     // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
@@ -979,7 +991,12 @@ export async function runStepRalph({
     // written by the one writer, `writeCitedLine`, whatever the verdict - the Result tab says why a line did not pass.
     const citedPart = step?.close?.class === 'green' ? step?.close?.cited : undefined;
     const source = citedPart && runDir !== null ? readRunSource(runDir, citedPart.source, { docx: true }) : undefined;
-    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source });
+    // M10b piece 2: a step with `close.sheet` is checked by bareguard on the run's own frozen copy and the `tableSha` recorded at its start; the record of what it
+    // said is written by the one writer, `writeSheetLine`, whatever the verdict.
+    const sheetPart = step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) ? step.close.sheet : undefined;
+    const sheet = sheetPart && runDir !== null ? readRunSheets(runDir, sheetPart) : undefined;
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source, sheet });
+    if (sheetPart && runDir !== null && closed.sheetRecord) writeSheetLine(runDir, { n: step.fromLine, try: attempt, checks: sheetPart, closed });
     if (citedPart && runDir !== null && closed.cited) {
       writeCitedLine(runDir, citedLineOf({
         n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
@@ -1163,7 +1180,7 @@ export async function runFlow({
   writeRunThinking(flowDir, runDir);
   if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
 
-  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage });
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps) });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },

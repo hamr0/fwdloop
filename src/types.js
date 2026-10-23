@@ -244,15 +244,6 @@
  * @property {string|null} gap
  */
 
-/**
- * A green-class field value: `value` is the number/ISO-date/text claimed;
- * `cite` resolves it (src/closers.js's own grammar).
- * @typedef {object} GreenField
- * @property {string|number} value
- * @property {string} cite
- */
-
-/** @typedef {{ fields: Record<string, GreenField> }} GreenArtifact */
 /** @typedef {{ text: string, lines?: string[] }} SoftgreenArtifact */
 
 /**
@@ -263,6 +254,7 @@
  * @property {string[]} [reds]
  * @property {Array<{id:string, text:string, ok:boolean, result:string|null}>} [checks] a softgreen close: every check it ran (M4d am29 item 2)
  * @property {{part: any, check: any, results?: unknown}} [cited] a cited green close (M10 piece 4): the fact part and the check's own answer, for the run's cited-check record
+ * @property {{inputs: Array<{name:string, sha256:string}>, claims: unknown, checks: Array<{id:string, text:string, ok:boolean, result:string|null}>}} [sheetRecord] a sheet close (M10b piece 2): what the run's sheet-check record keeps
  */
 
 /**

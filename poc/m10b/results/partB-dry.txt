@@ -1,0 +1,486 @@
+DRY (no network, $0). Tool emit_checks, model deepseek-flash, thinking off, forced tool call, maxTokens 16000, 3 drafts per job.
+system prompt: 14532 chars (same for both jobs)
+----- SYSTEM -----
+You write the SIGNED CHECKS a person will sign for one spreadsheet job. A check is a typed object; a later step supplies only values (a claim) and bareguard recomputes and compares. You choose the rule, op, columns, conditions, dates and bands. You never write a formula or a regex.
+Rules: write only checks the job's guardrails need. A column name must be copied exactly as the sheet's header row spells it. Every check names the table given below. A "cells" check also names `claim`: the name of the output field that will hold the claim object (any short word). Every check has a unique `id`. Use only the ops listed below with the fields each op allows. Call emit_checks once with the list.
+
+## rule "cells"
+fields: table (name, required): the name of the table the caller passes in opts.tables
+  claim (name, required): the output field holding the claim object (shape per op)
+  op (enum, required): the operation; the closed list per rule is in `ops`
+  column (string): a column header of the table, exact
+  range (range): { from, to }: integers >= 2, from <= to; only rows with from <= rowNumber <= to are in scope
+  where (condition-list): 1-20 conditions, ALL must hold (AND only). { column, cmp: "gt" | "gte" | "lt" | "lte" | "eq" | "between" | "before" | "after" | "dateBetween" | "dateOn" | "equals" | "empty" | "notEmpty", value | lo + hi }. Number cmps (gt gte lt lte eq, between inclusive) take finite numbers; date cmps (before and after strict, dateBetween inclusive, dateOn) take "YYYY-MM-DD" strings and need a dateFormats entry for the column; equals takes an exact string (no trim, no case folding, no wildcard); empty and notEmpty take none. A blank cell never satisfies a number or date condition.
+  dateFormats (date-format-list): [{ column, format }]: the format of every date column the check reads, one entry per column, format one of "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY" | "D MMM YYYY"; exactly the date columns the check uses
+  tolerance (number): float ops only: absolute tolerance, finite and >= 0; default 0.005 (plus a 1e-9 relative float-noise slack). Counts, row sets, days and uniqueCount are exact and refuse it
+  needle (string): found: the signed value to look for
+  valueKind (enum): found, rows, uniqueCount: text (exact string, default) or number; lookup (required): text, number or date
+  keyColumn (string): diff: REQUIRED, the key column rows are aligned by (blank or repeated keys are red); rows/lookup: the key column
+  keyValue (string): lookup: the signed key value (exact)
+  n (integer): topN: >= 1; rowCount, rowsAdded, rowsDeleted: >= 0
+  order (enum): topN direction
+  ties (enum): topN: any = any valid pick of the tied rows is green; all = every tied row at the cutoff is required
+  groupColumn (string): groupTotals: the column whose distinct values are the groups
+  bands (band-list): 1-20 bands { name, gt | gte, lt | lte } with unique names and no overlap; a row in no band is red no-band
+  asOf (date): a signed fixed date "YYYY-MM-DD" (never the clock)
+  allowEmpty (boolean): default false: a blank operand (row math, per-row ops) or a blank cell (allNumbers, allDates) is red; true: a blank operand reads as 0 (row math) or is skipped (per-row ops) or is allowed (shape checks)
+  from (cell): { column, row }: a date cell (row >= 2)
+  to (cell): { column, row }: a date cell (row >= 2)
+  cell (cell): { column, row }: one date cell (row >= 2)
+  text (explanation): 
+### op "count": non-blank cells of column
+requires: column; allows: range; claim: { value: integer }
+worked example check: {"id":"ex-count","rule":"cells","table":"t","claim":"answer","op":"count","column":"Amount"}
+### op "countEmpty": blank cells of column
+requires: column; allows: range; claim: { value: integer }
+worked example check: {"id":"ex-countEmpty","rule":"cells","table":"t","claim":"answer","op":"countEmpty","column":"Tax"}
+### op "countIf": rows matching where
+requires: where; allows: range, dateFormats; claim: { value: integer }
+worked example check: {"id":"ex-countIf","rule":"cells","table":"t","claim":"answer","op":"countIf","where":[{"column":"Amount","cmp":"gt","value":100}]}
+### op "sum": sum of column (blanks skipped)
+requires: column; allows: range, tolerance; claim: { value: number }
+worked example check: {"id":"ex-sum","rule":"cells","table":"t","claim":"answer","op":"sum","column":"Amount"}
+### op "sumIf": sum of column over rows matching where
+requires: column, where; allows: range, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-sumIf","rule":"cells","table":"t","claim":"answer","op":"sumIf","column":"Amount","where":[{"column":"Amount","cmp":"gt","value":100}]}
+### op "average": mean of column (blanks skipped; none = red no-values)
+requires: column; allows: range, tolerance; claim: { value: number }
+worked example check: {"id":"ex-average","rule":"cells","table":"t","claim":"answer","op":"average","column":"Amount"}
+### op "averageIf": mean of column over rows matching where
+requires: column, where; allows: range, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-averageIf","rule":"cells","table":"t","claim":"answer","op":"averageIf","column":"Amount","where":[{"column":"Amount","cmp":"gt","value":100}]}
+### op "median": median of column (even count: mean of the middle two)
+requires: column; allows: range, where, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-median","rule":"cells","table":"t","claim":"answer","op":"median","column":"Amount"}
+### op "min": smallest number of column
+requires: column; allows: range, where, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-min","rule":"cells","table":"t","claim":"answer","op":"min","column":"Amount"}
+### op "max": largest number of column
+requires: column; allows: range, where, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-max","rule":"cells","table":"t","claim":"answer","op":"max","column":"Amount"}
+### op "found": needle is (or is not) a cell of column; valueKind text (exact) or number
+requires: column, needle; allows: range, valueKind; claim: { value: boolean }
+worked example check: {"id":"ex-found","rule":"cells","table":"t","claim":"answer","op":"found","column":"Id","needle":"a2"}
+### op "lookup": the cell of column on the one row whose keyColumn equals keyValue (0 or 2+ matches = red)
+requires: column, keyColumn, keyValue, valueKind; allows: range, dateFormats, tolerance; claim: { value: string|number }
+worked example check: {"id":"ex-lookup","rule":"cells","table":"t","claim":"answer","op":"lookup","column":"Amount","keyColumn":"Id","keyValue":"a1","valueKind":"number"}
+### op "rows": the claimed row numbers EQUAL the matching rows: none missing, none extra
+requires: where; allows: range, keyColumn, valueKind, dateFormats; claim: { rows: integer[] } or { keys: string[] } (keys needs keyColumn; valueKind text|number, default text)
+worked example check: {"id":"ex-rows","rule":"cells","table":"t","claim":"answer","op":"rows","where":[{"column":"Amount","cmp":"gt","value":100}]}
+### op "topN": the n largest (order desc) or smallest (asc); ties any (default) or all
+requires: column, n; allows: range, where, order, ties, tolerance, dateFormats; claim: { rows: integer[] } or { values: number[] }
+worked example check: {"id":"ex-topN","rule":"cells","table":"t","claim":"answer","op":"topN","column":"Amount","n":1}
+### op "uniqueCount": distinct non-blank values of column
+requires: column; allows: range, valueKind; claim: { value: integer }
+worked example check: {"id":"ex-uniqueCount","rule":"cells","table":"t","claim":"answer","op":"uniqueCount","column":"Cat"}
+### op "duplicates": values (and the rows) that occur more than once in column; a value claimed twice is red
+requires: column; allows: range; claim: { values: string[] } and/or { rows: integer[] }
+worked example check: {"id":"ex-duplicates","rule":"cells","table":"t","claim":"answer","op":"duplicates","column":"Cat"}
+### op "groupTotals": sum of column per distinct groupColumn value
+requires: column, groupColumn; allows: range, where, tolerance, dateFormats; claim: { totals: [{ group: string, total: number }] }
+worked example check: {"id":"ex-groupTotals","rule":"cells","table":"t","claim":"answer","op":"groupTotals","column":"Amount","groupColumn":"Cat"}
+### op "percentOfTotal": sum over rows matching where as a percent of the column's total
+requires: column, where; allows: range, tolerance, dateFormats; claim: { value: number }
+worked example check: {"id":"ex-percentOfTotal","rule":"cells","table":"t","claim":"answer","op":"percentOfTotal","column":"Amount","where":[{"column":"Amount","cmp":"gt","value":100}]}
+### op "band": each row's number (or, with asOf, its days since the date column) falls in one signed band
+requires: column, bands; allows: range, where, asOf, dateFormats, allowEmpty; claim: { bands: { "<rowNumber>": "<band name>" } }
+worked example check: {"id":"ex-band","rule":"cells","table":"t","claim":"answer","op":"band","column":"Due","asOf":"2026-10-31","dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}],"bands":[{"name":"Current","lte":0},{"name":"1-30","gte":1,"lte":30},{"name":"31+","gt":30}]}
+### op "daysBetween": whole days from the date cell `from` to the date cell `to` (signed)
+requires: from, to, dateFormats; allows: -; claim: { value: integer }
+worked example check: {"id":"ex-daysBetween","rule":"cells","table":"t","claim":"answer","op":"daysBetween","from":{"column":"Due","row":2},"to":{"column":"Due","row":3},"dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}]}
+### op "daysSince": whole days from a date to the signed asOf date (asOf minus the date)
+requires: asOf, dateFormats; allows: cell, column, range, where, allowEmpty; claim: { value: integer } with `cell`; { days: { "<rowNumber>": integer } } with `column` (exactly one of cell, column)
+worked example check: {"id":"ex-daysSince","rule":"cells","table":"t","claim":"answer","op":"daysSince","column":"Due","asOf":"2026-10-31","dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}]}
+### op "earliest": the earliest date of column
+requires: column, dateFormats; allows: range; claim: { value: date in the column's signed format }
+worked example check: {"id":"ex-earliest","rule":"cells","table":"t","claim":"answer","op":"earliest","column":"Due","dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}]}
+### op "latest": the latest date of column
+requires: column, dateFormats; allows: range; claim: { value: date in the column's signed format }
+worked example check: {"id":"ex-latest","rule":"cells","table":"t","claim":"answer","op":"latest","column":"Due","dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}]}
+## rule "table"
+fields: table (name, required): the name of the table the caller passes in opts.tables
+  op (enum, required): the operation; the closed list per rule is in `ops`
+  column (string): a column header of the table, exact
+  range (range): { from, to }: integers >= 2, from <= to; only rows with from <= rowNumber <= to are in scope
+  allowEmpty (boolean): default false: a blank operand (row math, per-row ops) or a blank cell (allNumbers, allDates) is red; true: a blank operand reads as 0 (row math) or is skipped (per-row ops) or is allowed (shape checks)
+  dateFormats (date-format-list): [{ column, format }]: the format of every date column the check reads, one entry per column, format one of "YYYY-MM-DD" | "DD/MM/YYYY" | "MM/DD/YYYY" | "D MMM YYYY"; exactly the date columns the check uses
+  n (integer): topN: >= 1; rowCount, rowsAdded, rowsDeleted: >= 0
+  fn (enum): row math: add, sub, mul, div, pct (a as a percent of b)
+  a (operand): row math: the column name of the left operand
+  b (operand): row math: a column name, or { const: finite number }
+  result (string): row math: the column that must hold the result (a blank result is red result-empty)
+  where (condition-list): 1-20 conditions, ALL must hold (AND only). { column, cmp: "gt" | "gte" | "lt" | "lte" | "eq" | "between" | "before" | "after" | "dateBetween" | "dateOn" | "equals" | "empty" | "notEmpty", value | lo + hi }. Number cmps (gt gte lt lte eq, between inclusive) take finite numbers; date cmps (before and after strict, dateBetween inclusive, dateOn) take "YYYY-MM-DD" strings and need a dateFormats entry for the column; equals takes an exact string (no trim, no case folding, no wildcard); empty and notEmpty take none. A blank cell never satisfies a number or date condition.
+  tolerance (number): float ops only: absolute tolerance, finite and >= 0; default 0.005 (plus a 1e-9 relative float-noise slack). Counts, row sets, days and uniqueCount are exact and refuse it
+  text (explanation): 
+### op "allNumbers": every cell of column reads as a number (a blank is a violation unless allowEmpty)
+requires: column; allows: range, allowEmpty
+worked example check: {"id":"ex-allNumbers","rule":"table","table":"t","op":"allNumbers","column":"Amount"}
+### op "allDates": every cell of column reads as a date in the signed format
+requires: column, dateFormats; allows: range, allowEmpty
+worked example check: {"id":"ex-allDates","rule":"table","table":"t","op":"allDates","column":"Due","dateFormats":[{"column":"Due","format":"YYYY-MM-DD"}]}
+### op "noEmpty": no blank cell in column
+requires: column; allows: range
+worked example check: {"id":"ex-noEmpty","rule":"table","table":"t","op":"noEmpty","column":"Id"}
+### op "noDuplicates": no value occurs twice in column (blanks ignored)
+requires: column; allows: range
+worked example check: {"id":"ex-noDuplicates","rule":"table","table":"t","op":"noDuplicates","column":"Id"}
+### op "rowCount": exactly n rows
+requires: n; allows: range
+worked example check: {"id":"ex-rowCount","rule":"table","table":"t","op":"rowCount","n":3}
+### op "rowMath": on every (matching) row, result = a fn b; b is a column name or { const: number }
+requires: fn, a, b, result; allows: range, where, tolerance, allowEmpty, dateFormats
+worked example check: {"id":"ex-rowMath","rule":"table","table":"t","op":"rowMath","fn":"add","a":"Amount","b":"Tax","result":"Total","allowEmpty":true}
+example tables the worked examples run against: {"header":["Id","Amount","Tax","Due","Cat","Total"],"rows":[{"rowNumber":2,"cells":["a1","600","60","2026-10-01","food","660"]},{"rowNumber":3,"cells":["a2","300","","2026-10-20","rent","300"]},{"rowNumber":4,"cells":["a3","50","5","2026-10-31","food","55"]}]}
+date formats: YYYY-MM-DD | DD/MM/YYYY | MM/DD/YYYY | D MMM YYYY
+
+----- USER (expenses; Description cell text redacted here only) -----
+The signed job:
+1. Read the expenses sheet,
+2. list every expense over 500,
+   guardrail: Price over 500; use the column 'Amount' for 'Price'
+3. ask 30m: check it with me,
+4. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 4 to file:/home/hamr/fwdloop-out
+guardrail: source expenses = file:/home/hamr/PycharmProjects/fwdloop/.claude/scratch/m10/csv/base.csv
+
+The table is named "expenses" (the file named in the job's source guardrail). Its header row is row 1; rows are numbered as in the sheet.
+Header: ["Date","Description","Amount","Tax"]
+The first 3 data rows:
+row 2: ["2026-09-01","<redacted>","429.34","5.70"]
+row 3: ["2026-09-02","<redacted>","817.68",""]
+row 4: ["2026-09-03","<redacted>","16.11","3.21"]
+
+Write the checks this job's guardrails need. Call emit_checks now.
+
+prompt size expenses: system 14532 + user 941 = 15473 chars
+
+----- USER (aging; Customer cell text redacted here only) -----
+The signed job:
+1. Read the aging report
+2. Put each invoice in its overdue bucket as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+
+   guardrail: every invoice appears exactly once
+3. ask 1h: check it with me
+4. Write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.03 per run
+guardrail: send at line 4 to file:/home/hamr/fwdloop-out
+guardrail: source aging = file:/home/hamr/PycharmProjects/fwdloop/fixtures/ar-aging.csv
+guardrail: trigger daily 22:18
+
+The table is named "aging" (the file named in the job's source guardrail). Its header row is row 1; rows are numbered as in the sheet.
+Header: ["Customer","Invoice #","Invoice date","Due date","Amount","Days overdue","Current","1-30","31-60","61-90","90+"]
+The first 3 data rows:
+row 2: ["<redacted>","INV-1021","2026-05-10","2026-06-09","4200","","","","","",""]
+row 3: ["<redacted>","INV-1009","2026-04-20","2026-05-20","1500","","","","","",""]
+row 4: ["<redacted>","INV-0998","2026-04-12","2026-05-12","980","","","","","",""]
+
+Write the checks this job's guardrails need. Call emit_checks now.
+
+prompt size aging: system 14532 + user 1165 = 15697 chars
+
+----- TOOL SCHEMA (emit_checks) -----
+{
+ "type": "object",
+ "properties": {
+  "checks": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "unique, short"
+     },
+     "rule": {
+      "type": "string",
+      "enum": [
+       "cells",
+       "table"
+      ]
+     },
+     "table": {
+      "type": "string",
+      "description": "the name of the table the caller passes in opts.tables"
+     },
+     "claim": {
+      "type": "string",
+      "description": "the output field holding the claim object (shape per op)"
+     },
+     "column": {
+      "type": "string",
+      "description": "a column header of the table, exact"
+     },
+     "range": {
+      "type": "object",
+      "properties": {
+       "from": {
+        "type": "integer"
+       },
+       "to": {
+        "type": "integer"
+       }
+      },
+      "description": "{ from, to }: integers >= 2, from <= to; only rows with from <= rowNumber <= to are in scope"
+     },
+     "where": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "column": {
+         "type": "string"
+        },
+        "cmp": {
+         "type": "string",
+         "enum": [
+          "gt",
+          "gte",
+          "lt",
+          "lte",
+          "eq",
+          "between",
+          "before",
+          "after",
+          "dateBetween",
+          "dateOn",
+          "equals",
+          "empty",
+          "notEmpty"
+         ]
+        },
+        "value": {},
+        "lo": {},
+        "hi": {}
+       },
+       "required": [
+        "column",
+        "cmp"
+       ]
+      },
+      "description": "1-20 conditions, ALL must hold (AND only). { column, cmp: \"gt\" | \"gte\" | \"lt\" | \"lte\" | \"eq\" | \"between\" | \"before\" | \"after\" | \"dateBetween\" | \"dateOn\" | \"equals\" | \"empty\" | \"notEmpty\", value | lo + hi }. Number cmps (gt gte lt lte eq, between inclusive) take finite numbers; date cmps (before and after strict, dateBetween inclusive, dateOn) take \"YYYY-MM-DD\" strings and need a dateFormats entry for the column; equals takes an exact string (no trim, no case folding, no wildcard); empty and notEmpty take none. A blank cell never satisfies a number or date condition."
+     },
+     "dateFormats": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "column": {
+         "type": "string"
+        },
+        "format": {
+         "type": "string",
+         "enum": [
+          "YYYY-MM-DD",
+          "DD/MM/YYYY",
+          "MM/DD/YYYY",
+          "D MMM YYYY"
+         ]
+        }
+       },
+       "required": [
+        "column",
+        "format"
+       ]
+      },
+      "description": "[{ column, format }]: the format of every date column the check reads, one entry per column, format one of \"YYYY-MM-DD\" | \"DD/MM/YYYY\" | \"MM/DD/YYYY\" | \"D MMM YYYY\"; exactly the date columns the check uses"
+     },
+     "tolerance": {
+      "type": "number",
+      "description": "float ops only: absolute tolerance, finite and >= 0; default 0.005 (plus a 1e-9 relative float-noise slack). Counts, row sets, days and uniqueCount are exact and refuse it"
+     },
+     "needle": {
+      "type": "string",
+      "description": "found: the signed value to look for"
+     },
+     "valueKind": {
+      "type": "string",
+      "enum": [
+       "text",
+       "number",
+       "date"
+      ],
+      "description": "found, rows, uniqueCount: text (exact string, default) or number; lookup (required): text, number or date"
+     },
+     "keyColumn": {
+      "type": "string",
+      "description": "diff: REQUIRED, the key column rows are aligned by (blank or repeated keys are red); rows/lookup: the key column"
+     },
+     "keyValue": {
+      "type": "string",
+      "description": "lookup: the signed key value (exact)"
+     },
+     "n": {
+      "type": "integer",
+      "description": "topN: >= 1; rowCount, rowsAdded, rowsDeleted: >= 0"
+     },
+     "order": {
+      "type": "string",
+      "enum": [
+       "desc",
+       "asc"
+      ],
+      "description": "topN direction"
+     },
+     "ties": {
+      "type": "string",
+      "enum": [
+       "any",
+       "all"
+      ],
+      "description": "topN: any = any valid pick of the tied rows is green; all = every tied row at the cutoff is required"
+     },
+     "groupColumn": {
+      "type": "string",
+      "description": "groupTotals: the column whose distinct values are the groups"
+     },
+     "bands": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "name": {
+         "type": "string"
+        },
+        "gt": {
+         "type": "number"
+        },
+        "gte": {
+         "type": "number"
+        },
+        "lt": {
+         "type": "number"
+        },
+        "lte": {
+         "type": "number"
+        }
+       },
+       "required": [
+        "name"
+       ]
+      },
+      "description": "1-20 bands { name, gt | gte, lt | lte } with unique names and no overlap; a row in no band is red no-band"
+     },
+     "asOf": {
+      "type": "string",
+      "description": "a signed fixed date \"YYYY-MM-DD\" (never the clock)"
+     },
+     "allowEmpty": {
+      "type": "boolean",
+      "description": "default false: a blank operand (row math, per-row ops) or a blank cell (allNumbers, allDates) is red; true: a blank operand reads as 0 (row math) or is skipped (per-row ops) or is allowed (shape checks)"
+     },
+     "from": {
+      "type": "object",
+      "properties": {
+       "column": {
+        "type": "string"
+       },
+       "row": {
+        "type": "integer"
+       }
+      },
+      "description": "{ column, row }: a date cell (row >= 2)"
+     },
+     "to": {
+      "type": "object",
+      "properties": {
+       "column": {
+        "type": "string"
+       },
+       "row": {
+        "type": "integer"
+       }
+      },
+      "description": "{ column, row }: a date cell (row >= 2)"
+     },
+     "cell": {
+      "type": "object",
+      "properties": {
+       "column": {
+        "type": "string"
+       },
+       "row": {
+        "type": "integer"
+       }
+      },
+      "description": "{ column, row }: one date cell (row >= 2)"
+     },
+     "text": {
+      "type": "string"
+     },
+     "fn": {
+      "type": "string",
+      "enum": [
+       "add",
+       "sub",
+       "mul",
+       "div",
+       "pct"
+      ],
+      "description": "row math: add, sub, mul, div, pct (a as a percent of b)"
+     },
+     "a": {
+      "description": "row math: the column name of the left operand"
+     },
+     "b": {
+      "description": "row math: a column name, or { const: finite number }"
+     },
+     "result": {
+      "type": "string",
+      "description": "row math: the column that must hold the result (a blank result is red result-empty)"
+     },
+     "op": {
+      "type": "string",
+      "enum": [
+       "count",
+       "countEmpty",
+       "countIf",
+       "sum",
+       "sumIf",
+       "average",
+       "averageIf",
+       "median",
+       "min",
+       "max",
+       "found",
+       "lookup",
+       "rows",
+       "topN",
+       "uniqueCount",
+       "duplicates",
+       "groupTotals",
+       "percentOfTotal",
+       "band",
+       "daysBetween",
+       "daysSince",
+       "earliest",
+       "latest",
+       "allNumbers",
+       "allDates",
+       "noEmpty",
+       "noDuplicates",
+       "rowCount",
+       "rowMath"
+      ],
+      "description": "cells ops go with rule \"cells\"; table ops with rule \"table\""
+     }
+    },
+    "required": [
+     "id",
+     "rule",
+     "table",
+     "op"
+    ]
+   }
+  }
+ },
+ "required": [
+  "checks"
+ ]
+}
+
+grader self-test (aging): good = {"c1":true,"c2":true,"c3":true,"why":{"c1":null,"c2":null,"c3":null}} 
+  bad  = {"c1":true,"c2":false,"c3":false,"why":{"c1":null,"c2":"not a header: [\"Invoice\"]","c3":"band: column=Due date asOf=2026-10-11 91 days falls in [], expected 90+; no table noDuplicates on Invoice #"}}

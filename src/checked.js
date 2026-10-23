@@ -12,28 +12,38 @@
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 import { factRows } from './citedcheck.js';
+import { sheetCheckRows } from './sheetchecks.js';
+import { sheetLineBlocks } from './sheetblock.js';
 import { splitReadNotes, signedFactNames } from './pagedropwords.js';
 
 const list = (xs) => xs.join(', ');
 
 /**
  * One entry per step, in plan order: the plain sentences for what its typed close checks.
- * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[] }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
+ * M10b piece 4: with `lines` (the signed job lines) a step that reads a sheet also carries `sheet`, its line's block (src/sheetblock.js `sheetLineBlocks`: guardrails,
+ * Checked with `covers`, Not checked), and its sentences are only the lead sentence; the surfaces draw the block. Without `lines` the older one-row-per-check sentences.
+ * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[], lines?: any[], csvRoles?: string[] }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
  *   askLines = the job lines of the signed asks, which also lets a step after the LAST ask read "you check it after you accept" (am41 item 2, am42: the ONE place for these words)
- * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[] }[]}
+ * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[], sheet?: ReturnType<typeof sheetLineBlocks>[number] }[]}
  */
-export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
+export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvRoles = [] } = {}) {
+  const blocks = Array.isArray(lines) ? sheetLineBlocks({ declaration, lines, csvRoles }) : [];
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   if (Array.isArray(askLines)) hasAsk = askLines.length > 0;
   const lastAsk = Array.isArray(askLines) ? steps.reduce((m, st, i) => (askLines.includes(st?.fromLine) ? i : m), -1) : -1;
   return steps.map((st, i) => {
     const cls = st?.close?.class;
+    const firstGreen = steps.findIndex((x) => x?.fromLine === st?.fromLine && x?.close?.class === 'green') === i;
+    const sheet = firstGreen ? (blocks.find((b) => b.line === st?.fromLine) ?? null) : null;
     const shape = st?.close?.shape && typeof st.close.shape === 'object' ? st.close.shape : {};
     /** @type {string[]} */
     const out = [];
     if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
       // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
       out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited));
+    } else if (cls === 'green' && Array.isArray(st.close.sheet)) {
+      // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
+      out.push('The machine recomputes each of these from the saved sheet and compares it with what the step gave:', ...(sheet ? [] : sheetCheckRows(st.close.sheet)));
     } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {
@@ -49,6 +59,7 @@ export function checkedLines(declaration, { hasAsk = true, askLines } = {}) {
     }
     return {
       step: i + 1, line: Number.isInteger(st?.fromLine) ? st.fromLine : null, goal: typeof st?.goal === 'string' ? st.goal : '', class: String(cls), sentences: out,
+      ...(sheet && cls === 'green' ? { sheet } : {}),
     };
   });
 }

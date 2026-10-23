@@ -32,7 +32,9 @@ import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
-import { parseCsv } from './csv.js';
+import { parseCsv, sheetTable } from './csv.js';
+import { sheetChecksProp, sheetOfferRules } from './sheetoffer.js';
+import { uncoveredRules } from './sheetblock.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -56,12 +58,12 @@ const docRolesOf = (sources) => (sources ?? []).filter((s) => s.kind === 'file' 
 /** the document inputs a quote can come from (M10 piece 5, item 2) */
 const DOC_EXTS = Object.freeze(['.docx', '.md', '.txt']);
 
-/** M10 am8 item 2: the column lock of a green step that cites cells (`close.columns`): the exact header(s) its cells come from. */
+/** M10 am8 item 2: the column lock of a green step that reads a CSV input (`close.columns`): the exact header(s) its values come from. */
 const COLUMNS_PROP = Object.freeze({
   type: 'array',
   minItems: 1,
   maxItems: 10,
-  description: "only on a green step that cites cells of a CSV input: the exact column names (the sheet's header) every cited cell comes from. Omit on any other step",
+  description: "only on a green step that reads a CSV input: the exact column names (the sheet's header) its values come from. Omit on any other step",
   items: {
     type: 'object',
     properties: {
@@ -124,8 +126,13 @@ const SHAPE_PROPS = Object.freeze({
   mustCarry: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'named fields every line must carry' },
 });
 
-/** The forced tool's parameter schema. `menu` = wiredMenu(). */
-export function buildDeclarationSchema(menu) {
+/**
+ * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
+ * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
+ * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>}} [o]
+ */
+export function buildDeclarationSchema(menu, { sheets } = {}) {
+  const sheetProp = sheets ? sheetChecksProp(sheets) : null;
   const shapeProps = {};
   for (const key of SHAPE_KEYS) {
     if (!SHAPE_PROPS[key]) throw new Error(`schema: SHAPE_KEYS gained "${key}" — add its type to SHAPE_PROPS`);
@@ -165,6 +172,7 @@ export function buildDeclarationSchema(menu) {
                 },
                 cited: CITED_PROP,
                 columns: COLUMNS_PROP,
+                ...(sheetProp ? { sheet: sheetProp } : {}),
               },
               required: ['class'],
               additionalProperties: false,
@@ -208,7 +216,7 @@ export const MAX_QUESTIONS = 2;
 
 /** What fwdloop's typed checks can really check (bareloop F174: give the model the real list, or "Not checked" is invented). */
 export const CHECKABLE = Object.freeze([
-  'green: a figure cites its source cell or formula',
+  'green: a sheet figure is recomputed by bareguard from the saved sheet',
   'softgreen: the output carries named section headings (sections), in order',
   `softgreen: a word ceiling for the whole output (maxWords; ${WHOLE_OUTPUT_CEILING_RULE}) and per section (wordsPerSection)`,
   'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
@@ -231,8 +239,9 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-export function buildRoundSchema(menu, { questions = false } = {}) {
-  const s = buildDeclarationSchema(menu);
+/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined}} [o] */
+export function buildRoundSchema(menu, { questions = false, sheets = undefined } = {}) {
+  const s = buildDeclarationSchema(menu, { sheets });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
   if (questions) {
     extra.questions = {
@@ -305,10 +314,11 @@ function greenReadRule(sources) {
   const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
   // M10 piece 5 (item 2): a quote in a doc - a .docx / .md / .txt input is quoted the way a page is
   const docRoles = docRolesOf(sources);
-  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
+  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be checked against its sheet; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
-    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
-    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. A step that has close.sheet is not held to close.columns by a word that merely matches a header (such as a bucket name); but when a line carries a rule "use the column 'X' for ...", at least one of that line's close.sheet checks must use that column. Leave close.columns out when the line names no column.`
+    : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+  if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   if (pageRoles.length || docRoles.length) {
     out.push(
       `- ${[pageRoles.length ? `Web page inputs in this job: ${pageRoles.join(', ')}.` : '', docRoles.length ? `Document inputs in this job: ${docRoles.join(', ')}.` : ''].filter(Boolean).join(' ')} A step whose line asks for things found in one of them, and whose guardrail is about them, is "green" and checks quotes: it lists that input's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
@@ -339,6 +349,14 @@ function whenToUse(menu) {
   return Object.entries(WHEN_TO_USE).filter(([verb]) => on.has(verb)).map(([, line]) => line);
 }
 
+/** M10b piece 3: with a CSV input, the guardrail rules of each line by number (the numbers `covers` names), in the order the validator counts them. Otherwise nothing. */
+function sheetRuleNumbers(lines, arbiter) {
+  const csvRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path));
+  if (csvRoles.length === 0) return [];
+  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}) })).filter((x) => x.rules.length > 0);
+  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((r, i) => `${i + 1}) ${r}`).join(' ')}`)];
+}
+
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
   const askLines = arbiter.asks.map((a) => a.line);
   const sendLines = arbiter.sends.map((s) => s.line);
@@ -352,7 +370,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     'Rules:',
     '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step, or the role of a CSV input listed under Inputs), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
-    '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
+    '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must be checkable against its source: a sheet figure by the bareguard checks of the sheet), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     ...greenReadRule(arbiter.sources),
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
@@ -368,6 +386,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '',
     'The numbered job lines:',
     jobLinesText(lines, arbiter.asks),
+    ...sheetRuleNumbers(lines, arbiter),
   ].join('\n');
 }
 
@@ -638,6 +657,8 @@ export async function draft({
   const factsInfo = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
+  const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
   const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
   let structureRetries = 0;
@@ -664,7 +685,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen });
+    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -754,15 +775,16 @@ export async function draft({
         return { ...st, close: { ...st.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
       });
     }
+    // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
     const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
-      sheetWords: Object.keys(facts.sheets ?? {}).length ? { headers: Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, parseCsv(t).header])), facts: sheetFacts.filter((f) => f.shape === 'column') } : undefined,
+      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...pageNotChecked, ...cleanNotChecked(rawNotChecked).filter((x) => !pageNotChecked.includes(x))] };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';

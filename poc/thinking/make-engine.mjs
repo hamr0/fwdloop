@@ -29,10 +29,10 @@ export function makeEngine() {
     writeFileSync(p, s.replace(from, () => to));
   };
   patch('src/runner.js',
-    "const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });",
+    "const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });",
     'const stepMeta = Object.freeze({ class: step.close?.class ?? null, attempt, stepId: step.emits ?? step.goal ?? null }); // POC patch (src now carries attempt + thinkingMode since M4d am25; the POC arm overrides the mode)');
   patch('src/model-step.js',
-    "const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));",
+    "const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited), stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? stepMeta.sheet : null);",
     "const poc = pocBegin(provider, stepMeta); // POC patch\n    const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited));");
   patch('src/model-step.js',
     "result = await loop.run(messages, tools, { maxTokens: 16000, ...(thinkingMode ? { thinkingMode } : {}) });",

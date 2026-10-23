@@ -1,6 +1,6 @@
 {
   "name": "fwdloop",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Describe a job as steps and guardrails; an agent builds the workflow, pauses for humans where you said, checks every step happened, and reruns it under budgets it cannot touch.",
   "type": "module",
   "main": "./src/index.js",
@@ -51,7 +51,7 @@
   "dependencies": {
     "bare-agent": "^0.52.0",
     "barebrowse": "^0.21.0",
-    "bareguard": "^0.25.1",
+    "bareguard": "^0.26.0",
     "litectx": "^0.32.0"
   },
   "devDependencies": {

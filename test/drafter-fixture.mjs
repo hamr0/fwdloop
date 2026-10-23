@@ -46,7 +46,7 @@ export function fakeProvider(replies) {
     lastMalformedToolCall: null,
     calls,
     async generate(messages, tools, options) {
-      calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), options });
+      calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });
       const r = replies[Math.min(calls.length - 1, replies.length - 1)];
       this.lastMalformedToolCall = r.malformedToolCall ?? null;
       return r;

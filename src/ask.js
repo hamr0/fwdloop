@@ -184,7 +184,7 @@ export function makeFileAskStep({
  * @param {any} ask the parsed ask.json object (or its `evidence` field's
  *   container — pass the whole ask so a missing `evidence` key is itself a
  *   handled case, not the caller's problem).
- * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text: string}>, why?: string }}
+ * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text: string}>, why?: string, claims?: Record<string, any> }}
  */
 export function readAskEvidence(ask) {
   const evidence = ask && typeof ask === 'object' ? ask.evidence : undefined;
@@ -205,8 +205,8 @@ export function readAskEvidence(ask) {
     };
   }
 
-  // M3 shape: evidence.artifact.text (+ evidence.unjudged[]).
-  if (evidence.artifact && typeof evidence.artifact === 'object' && typeof evidence.artifact.text === 'string') {
+  // The earlier steps' text carried into the ask (the same for every shape that has an `artifact`).
+  const readUnjudged = () => {
     const rawUnjudged = Array.isArray(evidence.unjudged) ? evidence.unjudged : [];
     const unjudged = [];
     for (const item of rawUnjudged) {
@@ -230,12 +230,28 @@ export function readAskEvidence(ask) {
       // dropped rather than shown as a blank row — the draft itself is
       // never lost by a malformed sibling entry.
     }
-    return { draft: { text: evidence.artifact.text }, unjudged };
+    return unjudged;
+  };
+
+  // M3 shape: evidence.artifact.text (+ evidence.unjudged[]).
+  if (evidence.artifact && typeof evidence.artifact === 'object' && typeof evidence.artifact.text === 'string') {
+    return { draft: { text: evidence.artifact.text }, unjudged: readUnjudged() };
   }
 
   // M2 shape: evidence.text (+ evidence.lines) — no unjudged concept.
   if (typeof evidence.text === 'string') {
     return { draft: { text: evidence.text }, unjudged: [] };
+  }
+
+  // M10b am4: a step with sheet checks answers in claim boxes, an object with no text. They are handed on as `claims` (the panel matches them to the step's checks);
+  // the `why` stays, for the caller that finds no sheet step for them.
+  if (evidence.artifact && typeof evidence.artifact === 'object' && !Array.isArray(evidence.artifact)) {
+    return {
+      draft: null,
+      unjudged: readUnjudged(),
+      claims: evidence.artifact,
+      why: `ask.json "evidence" has neither ".artifact.text" (M3) nor ".text" (M2) — unrecognised shape: keys ${JSON.stringify(Object.keys(evidence))}`,
+    };
   }
 
   // Present but neither recognised shape — never fall through to
