@@ -244,15 +244,6 @@
  * @property {string|null} gap
  */
 
-/**
- * A green-class field value: `value` is the number/ISO-date/text claimed;
- * `cite` resolves it (src/closers.js's own grammar).
- * @typedef {object} GreenField
- * @property {string|number} value
- * @property {string} cite
- */
-
-/** @typedef {{ fields: Record<string, GreenField> }} GreenArtifact */
 /** @typedef {{ text: string, lines?: string[] }} SoftgreenArtifact */
 
 /**

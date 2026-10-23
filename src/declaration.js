@@ -437,9 +437,9 @@ function checkCitedKey(step, label, c, reds) {
 }
 
 /**
- * M10 am8 item 2: `close.columns` is the column lock of a green step that cites cells: `[{source, column}]`, written by the drafter and checked by code. Its SHAPE is
+ * M10 am8 item 2: `close.columns` is the column choice of a green step that reads a sheet: `[{source, column}]`, written by the drafter and checked by code (the old cell-cite check that enforced it at run time retired in M10b piece 5; a job signed with it still reads). Its SHAPE is
  * checked in every mode; with `sheetWords` (draft time) every column is proved to be a real column of its sheet and a column the sheet look kept for this step's
- * line must be in the list. At run time every cited cell must come from one of these columns (src/closers.js).
+ * line must be in the list.
  * @param {any} step @param {string} label @param {{cellsRoles: string[], reads: string[]|null, effectiveClass: string, sheetWords?: {headers: Record<string, string[]>, facts: any[]}}} c @param {string[]} reds
  */
 function checkColumnsKey(step, label, c, reds) {

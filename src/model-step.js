@@ -31,7 +31,6 @@ import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
 import { citedBrief } from './citedcheck.js';
-import { citeForms } from './closers.js';
 import { sheetAnswerProps, sheetBrief } from './sheetclaims.js';
 
 import {
@@ -94,22 +93,6 @@ const DONE_PROPS = Object.freeze({
   },
 });
 
-const GREEN_SCHEMA = Object.freeze({
-  type: 'object',
-  properties: {
-    fields: {
-      type: 'object',
-      additionalProperties: {
-        type: 'object',
-        properties: { value: {}, cite: { type: 'string', description: `Where the value comes from: ${citeForms()}.` } },
-        required: ['value', 'cite'],
-      },
-    },
-    ...DONE_PROPS,
-  },
-  required: ['fields', 'done'],
-});
-
 const SOFTGREEN_SCHEMA = Object.freeze({
   type: 'object',
   properties: {
@@ -168,7 +151,7 @@ export function buildEmitArtifactSchema(stepClass, cited = false, sheet = null) 
     return { type: 'object', properties: { ...properties, ...DONE_PROPS }, required: [...required, 'done'], additionalProperties: false };
   }
   if (stepClass === 'green' && cited) return CITED_SCHEMA;
-  if (stepClass === 'green') return GREEN_SCHEMA;
+  if (stepClass === 'green') throw new Error('a green step answers in quotes (close.cited) or in claim boxes (close.sheet); the cell cite retired in M10b piece 5');
   if (stepClass === 'softgreen') return SOFTGREEN_SCHEMA;
   return HITL_SCHEMA;
 }
