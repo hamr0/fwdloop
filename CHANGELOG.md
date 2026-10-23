@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-10-23
+
+M10b (a sheet's checks are bareguard's cells checks; the CSV case runs green) with amendments 1-4.
+
+Known open: the M10b exit is met for the expenses job only. The aging job's exit walk is still open
+(F78 in `docs/logs/FINDINGS.md`).
+
+### Added
+- Sheet checks are bareguard's cells checks (bareguard ^0.26.0). For a CSV sheet the drafter suggests
+  checks from bareguard's `rubricVocabulary` (the sheet's header is its only column choice), you sign
+  them with the job (`close.sheet`), and bareguard judges. The step only answers in bareguard's typed
+  claim boxes and is told their shapes, never the checks. A number or date in a check must be in the
+  job's words, and a list of checks that only checks the table is refused at draft time at $0,
+  naming the line.
+- The sheet is locked per run. The run's frozen copy gets a `tableSha` written down once with the run's
+  inputs, every check uses it, and a sheet changed by one cell after start stops the run at $0, naming
+  the input. The run writes `sheet-checks.json`.
+- Each guardrail shows what checked it. The plan card, the Job tab and the Result tab draw one sheet
+  block: the line's guardrails, `Checked:` with one line per check (its plain words and
+  `covers "<guardrail>"` when the drafter tagged one; on the Result tab and in the ask, ✓ or ✗ and
+  what was found), and `Not checked:` with every guardrail no check covers, or `none`.
+- The ask card of a sheet step shows the same sheet lines and the step's answer value by value, above
+  the Reason box.
+- `scripts/m10b-recheck.mjs`, a separate re-check of a run's signed sheet checks against its own
+  frozen copy.
+
+### Changed
+- The CSV reader reads quoted cells (doubled quotes, commas and line breaks inside quotes, CRLF), and a
+  row's number is the real line it starts on (a blank line is skipped but counted).
+- The column lock follows the sheet checks. A job word that matches a column name no longer locks that
+  column by itself; a column you agreed to in a column ask must be used by one of the line's checks, or
+  the draft is refused at $0.
+- The CSV cell cite is retired. A green step that reads a sheet without sheet checks is refused at draft
+  time at $0, naming the line, and the drafter is told no cite form. A signed job whose green step
+  still has the old cite is refused at start (run, resume, continue and the panel Run door) at $0,
+  naming the line; it can still be viewed. The cite code was deleted.
+
+### Fixed
+- An answer identical (after trim) to a `~` rule already on its line is not added a second time.
+- A cited money unit list with two entries equal after whitespace normalization is deduped (first kept),
+  as bareguard 0.26.0 refuses it.
+
 ## [0.22.0] - 2026-10-22
 
 M10 (read a web page, a CSV sheet or a .docx / .md / .txt document, with cited checks and code-forced
