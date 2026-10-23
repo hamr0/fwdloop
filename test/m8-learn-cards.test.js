@@ -81,19 +81,21 @@ test('a run set aside as noise yields no card: provider-red, and a close that ne
   assert.equal(buildCards({ runid: 'x', events: r.events.filter((e) => e.type !== 'job-end') }).noise, 'no-job-end');
 });
 
-test('mshcpdg4: a typecheck red still failing at run end is a NEVER FIXED card; a card with no kind and no fix files is TOO-THIN', () => {
+test('mshcpdg4: a typecheck red still failing at run end is a NEVER FIXED card; M8 am3: a NEVER FIXED card with no kind and no fix files is kept, not TOO-THIN', () => {
   const b = cardsOf('mshcpdg4');
   const stuck = b.cards.filter((c) => c.kind === 'NEVER_FIXED');
-  assert.deepEqual(stuck.map((c) => [c.check, c.kinds]), [['typecheck', ['TS2322']]]);
+  // am3: bareloop dropped the thin `tree-changed` NEVER FIXED card (thin 1); fwdloop keeps it
+  assert.deepEqual(stuck.map((c) => [c.check, c.kinds]), [['typecheck', ['TS2322']], ['tree-changed', ['other']]]);
   assert.equal(stuck[0].whatChanged, null, 'a never-fixed card has no passing try, so no What changed');
-  assert.equal(b.thin, 1, 'the card with no error kind and no fix files is counted, not carried');
+  assert.equal(b.thin, 0, 'am3: thin counts FIXED cards only; a NEVER FIXED card is never thin');
   // a FIXED `tree-changed` (kind other) is kept only because the audit names the files the passing try wrote
   const withAudit = cardsOf('mties136');
-  assert.deepEqual(withAudit.cards.map((c) => [c.check, c.fixTouched.length > 0]), [['tree-changed', true]]);
-  assert.equal(withAudit.thin, 1);
+  // (am3: the run's NEVER FIXED `suite-green` card, thin, is kept too; before am3 it was counted in `thin`)
+  assert.deepEqual(withAudit.cards.map((c) => [c.check, c.fixTouched.length > 0]), [['tree-changed', true], ['suite-green', false]]);
+  assert.equal(withAudit.thin, 0);
   const noAudit = cardsOf('mties136', { audit: [] });
-  assert.equal(noAudit.cards.length, 0, 'same record, no written files: now it is thin');
-  assert.equal(noAudit.thin, 2);
+  assert.deepEqual(noAudit.cards.map((c) => [c.kind, c.check]), [['NEVER_FIXED', 'suite-green']], 'same record, no written files: the FIXED card is thin and dropped; the NEVER FIXED one stays');
+  assert.equal(noAudit.thin, 1, 'only the FIXED card is counted thin');
 });
 
 test('a RUBRIC job: the writes to output/steps/<n>.json are read (the POC read none)', () => {

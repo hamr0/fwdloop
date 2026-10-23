@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learn.js@v0.46.0 (8b3d815)
-// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js; line 17 names bareloop's proofs without its scratch path (E1 guard, test/m4d-am6-e.test.js); M8 am2 line 3 (hintText, src/learn.js:832): a What-changed line over 150 characters is left out whole, never cut; M8 am2 line 4 (hintText, src/learn.js:829): no "Fix touched" line is printed (fixTouched stays on the card and in the ledger; parseHintBlock unchanged, its touched field now always null for new text). Nothing else changed.
+// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js; line 17 names bareloop's proofs without its scratch path (E1 guard, test/m4d-am6-e.test.js); M8 am2 line 2 + am3 (buildCards push, src/learn.js:469): the too-thin drop applies to FIXED cards only, a step red on every try (NEVER FIXED) is kept and `thin` counts FIXED cards only; M8 am2 line 3 (hintText, src/learn.js:832): a What-changed line over 150 characters is left out whole, never cut; M8 am2 line 4 (hintText, src/learn.js:829): no "Fix touched" line is printed (fixTouched stays on the card and in the ledger; parseHintBlock unchanged, its touched field now always null for new text). Nothing else changed.
 // Cross-run learnings, CODE ONLY (ITEM33-BUILD.md "Addendum 2026-10-22 (rev 2)"; hamr's RULING 1: no model call
 // anywhere in learnings — not to label, fold, rephrase, rank, judge or render). A lesson is a HINT made entirely by
 // code from a run's own record: every field below is COPIED from the spine / gate audit, never written by a model.
@@ -268,7 +268,7 @@ const NOISE_CATEGORIES = new Set(['provider-red', 'close-crashed']);
  * @typedef {object} CardBuild
  * @property {Card[]} cards         foldable cards (FIXED and NEVER FIXED), suspect and too-thin removed
  * @property {Card[]} suspect       CHECK-SUSPECT cards: listed, never folded
- * @property {number} thin          TOO-THIN count: no error kind and no fix files
+ * @property {number} thin          TOO-THIN count of FIXED cards only (M8 am3): no error kind and no fix files; a NEVER FIXED card is never thin
  * @property {string|null} noise    why the whole run was set aside (provider-red, close-crashed, worker-crash, no-close-spoke, no-job-end), else null
  */
 
@@ -466,7 +466,7 @@ export function buildCards({ runid, events, audit = null, workdir = null, spec =
   /** @type {Card[]} */ const sus = [];
   const push = (/** @type {{card: Card, suspect: boolean}} */ r) => {
     if (r.suspect) sus.push(r.card);
-    else if (r.card.kinds[0] === 'other' && r.card.fixTouched.length === 0) out.thin += 1;
+    else if (r.card.kind === 'FIXED' && r.card.kinds[0] === 'other' && r.card.fixTouched.length === 0) out.thin += 1; // M8 am3: a NEVER FIXED note is kept, thin or not
     else all.push(r.card);
   };
   for (const [check, p] of pairs) push(mk(check, p.red, 'FIXED', p.pass));
