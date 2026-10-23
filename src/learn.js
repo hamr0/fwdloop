@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learn.js@v0.46.0 (8b3d815)
-// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js; line 17 names bareloop's proofs without its scratch path (E1 guard, test/m4d-am6-e.test.js). Nothing else changed.
+// Adaptations: B1 (F79) flaggedText returns any non-empty trimmed line instead of null; redactSecrets imported from ./redact.js; line 17 names bareloop's proofs without its scratch path (E1 guard, test/m4d-am6-e.test.js); M8 am2 line 3 (hintText, src/learn.js:832): a What-changed line over 150 characters is left out whole, never cut; M8 am2 line 4 (hintText, src/learn.js:829): no "Fix touched" line is printed (fixTouched stays on the card and in the ledger; parseHintBlock unchanged, its touched field now always null for new text). Nothing else changed.
 // Cross-run learnings, CODE ONLY (ITEM33-BUILD.md "Addendum 2026-10-22 (rev 2)"; hamr's RULING 1: no model call
 // anywhere in learnings — not to label, fold, rephrase, rank, judge or render). A lesson is a HINT made entirely by
 // code from a run's own record: every field below is COPIED from the spine / gate audit, never written by a model.
@@ -826,15 +826,13 @@ function hintText(r, n) {
   const L = [lesson];
   const said = saidLine(c.said);
   if (said) L.push(`   It said: ${cutText(shortenPaths(said, shown), 150)}`);
-  if (c.kind === 'FIXED' && c.fixTouched.length) {
-    const touched = c.fixTouched.slice(0, 4).map((p) => { const out = shown.has(p) && p.includes('/') ? baseName(p) : p; shown.add(p); return out; });
-    L.push(`   Fix touched: ${touched.join(', ')}${c.fixTouched.length > 4 ? ` +${c.fixTouched.length - 4} more` : ''}${c.fixTouched.length >= 2 && c.fixTouched.length <= 4 ? ' (changed together)' : ''}`);
-  }
+  // am2 line 4: no "Fix touched" line in the hint; fixTouched stays on the card and in the ledger.
   if (c.kind === 'FIXED') {
-    const ch = changedLines(c.whatChanged);
+    // am2 line 3: a changed line longer than CHANGED_LINE_CHARS is left out whole, never cut.
+    const ch = changedLines(c.whatChanged).filter((l) => l.length <= CHANGED_LINE_CHARS);
     if (ch.length) {
       const pad = ' '.repeat('   What changed: '.length);
-      const show = ch.slice(0, CHANGED_LINES).map((l) => (l.length > CHANGED_LINE_CHARS ? `${l.slice(0, CHANGED_LINE_CHARS - 1)}…` : l));
+      const show = ch.slice(0, CHANGED_LINES);
       if (ch.length > CHANGED_LINES) show.push(`(+${ch.length - CHANGED_LINES} more)`);
       L.push(`   What changed: ${show[0]}`, ...show.slice(1).map((l) => `${pad}${l}`));
     }

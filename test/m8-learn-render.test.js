@@ -51,7 +51,9 @@ test('the block for a real ledger: header, then the lesson seen most often first
   assert.ok(r.text.indexOf('seen 5 times') < r.text.indexOf('seen 2 times'));
   assert.deepEqual(r.ids, [rowOf(L, 'typecheck').id, rowOf(L, 'no-suppressions').id]);
   assert.match(r.text, /\n   It said: /);
-  assert.match(r.text, /\n   Fix touched: .*timeout_policy\.py/);
+  // M8 am2 line 4: the hint never prints "Fix touched" (the card keeps fixTouched, the ledger keeps the card)
+  assert.ok(!r.text.includes('Fix touched'));
+  assert.ok(rowOf(L, 'typecheck').sample.fixTouched.some((/** @type {string} */ f) => f.endsWith('timeout_policy.py')), 'kept in the ledger');
   assert.ok(r.text.length <= HINT_CHARS_MAX);
   // pure + byte-for-byte: the same ledger renders the same bytes
   assert.equal(renderHints(L, ctx).text, r.text);
@@ -90,7 +92,7 @@ test('MUST-FAIL 5: the block is never longer than 2,000 characters, and a hint i
   // the text is exactly the header plus whole hints: no hint was cut
   const hintBlocks = r.text.slice(HINT_HEADER.length + 1).split(/\n(?=\d+\. \[)/);
   assert.equal(hintBlocks.length, r.ids.length);
-  assert.ok(hintBlocks.every((h) => /^\d+\. \[this job, seen \d+ times\] check ".*\.$|\n   Fix touched: .*$/s.test(h)));
+  assert.ok(hintBlocks.every((h) => /^\d+\. \[this job, seen \d+ times\] check ".*\.(\n   It said: .*)?$/s.test(h)));
   // one more hint would not have fit
   const next = renderHints(withRows(L, many.slice(0, r.ids.length + 1)), ctx);
   assert.equal(next.ids.length, r.ids.length);
@@ -200,17 +202,29 @@ test('R3: a FIXED hint shows the first 3 changed lines, each indented to align, 
   process.stdout.write(`\n--- R3 HINT (real mvk2e4uy) ---\n${r.text}\n--- ${r.text.length} chars ---\n`);
 });
 
-test('R3: headers, @@ and context lines are never shown; a removed line that starts with -- is content once a hunk is open; each line is cut at 150', () => {
-  const diff = ['diff --git a/x.js b/x.js', 'index 1..2 100644', '--- a/x.js', '+++ b/x.js', '@@ -1,3 +1,3 @@', ' context line', '--- a SQL comment removed', `+${'y'.repeat(300)}`, '\\ No newline at end of file', '+tail'].join('\n');
+test('R3: headers, @@ and context lines are never shown; a removed line that starts with -- is content once a hunk is open', () => {
+  const diff = ['diff --git a/x.js b/x.js', 'index 1..2 100644', '--- a/x.js', '+++ b/x.js', '@@ -1,3 +1,3 @@', ' context line', '--- a SQL comment removed', '\\ No newline at end of file', '+tail'].join('\n');
   const wc = { files: [{ path: 'x.js', diff, truncated: false }], binary: [], truncated: false };
-  const got = changedLines(wc);
-  assert.deepEqual(got, ['--- a SQL comment removed', `+${'y'.repeat(300)}`, '+tail']);
+  assert.deepEqual(changedLines(wc), ['--- a SQL comment removed', '+tail']);
   const r = renderHints(pulseLedger({ ...pulse, whatChanged: wc }), pulseCtx);
-  const shown = r.text.split('\n').filter((l) => l.includes('y'.repeat(20)));
-  assert.equal(shown.length, 1);
-  assert.equal(shown[0].trim().length, 150, 'the long line is cut at 150 characters');
-  assert.ok(shown[0].endsWith('…'));
-  assert.ok(!r.text.includes('more)'), 'exactly 3 lines: no more-line');
+  assert.ok(r.text.endsWith('   What changed: --- a SQL comment removed\n                 +tail'), r.text);
+});
+
+test('M8 am2 line 3: a changed line over 150 characters is left out whole, never cut; one of exactly 150 stays; "(+N more)" counts only shown-eligible lines', () => {
+  const mkdiff = (/** @type {string[]} */ ls) => ['diff --git a/x.js b/x.js', '--- a/x.js', '+++ b/x.js', '@@ -1,1 +1,1 @@', ...ls].join('\n');
+  const wcOf = (/** @type {string[]} */ ls) => ({ files: [{ path: 'x.js', diff: mkdiff(ls), truncated: false }], binary: [], truncated: false });
+  const long = `+${'y'.repeat(300)}`;
+  const edge = `+${'e'.repeat(149)}`; // 150 with the sign
+  const over = `+${'o'.repeat(150)}`; // 151 with the sign
+  const r = renderHints(pulseLedger({ ...pulse, whatChanged: wcOf([long, '+a', edge, over, '+b', '+c', '+d']) }), pulseCtx);
+  assert.ok(!r.text.includes('y'.repeat(20)), 'the long line is not shown, not even cut');
+  assert.ok(!r.text.includes('o'.repeat(20)), 'a 151-character line is left out');
+  assert.ok(!r.text.includes('…'), 'nothing is cut');
+  assert.ok(r.text.includes(edge), 'a line of exactly 150 stays whole');
+  const pad = ' '.repeat(17);
+  assert.ok(r.text.endsWith(['   What changed: +a', `${pad}${edge}`, `${pad}+b`, `${pad}(+2 more)`].join('\n')), r.text);
+  // every line too long: no What changed line at all
+  assert.ok(!renderHints(pulseLedger({ ...pulse, whatChanged: wcOf([long]) }), pulseCtx).text.includes('What changed'));
 });
 
 test('R3: NEVER FIXED hints never show What changed, even when the card carries a diff', () => {
@@ -239,7 +253,7 @@ test('R5: "It said" shows the flagged code line, not the summary wrapper line (r
   assert.match(ns.sample.said[0], /^SPAWNER red: \d+ suppression\(s\) added/, 'the stored quote starts with the summary line');
   const hint = renderHints(L, ctx).text.split(/\n(?=\d+\. \[)/).find((h) => h.includes('no-suppressions')) ?? '';
   // B1-ADAPTED (F79): any non-empty line is flagged text, so the first line (the summary) is what it said
-  assert.match(hint, /\n   It said: SPAWNER red: 3 suppression\(s\) added — suppressing an error is not typing it\n/);
+  assert.match(hint, /\n   It said: SPAWNER red: 3 suppression\(s\) added — suppressing an error is not typing it(\n|$)/);
   // the red side: with the summary line only (no flagged line anywhere) it falls back to the first line
   assert.equal(saidLine(['SPAWNER red: 3 suppression(s) added — nothing else']), 'SPAWNER red: 3 suppression(s) added — nothing else');
   assert.equal(saidLine([]), undefined);
@@ -265,14 +279,9 @@ test('R5: a file already shown in full earlier in the SAME hint is written by it
   assert.ok(h2.indexOf(full) < h2.indexOf('It said'));
   // B1-ADAPTED (F79): "It said" is the first line now, not the `added any` line
   assert.match(h2, /It said: SPAWNER red: 3 suppression/);
-  assert.match(h2, /\n   Fix touched: spawner\.py\n?$/);
-  // the first hint: its first Fix touched file (not shown before) stays full; the same path on another hint is full again (per hint)
   const h1 = hints.find((h) => h.includes('"typecheck"')) ?? '';
-  assert.match(h1, /Fix touched: packages\/spawner\/src\/aurora_spawner\/timeout_policy\.py, packages\/spawner\/src\/aurora_spawner\/circuit_breaker\.py/);
-  // a plain path that was never shown before is never shortened, whatever the hint
+  assert.ok(!h2.includes('Fix touched') && !h1.includes('Fix touched'), 'M8 am2 line 4');
   const cardEdit = { ...pulse, fixTouched: ['src/a.js', 'lib/b.js'], whatChanged: null };
-  const lone = renderHints(pulseLedger(cardEdit), pulseCtx).text;
-  assert.match(lone, /Fix touched: src\/a\.js, lib\/b\.js/);
   // a first mention in the quote (the lesson names no file; the record is edited) stays full
   const noFile = renderHints(pulseLedger({ ...cardEdit, files: [], fixTouched: [] }), pulseCtx).text;
   assert.match(noFile, /It said: src\/checks\.js\(121,28\)/);
@@ -280,7 +289,6 @@ test('R5: a file already shown in full earlier in the SAME hint is written by it
   const twice = renderHints(pulseLedger({ ...cardEdit, fixTouched: ['src/checks.js'] }), pulseCtx).text;
   assert.equal(twice.split('src/checks.js').length - 1, 1);
   assert.match(twice, /It said: checks\.js\(121,28\)/);
-  assert.match(twice, /Fix touched: checks\.js/);
 });
 
 test('R5: the leading "NAME | " wrapper stays stripped from the quote lines', () => {
