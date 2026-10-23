@@ -11,7 +11,7 @@
 
 import { createRubric, tableSha } from 'bareguard';
 import { numbersSaid } from './citedwords.js';
-import { wordsSaidOn } from './pagebits.js';
+import { wordsSaidOn, lineRules } from './pagebits.js';
 
 /** the bareguard rules a sheet check may use (`diff` is out of scope for M10b) */
 export const SHEET_RULES = Object.freeze(['cells', 'table']);
@@ -93,6 +93,31 @@ export function sheetCheckSentence(check) {
   }
 }
 
+/**
+ * M10b piece 4: a signed check may carry fwdloop's own `covers` (the numbers of the job line's `~` rules the drafter tagged it to; signed, so the person sees it).
+ * bareguard does not know it, so the checks are cleaned HERE, the ONE place, on the way into bareguard (`createRubric` at sign time and at run time).
+ * @param {any[]} checks @returns {any[]} a copy without `covers`
+ */
+export function bareguardChecks(checks) {
+  return checks.map((c) => { if (!isRec(c) || !('covers' in c)) return c; const { covers: _kept, ...rest } = c; return rest; });
+}
+
+/**
+ * M10b piece 4: `covers`, when a check has it, is a list of rule numbers of its job line (counted from 1 over the line's `~` rules). A check without it is fine (an old draft).
+ * @param {any[]} checks @param {{n: number, rule?: string, rules?: string[]}} jobLine @returns {string[]} reds, each naming the line and the check
+ */
+export function sheetCoversReds(checks, jobLine) {
+  const reds = [];
+  const nRules = lineRules(jobLine).length;
+  for (const c of checks) {
+    if (!isRec(c) || c.covers === undefined) continue;
+    if (!Array.isArray(c.covers) || c.covers.some((x) => !Number.isInteger(x) || x < 1 || x > nRules)) {
+      reds.push(`declaration: line ${jobLine.n}: the sheet check${typeof c.id === 'string' ? ` '${c.id}'` : ''} "covers" must list rule numbers of line ${jobLine.n}'s guardrail (it has ${nRules} rule${nRules === 1 ? '' : 's'}, counted from 1)`);
+    }
+  }
+  return reds;
+}
+
 /** The rows for a step's `close.sheet`, one per check, in order. @param {unknown} sheet @returns {string[]} */
 export function sheetCheckRows(sheet) {
   return Array.isArray(sheet) ? sheet.map(sheetCheckSentence) : [];
@@ -127,7 +152,7 @@ export function sheetCheckReds(checks, line, tables) {
   if (reds.length > 0) return reds;
   const inputs = [...shas].map(([name, sha256]) => ({ name, sha256 }));
   try {
-    createRubric({ schema: 1, goal: `line ${line}`, inputs, checkpoints: { sheet: { gating: true, checks } }, maxReds: 3 });
+    createRubric({ schema: 1, goal: `line ${line}`, inputs, checkpoints: { sheet: { gating: true, checks: bareguardChecks(checks) } }, maxReds: 3 });
   } catch (err) {
     const msg = String(/** @type {any} */ (err).message).replace(/^invalid rubric: /, '');
     const idx = /checks\[(\d+)\]/.exec(String(/** @type {any} */ (err).path ?? msg));

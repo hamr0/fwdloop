@@ -33,7 +33,8 @@ import { lineRules } from './pagebits.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
-import { sheetChecksProp, sheetOfferRules, takeCovers, uncoveredRules } from './sheetoffer.js';
+import { sheetChecksProp, sheetOfferRules } from './sheetoffer.js';
+import { uncoveredRules } from './sheetblock.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -759,7 +760,7 @@ export async function draft({
     // offered; sent when not offered it stays, and the validator reds it as an unknown key (a stray key, never a silent pass).
     const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
     /** @type {Record<string, any>} */
-    let declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
+    const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
@@ -774,19 +775,16 @@ export async function draft({
         return { ...st, close: { ...st.close, shape: per === null ? shape : { ...shape, wordsPerSection: per } } };
       });
     }
-    // M10b piece 3: `covers` (which ~ rules a check verifies) is read and stripped; it decides what shows under Not checked and is never signed
-    const taken = takeCovers(declaration, jobLines);
-    declaration = taken.declaration;
-    const verdict0 = validateDeclaration(declaration, {
+    // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
+    const verdict = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
-    const verdict = taken.reds.length ? { ok: false, reds: [...('reds' in verdict0 ? verdict0.reds : []), ...taken.reds] } : verdict0;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, taken.covers, jobLines, Object.keys(facts.sheets ?? {}))])] };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     if (verdict.ok) {
       entry.outcome = 'valid';

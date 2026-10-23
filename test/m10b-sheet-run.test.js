@@ -126,7 +126,7 @@ test('honest claims (rows over 500 and their count, computed here) are green; th
     assert.equal(rec[0].tables[0].tableSha, JSON.parse(readFileSync(path.join(run, 'inputs.json'), 'utf8'))[0].tableSha, 'the check used the recorded tableSha');
     assert.deepEqual(rec[0].checks, EXP_CHECKS(), 'the signed checks are kept as they were signed');
     const tried = checksRows(run).at(-1).checks.filter((c) => c.n >= 3);
-    assert.deepEqual(tried.map((c) => [c.text, c.ok]), [['rows where Amount > 500', true], ['count of rows where Amount > 500', true]]);
+    assert.deepEqual(tried.map((c) => [c.text, c.ok]), [['rows \u2014 rows where Amount > 500', true], ['count \u2014 count of rows where Amount > 500', true]]);
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 

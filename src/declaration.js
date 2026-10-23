@@ -39,7 +39,7 @@
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
-import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds } from './sheetchecks.js';
+import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -492,6 +492,10 @@ function checkSheetKey(step, label, c, reds) {
     if (!SHEET_RULES.includes(e.rule)) { reds.push(`${at}[${j}].rule must be one of ${SHEET_RULES.join(', ')}`); shapeOk = false; }
     if (typeof e.table !== 'string' || !c.cellsRoles.includes(e.table)) { reds.push(`${at}[${j}].table ${JSON.stringify(e.table)} is not a signed spreadsheet input`); shapeOk = false; }
     else if (c.reads !== null && !c.reads.includes(e.table)) { reds.push(`${at}[${j}].table "${e.table}" is not in ${label}.reads - the step must read the sheet its checks come from`); shapeOk = false; }
+  }
+  if (shapeOk && Number.isInteger(step.fromLine)) {
+    const covLine = (c.lines ?? []).find((l) => l.n === step.fromLine);
+    if (covLine) for (const r of sheetCoversReds(list, { n: covLine.n, ...(covLine.guardrail ? { rule: covLine.guardrail } : {}) })) reds.push(r);
   }
   if (shapeOk && c.fitJobLine === true && Number.isInteger(step.fromLine)) {
     const jobLine = (c.lines ?? []).find((l) => l.n === step.fromLine);

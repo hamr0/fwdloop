@@ -9,7 +9,8 @@ import { basename } from 'node:path';
 import { createRubric, checkStep, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
 import { readFileInside } from './flow.js';
-import { sheetCheckSentence } from './sheetchecks.js';
+import { sheetCheckSentence, bareguardChecks } from './sheetchecks.js';
+import { sheetCheckName, sheetFoundWords } from './sheetblock.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -76,7 +77,7 @@ export async function closeSheet(checks, artifact, sheet) {
       return /** @type {any} */ ({ verdict: 'unparseable', red: `sheet close: ${red}` });
     }
     if (!isRec(artifact)) return /** @type {any} */ ({ verdict: 'unparseable', red: 'a sheet step must answer with an object, one field per check named in its job' });
-    const rubric = createRubric({ schema: 1, goal: 'sheet', inputs: sheet.inputs, checkpoints: { sheet: { gating: true, checks } }, maxReds: 3 });
+    const rubric = createRubric({ schema: 1, goal: 'sheet', inputs: sheet.inputs, checkpoints: { sheet: { gating: true, checks: bareguardChecks(checks) } }, maxReds: 3 });
     const res = await checkStep(rubric, 'sheet', artifact, { tables: sheet.tables });
     if (res.verdict === 'stopped') {
       const moved = sheet.inputs.filter((i) => tableSha(sheet.tables[i.name]) !== i.sha256).map((i) => i.name);
@@ -89,9 +90,10 @@ export async function closeSheet(checks, artifact, sheet) {
     const gaps = res.verdict === 'red' ? res.gaps : [];
     const rows = checks.map((c) => {
       const mine = gaps.filter((g) => g.id === c.id);
-      return { id: c.id, text: sheetCheckSentence(c), ok: mine.length === 0, result: mine.length === 0 ? null : renderGaps(mine) };
+      // M10b piece 4: the Audit / Checked row is `<short name> — <plain words>`, with what the step claimed (green) or bareguard's gap words (red) as its result
+      return { id: c.id, text: `${sheetCheckName(c)} \u2014 ${sheetCheckSentence(c)}`, ok: mine.length === 0, result: mine.length === 0 ? sheetFoundWords(c, artifact) : renderGaps(mine) };
     });
-    const sheetRecord = { inputs: sheet.inputs, claims: artifact, checks: rows.map((r) => ({ id: r.id, text: r.text, ok: r.ok, result: r.result })) };
+    const sheetRecord = { inputs: sheet.inputs, claims: artifact, checks: rows.map((r) => ({ id: r.id, text: r.text, ok: r.ok, result: r.ok ? null : r.result })) };
     if (res.verdict === 'red') {
       const red = renderGaps(gaps) || 'a sheet check failed';
       return /** @type {any} */ ({ verdict: 'red', red, reds: [red], checks: rows, sheetRecord });

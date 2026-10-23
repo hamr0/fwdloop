@@ -106,5 +106,5 @@ test('each check reads as its own plain row, from one function, on the Checked l
   assert.ok(rows.includes('no duplicate Invoice #') && rows.includes('rows where Amount > 500'));
   const text = buildReadout({ declaration: d, arbiter: parsed.arbiter, lines: parsed.lines, name: 'x', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: 'r' });
   assert.match(text, /\n {5}sheet check: no duplicate Invoice #\n/);
-  assert.match(text, /\n {5}sheet check: rows where Amount > 500\n/);
+  assert.match(text, /\n {5}sheet check: rows \u2014 rows where Amount > 500\n/, 'M10b piece 4: the readout row is the block\'s `name \u2014 words`');
 });

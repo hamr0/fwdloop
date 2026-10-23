@@ -1,16 +1,16 @@
-// M10b piece 3 (docs/wiki/the-module-ladder.md "M10b scope" item 4): what the drafter is OFFERED for a sheet. Three things, each once:
+// M10b piece 3 (docs/wiki/the-module-ladder.md "M10b scope" item 4): what the drafter is OFFERED for a sheet. Things, each once:
 //   - `sheetChecksProp`      the tool schema of `close.sheet`, GENERATED from bareguard's `rubricVocabulary` (fields, ops, date formats), never hand-copied. Every field that
 //                            names a column is a JSON-schema `enum` of the sheet's exact header strings, so the model can only pick one (code still re-checks, piece 1);
 //   - `sheetOpsBrief`        the plain list of every op with its summary, what it requires and allows, and bareguard's worked example check, generated the same way;
-//   - `takeCovers` / `uncoveredRules`  which `~` rule of a job line each check covers, as the drafter says it in a typed `covers` field (stripped before the check is signed).
-// Throws away: `covers` never reaches the signed declaration (it only decides what shows under Not checked). A field type the vocabulary gains that this file does not know
+//   - `isColumnChoiceRule`   the agreed-column rule, covered by the column lock.
+// `covers` (which `~` rules of a job line a check verifies, the drafter's typed field) is KEPT on the check and signed (M10b am2: you see it before you sign); it is
+// stripped only on the way into bareguard (src/sheetchecks.js `bareguardChecks`) and read by src/sheetblock.js. A field type the vocabulary gains that this file does not know
 // THROWS at build time (a bareguard upgrade fails loud, it never silently drops a field).
-// Third outcomes, named: a sheet with no header (no enum can be built: no sheet schema is offered), a `covers` that is not a list of rule numbers of the line (a red).
+// Third outcomes, named: a sheet with no header (no enum can be built: no sheet schema is offered).
 import { rubricVocabulary } from 'bareguard';
 import {
   SHEET_RULES, MAX_SHEET_CHECKS, COLUMN_STRING_FIELDS, COLUMN_OPERAND_FIELDS, COLUMN_CELL_FIELDS, COLUMN_LIST_FIELDS,
 } from './sheetchecks.js';
-import { lineRules } from './pagebits.js';
 import { columnRuleWords } from './sheetlook.js';
 
 const V = /** @type {any} */ (rubricVocabulary);
@@ -52,7 +52,7 @@ function fieldSchema(key, f, col, roles) {
 /**
  * The tool schema of `close.sheet`: a list of bareguard cells / table checks. Every field is a field of bareguard's vocabulary; every column-bearing field
  * (`column keyColumn groupColumn result a b from to cell where[].column dateFormats[].column`) is an enum of the sheet's exact header. `covers` is fwdloop's own field
- * (which `~` rules of the job line the check covers), stripped by {@link takeCovers}.
+ * (which `~` rules of the job line the check covers), kept and signed.
  * @param {Record<string, {header: string[]}>} tables the drafting copy's table of each CSV input role
  * @returns {Record<string, any>|null} null when there is no sheet with a header to pick from
  */
@@ -122,64 +122,4 @@ export function isColumnChoiceRule(rule) {
   const r = String(rule);
   const head = columnRuleWords('', '').split("''")[0]; // "use the column '"
   return r.startsWith(head) && r.endsWith("'") && r.includes("' for '");
-}
-
-/**
- * Strip every check's `covers` out of a draft's steps and keep what it said. A copy is returned; the declaration given is not changed.
- * @param {any} declaration @param {{n: number, rule?: string, rules?: string[]}[]} lines
- * @returns {{declaration: any, covers: Map<number, Set<number>>, reds: string[]}} `covers` = job line -> rule numbers some check of its step covers
- */
-export function takeCovers(declaration, lines) {
-  /** @type {Map<number, Set<number>>} */
-  const covers = new Map();
-  /** @type {string[]} */
-  const reds = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, covers, reds };
-  const steps = declaration.steps.map((/** @type {any} */ st) => {
-    if (!isRec(st) || !isRec(st.close) || !Array.isArray(st.close.sheet)) return st;
-    const line = Number.isInteger(st.fromLine) ? st.fromLine : null;
-    const nRules = lineRules(lines.find((l) => l.n === line)).length;
-    const sheet = st.close.sheet.map((/** @type {any} */ c) => {
-      if (!isRec(c)) return c;
-      const { covers: said, ...rest } = c;
-      const list = said === undefined ? [] : said;
-      if (!Array.isArray(list) || list.some((x) => !Number.isInteger(x) || x < 1 || x > nRules)) {
-        reds.push(`declaration: line ${line}: the sheet check${typeof c.id === 'string' ? ` '${c.id}'` : ''} "covers" must list rule numbers of line ${line}'s guardrail (it has ${nRules} rule${nRules === 1 ? '' : 's'}, counted from 1)`);
-      } else if (line !== null) {
-        const have = covers.get(line) ?? new Set();
-        for (const x of list) have.add(x);
-        covers.set(line, have);
-      }
-      return rest;
-    });
-    return { ...st, close: { ...st.close, sheet } };
-  });
-  return { declaration: { ...declaration, steps }, covers, reds };
-}
-
-/**
- * The guardrail rules of a sheet step that no check covers, as Not-checked lines. A rule is COVERED when (1) some `close.sheet` check of the step for that line names its
- * number in `covers`, or (2) it is an agreed column choice ({@link isColumnChoiceRule}), or (3) the step has no `close.sheet` but does carry `close.columns` or
- * `close.cited` (the older cell-cite and quote checks, still live until piece 5). Only a green step that reads a CSV input is looked at; every other line is left alone.
- * @param {any} declaration the stripped declaration @param {Map<number, Set<number>>} covers from {@link takeCovers}
- * @param {{n: number, text?: string, rule?: string, rules?: string[]}[]} lines @param {string[]} csvRoles
- * @returns {string[]}
- */
-export function uncoveredRules(declaration, covers, lines, csvRoles) {
-  const out = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps) || csvRoles.length === 0) return out;
-  const seen = new Set();
-  for (const st of declaration.steps) {
-    if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || !Number.isInteger(st.fromLine) || seen.has(st.fromLine)) continue;
-    if (!Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => csvRoles.includes(r))) continue;
-    const hasSheet = Array.isArray(st.close.sheet) && st.close.sheet.length > 0;
-    if (!hasSheet && (st.close.columns !== undefined || st.close.cited !== undefined)) continue;
-    seen.add(st.fromLine);
-    const rules = lineRules(lines.find((l) => l.n === st.fromLine));
-    rules.forEach((rule, i) => {
-      if (isColumnChoiceRule(rule) || (hasSheet && covers.get(st.fromLine)?.has(i + 1))) return;
-      out.push(`line ${st.fromLine}: "${rule}" — no sheet check covers it`);
-    });
-  }
-  return out;
 }

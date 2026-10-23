@@ -1,0 +1,9 @@
+Invoice #,Customer,Due date,Amount
+INV-100,Customer 0,2026-01-15,200.00
+INV-100,Customer 1,2026-02-15,237.00
+INV-102,Customer 2,2026-03-15,274.00
+INV-103,Customer 3,2026-04-15,311.00
+INV-104,Customer 4,2026-05-15,348.00
+INV-105,Customer 5,2026-06-15,385.00
+INV-106,Customer 6,2026-07-15,422.00
+INV-107,Customer 7,2026-08-15,459.00

@@ -129,12 +129,12 @@ test('the drafter is told every op with its worked example, generated from the v
   ]) assert.ok(sys.includes(w), w);
 });
 
-test('valid checks draft, strip covers, and show one plan-card row per check; nothing is Not checked when every rule is covered', async () => {
+test('valid checks draft, KEEP covers (signed), and show one plan-card row per check; nothing is Not checked when every rule is covered', async () => {
   const { r } = await run(CHECKS());
   assert.equal(r.ok, true, r.reds.join('\n'));
   const sheet = r.declaration.steps[1].close.sheet;
   assert.equal(sheet.length, 3);
-  assert.ok(sheet.every((c) => !('covers' in c)), 'covers is never signed');
+  assert.deepEqual(sheet.map((c) => c.covers), [[1], [2], []], 'M10b piece 4: covers is kept on the check, so it is signed');
   const rows = checkedLines(r.declaration).find((x) => x.line === 2).sentences;
   for (const c of sheet) assert.ok(rows.includes(sheetCheckSentence(c)), sheetCheckSentence(c));
   assert.equal(rows.length, 1 + sheet.length, 'a lead sentence, then one row per check');

@@ -41,3 +41,17 @@ export function writeSheetLine(runDir, { n, try: attempt, checks, closed }) {
   writeFileSync(tmp, `${JSON.stringify({ lines }, null, 2)}\n`);
   renameSync(tmp, file);
 }
+
+/**
+ * The reader of the record, for the Result tab and the separate checker: `{lines: [...]}`, or null when the file is missing or is not that shape (the page then
+ * shows no verdicts, never a half-read record). Read through the safe gateway.
+ * @param {string} runDir @returns {{lines: any[]}|null}
+ */
+export function readSheetChecks(runDir) {
+  const got = readFileInside(runDir, SHEET_CHECKS_FILE);
+  if (!got.ok) return null;
+  try {
+    const parsed = JSON.parse(got.text);
+    return isRec(parsed) && Array.isArray(parsed.lines) ? { lines: parsed.lines } : null;
+  } catch { return null; }
+}
