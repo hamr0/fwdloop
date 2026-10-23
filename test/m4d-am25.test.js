@@ -114,7 +114,7 @@ function recordingStep({ failFirstOf = null } = {}) {
     }
     if (ctx.goal.includes('work out which customer')) return ok({ matchedCustomer: 'Acme Corp', done: true });
     if (ctx.goal.includes('pull their open invoices')) {
-      return ok({ fields: { invoice1: { value: 150, cite: 'aging_cells!E2' }, invoice2: { value: 50.5, cite: 'aging_cells!E3' }, total_owed: { value: 200.5, cite: 'sum(#invoice1,#invoice2)' } }, done: true });
+      return ok({ total_owed: { value: 200.5 }, done: true });
     }
     if (ctx.goal.includes('Write a short reply')) return ok({ text: 'Invoice # INV-1 Due date 2026-05-15 Amount 150\nInvoice # INV-2 Due date 2026-05-20 Amount 50.50', done: true });
     throw new Error(`unexpected goal ${ctx.goal}`);

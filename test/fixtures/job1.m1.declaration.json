@@ -58,11 +58,11 @@
     {
       "goal": "For the matched customer, pull their open invoices, total owed, earliest due date, and count of invoices overdue as of the business date, each figure tied to the cell or formula it came from.",
       "primitives": ["addressCells"],
-      "reads": ["aging_cells", "customer_match"],
+      "reads": ["aging", "aging_cells", "customer_match"],
       "emits": "invoice_facts",
       "picks": { "aging": ["Customer", "Invoice #", "Due date", "Amount"] },
       "fromLine": 3,
-      "close": { "class": "green" }
+      "close": { "class": "green", "sheet": [{ "id": "total", "rule": "cells", "table": "aging", "claim": "total_owed", "op": "sum", "column": "Amount", "covers": [] }] }
     },
     {
       "goal": "Write a short reply to the customer containing one line per open invoice.",
