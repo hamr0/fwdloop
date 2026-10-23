@@ -3384,3 +3384,25 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 1. Job text: add `guardrail: each invoice is in one bucket` so buckets are a guardrail and an unchecked bucket shows under Not checked.
 2. An amendment for the ask card to show the sheet block (the claim boxes) as the plan card does.
 3. Drop an identical `~` rule on redraft instead of appending it again.
+
+## F78 — M10b exit walks 2026-10-23: expenses green; aging open (drafter drops or mis-tags the bucket check) (open)
+
+**Status.** Finding, no build. Recorded unsigned until hamr signs. Tags: **[MEASURED]** the flow files named below (read only). Lessons are observations, not proven causes. Branch m10b.
+
+**Expenses — green.** [MEASURED] `flows/m10b-expenses-a` run-1: try 1 was red by bareguard (it claimed 19 rows / 13821.17 and named rows 40 and 41, which do not qualify); try 2 was green: 17 rows, 12719.59. Books balance: history `spentUsd` 0.027801 = audit sum 0.027801. `node scripts/m10b-recheck.mjs flows m10b-expenses-a run-1` gives ok. This meets that half of the done-when.
+
+**Aging — open.** [MEASURED] Six drafts today across `m10b-aging`, `m10b-aging-2`, `-3`, `-4` (unsigned) and two more unsigned drafts. Each flow's declaration `close.sheet`:
+- `m10b-aging` run-1: count + daysSince, no band.
+- `m10b-aging-2`: daysSince + band, no noDuplicates; "every invoice appears exactly once" is under Not checked. Green, all 8 in 90+, books 0.013728 = 0.013728, recheck ok.
+- `m10b-aging-3`: daysSince only; two guardrails under Not checked; no buckets written; books 0.0143922 balanced; recheck ok on what it signed.
+- `m10b-aging-4` readout (unsigned): noDuplicates, noEmpty, an all-numbers check on the empty 'Days overdue' tagged as covering "each invoice is in one bucket", a count tagged as covering buckets; no band, no daysSince.
+- A later unsigned draft: "every invoice appears exactly once — no sheet check covers it", and the AI wrote "no invoice column in the report".
+- Final unsigned draft, job words naming the headers exactly ("each Invoice #", "days since Due date"): no column ask fired, noDuplicates present, daysSince present, still no band; count tagged as covering "each Invoice # is in one bucket".
+- Only the first draft of the day (rejected, `flows/.drafts/d-00mvkmbx5j-a98a/draft-1/declaration.rejected.json`) had band + noDuplicates + daysSince together.
+
+**Lessons (observations, unsigned).**
+(a) Job words that do not match the headers ("invoice" vs 'Invoice #') get "there is no column 'invoice'", and the drafter then claimed no invoice column exists. Naming the header exactly fixed the duplicate check (1 draft; cause not proven).
+(b) deepseek-flash repeatedly omits the band check and mis-tags a count or numbers check as covering the bucket guardrail. The plan card showed the tag (am2 works as designed: the tag is shown, the human catches it).
+(c) No code fix was made for (b), on hamr's ruling: a send-back loop would fit code to one job.
+
+**Status of the exit.** M10b exit is open on the aging job only. Next: reopen after bareloop's learnings, copied byte for byte (UI and inner working), on hamr's word 2026-10-23.
