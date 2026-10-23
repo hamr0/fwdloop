@@ -3477,3 +3477,26 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 - Red lines (4 runs; only the count differs): `864 / 1277 / 1357 / 1889 words, limit 600; no line is exactly the heading "Work History" (a heading is a line that is only that text, optionally after #)`.
 - No change on either side: `JACCARD_MIN` stays 0.6, numbers counted (hamr, 2026-10-23).
 - Caveat: there was one repeating check, so this says nothing about false folds.
+
+## F80 — POC: do refused-plan notes help the next draft of the same job? (pre-registered 2026-10-23, before any call)
+
+**Status.** Pre-registered 2026-10-23, before any code and before any call. Tags: **[RULING]** hamr 2026-10-23: cap $0.25 ("$0.25 ok"); if refused-plan notes do not make the next draft better, they are dropped. **[MEASURED]** none yet. Branch `learnings`. Model `deepseek-flash` only (never a Claude model). Code lives under `poc/m8-refused/`; `src/` is not changed. `flows/` holds real PII and is gitignored: this entry and the results file carry counts, refusal texts and hint text only, never an input or an artifact.
+
+**Question.** Do notes made from the drafter's OWN earlier refused plans (validator reds from earlier drafts of the same job) make the next draft of that job better?
+
+**Data.** `flows/.drafts/*/draft*/log.json` (per round `log[].reds`, final `reds`) with the job text in the matching `prose*.txt`. Three jobs, each a real job whose earlier draft(s) were refused (a job = the job lines before the "Arbiter guardrails" block; notes are keyed by that text, the per-draft spec hash is ignored):
+1. **aging** (`exit-walk-1` / `thinking-check-2` / `ageing-2`, same job text, 11 drafts, 8 with red rounds). Refusals include "the job line says Amount Owed, then Customer; the check says Customer, then Amount Owed" and section names "not in the job line's words". Input `fixtures/ar-aging.csv`.
+2. **m7-walk-2** (1 earlier draft, refused twice: "reads artifact \"resume\" that no earlier step declared", the same for "jd"; fixed in round 3). Inputs: the resume and JD files the draft used.
+3. **am29-walk-2** (1 earlier draft, 1 refusal round). Its refusal is the "marked unjudgeable but guardrailClasses proposes softgreen" red, not a sections-wording red; the sections-wording reds belong to `am29-walk-1`, a different job text. hamr named `am29-walk-2`; it is used as ruled and this is stated here, before the run. Same inputs as m7-walk-2.
+Each job is drafted from its own recorded `prose.txt` with its own recorded inputs, exactly as that draft session had them.
+
+**Method.** The real `draft()` of `src/drafter.js` (unchanged, deepseek-flash, thinking off as today, its own metering, its own 3 tries + structure retries) is called with an injected provider built by `makeProvider`. Arm B wraps the provider's `generate` and appends the hint block to the system message; arm A wraps it the same way and appends nothing. Both wrappers record per call whether the request carried the block, so the results show B's request carried it and A's did not.
+- **Notes (arm B):** that job's earlier refused drafts, rounds with validator reds only (structure, JSON-parse and "not readable" noise excluded), as cards (check "the drafted plan"; end text "refused by the plan check; fixed in a later round of the same draft" or "...; the draft failed"), folded with `countLedger` and rendered with `renderHints` of `src/learn.js` (M8 hint format, 2,000-char cap). The exact hint text per job is recorded in the results.
+- **Arms:** A = draft as today (no notes). B = same plus the block. 3 drafts per arm per job = 18 drafts, interleaved A,B,A,B,... per job to spread provider weather.
+- **Measures per draft:** ok / failed; validator-refusal rounds (rounds whose outcome carries reds); structure retries; total rounds; cost USD from the draft's own metering (unknown cost is never 0: a draft with unknown cost is reported as unknown and counts against B if it is in B).
+- **Cap:** $0.25 total (hamr). Before each draft the harness sums spend so far (unpriced at ceiling) and stops when the next draft could cross $0.25 (the drafter's own per-round ceiling times its most rounds). An unpriced model refuses the run.
+- **The POC can fail:** real drafts, no authored fixtures, the same inputs in both arms; if no draft is refused in either arm the test cannot tell, and that is reported as INCONCLUSIVE.
+
+**PASS bar (B wins only if all three):** (1) B's total refusal rounds < A's; (2) B's failed drafts <= A's; (3) B's total cost <= A's. Otherwise refused-plan notes are dropped. Also reported per job.
+
+**Result.** (to be written after the run)
