@@ -1,0 +1,72 @@
+{
+ "mvk2e4uy": {
+  "job": "pulselog-panel-strict",
+  "patient": "/home/hamr/PycharmProjects/bareloop/.claude/scratch/attemptdiff-live/patient/.bareloop/wt/sadiff1",
+  "auditRows": 32
+ },
+ "mvh72jo0": {
+  "job": "flights-2",
+  "patient": "/home/hamr/.config/bareloop/panel-sessions/smvh6zycqcqjy/source-seed/tree",
+  "auditRows": 2
+ },
+ "mshcpdg4": {
+  "job": "bareagent-u-types",
+  "patient": null,
+  "auditRows": 32
+ },
+ "battery-A3-mrnepkvq": {
+  "job": "aurora-fix",
+  "patient": null,
+  "auditRows": 0
+ },
+ "l2poc-B3-mrugee8z": {
+  "job": "aurora-testgen-l2poc-baseline",
+  "patient": null,
+  "auditRows": 0
+ },
+ "ms2c0ls7": {
+  "job": "aurora-u-spawner-types",
+  "patient": null,
+  "auditRows": 21
+ },
+ "ms7flkok": {
+  "job": "aurora-u-spawner-types",
+  "patient": null,
+  "auditRows": 30
+ },
+ "mszi97jd": {
+  "job": "aurora-u-spawner-types",
+  "patient": null,
+  "auditRows": 26
+ },
+ "ms2ddxjc": {
+  "job": "aurora-u-spawner-types",
+  "patient": null,
+  "auditRows": 34
+ },
+ "mszcfaof": {
+  "job": "aurora-u-spawner-types",
+  "patient": null,
+  "auditRows": 24
+ },
+ "mv3sconb": {
+  "job": "pulselog-p7-small",
+  "patient": "/home/hamr/PycharmProjects/bareloop-patients/pulselog-p7-small/.bareloop/wt/smv3s4oyri2fh",
+  "auditRows": 29
+ },
+ "mv1j01sl": {
+  "job": "rubric-repo2",
+  "patient": "/home/hamr/PycharmProjects/bareloop-patients/pulselog-f192-live/source-mu4hdwqs/tree/.bareloop/wt/smv1itzb2qs3p",
+  "auditRows": 31
+ },
+ "mties136": {
+  "job": "pulselog-g3-types",
+  "patient": null,
+  "auditRows": 14
+ },
+ "mv2i30bf": {
+  "job": "pulselog-p7-types",
+  "patient": "/home/hamr/PycharmProjects/bareloop-patients/pulselog-p7-draft/.bareloop/wt/smv2hrm9kddet",
+  "auditRows": 19
+ }
+}
