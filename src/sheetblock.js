@@ -7,6 +7,7 @@
 // A green "found" is the step's OWN claimed value in plain words (a number, or a count of rows / days / bands / groups); a string claim (a looked-up cell) is never
 // repeated, because it is cell text. A red "found" is bareguard's gap words (row numbers and counts), never a cell's text.
 // Third outcomes, named: a line the run never reached (no record) carries no verdict; a check the record lacks carries none (the page shows no mark).
+import { isDeepStrictEqual } from 'node:util';
 import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
 import { sheetCheckSentence } from './sheetchecks.js';
@@ -124,4 +125,46 @@ export function csvRolesOf(arbiter) {
   return (Array.isArray(arbiter?.sources) ? arbiter.sources : [])
     .filter((/** @type {any} */ s) => isRec(s) && s.kind !== 'page' && typeof s.path === 'string' && s.path.toLowerCase().endsWith('.csv') && typeof s.role === 'string')
     .map((/** @type {any} */ s) => s.role);
+}
+
+/** one value of a claim in the words of a line: text as it is, anything else as JSON */
+const claimShow = (/** @type {unknown} */ v) => (typeof v === 'string' ? v : JSON.stringify(v));
+
+/**
+ * M10b am4: the step's answer (its claim boxes) value by value, one line each: `invoiceCount: 8`, `daysPastDue: row 2 -> 124`. A list is one line per entry (a list of row
+ * numbers reads `row N`); a map is one line per key (`row <key> -> <value>`). An empty list or map reads `<name>: none`, never no line.
+ * Throws away: nothing but the box's own key (`value`, `rows`, `days`...), which the line's words already say.
+ * @param {unknown} claims the step's answer @returns {string[]}
+ */
+export function claimLines(claims) {
+  const out = [];
+  if (!isRec(claims)) return out;
+  for (const [name, box] of Object.entries(claims)) {
+    if (!isRec(box)) { out.push(`${name}: ${claimShow(box)}`); continue; }
+    for (const [key, v] of Object.entries(box)) {
+      if (Array.isArray(v)) {
+        if (v.length === 0) out.push(`${name}: none`);
+        for (const e of v) out.push(`${name}: ${key === 'rows' || key === 'keys' ? 'row ' : ''}${claimShow(e)}`);
+      } else if (isRec(v)) {
+        if (Object.keys(v).length === 0) out.push(`${name}: none`);
+        for (const [k, e] of Object.entries(v)) out.push(`${name}: row ${k} \u2192 ${claimShow(e)}`);
+      } else out.push(`${name}: ${claimShow(v)}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * M10b am4: what an ask card shows for the claim boxes it was given. The step is the sheet step whose saved try (`sheet-checks.json`) holds exactly these claims; its block is
+ * the Result tab's own (`sheetLineBlocks`, that try's verdicts), and `answer` is the claims value by value. Null when no saved try matches: the caller then keeps the old line.
+ * @param {{claims: unknown, declaration: any, lines: Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>, csvRoles?: string[], record?: any}} o
+ * @returns {{block: ReturnType<typeof sheetLineBlocks>[number], answer: string[]}|null}
+ */
+export function askSheetCard({ claims, declaration, lines, csvRoles = [], record }) {
+  if (!isRec(claims) || !Array.isArray(record?.lines)) return null;
+  const same = record.lines.filter((/** @type {any} */ l) => isRec(l) && Number.isInteger(l.try) && Number.isInteger(l.n) && isDeepStrictEqual(l.claims, claims));
+  const newest = same.reduce((/** @type {any} */ m, /** @type {any} */ l) => (m === null || l.try >= m.try ? l : m), null);
+  if (newest === null) return null;
+  const block = sheetLineBlocks({ declaration, lines, csvRoles, record: { lines: [newest] } }).find((b) => b.line === newest.n);
+  return block ? { block, answer: claimLines(claims) } : null;
 }

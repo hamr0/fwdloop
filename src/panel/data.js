@@ -39,7 +39,8 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
-import { csvRolesOf } from '../sheetblock.js';
+import { csvRolesOf, askSheetCard } from '../sheetblock.js';
+import { readSheetChecks } from '../sheet-record.js';
 import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
@@ -2339,6 +2340,7 @@ function flattenEvidence(evidence) {
     draft: evidence.draft ? evidence.draft.text : null,
     unjudged: evidence.unjudged,
     why: evidence.why,
+    ...(evidence.claims ? { claims: evidence.claims } : {}),
   };
 }
 
@@ -2688,7 +2690,18 @@ export function getRunAsks({
     }
   }
   const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
-  const asks = ordered.map((ask, i) => ({
+  // M10b am4: an ask whose evidence is a sheet step's claim boxes carries that step's block and answer (the Result tab's block), and loses the "unrecognised shape" line
+  const sheetRecord = ordered.some((a) => a.evidence?.claims) ? readSheetChecks(run.runDir) : null;
+  const sheetArbiter = flowRead.ok ? flowRead.arbiter : null;
+  const withSheet = (/** @type {any} */ ask) => {
+    const { claims, ...ev } = ask.evidence ?? {};
+    if (!claims) return ask;
+    const card = flowRead.ok ? askSheetCard({ claims, declaration: flowRead.declaration, lines: flowRead.lines, csvRoles: csvRolesOf(sheetArbiter), record: sheetRecord }) : null;
+    if (card === null) return { ...ask, evidence: ev };
+    const { why: _gone, ...rest } = ev;
+    return { ...ask, evidence: { ...rest, sheet: card } };
+  };
+  const asks = ordered.map(withSheet).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),
