@@ -828,6 +828,13 @@ export function validateDeclaration(declaration, context = {}) {
       reds.push(`declaration: Line ${n}'s check needs cells, but ${reading}. Line ${n} must read ${want}.`);
     }
 
+    // M10b piece 5 (item 8): the old cell cite retires for CSV. A green step that reads a spreadsheet answers in bareguard's claim boxes (`close.sheet`);
+    // one with neither `close.sheet` nor `close.cited` would be the old cite close, which a new plan no longer offers. Signed flows keep running (fitJobLine only).
+    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && reads.some((r) => cellsRoles.includes(r))
+      && !isPlainObject(step.close?.cited) && !Array.isArray(step.close?.sheet)) {
+      reds.push(`declaration: Line ${fromLine}'s check cannot cite cells any more. Line ${fromLine} must carry close.sheet: bareguard's checks of ${reads.filter((r) => cellsRoles.includes(r)).join(' or ')}.`);
+    }
+
     // M4d amendment 9: an ask step shows you something: its FIRST read must be the output of an earlier step. A read is not a
     // grant (the ask stays a pure stop); the check is for the plan checker only (fitJobLine), so signed flows still run.
     if (fitJobLine === true && reads !== null && fromLine !== null && askLines.includes(fromLine)

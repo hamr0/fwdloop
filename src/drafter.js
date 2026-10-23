@@ -58,12 +58,12 @@ const docRolesOf = (sources) => (sources ?? []).filter((s) => s.kind === 'file' 
 /** the document inputs a quote can come from (M10 piece 5, item 2) */
 const DOC_EXTS = Object.freeze(['.docx', '.md', '.txt']);
 
-/** M10 am8 item 2: the column lock of a green step that cites cells (`close.columns`): the exact header(s) its cells come from. */
+/** M10 am8 item 2: the column lock of a green step that reads a CSV input (`close.columns`): the exact header(s) its values come from. */
 const COLUMNS_PROP = Object.freeze({
   type: 'array',
   minItems: 1,
   maxItems: 10,
-  description: "only on a green step that cites cells of a CSV input: the exact column names (the sheet's header) every cited cell comes from. Omit on any other step",
+  description: "only on a green step that reads a CSV input: the exact column names (the sheet's header) its values come from. Omit on any other step",
   items: {
     type: 'object',
     properties: {
@@ -216,7 +216,7 @@ export const MAX_QUESTIONS = 2;
 
 /** What fwdloop's typed checks can really check (bareloop F174: give the model the real list, or "Not checked" is invented). */
 export const CHECKABLE = Object.freeze([
-  'green: a figure cites its source cell or formula',
+  'green: a sheet figure is recomputed by bareguard from the saved sheet',
   'softgreen: the output carries named section headings (sections), in order',
   `softgreen: a word ceiling for the whole output (maxWords; ${WHOLE_OUTPUT_CEILING_RULE}) and per section (wordsPerSection)`,
   'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
@@ -314,10 +314,10 @@ function greenReadRule(sources) {
   const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
   // M10 piece 5 (item 2): a quote in a doc - a .docx / .md / .txt input is quoted the way a page is
   const docRoles = docRolesOf(sources);
-  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be cited; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
+  const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be checked against its sheet; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
-    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's cells come from; every cell it cites must be in one of them. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
-    : `${rule} This job signs no CSV input, so a guardrail that needs cited cells cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+    ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. Leave close.columns out when the line names no column.`
+    : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
   if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   if (pageRoles.length || docRoles.length) {
     out.push(
@@ -370,7 +370,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     'Rules:',
     '- Steps share one artifact space. Each step: primitives (verbs it needs, [] if none), reads (artifact ids emitted by an EARLIER step, or the role of a CSV input listed under Inputs), emits (ONE new unique artifact id), fromLine (the ONE job line it serves), close. The machine fills each step\'s goal with that signed line, verbatim — you never write a goal.',
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
-    '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must cite its source cell), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
+    '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must be checkable against its source: a sheet figure by the bareguard checks of the sheet), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     ...greenReadRule(arbiter.sources),
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
