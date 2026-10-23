@@ -70,6 +70,11 @@ export function unbuildableSay(n, shape) {
  */
 export function findUnbuildableCheckStep(declaration) {
   for (const step of declaration.steps) {
+    // M10b piece 5 (item 8, hamr's ruling): a green step with neither close.sheet nor close.cited is the old cell cite, which no longer runs. A job signed that
+    // way is kept for reference (it still reads and displays) and is refused here, at $0, before any spend.
+    if (step.close?.class === 'green' && !step.close.cited && !Array.isArray(step.close.sheet)) {
+      return { step, why: 'a green step with no close.sheet or close.cited is the retired cell cite', say: `This flow will not run: Line ${step.fromLine}'s check cannot cite cells any more. Draft it again to run it.` };
+    }
     if (step.close?.class !== 'softgreen') continue;
     try {
       buildSoftgreenRubric(step.close.shape ?? {});
