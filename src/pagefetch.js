@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/pagefetch.js@56dc096 (adapted: secret check uses src/redact.js)
+// borrowed-from: bareloop src/pagefetch.js@56dc096 (adapted: secret check uses src/redact.js; TAG: bareloop src/labelscan.js@c59935e)
 // URL inputs (PART 1c, docs/product/ITEM33-BUILD.md "4. URL inputs" + live fix L1, PRD item 33 RF21/RF22): an Inputs line may be a web
 // address the person pastes (a results page). bareloop fetches it with barebrowse, READ ONLY, headless and incognito, as published:
 //
@@ -13,6 +13,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { redactSecrets } from './redact.js';
+
+/**
+ * The page reader's bracketed tag (`[ref=549]`). The lookahead and lookbehind add no match and drop no match: a `[` that sits inside the run of an earlier
+ * `[letters=` (no `]` or white space between) is skipped, because that earlier start reads the same run to the same end - it matches (and consumes this
+ * one) or fails (and so does this one). Without them "[a=[a=[a=..." with no `]` is quadratic.
+ */
+const TAG = /\[(?=[A-Za-z]+=)(?<!\[[A-Za-z]+=[^\]\s]*?)[A-Za-z]+=[^\]\s]*\]/g;
 
 /** the session options (incognito: no auth ever enters; blockPrivateNetwork: SSRF guard); ONE frozen object so a test can pin them */
 export const CONNECT_OPTIONS = Object.freeze({ incognito: true, blockPrivateNetwork: true });
@@ -73,7 +80,7 @@ export function pageContentChars(text) {
       skipIndent = -1;
     }
     if (m && CHROME_ROLES.has(m[2])) { skipIndent = indent; continue; }
-    n += raw.replace(/\[[A-Za-z]+=[^\]\s]*\]/g, ' ').replace(/^\s*-\s*/, '').replace(/\s+/g, ' ').trim().length;
+    n += raw.replace(TAG, ' ').replace(/^\s*-\s*/, '').replace(/\s+/g, ' ').trim().length;
   }
   return n;
 }
