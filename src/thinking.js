@@ -83,22 +83,23 @@ export function thinkingRuleWords(boxOn) {
 }
 
 /**
- * M4d am34 item 4: the ONE decider of which tries count - the places thinking switches on. A retry (2nd or later try), a redo at an ask (numbered after the
- * step's last try, so 2nd or later) and EVERY try of EVERY step in a rerun run (a rerun is a retry of the whole job; `rerun` is the run's own durable record,
- * `readRunIsRerun`). A plain run's first try never counts. Thinking (below) and the earlier runs' block (M8 am7, the runner) both ask this and nothing else.
- * @param {{attempt: number, rerun: boolean}} a the runner's 1-based attempt number for this step; `rerun`: this run is a rerun run
- * @returns {boolean}
+ * M4d am25 item 1/2: the ONE owner of what thinking a step's model call asks for. Code decides, never the model.
+ * Box ticked (the job's Chat "Thinking on" box, kept with the job): every try 'on'. Box off: the 1st try 'off'; the 2nd and later tries 'on'.
+ * A step redone after a human Redo is numbered after the step's last try (the runner's `attemptOffset`, am30), so it is always a 2nd-or-later try and thinks 'on'.
+ * @param {{boxOn: boolean, attempt: number}} a the runner's 1-based attempt number for this step
+ * @returns {'on'|'off'}
  */
-export function triesCount({ attempt, rerun }) {
-  return rerun === true || (Number.isInteger(attempt) && attempt >= 2);
+export function stepThinkingMode({ boxOn, attempt }) {
+  return boxOn === true || (Number.isInteger(attempt) && attempt >= 2) ? 'on' : 'off';
 }
 
 /**
- * M4d am25 item 1/2 (+ am34): the ONE owner of what thinking a step's model call asks for. Code decides, never the model.
- * Thinking is on when the job's Chat "Thinking on" box is ticked (kept with the job) OR the try counts (`triesCount`). Learnings never follow the box.
- * @param {{boxOn: boolean, attempt: number, rerun?: boolean}} a
- * @returns {'on'|'off'}
+ * M8 am7 item 2: the ONE owner of whether a step's try is handed the earlier runs' block. The places thinking switches on, but NOT the Chat "Thinking on" box:
+ * a retry (2nd or later try), a redo at an ask (numbered after the step's last try, so 2nd or later), and a rerun (the fresh run's first step, which starts
+ * from the human's rerun reason). A step's plain first try never gets it, whatever the box says.
+ * @param {{attempt: number, rerunReason: string|null}} a `rerunReason`: the reason this try starts from when it is a fresh run's first try, else null
+ * @returns {boolean}
  */
-export function stepThinkingMode({ boxOn, attempt, rerun = false }) {
-  return boxOn === true || triesCount({ attempt, rerun }) ? 'on' : 'off';
+export function stepHintsWanted({ attempt, rerunReason }) {
+  return (Number.isInteger(attempt) && attempt >= 2) || (typeof rerunReason === 'string' && rerunReason !== '');
 }
