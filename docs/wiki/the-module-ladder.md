@@ -2375,6 +2375,12 @@ through M5 (docs/archive/PRD.md:597-605).
   - If sign succeeds and the start is refused, the refused start reads as refused with today's Clear; nothing new was added.
 - **M6 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m6 am10"): a run is its own thing.** A run is one run of a workflow, kept on its own: its own copy of the job and its plan. **Resume, an answer or Reopen always carries on that same run, from its own copy.** Editing the workflow afterwards changes only new runs. A schedule set from a run takes its own copy of that run, and each run the schedule starts is its own run (M6 am9 item 2). **Replaces** M6 F5 ("a stopped run whose job was replaced has no Resume button") and the example in M11 amendment 2 item 2 ("stopped — the job was edited; start a new run").
   - **Must fail when:** a stopped run loses Resume because its workflow was edited; a resumed run carries on with the workflow's current job instead of its own copy.
+- **M6 amendment 11 — SIGNED by hamr 2026-10-24 ("sign m6 am11"): Reuse fills in the signed cap.**
+  1. Reuse workflow fills the Cap $ box with the job's signed cap (e.g. $0.50), never with what an earlier run was capped at after drafting (e.g. $0.47).
+  2. A Reuse that does not draft gets that whole cap (M4d am16 item 4). A Reuse that drafts shares it with its drafting, as M4d am16 item 1 says.
+  3. The signed cap is what decides Run or Sign & run (amendment 6 item 2): the box left at the signed cap is not a changed cap.
+  4. **Replaces** "cap" in M4e amendment 7 items 6 and 7's "filled in" values. Inputs, destination, ask wait and model are still filled in from the run.
+  - **Must fail when:** Reuse on a first run shows less than the signed cap; or leaving the box at the signed cap turns Run into Sign & run.
 
 ## M7 — skills and persona
 
