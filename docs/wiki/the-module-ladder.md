@@ -2890,3 +2890,9 @@ same run. Scope is stated when its turn comes.
   2. The page measures ✓ and sizes ◷ to match. There is no fixed size tuned on one machine.
   3. The empty space around a mark is not judged.
   - **Must fail when:** ◷'s ink is more than 1px taller or shorter than ✓'s; the test runs with only one font. It must force at least two fonts, one of them a font where a fixed size fails.
+
+- **M11 amendment 22 — SIGNED by hamr 2026-10-24 ("sign m11 am22"): Reopen is also on the Run tab.**
+  1. A run whose ask expired and can still be reopened shows the same **Reopen for another <wait>** button on its **Run** tab, in the top action row with Run again, Stop and Resume. Next to it is the same one-line reason as on the Ask tab: "Nobody answered in time." or "Your answer came after the deadline."
+  2. It is the same button as the one on the Ask tab: the same rule decides when it shows, and one click does the same thing. The Ask tab keeps its own Reopen.
+  3. After a reopen, both buttons go away together.
+  - **Must fail when:** a reopenable expired ask has Reopen on the Ask tab but not on the Run tab, or the other way round; the Run tab offers Reopen for an ask that is answered, still open, or on a run that has ended; one click reopens twice.
