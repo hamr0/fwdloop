@@ -3652,3 +3652,24 @@ Caveats, plain:
 - **Solution (proposed, unsigned):** the run-end notes match rows by workflow name alone, the same rule the read side uses (pass `specHash: null` to `countLedger` too, or drop the hash test in fwdloop's copy), so a redraft's same lesson counts +1 on the existing row instead of opening a new one. Existing split rows stay as they are (rows are never deleted); a re-seed into a fresh ledger would merge them. A test that must fail first: two runs of one workflow with different signature hashes and the same red lesson give one row with count 2, and the hint block shows it once. Corrected 2026-10-24 (the earlier sentence here said bareloop's job version is real, which was wrong): bareloop is hit by a cousin of this bug, per `loop` ($0, facts from bareloop): its job version is jobSpecHash (bareloop src/job.js:927), which also hashes the $ cap, time cap, source, destination and inputs, so a Reuse with a new cap reads none of the earlier lessons (bareloop src/learn.js:614 otherJobVersion), and a Resume that raises the cap makes leg 2 open a second row, so one run counts twice. `loop` has proposed keying on workflowKey to hamr; not built there. Bug 1 does not hit bareloop (one append-only spine across legs).
 
 **Idea, not a bug: input faults as hints.** m7-walk-2 hints 3 and 4 are NEVER FIXED rows about unusable inputs (a docx with no end of central directory record, runs 3 and 4; an AR invoice ledger given as a resume, run-10). They are true but give a later draft nothing to act on. M8 am3 (signed) keeps NEVER FIXED cards. Keeping them out of the hint text would need hamr's ruling and a typed source (e.g. a step's `done:false` blocker naming the input as unreadable); a rule on the free-text "said" line would be a regex on prose, which the rules forbid. Not drafted.
+
+**Trial 2026-10-24 ($0, run-12 real tries):** splitting a step's text field into lines before diffing gives 30 removed / 21 added lines (a near-total rewrite); the first changed lines are the resume's name, phone and email, which say nothing about the fix (1246 → under 600 words) and would put personal details into later drafts. Not built; a written step gets no What changed line.
+
+## F84 — POC: does the M8b move keep every run reading the same? (pre-registered 2026-10-24, before any run)
+
+**Status.** Pre-registered, $0, no model call, no live run. Tags below: **[MEASURED]** is filled in after the run (see "Measured"). Signed scope: M8b (docs/wiki/the-module-ladder.md, signed 2026-10-24). Harness: `poc/m8b/snapshot.mjs`.
+
+**Question.** Moving a run folder to the new shape (`run.json`, `diary.jsonl`, `line-checks.json`) by `fwdloop tidy`: does everything the product shows about each run read the same afterwards?
+
+**What is compared, on what.**
+- Input: a `cp -a` copy of hamr's real `flows/` (70 run folders in 24 flows at the time of writing) in a mkdtemp dir outside the repo. The real `flows/` is never written.
+- BEFORE: the harness run over the untouched copy with the code as it is now (HEAD `f9aecc8`, old file names). AFTER: a fresh copy, `fwdloop tidy --root` over it, the same harness with the new code.
+- One canonical JSON "view" per run folder, taken through the panel's own HTTP routes (the server started in-process on the copy, `settings.home` and the author home a scratch dir, the clock fixed): `GET /api/runs/<flow>/<run>` (detail), `/audit`, `/job`, `/asks`, `/result` (a 404 is recorded as a 404), `/api/author/resume-form` and `/api/author/run-again` for the run; once per root `/api/runs`, `/api/inbox`, `/api/author/flows`.
+- The learnings notes: `eventsOfRun(runDir, workflow)` for every run (events, questions, model, source), and `seedLedger` into a scratch ledger home, the whole ledger file then compared.
+- Exclusions, each listed with its reason in the script: the copy's absolute path (replaced by `<ROOT>`), the scratch home path, file mtimes and anything the panel derives from "now" (the clock is fixed; a field that still moves between two BEFORE passes is excluded and listed), the package version string. Nothing else.
+
+**Pass / fail rule.** Pass = zero differences between BEFORE and AFTER, for every view of every run. Any difference stops the build and is reported with its run and path; an exclusion added after a difference was seen is reported as such, never slipped in. Tidy run twice: the second run must change nothing (tree hash before = after). A run tidy cannot move is named and its views must read the same as BEFORE.
+
+**The test must be able to fail (checked before the real comparison).** (1) Two BEFORE passes over two fresh copies must be equal (the harness is deterministic). (2) On a scratch copy, one run's `inputs.json` is edited (a changed source path) and one run's `checks.jsonl` is deleted; the harness must report a difference for each. If either is not seen, the harness is wrong, not the move.
+
+**Cost.** $0.
