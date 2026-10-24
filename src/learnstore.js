@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learnstore.js@v0.46.0 (8b3d815)
-// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is NOT copied (it hands hints to the drafter, M8 item 5a, not built yet); stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's checks.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
+// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's checks.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
 // The thin reader/writer around src/learn.js (cross-run learnings, ITEM33-BUILD.md rev 2). All file IO lives here and
 // the pure rules live in learn.js; nothing in either file can reach a model.
 //
@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { configHome, configDoorHome, readConfig } from './config.js';
-import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth, buildCards, placeOf } from './learn.js';
+import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
 import { readAudit } from './books.js';
 import { readChecks } from './diary.js';
 import { readFileInside, readdirInside } from './flow.js';
@@ -255,4 +255,20 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = n
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
   const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolve), specHash, trust: 'deterministic', at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
+}
+
+/**
+ * M8 item 5a: the block the DRAFTER is handed for this job, made from the ledger as it stood: null when `learningHints` is off,
+ * when there is no ledger, or when nothing is readable; an unreadable ledger THROWS (the caller hands nothing and records why). The one `renderHints` render (2,000 characters at most),
+ * never a second. Age (56 days), job version and level are worked out here, at read time, by renderHints.
+ * Borrowed-from: bareloop src/learnstore.js@v0.46.0:148 (hintsForRun). `spec` is `{job, inputs: [{value}]}` (job = the workflow name).
+ * @param {{home?: string, spec: any, specHash: string|null, now?: Date}} o
+ * @returns {{text: string, ids: string[]}|null}
+ */
+export function hintsForRun({ home, spec, specHash, now = new Date() }) {
+  if (!learningHintsOn(home)) return null;
+  const cur = readLedger(home);
+  if (cur.problem) throw new Error(cur.problem); // adapted: bareloop returns null here; the caller (authoring.js) hands nothing AND records why (item 4)
+  const r = renderHints(cur.ledger, { workflow: String(spec.job), place: placeOf(spec, resolve), specHash, now });
+  return r.text ? r : null;
 }

@@ -29,10 +29,14 @@ import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
 import { writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
 import { jobKeyOfSigned } from './jobkey.js';
-import { checkSendDestination } from './runner.js';
+import { checkSendDestination, LEARN_ERROR_FILE } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
-import { readModelRecord, writeModelRecord } from './flowmodel.js';
+import { readModelRecord, writeModelRecord, writeLearningsRecord } from './flowmodel.js';
+import { configDoorHome } from './config.js';
+import { hintsForRun } from './learnstore.js';
+import { appendRow } from './jsonl-append.js';
+import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
@@ -333,12 +337,34 @@ export async function draftToDir({
   };
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
   const priorSpend = sessionPriorSpend(dir);
+  // M8 item 5a: the earlier runs' notes for this draft, made once from the ledger as it stood and handed to every round of it. A record read,
+  // never a verdict: any failure hands nothing and is written to learn-error.jsonl below, never a failed draft.
+  /** @type {{text: string, ids: string[]}|null} */
+  let learnHints = null;
+  let hintError = null;
+  const door = configDoorHome();
+  if (!door.skip) {
+    try {
+      const first = parseSignedText(prose.text);
+      learnHints = hintsForRun({ home: door.home, spec: { job: name, inputs: first.ok && first.arbiter.sources?.length ? [{ value: first.arbiter.sources[0].path }] : [] }, specHash: null });
+    } catch (/** @type {any} */ e) {
+      learnHints = null;
+      hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0];
+    }
+  }
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, ...(leftRules === undefined ? {} : { leftRules }),
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }),
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
     return refuse(cleanReds(result.reds));
+  }
+  // M8 item 5a: what was handed is kept once beside the draft (only when a round was actually sent with it); a failure is recorded, never raised.
+  try {
+    if (hintError === null && learnHints !== null && result.calls > 0) writeLearningsRecord(dir, learnHints);
+  } catch (/** @type {any} */ e) { hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0]; }
+  if (hintError !== null) {
+    try { appendRow(path.join(dir, LEARN_ERROR_FILE), { at: new Date().toISOString(), error: hintError }); } catch { /* the record of the failure is itself best-effort */ }
   }
 
   // After a paid round: never a silent throw. The cost is returned so the caller prints it; the dir is claimed and stays.

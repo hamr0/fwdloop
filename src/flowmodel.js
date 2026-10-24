@@ -86,3 +86,15 @@ export function readRunModel(runDir) {
 export function writeRunModel(runDir, { slot, model }) {
   writeOnce(join(runDir, RUN_MODEL_FILE), { slot, model });
 }
+
+/**
+ * M8 item 5a: the file that keeps EXACTLY what the drafter was handed from earlier runs (the Audit box of item 6 reads it). Bareloop's
+ * `learnings` spine record shape, `{phase, text, ids, chars}`. Write-once (never over an existing record); written only when something was
+ * handed, so no file = nothing handed = no box. Borrowed-from: bareloop src/planrun.js@v0.46.0:3092 (emit('learnings', ...)).
+ */
+export const LEARNINGS_FILE = 'learnings.json';
+
+/** @param {string} dir @param {{text: string, ids: string[]}} hints */
+export function writeLearningsRecord(dir, { text, ids }) {
+  writeOnce(join(dir, LEARNINGS_FILE), { phase: 'draft', text, ids, chars: text.length });
+}
