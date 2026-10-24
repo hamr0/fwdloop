@@ -18,13 +18,25 @@ import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow
 
 /**
  * M8 item 5a (loose end): the ONE function that turns a source as written into a place. The run-end notes (`learnAtRunEnd`: a path the panel/CLI gave the run) and
- * the drafter's hints (`hintsForRun`: the path as typed in the prose) both pass through it, so the same file cannot be two places. A leading `~` or `~/` is the
+ * the drafter's hints (`hintsForRun`: the step's first input, or at draft time the path as typed in the prose) both pass through it, so the same file cannot be two places. A leading `~` or `~/` is the
  * home folder (`path.resolve` alone would make it `<cwd>/~/...`); then `path.resolve` (lexical, no fs: the F48 guard keeps realpathSync out of this file).
  * A web address stays its host (placeOf). Not copied from bareloop: this is the fwdloop-only part of the place.
  * @param {string} p @returns {string}
  */
 export function resolvePlace(p) {
   return resolve(p === '~' || p.startsWith('~/') ? join(homedir(), p.slice(1)) : p);
+}
+
+/**
+ * M8 am8: the ONE function that gives a run's place spec: `{job, inputs}` for `placeOf`, from the run's first input AS THE RUN READS IT (`inputsManifest[0].source`,
+ * a path the panel or CLI gave the run), never the path written in the signed job. The step's hints (`stepHintsReader`), the run-end tally (`learnAtRunEnd`) and the
+ * drafter's hints (src/authoring.js) all build their spec here. No source (a job with no file input) is no place.
+ * @param {string} job the workflow name
+ * @param {string|null|undefined} source the run's first input as it reads it
+ * @returns {{job: string, inputs: {value: string}[]}}
+ */
+export function placeSpecOf(job, source) {
+  return { job, inputs: typeof source === 'string' && source !== '' ? [{ value: source }] : [] };
 }
 
 /**
@@ -257,7 +269,7 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = n
   const runid = `${workflow}/${runId}`;
   const build = buildCards({ runid, events: rec.events, spec: { job: workflow }, model: rec.model, questions: rec.questions });
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
-  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolvePlace), specHash, trust: 'deterministic', at, now });
+  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf(placeSpecOf(workflow, rec.source), resolvePlace), specHash, trust: 'deterministic', at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
 }
 

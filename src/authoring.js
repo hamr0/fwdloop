@@ -34,7 +34,7 @@ import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
 import { readModelRecord, writeModelRecord, writeLearningsRecord, writeLearningsError, copyLearningsRecord } from './flowmodel.js';
 import { configDoorHome } from './config.js';
-import { hintsForRun } from './learnstore.js';
+import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
@@ -344,8 +344,9 @@ export async function draftToDir({
   const door = configDoorHome();
   if (!door.skip) {
     try {
+      // a draft is made before any run: it has no run input (`fwdloop draft` takes none), so the first source is the signed prose path, the only file it can know (M8 am8)
       const first = parseSignedText(prose.text);
-      learnHints = hintsForRun({ home: door.home, spec: { job: name, inputs: first.ok && first.arbiter.sources?.length ? [{ value: first.arbiter.sources[0].path }] : [] }, specHash: null });
+      learnHints = hintsForRun({ home: door.home, spec: placeSpecOf(name, first.ok ? first.arbiter.sources?.[0]?.path : null), specHash: null });
     } catch (/** @type {any} */ e) {
       learnHints = null;
       hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0];

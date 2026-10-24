@@ -65,7 +65,7 @@ import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
-import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun } from './learnstore.js';
+import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
@@ -734,7 +734,7 @@ function stepHintsReader({ flowName, source, now }) {
   return () => {
     const door = configDoorHome();
     if (door.skip) return null;
-    return hintsForRun({ home: door.home, spec: { job: flowName, inputs: source ? [{ value: source }] : [] }, specHash: null, now: new Date(now()) });
+    return hintsForRun({ home: door.home, spec: placeSpecOf(flowName, source), specHash: null, now: new Date(now()) });
   };
 }
 
