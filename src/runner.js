@@ -726,7 +726,7 @@ function recordRunNotes({
  * M8 am7 item 1: the step's side of "one block". `hintsForRun` (src/learnstore.js) is the ONE function that makes the block the drafter is handed; a step's try
  * calls that same function, with the run's own workflow name, first input source and clock, and a null specHash exactly as the drafter does (so no second filter by job version), and takes its answer whole (no second render, no filter).
  * Returns null when `learningHints` is off, when there is no ledger or nothing readable, or in a test process with no config home. A ledger problem THROWS (the caller
- * hands nothing and records why in learn-error.jsonl, never a failed step).
+ * hands nothing and records why as `hintsError` on the try's audit row, never a failed step).
  * @param {{flowName: string, source: string|null, now: () => string}} o
  * @returns {() => {text: string, ids: string[]}|null}
  */
