@@ -137,3 +137,37 @@ test('Must fail: one reopen leaves a Reopen on the Run tab or the Ask tab; a sec
   assert.equal(again.status, 409, 'not expired any more: nothing reopens twice');
   assert.equal(readdirSync(w.runDir).filter((f) => /^reopen\..*\.json$/.test(f)).length, 1);
 });
+
+// ---- the button itself, in a real headless chromium: one click reopens once, both buttons go, the action row spills nothing -------------------------
+const CLOSERS = [];
+after(() => Promise.all(CLOSERS.map((c) => c())));
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}px: Reopen on the Run tab with its why line; a double click reopens once; both buttons go; no spill (item 1-3)`, { skip: SKIP && 'no browser' }, async (t) => {
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    const w = await parkedRun(`page${width}`);
+    w.expireAt(new Date(Date.now() - 3_600_000).toISOString());
+    await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+    const card = 'document.querySelector("[data-testid=rl-run-job2-run-1]")';
+    assert.ok(await chrome.waitFor(`!!${card}`), 'the Runs list shows the run');
+    await chrome.ev(`${card}.click()`);
+    assert.ok(await chrome.waitFor('!!document.querySelector("#run-actions [data-testid=run-reopen]")'), 'Reopen is in the Run tab\'s action row');
+    assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=btn-reopen]")'), 'and on the Ask tab');
+    const row = await chrome.ev(`(function(){ var el = document.getElementById("run-actions"); var vw = document.documentElement.clientWidth; var over = [];
+      el.querySelectorAll("*").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + " " + (e.getAttribute("data-testid") || "") + " " + Math.round(r.right)); });
+      return { vw: vw, docW: document.documentElement.scrollWidth, over: over, text: el.textContent, hint: (el.querySelector(".hint") || {}).textContent, btn: el.querySelector("[data-testid=run-reopen]").textContent }; })()`);
+    console.log(`# am22 action row ${width}px ${JSON.stringify(row)}`);
+    assert.deepEqual(row.over, [], 'no box in the action row past the screen');
+    assert.ok(row.docW <= row.vw, `document ${row.docW}px on a ${row.vw}px screen`);
+    assert.equal(row.hint, NO_ANSWER);
+    assert.match(row.btn, /^Reopen for another /);
+    // a double click: two clicks in the same turn; the page must send ONE request (the server would refuse a second, so count what the page sends)
+    await chrome.ev('(function(){ window.__reopenPosts = 0; var real = window.fetch; window.fetch = function(u){ if(String(u) === "/api/reopen") window.__reopenPosts += 1; return real.apply(this, arguments); }; return true; })()');
+    await chrome.ev('(function(){ var b = document.querySelector("#run-actions [data-testid=run-reopen]"); b.click(); b.click(); return true; })()');
+    assert.ok(await chrome.waitFor('!document.querySelector("#run-actions [data-testid=run-reopen]") && !document.querySelector("[data-testid=btn-reopen]")'), 'both buttons went');
+    assert.equal(readdirSync(w.runDir).filter((f) => /^reopen\..*\.json$/.test(f)).length, 1, 'one reopen record');
+    assert.equal(await chrome.ev('window.__reopenPosts'), 1, 'the page sent one reopen request');
+  });
+}

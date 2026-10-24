@@ -170,6 +170,7 @@
   /* the Run tab's top action row (Stop, Resume) */
   .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
   .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
+  .run-actions .hint{margin-top:0;flex:1 1 100%;overflow-wrap:anywhere;}
   /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
      you — keyed to `.pulse`, which the server decides (glyphPulses), never to
      a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
@@ -2793,8 +2794,11 @@
       el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
     }
     else if(c.noCopySay){ var nc = document.createElement("div"); nc.className = "answer-msg refused"; nc.setAttribute("data-testid", "run-no-copy-say"); nc.textContent = c.noCopySay; el.appendChild(nc); }
+    // M11 am22: Reopen is also here, from the server's `detail.reopen` (the Ask tab's own `reopenOffer` answer); the click is the Ask tab's `sendReopen`, the line its why
+    if(detail.reopen) el.appendChild(makeButton("Reopen for another " + waitText(detail.reopen.waitMs), "run-reopen", function(){ sendReopen(el, detail, detail.reopen.askId); }));
     // M11 am11 item 3: a stopped / stuck run in Needs you can leave it; the Run tab's own button, shown only when the server says it is removable
     if(detail.needsYou && detail.needsYou.removable) el.appendChild(makeRemoveNeedsButton(detail.flow, detail.runId, function(){ return reloadRun(detail.flow, detail.runId); }));
+    if(detail.reopen) el.appendChild(textDiv("hint", detail.reopen.why));
     if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }
     el.hidden = el.children.length === 0;
   }
@@ -4387,7 +4391,11 @@
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
+  // M11 am22: the Ask tab's button and the Run tab's button are one door; while a reopen is out neither can send a second one.
+  var reopenOut = false;
   function sendReopen(root, ctx, askId){
+    if(reopenOut) return;
+    reopenOut = true;
     say(ctx.flow, ctx.runId, "info", "reopening…");
     setBusy(root, true);
     postJSON("/api/reopen", { flow: ctx.flow, runId: ctx.runId, askId: askId }).then(function(r){
@@ -4401,7 +4409,7 @@
     }).catch(function(e){
       say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
-    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+    }).then(function(){ reopenOut = false; if(root.isConnected) setBusy(root, false); });
   }
   // M11 am11 item 3: Remove from Needs you. One door for the Ask tab (expired ask) and the Run tab (stopped / stuck): the server writes the marker and changes nothing else.
   function makeRemoveNeedsButton(flow, runId, after){
