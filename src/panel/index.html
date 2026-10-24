@@ -5456,8 +5456,10 @@
       refreshCapNote(); fitCardBoxes();
       doDraft(null);
     }
-    // the card stops reusing: the name box is free again
+    // the card stops reusing: the name box is free again. ONE owner: reuseOf and the boxes startReuseDraft filled go together, so a card that
+    // left Reuse (a refused signed start too) can never be drafted as a plain new job carrying the old job and name
     function leaveReuse(){
+      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); askWaitEl.value = "1h"; }
       reuseOf = null;
       editBannerEl.hidden = true; editBannerEl.textContent = "";
     }
@@ -6284,7 +6286,7 @@
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
       r.addEventListener("change", function(){
-        if(r.checked && reuseOf !== null && r.value !== "new" && !sessionLive){ leaveReuse(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
+        if(r.checked && reuseOf !== null && r.value !== "new" && !sessionLive){ leaveReuse(); }
         if(r.checked) setMode(r.value);
       });
     });
