@@ -48,6 +48,7 @@ import {
   answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
+import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
@@ -1014,9 +1015,21 @@ function cmdLearn(rest) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * M4b am4/am5 (the launcher): a bare `fwdloop` shows the menu; `start | stop | status | install` are its four choices as verbs. All logic is src/launcher.js.
+ * `--root <flows folder>` (default '.', like `fwdloop panel`) is the folder the runs line reads and `start` hands the panel; the config home is the real ~/.config/fwdloop.
+ */
+async function cmdLauncher(cmd, rest) {
+  const at = rest.indexOf('--root');
+  const given = at === -1 ? '.' : rest[at + 1];
+  if (at !== -1 && (given === undefined || given.startsWith('--'))) fail(`${cmd}: --root needs a folder`);
+  const args = at === -1 ? rest : rest.filter((_, i) => i !== at && i !== at + 1);
+  process.exitCode = await launcherMain(cmd, args, { root: resolveRoot(cmd, given) });
+}
+
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel|learn ...');
+  if (!verb || verb === '--root') return cmdLauncher('menu', verb ? [verb, ...rest] : []);
 
   if (verb === 'draft') return cmdDraft(rest);
   if (verb === 'sign') return cmdSign(rest);
@@ -1028,7 +1041,8 @@ async function main() {
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
   if (verb === 'learn') return cmdLearn(rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn`);
+  if (verb === 'start' || verb === 'stop' || verb === 'status' || verb === 'install') return cmdLauncher(verb, rest);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | start | stop | status | install (or none, for the menu)`);
   return undefined;
 }
 
