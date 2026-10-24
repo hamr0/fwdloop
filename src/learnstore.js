@@ -282,6 +282,7 @@ export const NOT_A_RUN_END = new Set(['paused', 'stop-failed']);
  * @returns {{read: number, added: number, skipped: Record<'already-in'|'still-waiting'|'no-end'|'unreadable'|'noise', number>, problem: string|null, skippedNoDoor: boolean}}
  */
 export function seedLedger({ root, home }) {
+  /** @type {{read: number, added: number, skipped: Record<'already-in'|'still-waiting'|'no-end'|'unreadable'|'noise', number>, problem: string|null, skippedNoDoor: boolean}} */
   const out = { read: 0, added: 0, skipped: { 'already-in': 0, 'still-waiting': 0, 'no-end': 0, unreadable: 0, noise: 0 }, problem: null, skippedNoDoor: false };
   if (home === undefined) {
     const door = configDoorHome();
