@@ -2452,6 +2452,14 @@ SIGNED by hamr 2026-10-24 ("sign m8 am5"), the text exactly as shown:
 **M8 amendment 5 — the Audit box shows bareloop's rows.**
 1. "Done when"'s "the Audit box shows the exact text handed" means bareloop's box: each handed hint as its rows (where it came from, times seen, check, kind, fixed or not, It said). The exact text handed is kept in the run's `learnings.json`, and the separate script checks it.
 
+SIGNED by hamr 2026-10-24 ("sign m8 am6"), the text exactly as shown:
+
+**M8 amendment 6 — the ledger is seeded from every run already recorded.**
+1. One command, `fwdloop learn seed --root <flows folder>`, reads every ended run of every job under that folder, oldest first, and adds its notes to the ledger exactly as a run's end does: code only, $0, no model call, noise runs skipped.
+2. Each note keeps its run's own end time, so a run older than 56 days is in the ledger but not handed, as item 3 says.
+3. Running it again adds nothing: a run already in the ledger is skipped.
+4. It prints how many runs it read, how many notes it added, and how many runs it skipped and why.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
