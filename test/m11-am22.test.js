@@ -163,9 +163,9 @@ for (const width of [1280, 390, 320]) {
     assert.ok(row.docW <= row.vw, `document ${row.docW}px on a ${row.vw}px screen`);
     assert.equal(row.hint, NO_ANSWER);
     assert.match(row.btn, /^Reopen for another /);
-    // a double click: two clicks in the same turn; the page must send ONE request (the server would refuse a second, so count what the page sends)
+    // a double click, and the Ask tab's own button clicked at once: three clicks in the same turn; the page must send ONE request (the server would refuse a second, so count what the page sends)
     await chrome.ev('(function(){ window.__reopenPosts = 0; var real = window.fetch; window.fetch = function(u){ if(String(u) === "/api/reopen") window.__reopenPosts += 1; return real.apply(this, arguments); }; return true; })()');
-    await chrome.ev('(function(){ var b = document.querySelector("#run-actions [data-testid=run-reopen]"); b.click(); b.click(); return true; })()');
+    await chrome.ev('(function(){ var b = document.querySelector("#run-actions [data-testid=run-reopen]"); b.click(); b.click(); var a = document.querySelector("[data-testid=btn-reopen]"); a.click(); return true; })()');
     assert.ok(await chrome.waitFor('!document.querySelector("#run-actions [data-testid=run-reopen]") && !document.querySelector("[data-testid=btn-reopen]")'), 'both buttons went');
     assert.equal(readdirSync(w.runDir).filter((f) => /^reopen\..*\.json$/.test(f)).length, 1, 'one reopen record');
     assert.equal(await chrome.ev('window.__reopenPosts'), 1, 'the page sent one reopen request');
