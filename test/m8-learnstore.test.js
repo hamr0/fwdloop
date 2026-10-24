@@ -1,4 +1,4 @@
-// borrowed-from: bareloop tests/learn-ledger.test.js@v0.46.0 (8b3d815)
+// borrowed-from: bareloop tests/learn-ledger.test.js@v0.47.0 (66dc2b0)
 // Adaptations: only the disk tests are copied (the count/climb/render tests belong to learn.js); temp dir prefix fwdloop-learn-; "place of a job" test dropped (placeOf is not used by this file); then the tests of fwdloop's own adaptations (M8 item 3: config home, test door, keep-every-row, no wiring functions).
 // Disk tests use a scratch home (mkdtemp) and never touch ~/.config/fwdloop.
 
@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { emptyLedger, countLedger, DECAY_DAYS } from '../src/learn.js';
+import { emptyLedger, countLedger, cardsMatch, lessonOf, holdPending, DECAY_DAYS } from '../src/learn.js';
 import * as store from '../src/learnstore.js';
 import { readLedger, writeLedger, ledgerPath, foldRunIntoLedger, releaseRun } from '../src/learnstore.js';
 import { configHome } from '../src/config.js';
@@ -46,7 +46,7 @@ test('disk: a corrupt ledger is reported and never silently reset by the run-end
   assert.equal(readFileSync(ledgerPath(home), 'utf8'), '{ not json');
 });
 
-test('disk: foldRunIntoLedger counts a deterministic run, holds a rubric run, and releaseRun frees it', (t) => {
+test('disk: foldRunIntoLedger counts a deterministic run; a rubric run counts at run end too (no hold), and an OLD hold still releases on Accept', (t) => {
   const home = scratch(t);
   const det = cardsOf('mvk2e4uy');
   const out = foldRunIntoLedger({ home, runid: 'mvk2e4uy', build: det, workflow: 'pulselog-panel-strict', place: '/p', specHash: 'h', trust: 'deterministic', at: det.cards[0].at, now: new Date(det.cards[0].at) });
@@ -57,15 +57,47 @@ test('disk: foldRunIntoLedger counts a deterministic run, holds a rubric run, an
   // the same run again: the tally does not move
   foldRunIntoLedger({ home, runid: 'mvk2e4uy', build: det, workflow: 'pulselog-panel-strict', place: '/p', specHash: 'h', trust: 'deterministic', at: det.cards[0].at, now: new Date(det.cards[0].at) });
   assert.equal(readLedger(home).ledger.rows[0].count, 1);
-  // a rubric run: held until released
+  // a rubric run counts at RUN END (bareloop v0.47.0): a row at count 1, trust rubric, nothing held
   const rub = cardsOf('mvh72jo0');
   const now = new Date(rub.cards[0].at);
   const h = foldRunIntoLedger({ home, runid: 'mvh72jo0', build: rub, workflow: 'flights-2', place: 'www.google.com', specHash: 'h', trust: 'rubric', at: rub.cards[0].at, now });
-  assert.deepEqual([h.counted, h.held], [0, 1]);
-  assert.equal(readLedger(home).ledger.rows.filter((r) => r.workflow === 'flights-2').length, 0);
-  assert.deepEqual(releaseRun({ home, runid: 'mvh72jo0', now }), { released: 1, problem: null });
-  assert.equal(readLedger(home).ledger.rows.filter((r) => r.workflow === 'flights-2').length, 1);
-  assert.deepEqual(releaseRun({ home, runid: 'mvh72jo0', now }), { released: 0, problem: null });
+  assert.deepEqual([h.counted, h.held], [1, 0]);
+  const rows = readLedger(home).ledger.rows.filter((r) => r.workflow === 'flights-2');
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].count, rows[0].trust], [1, 'rubric']);
+  assert.equal(readLedger(home).ledger.pending.length, 0, 'no new hold is ever written');
+  // the same rubric run folded twice stays count 1
+  foldRunIntoLedger({ home, runid: 'mvh72jo0', build: rub, workflow: 'flights-2', place: 'www.google.com', specHash: 'h', trust: 'rubric', at: rub.cards[0].at, now });
+  assert.equal(readLedger(home).ledger.rows.find((r) => r.workflow === 'flights-2')?.count, 1);
+  // an OLD hold (written by an older version) still releases on the door Accept
+  const old = cardsOf('mvh72jo0');
+  writeLedger(holdPending(readLedger(home).ledger, { runid: 'oldhold1', cards: old.cards, workflow: 'flights-old', place: null, specHash: 'h', at: old.cards[0].at }, now), home);
+  assert.deepEqual(releaseRun({ home, runid: 'oldhold1', now }), { released: 1, problem: null });
+  assert.equal(readLedger(home).ledger.rows.filter((r) => r.workflow === 'flights-old').length, 1);
+  assert.equal(readLedger(home).ledger.pending.length, 0);
+  assert.deepEqual(releaseRun({ home, runid: 'oldhold1', now }), { released: 0, problem: null });
+});
+
+test('a resumed leg (same run id) turns its own NEVER FIXED row into the FIXED sample; count stays 1, models unchanged, run id once', () => {
+  const [c] = /** @type {any} */ (built.get('ms2c0ls7')).cards;
+  const leg1 = { ...c, kind: 'NEVER_FIXED', id: `${c.id}-nf`, fixTouched: [], whatChanged: null, model: 'deepseek-flash' };
+  const leg2 = { ...c, kind: 'FIXED', at: new Date(new Date(c.at).getTime() + 3600_000).toISOString(), model: 'deepseek-flash' };
+  assert.equal(cardsMatch(leg2, leg1).match, true);
+  const o = { runid: 'ms2c0ls7', workflow: WF, place: '/p/aurora', specHash: 'h1', trust: /** @type {const} */ ('deterministic'), now: NOW };
+  let L = countLedger(emptyLedger(), { ...o, cards: [leg1] });
+  assert.equal(L.rows[0].sample.kind, 'NEVER_FIXED');
+  L = countLedger(L, { ...o, cards: [leg2] });
+  assert.equal(L.rows.length, 1, 'no second row for the same run');
+  assert.equal(L.rows[0].sample.kind, 'FIXED');
+  assert.equal(L.rows[0].lesson, lessonOf(leg2));
+  assert.equal(L.rows[0].lastSeen, leg2.at);
+  assert.equal(L.rows[0].count, 1);
+  assert.deepEqual(L.rows[0].models, { 'deepseek-flash': 1 });
+  assert.deepEqual(L.rows[0].runIds, ['ms2c0ls7']);
+  const again = countLedger(L, { ...o, cards: [leg1, leg2] });
+  assert.equal(again.rows.length, 1);
+  assert.equal(again.rows[0].count, 1);
+  assert.deepEqual(again.rows[0].models, { 'deepseek-flash': 1 });
 });
 
 // ── fwdloop's own adaptations (M8 item 3) ─────────────────────────────────────

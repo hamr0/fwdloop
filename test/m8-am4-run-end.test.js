@@ -115,7 +115,7 @@ test('am4 resume: a stopped run that is resumed folds the whole run again; one r
   assert.deepEqual(L.rows[0].runIds, ['job2/run-1']);
 });
 
-test('am4 resume, bareloop-identical: stuck in leg 1, fixed in leg 2 -> the run is folded again at its true end but counts once; the row keeps leg 1\'s NEVER FIXED sample', async () => {
+test('am4 resume, bareloop-identical: stuck in leg 1, fixed in leg 2 -> the run is folded again at its true end but counts once; the row is refreshed to leg 2\'s FIXED sample (bareloop v0.47.0)', async () => {
   const s = setup('stuck-then-fixed');
   const r1 = await runFlow({ ...s.args(modelStepFor(() => 'red', (n) => { if (n === 1) requestStop(s.runDir); })), sources: s.sources });
   assert.equal(r1.outcome, 'stopped', r1.red);
@@ -126,7 +126,7 @@ test('am4 resume, bareloop-identical: stuck in leg 1, fixed in leg 2 -> the run 
   const r3 = await resumeRun(s.args(modelStepFor(() => 'good')));
   assert.equal(r3.outcome, 'complete', r3.red);
   const L = ledger(s.home);
-  assert.deepEqual(L.rows.map((x) => [x.count, x.sample.kind, x.runIds]), [[1, 'NEVER_FIXED', ['job2/run-1']]]);
+  assert.deepEqual(L.rows.map((x) => [x.count, x.sample.kind, x.runIds]), [[1, 'FIXED', ['job2/run-1']]]);
   assert.equal(L.health['job2/run-1'].cards, 1, 'the health line is the whole run, replaced by run id');
 });
 

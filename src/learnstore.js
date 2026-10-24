@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/learnstore.js@v0.46.0 (8b3d815)
+// borrowed-from: bareloop src/learnstore.js@v0.47.0 (66dc2b0)
 // Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's checks.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
 // The thin reader/writer around src/learn.js (cross-run learnings, ITEM33-BUILD.md rev 2). All file IO lives here and
 // the pure rules live in learn.js; nothing in either file can reach a model.
@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSy
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { configHome, configDoorHome, readConfig } from './config.js';
-import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
+import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
 import { readAudit, readHistory } from './books.js';
 import { readChecks } from './diary.js';
 import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
@@ -78,9 +78,8 @@ export function writeLedger(ledger, home) {
 }
 
 /**
- * Fold ONE finished run into the ledger on disk: a deterministic job's cards COUNT now; a rubric job's cards are HELD
- * until a human Accept (they are written to `pending`, never counted, never readable). The run's health line is recorded
- * either way. Never throws on a bad ledger file: it reports `problem` and writes nothing.
+ * Fold ONE finished run into the ledger on disk: every run's cards COUNT now, rubric jobs too (trust kept on new rows;
+ * bareloop v0.47.0). `held` is always 0 (kept in the shape for callers). The run's health line is recorded. Never throws on a bad ledger file: it reports `problem` and writes nothing.
  * @param {{home?: string, runid: string, build: import('./learn.js').CardBuild, workflow: string, place: string|null, specHash: string|null, trust: 'deterministic'|'rubric', at: string, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null}}
  */
@@ -88,23 +87,16 @@ export function foldRunIntoLedger({ home, runid, build, workflow, place, specHas
   const cur = readLedger(home);
   if (cur.problem) return { wrote: false, counted: 0, held: 0, problem: cur.problem };
   let L = cur.ledger;
-  let counted = 0;
-  let held = 0;
-  if (trust === 'rubric') {
-    L = holdPending(L, { runid, cards: build.cards, workflow, place, specHash, at }, now);
-    held = build.cards.length;
-  } else {
-    const before = L.rows.reduce((n, r) => n + r.runIds.filter((x) => x === runid).length, 0);
-    L = countLedger(L, { runid, cards: build.cards, workflow, place, specHash, trust, now });
-    counted = L.rows.reduce((n, r) => n + r.runIds.filter((x) => x === runid).length, 0) - before;
-  }
+  const before = L.rows.reduce((n, r) => n + r.runIds.filter((x) => x === runid).length, 0);
+  L = countLedger(L, { runid, cards: build.cards, workflow, place, specHash, trust, now });
+  const counted = L.rows.reduce((n, r) => n + r.runIds.filter((x) => x === runid).length, 0) - before;
   L = recordHealth(L, runid, build, at, now);
   writeLedger(L, home);
-  return { wrote: true, counted, held, problem: null };
+  return { wrote: true, counted, held: 0, problem: null };
 }
 
 /**
- * The human Accept at the review door: release the run's held rubric cards so they count (only forward, only here).
+ * The human Accept at the review door: release a hold an older version wrote for the run so it counts (new runs write none; only forward, only here).
  * @param {{home?: string, runid: string, now?: Date}} o
  * @returns {{released: number, problem: string|null}}
  */
