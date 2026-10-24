@@ -1545,6 +1545,15 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 
 - *Built after signing — not signed text:* `fwdloop run --model <id>` (with `--provider` only when two keys tick the same id) picks any model ticked in Settings with both prices for that new run; the job's recorded `model.json` is only the default and is never rewritten. The run records its pick once in its own folder (`run-model.json`, written once by `writeRunModel`), and `resume` / `continue` keep it: naming another model on a resume is refused by name, at $0. A rerun made by a resume records the model the resumed run keeps. A run with no `run-model.json` (made before this) falls back to the model signed with it, else today's pick.
 
+SIGNED by hamr 2026-10-24 ("sign m4d am34"), the text exactly as shown:
+
+**M4d amendment 34 — a rerun thinks on, every step.**
+1. A rerun is a retry of the whole job. Every try of every step in a rerun run thinks **on**, its first try included.
+2. Learnings follow the same rule (M8 am7): every try of every step in a rerun is handed the block.
+3. A plain run is unchanged: a first try thinks off and gets no learnings unless your Chat-box switch is ticked (thinking only); a retry or a redo thinks on and gets learnings.
+4. One decider says which tries count, and thinking and learnings both use it. Audit shows `thinking on` on those tries.
+- **Must fail when:** any try in a rerun thinks off or gets no learnings (learningHints on); a plain run's first try thinks on (box unticked) or gets learnings; thinking and learnings disagree about which tries count.
+
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
 - **Why:** the ladder order agreed 2026-09-30: M4c, then M4d (Settings), then M4e (run a job from the panel). Today a job is drafted, signed and run only from a terminal (`fwdloop draft`, `fwdloop sign` at a TTY, `fwdloop run`). M4d put the key and the monthly limit in place first, because this card spends money. hamr 2026-10-05: "start m4e", then "1. you will also copy same ui and change captions/add remove as needed to fit fwdloop".
