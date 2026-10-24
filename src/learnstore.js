@@ -12,9 +12,9 @@ import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, holdPending, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
-import { readAudit } from './books.js';
+import { readAudit, readHistory } from './books.js';
 import { readChecks } from './diary.js';
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
 
 /**
  * M8 item 5a (loose end): the ONE function that turns a source as written into a place. The run-end notes (`learnAtRunEnd`: a path the panel/CLI gave the run) and
@@ -267,6 +267,61 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = n
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
   const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolvePlace), specHash, trust: 'deterministic', at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
+}
+
+/** M8 am4 item 2: a run waiting at an ask has not ended ('paused', or a Stop whose set-aside failed). ONE decider: the runner's run-end tally and the seed both read it. */
+export const NOT_A_RUN_END = new Set(['paused', 'stop-failed']);
+
+/**
+ * M8 am6: seed the ledger from every run already recorded under `root` (every job, every ended run), oldest first by the run's own end time
+ * (the last history row that is a run end). Each run goes through `learnAtRunEnd` (the one note builder) with `now` = its own end time, so
+ * ages, decay and lastSeen come from the run. A run already in the ledger (its `<workflow>/<runId>` has a health line) is skipped, so a second seed adds nothing.
+ * Code only, $0. A run it cannot read is counted and the seed goes on; a bad ledger file stops it at once (nothing is rewritten).
+ * Under a test process with no door nothing is read or written (`skippedNoDoor`).
+ * @param {{root: string, home?: string}} o `home` is a test seam; production leaves it out
+ * @returns {{read: number, added: number, skipped: Record<'already-in'|'still-waiting'|'no-end'|'unreadable'|'noise', number>, problem: string|null, skippedNoDoor: boolean}}
+ */
+export function seedLedger({ root, home }) {
+  const out = { read: 0, added: 0, skipped: { 'already-in': 0, 'still-waiting': 0, 'no-end': 0, unreadable: 0, noise: 0 }, problem: null, skippedNoDoor: false };
+  if (home === undefined) {
+    const door = configDoorHome();
+    if (door.skip) return { ...out, skippedNoDoor: true };
+    home = door.home;
+  }
+  /** @type {{workflow: string, runId: string, runDir: string, end: Date, specHash: string|null}[]} */
+  const todo = [];
+  for (const workflow of listFlowNames(root)) {
+    const flowDir = join(root, workflow);
+    /** @type {any[]|null} */
+    let history = null;
+    try { history = readHistory(flowDir); } catch { history = null; }
+    for (const runId of listRunIds(flowDir)) {
+      out.read += 1;
+      const runDir = join(flowDir, 'runs', runId);
+      try {
+        const log = jsonIn(runDir, 'log.json');
+        if (log && NOT_A_RUN_END.has(log.outcome)) { out.skipped['still-waiting'] += 1; continue; }
+        if (history === null) { out.skipped.unreadable += 1; continue; }
+        const endRow = history.findLast((r) => r?.runId === runId && !NOT_A_RUN_END.has(r.outcome) && Number.isFinite(Date.parse(r.at)));
+        if (!endRow) { out.skipped['no-end'] += 1; continue; }
+        if (!log) { out.skipped.unreadable += 1; continue; }
+        todo.push({ workflow, runId, runDir, end: new Date(endRow.at), specHash: typeof endRow.signatureHash === 'string' ? endRow.signatureHash : null });
+      } catch { out.skipped.unreadable += 1; }
+    }
+  }
+  todo.sort((a, b) => a.end.getTime() - b.end.getTime() || `${a.workflow}/${a.runId}`.localeCompare(`${b.workflow}/${b.runId}`));
+  for (const t of todo) {
+    const cur = readLedger(home);
+    if (cur.problem) { out.problem = cur.problem; return out; }
+    if (Object.hasOwn(cur.ledger.health, `${t.workflow}/${t.runId}`)) { out.skipped['already-in'] += 1; continue; }
+    try {
+      const r = learnAtRunEnd({ home, workflow: t.workflow, runId: t.runId, runDir: t.runDir, specHash: t.specHash, now: t.end });
+      if (r.problem) { out.problem = r.problem; return out; }
+      if (r.noise) out.skipped.noise += 1;
+      else out.added += r.counted;
+    } catch { out.skipped.unreadable += 1; }
+  }
+  return out;
 }
 
 /**

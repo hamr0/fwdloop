@@ -32,6 +32,7 @@ import {
 import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
+import { seedLedger } from '../src/learnstore.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import {
@@ -996,11 +997,26 @@ async function cmdSign(rest) {
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);
 }
 
+/** M8 am6: `fwdloop learn seed --root <flows folder>`: notes from every ended run already recorded ($0, code only). */
+function cmdLearn(rest) {
+  const [sub, ...args] = rest;
+  if (sub !== 'seed') fail('learn: expected "seed" — fwdloop learn seed --root <flows folder>');
+  const { values } = parseArgs({ args, options: { root: { type: 'string' } } });
+  if (!values.root) fail('learn seed: --root <flows folder> is required');
+  const root = resolveRoot('learn seed', values.root);
+  const r = seedLedger({ root });
+  if (r.skippedNoDoor) fail('learn seed: a test process has no config home (set FWDLOOP_CONFIG_HOME)');
+  const k = r.skipped;
+  const total = Object.values(k).reduce((a, b) => a + b, 0);
+  process.stdout.write(`runs read: ${r.read}\nnotes added: ${r.added}\nruns skipped: ${total} (already in: ${k['already-in']}, still waiting: ${k['still-waiting']}, no end: ${k['no-end']}, unreadable: ${k.unreadable}, noise: ${k.noise})\n`);
+  if (r.problem) fail(`learn seed: stopped, the ledger is not usable — ${r.problem}`);
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel ...');
+  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel|learn ...');
 
   if (verb === 'draft') return cmdDraft(rest);
   if (verb === 'sign') return cmdSign(rest);
@@ -1011,7 +1027,8 @@ async function main() {
   if (verb === 'resume') return cmdResume(rest);
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel`);
+  if (verb === 'learn') return cmdLearn(rest);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn`);
   return undefined;
 }
 

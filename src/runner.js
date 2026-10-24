@@ -65,7 +65,7 @@ import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
-import { learnAtRunEnd } from './learnstore.js';
+import { learnAtRunEnd, NOT_A_RUN_END } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
@@ -697,7 +697,6 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 // borrowed-from: bareloop src/userrun.js@v0.46.0:2035 (the call site, in its own try/catch)
 // ---------------------------------------------------------------------------
 
-const NOT_A_RUN_END = new Set(['paused', 'stop-failed']);
 /** where a failed run-end tally is recorded (one appended row, in the run's own folder): the run itself is unaffected */
 export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
