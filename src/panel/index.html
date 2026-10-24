@@ -436,8 +436,11 @@
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
-  /* M8 item 6: bareloop's learnings box wears no arrow, open or closed (hamr 2026-10-23); the state chip leads */
-  .audit-group.audit-fold.audit-learnings-fold h4.audit-status-header::before,.audit-group.audit-fold.audit-learnings-fold h4.audit-status-header[aria-expanded="true"]::before{content:none;}
+  /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.46.0 :421-424): a framed row, the header a full-width button with the chip and words inline, no arrow */
+  .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
+  .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
+  .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
   @media (max-width: 640px){
     /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
     .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
@@ -749,7 +752,10 @@
     .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
     .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
     /* M8 item 6: a hint's table fits the box and wraps (as bareloop's does at 320), it does not scroll sideways */
-    .audit-group table.rounds-table.learn-hint{width:100%;min-width:0;max-width:100%;}
+    .audit-part table.learn-hint{display:table;width:100%;min-width:0;max-width:100%;}
+    .audit-part table.learn-hint tbody{display:table-row-group;}
+    .audit-part table.learn-hint tr{display:table-row;padding:0;}
+    .audit-part table.learn-hint td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;}
   }
 
   /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
@@ -3325,25 +3331,17 @@
     var hints = Array.isArray(it.hints) ? it.hints : [];
     var count = Array.isArray(it.ids) ? it.ids.length : hints.length;
     var wrap = document.createElement("div");
-    wrap.className = "audit-group audit-fold audit-learnings-fold closed";
+    wrap.className = "audit-part";
     wrap.setAttribute("data-testid", "audit-group-learnings");
-    var head = document.createElement("h4");
-    head.className = "audit-status-header";
-    head.setAttribute("role", "button"); head.setAttribute("tabindex", "0"); head.setAttribute("aria-expanded", "false");
-    head.style.cursor = "pointer";
-    var sign = document.createElement("span");
-    sign.className = "badge sign-badge green";
-    sign.setAttribute("data-testid", "audit-learnings-state");
-    sign.textContent = "[\u2713] learnings";
-    head.appendChild(sign);
-    head.appendChild(document.createTextNode("  "));
-    var tail = document.createElement("span");
-    tail.className = "audit-fold-tail wrap";
-    tail.setAttribute("data-testid", "audit-learnings-head");
-    tail.textContent = "What the planner was told from earlier runs \u00B7 " + count + (count === 1 ? " hint" : " hints");
-    head.appendChild(tail);
+    var head = document.createElement("button");
+    head.type = "button";
+    head.className = "btn audit-part-toggle";
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("data-testid", "audit-learnings-head");
+    var label = "What the planner was told from earlier runs \u00B7 " + count + (count === 1 ? " hint" : " hints");
+    head.innerHTML = stateDotHTML(glyphClass("[\u2713]"), "learnings", "audit-learnings-state") + " " + escapeXml(label);
     var list = document.createElement("div");
-    list.className = "audit-fold-body";
+    list.className = "audit-part-body";
     list.setAttribute("data-testid", "audit-learnings-list");
     list.hidden = true;
     var note = document.createElement("div");
@@ -3374,11 +3372,10 @@
       hint.appendChild(table);
       list.appendChild(hint);
     });
-    function paintLearn(open){ list.hidden = !open; wrap.classList.toggle("closed", !open); head.setAttribute("aria-expanded", open ? "true" : "false"); }
+    function paintLearn(open){ list.hidden = !open; head.setAttribute("aria-expanded", open ? "true" : "false"); }
     function toggleLearn(){ var open = list.hidden; auditExpanded["\u0000learnings"] = open; paintLearn(open); }   // folded on open; a re-render keeps what you chose for this run
     if(auditExpanded["\u0000learnings"] === true) paintLearn(true);
     head.addEventListener("click", toggleLearn);
-    head.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleLearn(); } });
     wrap.appendChild(head); wrap.appendChild(list);
     box.appendChild(wrap);
   }

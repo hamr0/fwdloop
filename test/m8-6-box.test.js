@@ -59,7 +59,7 @@ async function openAudit(/** @type {number} */ width, /** @type {any} */ rec) {
   return { chrome, g };
 }
 const BOX = '[data-testid=audit-group-learnings]';
-const HEAD = `document.querySelector("${BOX} h4")`;
+const HEAD = `document.querySelector("${BOX} [data-testid=audit-learnings-head]")`;
 const LONG = (() => handed((r) => { r.sample = { ...r.sample, said: [`${'a-very-long-unbroken-word-'.repeat(8)} and some more words to wrap`] }; return r; }))();
 
 for (const width of [1280, 700, 390, 320]) {
@@ -69,7 +69,12 @@ for (const width of [1280, 700, 390, 320]) {
     if (!o) { t.skip('no chromium installed'); return; }
     const q = (/** @type {string} */ e) => o.chrome.ev(e);
     assert.ok(await o.chrome.waitFor(`!!document.querySelector("${BOX}")`, 15000), 'the box is drawn');
-    assert.equal(await q(`${HEAD}.textContent`), `[✓] learnings  What the planner was told from earlier runs · ${h.ids.length} ${h.ids.length === 1 ? 'hint' : 'hints'}`);
+    // the `[✓]` is the state dot's own drawn sign (bareloop's stateDotHTML), so the text is the word and the title; the sign is read from the dot's ::before
+    assert.equal(await q(`${HEAD}.textContent`), `learnings What the planner was told from earlier runs · ${h.ids.length} ${h.ids.length === 1 ? 'hint' : 'hints'}`);
+    assert.equal(await q(`getComputedStyle(${HEAD}.querySelector(".dot"), "::before").content`), '"[✓]"', 'the chip is [✓]');
+    assert.equal(await q(`${HEAD}.tagName`), 'BUTTON', 'the header is one full-width toggle');
+    assert.equal(await q(`getComputedStyle(document.querySelector("${BOX}")).borderTopWidth`), '1px', 'the header and body sit in one framed row');
+    assert.equal(await q(`(function(){ var h = ${HEAD}; return h.offsetHeight < 80 || h.getBoundingClientRect().width > 0; })()`), true);
     assert.equal(await q('document.getElementById("audit-learnings").hidden'), false);
     assert.equal(await q('document.getElementById("audit-learnings").nextElementSibling.id'), 'audit-groups', 'one fold at the top, above the step groups');
     assert.equal(await q(`document.querySelectorAll("[data-testid=audit-group-learnings]").length`), 1, 'one box');
@@ -77,7 +82,7 @@ for (const width of [1280, 700, 390, 320]) {
     assert.equal(await q(`document.querySelector("${BOX} [data-testid=audit-learnings-list]").hidden`), true);
     await q(`${HEAD}.click()`);
     assert.equal(await q(`document.querySelector("${BOX} [data-testid=audit-learnings-list]").hidden`), false, 'a click opens it');
-    assert.equal(await q(`document.querySelectorAll("${BOX} button, ${BOX} input, ${BOX} textarea, ${BOX} a").length`), 0, 'read-only: nothing to press or type in');
+    assert.equal(await q(`document.querySelectorAll("${BOX} [data-testid=audit-learnings-list] button, ${BOX} [data-testid=audit-learnings-list] input, ${BOX} [data-testid=audit-learnings-list] textarea, ${BOX} [data-testid=audit-learnings-list] a").length`), 0, 'read-only: nothing in the body to press or type in');
     const body = await q(`document.querySelector("${BOX} [data-testid=audit-learnings-list]").textContent`);
     assert.match(body, /Read-only\. Given to the planner at the draft \(/);
     assert.ok(body.includes('a-very-long-unbroken-word-'), 'the hint text is shown');
@@ -86,7 +91,9 @@ for (const width of [1280, 700, 390, 320]) {
       return out; })()`);
     const scrolls = await q(`Array.from(document.querySelectorAll("${BOX} .audit-table-scroll")).map(function(e){ return e.scrollWidth - e.clientWidth; })`);
     assert.ok(scrolls.length > 0 && scrolls.every((n) => n <= 1), `a hint scrolls sideways inside its own box: ${JSON.stringify(scrolls)}`);
-    assert.equal(await q(`getComputedStyle(${HEAD}, "::before").content`), 'none', 'no arrow, open or closed (as bareloop\'s box)');
+    assert.equal(await q(`getComputedStyle(${HEAD}, "::before").content`), '""', 'no arrow, open or closed (as bareloop\'s box)');
+    assert.equal(await q(`${HEAD}.children[0].getBoundingClientRect().top === ${HEAD}.querySelector(".st-word").getBoundingClientRect().top || Math.abs(${HEAD}.children[0].getBoundingClientRect().top - ${HEAD}.querySelector(".st-word").getBoundingClientRect().top) < 8`), true, 'chip and word are on one line');
+    assert.equal(await q(`(function(){ var r = document.createRange(); r.selectNodeContents(${HEAD}); var t = r.getClientRects(); var first = ${HEAD}.querySelector(".step-state").getBoundingClientRect(); var next = ${HEAD}.lastChild; var rr = document.createRange(); rr.setStart(next, 0); rr.setEnd(next, 1); return rr.getBoundingClientRect().top < first.bottom; })()`), true, 'the title starts on the chip\'s line (one inline flow, as bareloop)');
     console.log(`# m8-6 ${width}px spill ${JSON.stringify(spill)}`);
     assert.ok(spill.doc <= 0, `sideways scroll ${JSON.stringify(spill)}`);
     assert.deepEqual(Object.keys(spill).filter((k) => k !== 'doc'), [], `a box spills its own width: ${JSON.stringify(spill)}`);
