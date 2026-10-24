@@ -6,7 +6,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { learnAtRunEnd, readLedger, releaseRun, eventsOfRun } from '../src/learnstore.js';
+import { learnAtRunEnd, readLedger, eventsOfRun } from '../src/learnstore.js';
 
 const GAP = '640 words, limit 600; no line is exactly the heading "Work History"';
 const NOW = new Date('2026-10-23T12:00:00Z');
@@ -40,7 +40,7 @@ test('item 2: a step red then passing in the same run is a FIXED note, its text 
     checks: [{ step: 's1', try: 1, checks: [{ n: 1, text: 'at most 600 words', ok: false }] }],
   });
   const h = home(t);
-  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', trust: 'deterministic', now: NOW });
+  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', now: NOW });
   assert.deepEqual([r.wrote, r.counted, r.held, r.cards, r.problem], [true, 1, 0, 1, null]);
   const { ledger } = readLedger(h);
   assert.equal(ledger.rows.length, 1);
@@ -57,7 +57,7 @@ test('item 2: a step red then passing in the same run is a FIXED note, its text 
 test('item 2 + am3: red on every try is a NEVER FIXED note and it is kept', (t) => {
   const { dir } = runFolder(t, { rows: [tryRow({ gap: GAP }), tryRow({ attempt: 2, gap: GAP })], outcome: 'red', artifact: false });
   const h = home(t);
-  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', trust: 'deterministic', now: NOW });
+  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', now: NOW });
   assert.equal(r.counted, 1);
   assert.equal(readLedger(h).ledger.rows[0].sample.kind, 'NEVER_FIXED');
 });
@@ -65,31 +65,49 @@ test('item 2 + am3: red on every try is a NEVER FIXED note and it is kept', (t) 
 test('item 2: a human redo (hitl red) and a run with no try make no note', (t) => {
   const redo = runFolder(t, { rows: [tryRow({ class: 'hitl', verdict: 'red', gap: 'redo: make it shorter' }), tryRow({ class: 'hitl', attempt: 2, verdict: 'hitl' })] });
   const h = home(t);
-  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: redo.dir, specHash: 'h1', trust: 'deterministic', now: NOW });
+  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: redo.dir, specHash: 'h1', now: NOW });
   assert.equal(r.cards, 0);
   assert.equal(readLedger(h).ledger.rows.length, 0, 'a redo is not a try, so no red moment');
   const none = runFolder(t, { rows: [tryRow({ attempt: null, verdict: 'paused' })] });
   assert.equal(eventsOfRun(none.dir, 'aging-1'), null);
   const h2 = home(t);
-  const r2 = learnAtRunEnd({ home: h2, workflow: 'aging-1', runId: 'run-1', runDir: none.dir, specHash: 'h1', trust: 'deterministic', now: NOW });
+  const r2 = learnAtRunEnd({ home: h2, workflow: 'aging-1', runId: 'run-1', runDir: none.dir, specHash: 'h1', now: NOW });
   assert.deepEqual([r2.wrote, r2.noise], [false, 'no-tries']);
   assert.equal(readLedger(h2).exists, false, 'nothing written for a folder with no try (a refused draft has no run folder at all)');
 });
 
-test('item 2/4: trust "rubric" HOLDS the note (pending, not counted) and releaseRun counts it; run ids are per workflow', (t) => {
+test('am4: every run counts at once (no hold); run ids are per workflow', (t) => {
   const a = runFolder(t, { rows: FIXED_ROWS });
   const b = runFolder(t, { rows: FIXED_ROWS });
   const h = home(t);
-  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: a.dir, specHash: 'h1', trust: 'rubric', now: NOW });
-  learnAtRunEnd({ home: h, workflow: 'other-1', runId: 'run-1', runDir: b.dir, specHash: 'h2', trust: 'rubric', now: NOW });
-  assert.deepEqual([r.counted, r.held], [0, 1]);
-  let L = readLedger(h).ledger;
-  assert.equal(L.rows.length, 0);
-  assert.deepEqual(L.pending.map((p) => p.runid).sort(), ['aging-1/run-1', 'other-1/run-1']);
-  assert.equal(releaseRun({ home: h, runid: 'aging-1/run-1', now: NOW }).released, 1);
-  L = readLedger(h).ledger;
-  assert.deepEqual(L.rows.map((x) => x.workflow), ['aging-1'], 'only aging-1 was released, other-1 (same run-1) is still held');
-  assert.deepEqual(L.pending.map((p) => p.runid), ['other-1/run-1']);
+  const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: a.dir, specHash: 'h1', now: NOW });
+  learnAtRunEnd({ home: h, workflow: 'other-1', runId: 'run-1', runDir: b.dir, specHash: 'h2', now: NOW });
+  assert.deepEqual([r.counted, r.held], [1, 0]);
+  const L = readLedger(h).ledger;
+  assert.equal(L.pending.length, 0);
+  assert.deepEqual(L.rows.map((x) => x.workflow).sort(), ['aging-1', 'other-1'], 'same run-1, two workflows, two rows');
+});
+
+test('am4 item 3: a provider red or a crashed check ends the run as NOISE: no note, even when an earlier try was red', (t) => {
+  for (const [verdict, noise] of [['provider-red', 'provider-red'], ['close-casualty', 'close-crashed']]) {
+    const { dir } = runFolder(t, { rows: [tryRow({ gap: GAP }), tryRow({ attempt: 2, verdict, gap: 'x', strike: false })], outcome: verdict });
+    const h = home(t);
+    const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', now: NOW });
+    assert.deepEqual([r.noise, r.cards, r.counted], [noise, 0, 0], verdict);
+    const L = readLedger(h).ledger;
+    assert.equal(L.rows.length, 0, verdict);
+    assert.equal(L.health['aging-1/run-1'].noise, noise, 'the run is recorded as noise');
+  }
+});
+
+test('am4: a stopped / cap-halted folder (log outcome stopped, cap-halt) is read like any end and counts', (t) => {
+  for (const outcome of ['stopped', 'cap-halt']) {
+    const { dir } = runFolder(t, { rows: [tryRow({ gap: GAP })], outcome, artifact: false });
+    const h = home(t);
+    const r = learnAtRunEnd({ home: h, workflow: 'aging-1', runId: 'run-1', runDir: dir, specHash: 'h1', now: NOW });
+    assert.equal(r.counted, 1, outcome);
+    assert.equal(readLedger(h).ledger.rows[0].sample.kind, 'NEVER_FIXED', outcome);
+  }
 });
 
 test('no model: src/learnstore.js import closure (the note code) reaches no provider, fetch, http, https or net module', () => {

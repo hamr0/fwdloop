@@ -65,7 +65,7 @@ import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
-import { learnAtRunEnd, releaseRun } from './learnstore.js';
+import { learnAtRunEnd } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
@@ -685,44 +685,36 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 }
 
 // ---------------------------------------------------------------------------
-// M8 items 2 and 4: the run-end tally of cross-run learnings ($0, code only, no model call). ONE call per run exit, from the three
-// callers of `foldFromStep` (runFlow, resumeRun, continueRun) and the expired-ask exit. A record, never a verdict: it can never
-// change a run's outcome, result, spend or books. It runs whether `learningHints` is on or off (OFF only hands nothing).
-//   - A run with NO signed ask is `deterministic`: its notes count at run end.
-//   - A run with a signed ask is `rubric` (bareloop's word for "waits for a human Accept"): its notes are HELD (ledger `pending`).
-//     They are RELEASED here only when every signed ask line's step has been accepted (`accepted` holds the emits the human accepted,
-//     rebuilt from the recorded accept hashes on a resume). A redo does not set it, an expired ask never does, so neither releases.
-//     A hold older than 60 days is dropped by the ledger (learn.js PENDING_DAYS).
-//   - A paused run (waiting at its ask) and a Stop / cap-halt (resumable) are not an end: no note until the run really ends.
+// M8 items 2 and 4 (item 4 replaced by am4): the run-end tally of cross-run learnings ($0, code only, no model call). ONE call per run
+// exit, from the three callers of `foldFromStep` (runFlow, resumeRun, continueRun), the expired-ask exit and the rerun exit. A record,
+// never a verdict: it can never change a run's outcome, result, spend or books. It runs whether `learningHints` is on or off.
+//   - M8 am4: every run's notes COUNT when the run ends, FIXED and NEVER FIXED alike, whatever the ending and whether or not its asks
+//     were accepted. No hold, no release (bareloop's ruling for both repos, 2026-10-24).
+//   - A run waiting at an ask has not ended ('paused', or a Stop whose set-aside failed): no note yet. A Stop or a cap-halt HAS ended
+//     the leg, as in bareloop: its notes are made then, and a later resume folds the whole run again (the ledger counts a run once per row).
+//   - Noise runs (provider red, a crashed check) make no note: buildCards reads them off the escalation events eventsOfRun builds.
 // Under a test process with no FWDLOOP_CONFIG_HOME nothing is written (`configDoorHome`), as for every config read.
-// borrowed-from: bareloop src/userrun.js@v0.46.0:2035 (the call site, in its own try/catch) and :1313 (releaseRun at the review door)
+// borrowed-from: bareloop src/userrun.js@v0.46.0:2035 (the call site, in its own try/catch)
 // ---------------------------------------------------------------------------
 
-const NOT_A_RUN_END = new Set(['paused', 'stopped', 'cap-halt', 'stop-failed']);
+const NOT_A_RUN_END = new Set(['paused', 'stop-failed']);
 /** where a failed run-end tally is recorded (one appended row, in the run's own folder): the run itself is unaffected */
 export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
 /**
- * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, askStepEmits: Set<string>|null, accepted: Map<string, any>|null, now: () => string}} o
- * `askStepEmits` null = the exit is an unanswered ask (expired): held, never released.
+ * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, now: () => string}} o
  */
 function recordRunNotes({
-  flowName, runId, runDir, outcome, specHash, askStepEmits, accepted, now,
+  flowName, runId, runDir, outcome, specHash, now,
 }) {
   if (NOT_A_RUN_END.has(outcome)) return;
   const door = configDoorHome();
   if (door.skip) return;
   try {
-    const hasAsk = askStepEmits === null || askStepEmits.size > 0;
-    const at = new Date(now());
     const r = learnAtRunEnd({
-      home: door.home, workflow: flowName, runId, runDir, specHash, trust: hasAsk ? 'rubric' : 'deterministic', now: at,
+      home: door.home, workflow: flowName, runId, runDir, specHash, now: new Date(now()),
     });
     if (r.problem) throw new Error(r.problem);
-    if (hasAsk && askStepEmits !== null && accepted !== null && [...askStepEmits].every((e) => accepted.has(e))) {
-      const rel = releaseRun({ home: door.home, runid: `${flowName}/${runId}`, now: at });
-      if (rel.problem) throw new Error(rel.problem);
-    }
   } catch (/** @type {any} */ e) {
     try {
       appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(String(e?.message ?? e)).split('\n')[0] });
@@ -1331,7 +1323,7 @@ export async function runFlow({
     firstStepGap: initialGap ?? null,
   });
   recordRunNotes({
-    flowName: name, runId, runDir, outcome: result.outcome, specHash: signature.flow, askStepEmits, accepted: acceptedAskEmitsThisRun, now,
+    flowName: name, runId, runDir, outcome: result.outcome, specHash: signature.flow, now,
   });
 
   if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2309,7 +2301,7 @@ export async function resumeRun({
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
       recordRunNotes({
-        flowName: name, runId, runDir, outcome: 'ask-expired', specHash: state.signatureHash, askStepEmits: null, accepted: null, now,
+        flowName: name, runId, runDir, outcome: 'ask-expired', specHash: state.signatureHash, now,
       });
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
@@ -2344,6 +2336,10 @@ export async function resumeRun({
           runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
         });
       }
+      // M8 am4: a rerun ends THIS run, so its notes count now (the new run, started below, makes its own).
+      recordRunNotes({
+        flowName: name, runId, runDir, outcome: 'rerun', specHash: state.signatureHash, now,
+      });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
       // silently renumbered, if it already exists.
@@ -2535,7 +2531,7 @@ export async function resumeRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: state.signatureHash, askStepEmits, accepted: acceptedAskEmitsThisRun, now,
+      flowName: name, runId, runDir, outcome: result.outcome, specHash: state.signatureHash, now,
     });
 
     if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2740,7 +2736,7 @@ export async function continueRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: halt.signatureHash, askStepEmits, accepted: acceptedAskEmitsThisRun, now,
+      flowName: name, runId, runDir, outcome: result.outcome, specHash: halt.signatureHash, now,
     });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;

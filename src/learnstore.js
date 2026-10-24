@@ -229,26 +229,30 @@ export function eventsOfRun(runDir, workflow) {
     }
   }
   ts = lastAt;
+  // M8 am4 item 3: the two noise categories bareloop's buildCards reads off an `escalation` event, seen here in the audit: a provider red
+  // (verdict 'provider-red', the transport fault twice) and a closer that crashed or was unparseable (verdict 'close-casualty'). Both end
+  // the run, so a row of either is the run's last word. Neither is a try (isTry), so it never makes a red moment of its own.
+  const noiseRow = audit.findLast((r) => r.verdict === 'provider-red' || r.verdict === 'close-casualty');
+  if (noiseRow) push({ type: 'escalation', category: noiseRow.verdict === 'provider-red' ? 'provider-red' : 'close-crashed' });
   push({ type: 'job-end', outcome: log.outcome === 'complete' ? 'green' : String(log.outcome) });
   return { events, questions, model, source: typeof inputs?.[0]?.source === 'string' ? inputs[0].source : null };
 }
 
 /**
  * THE RUN-END TALLY ($0, code only, no model; M8 item 2): turn a finished run's folder into cards and fold them into the ledger.
- * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). `trust` 'rubric' HOLDS
- * the cards until releaseRun (a run with a signed ask: M8 item 4); 'deterministic' counts at once (a run with no ask). It runs
- * whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
+ * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). M8 am4: every run's notes COUNT at once (trust 'deterministic'), a run
+ * with a signed ask included; there is no hold. It runs whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
  * the run's checks.jsonl, so a check with no checks.jsonl row (a run from before am29) has no `meaning`.
  * Borrowed-from: bareloop src/learnstore.js@v0.46.0:132 (learnAtRunEnd).
- * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, trust: 'deterministic'|'rubric', now?: Date}} o
+ * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null, noise: string|null, cards: number}}
  */
-export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, trust, now = new Date() }) {
+export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = new Date() }) {
   const rec = eventsOfRun(runDir, workflow);
   if (!rec) return { wrote: false, counted: 0, held: 0, problem: null, noise: 'no-tries', cards: 0 };
   const runid = `${workflow}/${runId}`;
   const build = buildCards({ runid, events: rec.events, spec: { job: workflow }, model: rec.model, questions: rec.questions });
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
-  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolve), specHash, trust, at, now });
+  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf({ inputs: rec.source ? [{ value: rec.source }] : [] }, resolve), specHash, trust: 'deterministic', at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
 }
