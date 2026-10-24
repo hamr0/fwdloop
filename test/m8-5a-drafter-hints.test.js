@@ -10,7 +10,6 @@ import { draftToDir } from '../src/authoring.js';
 import { hintsForRun, writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger, renderHints, HINT_HEADER, HINT_CHARS_MAX } from '../src/learn.js';
 import { LEARNINGS_FILE } from '../src/flowmodel.js';
-import { LEARN_ERROR_FILE } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import {
@@ -73,7 +72,7 @@ test('OFF (absent, false) and ON with nothing readable: the prompt is byte-ident
     const x = await draftIn(h);
     assert.equal(x.sys[0], base.sys[0]);
     assert.equal(existsSync(path.join(x.dir, LEARNINGS_FILE)), false, 'no record when nothing was handed');
-    assert.equal(existsSync(path.join(x.dir, LEARN_ERROR_FILE)), false);
+    assert.equal(existsSync(path.join(x.dir, 'learn-error.jsonl')), false);
   }
 });
 
@@ -140,10 +139,12 @@ test('a ledger error hands nothing, records why, and does not fail the draft', a
   const x = await draftIn(h);
   assert.equal(x.r.ok, true, JSON.stringify(x.r.reds));
   assert.equal(x.sys[0], base.sys[0]);
-  assert.equal(existsSync(path.join(x.dir, LEARNINGS_FILE)), false);
-  const rows = readFileSync(path.join(x.dir, LEARN_ERROR_FILE), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert.equal(rows.length, 1);
-  assert.match(rows[0].error, /not readable JSON/);
+  const rec = record(x.dir);
+  assert.deepEqual({ ...rec, error: undefined }, { phase: 'draft', text: '', ids: [], chars: 0, error: undefined });
+  assert.match(rec.error, /not readable JSON/);
+  assert.equal(existsSync(path.join(x.dir, 'learn-error.jsonl')), false, 'no separate file for a drafter failure');
+  const { readLearningsRecord } = await import('../src/flowmodel.js');
+  assert.equal(readLearningsRecord(x.dir), null, 'an error record is "handed nothing": the Audit box stays hidden');
   assert.equal(readFileSync(path.join(h, 'learn', 'ledger.json'), 'utf8'), '{ not json', 'the bad ledger is not reset');
 });
 

@@ -109,6 +109,15 @@ export function writeLearningsRecord(dir, { text, ids }) {
 }
 
 /**
+ * The drafter's failed ask for the block (or failed record write) rides the same record: nothing handed (`text: ''`, no ids), and `error` (first line, secrets redacted).
+ * `readLearningsRecord` reads an empty text as no record, so the Audit box stays hidden and `copyLearningsRecord` copies nothing.
+ * @param {string} dir @param {string} error
+ */
+export function writeLearningsError(dir, error) {
+  writeOnce(join(dir, LEARNINGS_FILE), { phase: 'draft', text: '', ids: [], chars: 0, error });
+}
+
+/**
  * M8 item 6: the Audit box reads the record in the RUN's folder. It reaches the run the way `model.json` does: a draft's record is copied (write-once) into the folder it is signed
  * into (`copyLearningsRecord`: the flow folder at a new job's sign, the new run's folder at a red run's redraft), and the first run that starts from a flow folder TAKES it
  * (`takeLearningsRecord`: a rename, so it moves once and a second run of the same job never shows it). A run that reused its plan has no draft, so it has none.
