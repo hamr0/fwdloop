@@ -1,0 +1,231 @@
+{
+  "schema": "job-v1",
+  "job": "pulselog-panel-strict",
+  "description": "pulselog-panel-strict \u2014 authored through the bareloop panel (green, js)",
+  "provider": "openai-api",
+  "baseUrl": "https://api.deepseek.com/v1",
+  "cadence": {
+    "unit": "day",
+    "every": 1
+  },
+  "budgetUsd": 0.45,
+  "maxWallMs": 1200000,
+  "writeScope": [
+    "src/**"
+  ],
+  "escalation": {
+    "mode": "decision-ready"
+  },
+  "goal": "Run the type checker in strict mode with no emit and confirm zero errors in src/checks.js, confirm no new type errors in any other file under src/ against the pre-change baseline, and run the existing test suite to confirm every existing test still passes.",
+  "verdictType": "green",
+  "closeDecl": {
+    "genre": "TYPES",
+    "lang": "js",
+    "stages": [
+      {
+        "name": "changed-from-seed",
+        "kind": "files-changed",
+        "params": {
+          "requireNonEmpty": true,
+          "allowPrefixes": [
+            "src/"
+          ]
+        }
+      },
+      {
+        "name": "typecheck-target-zero-errors",
+        "kind": "count-not-worse",
+        "params": {
+          "cmd": "npm",
+          "args": [
+            "run",
+            "typecheck",
+            "--",
+            "--strict"
+          ],
+          "parser": {
+            "terms": [
+              {
+                "lineMatch": "error TS\\d+",
+                "capture": null,
+                "sign": 1,
+                "aggregate": "sum",
+                "region": "whole-output"
+              }
+            ]
+          },
+          "scope": {
+            "includePrefixes": [
+              "src/checks.js"
+            ]
+          },
+          "direction": "lower-is-better",
+          "baseline": 0,
+          "timeoutMs": 300000
+        }
+      },
+      {
+        "name": "typecheck-outside-not-worse",
+        "kind": "count-not-worse",
+        "params": {
+          "cmd": "npm",
+          "args": [
+            "run",
+            "typecheck",
+            "--",
+            "--strict"
+          ],
+          "parser": {
+            "terms": [
+              {
+                "lineMatch": "error TS\\d+",
+                "capture": null,
+                "sign": 1,
+                "aggregate": "sum",
+                "region": "whole-output"
+              }
+            ]
+          },
+          "scope": {
+            "excludePrefixes": [
+              "src/checks.js"
+            ]
+          },
+          "direction": "lower-is-better",
+          "baseline": "seed",
+          "timeoutMs": 300000
+        }
+      },
+      {
+        "name": "tests-kept",
+        "kind": "count-not-worse",
+        "params": {
+          "cmd": "npm",
+          "args": [
+            "test"
+          ],
+          "parser": {
+            "terms": [
+              {
+                "lineMatch": "^# tests (\\d+)$",
+                "capture": 1,
+                "sign": 1,
+                "aggregate": "first",
+                "region": "whole-output"
+              }
+            ]
+          },
+          "scope": {
+            "includePrefixes": [
+              "test/"
+            ]
+          },
+          "direction": "higher-is-better",
+          "baseline": "seed",
+          "timeoutMs": 600000
+        }
+      },
+      {
+        "name": "suite-green",
+        "kind": "command-exit",
+        "params": {
+          "cmd": "npm",
+          "args": [
+            "test"
+          ],
+          "expectExit": 0,
+          "timeoutMs": 600000
+        }
+      },
+      {
+        "name": "suite-zero-failing-tests",
+        "kind": "count-not-worse",
+        "params": {
+          "cmd": "npm",
+          "args": [
+            "test"
+          ],
+          "parser": {
+            "terms": [
+              {
+                "lineMatch": "^# fail (\\d+)$",
+                "capture": 1,
+                "sign": 1,
+                "aggregate": "first",
+                "region": "whole-output"
+              }
+            ]
+          },
+          "scope": {
+            "includePrefixes": [
+              "test/"
+            ]
+          },
+          "direction": "lower-is-better",
+          "baseline": 0,
+          "timeoutMs": 600000
+        }
+      },
+      {
+        "name": "no-suppressions",
+        "kind": "pattern-absent-in-diff",
+        "params": {
+          "patterns": [
+            {
+              "id": "ts-ignore",
+              "regex": "@ts-ignore"
+            },
+            {
+              "id": "ts-expect-error",
+              "regex": "@ts-expect-error"
+            },
+            {
+              "id": "ts-nocheck",
+              "regex": "@ts-nocheck"
+            },
+            {
+              "id": "eslint-disable",
+              "regex": "eslint-disable"
+            },
+            {
+              "id": "any",
+              "regex": "(?:[{<|(\\[:,]|\\bas)\\s*any\\b|\\bany\\[\\]"
+            },
+            {
+              "id": "any-star",
+              "regex": "@\\w+\\s*\\{\\s*[*?]\\s*\\}"
+            },
+            {
+              "id": "cast",
+              "regex": "@type\\s*\\{.*\\}\\s*\\*\\/\\s*\\("
+            }
+          ],
+          "extensions": [
+            ".js",
+            ".mjs",
+            ".cjs"
+          ]
+        }
+      }
+    ],
+    "notes": [
+      "No strict-typing script exists in the repository: package.json scripts.typecheck is \"tsc --noEmit\" and tsconfig.json sets strict:false (with strictNullChecks:true). The confirmed plan asks for strict mode, so both typecheck stages run the project's own script through the project's own runner with --strict appended (npm run typecheck -- --strict); the binary is never named bare.",
+      "Only src/** is inside tsc's include list, so bin/ and test/ are never type-checked by this command. \"No new type errors anywhere else in src/\" can only be judged for src/, and the typecheck-outside stage's ceiling is the STRICT-mode seed count, re-measured in place every run.",
+      "The target stage reads a TALLY of piped tsc error lines (pattern `error TS\\d+`, no capture group, aggregate \"sum\") so that zero errors is a legitimate counted zero rather than an unreported number; the outside stage uses the identical parser with src/checks.js excluded, so the two stages are complementary halves of one run and are never summed into one series.",
+      "test/pulselog.test.js is the only test path named under that heading in the seed listing, but the listing does show five test files under test/ (pulselog, digest, backup, deliver, fallback); the suite is invoked once per suite stage via the project's own script (npm test -> node --test), and the executed-test count is read off the TAP `# tests` line exactly as the genre spells it. The facts object's \"\u2139 tests 42\" was inferred; the measured executed count at seed is 67.",
+      "NOT COVERED, per the person's own words \u2014 \"no any casts\": none of the confirmed checks can detect an `any` cast added to satisfy the checker. The always-on no-suppressions guard carries an `any`-shaped pattern over added .js/.mjs/.cjs lines, which may catch some spellings, but that is a genre guard and I am not claiming it as coverage of this request.",
+      "NOT COVERED \u2014 \"do not change what the code does\": only the five existing test files run, so behaviour those tests do not exercise is not verified. Also, editing or deleting tests is not directly detectable; the tests-kept floor and suite-zero-failing-tests would catch a suite that shrank or broke, but a rewritten-and-still-passing test file would not be caught.",
+      "No TZ is set in package.json or ci.yml, and the surveyor found no documented env need, so no env override is passed. I note the residual risk: digest.test.js pins UTC instants (ANCHOR ... 'Z'), so if the harness timezone ever moved off UTC those tests could shift; they were green at seed and I did not want to invent an environment the project does not declare.",
+      "No timeout or PATH-like environment is declared by the repository, so none is passed; generous per-stage timeouts are declared because several tests spawn real 'sh' child processes and mutate process.env.PATH internally.",
+      "Every parser pattern used here is a genre-known pipe shape (tsc-error-line tally, node-test-total-count, node-test-fail-count); I composed no pattern for any tool myself."
+    ]
+  },
+  "inputs": [
+    {
+      "n": 1,
+      "label": "repo",
+      "value": "/home/hamr/PycharmProjects/bareloop/.claude/scratch/attemptdiff-live/patient"
+    }
+  ],
+  "model": "deepseek-flash"
+}

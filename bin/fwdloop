@@ -32,12 +32,13 @@ import {
 import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
+import { seedLedger } from '../src/learnstore.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
-import { readModelRecord, readRunModel } from '../src/flowmodel.js';
+import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -383,7 +384,7 @@ async function cmdRun(rest) {
     if (!runIdCheck.ok) fail(runIdCheck.red);
     runDir = runIdCheck.runDir;
     // M4e amendment 5: the panel's Sign & run puts the run's signed values in the folder BEFORE the start; that one file is not "a run".
-    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE && n !== 'job' && n !== 'plan.json' && n !== 'setup.jsonl').length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE && n !== 'job' && n !== 'plan.json' && n !== 'setup.jsonl' && n !== LEARNINGS_FILE).length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
   }
   // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's) is what the monthly hold is for.
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
@@ -573,16 +574,22 @@ function cmdShow(rest) {
   process.stdout.write(`question: ${stripControl(ask.question)}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
-  const { draft, unjudged, why } = readAskEvidence(ask);
-  if (!draft) {
+  const {
+    draft, unjudged, why, results,
+  } = readAskEvidence(ask);
+  if (!draft && !results) {
     process.stdout.write(`\n(no evidence recorded on this ask — ${why})\n`);
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${stripControl(draft.text)}\n`);
+  if (draft) process.stdout.write(`${stripControl(draft.text)}\n`);
+  else {
+    // a cited step's results: each quote with its values
+    results.forEach((r, i) => process.stdout.write(`result ${i + 1}: ${stripControl(r.quote)}\n  ${Object.entries(r.values).map(([k, v]) => `${stripControl(k)}: ${stripControl(String(v))}`).join('; ')}\n`));
+  }
   for (const item of unjudged) {
     process.stdout.write(`\n--- unjudged: ${stripControl(item.step)} ---\n`);
-    process.stdout.write(`${stripControl(item.text)}\n`);
+    process.stdout.write(`${item.text !== undefined ? stripControl(item.text) : Object.entries(item.cells).map(([k, v]) => `${stripControl(k)}: ${stripControl(String(v))}`).join('\n')}\n`);
   }
 }
 
@@ -990,11 +997,26 @@ async function cmdSign(rest) {
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);
 }
 
+/** M8 am6: `fwdloop learn seed --root <flows folder>`: notes from every ended run already recorded ($0, code only). */
+function cmdLearn(rest) {
+  const [sub, ...args] = rest;
+  if (sub !== 'seed') fail('learn: expected "seed" — fwdloop learn seed --root <flows folder>');
+  const { values } = parseArgs({ args, options: { root: { type: 'string' } } });
+  if (!values.root) fail('learn seed: --root <flows folder> is required');
+  const root = resolveRoot('learn seed', values.root);
+  const r = seedLedger({ root });
+  if (r.skippedNoDoor) fail('learn seed: a test process has no config home (set FWDLOOP_CONFIG_HOME)');
+  const k = r.skipped;
+  const total = Object.values(k).reduce((a, b) => a + b, 0);
+  process.stdout.write(`runs read: ${r.read}\nnotes added: ${r.added}\nruns skipped: ${total} (already in: ${k['already-in']}, still waiting: ${k['still-waiting']}, no end: ${k['no-end']}, unreadable: ${k.unreadable}, noise: ${k.noise})\n`);
+  if (r.problem) fail(`learn seed: stopped, the ledger is not usable — ${r.problem}`);
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel ...');
+  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel|learn ...');
 
   if (verb === 'draft') return cmdDraft(rest);
   if (verb === 'sign') return cmdSign(rest);
@@ -1005,7 +1027,8 @@ async function main() {
   if (verb === 'resume') return cmdResume(rest);
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel`);
+  if (verb === 'learn') return cmdLearn(rest);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn`);
   return undefined;
 }
 

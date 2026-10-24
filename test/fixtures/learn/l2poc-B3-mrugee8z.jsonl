@@ -1,0 +1,6 @@
+{"type":"job-start","job":"aurora-testgen-l2poc-baseline","specHash":"6085ac454bc75ef74fa87deacdefb96e66942c62f7e17ee20405f3ff2070c654","budgetUsd":3,"steps":["l2poc-baseline"],"seq":1,"ts":"2026-07-21T09:41:25.298Z"}
+{"type":"step-start","step":"l2poc-baseline","remainingUsd":3,"spentUsd":0,"mode":"tools","seq":3,"ts":"2026-07-21T09:41:25.305Z"}
+{"type":"iteration-start","iteration":1,"seq":9,"ts":"2026-07-21T09:42:19.668Z"}
+{"type":"escalation","category":"cap-halt","decisionReady":true,"verdicts":[],"spend":{"runs":1,"capRuns":1},"lib":"bare-agent","decision":"Budget gate tripped mid-run (worker loop: halt:gate.terminated). Continue with a higher cap, change approach, or stop?","options":["raise the cap and rerun","change the middle/harness","abandon the task"],"detail":"worker loop: halt:gate.terminated","seq":19,"ts":"2026-07-21T09:43:38.224Z"}
+{"type":"step-end","step":"l2poc-baseline","outcome":"escalated","spentUsd":3.235518,"seq":22,"ts":"2026-07-21T09:43:38.224Z"}
+{"type":"job-end","outcome":"step-red","step":"l2poc-baseline","cause":"escalated","spentUsd":3.235518,"spendComplete":true,"seq":23,"ts":"2026-07-21T09:43:38.224Z"}

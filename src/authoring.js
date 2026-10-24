@@ -32,7 +32,10 @@ import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
-import { readModelRecord, writeModelRecord } from './flowmodel.js';
+import { readModelRecord, writeModelRecord, writeLearningsRecord, writeLearningsError, copyLearningsRecord } from './flowmodel.js';
+import { configDoorHome } from './config.js';
+import { hintsForRun, placeSpecOf } from './learnstore.js';
+import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 
@@ -333,12 +336,35 @@ export async function draftToDir({
   };
   // M4d am16: a panel draft folder (card.json beside this plan folder) is one job's session: what its earlier plans spent comes off the cap first.
   const priorSpend = sessionPriorSpend(dir);
+  // M8 item 5a: the earlier runs' notes for this draft, made once from the ledger as it stood and handed to every round of it. A record read,
+  // never a verdict: any failure hands nothing and rides learnings.json (`error`) below, never a failed draft.
+  /** @type {{text: string, ids: string[]}|null} */
+  let learnHints = null;
+  let hintError = null;
+  const door = configDoorHome();
+  if (!door.skip) {
+    try {
+      // a draft is made before any run: it has no run input (`fwdloop draft` takes none), so the first source is the signed prose path, the only file it can know (M8 am8)
+      const first = parseSignedText(prose.text);
+      learnHints = hintsForRun({ home: door.home, spec: placeSpecOf(name, first.ok ? first.arbiter.sources?.[0]?.path : null), specHash: null });
+    } catch (/** @type {any} */ e) {
+      learnHints = null;
+      hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0];
+    }
+  }
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, ...(leftRules === undefined ? {} : { leftRules }),
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }),
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
     return refuse(cleanReds(result.reds));
+  }
+  // M8 item 5a: what was handed is kept once beside the draft (only when a round was actually sent with it); a failure is recorded, never raised.
+  try {
+    if (hintError === null && learnHints !== null && result.calls > 0) writeLearningsRecord(dir, learnHints);
+  } catch (/** @type {any} */ e) { hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0]; }
+  if (hintError !== null) {
+    try { writeLearningsError(dir, hintError); } catch { /* the record of the failure is itself best-effort */ }
   }
 
   // After a paid round: never a silent throw. The cost is returned so the caller prints it; the dir is claimed and stays.
@@ -500,6 +526,8 @@ export function signDraft({
     const runSetup = writeSetup({
       flowDir: ran.runDir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: ran.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
     });
+    // M8 item 6: what this draft was handed goes into the NEW RUN's folder (the Audit box reads it there); a failure never un-signs
+    try { copyLearningsRecord(dir, ran.runDir); } catch { /* the box is then hidden; the plan is signed */ }
     // the draft's model pick is NOT written to the workflow (its files stay untouched): it is returned for the run that follows (`--model/--provider`)
     return {
       ok: true, flowDir: path.join(target.root, target.name), runId: ran.runId, runDir: ran.runDir, signature: ran.signature, setup: runSetup, modelRecord: { ok: true, recorded: false }, modelPick: readModelRecord(dir),
@@ -521,5 +549,7 @@ export function signDraft({
   if (pickRecord !== null) {
     try { writeModelRecord(written.dir, pickRecord); } catch (e) { modelRecord = { ok: false, recorded: false, why: /** @type {any} */ (e)?.code ?? 'error' }; }
   }
+  // M8 item 6: beside the flow's setup record; the first run that starts from this flow takes it (runner.js), so only that run shows the box. A failure never un-signs.
+  try { copyLearningsRecord(dir, written.dir); } catch { /* the box is then hidden; the flow is signed */ }
   return { ok: true, flowDir: written.dir, signature: written.signature, setup, modelRecord };
 }

@@ -1,0 +1,94 @@
+{
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "flights"
+      ],
+      "emits": "page_read",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the flights page,"
+    },
+    {
+      "primitives": [
+        "read",
+        "get",
+        "grep"
+      ],
+      "reads": [
+        "page_read",
+        "flights"
+      ],
+      "emits": "flight_list",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "cited": {
+          "source": "flights",
+          "count": {
+            "min": 3,
+            "max": 3
+          },
+          "facts": [
+            {
+              "name": "origin",
+              "shape": "phrase",
+              "phrase": "Leaves Adolfo Suárez Madrid-Barajas Airport"
+            },
+            {
+              "name": "price",
+              "shape": "money",
+              "anchor": "From",
+              "unit": "US dollars",
+              "currency": "$"
+            },
+            {
+              "name": "stops",
+              "shape": "phrase",
+              "phrase": "Nonstop"
+            }
+          ]
+        }
+      },
+      "goal": "list 3 flights from Madrid to Rome,"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "flight_list"
+      ],
+      "emits": "accepted_flights",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "accepted_flights"
+      ],
+      "emits": "flights_written",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

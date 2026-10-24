@@ -72,7 +72,7 @@ test('(g) each guardrail is a "~" row under its own line, the wait under the ask
   assert.equal(rows(document.els['details-asks'])[0], 'ro-value|line 4 · "check it with me" · waits 1h', 'the Ask row uses the same formatter');
 });
 
-test('(g) there is no Guardrails block and no Success box; Ask, Source, Destination, Signed stay', () => {
+test('(g) there is no Guardrails block and no Success box; Ask, Inputs, Destination, Signed stay', () => {
   assert.doesNotMatch(PAGE, /details-guardrails/);
   assert.doesNotMatch(PAGE, /details-success/);
   for (const id of ['details-asks', 'details-sources', 'details-sends', 'details-signature']) assert.match(PAGE, new RegExp(`id="${id}"`));
@@ -96,4 +96,20 @@ test('(f) the cap line is "$<cap> per run · <wait> wait · redo up to <n>"; nev
   const none = render({ ...JOB, asks: [] });
   assert.equal(none.document.els['details-cap'].textContent, '$0.50 per run · redo up to 3');
   assert.doesNotMatch(PAGE, /time cap/i);
+});
+
+test('hamr 2026-10-24: the Job tab field is "Inputs" and each row shows the full signed path (a web address shows its address)', () => {
+  assert.match(PAGE, /<label>Inputs<\/label><div id="details-sources">/);
+  assert.doesNotMatch(PAGE, /<label>Source<\/label>/);
+  const { document } = render({
+    ...JOB,
+    sources: [
+      { role: 'resume', kind: 'file', path: '/home/x/docs/Amr Hassan - Resume.docx' },
+      { role: 'jd', kind: 'page', path: 'https://example.com/jobs/42?ref=a' },
+    ],
+  });
+  assert.deepEqual(rows(document.els['details-sources']), [
+    'ro-value|resume → /home/x/docs/Amr Hassan - Resume.docx',
+    'ro-value|jd → https://example.com/jobs/42?ref=a',
+  ]);
 });

@@ -3406,3 +3406,227 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 (c) No code fix was made for (b), on hamr's ruling: a send-back loop would fit code to one job.
 
 **Status of the exit.** M10b exit is open on the aging job only. Next: reopen after bareloop's learnings, copied byte for byte (UI and inner working), on hamr's word 2026-10-23.
+
+## F79 — POC: does bareloop's learnings card shape, copied as is, make worthy notes from fwdloop's real runs? (pre-registered 2026-10-23, before any run)
+
+**Status.** Pre-registered 2026-10-23, not run. $0: no provider call anywhere. Tags: **[RULING]** hamr 2026-10-23: copy bareloop's learnings; for what a fwdloop note / flagged line / kind is, "start with bareloop shape and assess on pocs". **[MEASURED]** none yet. Branch `learnings`. Nothing here is shipped; code lives under `poc/learn/`. `flows/` holds real PII and is gitignored: this entry carries counts and scrubbed shapes only (`<name>`, `<amount>`).
+
+**Question.** If bareloop's card shape (`src/learn.js@1a41097`: buildCards' card fields, flaggedText, errorKinds, saidLine, quoteLines, cardsMatch, foldCards, countLedger, climb, readableRows, renderHints, parseHintBlock) is copied as is and fed fwdloop's real recorded runs through ONE adapter, does it make worthy notes?
+
+**Data.** `find flows -name log.json` gives 121 run logs (55 have `attempts`). Shape: `{runId, outcome, red, attempts:[{step, attempt, class, verdict, gap, refused, modelOutput}], artifacts}`. Run order per workflow. No new run, no paid call.
+
+**Method.**
+- **Adapter (one):** fwdloop `log.json` -> the event list buildCards reads (`check-run` / `close-verdict` / `job-start` / `job-end`). Check name = step + its guardrail number / close class as recorded. A red try then a later green try of the same step in the same run = FIXED; red on every try = NEVER FIXED. Gap text -> the red lines. Fix touched = the artifact name the passing try wrote. What changed = a unified -U1 line diff of the failing try's `modelOutput` vs the passing try's (JSON pretty-printed first). Map, never invent; every field that cannot be mapped is listed.
+- **Arm A (bareloop shape exactly):** run all logs in run order per workflow, ledger in memory. Report: (a) per run cards / FIXED / NEVER FIXED / noise / CHECK-SUSPECT / TOO-THIN; (b) share of cards with kinds `['other']`; (c) It said: flaggedText match vs fallback quote line vs empty; (d) fold: lessons seen >= 2 (same workflow), climbing to place / all jobs; (e) share with non-empty Fix touched / What changed; (f) renderHints block for the 3 workflows with most red runs: chars, parseHintBlock round-trip; (g) 10 cards hand-read, evenly picked: does It said name the real reason the step went red, yes/no; (h) the aging question: for the m10b-aging* runs (F77/F78), does ANY card mention the bucket check (a check the drafter dropped never runs, so none is expected).
+- **Arm A pass bars ("bareloop shape fits as is"):**
+  1. >= 50% of FIXED + NEVER FIXED cards survive (not TOO-THIN).
+  2. >= 8 of the 10 hand-read It said lines name the real red.
+  3. At least one lesson with seen >= 2 in a workflow with >= 2 red runs.
+  Any bar missed = does not fit as is.
+- **Arm B (only if A misses a bar):** the smallest change that fits fwdloop (e.g. flagged line = the close's red line; kind = the close class). One change at a time, re-measured on the same bars, each change named. A candidate, not a build.
+- **The POC must be able to fail:** if every bar passes on arrival, a case it would fail on is shown.
+
+**Result (2026-10-23, $0, no provider call).** Tags: **[MEASURED]** `poc/learn/measure.mjs flows <A|B1|B2>` over `flows/` (read only; per-card dumps with real text were written outside the repo). Code: `poc/learn/learn.mjs` is bareloop `src/learn.js@1a41097` unchanged except the validate import path; `poc/learn/validate.mjs` is a secret-pattern shim (bareguard's `redact` is not copied); `poc/learn/adapter.mjs` is the one adapter; arm B variants are source patches over the copy (`poc/learn/variants.mjs`, each must hit exactly once).
+
+**Data correction.** [MEASURED] The pre-registration said "121 logs, 55 with attempts". The true counts: 121 `log.json` = 66 draft logs (`flows/.drafts/*/draft/log.json`, a different shape: `{ok, stop, reds, rounds, ...}`, not runs) + 55 run logs. Only 17 of the 55 run logs carry `attempts` (with `modelOutput`); all 55 runs have `audit.jsonl` (one row per try: step, attempt, class, verdict, gap, model, at). The adapter therefore reads tries from `audit.jsonl` (51 runs have at least one try row) and takes `modelOutput` from `log.json` where it exists. Rows left out as not a verdict on output: null-attempt rows (stop-asked, ask-reopened), verdicts paused / stopped / cap-halt, and a human redo (class hitl + red; bareloop makes no card for a redo, Q1).
+
+**Adapter mapping (one function, map never invent).** check name = `<step> (line <job line>, <close class>)`; a try with verdict red or not-done and a gap = a red moment (the gap is passed verbatim, no wrapper line); a later try of the same check that is not red = the pass; Fix touched = `artifacts/<step>.json` when that file exists; What changed = my -U1 line diff of the failing try's `modelOutput` (pretty JSON) vs the passing try's, only where `log.json` kept `modelOutput`; `meaning` = the failing check's own text from `checks.jsonl`, only where that file exists.
+
+**Unmapped fields (listed, not invented).**
+- `kinds`: fwdloop gaps carry no TS code, no `[id]` tag, no mypy code, so every card gets `['other']` under arm A.
+- `files`, `symbol`: none exist.
+- `tokens` (flagged-text tokens): empty under arm A, because `flaggedText` recognises only `added <id> -`, `close: [id] file:line:`, `error TS<n>:` and `error:`; none of fwdloop's gap lines match.
+- `What changed`: 6 of 10 FIXED cards have none (the run kept no `modelOutput`: 38 of 55 run logs have empty `attempts`); no attempt-diff event exists in fwdloop, I built the diff.
+- `Fix touched` for a step that ended red: the artifact file does not exist (a red step saves no artifact), so it is empty.
+- `meaning` (the check catalogue sentence): only where `checks.jsonl` names a failing check; else null.
+- `place`: the first input's source is one file, not a folder; no climbing happened in this data.
+- noise classes (provider-red, close-crashed, worker-crash): none map; fwdloop's cap-halt / stopped / paused rows are skipped, not classed.
+- the soft-green hold (Q8, quarantine until a human accept) is not modelled: all cards counted as deterministic.
+- `ended`: fwdloop's run outcome words, not bareloop's.
+
+**Arm A (bareloop shape exactly).**
+- (a) 51 runs; 19 runs have a red candidate; 9 runs yield at least one card. 20 candidates: 10 FIXED, 10 NEVER FIXED. Cards kept: 10 (all FIXED). Dropped: TOO-THIN 10 (every one of the 10 NEVER FIXED), CHECK-SUSPECT 0, noise runs 0.
+- (b) kinds `['other']`: 10 of 10 (100%).
+- (c) It said: flaggedText matched 0, fallback first quote line 10, empty 0.
+- (d) ledger rows 10; lessons with seen >= 2: 0; climbing: 0. Workflows with >= 2 red runs: am29-walk-2 (3), aging-live-1 (2), m7-walk-2 (6).
+- (e) Fix touched non-empty 10 of 10; What changed non-empty 4 of 10.
+- (f) hint blocks (3 workflows with most red runs): m7-walk-2 4 hints 1,485 chars, parse round-trip ok; am29-walk-2 3 hints 1,444 chars, ok; aging-live-1 0 hints (its only candidates are NEVER FIXED, dropped). Shape of the m7-walk-2 block: four separate hints, each `[this job, seen 1 time] check "summary_resume (line 3, softgreen)" ... fixed later in the same run.` with `It said: <n> words, limit 600; no line is exactly the heading "<heading>" (...)` and `Fix touched: artifacts/summary_resume.json`. The same reason was repeated as four hints because nothing folded.
+- (g) hand-read, all 10 cards (there are only 10): It said names the real red in 10 of 10 (word-limit and heading reasons, a claimed total that does not match, a cell value that differs from its cite). Caution: this bar is close to tautological (the line is the gap's first line); on 6 of the 10 NEVER FIXED cards in arm B the first red and the last red differ (e.g. cite grammar, then truncation), and It said shows only the last.
+- (h) aging: see below.
+- **Bars:** (1) survive: 10 of 20 = 50.0%, passes the >= 50% bar exactly, with no margin and with 0 of 10 NEVER FIXED surviving; (2) 10 of 10, passes; (3) 0 lessons with seen >= 2, FAILS. **Arm A does not fit as is.** The POC can fail: bar 3 failed on arrival (no tokens, so no fold; R1's text-only fold needs tokens on both sides, `learn.js` L:492-495).
+
+**Arm B (one change at a time, cumulative; candidates, not builds).**
+- **B1 — flagged line = the close's red line.** Patch: `flaggedText` returns any non-empty line (every line of a fwdloop gap is a red line by construction, the close wrote it). Result: tokens exist; It said matched 10 of 10; lessons with seen >= 2: 2, both in m7-walk-2 (the same `summary_resume` word-limit and heading red in runs 1+2 and runs 5+6), so bar 3 PASSES (2 lessons, workflow with 6 red runs). Bar 1 unchanged at 10/20 = 50%, bar 2 10/10. m7-walk-2 block shrinks from 4 hints to 2 (722 chars). The two lessons did not fold into one: the numbers in the gap (word counts) differ and the tokens are short.
+- **B2 — kind = the close class** (`green` / `softgreen` / `hitl`, read from the check name). Patch: when errorKinds gives `other`, use the class. Result: TOO-THIN can no longer fire, so all 20 candidates survive (bar 1: 100%); NEVER FIXED cards are kept (10), 3 lessons seen >= 2 (the third is `resume_parked` reporting `done: false` because the input file is not a readable .docx, in runs 3+4). Fix touched is non-empty on 10 of 20 (the NEVER FIXED ones have none). This is not a proof that the 10 NEVER FIXED are worth showing; it retires the TOO-THIN filter for fwdloop. A hint then reads `failed on green; got stuck here, never fixed`.
+- **B3 (tried, dropped, no effect):** make a NEVER FIXED card's files = the failing try's own artifact. Zero change: a step that ends red saves no artifact, so there is nothing to map. Removed from the code.
+
+**Aging answer (3h).** [MEASURED] The m10b-aging runs (`m10b-aging` run-1 and run-1-rerun-1, `m10b-aging-2`, `m10b-aging-3`; 4 runs) produced 0 cards in every variant, and no card in any run mentions a bucket. Cause: in all four, `bucket_assignment` is `green/green` on try 1 (no red moment exists) because the drafter dropped the `band` check, so the close had nothing to fail. Learnings read reds; a check that was never written is not a red. The only trace is the mis-tagged cover text in `checks.jsonl` (a count or numbers check claimed to cover "each invoice is in one bucket"), which is not a red and is not read by the card shape. A dropped check is a draft-time event: the evidence lives in the draft logs (`flows/.drafts/*/draft/log.json`, validator reds and `declaration.rejected.json`), which bareloop's cards do not read (Q1: refused drafts and validator reds make no card). So arm A or B cannot teach the drafter about the aging omission.
+
+**Other measured observations (scrubbed).**
+- What changed is weak for prose artifacts: of the 4 non-empty What changed outputs, 3 are one `"text": "..."` JSON line of 2.4 to 4 KB, cut to 150 characters, so the hint shows the start of the model's text (a resume heading line carrying a person's name), not what changed. Only the cells output (`"<cell>": <amount>` line, 22 chars) shows a real change. A What changed hint would carry run content (names, contact lines) into the drafter prompt; bareloop's `redactSecrets` masks key shapes only (Q14).
+- It said lines can carry cell values and amounts from the sheet (e.g. a claimed total, a row's date | description | amount); same PII exposure.
+- 10 of 10 NEVER FIXED candidates are the last try of a step with no later try; bareloop's NEVER FIXED fix-files come from the try after the red, which fwdloop's capped retry never has.
+- Sample size: 10 FIXED cards over 5 workflows, 51 runs; every fold is in one workflow (m7-walk-2). Nothing here tests climbing or the 56-day memory rules.
+
+**Verdict: FITS WITH B1** (flagged line = the close's red line). Bars with B1: (1) 50% (borderline, passes), (2) 10 of 10, (3) 2 lessons. **B2** (kind = close class) is recommended on top, so NEVER FIXED cards are not all discarded (bar 1 100%), but it retires the TOO-THIN filter and is a ruling for hamr. Not solved by either: What changed (empty on 6 of 10, a text blob on prose, content leaks into the prompt), and the aging omission (no card can see it). Next step goes to hamr.
+
+**Fold count ($0, 2026-10-23, asked by hamr via `loop`; read by hamr).** v0.46.0 learn.js shape + B1, the F79 cards, `JACCARD_MIN` 0.6 with numbers counted.
+- Every card pair with the same job and the same check: 6 pairs, all in `m7-walk-2` / `summary_resume (line 3, softgreen)`, all FIXED. All 6 score 0.889 (fold); without digit-only tokens all 6 score 1.000.
+- Same mistake but split by score: 0. Would fold only without numbers: 0. False folds: 0.
+- The two `m7-walk-2` ledger rows (run-1 + run-2, specHash `c0403232…`; run-5 + run-6, specHash `f522c1c3…`) are split by the job-version rule as ruled (a new specHash opens its own rows), not by the score.
+- Red lines (4 runs; only the count differs): `864 / 1277 / 1357 / 1889 words, limit 600; no line is exactly the heading "Work History" (a heading is a line that is only that text, optionally after #)`.
+- No change on either side: `JACCARD_MIN` stays 0.6, numbers counted (hamr, 2026-10-23).
+- Caveat: there was one repeating check, so this says nothing about false folds.
+
+## F80 — POC: do refused-plan notes help the next draft of the same job? (pre-registered 2026-10-23, before any call)
+
+**Status.** Pre-registered 2026-10-23, before any code and before any call. Tags: **[RULING]** hamr 2026-10-23: cap $0.25 ("$0.25 ok"); if refused-plan notes do not make the next draft better, they are dropped. **[MEASURED]** none yet. Branch `learnings`. Model `deepseek-flash` only (never a Claude model). Code lives under `poc/m8-refused/`; `src/` is not changed. `flows/` holds real PII and is gitignored: this entry and the results file carry counts, refusal texts and hint text only, never an input or an artifact.
+
+**Question.** Do notes made from the drafter's OWN earlier refused plans (validator reds from earlier drafts of the same job) make the next draft of that job better?
+
+**Data.** `flows/.drafts/*/draft*/log.json` (per round `log[].reds`, final `reds`) with the job text in the matching `prose*.txt`. Three jobs, each a real job whose earlier draft(s) were refused (a job = the job lines before the "Arbiter guardrails" block; notes are keyed by that text, the per-draft spec hash is ignored):
+1. **aging** (`exit-walk-1` / `thinking-check-2` / `ageing-2`, same job text, 11 drafts, 8 with red rounds). Refusals include "the job line says Amount Owed, then Customer; the check says Customer, then Amount Owed" and section names "not in the job line's words". Input `fixtures/ar-aging.csv`.
+2. **m7-walk-2** (1 earlier draft, refused twice: "reads artifact \"resume\" that no earlier step declared", the same for "jd"; fixed in round 3). Inputs: the resume and JD files the draft used.
+3. **am29-walk-2** (1 earlier draft, 1 refusal round). Its refusal is the "marked unjudgeable but guardrailClasses proposes softgreen" red, not a sections-wording red; the sections-wording reds belong to `am29-walk-1`, a different job text. hamr named `am29-walk-2`; it is used as ruled and this is stated here, before the run. Same inputs as m7-walk-2.
+Each job is drafted from its own recorded `prose.txt` with its own recorded inputs, exactly as that draft session had them.
+
+**Method.** The real `draft()` of `src/drafter.js` (unchanged, deepseek-flash, thinking off as today, its own metering, its own 3 tries + structure retries) is called with an injected provider built by `makeProvider`. Arm B wraps the provider's `generate` and appends the hint block to the system message; arm A wraps it the same way and appends nothing. Both wrappers record per call whether the request carried the block, so the results show B's request carried it and A's did not.
+- **Notes (arm B):** that job's earlier refused drafts, rounds with validator reds only (structure, JSON-parse and "not readable" noise excluded), as cards (check "the drafted plan"; end text "refused by the plan check; fixed in a later round of the same draft" or "...; the draft failed"), folded with `countLedger` and rendered with `renderHints` of `src/learn.js` (M8 hint format, 2,000-char cap). The exact hint text per job is recorded in the results.
+- **Arms:** A = draft as today (no notes). B = same plus the block. 3 drafts per arm per job = 18 drafts, interleaved A,B,A,B,... per job to spread provider weather.
+- **Measures per draft:** ok / failed; validator-refusal rounds (rounds whose outcome carries reds); structure retries; total rounds; cost USD from the draft's own metering (unknown cost is never 0: a draft with unknown cost is reported as unknown and counts against B if it is in B).
+- **Cap:** $0.25 total (hamr). Before each draft the harness sums spend so far (unpriced at ceiling) and stops when the next draft could cross $0.25 (the drafter's own per-round ceiling times its most rounds). An unpriced model refuses the run.
+- **The POC can fail:** real drafts, no authored fixtures, the same inputs in both arms; if no draft is refused in either arm the test cannot tell, and that is reported as INCONCLUSIVE.
+
+**PASS bar (B wins only if all three):** (1) B's total refusal rounds < A's; (2) B's failed drafts <= A's; (3) B's total cost <= A's. Otherwise refused-plan notes are dropped. Also reported per job.
+
+**Result (2026-10-23, paid, deepseek-flash only).** Tags: **[MEASURED]** `poc/m8-refused/results-f80-2.json` (records, hint text per job, per-round reds, per-draft request proof). Code `poc/m8-refused/` (`notes.mjs`, `run.mjs`, `learn-poc.mjs` = `src/learn.js` copy with the plan-note lesson ending; 11 tests at $0, the arm-B injection test was made to fail once by removing the append, then restored).
+
+**Deviation from the pre-registration (stated plainly).** The pre-registered method said "the real `draft()`, as today". The first paid run `f80-1` (aborted by me after 9 drafts, log kept as `f80-1-aborted.log`) showed that "as today" does not draft the aging job: the sheet look ran first and `draft()` returned `stop: look-asks` (it stops to ask the human about a column) in 5 of the 6 aging drafts, before any drafting round, in both arms. Nothing could be measured there. For the rerun `f80-2` `draft()` is called with `offerQuestions: false` (the redraft mode: an offer the person did not take becomes Not checked and drafting goes on). This applies to ALL 18 drafts of BOTH arms; it is a deviation from "draft as today". The aborted run's spend ($0.0301, 9 drafts, one in-flight draft killed unbooked) counts toward the $0.25 cap: one ledger (`spend.jsonl`) was kept across both runs, the drafter's own budget per draft = $0.25 less the ledger total (`priorSpend`), and the harness stops before a draft when ledger + one round's ceiling ($0.0384) would pass $0.25.
+
+**Request proof.** [MEASURED] Every drafting-round request of arm B carried the block (e.g. `carriedHint` = drafter calls on all 9 B records) and none of arm A's did; no sheet-map call carried it (`carriedOnNonDrafter` 0 on every record). The wrapper only appends to the drafter's own system prompt.
+
+**Hint text (the notes arm B had).** aging: 4 hints, 1,158 chars, from 9 refused-plan cards over 11 earlier drafts (1: "seen 5 times ... fixed in a later round of the same draft. It said: declaration: steps[1].close.shape.sections names "Total Owed", which is not in the job line's words ..."; 2: seen 2 times, the draft failed, "the job line says Amount Owed, then Customer; the check says Customer, then Amount Owed ..."; 3: the draft failed, "line 2 is marked unjudgeable but guardrailClasses proposes "softgreen" ..."; 4: the draft failed, "steps[1].close.shape has mustCarry but no linesPerInvoice ..."). m7-walk-2: 1 hint, 319 chars, "fixed in a later round of the same draft. It said: declaration: steps[0] reads artifact "resume" that no earlier step declared". am29-walk-2: 1 hint, "line 4 is marked unjudgeable but guardrailClasses proposes "softgreen" ...". Full text is in the results file.
+
+**Numbers (17 of 18 drafts ran; am29-walk-2 B3 did not: the cap stop).**
+
+| | A drafts | A failed | A refusal rounds | A rounds | A cost | B drafts | B failed | B refusal rounds | B rounds | B cost |
+|---|---|---|---|---|---|---|---|---|---|---|
+| aging | 3 | 0 | 2 | 10 | $0.0438 | 3 | 0 | 2 | 9 | $0.0388 |
+| m7-walk-2 | 3 | 0 | 5 | 12 | $0.0277 | 3 | 3 | 9 | 13 | $0.0311 |
+| am29-walk-2 | 3 | 2 | 6 | 10 | $0.0218 | 2 | 2 | 6 | 8 | $0.0189 |
+| **total** | 9 | 2 | 13 | 32 | $0.0934 | 8 | 5 | 17 | 30 | $0.0889 |
+
+Structure retries: A 3, B 2. No draft had an unknown cost. Spend: f80-1 $0.0301 + f80-2 $0.1822 = **$0.2123** of $0.25.
+
+**Bars.** (1) B refusal rounds < A: **FAIL** (17 vs 13). (2) B failed <= A: **FAIL** (5 vs 2). (3) B cost <= A: pass (0.0889 vs 0.0934), but B ran one draft fewer, so this bar is not a fair pass.
+
+**Oddities (read before trusting the table).**
+- The cap stopped the run before am29-walk-2 B3. B's missing draft can only add refusals and failures, so bars 1 and 2 cannot flip to a pass; the harness still prints INCONCLUSIVE for an incomplete run, because the pre-registered rule says so.
+- am29-walk-2 A3 failed with `stop: budget`: the drafter's own budget (cap less ledger) ran out after 2 draft rounds. That failure is caused by the cap, not by the model; it counts against A, so A's failed count (2) is, if anything, overstated.
+- m7-walk-2 B failed 3 of 3 on exactly the refusal its note describes ("reads artifact resume that no earlier step declared"), where A passed 3 of 3. With 3 drafts per cell this is weather-sized, but it is the opposite of the hoped direction. The am29-walk-2 job's note is about "unjudgeable" (the recorded refusal), yet its real refusals in both arms were the resume/jd "no earlier step declared" ones, so that job's note did not match what the model did.
+- aging: no failure and 2 refusal rounds in each arm, so nothing to tell there.
+- Costs include the map call (aging, m7, am29 each ran one sheet-map call per draft, both arms); the map call does not carry the note.
+
+**Verdict: DOES NOT HELP.** The bars are pre-registered; bars 1 and 2 failed and cannot be rescued by the one draft the cap left out. The run is formally incomplete (17 of 18), which the harness reports as INCONCLUSIVE; I read it as DOES NOT HELP because the missing draft cannot change either failing bar. On this data refused-plan notes did not reduce refusals or failures; they are dropped. Caveats: 3 drafts per cell, one model, redraft mode (offerQuestions false), and the notes were not written for what the model actually got wrong in two of the three jobs.
+
+## F81 — POC: do step-failure notes (M8 shape) make the next run of the same job better? (pre-registered 2026-10-23, before any call)
+
+**Status.** Pre-registered 2026-10-23, before any call. Tags: **[RULING]** hamr 2026-10-23: cap $0.50 ("A 0.50"); if step-failure notes do not make the next run better, they are dropped. **[RULING]** hamr 2026-10-23, main session, on how a fresh plan can run: "oh, you sign it it's fine" (a POC-only signature, limits below). **[MEASURED]** f81-1 below (INCONCLUSIVE, 9 of 16 samples). Branch `learnings`. Model `deepseek-flash` only (never a Claude model). Code lives under `poc/m8-step/`; `src/` is not changed. The paid run is **launched by hamr from his own terminal**; no agent starts a paid call. `flows/` holds real PII and is gitignored: this entry and the results file carry counts, red lines and hint text only, never an input or an artifact.
+
+**Question.** F80 showed notes made from the drafter's own refused plans made drafts worse. M8 (ladder, scope item 5a + am2) hands STEP-failure notes (a step's check went red in an earlier real run of the same job) to the drafter the same way, and that is untested. Does a draft made with those notes give a better RUN of the same job than a draft made without them?
+
+**Limits on the POC signature (hamr's words are the ruling; these limits are mine and are quoted here so they bind the code).**
+1. The signer is recorded as `poc-f81`, never "hamr".
+2. Signing happens only inside a `mkdtemp` root (never under `flows/`, never a real job's folder). The config home is the test door: `FWDLOOP_CONFIG_HOME` inside the temp root with `NODE_ENV=test` (`configDoorHome` in `src/config.js`), never `~/.config/fwdloop`; the harness copies only the deepseek provider row and the deepseek-flash price row from the real config into that temp config (read-only), so the price is Settings' price. Each temp root is removed after its record is written.
+3. A run stops at its first ask pause. Code never answers or accepts an ask; the send step is a stub that refuses. Gap, stated before the run: **the steps after the first ask are not measured** (the send, anything past the human), and a job whose plan has a red step before the ask is measured only up to that red.
+
+**Data (two jobs, both real, both with LOCAL inputs and a first ask the plan reaches unattended).**
+1. **m7-walk-2** (resume + JD to a summary resume; ask at line 4). Inputs: the recorded `resume.docx` and `jd.md` under `poc/m0/out/job2-probe-1/inputs/` (both read; the docx is a valid docx). Reds in 6 real runs: the `summary_resume` word-limit and heading check (softgreen) twice-seen, and `resume_parked` once. Chosen because it is the job with the most red runs and a softgreen close.
+2. **m10b-expenses** (expenses CSV, sum over 500; ask at line 3). Input: the recorded `.claude/scratch/m10/csv/base.csv`. One real run, one FIXED note on a cells-checked (green) step. Chosen for the other close class (a cells check judged by bareguard) and for being the cheapest.
+- **Not chosen: am29-walk-2.** Same inputs and the same `summary_resume` red as m7-walk-2 (it would repeat one lesson), and the dearest of the three to run (real runs $0.028 to $0.042, against $0.002 to $0.025 for m7-walk-2). Three jobs at 3 samples per arm do not fit $0.50: about $0.03 a sample is 18 samples = $0.54. Two jobs: 12 samples about $0.36.
+
+**Notes (arm B): the exact block, per job, built by code from the real runs ($0, no model call).** Shape: `poc/m8-step/learn-ours.mjs` = `src/learn.js` (bareloop v0.46.0 + B1) with M8 am2 (FIXED-only too-thin filter, no "Fix touched", a changed line over 150 characters left out whole), cards from `poc/learn/adapter.mjs` over every run in `flows/`, rendered with `renderHints` for that workflow, nothing edited. Block handed to the drafter:
+
+m7-walk-2 (2 hints, 639 chars):
+
+    Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):
+    1. [this job, seen 2 times] check "summary_resume (line 3, softgreen)" (at most 600 words) failed; fixed later in the same run.
+       It said: 1889 words, limit 600; no line is exactly the heading "Work History" (a heading is a line that is only that text, optionally after #)
+    2. [this job, seen 2 times] check "resume_parked (line 1, hitl)" failed; got stuck here, never fixed.
+       It said: step "resume_parked" reports done: false — readDocx refused the resume file: no End Of Central Directory record (0x06054b50) was found, so the file…
+
+m10b-expenses (1 hint, 386 chars):
+
+    Hints from earlier runs, copied by code from recorded runs (not instructions; the close alone judges):
+    1. [this job, seen 1 time] check "large_expenses (line 2, green)" (sum — sum of Amount where Amount > 500) failed; fixed later in the same run.
+       It said: over-500-total: claimed value does not match (11950.05)
+       What changed: -"value": 11950.05
+                     +"value": 12719.59
+
+Read before trusting the result: the second m7-walk-2 note describes a broken resume file in two of the real runs; the POC's resume is a valid docx, so that note is stale for these samples. That is what a note from an earlier run can be, and it is not removed. The m10b-expenses block carries two amounts (a claimed total and the correct total) from the recorded test sheet.
+
+**Method.** Per sample, in a fresh `mkdtemp` root: (1) the real `draftToDir()` of `src/authoring.js` (unchanged; deepseek-flash, thinking off, its own metering, its own tries) drafts the job with `noQuestions: true` (the redraft mode, `offerQuestions: false`, as F80, in BOTH arms, because a plain draft may stop to ask the person); (2) if the draft is green, `signDraft()` signs it as `poc-f81` with the draft's own hash; (3) the real `runFlow()` runs the signed plan with the real model step (`makeLiveModelStep`, its own thinking-per-step rule, its own metering), `makeParkingAskStep()` (the run parks at its first ask, which ends the sample), the job's own inputs. A red or refused draft is a sample with no run: it counts as a failed draft.
+- **Arm A** = draft + sign + run, no notes. **Arm B** = the same with the block appended to the DRAFTER system prompt only, by wrapping the provider's `generate` (the F80 wrapper, `armProvider` of `poc/m8-refused/run.mjs`; `src/` unchanged). Both arms use the same wrappers (the run's provider is wrapped too, appending nothing) and record per call whether the request carried the block. Proof required in the results: every drafter request of B carried it, none of A's did, no step request of either arm did.
+- **Order.** Round-robin over the jobs: for sample n = 1, 2, ...: for each job: A_n then B_n. So a cap stop leaves the jobs with equal samples, and provider weather is spread over both arms. Requested 4 per arm per job; stops at the cap; aim at least 3 per arm per job.
+- **Cap $0.50** across every tag (one ledger, `poc/m8-step/spend.jsonl`). Before each sample: the cap line of the job text is set to `min($0.10, (0.50 - ledger)/2)` (ledger = booked spend, an unpriced or incomplete row counted at its ceiling); that cap bounds the draft's own budget and the run's cap, so one sample cannot spend more than `2 x` it; the sample is not started when that cap is below $0.07 (the run holds one round's ceiling, $0.0384 for the deepseek-flash row of Settings, per attempt, so a smaller cap would cap-halt a run the plan did not earn; this replaces my first draft of the rule, "below 1.25 x one round's ceiling", changed before any call), which is a ledger of about $0.36; at about $0.03 a sample that is 11 to 12 samples, so the 3-pairs-per-job aim is marginal and a short job reads INCONCLUSIVE. An unpriced model is refused; an empty key is refused at $0 before any ledger write. The draft and the run are booked as separate ledger rows.
+- **Results** to `poc/m8-step/results-<tag>.json`, written once (`wx`), a tag is never overwritten: counts, red lines (each cut to 200 chars, secret-masked), hint text. Never an artifact or input.
+
+**Measures per sample.** Draft ok / failed (and its stop and red count); per step: tries, red tries, ended green or red; run outcome (green / paused-at-ask / red, by the runner's own outcome); cost USD of the draft plus the run from fwdloop's own metering (an unknown cost is never 0: the sample's cost is unknown, and an unknown cost counts against B).
+
+**PASS bar (B helps only if all three):** (1) B's total red step tries < A's; (2) B's red runs + failed drafts <= A's; (3) B's total cost <= A's + 10%. Per job too; <3 samples per arm in a job = INCONCLUSIVE for that job. Also INCONCLUSIVE overall if either job is, or if neither arm had any red step try (the test cannot tell). Otherwise, if any bar fails, step-failure notes do not help and are dropped.
+
+**The POC can fail.** Real drafts and real runs, the same inputs in both arms, a pre-registered bar; the injection test of the harness was made to fail once by removing the append (see the result). Known weak points, said before the run: 3 to 4 samples per cell, one model, the redraft mode, a stale note in m7-walk-2, one note only in m10b-expenses, and nothing after the first ask measured.
+
+**Harness (built 2026-10-23, $0, no call made).** `poc/m8-step/` (`run.mjs`, `notes.mjs`, `learn-ours.mjs`, `run.test.mjs`): 16 tests against a fake provider through the whole path (draft, `poc-f81` sign in a temp root, run to the ask, cleanup, config door, cap stop, gates). Made to fail once each, then restored: B's append removed (4 tests red), signer changed to `hamr` (red), per-sample root removal removed (red), `NODE_ENV=test` door removed (red), a step prompt that carries the block (red), the minimum-cap check removed (red). A $0 gate on the real jobs with a fake key (no call): both jobs parse, both inputs read, the send folder is allowed, the live provider builds from the deepseek rows (round ceiling $0.0384).
+
+**[MEASURED] f81-1 (2026-10-23, run by hamr; results `poc/m8-step/results-f81-1.json`, ledger `poc/m8-step/spend.jsonl`).** Ran 9 of 16 requested samples, ledger $0.38584, then stopped on spend (the next sample's cap, $0.0571, was under the $0.07 minimum). Verdict: **INCONCLUSIVE** (2 paired samples per arm per job, 3 needed). The injection proof held in every sample (B on every drafter request, A on none, no step request). m7-walk-2 A3 ran but its B3 did not, so it was dropped as unpaired.
+
+| job | A red step tries | B red step tries | A cost | B cost | A red runs + failed drafts | B |
+|---|---|---|---|---|---|---|
+| m7-walk-2 | 2 | 5 | $0.066687 | $0.105467 | 1 | 1 |
+| m10b-expenses | 2 | 1 | $0.094691 | $0.082119 | 0 | 0 |
+| total | 4 | 6 | $0.161378 | $0.187586 | 1 | 1 |
+
+Leaning, stated as **unscored** (not a verdict, 2 pairs a cell): B is no better. m7-walk-2 B red step tries 5 vs A 2; m10b-expenses B 1 vs A 2; total B 6 vs A 4; B cost is over A + 10% ($0.1876 vs a limit of $0.1775). The next tag decides.
+
+**[RULING] hamr 2026-10-23, after f81-1.** First: raise the cap by $0.50 ("2" = raise the cap, then "raise it to 0.50"). Then, superseding it: "i am fine with the limit, run as much as you need to finish it, no need to stop for a cap". So spend does not end f81-2 before it finishes n=3 and n=4 for both jobs (8 samples). This was changed **after calls were made** (f81-1 ran under the pre-registered $0.50 and stopped on it); the bar itself is not changed. In code: `SPEND_STOP_USD = 2.5` is a runaway guard only, not a decider (worst case 8 samples x 2 x $0.10 job cap = $1.60, plus the $0.386 ledger, plus $0.20 headroom, about $2.2); the per-sample job cap stays $0.10 and the $0.07 minimum rule is unchanged. Pooling: a later tag adds to an earlier one instead of starting over. Samples pair by (tag, job, n), so f81-1's unpaired A3 never pairs with f81-2's B3. Continuation tag **f81-2**, from n=3 (`--start-n 3 --pool results-f81-1.json`); its results file holds only its own records plus the pooled summary, and `results-f81-1.json` is never rewritten. A pool file that is missing, unreadable, from another model or another job set is refused by name at $0.
+
+**[MEASURED] f81-2 (pooled with f81-1) (2026-10-23, run by hamr; results `poc/m8-step/results-f81-2.json`, ledger `poc/m8-step/spend.jsonl`).** Ran 8 of 8 requested samples (from n=3), no stop (`stoppedBy` null). Ledger: $0.303818 for tag f81-2, $0.68966 across all tags (f81-1 $0.385842). Verdict, pooled over f81-1 and f81-2: **HELPS** (pass true), on **4 paired samples per arm per job** (16 paired samples). The unpaired f81-1 m7-walk-2 A3 is dropped (1 dropped).
+
+Bars (A = no notes, B = notes), pooled:
+1. B's total red step tries < A's: **B 9 vs A 14** (ok).
+2. B's red runs + failed drafts <= A's: **B 2 vs A 3** (ok).
+3. B's total cost <= A's + 10%: **B $0.308825 vs A $0.343957**, limit $0.378353 (ok, no unknown cost).
+
+Per job, pooled (A / B):
+
+| job | samples | failed drafts | red runs | paused runs | step tries | red step tries | cost |
+|---|---|---|---|---|---|---|---|
+| m7-walk-2 | 4 / 4 | 0 / 1 | 2 / 1 | 2 / 2 | 17 / 14 | 7 / 6 | $0.167898 / $0.153124 |
+| m10b-expenses | 4 / 4 | 0 / 0 | 1 / 0 | 3 / 4 | 14 / 11 | 7 / 3 | $0.176059 / $0.155701 |
+| total | 8 / 8 | 0 / 1 | 3 / 1 | 5 / 6 | 31 / 25 | 14 / 9 | $0.343957 / $0.308825 |
+
+Both jobs pass all three bars on their own (m7-walk-2: red step tries 6 vs 7, red runs + failed drafts 2 vs 2, cost $0.153124 vs limit $0.184688; m10b-expenses: 3 vs 7, 0 vs 1, $0.155701 vs limit $0.193665).
+
+Caveats, plain:
+- (a) The cap was raised after f81-1's calls were made, and the continuation reached exactly the pre-registered 4 per arm per job, with no extra samples. The bar itself is unchanged.
+- (b) The m7-walk-2 margin is thin: red step tries B 6 vs A 7, and red runs + failed drafts B 2 vs A 2 (an equal count, which the bar allows). One B draft failed at the validator (m7-walk-2 B4, stop `validator`, two declaration reds: steps[0] and steps[1] read an artifact no earlier step declared).
+- (c) 4 pairs per job on one model (deepseek-flash) is a small sample.
+- (d) Every run stops at its first ask, so steps after the ask are not measured (the gap already stated in the pre-registration).
+
+**Outcome.** Per the pre-registered rule, step-failure notes are **NOT dropped**. Building them stays under M8's signed scope and waits for its own order.
+
+## F82 — a guardrail's number bound dropped from a cited close; the ask could not show the cited results (2026-10-24, deepseek-flash; fixed on branch learnings)
+
+**Status.** Finding plus fix. Tags: **[MEASURED]** from the declaration and run files named below (read only); **[CODE]** read from the source.
+
+**Bug 1, the bound was dropped and nothing refused the plan.**
+- [MEASURED] `flows/flights-learn-1` (job line 2 "list 3 flights from Madrid to Rome," with the guardrail "under $40; nonstop"): the drafter's close has the `price` fact as `{shape: money, anchor: From, unit: US dollars, currency: $}` with no `rule`. Run-1's `cited-checks.json` has `passed: true` with prices 39, 48 and 63 US dollars; 48 and 63 are over the $40 the job said.
+- [MEASURED] `flows/m10-walk-flights-5` ("under $150; nonstop"): the same drop, `price` with no `rule`. Its run-1 was reported clean and `cited-checks.json` says `passed: true`; the prices were 39, 48 and 63, all under 150, so no value was wrong, but nothing checked the bound.
+- [MEASURED] `flows/m10-walk-flights-4` ("under $150; nonstop") kept it: `"rule":{"op":"lt","value":150}`; run-1 prices 34, 63, 63.
+- [CODE] The bound reaches a fact's `rule` only through the drafter: the page look (src/pagelook.js, src/pagerules.js) reads a limit from a `~` rule as `reading` and the drafter is told "limit read from your words" (`pageInfoLines`), but the validator checked only that a rule written was the person's own number (`numberRuleReds`, src/citedwords.js). A rule left out was never refused.
+- Fix: `boundReds` (src/citedwords.js) refuses, at $0, a cited part that carries no fact of the same kind with the same op and bound as a look `reading` whose bound is in the person's words on the line (red code `bound-missing`, naming the line and the bound). The drafter's cited-close rules say the fact must carry it.
+
+**Bug 2, the ask could not show its evidence.**
+- [MEASURED] `flows/flights-learn-1/runs/run-1/ask.json` `evidence` is `{artifact: {results: [{quote, values}]}, unjudged: [{step, emits, artifact: {cells}}]}`. `readAskEvidence` (src/ask.js) knew `.artifact.text`, `.text` and the sheet's claim boxes only, so the Ask tab said `unrecognised shape: keys ["artifact","unjudged"]`.
+- Fix: `readAskEvidence` hands on `results` and an unjudged entry's `cells`; the panel draws the results with the Result tab's own facts line (`resultFactsLine`), matched to the run's `cited-checks.json` by the quotes, and the unjudged cells below as `name: value` lines.

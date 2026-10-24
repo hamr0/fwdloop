@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  fetchPageText, CONNECT_OPTIONS, barebrowseNewEnough, MIN_PAGE_CHARS,
+  fetchPageText, CONNECT_OPTIONS, barebrowseNewEnough, MIN_PAGE_CHARS, pageContentChars,
 } from '../src/pagefetch.js';
 import { startPageServer, fakeConnect, pageText } from './fixtures/m10-page-server.mjs';
 
@@ -16,7 +16,7 @@ test('a normal page comes back as its text, read once, browser closed, with the 
     const r = await fetchPageText(`${srv.base}/ok`, { connect: fc.connect, ...FAST });
     assert.equal(r.ok, true);
     assert.equal(r.ok && r.text, pageText());
-    assert.deepEqual(fc.calls.connect, [CONNECT_OPTIONS]);
+    assert.deepEqual(fc.calls.connect, [{ incognito: true, blockPrivateNetwork: true }]);
     assert.equal(fc.calls.goto.length, 1);
     assert.equal(fc.calls.closed, 1);
   } finally { await srv.close(); }
@@ -93,4 +93,11 @@ test('barebrowse older than 0.21.0 is refused (it would drop incognito and the p
   assert.equal(barebrowseNewEnough('0.21.0'), true);
   assert.equal(barebrowseNewEnough('0.23.0'), true);
   assert.equal(barebrowseNewEnough('1.0.0'), true);
+});
+
+test('pageContentChars counts a 50000-character line of "[a=[a=..." (no closing bracket) in linear time, and still drops a real tag', () => {
+  const t0 = performance.now();
+  assert.equal(pageContentChars('[a='.repeat(16666)), 49998);
+  assert.equal(pageContentChars('- text [ref=12] more'), 'text more'.length);
+  assert.ok(performance.now() - t0 < 1000, `took ${performance.now() - t0} ms`);
 });

@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-10-24
+
+M8 (learnings: notes from earlier runs handed to drafts and retries, copied from bareloop v0.46.0 and
+v0.47.0) with amendments 1-8, M11 amendment 22 (Reopen on the Run tab), and M10 fixes for a cited step.
+
+### Added
+- Learnings. At the end of every run (stopped, cap-halted, rerun and expired runs count; a run still
+  waiting, a provider red and a crashed check do not) its failures and fixes are written as notes to a
+  ledger in the config home. A note kept for a step that was never fixed is kept; a too-thin note is
+  dropped only when fixed, and a changed line over 150 characters is left out whole.
+- `learningHints` in `config.json`, OFF when absent (a bad value reads OFF). Only when it is `true` is the
+  drafter handed the hints from earlier runs of the same workflow name (a changed job starts empty). The
+  block is the same on every round of a draft, a hint failure hands nothing, and the draft keeps the
+  block it was handed once as `learnings.json`, which reaches the run. There is no control for it on the
+  Settings page.
+- `fwdloop learn seed --root <flows folder>` reads every ended run already recorded and seeds the ledger
+  from them ($0, code only), so the ledger does not start empty.
+- A step's retry, redo or rerun try is handed the drafter's one block of hints; a first try, and a run
+  with hints OFF, get none. The block rides that try's audit row.
+- The Audit tab shows a learnings box at the top (one read-only fold, hidden when the run was handed
+  nothing), and a try that was handed hints shows `told from earlier runs · N hints`; a click opens the
+  exact text.
+- Reopen on the Run tab: a run waiting on an expired ask shows the Ask tab's Reopen button, with the same
+  rule and the same click.
+
+### Changed
+- The Job tab calls the box `Inputs` (was `Source`) and shows each input's full path or web address, not
+  only the file name.
+- The notes' place is one function, and a leading `~` is the home folder for both the run-end notes and the
+  drafter's hints.
+
+### Fixed
+- A plan whose cited close drops the limit that the page look read from a guardrail ("under $40") is
+  refused at draft time at $0, naming the line (bound-missing), and the drafter is told to carry the limit.
+- The ask of a cited step shows its results (the Result tab's own line) and the unjudged cells, not the
+  unrecognised-shape line.
+- A run starts when its draft left `learnings.json` in the flow folder.
+- Leaving Reuse clears the boxes it filled, so a refused start cannot redraft as a new job.
+- A key right after a hyphen is masked by the secret redaction (bareloop 76168c8).
+- The page-tag regex and the number-before-a-label scan no longer backtrack quadratically on a long
+  unclosed `[a=[a=...` run or a long digit run (bareloop c59935e, 95f14b4, d7917d6).
+
 ## [0.23.0] - 2026-10-23
 
 M10b (a sheet's checks are bareguard's cells checks; the CSV case runs green) with amendments 1-4.

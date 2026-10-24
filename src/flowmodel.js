@@ -2,7 +2,7 @@
 // and a model id - is recorded in `model.json`, beside the draft and then beside the signed flow. It is NOT one of the signed files: which model
 // runs, and at what price, is Settings' to say (a line that is no longer ticked is refused by name at run time), so the record only remembers the choice.
 // One writer (`writeModelRecord`), one reader (`readModelRecord`); both go through the safe gateway.
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
 import { isKeyName } from './provider.js';
@@ -85,4 +85,59 @@ export function readRunModel(runDir) {
 /** M4d am33: the ONE writer, called once when a fresh run starts (`runFlow`); never over an existing record. @param {string} runDir @param {{ slot: string, model: string }} pick */
 export function writeRunModel(runDir, { slot, model }) {
   writeOnce(join(runDir, RUN_MODEL_FILE), { slot, model });
+}
+
+/**
+ * M8 item 5a: the file that keeps EXACTLY what the drafter was handed from earlier runs (the Audit box of item 6 reads it). Bareloop's
+ * `learnings` spine record shape, `{phase, text, ids, chars}`. Write-once (never over an existing record); written with something handed, or by `writeLearningsError` with an empty `text`
+ * (a failed ask: nothing handed, why in `error`); a reader treats empty text as no record, so no file or empty text = nothing handed = no box. Borrowed-from: bareloop src/planrun.js@v0.46.0:3092 (emit('learnings', ...)).
+ */
+export const LEARNINGS_FILE = 'learnings.json';
+
+/** @param {string} dir @param {{text: string, ids: string[]}} hints */
+export function writeLearningsRecord(dir, { text, ids }) {
+  writeOnce(join(dir, LEARNINGS_FILE), { phase: 'draft', text, ids, chars: text.length });
+}
+
+/**
+ * The drafter's failed ask for the block (or failed record write) rides the same record: nothing handed (`text: ''`, no ids), and `error` (first line, secrets redacted).
+ * `readLearningsRecord` reads an empty text as no record, so the Audit box stays hidden and `copyLearningsRecord` copies nothing.
+ * @param {string} dir @param {string} error
+ */
+export function writeLearningsError(dir, error) {
+  writeOnce(join(dir, LEARNINGS_FILE), { phase: 'draft', text: '', ids: [], chars: 0, error });
+}
+
+/**
+ * M8 item 6: the Audit box reads the record in the RUN's folder. It reaches the run the way `model.json` does: a draft's record is copied (write-once) into the folder it is signed
+ * into (`copyLearningsRecord`: the flow folder at a new job's sign, the new run's folder at a red run's redraft), and the first run that starts from a flow folder TAKES it
+ * (`takeLearningsRecord`: a rename, so it moves once and a second run of the same job never shows it). A run that reused its plan has no draft, so it has none.
+ * @param {string} fromDir a draft folder @param {string} toDir a flow folder or a run folder @returns {boolean} true when a record was copied
+ */
+export function copyLearningsRecord(fromDir, toDir) {
+  const rec = readLearningsRecord(fromDir);
+  if (rec === null) return false;
+  writeOnce(join(toDir, LEARNINGS_FILE), rec); // `writeOnce`, the same write-once JSON writer and shape as `writeLearningsRecord`: a record that reads is copied, one that does not is not
+  return true;
+}
+
+/** @param {string} flowDir @param {string} runDir @returns {boolean} true when the flow's record moved into the run (it is no longer in the flow folder) */
+export function takeLearningsRecord(flowDir, runDir) {
+  if (!readFileInside(flowDir, LEARNINGS_FILE).ok || readFileInside(runDir, LEARNINGS_FILE).ok) return false;
+  renameSync(join(flowDir, LEARNINGS_FILE), join(runDir, LEARNINGS_FILE));
+  return true;
+}
+
+/**
+ * The ONE reader of a run's record. null = no record, or one that is not `{phase, text, ids, chars}` (the box is then hidden, never guessed).
+ * @param {string} runDir @returns {{phase: string, text: string, ids: string[], chars: number}|null}
+ */
+export function readLearningsRecord(runDir) {
+  const r = readFileInside(runDir, LEARNINGS_FILE);
+  if (!r.ok) return null;
+  try {
+    const j = JSON.parse(r.text);
+    return j && typeof j.text === 'string' && j.text !== '' && Array.isArray(j.ids) && j.ids.every((/** @type {any} */ x) => typeof x === 'string')
+      ? { phase: String(j.phase ?? 'draft'), text: j.text, ids: j.ids, chars: Number.isInteger(j.chars) ? j.chars : j.text.length } : null;
+  } catch { return null; }
 }

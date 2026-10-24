@@ -70,7 +70,8 @@ test('a number rule that is not in the person\'s own words on that line is refus
   const f = goodFacts();
   f[2] = { ...f[2], rule: { op: 'lt', value: 450 } };
   const r = reds(decl(part(f)));
-  assert.equal(r.length, 1, r.join('\n'));
+  // the made-up 450 replaced the limit the look read (150), so the missing 150 is a second red
+  assert.equal(r.length, 2, r.join('\n'));
   assert.match(r[0], /line 1: fact "price" has the number 450 in its rule, but 450 is not in your words on line 1/);
   // the same refusal is made where no page is at hand (sign): a number is checked against the signed job, not the page
   assert.match(reds(decl(part(f)), { words: false })[0], /number 450/);

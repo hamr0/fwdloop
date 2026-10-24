@@ -170,6 +170,7 @@
   /* the Run tab's top action row (Stop, Resume) */
   .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
   .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
+  .run-actions .hint{margin-top:0;flex:1 1 100%;overflow-wrap:anywhere;}
   /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
      you — keyed to `.pulse`, which the server decides (glyphPulses), never to
      a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
@@ -436,6 +437,11 @@
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.46.0 :421-424): a framed row, the header a full-width button with the chip and words inline, no arrow */
+  .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
+  .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
+  .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
   @media (max-width: 640px){
     /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
     .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
@@ -522,7 +528,7 @@
      ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
      line) so it reads as a clear, bold heading without a second border. */
   .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
-  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);overflow-wrap:anywhere;}
   .art-head{color:var(--accent);}
   .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
   /* M4e amendment 37 (changes 34's layout): the Job tab is ONE column at every width. Each signed line, its ~ rows, then its step(s) folded under it:
@@ -746,6 +752,11 @@
     .audit-group table.rounds-table tbody{display:table-row-group;}
     .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
     .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
+    /* M8 item 6: a hint's table fits the box and wraps (as bareloop's does at 320), it does not scroll sideways */
+    .audit-part table.learn-hint{display:table;width:100%;min-width:0;max-width:100%;}
+    .audit-part table.learn-hint tbody{display:table-row-group;}
+    .audit-part table.learn-hint tr{display:table-row;padding:0;}
+    .audit-part table.learn-hint td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;}
   }
 
   /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
@@ -1263,6 +1274,7 @@
               </div>
             </div>
             <div id="audit-filter-empty" class="hint" data-testid="audit-filter-empty" hidden style="padding:12px 0;"></div>
+            <div id="audit-learnings" data-testid="audit-learnings" hidden></div>
             <div id="audit-groups" data-testid="audit-groups"></div>
             <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
               <table data-testid="audit-table">
@@ -1307,7 +1319,7 @@
               <div class="field"><label>Ask</label><div id="details-asks"></div></div>
               <div class="field"><label>Destination</label><div id="details-sends"></div></div>
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
-              <div class="field"><label>Source</label><div id="details-sources"></div></div>
+              <div class="field"><label>Inputs</label><div id="details-sources"></div></div>
               <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
               <div class="plan-legend" data-testid="plan-legend"><span class="plan-mark">›</span> = the approved plan</div>
             </div>
@@ -2782,8 +2794,11 @@
       el.appendChild(makeButton("Resume", "run-resume", function(){ if(window.fwdloopOpenResume) window.fwdloopOpenResume(detail); }));
     }
     else if(c.noCopySay){ var nc = document.createElement("div"); nc.className = "answer-msg refused"; nc.setAttribute("data-testid", "run-no-copy-say"); nc.textContent = c.noCopySay; el.appendChild(nc); }
+    // M11 am22: Reopen is also here, from the server's `detail.reopen` (the Ask tab's own `reopenOffer` answer); the click is the Ask tab's `sendReopen`, the line its why
+    if(detail.reopen) el.appendChild(makeButton("Reopen for another " + waitText(detail.reopen.waitMs), "run-reopen", function(){ sendReopen(el, detail, detail.reopen.askId); }));
     // M11 am11 item 3: a stopped / stuck run in Needs you can leave it; the Run tab's own button, shown only when the server says it is removable
     if(detail.needsYou && detail.needsYou.removable) el.appendChild(makeRemoveNeedsButton(detail.flow, detail.runId, function(){ return reloadRun(detail.flow, detail.runId); }));
+    if(detail.reopen) el.appendChild(textDiv("hint", detail.reopen.why));
     if(stopSay){ var m = document.createElement("div"); m.className = "answer-msg refused"; m.setAttribute("data-testid", "run-stop-say"); m.textContent = stopSay.text; el.appendChild(m); }
     el.hidden = el.children.length === 0;
   }
@@ -3208,7 +3223,7 @@
     if(testId) e.setAttribute("data-testid", testId);
     return e;
   }
-  function foldTryEl(t, human){
+  function foldTryEl(t, human, stepKey){
     var wrap = document.createElement("div");
     var line = foldEl("div", "audit-try", null, "audit-try-line");
     line.appendChild(document.createTextNode("try " + t.n + " "));
@@ -3218,6 +3233,21 @@
       : [t.thinking, t.gap];
     rest.forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
     wrap.appendChild(line);
+    // M8 am7 item 4: this try was handed the earlier runs' block - one line, a click opens the exact text (the learnings box's own fold classes); hidden when nothing was handed
+    if(!human && t.hints && t.hints.text){
+      var hk = "\u0000hints:" + stepKey + ":" + t.n;
+      var hpart = foldEl("div", "audit-part", null, "audit-try-hints");
+      var hhead = foldEl("button", "btn audit-part-toggle", "told from earlier runs \u00B7 " + t.hints.n + (t.hints.n === 1 ? " hint" : " hints"), "audit-try-hints-head");
+      hhead.type = "button";
+      var hbody = foldEl("div", "audit-part-body", null, "audit-try-hints-text");
+      hbody.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0";
+      hbody.textContent = t.hints.text;
+      var paintHints = function(open){ hbody.hidden = !open; hhead.setAttribute("aria-expanded", open ? "true" : "false"); };
+      paintHints(auditExpanded[hk] === true);
+      hhead.addEventListener("click", function(ev){ ev.stopPropagation(); var open = hbody.hidden; auditExpanded[hk] = open; paintHints(open); });
+      hpart.appendChild(hhead); hpart.appendChild(hbody);
+      wrap.appendChild(hpart);
+    }
     if(!human && t.checks && t.checks.length){
       var box = foldEl("div", "audit-checks", null, "audit-checks");
       t.checks.forEach(function(c){
@@ -3280,12 +3310,94 @@
     var f = g.fold, human = f.who === "human";
     var body = foldEl("div", "audit-fold-body", null, "audit-fold-body-" + g.step);
     if(f.tally) body.appendChild(foldEl("div", "audit-tally", f.tally, "audit-tally"));
-    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human)); });
+    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human, g.step)); });
     body.appendChild(foldRoundsEl(g));
     return body;
   }
   var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
   var auditExpandedRun = null;
+  // M8 item 6: cross-run learnings, READ-ONLY: what the drafter was handed from earlier runs. ONE fold at the top of the Audit tab, in both views, hidden when the run was handed nothing.
+  // borrowed-from: bareloop src/panel/index.html@v0.46.0 :2843-2931 (learnRow, learnHintLabel, renderAuditLearnings), drawn in fwdloop's own fold (the schedule section's header and body shape)
+  // instead of bareloop's .audit-part button. The fields come from the server (learn.js parseHintBlock, the one reader of the block) - this page never splits the prose. No edit, no button but the fold.
+  function learnRow(tbody, testid, label, lines){
+    var tr = document.createElement("tr");
+    tr.setAttribute("data-testid", testid);
+    var lab = document.createElement("td");
+    lab.className = "hint";
+    lab.style.cssText = "white-space:nowrap";
+    lab.textContent = label;
+    var val = document.createElement("td");
+    val.style.cssText = "overflow-wrap:anywhere;white-space:pre-wrap";
+    val.textContent = lines.join("\n");
+    tr.appendChild(lab);
+    tr.appendChild(val);
+    tbody.appendChild(tr);
+  }
+  function learnHintLabel(h){
+    var bits = [h.n, h.level, "seen " + h.count + (h.count === 1 ? " time" : " times")];
+    if(h.check) bits.push(h.check);
+    if(h.kinds && h.kinds.length) bits.push(h.kinds.join(", "));
+    bits.push(h.fixed ? "fixed" : "never fixed");
+    return bits.join(" \u00B7 ");
+  }
+  function renderAuditLearnings(result){
+    var box = document.getElementById("audit-learnings");
+    box.innerHTML = "";
+    var items = result && Array.isArray(result.learnings) ? result.learnings : [];
+    box.hidden = items.length === 0;
+    if(items.length === 0) return;
+    var it = items[0];
+    var hints = Array.isArray(it.hints) ? it.hints : [];
+    var count = Array.isArray(it.ids) ? it.ids.length : hints.length;
+    var wrap = document.createElement("div");
+    wrap.className = "audit-part";
+    wrap.setAttribute("data-testid", "audit-group-learnings");
+    var head = document.createElement("button");
+    head.type = "button";
+    head.className = "btn audit-part-toggle";
+    head.setAttribute("aria-expanded", "false");
+    head.setAttribute("data-testid", "audit-learnings-head");
+    var label = "What the planner was told from earlier runs \u00B7 " + count + (count === 1 ? " hint" : " hints");
+    head.innerHTML = stateDotHTML(glyphClass("[\u2713]"), "learnings", "audit-learnings-state") + " " + escapeXml(label);
+    var list = document.createElement("div");
+    list.className = "audit-part-body";
+    list.setAttribute("data-testid", "audit-learnings-list");
+    list.hidden = true;
+    var note = document.createElement("div");
+    note.className = "hint";
+    note.style.cssText = "margin:6px 0;overflow-wrap:anywhere;";
+    note.textContent = "Read-only. Given to the planner at the draft (" + Number(it.chars).toLocaleString("en-US") + " characters). No worker sees it.";
+    list.appendChild(note);
+    hints.forEach(function(h){
+      var hint = document.createElement("div");
+      hint.className = "audit-table-scroll";
+      hint.setAttribute("data-testid", "audit-learnings-hint-" + it.phase + "-" + h.n);
+      var table = document.createElement("table");
+      table.className = "rounds-table learn-hint";
+      var tbody = document.createElement("tbody");
+      var trT = document.createElement("tr");
+      var title = document.createElement("td");
+      title.setAttribute("colspan", "2");
+      title.style.cssText = "font-weight:600;overflow-wrap:anywhere";
+      title.setAttribute("data-testid", "audit-learnings-hint-" + it.phase + "-" + h.n + "-title");
+      title.textContent = learnHintLabel(h);
+      trT.appendChild(title);
+      tbody.appendChild(trT);
+      var t = "audit-learnings-hint-" + it.phase + "-" + h.n + "-";
+      if(h.said) learnRow(tbody, t + "said", "It said:", [h.said]);
+      if(h.touched) learnRow(tbody, t + "touched", "Fix touched:", [h.touched]);
+      if(h.changed && h.changed.length) learnRow(tbody, t + "changed", "What changed:", h.changed.concat(h.moreChanged ? ["(+" + h.moreChanged + " more)"] : []));
+      table.appendChild(tbody);
+      hint.appendChild(table);
+      list.appendChild(hint);
+    });
+    function paintLearn(open){ list.hidden = !open; head.setAttribute("aria-expanded", open ? "true" : "false"); }
+    function toggleLearn(){ var open = list.hidden; auditExpanded["\u0000learnings"] = open; paintLearn(open); }   // folded on open; a re-render keeps what you chose for this run
+    if(auditExpanded["\u0000learnings"] === true) paintLearn(true);
+    head.addEventListener("click", toggleLearn);
+    wrap.appendChild(head); wrap.appendChild(list);
+    box.appendChild(wrap);
+  }
   function renderAuditGroups(result){
     var runKey = currentFlow + "/" + currentRunId;
     if(auditExpandedRun !== runKey){ auditExpanded = {}; auditExpandedRun = runKey; }
@@ -3437,6 +3549,7 @@
   // says why" — checked against whichever view is actually on screen.
   function paintAudit(result){
     var anyGrouped = renderAuditGroups(result);
+    renderAuditLearnings(result);
     var anyFlat = renderAuditFlat(result);
     var filterEmpty = document.getElementById("audit-filter-empty");
     var nothingMatched = auditViewMode === "flat" ? !anyFlat : !anyGrouped;
@@ -3459,11 +3572,12 @@
     var content = document.getElementById("audit-content");
     lastAuditResult = result;
     // a run with no audit rows yet still has its Draft: say so in words, and show the card
-    var hasDraft = !!(result && (result.draft || result.schedule || result.needsLeft));
+    var hasDraft = !!(result && (result.draft || result.schedule || result.needsLeft || (result.learnings && result.learnings.length)));
     if(!result || (result.empty && !hasDraft)){
       empty.hidden = false;
       empty.textContent = (result && result.why) || "no audit rows for this run";
       content.hidden = true;
+      document.getElementById("audit-learnings").hidden = true;   // M8 item 6: a run with nothing to show keeps no box of the run before
       return;
     }
     empty.hidden = !result.empty;
@@ -3633,9 +3747,9 @@
     document.getElementById("details-cap").textContent =
       (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
       + " per run" + (waitText ? " · " + waitText : "") + " · redo up to " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
-    // review #5: "Source" — role -> basename only (never the full signed path).
+    // review #5: "Inputs" — role -> the full signed path (a web address shows its address), by hamr 2026-10-24.
     renderRowsField("details-sources", job.sources, "no signed sources", function(s){
-      return s.role + " → " + s.basename;
+      return s.role + " → " + s.path;
     });
     // review #5: "Destination" — one row per signed send.
     renderRowsField("details-sends", job.sends, "no signed sends", function(s){
@@ -4292,7 +4406,11 @@
       return reloadRun(ctx.flow, ctx.runId);
     }).then(function(){ if(root.isConnected) setBusy(root, false); });
   }
+  // M11 am22: the Ask tab's button and the Run tab's button are one door; while a reopen is out neither can send a second one.
+  var reopenOut = false;
   function sendReopen(root, ctx, askId){
+    if(reopenOut) return;
+    reopenOut = true;
     say(ctx.flow, ctx.runId, "info", "reopening…");
     setBusy(root, true);
     postJSON("/api/reopen", { flow: ctx.flow, runId: ctx.runId, askId: askId }).then(function(r){
@@ -4306,7 +4424,7 @@
     }).catch(function(e){
       say(ctx.flow, ctx.runId, "refused", networkText());
       return reloadRun(ctx.flow, ctx.runId);
-    }).then(function(){ if(root.isConnected) setBusy(root, false); });
+    }).then(function(){ reopenOut = false; if(root.isConnected) setBusy(root, false); });
   }
   // M11 am11 item 3: Remove from Needs you. One door for the Ask tab (expired ask) and the Run tab (stopped / stuck): the server writes the marker and changes nothing else.
   function makeRemoveNeedsButton(flow, runId, after){
@@ -4432,6 +4550,12 @@
       sheetBox.innerHTML = resultSheetBlock(evidence.sheet.block) + resultField("Answer", '<div class="ro-value" data-testid="ask-sheet-answers">' +
         (evidence.sheet.answer || []).map(function(t){ return '<div data-testid="ask-sheet-answer">' + escapeXml(t) + '</div>'; }).join("") + '</div>');
       ev.appendChild(sheetBox);
+    } else if(evidence.cited){
+      // a cited step's ask shows the Result tab's own results (resultFactsLine): each with its fields and its proof; the unjudged evidence follows below
+      var citedBox = document.createElement("div");
+      citedBox.setAttribute("data-testid", "ask-cited");
+      citedBox.innerHTML = resultFactsLine(evidence.cited);
+      ev.appendChild(citedBox);
     } else {
       ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
     }
@@ -4451,7 +4575,13 @@
       }
       var art = document.createElement("div");
       art.className = "ro-value scroll";
-      if(typeof u.text === "string"){ fillArtifactText(art, u.text); } else { art.textContent = "no artifact text on file"; }
+      if(typeof u.text === "string"){ fillArtifactText(art, u.text); }
+      else if(u.cells && typeof u.cells === "object"){
+        // a step that leaves fields, not prose: one line per field, "name: value" (textContent, so every value is escaped)
+        art.style.whiteSpace = "pre-wrap";
+        art.setAttribute("data-testid", "ask-unjudged-cells");
+        art.textContent = Object.keys(u.cells).map(function(k){ return k + ": " + String(u.cells[k]); }).join("\n");
+      } else { art.textContent = "no artifact text on file"; }
       ev.appendChild(art);
     });
     return ev;
@@ -5326,8 +5456,10 @@
       refreshCapNote(); fitCardBoxes();
       doDraft(null);
     }
-    // the card stops reusing: the name box is free again
+    // the card stops reusing: the name box is free again. ONE owner: reuseOf and the boxes startReuseDraft filled go together, so a card that
+    // left Reuse (a refused signed start too) can never be drafted as a plain new job carrying the old job and name
     function leaveReuse(){
+      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); askWaitEl.value = "1h"; }
       reuseOf = null;
       editBannerEl.hidden = true; editBannerEl.textContent = "";
     }
@@ -6154,7 +6286,7 @@
     });
     document.querySelectorAll('input[name="jf-mode"]').forEach(function(r){
       r.addEventListener("change", function(){
-        if(r.checked && reuseOf !== null && r.value !== "new" && !sessionLive){ leaveReuse(); ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); }
+        if(r.checked && reuseOf !== null && r.value !== "new" && !sessionLive){ leaveReuse(); }
         if(r.checked) setMode(r.value);
       });
     });

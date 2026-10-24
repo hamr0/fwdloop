@@ -114,6 +114,8 @@ export function deriveFold(group, d, info = {}) {
       const rec = saved.length === alike ? saved[k] : null;
       tries.push({
         n: r.attempt, mark: group.tryMarks[i] ?? '·', thinking: r.thinkingPhrase ?? null, gap: r.gap || null, answer: null, about: null, checks: rec?.checks ?? [], output: rec?.output ?? null,
+        // M8 am7 item 4: the exact text this try was handed, from its own audit row (`hints` count + `hintsText`); null (no line) when nothing was handed
+        hints: typeof r.hintsText === 'string' && r.hintsText !== '' && Number.isInteger(r.hints) ? { n: r.hints, text: r.hintsText } : null,
       });
     });
     // rounds count on through all of a step's tries, so they order the calls and tool calls; a try's check row goes after the last round it saw

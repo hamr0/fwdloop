@@ -1,0 +1,9 @@
+[
+  {
+    "id": "flights",
+    "source": "https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD",
+    "frozen": "/tmp/fixture/flows/flow/runs/run-1/inputs/flights.txt",
+    "sha256": "c726f1307653962235111426d62b599df6e349161552eafe1fe3eca421be496a",
+    "bytes": 32635
+  }
+]

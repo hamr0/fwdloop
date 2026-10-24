@@ -1,0 +1,4 @@
+{"type":"job-start","job":"aurora-fix","specHash":"906eaa6025e433d64b3b101588ec3cffe546c8e4245c020d290b86e5eff8b789","budgetUsd":3,"steps":["suite"],"seq":1,"ts":"2026-07-16T11:20:51.649Z"}
+{"type":"step-start","step":"suite","remainingUsd":3,"spentUsd":0,"mode":"tools","seq":3,"ts":"2026-07-16T11:20:51.654Z"}
+{"type":"escalation","category":"provider-red","decisionReady":true,"decision":"The provider path threw before a result existed — spend for the failed call is unknown (F6), and no drafting verdict exists.","options":["fix the provider binding","retry the run","abandon the run"],"detail":"write EPIPE","spentUsd":0,"seq":7,"ts":"2026-07-16T11:23:22.655Z"}
+{"type":"job-end","outcome":"provider-red","seq":8,"ts":"2026-07-16T11:23:22.655Z"}

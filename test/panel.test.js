@@ -1435,7 +1435,7 @@ describe('getRunJob', () => {
   // per-piece layout (prose / asks / model / cap / sources / sends /
   // guardrails / success / signature), replacing the old split
   // asks/sends/sources/signed-lines blocks.
-  test('review #5: prose (no guardrail mixed in), cap/redo cap, sources (basename only), sends, and signature come from readFlow', () => {
+  test('review #5: prose (no guardrail mixed in), cap/redo cap, sources (full signed path), sends, and signature come from readFlow', () => {
     const job = getRunJob({
       root: ROOT, flow: FLOW, runId: 'run-done', catalogue: CATALOGUE,
     });
@@ -1446,10 +1446,10 @@ describe('getRunJob', () => {
     assert.equal(typeof job.redoCap, 'number'); // this fixture names no explicit "redo cap" line — the signed default applies
     assert.equal(job.sources.length, 2);
     // job2-with-sources.signed.txt signs `source resume = file:/.../Amr
-    // Hassan - Resume.docx` — basename only, never the full signed path.
+    // Hassan - Resume.docx` — the payload carries the full signed path (hamr 2026-10-24), no basename.
     const resumeSource = job.sources.find((s) => s.role === 'resume');
-    assert.equal(resumeSource.basename, 'Amr Hassan - Resume.docx');
-    assert.notEqual(resumeSource.basename, resumeSource.path);
+    assert.ok(resumeSource.path.endsWith('Amr Hassan - Resume.docx') && resumeSource.path.length > 'Amr Hassan - Resume.docx'.length);
+    assert.equal('basename' in resumeSource, false);
     assert.equal(job.sends.length, 1);
     assert.equal(job.sends[0].line, 5);
     assert.equal(job.sends[0].kind, 'file');

@@ -69,7 +69,7 @@ test('the drafter is told every rule the validator will apply, and the checked w
     /close\.cited = \{source, facts, count\}/, /"List 3" is \{min: 3, max: 3\}/, /PICKED from the kept labels/, /EVERY one of its phrases as its own phrase fact/,
     /only use a number that is in the person's own words/, /at least as many times as close\.cited\.count\.min/, /letters and spaces only/,
     /place phrases \(every one must be its own phrase fact\) "Leaves Amsterdam Airport Schiphol"/, /"arrives at Heathrow Airport"/,
-    /price.*labels "From", unit "US dollars", limit read from your words: under 150/s, /labels "Departure time:"/,
+    /price.*labels "From", unit "US dollars", limit read from your words: under 150/s, /labels "Departure time:"/, /MUST carry that rule/,
   ]) assert.match(sys, need);
   const schema = p.calls[1].tools.includes('emit_declaration');
   assert.equal(schema, true);
@@ -82,9 +82,22 @@ test('a number the person never wrote is refused with the line named, the drafte
   const r = await run(p);
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.equal(r.revisions, 1);
-  assert.equal(r.log.find((e) => e.outcome?.startsWith('validator')).reds.length, 1);
+  // the made-up 450 replaced the limit the look read (150), so the missing 150 is a second red
+  assert.equal(r.log.find((e) => e.outcome?.startsWith('validator')).reds.length, 2);
   assert.match(r.log.find((e) => e.outcome?.startsWith('validator')).reds[0], /line 1: fact "price" has the number 450 in its rule/);
   assert.match(p.calls[2].messages.at(-1).content, /line 1: fact "price" has the number 450/);
+});
+
+test('a plan that leaves out the limit the look read from the guardrail is refused at $0 with the bound named, the drafter is told, and the redraft passes', async () => {
+  const bad = facts().map((f) => (f.name === 'price' ? { name: 'price', shape: 'money', anchor: 'From', unit: ['US dollars'] } : f));
+  const p = fakeProvider([mapReply(raw(3)), toolReply(declaration(bad)), toolReply(declaration())]);
+  const r = await run(p);
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.equal(r.revisions, 1);
+  const red = r.log.find((e) => e.outcome?.startsWith('validator')).reds;
+  assert.equal(red.length, 1, red.join('\n'));
+  assert.match(red[0], /line 1: your words on line 1 set a limit, price under 150 US dollars, but no money fact of this check carries it/);
+  assert.match(p.calls[2].messages.at(-1).content, /price under 150 US dollars/);
 });
 
 test('a drafter that never fixes it is stopped at the validator with the red kept; nothing is signed', async () => {

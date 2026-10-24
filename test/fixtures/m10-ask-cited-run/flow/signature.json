@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "algorithm": "sha256",
+  "files": {
+    "prose.txt": "720e89d72157c02ec7f8898f77f26c509f09bb8b047b60e7589e4072118815dd",
+    "declaration.json": "19710ccd60aad75a30fddc64c99aa556ada1121913a804976c9d03656d0bfbd0"
+  },
+  "flow": "81580dc8f30eb3259160cf031a20bedd204e8ec9da665978cb4da2380fdc71ae",
+  "signedBy": "tester",
+  "signedAt": "2026-10-24T12:17:08.392Z"
+}

@@ -1006,6 +1006,24 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Not in scope:** renaming `rerun` or `accept`; renaming `redo cap`; rewriting old files.
 - **Kill check:** the arbiter is unchanged. The books keep their shape; one recorded value changes its spelling for new rows, and the old spelling is still read.
 
+#### M4b amendment 4 — the launcher: a bare `fwdloop` shows a menu to start, stop, check and install the panel — SIGNED by hamr 2026-10-24 ("sign m4b am4"), the text exactly as shown
+
+Copied from bareloop's launcher (PANEL-BUILD.md "Addendum 2026-10-24 — L") from its released tag, by copy with headers, never import; fwdloop's name, ports and paths in place of bareloop's. Built on branch `learnings`, after M8.
+
+1. **Menu.** A bare `fwdloop` prints two header lines, a blank line, `1 start   2 stop   3 status   4 install   q quit` and a `>` prompt. It runs one choice, then quits. `fwdloop panel [--port N]` stays as it is (foreground, fixed port). The other verbs (draft, sign, run, inbox, show, answer, resume, continue) are unchanged.
+2. **Header, on every call** (the menu and each sub-command), from one function:
+   `fwdloop <version> · installed ✓ · panel running at <url>`
+   `runs: N running · N need you · N in all`
+   installed ✓ means: `~/.config/fwdloop` exists, config.json reads clean, `.env` exists with mode 600, and node is 22 or newer. Otherwise: `not installed — <the first missing thing, in plain words>, pick 4 install`. The panel part reads `panel running at <url>` or `panel not running`. The runs line is counted by the same code the panel's runs list uses (M11's Needs you decider included), costs $0, works with the panel stopped, and shows zeros.
+3. **start.** Already running: `Panel already running at <url> — opening the page.` Otherwise the panel is started detached, its output appended to `~/.config/fwdloop/panel.log`. Ports 4800 to 4809 are tried in turn; a port answered by something that is not fwdloop is skipped (`4800 is taken, using 4801.`); all taken is a plain-words stop. It waits up to 10 seconds for the panel to answer, else points to panel.log. The page opens with the shared opener (no shell); with no opener the address is printed. `Panel started at <url> — opening the page.`
+4. **stop.** Stops the panel the probe found and waits up to 10 seconds until its port stops answering: `Panel stopped.` Not running: `Panel not running.` With drafts open it first warns `N draft(s) open in the panel and will be lost.`, `Runs keep going. Scheduled runs wait until the panel is started again.`, then `Stop the panel? [y/N]`; `--yes` skips the question; declining prints `Not stopped.` `--port N` picks one of several panels.
+5. **status.** The header plus `pid N · N drafts open · N schedules on`; none running: `Panel not running.` Exit code 0 when running; 3 when not running as a sub-command, 0 from the menu.
+6. **install.** Creates only what is missing: the folder (mode 700), `.env` (mode 600, with the standard comment lines), config.json in Settings' shape. It never reads or overwrites a key value; it sets a loose `.env` to mode 600. It checks node is 22 or newer. It lists what it created, or `Already installed, nothing to do.` No autostart.
+7. **Probe, no pid file.** `GET /api/whoami` answers `{app, version, pid, port, drafts, schedules}` behind the panel's usual Host check. Ports 4800 to 4809 are asked at once, 300 ms each. Several panels: status lists them all, stop asks which.
+8. **Colours** only on a terminal (not when NO_COLOR is set or TERM is dumb), copied from bareloop; the words never change, and plain output is byte-identical.
+- **Done when:** on hamr's machine, `fwdloop` → 4 install on a fresh HOME creates the folder, `.env` and config.json and a second install says `Already installed, nothing to do.`; → 1 start opens the panel at 4800 (4801 when 4800 is taken by something else); → 3 status shows the header with the same running and need-you counts as the panel's runs list; → 2 stop with a draft open warns, and `--yes` stops it.
+- **Negative:** install never changes a key value already in `.env`; start never takes a port answered by another app; stop never stops a panel without the question when drafts are open (unless `--yes`); the runs line never disagrees with the panel's Needs you; no address is written anywhere but the one function that makes it.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
@@ -1526,6 +1544,16 @@ When the Cap is at or below what the earlier draft already spent, Draft is refus
 **M4d amendment 33 — SIGNED by hamr 2026-10-22 ("sign m4d am33").** A signed job can run on any model ticked in Settings. The run picks the model, and the run records which one it used. A job's recorded model is only the default pick. The signed files, the plan and the cap don't change.
 
 - *Built after signing — not signed text:* `fwdloop run --model <id>` (with `--provider` only when two keys tick the same id) picks any model ticked in Settings with both prices for that new run; the job's recorded `model.json` is only the default and is never rewritten. The run records its pick once in its own folder (`run-model.json`, written once by `writeRunModel`), and `resume` / `continue` keep it: naming another model on a resume is refused by name, at $0. A rerun made by a resume records the model the resumed run keeps. A run with no `run-model.json` (made before this) falls back to the model signed with it, else today's pick.
+
+SIGNED by hamr 2026-10-24 ("sign m4d am34"), the text exactly as shown:
+
+**M4d amendment 34 — a rerun thinks on, every step.**
+1. A rerun is a retry of the whole job. Every try of every step in a rerun run thinks **on**, its first try included.
+2. Learnings follow the same rule (M8 am7): every try of every step in a rerun is handed the block.
+3. A plain run is unchanged: a first try thinks off and gets no learnings unless your Chat-box switch is ticked (thinking only); a retry or a redo thinks on and gets learnings.
+4. One decider says which tries count, and thinking and learnings both use it. Audit shows `thinking on` on those tries.
+- **Must fail when:** any try in a rerun thinks off or gets no learnings (learningHints on); a plain run's first try thinks on (box unticked) or gets learnings; thinking and learnings disagree about which tries count.
+- *Withdrawn by hamr 2026-10-24 ("undo M4d am34"): no real run failed; its code is reverted. Thinking and learnings are as before it.*
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
@@ -2347,6 +2375,12 @@ through M5 (docs/archive/PRD.md:597-605).
   - If sign succeeds and the start is refused, the refused start reads as refused with today's Clear; nothing new was added.
 - **M6 amendment 10 — SIGNED by hamr 2026-10-15 ("sign m6 am10"): a run is its own thing.** A run is one run of a workflow, kept on its own: its own copy of the job and its plan. **Resume, an answer or Reopen always carries on that same run, from its own copy.** Editing the workflow afterwards changes only new runs. A schedule set from a run takes its own copy of that run, and each run the schedule starts is its own run (M6 am9 item 2). **Replaces** M6 F5 ("a stopped run whose job was replaced has no Resume button") and the example in M11 amendment 2 item 2 ("stopped — the job was edited; start a new run").
   - **Must fail when:** a stopped run loses Resume because its workflow was edited; a resumed run carries on with the workflow's current job instead of its own copy.
+- **M6 amendment 11 — SIGNED by hamr 2026-10-24 ("sign m6 am11"): Reuse fills in the signed cap.**
+  1. Reuse workflow fills the Cap $ box with the job's signed cap (e.g. $0.50), never with what an earlier run was capped at after drafting (e.g. $0.47).
+  2. A Reuse that does not draft gets that whole cap (M4d am16 item 4). A Reuse that drafts shares it with its drafting, as M4d am16 item 1 says.
+  3. The signed cap is what decides Run or Sign & run (amendment 6 item 2): the box left at the signed cap is not a changed cap.
+  4. **Replaces** "cap" in M4e amendment 7 items 6 and 7's "filled in" values. Inputs, destination, ask wait and model are still filled in from the run.
+  - **Must fail when:** Reuse on a first run shows less than the signed cap; or leaving the box at the signed cap turns Run into Sign & run.
 
 ## M7 — skills and persona
 
@@ -2381,6 +2415,94 @@ and every model or provider change, with the incident loop detect → diagnose �
 
 - **Exit:** a model swap that breaks a case is refused at accept, naming the case
   (docs/archive/PRD.md:621-621).
+
+*The paragraph and Exit above are superseded by the signed scope below (hamr, 2026-10-23).*
+
+SIGNED by hamr 2026-10-23 ("sign m8"), the text exactly as shown:
+
+**M8 scope — learnings: notes from earlier runs, handed to the drafter and to retries. Spend cap $0.50.**
+0. **Test first — done.** F79 ($0, 51 real runs): bareloop's shape copied as is fails to add up a mistake across runs; with B1 (a fwdloop note's text is its check's red line) it does. Nothing more is tested before the build.
+1. **Copied from bareloop's released tag**, by copy with headers, never import. The note code, the ledger, the hint text, and the Audit box are bareloop's exact shape. The one change is B1. We tune only after it is seen working live.
+2. **Notes, by code only, $0, no model call.** At run end, a step whose check went red then passed in the same run is a FIXED note; red on every try is a NEVER FIXED note, dropped as bareloop does. Refused drafts and redos make no note.
+3. **One ledger per user**, under ~/.config/fwdloop, file mode 600. It keeps every row. Age (56 days), job version and level are worked out when read. "This job" means the same workflow name: run-1, run-2, run-3 of aging-1 share notes; aging-1 and aging-2 do not, except by climbing (this place, all jobs). Secret keys are masked; nothing else is stripped.
+4. **A run's notes wait for your Accept.** All of a run's notes count only when its last signed ask is accepted. A redo or an expired ask never releases them; after 60 days they are dropped. A run with no ask counts at run end.
+5. **Who gets the hints, at most 2,000 characters.**
+   a. The drafter, at a run's draft (its revise rounds and the redraft after answers get the same block).
+   b. A step on a retry, on a redo at an ask, and on a rerun — the same places thinking switches on. This is new, not bareloop's; it is built after (a) is seen working live.
+   Setting `learningHints` in Settings, per user, OFF by default; when OFF, notes are still counted, nothing is handed.
+6. **Shown read-only in the Audit tab**: one fold at the top, bareloop's box, header `[✓] learnings  What the planner was told from earlier runs · N hints`. Hidden when a run was handed nothing. Checked at 1280, 390 and 320 wide.
+7. **Known gap, not built:** two runs ending at the same moment can lose a note (bareloop has the same); it goes in the fix ledger.
+- **Done when:** on deepseek-flash with `learningHints` ON, a real job has a step fixed on a retry in run-1; after the Accept, run-2's draft is handed that note, and the Audit box shows the exact text handed; and a step retry in run-2 is handed the hints. A separate script checks the ledger, the hint text and the Audit record agree.
+- **Negative:** with the setting OFF nothing is handed; a note older than 56 days, from another workflow, or from a run not yet accepted is never handed; no model call anywhere in the note code.
+
+SIGNED by hamr 2026-10-23 ("sign m8 am1"), the text exactly as shown:
+
+**M8 amendment 1 — the learnings setting lives in config.json, like bareloop; no control on the Settings page for now.**
+1. `learningHints` is a line in config.json, per user, OFF when absent. The Settings page shows nothing for it. Item 5's "Setting `learningHints` in Settings" means this line.
+2. Everything else in item 5 stands: when OFF, notes are still counted and nothing is handed.
+
+SIGNED by hamr 2026-10-23 ("sign m8 am2"), the text exactly as shown:
+
+**M8 amendment 2 — the shape of a note, from a review of every real note (2026-10-23).**
+1. "It said" stays exactly as bareloop's, with B1.
+2. A NEVER FIXED note is kept: bareloop's too-thin filter applies only to FIXED notes.
+3. "What changed" shows a changed line only when it fits whole in 150 characters; a longer line is left out, never cut.
+4. "Fix touched" is not printed in the hint; it stays in the ledger.
+5. These replace item 1's "The one change is B1."
+
+SIGNED by hamr 2026-10-23 ("sign m8 am3"), the text exactly as shown:
+
+**M8 amendment 3 — a NEVER FIXED note is kept.**
+1. Amendment 2's line 2 replaces item 2's "dropped as bareloop does": a step red on every try is a NEVER FIXED note, and it is kept.
+2. Everything else in item 2 stands.
+
+SIGNED by hamr 2026-10-24 ("sign m8 am4"), the text exactly as shown:
+
+**M8 amendment 4 — every walked path counts at run end, like bareloop (hamr's ruling for both repos, 2026-10-24).**
+1. A run's notes count when the run ends, FIXED and NEVER FIXED alike, whatever the ending and whether or not its asks were accepted. This replaces item 4.
+2. A stopped or cap-halted run has ended, as in bareloop. A run waiting at an ask has not ended; its notes are made when it does.
+3. Noise runs (the provider broke, the check crashed, no check ran) make no note, as bareloop does.
+
+SIGNED by hamr 2026-10-24 ("sign m8 am5"), the text exactly as shown:
+
+**M8 amendment 5 — the Audit box shows bareloop's rows.**
+1. "Done when"'s "the Audit box shows the exact text handed" means bareloop's box: each handed hint as its rows (where it came from, times seen, check, kind, fixed or not, It said). The exact text handed is kept in the run's `learnings.json`, and the separate script checks it.
+
+SIGNED by hamr 2026-10-24 ("sign m8 am6"), the text exactly as shown:
+
+**M8 amendment 6 — the ledger is seeded from every run already recorded.**
+1. One command, `fwdloop learn seed --root <flows folder>`, reads every ended run of every job under that folder, oldest first, and adds its notes to the ledger exactly as a run's end does: code only, $0, no model call, noise runs skipped.
+2. Each note keeps its run's own end time, so a run older than 56 days is in the ledger but not handed, as item 3 says.
+3. Running it again adds nothing: a run already in the ledger is skipped.
+4. It prints how many runs it read, how many notes it added, and how many runs it skipped and why.
+
+SIGNED by hamr 2026-10-24 ("sign m8 am7"), the text exactly as shown:
+
+**M8 amendment 7 — one memory, one block, handed whole at every place thinking switches on.**
+1. There is one block of learnings: the same one the drafter gets. It holds this job's learnings, then this place's, then all jobs'. It goes highest count first, covers the last 56 days, and stops at 2,000 characters. A step gets that same block, whole. There is no second filter and no pick per step.
+2. When: the drafter gets it at its draft, its revise rounds and the redraft after answers, as now. A step gets it on a retry, on a redo at an ask, and on a rerun: the places thinking switches on. A step's first try never gets it.
+3. Learnings lean the model; they never judge. The close alone judges, and whether a learning helped is not measured per run.
+4. Where you see it: on that step's try in Audit, one line `told from earlier runs · N hints`. A click opens the exact text handed. The line is hidden when nothing was handed.
+5. With `learningHints` OFF, nothing is handed anywhere.
+- **Must fail when:** a retry, redo or rerun gets a block different from the drafter's block at that moment; a step's first try gets a block; a try that got a block has no Audit line, or its text differs from what was handed; OFF hands anything.
+
+SIGNED by hamr 2026-10-24 ("sign m8 am8"), the text exactly as shown:
+
+**M8 amendment 8 — "this place" is the file the run reads.**
+1. A run's place is its first input as the run actually reads it, not the path written in the signed job. One function decides it, and the drafter, a step's retry, redo or rerun, and the run-end tally all use it.
+2. So a job run on a different file than the one it was signed with gets that file's learnings, and its own learnings are saved under that file.
+- **Must fail when:** the drafter, a step and the run end name different places for the same run; a run on a file other than the signed path gets the signed path's place learnings.
+
+SIGNED by hamr 2026-10-24 ("sign m8 exit"), the text exactly as shown:
+
+**M8 EXIT — signed by hamr 2026-10-24.**
+- Done when met on deepseek-flash, `learningHints` ON, job m7-walk-2:
+  - run-1 had `summary_resume` red on try 1 and fixed on try 2, and that FIXED learning is in the ledger
+  - run-11 (Reuse of the red run-10, real resume) drafted with it: 4 hints, 1181 characters, and the Audit box shows the same text
+  - run-11's `summary_resume` try 2 (thinking on) was handed the same block, and passed
+  - `scripts/m8-exit-check.mjs --root flows --flow m7-walk-2 --runs run-1,run-11 --negative m7-walk-2/run-6` printed all checks passed (exit 0)
+- Negative: run-6 (learnings OFF) was handed nothing. The other negatives (older than 56 days, another workflow, no model call in the learnings code) are covered by tests, not walked.
+- Known, not M8: the cap on Reuse (open question A/B); the model's place on the Reuse card (unsigned ask); m7-walk-2's trigger dead since 10-16 (M9 am20, set it again by hand).
 
 ## M9 — triggers and flow handover
 
@@ -2812,3 +2934,9 @@ same run. Scope is stated when its turn comes.
   2. The page measures ✓ and sizes ◷ to match. There is no fixed size tuned on one machine.
   3. The empty space around a mark is not judged.
   - **Must fail when:** ◷'s ink is more than 1px taller or shorter than ✓'s; the test runs with only one font. It must force at least two fonts, one of them a font where a fixed size fails.
+
+- **M11 amendment 22 — SIGNED by hamr 2026-10-24 ("sign m11 am22"): Reopen is also on the Run tab.**
+  1. A run whose ask expired and can still be reopened shows the same **Reopen for another <wait>** button on its **Run** tab, in the top action row with Run again, Stop and Resume. Next to it is the same one-line reason as on the Ask tab: "Nobody answered in time." or "Your answer came after the deadline."
+  2. It is the same button as the one on the Ask tab: the same rule decides when it shows, and one click does the same thing. The Ask tab keeps its own Reopen.
+  3. After a reopen, both buttons go away together.
+  - **Must fail when:** a reopenable expired ask has Reopen on the Ask tab but not on the Run tab, or the other way round; the Run tab offers Reopen for an ask that is answered, still open, or on a run that has ended; one click reopens twice.

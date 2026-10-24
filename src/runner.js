@@ -65,13 +65,16 @@ import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
 } from './books.js';
+import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun, placeSpecOf } from './learnstore.js';
+import { redactSecrets } from './redact.js';
+import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
-import { stepThinkingMode } from './thinking.js';
+import { stepThinkingMode, stepHintsWanted } from './thinking.js';
 import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking, writeRunModel } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel, takeLearningsRecord } from './flowmodel.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -218,9 +221,9 @@ const holdOf = (ceilingUsd) => (Number.isFinite(ceilingUsd) && /** @type {number
 // WITHOUT the cap (M2 scope item 3, the load-bearing invariant).
 // ---------------------------------------------------------------------------
 
-const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap']);
+const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap', 'hints']);
 
-/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null}} opts */
+/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null, hints?:string|null}} opts  `hints` (M8 am7): the earlier runs' block, text only, for a retry / redo / rerun try */
 export function buildExecutorContext(opts) {
   for (const key of Object.keys(opts ?? {})) {
     if (!EXECUTOR_FIELDS.includes(key)) {
@@ -228,13 +231,14 @@ export function buildExecutorContext(opts) {
     }
   }
   const {
-    goal, primitives = [], reads = {}, gap = null,
+    goal, primitives = [], reads = {}, gap = null, hints = null,
   } = opts ?? {};
   return Object.freeze({
     goal,
     primitives: Object.freeze([...primitives]),
     reads: Object.freeze({ ...reads }),
     gap: gap ?? null,
+    hints: hints ?? null,
   });
 }
 
@@ -682,6 +686,59 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 }
 
 // ---------------------------------------------------------------------------
+// M8 items 2 and 4 (item 4 replaced by am4): the run-end tally of cross-run learnings ($0, code only, no model call). ONE call per run
+// exit, from the three callers of `foldFromStep` (runFlow, resumeRun, continueRun), the expired-ask exit and the rerun exit. A record,
+// never a verdict: it can never change a run's outcome, result, spend or books. It runs whether `learningHints` is on or off.
+//   - M8 am4: every run's notes COUNT when the run ends, FIXED and NEVER FIXED alike, whatever the ending and whether or not its asks
+//     were accepted. No hold, no release (bareloop's ruling for both repos, 2026-10-24).
+//   - A run waiting at an ask has not ended ('paused', or a Stop whose set-aside failed): no note yet. A Stop or a cap-halt HAS ended
+//     the leg, as in bareloop: its notes are made then, and a later resume folds the whole run again (the ledger counts a run once per row).
+//   - Noise runs (provider red, a crashed check) make no note: buildCards reads them off the escalation events eventsOfRun builds.
+// Under a test process with no FWDLOOP_CONFIG_HOME nothing is written (`configDoorHome`), as for every config read.
+// borrowed-from: bareloop src/userrun.js@v0.46.0:2035 (the call site, in its own try/catch)
+// ---------------------------------------------------------------------------
+
+/** where a failure of learnings work that must not stop the run is recorded (one appended row, in the run's own folder): the run-end tally (`recordRunNotes`) and the take of the draft's learnings record (`takeLearningsRecord`, in runFlow). The run itself is unaffected */
+export const LEARN_ERROR_FILE = 'learn-error.jsonl';
+
+/**
+ * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, now: () => string}} o
+ */
+function recordRunNotes({
+  flowName, runId, runDir, outcome, specHash, now,
+}) {
+  if (NOT_A_RUN_END.has(outcome)) return;
+  const door = configDoorHome();
+  if (door.skip) return;
+  try {
+    const r = learnAtRunEnd({
+      home: door.home, workflow: flowName, runId, runDir, specHash, now: new Date(now()),
+    });
+    if (r.problem) throw new Error(r.problem);
+  } catch (/** @type {any} */ e) {
+    try {
+      appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(String(e?.message ?? e)).split('\n')[0] });
+    } catch { /* the record of the failure is itself best-effort */ }
+  }
+}
+
+/**
+ * M8 am7 item 1: the step's side of "one block". `hintsForRun` (src/learnstore.js) is the ONE function that makes the block the drafter is handed; a step's try
+ * calls that same function, with the run's own workflow name, first input source and clock, and a null specHash exactly as the drafter does (so no second filter by job version), and takes its answer whole (no second render, no filter).
+ * Returns null when `learningHints` is off, when there is no ledger or nothing readable, or in a test process with no config home. A ledger problem THROWS (the caller
+ * hands nothing and records why as `hintsError` on the try's audit row, never a failed step).
+ * @param {{flowName: string, source: string|null, now: () => string}} o
+ * @returns {() => {text: string, ids: string[]}|null}
+ */
+function stepHintsReader({ flowName, source, now }) {
+  return () => {
+    const door = configDoorHome();
+    if (door.skip) return null;
+    return hintsForRun({ home: door.home, spec: placeSpecOf(flowName, source), specHash: null, now: new Date(now()) });
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The ralph loop with strikes (M2 scope item 5) for ONE step.
 // ---------------------------------------------------------------------------
 
@@ -722,6 +779,10 @@ function sumKnownUsd(...values) {
 function makeAuditRow({
   step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null, tools = null, ungranted = /** @type {string[]|undefined} */ (undefined), refused = /** @type {Array<{verb:string,path:string,rule:string}>} */ ([]),
   thinking = /** @type {{asked:string, status:string|null}|undefined} */ (undefined),
+  hints = /** @type {number|undefined} */ (undefined),
+  hintsText = /** @type {string|undefined} */ (undefined),
+  hintIds = /** @type {string[]|undefined} */ (undefined),
+  hintsError = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -743,6 +804,10 @@ function makeAuditRow({
   if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
   // M4d am25 item 4: the thinking this model call asked for and what bareagent reported back; the ONE writer of the field. A row with no model call has none.
   if (thinking !== undefined) row.thinking = thinking;
+  // M8 am7 item 4: how many hints from earlier runs this try was handed, the exact text and the ids; the keys are absent when none were. The ONE place the handed text is kept
+  // (this row, written after the call from what the try held in memory); a failed ask for the block is `hintsError`, the first line, secrets redacted.
+  if (hints !== undefined) { row.hints = hints; row.hintsText = hintsText; row.hintIds = hintIds; }
+  if (hintsError !== undefined) row.hintsError = hintsError;
   return row;
 }
 
@@ -765,6 +830,7 @@ function makeAuditRow({
  * @param {(row: any, modelOutput?: any) => void} opts.recordAudit
  * @param {string|null} [opts.initialGap]
  * @param {number} [opts.attemptOffset]
+ * @param {(() => {text: string, ids: string[]}|null)|null} [opts.learnHints] - M8 am7: `stepHintsReader`'s closure (the drafter's one block function); asked only on a retry, redo or rerun try
  * @param {boolean} [opts.thinkingBox] - M4d am25: the job's "Thinking on" box as this run's copy keeps it (default off)
  * @param {() => string} [opts.now] - M4a-2: stamps each audit row's `at`;
  *   defaults to the real wall clock.
@@ -779,6 +845,7 @@ export async function runStepRalph({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
   // M4d am25: the job's "Thinking on" box as the run's own copy keeps it; read once by the caller (`readJobThinking`), decided per try below by `stepThinkingMode`.
   thinkingBox = false,
+  learnHints = null,
   // M4a-2: the run's own injected clock (never the bare wall clock) —
   // stamps every audit row's `at` with this attempt's finish time. Defaults
   // to the real wall clock so a caller that doesn't inject one (there are
@@ -835,8 +902,29 @@ export async function runStepRalph({
     }
 
     const grantedTools = Object.fromEntries((step.primitives ?? []).map((verb) => [verb, primitivesMap?.[verb]]));
+    // M8 am7: the earlier runs' block for THIS try only - a retry, a redo or a rerun (`stepHintsWanted`; the Chat box never decides it). It is the drafter's one block
+    // function asked again now. What it handed is kept in memory and rides EVERY audit row this try writes (the row is written after the call, so the record exists once the
+    // try's row does); any failure hands nothing and rides the row as `hintsError`.
+    /** @type {{text: string, ids: string[]}|null} */
+    let handed = null;
+    /** @type {string|undefined} */
+    let handedError;
+    if (learnHints !== null && stepHintsWanted({ attempt, rerunReason: n === 1 ? initialGap : null })) {
+      try {
+        handed = learnHints();
+      } catch (/** @type {any} */ e) {
+        handed = null;
+        handedError = redactSecrets(String(e?.message ?? e)).split('\n')[0];
+      }
+    }
+    // every row this try writes from here on carries how many hints it was handed, which, and what (none handed = no field)
+    const rowOf = (/** @type {any} */ a) => makeAuditRow({
+      ...a,
+      ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
+      ...(handedError !== undefined ? { hintsError: handedError } : {}),
+    });
     const executorContext = buildExecutorContext({
-      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap,
+      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text,
     });
 
     // `stepMeta` is a SEPARATE argument from `executorContext` — never a
@@ -892,7 +980,7 @@ export async function runStepRalph({
       if (typeof result.costUsd === 'number') spent.value += result.costUsd;
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       const ranCalls = (turns ?? 0) > 0 || attemptFloorUsd !== null;
-      return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), makeAuditRow({
+      return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), rowOf({
         step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }));
     }
@@ -903,7 +991,7 @@ export async function runStepRalph({
       // already added to `spent.value` above (never double-added here); a
       // null second cost never zeroes out a known first floor.
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'provider-red', gap, usd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.red ?? 'transport fault twice');
       return { ok: false, outcome: 'provider-red', red: `provider-red: step "${step.goal}" attempt ${attempt}: ${result.red ?? 'transport fault twice'}` };
@@ -923,7 +1011,7 @@ export async function runStepRalph({
       seenGaps.add(normalised);
       if (strike) strikes += 1;
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused, thinking: result?.thinking,
       }), red);
       if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
@@ -934,7 +1022,7 @@ export async function runStepRalph({
     }
 
     if (result.costUsd === null || result.costUsd === undefined) {
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'pricing-red', gap, usd: attemptFloorUsd, spendComplete: false, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'pricing-red', red: `pricing-red: step "${step.goal}" attempt ${attempt} returned no cost (never "?? 0")` };
@@ -961,7 +1049,7 @@ export async function runStepRalph({
     tryChecks.push(doneRecord(doneCheck, result.artifact));
     if (doneCheck.verdict === 'not-done') {
       saveTry();
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'not-done', gap: doneCheck.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       return { ok: false, outcome: 'not-done', red: doneCheck.red };
@@ -977,7 +1065,7 @@ export async function runStepRalph({
       // (never gated by novelty — an empty artifact is always the same
       // failure) — matches poc/m2/gapback.mjs's own rule exactly.
       strikes += 1;
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'red', gap: happened.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: true, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact ?? null);
       if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: ${happened.red}` };
@@ -1006,7 +1094,7 @@ export async function runStepRalph({
     saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
       return {
@@ -1017,7 +1105,7 @@ export async function runStepRalph({
     if (closed.verdict !== 'red') {
       // A closer that renders no judgment ('unparseable'/'crash') is a
       // CASUALTY, never a red and never a strike (bareloop F17).
-      recordAudit(makeAuditRow({
+      recordAudit(rowOf({
         step, attempt, verdict: 'close-casualty', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
       return { ok: false, outcome: 'close-casualty', red: `close-casualty: step "${step.goal}" — ${closed.red} (${closed.verdict})` };
@@ -1027,7 +1115,7 @@ export async function runStepRalph({
     const strike = seenGaps.has(normalised);
     seenGaps.add(normalised);
     if (strike) strikes += 1;
-    recordAudit(makeAuditRow({
+    recordAudit(rowOf({
       step, attempt, verdict: 'red', gap: closed.red, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
     }), result.artifact);
 
@@ -1179,6 +1267,12 @@ export async function runFlow({
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
   writeRunThinking(flowDir, runDir);
   if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
+  // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
+  if (!runOwnsPlan(runDir)) {
+    try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
+      try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(`learnings record: ${e?.message ?? e}`).split('\n')[0] }); } catch { /* best-effort */ }
+    }
+  }
 
   const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps) });
   if (!frozen.ok) {
@@ -1280,6 +1374,9 @@ export async function runFlow({
     recordAudit,
     attemptsLog,
     firstStepGap: initialGap ?? null,
+  });
+  recordRunNotes({
+    flowName: name, runId, runDir, outcome: result.outcome, specHash: signature.flow, now,
   });
 
   if (result.outcome === 'complete') return { ...result, auditRows };
@@ -1544,7 +1641,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1799,7 +1896,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
@@ -2256,6 +2353,9 @@ export async function resumeRun({
       appendHistory(flowDir, {
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
+      recordRunNotes({
+        flowName: name, runId, runDir, outcome: 'ask-expired', specHash: state.signatureHash, now,
+      });
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
 
@@ -2289,6 +2389,10 @@ export async function resumeRun({
           runId, at: now(), outcome: 'rerun', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
         });
       }
+      // M8 am4: a rerun ends THIS run, so its notes count now (the new run, started below, makes its own).
+      recordRunNotes({
+        flowName: name, runId, runDir, outcome: 'rerun', specHash: state.signatureHash, now,
+      });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
       // silently renumbered, if it already exists.
@@ -2478,6 +2582,9 @@ export async function resumeRun({
       unjudgedSinceLastAsk: [],
       recordAudit,
       attemptsLog,
+    });
+    recordRunNotes({
+      flowName: name, runId, runDir, outcome: result.outcome, specHash: state.signatureHash, now,
     });
 
     if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2680,6 +2787,9 @@ export async function continueRun({
       resumeRedone: Number.isInteger(halt.redone) && halt.redone > 0 ? halt.redone : 0,
       recordAudit,
       attemptsLog,
+    });
+    recordRunNotes({
+      flowName: name, runId, runDir, outcome: result.outcome, specHash: halt.signatureHash, now,
     });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;

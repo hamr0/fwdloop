@@ -24,7 +24,7 @@ import {
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { plainPlanCheck } from '../plain-checks.js';
-import { join, basename, sep } from 'node:path';
+import { join, sep } from 'node:path';
 
 import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
@@ -38,6 +38,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
+import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -45,9 +46,9 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
-import { isResultRun, checkTypeOf, buildResult, downloadOf } from './result.js';
+import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
-import { readRunThinking } from '../flowmodel.js';
+import { readRunThinking, readLearningsRecord } from '../flowmodel.js';
 import {
   isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
 } from '../audit-fold.js';
@@ -1286,14 +1287,27 @@ export function needsYouOf({
 }
 
 /**
+ * M11 am22: the ONE read of "does this run offer Reopen": the first of its asks `reopenOffer` (the Ask tab's own rule) says yes to, else null.
+ * The Run tab's `reopen`, Needs you's Reopen tag (`reopenableAt`) and the Ask tab's per-ask `reopen` all come from `reopenOffer`, never a second rule.
+ * @param {string} runDir @param {any} ctx `loadRunContext`'s result
+ * @returns {{askId: string, waitMs: number, late: boolean, why: string}|null}
+ */
+function runReopenOffer(runDir, ctx) {
+  if (ctx.historyRow || !ctx.askJson) return null;
+  const savedAskId = readSavedAnswer(runDir)?.askId;
+  for (const a of runAsksInOrder(runDir, false)) {
+    const offer = reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId);
+    if (offer !== null) return { askId: a.askId, ...offer };
+  }
+  return null;
+}
+
+/**
  * M11 am11 item 2: the expiry time of this run's ask when it has expired and can still be reopened (the Ask tab's own `reopenOffer` rule), else null.
  * @param {string} runDir @param {any} ctx `loadRunContext`'s result
  */
 function reopenableAt(runDir, ctx) {
-  if (ctx.historyRow || !ctx.askJson) return null;
-  const savedAskId = readSavedAnswer(runDir)?.askId;
-  const hit = runAsksInOrder(runDir, false).find((a) => reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId) !== null);
-  return hit && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
+  return runReopenOffer(runDir, ctx) !== null && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
 }
 
 /**
@@ -1768,6 +1782,8 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M11 am22: the Run tab's Reopen, the Ask tab's own `reopenOffer` answer (`{askId, waitMs, late, why}`), or null
+    reopen: runReopenOffer(run.runDir, ctx),
     // M11 am11 item 3: where this run stands in Needs you now; the page shows Remove from Needs you only when `removable`
     needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
       runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
@@ -1967,7 +1983,7 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
   root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
@@ -1995,6 +2011,9 @@ export function getRunAudit({
     // never a second, client-side re-grouping.
     groups,
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M8 item 6: what the planner was told from earlier runs, READ-ONLY (borrowed-from: bareloop src/panel/server.js@v0.46.0:1854): the exact block as the run's record kept it, `hints` = the same text split
+    // into fields by learn.js's parseHintBlock (the one reader). Empty (no box) when the run was handed nothing: no record, or a run that reused its plan.
+    learnings: (() => { const rec = readLearningsRecord(run.runDir); return rec === null ? [] : [{ phase: rec.phase, text: rec.text, chars: rec.text.length, ids: rec.ids, hints: parseHintBlock(rec.text) }]; })(),
     // M11 am11 items 3-4: the one row that says why the card left Needs you (by your Remove, or after 7 days); words: src/summary-words.js
     needsLeft: catalogue ? needsLeftWords(getRunNeeds({
       root, flow, runId, catalogue, nowMs: now(), resumeAttempt,
@@ -2135,11 +2154,10 @@ export function getRunJob({
     asks: asks.map((ak) => ({ line: ak.line, question: ak.question, waitMs: ak.ttlMs })),
     capUsd: typeof a.capUsd === 'number' ? a.capUsd : null,
     redoCap: typeof a.redoCap === 'number' ? a.redoCap : null,
-    // review #5: "Source" — role -> basename only (never the full signed
-    // path, even though sources are themselves signed input — hamr's own
-    // "to be safe" instruction).
+    // review #5: "Inputs" — role -> the full signed path (a web address
+    // shows its address), by hamr 2026-10-24.
     sources: sources.map((s) => ({
-      role: s.role, kind: s.kind, path: s.path, basename: basename(s.path),
+      role: s.role, kind: s.kind, path: s.path,
     })),
     // review #5: "Destination" — one row per send.
     sends: sends.map((s) => ({ line: s.line, kind: s.target?.kind ?? null, target: s.target?.path ?? null })),
@@ -2341,6 +2359,7 @@ function flattenEvidence(evidence) {
     unjudged: evidence.unjudged,
     why: evidence.why,
     ...(evidence.claims ? { claims: evidence.claims } : {}),
+    ...(evidence.results ? { results: evidence.results } : {}),
   };
 }
 
@@ -2638,6 +2657,28 @@ export function groupAskBlocks(asks) {
 }
 
 /**
+ * The Result tab's facts line for the results an ask carries (`{quote, values}` each). The run's cited-check record (src/panel/result.js `readCitedChecks`) is the
+ * source when one of its lines holds exactly these quotes: its facts, cells and proof are drawn. Without one (an old run, a record that does not read), the line is
+ * built from the ask's own values: one fact per value name, no proof, never a guess.
+ * @param {{quote: string, values: Record<string, unknown>}[]} results @param {ReturnType<typeof readCitedChecks>|null} record
+ * @returns {{kind: 'facts', passed: boolean, facts: any[], rows: any[]}}
+ */
+function citedLineOfResults(results, record) {
+  const quotes = results.map((r) => r.quote);
+  const line = record && record.present && record.ok
+    ? record.lines.find((l) => l.rows && l.rows.length === quotes.length && l.rows.every((w, i) => w.quote === quotes[i]))
+    : undefined;
+  if (line) return { kind: 'facts', passed: line.passed, facts: line.facts, rows: line.rows };
+  const names = [...new Set(results.flatMap((r) => Object.keys(r.values)))];
+  return {
+    kind: 'facts',
+    passed: false,
+    facts: names.map((name) => ({ name, kind: 'value', sentence: `fact · ${name}` })),
+    rows: results.map((r, i) => ({ n: i + 1, quote: r.quote, cells: names.map((k) => (r.values[k] === undefined ? '' : String(r.values[k]))) })),
+  };
+}
+
+/**
  * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
  * every ask this run's books can name, in order, each carrying full
  * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
@@ -2701,7 +2742,14 @@ export function getRunAsks({
     const { why: _gone, ...rest } = ev;
     return { ...ask, evidence: { ...rest, sheet: card } };
   };
-  const asks = ordered.map(withSheet).map((ask, i) => ({
+  // a cited step's ask: its results drawn by the Result tab's own line (the run's cited-check record, matched by the quotes; else the quotes and values alone)
+  const cited = ordered.some((a) => a.evidence?.results) ? readCitedChecks(run.runDir) : null;
+  const withCited = (/** @type {any} */ ask) => {
+    const { results, ...ev } = ask.evidence ?? {};
+    if (!results) return ask;
+    return { ...ask, evidence: { ...ev, cited: citedLineOfResults(results, cited) } };
+  };
+  const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),

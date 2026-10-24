@@ -448,8 +448,8 @@ const ALLOWLIST = {
     },
   },
   'src/flowmodel.js': {
-    reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside.',
-    names: { writeFileSync: 1 },
+    reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside. M8 item 6: also the ONE `renameSync` that moves the draft record `learnings.json` from a freshly signed flow folder into the folder of the first run (a rename, so it moves once); the copy and the write use the same exclusive writer.',
+    names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/setup.js': {
     reason: 'M4e amendment 6 item 4: the ONE writer of `<flow>/setup.jsonl` — one exclusive create (flag wx, 0600) of a file in the flow folder `signDraft` just wrote; a second one in `carrySetup`: the old bytes written back plus one `trigger-resign` row after a trigger-only re-sign (wx; the sign moved the old file away); lstatSync of a draft folder\'s own card/note file for its modified time only (a symlink is not followed, nothing is read). Every READ (the draft folder, the flow\'s setup.jsonl) goes through readFileInside/readdirInside/readSpendRows.',
@@ -496,6 +496,14 @@ const ALLOWLIST = {
   'src/runvalues.js': {
     reason: 'M4e amendment 5 item 3 / amendment 4 item 6: the run\'s signed values version files — ONE write-once writer (`writeFileSync` with flag wx, mode 0600) and ONE remover (`unlinkSync` of a lone signed-values.json in a run folder whose start was refused before the run began). Every read goes through readFileInside/readdirInside.',
     names: { unlinkSync: 1, writeFileSync: 1 },
+  },
+  'src/attemptdiff.js': {
+    reason: "M8 (copied from bareloop v0.46.0): records what a try changed in a work folder through git. fs use is a throwaway temp dir for a temporary git index (mkdtemp, removed with rm in a finally) and an existsSync on the fence folders. It reads no run/flow book.",
+    names: { existsSync: 1, mkdtemp: 1, rm: 1 },
+  },
+  'src/learnstore.js': {
+    reason: "M8 item 3 (copied from bareloop v0.46.0): the ONE reader/writer of the per-user learnings ledger `<configHome>/learn/ledger.json`, a regular file OUTSIDE any run/flow dir, not a book: one read (existsSync + readFileSync), and an atomic replace (temp file + rename, mode 0600 by writeFileSync and chmodSync after mkdirSync of its folder). No run/flow book is read here.",
+    names: { chmodSync: 1, existsSync: 1, mkdirSync: 1, readFileSync: 1, renameSync: 1, writeFileSync: 1 },
   },
 };
 

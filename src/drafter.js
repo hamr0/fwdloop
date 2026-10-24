@@ -326,7 +326,7 @@ function greenReadRule(sources) {
       '- Fact shapes: money takes unit or currency, rule, anchor; number, date and time take rule, anchor; text takes anchor and until (until needs an anchor); phrase takes only phrase (fixed words every result must say). Never put a field on a shape that does not take it.',
       '- A label (anchor, until) is PICKED from the kept labels listed under Inputs for that page, never typed. A phrase, a unit or a currency is copied from the page words listed there. A word listed as Not checked or dropped can never be used.',
       '- A place listed under Inputs as "place phrases" must have EVERY one of its phrases as its own phrase fact (one fact per phrase, the phrase word for word). A place name alone does not tell a result that leaves the other way.',
-      '- A fact\'s rule (under, over, between) may only use a number that is in the person\'s own words on that job line (the line or its guardrail). Never make a number up; leave the rule out if the person gave none.',
+      '- A fact\'s rule (under, over, between) may only use a number that is in the person\'s own words on that job line (the line or its guardrail). Never make a number up; leave the rule out if the person gave none. When the Kept list says "limit read from your words" for a fact, the fact that reads that value MUST carry that rule (same kind, op and bound), or the line is refused.',
       '- A label or a phrase that sits in each result must appear on the page at least as many times as close.cited.count.min, or the line is refused.',
       ...(docRoles.length ? ['- For a document input there is no list of kept labels: a label (anchor) or a phrase is words the document really says, copied from it, and each must be in the document at least as many times as close.cited.count.min.'] : []),
     );
@@ -421,12 +421,14 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
  *   questions?:{line:number, question:string}[], droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
  *   look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
+ * `learnHints` (M8 item 5a): the earlier runs' notes block (src/learnstore.js hintsForRun), appended to the drafter's system prompt; null = nothing.
  * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
  */
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
   draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
+  learnHints = /** @type {{text: string, ids: string[]}|null} */ (null),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -660,7 +662,9 @@ export async function draft({
   // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
   const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
-  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}`;
+  // M8 item 5a: the earlier runs' notes go on the DRAFTER's system prompt only (F81's B arm), the one `system` every round of this draft uses (revise and structure retries too).
+  // Absent or empty: the prompt is byte-identical to what it was.
+  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}${learnHints?.text ? `\n\n${learnHints.text}` : ''}`;
   let structureRetries = 0;
   let revisions = 0;
   let lastReds = [];

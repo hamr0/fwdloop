@@ -1,5 +1,5 @@
-// borrowed-from: bareloop src/pagerules.js@1a0712b
-// Copy of bareloop's file; the three number patterns (BEFORE, AFTER, AFTER_CUR) are written as literals, not built from NUM (this repo bans dynamic patterns in src/); only the import lines point at fwdloop's src/pagebits.js (the pieces of facts.js, factwords.js, labelscan.js, rubricstep.js the rules need).
+// borrowed-from: bareloop src/pagerules.js@1a0712b (numberAtEnd: @95f14b4)
+// Copy of bareloop's file; the number patterns (AFTER, AFTER_CUR; BEFORE is numberAtEnd) are written as literals, not built from NUM (this repo bans dynamic patterns in src/); only the import lines point at fwdloop's src/pagebits.js (the pieces of facts.js, factwords.js, labelscan.js, rubricstep.js the rules need).
 // IDEA A CORE (docs/product/ITEM33-BUILD.md "Addendum 2026-10-18 — Idea A core: build spec", section 4.2): the plain code rules that
 // keep or drop each page word the AI's map named. The AI never grades: it names words, code keeps only what the saved page proves.
 // Pure - no I/O, no clock, no model. The rule bodies are PORTED from the frozen POC (scratch idea-a-v2/rules.mjs and
@@ -99,7 +99,30 @@ function valueSet(lines, label, shape) {
 const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 
 /** a number as the page writes it: digits, thousands commas, optional decimals (a currency sign next to it is not part of it) */
-const BEFORE = /(\d[\d,]*(?:\.\d+)?)\s*$/;
+/**
+ * The number written at the very end of `s` (only whitespace after it): the leftmost match of NUM followed by `\s*$`. Shared with src/pagedry.js (one copy). Scans back from the end, so a
+ * long run of digits and commas costs O(n) where a backtracking regex is quadratic.
+ * @param {string} s @returns {string|undefined}
+ */
+export function numberAtEnd(s) {
+  let e = s.length;
+  while (e > 0 && /\s/.test(s[e - 1])) e--;
+  /** the first digit of the digit/comma run ending at `end`, or -1 if the run holds none; a start never follows a digit, so it is the run's first digit */
+  const firstDigit = (/** @type {number} */ end) => {
+    let l = end;
+    while (l > 0 && /[\d,]/.test(s[l - 1])) l--;
+    while (l < end && s[l] === ',') l++;
+    return l < end ? l : -1;
+  };
+  let d = e;
+  while (d > 0 && /\d/.test(s[d - 1])) d--;
+  if (d < e && s[d - 1] === '.') {
+    const p = firstDigit(d - 1);
+    if (p !== -1) return s.slice(p, e);
+  }
+  const p = firstDigit(e);
+  return p === -1 ? undefined : s.slice(p, e);
+}
 const AFTER = /^\s*(?:[$€£]\s*)?(\d[\d,]*(?:\.\d+)?)/;
 const AFTER_CUR = /^\s*(\d[\d,]*(?:\.\d+)?)/;
 const stripCommas = (/** @type {string} */ s) => s.replace(/,/g, '');
@@ -121,13 +144,13 @@ function beforeAfter(lines, label) {
   let B = 0;
   let A = 0;
   for (const [l, i] of occs(lines, label)) {
-    if (BEFORE.test(l.slice(0, i))) B += 1;
+    if (numberAtEnd(l.slice(0, i)) !== undefined) B += 1;
     if (AFTER.test(l.slice(i + label.length))) A += 1;
   }
   return { B, A };
 }
 /** R1L: the numbers a UNIT form reads - the one right before each occurrence @param {string[]} lines @param {string} u @returns {Set<string>} */
-const unitSet = (lines, u) => new Set(occs(lines, u).map(([l, i]) => BEFORE.exec(l.slice(0, i))?.[1]).filter((v) => typeof v === 'string').map((v) => stripCommas(/** @type {string} */ (v))));
+const unitSet = (lines, u) => new Set(occs(lines, u).map(([l, i]) => numberAtEnd(l.slice(0, i))).filter((v) => typeof v === 'string').map((v) => stripCommas(/** @type {string} */ (v))));
 /** R1L: the numbers a CURRENCY form reads - the one right after each occurrence @param {string[]} lines @param {string} c @returns {Set<string>} */
 const curSet = (lines, c) => new Set(occs(lines, c).map(([l, i]) => AFTER_CUR.exec(l.slice(i + c.length))?.[1]).filter((v) => typeof v === 'string').map((v) => stripCommas(/** @type {string} */ (v))));
 

@@ -5,7 +5,8 @@
 //   { "monthlyLimitUsd": <number > 0>,            // absent = no limit (piece 3 reads it)
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
 //     "providers": { "<KEY_NAME>": { "shape": "<shape id>", "baseUrl": "http(s)://…", "legacyMaxTokens": true|false } },   // each optional; a row is a key name from the keys file (M4d amendment 6). An older file's "model" is tolerated and read by nothing.
-//     "models": { "<KEY_NAME>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] } }          // M4d amendment 3 C: a price per model
+//     "models": { "<KEY_NAME>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] },         // M4d amendment 3 C: a price per model
+//     "learningHints": true|false }                  // M8 am1: absent = false; the drafter is handed earlier runs' notes only when true (src/learnstore.js learningHintsOn). No control on the Settings page.
 // A models line's price is a PAIR or nothing (`modelsProblem` is the one rule): 0 / 0 typed is a chosen price, a
 // ticked line needs both, a half pair is refused. A slot with no list is migrated on READ (`effectiveModels` in
 // src/provider.js); the file is only rewritten when the person saves.
@@ -172,6 +173,9 @@ function validateProviders(providers) {
 function validateDoc(doc) {
   if (doc.monthlyLimitUsd !== undefined && !isPrice(doc.monthlyLimitUsd)) {
     throw new ConfigError('monthlyLimitUsd must be a number above 0 (remove the limit to have none)');
+  }
+  if (doc.learningHints !== undefined && typeof doc.learningHints !== 'boolean') {
+    throw new ConfigError('learningHints must be true or false');
   }
   validateProviders(doc.providers);
   validateModels(doc.models);

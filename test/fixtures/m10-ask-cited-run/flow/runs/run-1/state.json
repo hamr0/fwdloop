@@ -1,0 +1,36 @@
+{
+  "runId": "run-1",
+  "flow": {
+    "root": "/tmp/fixture/flows",
+    "name": "flights-learn-1"
+  },
+  "signatureHash": "81580dc8f30eb3259160cf031a20bedd204e8ec9da665978cb4da2380fdc71ae",
+  "inputsManifest": [
+    {
+      "id": "flights",
+      "source": "https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD",
+      "frozen": "/tmp/fixture/flows/flow/runs/run-1/inputs/flights.txt",
+      "sha256": "c726f1307653962235111426d62b599df6e349161552eafe1fe3eca421be496a",
+      "bytes": 32635
+    }
+  ],
+  "stepIndex": 2,
+  "askId": "460a7389-22ee-4199-b19e-c76c63ccfd4d",
+  "expiresAt": "2026-10-24T12:47:28.367Z",
+  "spent": 0.028251599999999998,
+  "spendComplete": true,
+  "redone": 0,
+  "evidenceUnjudged": [
+    {
+      "step": "Read the flights page,",
+      "emits": "page_read",
+      "artifact": {
+        "cells": {
+          "summary": "Google Flights page read successfully: MAD → FCO, one way, Wed Nov 25 2026, 1 passenger, Economy, USD. 18 results returned. Tab 'Cheapest' advertises from $36 (Ryanair, not shown in the extracted lists). 'Best' tab shows three top flights: $39 Ryanair 9:35 AM→12:00 PM (2h 25m, nonstop, no overhead bin access, 120 kg CO2, -7%), $48 Iberia 9:50 PM→12:15 AM+1 (2h 25m, 137 kg, +6%), $63 Air Europa 12:40 PM→3:05 PM (2h 25m, 113 kg, -12%). 'Other flights' lists 14 more nonstops priced $45–$93 (Ryanair $45 14:15, Wizz Air $45 20:40 and $57 09:25, Air Europa $63 x3, Iberia $63 x3 and $84 x4 and $93, ITA $69 x3), plus a 'View more flights' button. Price insight: 'Prices are currently typical'. Optional charges/bag fees may apply; several Ryanair/Wizz fares exclude overhead bin access."
+        }
+      }
+    }
+  ],
+  "unjudgedCount": 1,
+  "startedAt": 1792844229908
+}
