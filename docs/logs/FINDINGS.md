@@ -3615,3 +3615,18 @@ Caveats, plain:
 - (d) Every run stops at its first ask, so steps after the ask are not measured (the gap already stated in the pre-registration).
 
 **Outcome.** Per the pre-registered rule, step-failure notes are **NOT dropped**. Building them stays under M8's signed scope and waits for its own order.
+
+## F82 — a guardrail's number bound dropped from a cited close; the ask could not show the cited results (2026-10-24, deepseek-flash; fixed on branch learnings)
+
+**Status.** Finding plus fix. Tags: **[MEASURED]** from the declaration and run files named below (read only); **[CODE]** read from the source.
+
+**Bug 1, the bound was dropped and nothing refused the plan.**
+- [MEASURED] `flows/flights-learn-1` (job line 2 "list 3 flights from Madrid to Rome," with the guardrail "under $40; nonstop"): the drafter's close has the `price` fact as `{shape: money, anchor: From, unit: US dollars, currency: $}` with no `rule`. Run-1's `cited-checks.json` has `passed: true` with prices 39, 48 and 63 US dollars; 48 and 63 are over the $40 the job said.
+- [MEASURED] `flows/m10-walk-flights-5` ("under $150; nonstop"): the same drop, `price` with no `rule`. Its run-1 was reported clean and `cited-checks.json` says `passed: true`; the prices were 39, 48 and 63, all under 150, so no value was wrong, but nothing checked the bound.
+- [MEASURED] `flows/m10-walk-flights-4` ("under $150; nonstop") kept it: `"rule":{"op":"lt","value":150}`; run-1 prices 34, 63, 63.
+- [CODE] The bound reaches a fact's `rule` only through the drafter: the page look (src/pagelook.js, src/pagerules.js) reads a limit from a `~` rule as `reading` and the drafter is told "limit read from your words" (`pageInfoLines`), but the validator checked only that a rule written was the person's own number (`numberRuleReds`, src/citedwords.js). A rule left out was never refused.
+- Fix: `boundReds` (src/citedwords.js) refuses, at $0, a cited part that carries no fact of the same kind with the same op and bound as a look `reading` whose bound is in the person's words on the line (red code `bound-missing`, naming the line and the bound). The drafter's cited-close rules say the fact must carry it.
+
+**Bug 2, the ask could not show its evidence.**
+- [MEASURED] `flows/flights-learn-1/runs/run-1/ask.json` `evidence` is `{artifact: {results: [{quote, values}]}, unjudged: [{step, emits, artifact: {cells}}]}`. `readAskEvidence` (src/ask.js) knew `.artifact.text`, `.text` and the sheet's claim boxes only, so the Ask tab said `unrecognised shape: keys ["artifact","unjudged"]`.
+- Fix: `readAskEvidence` hands on `results` and an unjudged entry's `cells`; the panel draws the results with the Result tab's own facts line (`resultFactsLine`), matched to the run's `cited-checks.json` by the quotes, and the unjudged cells below as `name: value` lines.
