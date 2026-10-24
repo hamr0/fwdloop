@@ -1006,6 +1006,24 @@ change; then the fix is upstream of the panel, and M4b waits.
 - **Not in scope:** renaming `rerun` or `accept`; renaming `redo cap`; rewriting old files.
 - **Kill check:** the arbiter is unchanged. The books keep their shape; one recorded value changes its spelling for new rows, and the old spelling is still read.
 
+#### M4b amendment 4 — the launcher: a bare `fwdloop` shows a menu to start, stop, check and install the panel — SIGNED by hamr 2026-10-24 ("sign m4b am4"), the text exactly as shown
+
+Copied from bareloop's launcher (PANEL-BUILD.md "Addendum 2026-10-24 — L") from its released tag, by copy with headers, never import; fwdloop's name, ports and paths in place of bareloop's. Built on branch `learnings`, after M8.
+
+1. **Menu.** A bare `fwdloop` prints two header lines, a blank line, `1 start   2 stop   3 status   4 install   q quit` and a `>` prompt. It runs one choice, then quits. `fwdloop panel [--port N]` stays as it is (foreground, fixed port). The other verbs (draft, sign, run, inbox, show, answer, resume, continue) are unchanged.
+2. **Header, on every call** (the menu and each sub-command), from one function:
+   `fwdloop <version> · installed ✓ · panel running at <url>`
+   `runs: N running · N need you · N in all`
+   installed ✓ means: `~/.config/fwdloop` exists, config.json reads clean, `.env` exists with mode 600, and node is 22 or newer. Otherwise: `not installed — <the first missing thing, in plain words>, pick 4 install`. The panel part reads `panel running at <url>` or `panel not running`. The runs line is counted by the same code the panel's runs list uses (M11's Needs you decider included), costs $0, works with the panel stopped, and shows zeros.
+3. **start.** Already running: `Panel already running at <url> — opening the page.` Otherwise the panel is started detached, its output appended to `~/.config/fwdloop/panel.log`. Ports 4800 to 4809 are tried in turn; a port answered by something that is not fwdloop is skipped (`4800 is taken, using 4801.`); all taken is a plain-words stop. It waits up to 10 seconds for the panel to answer, else points to panel.log. The page opens with the shared opener (no shell); with no opener the address is printed. `Panel started at <url> — opening the page.`
+4. **stop.** Stops the panel the probe found and waits up to 10 seconds until its port stops answering: `Panel stopped.` Not running: `Panel not running.` With drafts open it first warns `N draft(s) open in the panel and will be lost.`, `Runs keep going. Scheduled runs wait until the panel is started again.`, then `Stop the panel? [y/N]`; `--yes` skips the question; declining prints `Not stopped.` `--port N` picks one of several panels.
+5. **status.** The header plus `pid N · N drafts open · N schedules on`; none running: `Panel not running.` Exit code 0 when running; 3 when not running as a sub-command, 0 from the menu.
+6. **install.** Creates only what is missing: the folder (mode 700), `.env` (mode 600, with the standard comment lines), config.json in Settings' shape. It never reads or overwrites a key value; it sets a loose `.env` to mode 600. It checks node is 22 or newer. It lists what it created, or `Already installed, nothing to do.` No autostart.
+7. **Probe, no pid file.** `GET /api/whoami` answers `{app, version, pid, port, drafts, schedules}` behind the panel's usual Host check. Ports 4800 to 4809 are asked at once, 300 ms each. Several panels: status lists them all, stop asks which.
+8. **Colours** only on a terminal (not when NO_COLOR is set or TERM is dumb), copied from bareloop; the words never change, and plain output is byte-identical.
+- **Done when:** on hamr's machine, `fwdloop` → 4 install on a fresh HOME creates the folder, `.env` and config.json and a second install says `Already installed, nothing to do.`; → 1 start opens the panel at 4800 (4801 when 4800 is taken by something else); → 3 status shows the header with the same running and need-you counts as the panel's runs list; → 2 stop with a draft open warns, and `--yes` stops it.
+- **Negative:** install never changes a key value already in `.env`; start never takes a port answered by another app; stop never stops a panel without the question when drafts are open (unless `--yes`); the runs line never disagrees with the panel's Needs you; no address is written anywhere but the one function that makes it.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
