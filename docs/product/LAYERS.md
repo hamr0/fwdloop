@@ -41,7 +41,7 @@ YOU SIGN  (one hash covers the job, the cap, the asks, the allow-list; any edit 
 THE RUN, one step at a time, fresh context each:
   step → "did it happen?" check → red? gap goes back, try again (2 strikes = stop)
   The run uses the model you ticked for it (`fwdloop run --model`); resume keeps it.
-  Thinking is set by code, per try: try 1 off; a retry, and a redo or rerun at an ask, on.
+  Thinking is set by code, per try: try 1 off (a rerun's first try too); a retry, and a redo at an ask, on.
   The ticked Chat-box "Thinking on" forces it on every try. The audit row says what was asked.
   │
   ▼
@@ -64,7 +64,7 @@ ENDED:  passed · failed · stopped · expired
 NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. A schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20, released in 0.20.0).]
   │  Learnings from ended runs lean the next draft, and a step's retry, redo or rerun
   │  (one block, at most 2,000 characters). They lean, never judge: the close alone judges.
-  They are handed where thinking switches on, never on a first try, even with the Chat-box hatch.  [M8, on branch `learnings`]
+  They are handed on a retry, a redo at an ask and a rerun's first try, never on any other first try, even with the Chat-box hatch.  [M8, on branch `learnings`]
 ```
 
 ---
@@ -137,7 +137,7 @@ So in fwdloop terms:
 
 - **Built on:** a fold over the steps, each with fresh context, joined only by what the last one made.
 - **Does:** try, check, gap, retry. Two strikes stop the run. At most four tries per step. It spends only under the cap.
-- **Thinking:** code decides it per step, never the model. Try 1 off; a retry (and a redo or rerun) on; the ticked Chat-box hatch forces on everywhere. bare-agent says what a model supports; on DeepSeek, thinking cannot go with a forced tool call, so that is the drafter only. The audit row records what was asked and the status, and Audit shows it on each try.
+- **Thinking:** code decides it per step, never the model. Try 1 off (a rerun's first try too); a retry (and a redo) on; the ticked Chat-box hatch forces on everywhere. bare-agent says what a model supports; on DeepSeek, thinking cannot go with a forced tool call, so that is the drafter only. The audit row records what was asked and the status, and Audit shows it on each try.
 - **Model:** the run records the model it started on once. Resume keeps it.
 - **Survives:** books on disk: every try, its cost, its check. A red run keeps its log too.
 - **Status:** built.
@@ -292,7 +292,7 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M5 | dry-run, accept, versions | closed, signed 2026-10-10 (Accept is sign; dry run waits for a real outside send) |
 | M6 | edit a flow, add turns | released (0.15.0); amendments 5-10 (a changed job is a new workflow, Run again is the one door, a red run always drafts, each run keeps its own plan) released (0.20.0) |
 | M7 | in-run tools (one run's memory) | released (0.17.0) |
-| M8 | learnings (notes from earlier runs, handed to the drafter and to retries) | signed 2026-10-23, amendments 1-7 signed to 2026-10-24; built on branch `learnings` (the hints for a step's retry, redo or rerun, item 5b, are being built), not yet released |
+| M8 | learnings (notes from earlier runs, handed to the drafter and to retries) | signed 2026-10-23, amendments 1-8 signed to 2026-10-24, exit signed 2026-10-24; built on branch `learnings`, not yet released |
 | M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) released (0.20.0); amendments 21-23 (run time in the Run tab summary, the schedule header) released (0.21.0); inbox-poll and flow handover not built |
 | M10 | real IO: read a web page, a sheet or a document, cited checks, code-forced asks (mail, chat, page actions not in this scope) | released (0.22.0), exit signed 2026-10-22; M10b (a sheet's checks are bareguard's cells checks) released (0.23.0), its aging-job exit walk still open |
 | M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-21 (Scheduled has its own search, the scheduled chip, Scheduled below the search box, the chip's size measured to match ✓ by ink height) released (0.21.0); amendment 22 (Reopen is also on the Run tab) signed 2026-10-24, built on branch `learnings`, not yet released |
