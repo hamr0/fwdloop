@@ -180,11 +180,16 @@ export function makeFileAskStep({
 // unparseable shape is a named `why`, never a crash, never silently empty.
 // ---------------------------------------------------------------------------
 
+/** @param {unknown} c @returns {c is Record<string, unknown>} a non-empty plain object of cells */
+const isPlainCells = (c) => !!c && typeof c === 'object' && !Array.isArray(c) && Object.keys(c).length > 0;
+/** @param {unknown} r @returns {boolean} a non-empty list of `{quote: string, values: object}` */
+const isResults = (r) => Array.isArray(r) && r.length > 0 && r.every((x) => x && typeof x.quote === 'string' && x.values && typeof x.values === 'object' && !Array.isArray(x.values));
+
 /**
  * @param {any} ask the parsed ask.json object (or its `evidence` field's
  *   container — pass the whole ask so a missing `evidence` key is itself a
  *   handled case, not the caller's problem).
- * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text: string}>, why?: string, claims?: Record<string, any> }}
+ * @returns {{ draft: {step?: string, text: string} | null, unjudged: Array<{step: string, emits?: string, text?: string, cells?: Record<string, unknown>}>, why?: string, claims?: Record<string, any>, results?: Array<{quote: string, values: Record<string, unknown>}> }}
  */
 export function readAskEvidence(ask) {
   const evidence = ask && typeof ask === 'object' ? ask.evidence : undefined;
@@ -223,8 +228,12 @@ export function readAskEvidence(ask) {
       const step = item && (item.step ?? item.emits);
       const emits = item && typeof item.emits === 'string' ? item.emits : undefined;
       const text = item && item.artifact && typeof item.artifact.text === 'string' ? item.artifact.text : undefined;
+      // a step that cites quotes or reads a sheet leaves `cells` (name -> value), no text: kept as `cells`, drawn value by value
+      const cells = item && item.artifact && isPlainCells(item.artifact.cells) ? item.artifact.cells : undefined;
       if (typeof step === 'string' && typeof text === 'string') {
         unjudged.push(emits ? { step, emits, text } : { step, text });
+      } else if (typeof step === 'string' && cells !== undefined) {
+        unjudged.push(emits ? { step, emits, cells } : { step, cells });
       }
       // An unjudged entry with neither a nameable step nor readable text is
       // dropped rather than shown as a blank row — the draft itself is
@@ -241,6 +250,11 @@ export function readAskEvidence(ask) {
   // M2 shape: evidence.text (+ evidence.lines) — no unjudged concept.
   if (typeof evidence.text === 'string') {
     return { draft: { text: evidence.text }, unjudged: [] };
+  }
+
+  // A cited step's artifact is `{results: [{quote, values}]}`: handed on as `results` (the panel matches them to the run's cited-check record). Not the sheet's claim boxes.
+  if (evidence.artifact && typeof evidence.artifact === 'object' && isResults(evidence.artifact.results)) {
+    return { draft: null, unjudged: readUnjudged(), results: evidence.artifact.results };
   }
 
   // M10b am4: a step with sheet checks answers in claim boxes, an object with no text. They are handed on as `claims` (the panel matches them to the step's checks);

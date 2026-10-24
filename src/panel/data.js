@@ -46,7 +46,7 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
-import { isResultRun, checkTypeOf, buildResult, downloadOf } from './result.js';
+import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readRunThinking, readLearningsRecord } from '../flowmodel.js';
 import {
@@ -2344,6 +2344,7 @@ function flattenEvidence(evidence) {
     unjudged: evidence.unjudged,
     why: evidence.why,
     ...(evidence.claims ? { claims: evidence.claims } : {}),
+    ...(evidence.results ? { results: evidence.results } : {}),
   };
 }
 
@@ -2641,6 +2642,28 @@ export function groupAskBlocks(asks) {
 }
 
 /**
+ * The Result tab's facts line for the results an ask carries (`{quote, values}` each). The run's cited-check record (src/panel/result.js `readCitedChecks`) is the
+ * source when one of its lines holds exactly these quotes: its facts, cells and proof are drawn. Without one (an old run, a record that does not read), the line is
+ * built from the ask's own values: one fact per value name, no proof, never a guess.
+ * @param {{quote: string, values: Record<string, unknown>}[]} results @param {ReturnType<typeof readCitedChecks>|null} record
+ * @returns {{kind: 'facts', passed: boolean, facts: any[], rows: any[]}}
+ */
+function citedLineOfResults(results, record) {
+  const quotes = results.map((r) => r.quote);
+  const line = record && record.present && record.ok
+    ? record.lines.find((l) => l.rows && l.rows.length === quotes.length && l.rows.every((w, i) => w.quote === quotes[i]))
+    : undefined;
+  if (line) return { kind: 'facts', passed: line.passed, facts: line.facts, rows: line.rows };
+  const names = [...new Set(results.flatMap((r) => Object.keys(r.values)))];
+  return {
+    kind: 'facts',
+    passed: false,
+    facts: names.map((name) => ({ name, kind: 'value', sentence: `fact · ${name}` })),
+    rows: results.map((r, i) => ({ n: i + 1, quote: r.quote, cells: names.map((k) => (r.values[k] === undefined ? '' : String(r.values[k]))) })),
+  };
+}
+
+/**
  * `GET /api/runs/:flow/:runId/asks` — the Ask tab (M4a-1 scope item 1):
  * every ask this run's books can name, in order, each carrying full
  * evidence (`readAskEvidence`'s draft + unjudged, or the pre-M4a-1 `why`).
@@ -2704,7 +2727,14 @@ export function getRunAsks({
     const { why: _gone, ...rest } = ev;
     return { ...ask, evidence: { ...rest, sheet: card } };
   };
-  const asks = ordered.map(withSheet).map((ask, i) => ({
+  // a cited step's ask: its results drawn by the Result tab's own line (the run's cited-check record, matched by the quotes; else the quotes and values alone)
+  const cited = ordered.some((a) => a.evidence?.results) ? readCitedChecks(run.runDir) : null;
+  const withCited = (/** @type {any} */ ask) => {
+    const { results, ...ev } = ask.evidence ?? {};
+    if (!results) return ask;
+    return { ...ask, evidence: { ...ev, cited: citedLineOfResults(results, cited) } };
+  };
+  const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
     reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),

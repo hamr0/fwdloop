@@ -1,0 +1,10 @@
+1. Read the flights page,
+2. list 3 flights from Madrid to Rome,
+   guardrail: under $40; nonstop
+3. ask 30m: check it with me,
+4. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 4 to file:/tmp/fixture/out
+guardrail: source flights = page:https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD

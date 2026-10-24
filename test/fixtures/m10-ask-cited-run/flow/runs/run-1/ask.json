@@ -1,0 +1,41 @@
+{
+  "askId": "460a7389-22ee-4199-b19e-c76c63ccfd4d",
+  "question": "check it with me,",
+  "askedAt": "2026-10-24T12:17:28.367Z",
+  "expiresAt": "2026-10-24T12:47:28.367Z",
+  "evidence": {
+    "artifact": {
+      "results": [
+        {
+          "quote": "From 39 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. Operated by Malta Air. Leaves Adolfo Suárez Madrid-Barajas Airport at 9:35 AM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:00 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+          "values": {
+            "price": "39"
+          }
+        },
+        {
+          "quote": "From 48 US dollars. Nonstop flight with Iberia. Leaves Adolfo Suárez Madrid-Barajas Airport at 9:50 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:15 AM on Thursday, November 26. Total duration 2 hr 25 min. Select flight",
+          "values": {
+            "price": "48"
+          }
+        },
+        {
+          "quote": "From 63 US dollars. Nonstop flight with Air Europa. Operated by Air Europa Express. Leaves Adolfo Suárez Madrid-Barajas Airport at 12:40 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 3:05 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+          "values": {
+            "price": "63"
+          }
+        }
+      ]
+    },
+    "unjudged": [
+      {
+        "step": "Read the flights page,",
+        "emits": "page_read",
+        "artifact": {
+          "cells": {
+            "summary": "Google Flights page read successfully: MAD → FCO, one way, Wed Nov 25 2026, 1 passenger, Economy, USD. 18 results returned. Tab 'Cheapest' advertises from $36 (Ryanair, not shown in the extracted lists). 'Best' tab shows three top flights: $39 Ryanair 9:35 AM→12:00 PM (2h 25m, nonstop, no overhead bin access, 120 kg CO2, -7%), $48 Iberia 9:50 PM→12:15 AM+1 (2h 25m, 137 kg, +6%), $63 Air Europa 12:40 PM→3:05 PM (2h 25m, 113 kg, -12%). 'Other flights' lists 14 more nonstops priced $45–$93 (Ryanair $45 14:15, Wizz Air $45 20:40 and $57 09:25, Air Europa $63 x3, Iberia $63 x3 and $84 x4 and $93, ITA $69 x3), plus a 'View more flights' button. Price insight: 'Prices are currently typical'. Optional charges/bag fees may apply; several Ryanair/Wizz fares exclude overhead bin access."
+          }
+        }
+      }
+    ]
+  }
+}

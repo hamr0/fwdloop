@@ -4527,6 +4527,12 @@
       sheetBox.innerHTML = resultSheetBlock(evidence.sheet.block) + resultField("Answer", '<div class="ro-value" data-testid="ask-sheet-answers">' +
         (evidence.sheet.answer || []).map(function(t){ return '<div data-testid="ask-sheet-answer">' + escapeXml(t) + '</div>'; }).join("") + '</div>');
       ev.appendChild(sheetBox);
+    } else if(evidence.cited){
+      // a cited step's ask shows the Result tab's own results (resultFactsLine): each with its fields and its proof; the unjudged evidence follows below
+      var citedBox = document.createElement("div");
+      citedBox.setAttribute("data-testid", "ask-cited");
+      citedBox.innerHTML = resultFactsLine(evidence.cited);
+      ev.appendChild(citedBox);
     } else {
       ev.appendChild(textDiv("hint", evidence.why || "no draft on file"));
     }
@@ -4546,7 +4552,13 @@
       }
       var art = document.createElement("div");
       art.className = "ro-value scroll";
-      if(typeof u.text === "string"){ fillArtifactText(art, u.text); } else { art.textContent = "no artifact text on file"; }
+      if(typeof u.text === "string"){ fillArtifactText(art, u.text); }
+      else if(u.cells && typeof u.cells === "object"){
+        // a step that leaves fields, not prose: one line per field, "name: value" (textContent, so every value is escaped)
+        art.style.whiteSpace = "pre-wrap";
+        art.setAttribute("data-testid", "ask-unjudged-cells");
+        art.textContent = Object.keys(u.cells).map(function(k){ return k + ": " + String(u.cells[k]); }).join("\n");
+      } else { art.textContent = "no artifact text on file"; }
       ev.appendChild(art);
     });
     return ev;

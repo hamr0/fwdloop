@@ -573,16 +573,22 @@ function cmdShow(rest) {
   process.stdout.write(`question: ${stripControl(ask.question)}\n`);
   process.stdout.write(`expiresAt: ${ask.expiresAt}\n`);
 
-  const { draft, unjudged, why } = readAskEvidence(ask);
-  if (!draft) {
+  const {
+    draft, unjudged, why, results,
+  } = readAskEvidence(ask);
+  if (!draft && !results) {
     process.stdout.write(`\n(no evidence recorded on this ask — ${why})\n`);
     return;
   }
   process.stdout.write('\n--- artifact under review ---\n');
-  process.stdout.write(`${stripControl(draft.text)}\n`);
+  if (draft) process.stdout.write(`${stripControl(draft.text)}\n`);
+  else {
+    // a cited step's results: each quote with its values
+    results.forEach((r, i) => process.stdout.write(`result ${i + 1}: ${stripControl(r.quote)}\n  ${Object.entries(r.values).map(([k, v]) => `${stripControl(k)}: ${stripControl(String(v))}`).join('; ')}\n`));
+  }
   for (const item of unjudged) {
     process.stdout.write(`\n--- unjudged: ${stripControl(item.step)} ---\n`);
-    process.stdout.write(`${stripControl(item.text)}\n`);
+    process.stdout.write(`${item.text !== undefined ? stripControl(item.text) : Object.entries(item.cells).map(([k, v]) => `${stripControl(k)}: ${stripControl(String(v))}`).join('\n')}\n`);
   }
 }
 
