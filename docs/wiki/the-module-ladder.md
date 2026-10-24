@@ -1553,6 +1553,7 @@ SIGNED by hamr 2026-10-24 ("sign m4d am34"), the text exactly as shown:
 3. A plain run is unchanged: a first try thinks off and gets no learnings unless your Chat-box switch is ticked (thinking only); a retry or a redo thinks on and gets learnings.
 4. One decider says which tries count, and thinking and learnings both use it. Audit shows `thinking on` on those tries.
 - **Must fail when:** any try in a rerun thinks off or gets no learnings (learningHints on); a plain run's first try thinks on (box unticked) or gets learnings; thinking and learnings disagree about which tries count.
+- *Withdrawn by hamr 2026-10-24 ("undo M4d am34"): no real run failed; its code is reverted. Thinking and learnings are as before it.*
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
