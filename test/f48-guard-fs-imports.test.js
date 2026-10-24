@@ -441,6 +441,12 @@ const ALLOWLIST = {
     reason: 'M4e piece 2a/2b: the ONE detached spawn the panel uses for its CLI children (resume, draft, run) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn, and (`writePidFile`, the one writer) writes the child\'s own `pid.json` 0600 in that same panel-owned folder (resume: the private log dir; draft: the draft folder; start: the start folder), never a run/flow-dir book. Every read goes through readFileInside.',
     names: { closeSync: 1, openSync: 1, writeFileSync: 1 },
   },
+  'src/launcher.js': {
+    reason: "M4b am4/am5: the launcher (`fwdloop` menu, start | stop | status | install) looks at the per-person config home (~/.config/fwdloop), a folder OUTSIDE any run/flow dir, not a book: existsSync for the folder, config.json and the keys file, one statSync of the keys file for its MODE only (never read; the file's values are never opened here), mkdirSync for the folder (0700) and the panel log's folder, chmodSync of a loose keys file to 0600. The keys file itself is created by src/keysfile.js and config.json written by src/config.js; the panel log is opened by src/panel/spawn.js. Nothing under a flows root is read here (the runs line goes through listRuns).",
+    names: {
+      chmodSync: 1, existsSync: 5, mkdirSync: 2, statSync: 2,
+    },
+  },
   'src/panel/authorcard.js': {
     reason: 'M4e piece 2a: the card\'s $0 checks at the click — realpathSync/statSync/accessSync on each INPUT path the human typed (a business file, never a run/flow-dir book, nothing read), and one lstatSync on `<root>/<flowName>` (presence only; a symlink is not followed) to refuse a flow name that is already taken. Writes nothing.',
     names: {
