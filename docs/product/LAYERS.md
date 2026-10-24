@@ -318,7 +318,7 @@ The one place implementation names appear:
 | the arbiter keys | `src/declaration.js` (`ARBITER_KEYS`), read by `src/flow.js` |
 | the harness (steps, strikes, caps, halts, stop) | `src/runner.js` |
 | the checks (green, softgreen, hitl) | `src/closers.js` |
-| a sheet's checks (bareguard's), cited page quotes | `src/sheetchecks.js`, `src/sheetrun.js`, `src/sheetclaims.js`; `src/cited-record.js`, `src/pagebits.js` |
+| a sheet's checks (bareguard's), cited page quotes | `src/sheetchecks.js`, `src/sheetrun.js`, `src/sheetclaims.js`, `src/sheetoffer.js` (what the drafter is offered), `src/sheetblock.js` (what a sheet job line shows); `src/citedcheck.js` (the cited check), `src/cited-record.js`, `src/pagebits.js` |
 | thinking per try | `src/thinking.js`, `src/model-step.js` |
 | the description (drafter, catalogue) | `src/drafter.js`, `src/catalogue.js` |
 | the signature, sign at a terminal | `src/signature.js`, `src/authoring.js`, `src/sign-confirm.js` |
