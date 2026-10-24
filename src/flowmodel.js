@@ -67,6 +67,25 @@ export function writeRunThinking(flowDir, runDir) {
   writeOnce(join(runDir, RUN_THINKING_FILE), { thinking: readModelRecord(flowDir)?.thinking === true });
 }
 
+/**
+ * M4d am34: the file in a run's folder that says THIS run is a rerun (a fresh run started from a human's rerun reason). Write-once, by `writeRunRerun`, the
+ * only writer, called once when the rerun's fresh run starts; `readRunIsRerun` is the only reader. It lives in the run's own folder, so a parked and resumed
+ * leg of the run still counts. No file (every plain run) = not a rerun.
+ */
+export const RUN_RERUN_FILE = 'rerun.json';
+
+/** @param {string} runDir */
+export function writeRunRerun(runDir) {
+  writeOnce(join(runDir, RUN_RERUN_FILE), { rerun: true });
+}
+
+/** @param {string|null} runDir @returns {boolean} */
+export function readRunIsRerun(runDir) {
+  const own = typeof runDir === 'string' ? readFileInside(runDir, RUN_RERUN_FILE) : null;
+  if (!own?.ok) return false;
+  try { return JSON.parse(own.text)?.rerun === true; } catch { return false; }
+}
+
 /** M4d am33: the file in a run's folder that records the model the run STARTED on (write-once; every continue path keeps it). */
 export const RUN_MODEL_FILE = 'run-model.json';
 

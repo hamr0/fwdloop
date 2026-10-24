@@ -69,12 +69,12 @@ import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
-import { stepThinkingMode, stepHintsWanted } from './thinking.js';
+import { stepThinkingMode, triesCount } from './thinking.js';
 import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking, writeRunModel, takeLearningsRecord, writeStepLearningsRecord } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel, writeRunRerun, readRunIsRerun, takeLearningsRecord, writeStepLearningsRecord } from './flowmodel.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -859,6 +859,7 @@ export async function runStepRalph({
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
+  const rerun = readRunIsRerun(runDir); // M4d am34: the run's own durable record, read once; `triesCount` is the one decider for thinking and learnings
   let strikes = 0;
   const seenGaps = new Set();
   const maxN = MAX_ATTEMPTS - triesDone;
@@ -897,11 +898,11 @@ export async function runStepRalph({
     }
 
     const grantedTools = Object.fromEntries((step.primitives ?? []).map((verb) => [verb, primitivesMap?.[verb]]));
-    // M8 am7: the earlier runs' block for THIS try only - a retry, a redo or a rerun (`stepHintsWanted`; the Chat box never decides it). It is the drafter's one block
+    // M8 am7: the earlier runs' block for THIS try only - a retry, a redo or a rerun (`triesCount`; the Chat box never decides it). It is the drafter's one block
     // function asked again now, recorded write-once BEFORE the call (so the Audit shows what was sent), and any failure hands nothing and is written to learn-error.jsonl.
     /** @type {{text: string, ids: string[]}|null} */
     let handed = null;
-    if (learnHints !== null && stepHintsWanted({ attempt, rerunReason: n === 1 ? initialGap : null })) {
+    if (learnHints !== null && triesCount({ attempt, rerun })) {
       try {
         handed = learnHints();
         if (handed !== null && runDir !== null) writeStepLearningsRecord(runDir, { step: step?.emits ?? step?.goal ?? '', try: attempt, text: handed.text, ids: handed.ids });
@@ -927,7 +928,7 @@ export async function runStepRalph({
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
     // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
     // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt, rerun }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
@@ -1258,6 +1259,7 @@ export async function runFlow({
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
   writeRunThinking(flowDir, runDir);
   if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
+  if (typeof initialGap === 'string' && initialGap !== '') writeRunRerun(runDir); // M4d am34: a run started from a human's rerun reason IS a rerun run; every try of it counts, on every leg
   // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
   if (!runOwnsPlan(runDir)) {
     try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
