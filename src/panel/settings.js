@@ -21,7 +21,7 @@ import {
 import { SHAPES } from '../providershapes.js';
 import { keysForDoor, isKeyName } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
-import { spawnOpener as realSpawn } from './spawn.js';
+import { openInOs } from '../opener.js';
 import { dirname } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -181,22 +181,8 @@ export function createSettings(cfg) {
     const shown = keys().path;
     const dir = dirname(shown.startsWith('~') ? homedir() + shown.slice(1) : shown);
     const cannot = () => reply(200, { ok: true, opened: false, path: dir });
-    const platform = cfg.platform ?? process.platform;
-    const cmd = platform === 'linux' ? 'xdg-open' : (platform === 'darwin' ? 'open' : null);
-    const opener = cfg.openFolderSpawn ?? (process.env.NODE_ENV === 'test' ? null : realSpawn);
-    if (!cmd || !opener) return Promise.resolve(cannot());
-    return new Promise((resolve) => {
-      let child;
-      try { child = opener(cmd, [dir], { detached: true, stdio: 'ignore' }); } catch { resolve(cannot()); return; }
-      let settled = false;
-      child.once('error', () => { if (!settled) { settled = true; resolve(cannot()); } });
-      child.once('spawn', () => {
-        if (settled) return;
-        settled = true;
-        if (typeof child.unref === 'function') child.unref();
-        resolve(reply(200, { ok: true, opened: true, path: dir }));
-      });
-    });
+    return openInOs(dir, { platform: cfg.platform, spawnFn: cfg.openFolderSpawn, underTest: process.env.NODE_ENV === 'test' })
+      .then((opened) => (opened ? reply(200, { ok: true, opened: true, path: dir }) : cannot()));
   }
 
   async function test(body) {
