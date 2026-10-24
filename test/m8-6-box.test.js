@@ -84,6 +84,9 @@ for (const width of [1280, 700, 390, 320]) {
     const spill = await q(`(function(){ var out = {doc: document.documentElement.scrollWidth - document.documentElement.clientWidth};
       document.querySelectorAll("${BOX}, ${BOX} *").forEach(function(e){ if(e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX === "visible" && e.clientWidth > 0) out[(e.getAttribute("data-testid") || e.tagName)] = e.scrollWidth - e.clientWidth; });
       return out; })()`);
+    const scrolls = await q(`Array.from(document.querySelectorAll("${BOX} .audit-table-scroll")).map(function(e){ return e.scrollWidth - e.clientWidth; })`);
+    assert.ok(scrolls.length > 0 && scrolls.every((n) => n <= 1), `a hint scrolls sideways inside its own box: ${JSON.stringify(scrolls)}`);
+    assert.equal(await q(`getComputedStyle(${HEAD}, "::before").content`), 'none', 'no arrow, open or closed (as bareloop\'s box)');
     console.log(`# m8-6 ${width}px spill ${JSON.stringify(spill)}`);
     assert.ok(spill.doc <= 0, `sideways scroll ${JSON.stringify(spill)}`);
     assert.deepEqual(Object.keys(spill).filter((k) => k !== 'doc'), [], `a box spills its own width: ${JSON.stringify(spill)}`);

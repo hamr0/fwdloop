@@ -436,6 +436,8 @@
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  /* M8 item 6: bareloop's learnings box wears no arrow, open or closed (hamr 2026-10-23); the state chip leads */
+  .audit-group.audit-fold.audit-learnings-fold h4.audit-status-header::before,.audit-group.audit-fold.audit-learnings-fold h4.audit-status-header[aria-expanded="true"]::before{content:none;}
   @media (max-width: 640px){
     /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
     .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
@@ -746,6 +748,8 @@
     .audit-group table.rounds-table tbody{display:table-row-group;}
     .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
     .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
+    /* M8 item 6: a hint's table fits the box and wraps (as bareloop's does at 320), it does not scroll sideways */
+    .audit-group table.rounds-table.learn-hint{width:100%;min-width:0;max-width:100%;}
   }
 
   /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
@@ -3321,7 +3325,7 @@
     var hints = Array.isArray(it.hints) ? it.hints : [];
     var count = Array.isArray(it.ids) ? it.ids.length : hints.length;
     var wrap = document.createElement("div");
-    wrap.className = "audit-group audit-fold closed";
+    wrap.className = "audit-group audit-fold audit-learnings-fold closed";
     wrap.setAttribute("data-testid", "audit-group-learnings");
     var head = document.createElement("h4");
     head.className = "audit-status-header";
@@ -3352,7 +3356,7 @@
       hint.className = "audit-table-scroll";
       hint.setAttribute("data-testid", "audit-learnings-hint-" + it.phase + "-" + h.n);
       var table = document.createElement("table");
-      table.className = "rounds-table";
+      table.className = "rounds-table learn-hint";
       var tbody = document.createElement("tbody");
       var trT = document.createElement("tr");
       var title = document.createElement("td");
