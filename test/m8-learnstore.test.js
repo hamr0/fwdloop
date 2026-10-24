@@ -124,6 +124,6 @@ test('adaptation: the ledger keeps every row — a row last seen long ago and on
   assert.equal(rows.find((r) => r.workflow === 'aging-1').runIds[0], 'old');
 });
 
-test('adaptation: hintsForRun (hands hints to the drafter, M8 item 5a) is not in this file yet', () => {
-  assert.equal('hintsForRun' in store, false);
+test('adaptation: hintsForRun (hands hints to the drafter, M8 item 5a) is copied here; its tests are test/m8-5a-drafter-hints.test.js', () => {
+  assert.equal(typeof store.hintsForRun, 'function');
 });
