@@ -2,7 +2,7 @@
 // and a model id - is recorded in `model.json`, beside the draft and then beside the signed flow. It is NOT one of the signed files: which model
 // runs, and at what price, is Settings' to say (a line that is no longer ticked is refused by name at run time), so the record only remembers the choice.
 // One writer (`writeModelRecord`), one reader (`readModelRecord`); both go through the safe gateway.
-import { writeFileSync, renameSync, existsSync } from 'node:fs';
+import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
 import { isKeyName } from './provider.js';
@@ -106,15 +106,15 @@ export function writeLearningsRecord(dir, { text, ids }) {
  * @param {string} fromDir a draft folder @param {string} toDir a flow folder or a run folder @returns {boolean} true when a record was copied
  */
 export function copyLearningsRecord(fromDir, toDir) {
-  const r = readFileInside(fromDir, LEARNINGS_FILE);
-  if (!r.ok) return false;
-  writeFileSync(join(toDir, LEARNINGS_FILE), r.text, { mode: 0o600, flag: 'wx' });
+  const rec = readLearningsRecord(fromDir);
+  if (rec === null) return false;
+  writeOnce(join(toDir, LEARNINGS_FILE), rec); // the same writer and shape as `writeLearningsRecord`: a record that reads is copied, one that does not is not
   return true;
 }
 
 /** @param {string} flowDir @param {string} runDir @returns {boolean} true when the flow's record moved into the run (it is no longer in the flow folder) */
 export function takeLearningsRecord(flowDir, runDir) {
-  if (!readFileInside(flowDir, LEARNINGS_FILE).ok || existsSync(join(runDir, LEARNINGS_FILE))) return false;
+  if (!readFileInside(flowDir, LEARNINGS_FILE).ok || readFileInside(runDir, LEARNINGS_FILE).ok) return false;
   renameSync(join(flowDir, LEARNINGS_FILE), join(runDir, LEARNINGS_FILE));
   return true;
 }
