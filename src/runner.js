@@ -801,7 +801,7 @@ function makeAuditRow({
   if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
   // M4d am25 item 4: the thinking this model call asked for and what bareagent reported back; the ONE writer of the field. A row with no model call has none.
   if (thinking !== undefined) row.thinking = thinking;
-  // M8 am7 item 4: how many hints from earlier runs this try was handed; the key is absent when none were (the exact text is in learnings-tries/, src/flowmodel.js).
+  // M8 am7 item 4: how many hints from earlier runs this try was handed; the key is absent when none were (the exact text is in learnings-try-*.json, src/flowmodel.js).
   if (hints !== undefined) row.hints = hints;
   return row;
 }

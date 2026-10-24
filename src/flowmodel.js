@@ -2,7 +2,7 @@
 // and a model id - is recorded in `model.json`, beside the draft and then beside the signed flow. It is NOT one of the signed files: which model
 // runs, and at what price, is Settings' to say (a line that is no longer ticked is refused by name at run time), so the record only remembers the choice.
 // One writer (`writeModelRecord`), one reader (`readModelRecord`); both go through the safe gateway.
-import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
+import { writeFileSync, renameSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { readFileInside, readdirInside } from './flow.js';
@@ -135,25 +135,24 @@ export function readLearningsRecord(runDir) {
 }
 
 /**
- * M8 am7 item 4: what a STEP's try was handed from earlier runs (the retry / redo / rerun block). One write-once file per try in the run folder, never over an
- * existing one: `learnings-tries/<sha1(step) first 10>-<try>.json` = `{phase: 'step', step, try, text, ids, chars}`. Same shape as `learnings.json` (the drafter's)
+ * M8 am7 item 4: what a STEP's try was handed from earlier runs (the retry / redo / rerun block). One write-once file per try, flat in the run folder (the F48 guard keeps new fs names out of this file), never over an
+ * existing one: `learnings-try-<sha1(step) first 10>-<try>.json` = `{phase: 'step', step, try, text, ids, chars}`. Same shape as `learnings.json` (the drafter's)
  * plus the step and try it belongs to. The ONE writer (`writeStepLearningsRecord`) and the ONE reader (`readStepLearnings`); the Audit's try line reads this and the
  * audit row's `hints` count says how many. Written BEFORE the call is sent, so what the Audit shows is what the model got.
  */
-export const STEP_LEARNINGS_DIR = 'learnings-tries';
-const stepKey = (/** @type {string} */ step, /** @type {number} */ n) => `${createHash('sha1').update(step).digest('hex').slice(0, 10)}-${n}.json`;
+export const STEP_LEARNINGS_PREFIX = 'learnings-try-';
+const stepKey = (/** @type {string} */ step, /** @type {number} */ n) => `${STEP_LEARNINGS_PREFIX}${createHash('sha1').update(step).digest('hex').slice(0, 10)}-${n}.json`;
 
 /** @param {string} runDir @param {{step: string, try: number, text: string, ids: string[]}} o */
 export function writeStepLearningsRecord(runDir, { step, try: n, text, ids }) {
-  mkdirSync(join(runDir, STEP_LEARNINGS_DIR), { recursive: true });
-  writeOnce(join(runDir, STEP_LEARNINGS_DIR, stepKey(step, n)), { phase: 'step', step, try: n, text, ids, chars: text.length });
+  writeOnce(join(runDir, stepKey(step, n)), { phase: 'step', step, try: n, text, ids, chars: text.length });
 }
 
 /** @param {string} runDir @returns {Array<{step: string, try: number, text: string, ids: string[], chars: number}>} every well-formed per-try record; a malformed one is left out, never guessed */
 export function readStepLearnings(runDir) {
   const out = [];
-  for (const name of readdirInside(runDir, STEP_LEARNINGS_DIR)) {
-    const r = readFileInside(runDir, `${STEP_LEARNINGS_DIR}/${name}`);
+  for (const name of readdirInside(runDir, '.').filter((x) => x.startsWith(STEP_LEARNINGS_PREFIX) && x.endsWith('.json'))) {
+    const r = readFileInside(runDir, name);
     if (!r.ok) continue;
     try {
       const j = JSON.parse(r.text);

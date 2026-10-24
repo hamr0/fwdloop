@@ -3,7 +3,7 @@
 // $0: a fake model step, in-process runs on job2's fixture, scratch config homes (mkdtemp, cleaned up). The ledger row is the real card folded by the real ledger code.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ import { runFlow, runStepRalph, makeParkingAskStep, LEARN_ERROR_FILE } from '../
 import { readAudit } from '../src/books.js';
 import { hintsForRun, writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { readStepLearnings, STEP_LEARNINGS_DIR } from '../src/flowmodel.js';
+import { readStepLearnings, STEP_LEARNINGS_PREFIX } from '../src/flowmodel.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { sandboxSend } from './send-sandbox.js';
 
@@ -108,7 +108,7 @@ test('OFF: nothing is handed anywhere - no context, no record, no count, no erro
     await w.run(recordingModel(seen, [1]));
     assert.ok(seen.length >= 2);
     assert.ok(seen.every((s) => s.hints === null), `OFF hands nothing: ${JSON.stringify(seen)}`);
-    assert.equal(existsSync(path.join(w.runDir, STEP_LEARNINGS_DIR)), false);
+    assert.deepEqual(readdirSync(w.runDir).filter((x) => x.startsWith(STEP_LEARNINGS_PREFIX)), []);
     assert.equal(existsSync(path.join(w.runDir, LEARN_ERROR_FILE)), false);
     assert.ok(readAudit(w.runDir).every((x) => !Object.hasOwn(x, 'hints')));
   }
