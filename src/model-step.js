@@ -351,6 +351,8 @@ export function makeLiveModelStep({
       goal: executorContext.goal,
       reads: executorContext.reads,
       gap: executorContext.gap,
+      // M8 am7: on a retry, redo or rerun try only - the earlier runs' block, whole, the same text the drafter's block is made of; it leans the model, the close alone judges
+      ...(typeof executorContext.hints === 'string' && executorContext.hints !== '' ? { fromEarlierRuns: executorContext.hints } : {}),
       // M10 am7 item 3: a step that quotes a saved page is told the form of its answer and what each result must hold
       ...(stepMeta.class === 'green' && stepMeta.cited ? { quoting: citedBrief(stepMeta.cited) } : {}),
       // M10b piece 2: a step that reads a sheet is told the shape of each claim box (bareguard's worked example), never the check

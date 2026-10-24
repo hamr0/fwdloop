@@ -92,3 +92,14 @@ export function thinkingRuleWords(boxOn) {
 export function stepThinkingMode({ boxOn, attempt }) {
   return boxOn === true || (Number.isInteger(attempt) && attempt >= 2) ? 'on' : 'off';
 }
+
+/**
+ * M8 am7 item 2: the ONE owner of whether a step's try is handed the earlier runs' block. The places thinking switches on, but NOT the Chat "Thinking on" box:
+ * a retry (2nd or later try), a redo at an ask (numbered after the step's last try, so 2nd or later), and a rerun (the fresh run's first step, which starts
+ * from the human's rerun reason). A step's plain first try never gets it, whatever the box says.
+ * @param {{attempt: number, rerunReason: string|null}} a `rerunReason`: the reason this try starts from when it is a fresh run's first try, else null
+ * @returns {boolean}
+ */
+export function stepHintsWanted({ attempt, rerunReason }) {
+  return (Number.isInteger(attempt) && attempt >= 2) || (typeof rerunReason === 'string' && rerunReason !== '');
+}
