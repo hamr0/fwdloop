@@ -1024,6 +1024,17 @@ Copied from bareloop's launcher (PANEL-BUILD.md "Addendum 2026-10-24 — L") fro
 - **Done when:** on hamr's machine, `fwdloop` → 4 install on a fresh HOME creates the folder, `.env` and config.json and a second install says `Already installed, nothing to do.`; → 1 start opens the panel at 4800 (4801 when 4800 is taken by something else); → 3 status shows the header with the same running and need-you counts as the panel's runs list; → 2 stop with a draft open warns, and `--yes` stops it.
 - **Negative:** install never changes a key value already in `.env`; start never takes a port answered by another app; stop never stops a panel without the question when drafts are open (unless `--yes`); the runs line never disagrees with the panel's Needs you; no address is written anywhere but the one function that makes it.
 
+#### M4b amendment 5 — the launcher follows bareloop v0.47.1: one panel at a time, probe patience — SIGNED by hamr 2026-10-24 ("sign m4b am5"), the text exactly as shown
+
+Copied from bareloop v0.47.1 (PANEL-BUILD.md, the two "L amendment 2026-10-24" rulings), fwdloop's name, ports and paths in place of bareloop's. Built on branch `launcher` (amendment 4's "on branch `learnings`" is replaced: that branch is merged).
+
+1. **One panel at a time.** `start` with any fwdloop panel answering starts nothing: `Panel already running at <url> — opening the page.` `stop` stops every fwdloop panel the probe finds, with no "which one?" question; the open-drafts warning adds up drafts across them. `stop --port N` is removed; `--yes` stays. `status` lists every panel found. `fwdloop panel [--port N]` is unchanged. Replaces amendment 4 item 4's `--port N picks one of several panels` and item 7's `Several panels: status lists them all, stop asks which`.
+2. **Probe patience.** Each port gets 2000 ms per probe (replaces item 7's 300 ms), all ports at once. The start and stop waits count real clock time.
+3. **A silent taken port.** `start`: a port that is taken but does not answer is asked again for about 10 s. A fwdloop answer = `Panel already running`; any other reply = the next port; still silent = `Port N is taken and not answering. To see what holds it: lsof -i :N. If it is a stuck fwdloop, end it: kill <pid>`, exit 1, nothing started. These words are from bareloop 6d10023 (fix/records-and-stop, unreleased); the v0.47.1 words could not be followed.
+4. **What stop proves.** After stopping, each pid is checked gone within the deadline, then the port quiet. `Panel stopped.` only when every pid is gone; a pid still alive is named (`The panel at <url> (pid N) did not stop.`, exit 1).
+5. **Version.** `whoami` and the panel header report the version the panel started with (read once at start).
+- **Done when / Negative:** amendment 4's, with "stop with a draft open warns" across every panel found; plus: start never opens a second panel next to a silent taken port.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
