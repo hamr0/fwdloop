@@ -2382,7 +2382,7 @@ export async function resumeRun({
       }
       try {
         recordLateAnswerIfAny(runDir, now);
-        writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+        writeLog(runDir, { runId, outcome: 'rerun', attempts: Array.isArray(readLog(runDir)?.attempts) ? readLog(runDir).attempts : [], artifacts: priorArtifactsForLog }); // F83: keep the earlier legs' tries
       } finally {
         // Amendment 16 C6/C7: the history end row is written last, and always.
         appendHistory(flowDir, {
@@ -2464,7 +2464,8 @@ export async function resumeRun({
       }
     }
 
-    const attemptsLog = [];
+    // F83: log.json has one writer and it replaces the file, so this leg starts from the tries the earlier legs wrote (the pause's write)
+    const attemptsLog = Array.isArray(readLog(runDir)?.attempts) ? [...readLog(runDir).attempts] : [];
     const auditRows = [];
     const recordAudit = (row, modelOutput, unjudgedCount) => {
       const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
@@ -2726,7 +2727,8 @@ export async function continueRun({
         acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
       }
     }
-    const attemptsLog = [];
+    // F83: log.json has one writer and it replaces the file, so this leg starts from the tries the earlier legs wrote (the pause's write)
+    const attemptsLog = Array.isArray(readLog(runDir)?.attempts) ? [...readLog(runDir).attempts] : [];
     const auditRows = [];
     const recordAudit = (row, modelOutput, unjudgedCount) => {
       const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
