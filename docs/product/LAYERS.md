@@ -57,7 +57,9 @@ ENDED:  passed · failed · stopped · expired
   expired          → a person must reopen it
   │
   ▼
-NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. Built after, not yet released: a schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20).]
+NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. A schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20, released in 0.20.0).]
+  │  Learnings from ended runs lean the next draft, and a step's retry, redo or rerun
+  │  (one block, at most 2,000 characters). They lean, never judge: the close alone judges.  [M8, on branch `learnings`]
 ```
 
 ---
@@ -146,10 +148,10 @@ So in fwdloop terms:
 - **Survives:** nothing of its own; it reads the books. It is a client of the arbiter, never a second arbiter.
 - **Status:** built.
 
-### Layer 6 and on — versions, dry-run, skills, triggers, real mail
+### Layer 6 and on — in-run tools, learnings, triggers, real IO
 
-- **Does:** edit with re-accept and rollback; dry-run; skills and persona; case library; triggers; real IO.
-- **Status:** in progress, in order, on the ladder below. M5 is closed and M6 is released; see the table.
+- **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10). Mail and chat are not built.
+- **Status:** in progress, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6, M7, M9, M10 and M11 are released. M8 is built on branch `learnings`, not yet released.
 
 ### Who keeps what
 
@@ -161,6 +163,7 @@ So in fwdloop terms:
 | "did it happen" | the harness | nobody mid-run |
 | money spent | the books | nobody; unknown stays unknown |
 | the answer to an ask | you | once |
+| learnings (notes from ended runs) | code, at run end, in one ledger per user (`~/.config/fwdloop`, mode 600) | nobody; seeded once from past runs with `fwdloop learn seed`; handed only when `learningHints` is on |
 | the monthly limit | Settings | you, up or down |
 | providers, models, prices, base URLs | Settings (none live in code) | you; a model is usable only when ticked with both prices |
 
@@ -270,19 +273,19 @@ M6b was folded into M4e. A rung starts only when its scope, exit and negative ar
 | M3 | ask, park, resume, CLI | released (0.6.0) |
 | M4 | the panel (parent of M4a to M4e) | released in parts |
 | M4a | read-only panel | released (0.7.0) |
-| M4b | answer doors, resume | released (0.9.0) |
+| M4b | answer doors, resume | released (0.9.0); amendment 4 (the launcher: a bare `fwdloop` menu) signed 2026-10-24, not built yet |
 | M4c | answers read clearly, stuck runs | released (0.10.0) |
 | M4c-fix | the fix list, cleared | released (0.11.0) |
-| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) released (0.17.0); amendments 22-24 (the thinking note shows ticked or not, a Cap at or below what the earlier draft spent is red and refuses Draft) released (0.20.0); amendments 25-29 (thinking per step with the Chat box as the hatch, thinking words in Audit and on the Job tab, the three run diaries and the Audit fold) built, not yet released |
+| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) released (0.17.0); amendments 22-24 (the thinking note shows ticked or not, a Cap at or below what the earlier draft spent is red and refuses Draft) released (0.20.0); amendments 25-29 (thinking per step with the Chat box as the hatch, thinking words in Audit and on the Job tab, the three run diaries and the Audit fold) released (0.21.0); amendments 30-33 (try numbers after a Redo, a draft frees its cap, a run picks its model) released (0.22.0) |
 | M4e | Chat card: draft, sign, run | released (0.13.0, 0.14.0) |
 | M6a | authoring backend (draft, sign) | released (0.8.0) |
 | M5 | dry-run, accept, versions | closed, signed 2026-10-10 (Accept is sign; dry run waits for a real outside send) |
 | M6 | edit a flow, add turns | released (0.15.0); amendments 5-10 (a changed job is a new workflow, Run again is the one door, a red run always drafts, each run keeps its own plan) released (0.20.0) |
 | M7 | in-run tools (one run's memory) | released (0.17.0) |
-| M8 | case library | planned |
-| M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) released (0.20.0); amendments 21-23 (run time in the Run tab summary, the schedule header) built, not yet released; inbox-poll and flow handover not built |
-| M10 | real IO (mail, chat, browse) | planned |
-| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-21 (Scheduled has its own search, the scheduled chip, Scheduled below the search box, the chip's size measured to match ✓ by ink height) built, not yet released |
+| M8 | learnings (notes from earlier runs, handed to the drafter and to retries) | signed 2026-10-23, amendments 1-6 signed to 2026-10-24; built on branch `learnings`, not yet released |
+| M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) released (0.20.0); amendments 21-23 (run time in the Run tab summary, the schedule header) released (0.21.0); inbox-poll and flow handover not built |
+| M10 | real IO: read a web page, a sheet or a document, cited checks, code-forced asks (mail, chat, page actions not in this scope) | released (0.22.0), exit signed 2026-10-22; M10b (a sheet's checks are bareguard's cells checks) released (0.23.0), its aging-job exit walk still open |
+| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-21 (Scheduled has its own search, the scheduled chip, Scheduled below the search box, the chip's size measured to match ✓ by ink height) released (0.21.0); amendment 22 (Reopen is also on the Run tab) signed 2026-10-24, built on branch `learnings`, not yet released |
 
 ---
 
@@ -308,6 +311,7 @@ The one place implementation names appear:
 | the description (drafter, catalogue) | `src/drafter.js`, `src/catalogue.js` |
 | the signature, sign at a terminal | `src/signature.js`, `src/authoring.js`, `src/sign-confirm.js` |
 | the ask | `src/ask.js` |
+| learnings (the notes and hint text; the ledger and run-end reader/writer) | `src/learn.js`, `src/learnstore.js` |
 | send | `src/send.js` |
 | money books, monthly limit | `src/books.js`, `src/monthly.js` |
 | stuck and running | `src/liveness.js`, `src/panel/data.js` |
