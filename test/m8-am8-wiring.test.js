@@ -1,5 +1,4 @@
-// M8 am7 wiring, through the REAL runner paths (not runStepRalph alone): a redo at an ask and a rerun answered through `resumeRun` hand every try of the
-// redone / rerun steps the drafter's block and ask thinking on. $0: fake model step, job2's fixture, scratch config home (mkdtemp, cleaned up).
+// M8 am7 wiring, through the REAL runner paths (not runStepRalph alone): a redo at an ask and a rerun answered through `resumeRun` hand the redone step's new try / the rerun's first try the drafter's block. $0: fake model step, job2's fixture, scratch config home (mkdtemp, cleaned up).
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -72,7 +71,7 @@ test('a redo at an ask (the real runFlow path): the redone step\'s new try gets 
   assert.deepEqual(rec.map((x) => [x.attempt, x.hintsText]), [[redoCalls[0].attempt, w.block.text]], 'the audit row of the redo try carries the exact text');
 });
 
-test('a rerun answered through resumeRun: EVERY try of the new run (each step\'s first too) is handed the block and thinks on', async () => {
+test('a rerun answered through resumeRun: the new run\'s first step\'s first try starts from the reason and is handed the block; thinking follows the decider (off); no other first try gets it', async () => {
   const w = world();
   const parked = await runFlow({ ...w.base, runId: 'run-1', sources: w.sources, askStep: makeParkingAskStep() });
   assert.equal(parked.outcome, 'paused', parked.red);
@@ -83,8 +82,10 @@ test('a rerun answered through resumeRun: EVERY try of the new run (each step\'s
   assert.equal(r.outcome, 'rerun', r.red);
   const rerunCalls = w.calls.slice(before);
   assert.ok(rerunCalls.length >= 3, `the rerun ran every step: ${JSON.stringify(rerunCalls)}`);
-  for (const c of rerunCalls) {
-    assert.equal(c.hints, w.block.text, `step ${c.step} try ${c.attempt}: the drafter's block`);
-    assert.equal(c.thinking, 'on', `step ${c.step} try ${c.attempt}: thinks on`);
+  assert.equal(rerunCalls[0].hints, w.block.text, 'the rerun\'s first try: the drafter\'s block, whole');
+  assert.equal(rerunCalls[0].thinking, 'off', 'thinking on that try follows stepThinkingMode: a first try is off');
+  for (const c of rerunCalls.slice(1)) {
+    assert.equal(c.hints, null, `step ${c.step} try ${c.attempt}: a plain first try gets no block`);
+    assert.equal(c.thinking, 'off', `step ${c.step} try ${c.attempt}: thinks off`);
   }
 });

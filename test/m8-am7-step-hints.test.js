@@ -15,7 +15,6 @@ import { runFlow, runStepRalph, makeParkingAskStep, LEARN_ERROR_FILE } from '../
 import { readAudit } from '../src/books.js';
 import { hintsForRun, writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { writeRunThinking } from '../src/flowmodel.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { sandboxSend } from './send-sandbox.js';
 
@@ -131,11 +130,11 @@ test('OFF: nothing is handed anywhere - no context, no record, no count, no erro
 
 // the loop itself, with the box ticked, a redo's numbering and a rerun's reason (the three places thinking switches on, minus the box)
 const STEP_DEF = { goal: 'Draft it', emits: 'doc', primitives: [], close: { class: 'green', shape: { sections: ['a'] } } };
-async function loop({ box = false, initialGap = null, attemptOffset = 0, asked, runDir = null }) {
+async function loop({ box = false, initialGap = null, attemptOffset = 0, asked }) {
   const calls = [];
   const out = await runStepRalph({
     step: STEP_DEF, primitivesMap: {}, readsMap: {}, businessDate: '2026-06-01', spent: { value: 0 }, capUsd: 1, ceilingUsd: 0.01, recordAudit: () => {},
-    initialGap, attemptOffset, thinkingBox: box, runDir, learnHints: () => { asked.push(1); return { text: 'BLOCK', ids: ['x'] }; },
+    initialGap, attemptOffset, thinkingBox: box, learnHints: () => { asked.push(1); return { text: 'BLOCK', ids: ['x'] }; },
     modelStep: async (ctx) => { calls.push(ctx.hints); return { ok: false, red: 'stop here', costUsd: 0.001, transport: false, model: 'm', tokens: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } }; },
     now: () => new Date().toISOString(),
   });
@@ -150,15 +149,11 @@ test('the Chat "Thinking on" box forces thinking on every try but a first try st
   assert.ok(calls.slice(1).every((h) => h === 'BLOCK'));
 });
 
-test('a redo at an ask (numbered after the last try) and a rerun run (its run folder says so; M4d am34) are handed the block', async () => {
+test('a redo at an ask (numbered after the last try) and a rerun (first try, starts from the human\'s reason) are handed the block', async () => {
   const redo = await loop({ initialGap: 'fix it', attemptOffset: 2, asked: [] });
   assert.equal(redo.calls[0], 'BLOCK', 'a redo\'s first new try');
-  const runDir = tmp('rerun-dir');
-  writeRunThinking(tmp('rerun-flow'), runDir, true);
-  const rerun = await loop({ attemptOffset: 0, asked: [], runDir });
-  assert.equal(rerun.calls[0], 'BLOCK', 'a rerun run\'s first try');
-  const reason = await loop({ initialGap: 'start over', attemptOffset: 0, asked: [] });
-  assert.equal(reason.calls[0], null, 'a gap alone is not a rerun: only the run\'s own record is');
+  const rerun = await loop({ initialGap: 'start over', attemptOffset: 0, asked: [] });
+  assert.equal(rerun.calls[0], 'BLOCK', 'a rerun\'s first try');
   const plain = await loop({ asked: [] });
   assert.equal(plain.calls[0], null, 'a plain first try');
 });
