@@ -99,7 +99,7 @@ export function parseKeysText(text) {
  * @param {string} [home]
  * @returns {boolean} true if it was created
  */
-function createKeysFile(home) {
+export function createKeysFile(home) {
   mkdirSync(keysHome(home), { recursive: true, mode: 0o700 });
   const body = '# fwdloop keys — type NAME=value by hand; this file is never shown or written by fwdloop.\n'
     + '# One line per provider key, e.g. MY_PROVIDER_API_KEY=... ; each key becomes a row in Settings > Providers.\n';
