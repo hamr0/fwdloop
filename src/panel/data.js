@@ -24,7 +24,7 @@ import {
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { plainPlanCheck } from '../plain-checks.js';
-import { join, basename, sep } from 'node:path';
+import { join, sep } from 'node:path';
 
 import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
@@ -2139,11 +2139,10 @@ export function getRunJob({
     asks: asks.map((ak) => ({ line: ak.line, question: ak.question, waitMs: ak.ttlMs })),
     capUsd: typeof a.capUsd === 'number' ? a.capUsd : null,
     redoCap: typeof a.redoCap === 'number' ? a.redoCap : null,
-    // review #5: "Source" — role -> basename only (never the full signed
-    // path, even though sources are themselves signed input — hamr's own
-    // "to be safe" instruction).
+    // review #5: "Inputs" — role -> the full signed path (a web address
+    // shows its address), by hamr 2026-10-24.
     sources: sources.map((s) => ({
-      role: s.role, kind: s.kind, path: s.path, basename: basename(s.path),
+      role: s.role, kind: s.kind, path: s.path,
     })),
     // review #5: "Destination" — one row per send.
     sends: sends.map((s) => ({ line: s.line, kind: s.target?.kind ?? null, target: s.target?.path ?? null })),

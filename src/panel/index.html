@@ -527,7 +527,7 @@
      ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
      line) so it reads as a clear, bold heading without a second border. */
   .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
-  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);overflow-wrap:anywhere;}
   .art-head{color:var(--accent);}
   .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
   /* M4e amendment 37 (changes 34's layout): the Job tab is ONE column at every width. Each signed line, its ~ rows, then its step(s) folded under it:
@@ -1318,7 +1318,7 @@
               <div class="field"><label>Ask</label><div id="details-asks"></div></div>
               <div class="field"><label>Destination</label><div id="details-sends"></div></div>
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
-              <div class="field"><label>Source</label><div id="details-sources"></div></div>
+              <div class="field"><label>Inputs</label><div id="details-sources"></div></div>
               <div class="field"><label>Signed</label><div class="ro-value" id="details-signature">—</div></div>
               <div class="plan-legend" data-testid="plan-legend"><span class="plan-mark">›</span> = the approved plan</div>
             </div>
@@ -3728,9 +3728,9 @@
     document.getElementById("details-cap").textContent =
       (typeof job.capUsd === "number" ? ("$" + job.capUsd.toFixed(2)) : "unknown")
       + " per run" + (waitText ? " · " + waitText : "") + " · redo up to " + (typeof job.redoCap === "number" ? job.redoCap : "unknown");
-    // review #5: "Source" — role -> basename only (never the full signed path).
+    // review #5: "Inputs" — role -> the full signed path (a web address shows its address), by hamr 2026-10-24.
     renderRowsField("details-sources", job.sources, "no signed sources", function(s){
-      return s.role + " → " + s.basename;
+      return s.role + " → " + s.path;
     });
     // review #5: "Destination" — one row per signed send.
     renderRowsField("details-sends", job.sends, "no signed sends", function(s){
