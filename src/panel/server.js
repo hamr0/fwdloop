@@ -637,7 +637,7 @@ export function handleRequest(req, res, opts) {
 }
 
 /**
- * `GET /api/whoami` body (borrowed-from: bareloop src/panel/server.js@cb2e8a7 whoamiPayload, @98cbb1c version read at start).
+ * `GET /api/whoami` body (borrowed-from: bareloop src/panel/server.js@cb2e8a7 whoamiPayload, commit 98cbb1c version read at start).
  * Adapted: app 'fwdloop'; `drafts` = `author.openDrafts()` (the open drafting card), `schedules` = the live schedules `author.trigger.scan()` finds.
  * @param {{ port: number, version?: string|null, packagePath?: string, author?: ReturnType<typeof createAuthor> }} opts
  */
@@ -679,7 +679,7 @@ export function panelUrl(boundPort) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, tick: () => void, close: () => Promise<void> }>}
  */

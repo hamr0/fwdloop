@@ -32,7 +32,7 @@ const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or r
 const isNumberAbove0 = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 /**
- * @param {{ home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }} cfg
+ * @param {{ home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }} cfg
  *   `home` the config home (undefined = the real `~/.config/fwdloop`); `skip` true under a test process
  *   with no `FWDLOOP_CONFIG_HOME` (Settings then touches nothing); `env` the shell side (tests only);
  *   `fetch` and `now` are test seams.
