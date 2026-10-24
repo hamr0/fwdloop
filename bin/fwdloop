@@ -38,7 +38,7 @@ import { resolvePrimitives } from '../src/primitives.js';
 import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
-import { readModelRecord, readRunModel } from '../src/flowmodel.js';
+import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -384,7 +384,7 @@ async function cmdRun(rest) {
     if (!runIdCheck.ok) fail(runIdCheck.red);
     runDir = runIdCheck.runDir;
     // M4e amendment 5: the panel's Sign & run puts the run's signed values in the folder BEFORE the start; that one file is not "a run".
-    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE && n !== 'job' && n !== 'plan.json' && n !== 'setup.jsonl').length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
+    if (existsSync(runDir) && readdirSync(runDir).filter((n) => n !== 'signed-values.json' && n !== TRIGGER_RECORD_FILE && n !== 'job' && n !== 'plan.json' && n !== 'setup.jsonl' && n !== LEARNINGS_FILE).length > 0) fail(`run: run dir "${runDir}" already exists — use a new --run-id`);
   }
   // M4e amendment 5 item 3: the cap this run was signed with (its own values file, else the flow's) is what the monthly hold is for.
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
