@@ -2422,6 +2422,13 @@ SIGNED by hamr 2026-10-23 ("sign m8 am3"), the text exactly as shown:
 1. Amendment 2's line 2 replaces item 2's "dropped as bareloop does": a step red on every try is a NEVER FIXED note, and it is kept.
 2. Everything else in item 2 stands.
 
+SIGNED by hamr 2026-10-24 ("sign m8 am4"), the text exactly as shown:
+
+**M8 amendment 4 — every walked path counts at run end, like bareloop (hamr's ruling for both repos, 2026-10-24).**
+1. A run's notes count when the run ends, FIXED and NEVER FIXED alike, whatever the ending and whether or not its asks were accepted. This replaces item 4.
+2. A stopped or cap-halted run has ended, as in bareloop. A run waiting at an ask has not ended; its notes are made when it does.
+3. Noise runs (the provider broke, the check crashed, no check ran) make no note, as bareloop does.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
