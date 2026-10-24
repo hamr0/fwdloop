@@ -39,6 +39,7 @@ import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
+import { readRunInputs } from '../src/runfile.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -678,24 +679,20 @@ async function cmdResume(rest) {
     what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, arbiter.capUsd - priorSpent), spentAtHold: priorSpent,
   });
 
-  // Resume never re-freezes inputs — the run's own `inputs.json` (written at
-  // park by `freezeInputs`) is the one source of the already-frozen paths a
+  // Resume never re-freezes inputs — the run's own `run.json` (its `inputs`,
+  // written at start by `runFlow`) is the one source of the already-frozen paths a
   // sandboxed primitive may read.
-  // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
-  // symlinked `inputs.json` is treated as "no manifest" (empty array) rather
-  // than followed, which would otherwise let an outside file's content name
-  // arbitrary "frozen" paths for the sandboxed read/grep/readDocx/
+  // F48 round 3: routed through `readFileInside` (`src/flow.js`, inside
+  // `readRunInputs`) — a symlinked `run.json` is treated as "no manifest" (empty
+  // array) rather than followed, which would otherwise let an outside file's
+  // content name arbitrary "frozen" paths for the sandboxed read/grep/readDocx/
   // addressCells tools built just below.
-  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
-  let inputsManifest = [];
-  if (inputsManifestRead.ok) {
-    try {
-      inputsManifest = JSON.parse(inputsManifestRead.text);
-    } catch (err) {
-      fail(`resume: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
-      return;
-    }
+  const inputsRead = readRunInputs(runDir);
+  if (!inputsRead.ok && inputsRead.code === 'invalid') {
+    fail(`resume: run "${runId}": ${inputsRead.red}`);
+    return;
   }
+  const inputsManifest = inputsRead.ok ? inputsRead.entries : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
   // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
@@ -780,16 +777,12 @@ async function cmdContinue(rest) {
     what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, applied.arbiter.capUsd - spentSoFar.total), spentAtHold: spentSoFar.total,
   });
 
-  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
-  let inputsManifest = [];
-  if (inputsManifestRead.ok) {
-    try {
-      inputsManifest = JSON.parse(inputsManifestRead.text);
-    } catch (err) {
-      fail(`continue: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
-      return;
-    }
+  const inputsRead = readRunInputs(runDir);
+  if (!inputsRead.ok && inputsRead.code === 'invalid') {
+    fail(`continue: run "${runId}": ${inputsRead.red}`);
+    return;
   }
+  const inputsManifest = inputsRead.ok ? inputsRead.entries : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
     runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),

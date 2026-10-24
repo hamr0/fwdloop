@@ -1,5 +1,5 @@
 // M10 piece 4: the text a cited check reads - THE RUN'S OWN frozen copy of a web page or a text/markdown doc (`<run>/inputs/<file>`, written at run start by
-// `freezeInputs`), checked against the sha256 `inputs.json` recorded when it was frozen. The drafting copy lives in the draft folder and is never read here.
+// `freezeInputs`), checked against the sha256 `run.json` (its `inputs`) recorded when it was frozen. The drafting copy lives in the draft folder and is never read here.
 // Same three outcomes as the CSV reader (`readInputCells`): not a text input of this run, a refusal that names why, or the text.
 // A .docx input (M10 piece 5, item 2 "a quote in a doc") is served as its paragraph text (src/docx.js says what that throws away), its sha256 taken over the file's BYTES from the same
 // read the text comes from. Throws away: nothing for a page or a text file. A .csv input is not served here (it is read as cells).
@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { readFileInside, resolveInside } from './flow.js';
+import { readRunInputs } from './runfile.js';
 import { readDocxSource } from './docx.js';
 
 /** the frozen files served as text: a saved page (.txt) or a text/markdown document. Any other kind (a spreadsheet, a .docx, a binary) is never served as text. */
@@ -20,11 +21,9 @@ const TEXT_EXTS = Object.freeze(['.txt', '.md', '.markdown']);
  * @returns {{ok: true, text: string, sha256: string, frozen: string}|{ok: false, red: string, code: 'no-manifest'|'not-an-input'|'not-text'|'unreadable'}}
  */
 export function readRunSource(runDir, role, { docx = false } = {}) {
-  const manifest = readFileInside(runDir, 'inputs.json');
-  if (!manifest.ok) return { ok: false, code: manifest.missing ? 'no-manifest' : 'unreadable', red: manifest.missing ? `input "${role}": this run has no frozen inputs` : `input "${role}": ${manifest.red}` };
-  let entries;
-  try { entries = JSON.parse(manifest.text); } catch (err) { return { ok: false, code: 'unreadable', red: `input "${role}": inputs.json is not valid JSON — ${err.message}` }; }
-  const entry = Array.isArray(entries) ? entries.find((e) => e?.id === role) : undefined;
+  const manifest = readRunInputs(runDir);
+  if (!manifest.ok) return { ok: false, code: manifest.code === 'missing' ? 'no-manifest' : 'unreadable', red: manifest.code === 'missing' ? `input "${role}": this run has no frozen inputs` : `input "${role}": ${manifest.red}` };
+  const entry = manifest.entries.find((e) => e?.id === role);
   if (!entry || typeof entry.frozen !== 'string' || typeof entry.sha256 !== 'string') return { ok: false, code: 'not-an-input', red: `input "${role}": this run froze no input with that name` };
   const lower = entry.frozen.toLowerCase();
   if (docx && lower.endsWith('.docx')) return readRunDocx(runDir, role, entry);

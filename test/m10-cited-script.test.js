@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { freezeInputs, runStepRalph } from '../src/runner.js';
+import { runStepRalph } from '../src/runner.js';
+import { freezeAndRecord as freezeInputs } from './freeze-fixture.mjs';
 import { flightsPart, flightRows, goodRows, PAGE } from './fixtures/m10-map/cited-help.mjs';
 
 const SCRIPT = new URL('../scripts/check-cited-run.mjs', import.meta.url).pathname;

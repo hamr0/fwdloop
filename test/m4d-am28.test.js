@@ -1,5 +1,5 @@
 // M4d amendment 28 (signed 2026-10-18): Model and Thinking share one row on the Job tab. Value `on retries` / `always on`; a run with no
-// thinking.json (before am25) shows `—`, never a guess from model.json. Words: src/thinking.js thinkingRuleWords. Real HTTP + a real browser (skips when none). $0.
+// run.json (before am25) shows `—`, never a guess from model.json. Words: src/thinking.js thinkingRuleWords. Real HTTP + a real browser (skips when none). $0.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -16,11 +16,11 @@ after(async () => { for (const c of CLOSERS) await c(); });
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const PAGE = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
 
-// kind: 'off' = an am25 run, box off; 'ticked' = box on; 'old' = before am25 (no thinking.json)
+// kind: 'off' = an am25 run, box off; 'ticked' = box on; 'old' = before am25 (no thinking in run.json)
 async function world(kind) {
   const g = await greenWorld();
   const runDir = path.join(g.flowDir, 'runs', 'seed-pass');
-  if (kind !== 'old') writeFileSync(path.join(runDir, 'thinking.json'), JSON.stringify({ thinking: kind === 'ticked' }));
+  if (kind !== 'old') writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({ thinking: kind === 'ticked' }));
   // the flow's own model.json says ticked: an old run must still read `—`
   writeFileSync(path.join(g.flowDir, 'model.json'), JSON.stringify({ slot: 'DEEPSEEK_KEY', model: 'deepseek-flash', thinking: true }));
   return g;

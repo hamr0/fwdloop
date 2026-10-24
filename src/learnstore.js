@@ -14,6 +14,7 @@ import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
 import { readAudit, readHistory } from './books.js';
 import { readChecks } from './diary.js';
+import { readRunInputs } from './runfile.js';
 import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
 
 /**
@@ -207,7 +208,8 @@ export function eventsOfRun(runDir, workflow) {
   if (!rows.length) return null;
   const log = jsonIn(runDir, 'log.json') ?? {};
   const decl = jsonIn(runDir, 'job/declaration.json') ?? { steps: [] };
-  const inputs = jsonIn(runDir, 'inputs.json');
+  const frozen = readRunInputs(runDir);
+  const inputs = frozen.ok ? frozen.entries : null;
   const prose = (() => { const r = readFileInside(runDir, 'job/prose.txt'); return r.ok ? r.text : ''; })();
   const checks = readChecks(runDir);
   const made = new Set(readdirInside(runDir, 'artifacts'));
@@ -258,7 +260,7 @@ export function eventsOfRun(runDir, workflow) {
  * THE RUN-END TALLY ($0, code only, no model; M8 item 2): turn a finished run's folder into cards and fold them into the ledger.
  * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). M8 am4: every run's notes COUNT at once (trust 'deterministic'), a run
  * with a signed ask included; there is no hold. It runs whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
- * the run's checks.jsonl, so a check with no checks.jsonl row (a run from before am29) has no `meaning`.
+ * the run's diary.jsonl, so a check with no checks row there (a run from before am29) has no `meaning`.
  * Borrowed-from: bareloop src/learnstore.js@v0.47.0:124 (learnAtRunEnd).
  * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null, noise: string|null, cards: number}}

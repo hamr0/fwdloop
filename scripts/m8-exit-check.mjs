@@ -96,7 +96,7 @@ const fixedRows = rows1.filter((r) => r.sample?.kind === 'FIXED');
   const missing = ids2.filter((id) => !byId.has(id));
   const wanted2 = `${flow}/${run2}`;
   const touched = Object.hasOwn(ledger.health, wanted2) || ledger.rows.some((r) => r.runIds?.includes(wanted2));
-  const source = readJson(join(dir2, 'inputs.json'))?.[0]?.source ?? null;
+  const source = readJson(join(dir2, 'run.json'))?.inputs?.[0]?.source ?? null;
   const place = placeOf(placeSpecOf(flow, typeof source === 'string' ? source : null), resolvePlace);
   let mtime = new Date();
   try { mtime = statSync(join(dir2, 'learnings.json')).mtime; } catch { /* no file: 3a already failed */ }

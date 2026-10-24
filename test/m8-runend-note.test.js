@@ -1,5 +1,5 @@
 // M8 item 2: notes at run end, by code only, $0, no model call. Fake run folders in mkdtemp (the shapes src/runner.js writes:
-// audit.jsonl, log.json, checks.jsonl, job/, artifacts/, inputs.json); the real ~/.config/fwdloop is never touched.
+// audit.jsonl, log.json, diary.jsonl, job/, artifacts/, run.json); the real ~/.config/fwdloop is never touched.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
@@ -25,7 +25,7 @@ function runFolder(t, { rows, outcome = 'complete', attempts = [], checks = [], 
   if (checks.length) writeFileSync(join(dir, 'checks.jsonl'), jl(checks));
   writeFileSync(join(dir, 'job', 'prose.txt'), 'Write a short resume summary.\n\nMore.');
   writeFileSync(join(dir, 'job', 'declaration.json'), JSON.stringify({ steps: [{ emits: 's1', goal: 'summarise', fromLine: 3 }] }));
-  writeFileSync(join(dir, 'inputs.json'), JSON.stringify([{ id: 'resume', source: '/nonexistent/resume.docx' }]));
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source: '/nonexistent/resume.docx' }] }));
   if (artifact) writeFileSync(join(dir, 'artifacts', 's1.json'), '{}');
   return { root, dir };
 }

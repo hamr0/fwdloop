@@ -47,7 +47,7 @@ try {
   if (steps.length === 0) throw new Error('the signed job has no sheet checks');
 
   // 2-3. the saved sheets and their fingerprints
-  const recorded = readJson(path.join(runDir, 'inputs.json'));
+  const recorded = readJson(path.join(runDir, 'run.json')).inputs;
   const rec = readJson(path.join(runDir, 'sheet-checks.json'));
   const tables = {};
   const inputs = [];

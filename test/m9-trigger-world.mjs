@@ -22,9 +22,9 @@ export function seedGreen(w, flow = 'job2', runId = 'seed-pass') {
   const read = readFlow({ root: w.root, name: flow, catalogue: CAT });
   const c = writeRunJobCopy(flowDir, runDir, read.signature.flow);
   if (!c.ok) throw new Error(c.red);
-  writeFileSync(path.join(runDir, 'inputs.json'), JSON.stringify([
-    { id: 'resume', source: path.join(w.inDir, 'resume.md') }, { id: 'jd', source: path.join(w.inDir, 'jd.md') },
-  ]));
+  writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({
+    inputs: [{ id: 'resume', source: path.join(w.inDir, 'resume.md') }, { id: 'jd', source: path.join(w.inDir, 'jd.md') }],
+  }));
   appendFileSync(path.join(flowDir, 'history.jsonl'), `${JSON.stringify({
     runId, at: '2026-10-06T10:00:00.000Z', outcome: 'complete', spentUsd: 0.02, spendComplete: true, capUsd: 0.25, wallMs: 90_000, signatureHash: read.signature.flow,
   })}\n`);

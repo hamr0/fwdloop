@@ -16,7 +16,7 @@ import { userInfo } from 'node:os';
 
 import { scrub } from '../authoring.js';
 import { loadCatalogue } from '../catalogue.js';
-import { changeSentence, checkFlowName, readFileInside, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
+import { changeSentence, checkFlowName, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
@@ -28,6 +28,7 @@ import { checkValues } from './authorvalues.js';
 import { getRunControls } from './data.js';
 import { providerKeys } from './spawn.js';
 import { readModelRecord } from '../flowmodel.js';
+import { readRunInputs } from '../runfile.js';
 
 const KEYS = ['flow', 'runId', 'capUsd', 'hash'];
 
@@ -102,9 +103,9 @@ export function createResumeDoor(opts) {
     form(flow, runId) {
       const s = inspect({ flow: flow ?? '', runId: runId ?? '' }, true);
       if (!s.ok) return s.reply;
-      const inputsRead = readFileInside(s.runDir, 'inputs.json');
+      const inputsRead = readRunInputs(s.runDir);
       let inputs = [];
-      try { inputs = inputsRead.ok ? JSON.parse(inputsRead.text).map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
+      try { inputs = inputsRead.ok ? inputsRead.entries.map((m) => ({ role: String(m.id), path: String(m.source) })) : []; } catch { inputs = []; }
       const floor = capFloorOf(s.hasRound, home, readModelRecord(dirname(dirname(s.runDir))));
       const floorUsd = floor.usd;
       return {

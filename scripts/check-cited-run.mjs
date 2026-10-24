@@ -4,7 +4,7 @@
 //
 // It shares no code with the check the run used: it imports nothing from src/ and nothing from bareguard, only Node's own modules. It re-reads two files of
 // the run's folder and nothing else:
-//   inputs.json + inputs/<file>   the run's own saved copy of the page or doc, and the sha256 recorded when it was frozen
+//   run.json (inputs) + inputs/<file>   the run's own saved copy of the page or doc, and the sha256 recorded when it was frozen
 //   cited-checks.json             the run's result record: per job line the quotes, the values, the signed facts and the count
 // and checks, in its own words: the saved copy is still the bytes that were frozen (and the bytes the record names); every quote is word for word on it
 // (white space and ** / __ marks aside); every value is the one its quote writes after the fact's label; every value passes its rule; the number of results
@@ -24,10 +24,10 @@ if (!runDir) fail2('usage: check-cited-run.mjs <run folder> [--expect <file>]');
 const readJson = (p) => { try { return JSON.parse(readFileSync(p, 'utf8')); } catch (e) { return fail2(`${p}: ${e.message}`); } };
 
 const record = readJson(join(runDir, 'cited-checks.json'));
-const manifest = readJson(join(runDir, 'inputs.json'));
+const manifest = readJson(join(runDir, 'run.json')).inputs;
 const expected = expectAt ? readJson(expectAt) : null;
 if (!record || !Array.isArray(record.lines)) fail2('cited-checks.json has no "lines"');
-if (!Array.isArray(manifest)) fail2('inputs.json is not a list');
+if (!Array.isArray(manifest)) fail2('run.json has no list of inputs');
 
 /** white space made one space, ** and __ marks dropped, trimmed: how a quote is laid against the page */
 const flat = (t) => String(t).replace(/\*\*|__/g, '').replace(/[\s  ]+/g, ' ').trim();

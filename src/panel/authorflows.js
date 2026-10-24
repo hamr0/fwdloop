@@ -5,7 +5,7 @@
 //   flows()   only flows whose `readFlow` passes (a missing, unsigned or tampered flow is never listed), that `canFlowRun` accepts
 //             (the one function shared with the run's own preflight: an unwired verb is not listed; amendment 22) and that have at least one
 //             passed run (amendment 7 item 7; Run again reaches the rest), each with its signed
-//             cap, its declared source roles, the source paths the NEWEST run of that flow used (its `inputs.json`
+//             cap, its declared source roles, the source paths the NEWEST run of that flow used (its `run.json` inputs
 //             manifest `source` field; blank when none) and what is left this month (a courtesy: the CLI's own monthly
 //             check is what refuses).
 //   run(body) { flow, inputs: [{role, path}], runId } -> the SAME $0 input checks as the card (`checkInputRows`), the role set
@@ -19,7 +19,7 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
 import {
-  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, planForReuse, readFileInside, readFlow, resolveRunDir, suggestFlowName,
+  changeSentence, checkFlowName, listFlowNames, listRunIds, nextRunId, planForReuse, readFlow, resolveRunDir, suggestFlowName,
 } from '../flow.js';
 import { jobKeyOfCard, jobKeyOfSigned } from '../jobkey.js';
 import { spendSummary } from '../monthly.js';
@@ -36,6 +36,7 @@ import { SCHEDULE_BUSY_SAY } from '../summary-words.js';
 import { providerKeys } from './spawn.js';
 import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
+import { readRunInputs, RUN_FILE } from '../runfile.js';
 
 /** M6 amendment 1: the sentence the page shows and the sign route refuses with, for a job with a run running or waiting at its ask. @param {string} runId */
 export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
@@ -90,28 +91,27 @@ export function createFlowsDoor(opts) {
     };
   }
 
-  /** The source paths one run froze: role -> path, from that run's `inputs.json`. Blank = none. @param {string} runDir @param {string[]} roles @param {Record<string, string>} [pages] M10 am3: page role -> signed address */
+  /** The source paths one run froze: role -> path, from that run's `run.json` inputs. Blank = none. @param {string} runDir @param {string[]} roles @param {Record<string, string>} [pages] M10 am3: page role -> signed address */
   function sourcesOf(runDir, roles, pages = {}) {
     /** @type {Record<string, string>} */
     const out = Object.fromEntries(roles.map((r) => [r, pages[r] ?? ''])); // M10 am3: a page input shows its signed address, whatever a run froze
     if (runDir === '') return out;
-    const f = readFileInside(runDir, 'inputs.json');
-    let rows = [];
-    try { rows = f.ok ? JSON.parse(f.text) : []; } catch { rows = []; }
-    for (const row of Array.isArray(rows) ? rows : []) {
+    const f = readRunInputs(runDir);
+    for (const row of f.ok ? f.entries : []) {
       if (row && typeof row.id === 'string' && roles.includes(row.id) && !Object.hasOwn(pages, row.id) && typeof row.source === 'string') out[row.id] = row.source;
     }
     return out;
   }
 
-  /** The source paths the newest run of this flow used: role -> path, from that run's `inputs.json`. Blank = none. @param {string} flowDir @param {string[]} roles @param {Record<string, string>} [pages] */
+  /** The source paths the newest run of this flow used: role -> path, from that run's `run.json` inputs. Blank = none. @param {string} flowDir @param {string[]} roles @param {Record<string, string>} [pages] */
   function lastSources(flowDir, roles, pages = {}) {
     let newest = null;
     for (const id of listRunIds(flowDir)) {
       const r = resolveRunDir(flowDir, id);
       if (!r.ok) continue;
       let t;
-      try { t = lstatSync(join(r.runDir, 'inputs.json')).mtimeMs; } catch { continue; }
+      if (!readRunInputs(r.runDir).ok) continue; // a run that froze no inputs (a refusal at start) is not "the newest run that ran"
+      try { t = lstatSync(join(r.runDir, RUN_FILE)).mtimeMs; } catch { continue; }
       if (newest === null || t > newest.t || (t === newest.t && id > newest.id)) newest = { t, id, runDir: r.runDir };
     }
     if (newest === null) return { runId: null, sources: sourcesOf('', roles, pages) };

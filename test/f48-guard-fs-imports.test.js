@@ -313,7 +313,7 @@ const ALLOWLIST = {
     names: {
       accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
       mkdirSync: 7, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
-      statSync: 3, unlinkSync: 4, writeFileSync: 8,
+      statSync: 3, unlinkSync: 4, writeFileSync: 7,
     },
     readArtifactCallSites: 4,
   },
@@ -453,6 +453,10 @@ const ALLOWLIST = {
       accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
     },
   },
+  'src/runfile.js': {
+    reason: 'M8b item 1: the ONE writer of `run.json` - one exclusive create (flag wx, 0600) of the run\'s start record in the run folder `runFlow` made (or `fwdloop tidy`, through the same function). Every READ goes through readFileInside.',
+    names: { writeFileSync: 1 },
+  },
   'src/flowmodel.js': {
     reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside. M8 item 6: also the ONE `renameSync` that moves the draft record `learnings.json` from a freshly signed flow folder into the folder of the first run (a rename, so it moves once); the copy and the write use the same exclusive writer.',
     names: { renameSync: 1, writeFileSync: 1 },
@@ -486,7 +490,7 @@ const ALLOWLIST = {
     names: { realpathSync: 1 },
   },
   'src/panel/authorflows.js': {
-    reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `inputs.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
+    reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `run.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
     names: { lstatSync: 1, realpathSync: 1 },
   },
   'src/panel/lock.js': {

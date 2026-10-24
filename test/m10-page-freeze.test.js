@@ -39,7 +39,7 @@ test('a normal page is frozen into the run, with a sha256 of the frozen bytes, i
     assert.equal(e.sha256, sha(readFileSync(e.frozen)));
     assert.equal(e.bytes, Buffer.byteLength(pageText('A')));
     assert.equal(r.manifest[1].id, 'aging', 'a file input still freezes the old way');
-    assert.deepEqual(JSON.parse(readFileSync(path.join(runDir, 'inputs.json'), 'utf8')), r.manifest);
+    assert.equal(existsSync(path.join(runDir, 'inputs.json')), false, 'freezeInputs returns the manifest; runFlow records it in run.json');
   } finally { await srv.close(); }
 });
 

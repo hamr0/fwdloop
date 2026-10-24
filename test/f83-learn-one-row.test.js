@@ -24,7 +24,7 @@ function runFolder(/** @type {any} */ t) {
   writeFileSync(join(dir, 'checks.jsonl'), jl([{ step: 's1', try: 1, checks: [{ n: 1, text: 'at most 600 words', ok: false }] }]));
   writeFileSync(join(dir, 'job', 'prose.txt'), 'Write a short resume summary.\n\nMore.');
   writeFileSync(join(dir, 'job', 'declaration.json'), JSON.stringify({ steps: [{ emits: 's1', goal: 'summarise', fromLine: 3 }] }));
-  writeFileSync(join(dir, 'inputs.json'), JSON.stringify([{ id: 'resume', source: '/nonexistent/resume.docx' }]));
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source: '/nonexistent/resume.docx' }] }));
   writeFileSync(join(dir, 'artifacts', 's1.json'), '{}');
   return dir;
 }

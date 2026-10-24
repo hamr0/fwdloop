@@ -1,5 +1,5 @@
 // M4d amendment 26 (signed 2026-10-18): thinking shows in Audit (each model try line) and on the Job tab (one row, the run's rule).
-// Words: src/thinking.js (thinkingSay and the two helpers beside it); data: each audit row's `thinking` {asked, status} (am25) and <run>/thinking.json.
+// Words: src/thinking.js (thinkingSay and the two helpers beside it); data: each audit row's `thinking` {asked, status} (am25) and <run>/run.json (thinking).
 // Real HTTP + a real browser (skips when none). $0.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
@@ -38,7 +38,7 @@ async function thinkWorld(kind) {
   const g = await greenWorld();
   const runDir = path.join(g.flowDir, 'runs', 'seed-pass');
   put(runDir, kind === 'old' ? OLD : AM25);
-  if (kind !== 'old') writeFileSync(path.join(runDir, 'thinking.json'), JSON.stringify({ thinking: kind === 'ticked' }));
+  if (kind !== 'old') writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({ thinking: kind === 'ticked' }));
   // the flow's own model.json says ticked: an old run must still show NO row (it has no record of its own)
   writeFileSync(path.join(g.flowDir, 'model.json'), JSON.stringify({ slot: 'DEEPSEEK_KEY', model: 'deepseek-flash', thinking: true }));
   return g;

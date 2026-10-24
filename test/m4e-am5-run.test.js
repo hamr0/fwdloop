@@ -50,7 +50,7 @@ test('(a) Run with new input files only starts with ONE click as run-<n+1>; the 
   assert.equal(next.ok, true);
   assert.equal(next.runId, 'run-2', 'a plain Run needs no hash and is named run-<n+1>');
   await parked(w, 'job2', 'run-2');
-  assert.equal(JSON.parse(readFileSync(path.join(flowDir, 'runs', 'run-2', 'inputs.json'), 'utf8')).find((m) => m.id === 'resume').source, path.join(w.inDir, 'resume2.md'));
+  assert.equal(JSON.parse(readFileSync(path.join(flowDir, 'runs', 'run-2', 'run.json'), 'utf8')).inputs.find((m) => m.id === 'resume').source, path.join(w.inDir, 'resume2.md'));
   assert.deepEqual(readdirSync(path.join(flowDir, 'runs', 'run-2')).filter((n) => /^signed-values/.test(n)), []);
   assert.deepEqual(['prose.txt', 'signature.json', 'declaration.json'].map((f) => sha(path.join(flowDir, f))), files);
   // a plain Run that spells out the flow's own values (same destination, cap, wait) is still a plain Run

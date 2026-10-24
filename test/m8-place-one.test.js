@@ -16,7 +16,7 @@ const jl = (/** @type {any[]} */ rows) => `${rows.map((r) => JSON.stringify(r)).
 const tryRow = (/** @type {any} */ o) => ({ step: 's1', attempt: 1, class: 'softgreen', verdict: 'red', gap: null, usd: 0.001, spendComplete: true, model: 'deepseek-flash', at: NOW.toISOString(), ...o });
 const scratch = (/** @type {any} */ t, /** @type {string} */ p) => { const d = mkdtempSync(join(tmpdir(), `fwdloop-m8-place-${p}-`)); t.after(() => rmSync(d, { recursive: true, force: true })); return d; };
 
-/** a finished run (FIXED note on s1) whose inputs.json names `source` */
+/** a finished run (FIXED note on s1) whose run.json names `source` */
 function runWith(/** @type {any} */ t, /** @type {string} */ source) {
   const dir = join(scratch(t, 'run'), 'run-1');
   mkdirSync(join(dir, 'job'), { recursive: true });
@@ -26,7 +26,7 @@ function runWith(/** @type {any} */ t, /** @type {string} */ source) {
   writeFileSync(join(dir, 'checks.jsonl'), jl([{ step: 's1', try: 1, checks: [{ n: 1, text: 'at most 600 words', ok: false }] }]));
   writeFileSync(join(dir, 'job', 'prose.txt'), 'Write a short summary.\n\nMore.');
   writeFileSync(join(dir, 'job', 'declaration.json'), JSON.stringify({ steps: [{ emits: 's1', goal: 'summarise', fromLine: 3 }] }));
-  writeFileSync(join(dir, 'inputs.json'), JSON.stringify([{ id: 'resume', source }]));
+  writeFileSync(join(dir, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source }] }));
   writeFileSync(join(dir, 'artifacts', 's1.json'), '{}');
   return dir;
 }

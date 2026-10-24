@@ -177,7 +177,7 @@ test('C5: the run reads the box from its OWN record, not the flow folder it came
   };
   const r = await run(s, swap);
   assert.equal(r.outcome, 'complete', r.red);
-  assert.ok(existsSync(path.join(s.flowDir, 'runs', 'run-1', 'thinking.json')));
+  assert.ok(existsSync(path.join(s.flowDir, 'runs', 'run-1', 'run.json')));
   for (const m of metas) assert.equal(m.thinkingMode, 'on', m.goal);
 });
 

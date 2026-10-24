@@ -1,7 +1,7 @@
 // M10b piece 2: the ONE writer of `<run>/sheet-checks.json`, the record of what each sheet check said in this run, for the separate checker that re-runs a run's
 // signed checks against its saved sheet (M10b "Done when"). Append-only: one entry per (job line, try), written the moment that try's check has run, never replaced.
 // Shape: { lines: [ { n, try, passed, tables: [{name, tableSha}], checks: [the signed check objects], claims: <the step's answer>, results: [{id, text, ok, result}], red } ] }.
-// `tables[].tableSha` is the one recorded at the run's start (inputs.json), the one the check used. Throws away: nothing the check saw; no cell text is kept here.
+// `tables[].tableSha` is the one recorded at the run's start (run.json), the one the check used. Throws away: nothing the check saw; no cell text is kept here.
 import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
