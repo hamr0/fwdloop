@@ -33,6 +33,7 @@ import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { seedLedger } from '../src/learnstore.js';
+import { tidyRoot } from '../src/tidy.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import {
@@ -1006,6 +1007,23 @@ function cmdLearn(rest) {
   if (r.problem) fail(`learn seed: stopped, the ledger is not usable — ${r.problem}`);
 }
 
+/**
+ * M8b item 5: `fwdloop tidy --root <flows folder>`: moves every run folder to the new shape (run.json, diary.jsonl, line-checks.json) and removes the old files ($0, code only).
+ * A run whose process is alive is skipped and named; a run it cannot move is named with why and left as it is (exit 1); run it again and it changes nothing.
+ */
+function cmdTidy(rest) {
+  const { values } = parseArgs({ args: rest, options: { root: { type: 'string' } } });
+  if (!values.root) fail('tidy: --root <flows folder> is required');
+  const r = tidyRoot({ root: resolveRoot('tidy', values.root) });
+  const out = [];
+  for (const run of r.moved) out.push(`moved: ${run}`);
+  for (const s of r.skipped) out.push(`skipped: ${s.run} — ${s.why} (run tidy again when it has ended)`);
+  for (const f of r.failed) out.push(`cannot move: ${f.run} — ${f.why} (left as it is)`);
+  out.push(`tidy: ${r.runs} runs: moved ${r.moved.length}, already tidy ${r.tidy.length}, skipped ${r.skipped.length}, cannot move ${r.failed.length}`);
+  process.stdout.write(`${out.join('\n')}\n`);
+  if (r.failed.length) process.exitCode = 1;
+}
+
 // ---------------------------------------------------------------------------
 
 /**
@@ -1034,8 +1052,9 @@ async function main() {
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
   if (verb === 'learn') return cmdLearn(rest);
+  if (verb === 'tidy') return cmdTidy(rest);
   if (verb === 'start' || verb === 'stop' || verb === 'status' || verb === 'install') return cmdLauncher(verb, rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | start | stop | status | install (or none, for the menu)`);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | tidy | start | stop | status | install (or none, for the menu)`);
   return undefined;
 }
 
