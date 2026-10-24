@@ -3,7 +3,9 @@
 // a secret, file content or model text is in one.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  readFileSync, writeFileSync, mkdirSync, appendFileSync,
+} from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,7 +14,7 @@ import { makeLiveModelStep } from '../src/model-step.js';
 import { resolvePrimitives } from '../src/primitives.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  DIARY_FILES, diaryPaths, readCalls, readTools, nextRound,
+  DIARY_FILE, diaryPaths, readCalls, readTools, nextRound,
 } from '../src/diary.js';
 
 const CAT = (() => { const c = loadCatalogue(); assert.equal(c.ok, true); return c.primitives; })();
@@ -57,7 +59,7 @@ test('A1: every model call and every tool call gets its own row, with the guard 
   const { runDir, tools, step } = setup([
     call([
       { id: 't1', name: 'read', arguments: { path: 'inputs/note.md' } },
-      { id: 't2', name: 'read', arguments: { path: 'calls.jsonl' } },
+      { id: 't2', name: 'read', arguments: { path: 'diary.jsonl' } },
       { id: 't3', name: 'addressCells', arguments: { role: 'cells' } },
       { id: 't4', name: 'nonesuch', arguments: { path: 'x' } },
     ]),
@@ -126,7 +128,7 @@ test('A4: no model text, no file content in any diary; a secret in a path is mas
 test('A5: the model can read none of the diaries - by read, by grep on the file, by grep over the run folder, by get', async () => {
   const { runDir, tools, step } = setup([call([{ id: 't1', name: 'read', arguments: { path: 'inputs/note.md' } }]), emit(), stop()]);
   await step(CTX, tools, { class: 'softgreen', attempt: 1, step: 's' });
-  writeFileSync(path.join(runDir, DIARY_FILES.checks), `{"marker":"${MODEL_WORDS}-checks"}\n`);
+  appendFileSync(path.join(runDir, DIARY_FILE), `{"kind":"checks","marker":"${MODEL_WORDS}-checks"}\n`);
   const word = /"step":"s"|marker/;
   for (const file of diaryPaths(runDir)) {
     const name = path.basename(file);
@@ -149,7 +151,7 @@ test('A5b: a big diary cannot eat the grep cap - the diaries are left out before
   const runDir = tmp('cap');
   mkdirSync(path.join(runDir, 'out'), { recursive: true });
   writeFileSync(path.join(runDir, 'out', 'a.md'), 'the step is here\n');
-  writeFileSync(path.join(runDir, DIARY_FILES.calls), '{"step":"s"}\n'.repeat(3000));
+  writeFileSync(path.join(runDir, DIARY_FILE), '{"kind":"call","step":"s"}\n'.repeat(3000));
   const { tools, reds } = resolvePrimitives(CAT, ['grep'], { runDir, inputs: [] });
   assert.deepEqual(reds, []);
   const found = await tools.grep.execute({ path: '.', pattern: 'step' });

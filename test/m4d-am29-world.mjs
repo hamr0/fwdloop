@@ -32,7 +32,7 @@ function fakeProvider(redoFails = false) {
       const n = messages.filter((m) => m.role === 'tool').length;
       const emit = (a) => turn([{ id: `e${n}`, name: 'emit_artifact', arguments: { ...a, done: true } }]);
       if (goal.includes('Draft the summary')) {
-        if (n === 0) return turn([{ id: 'r1', name: 'read', arguments: { path: 'inputs/jd.md' } }, { id: 'r2', name: 'read', arguments: { path: 'calls.jsonl' } }]);
+        if (n === 0) return turn([{ id: 'r1', name: 'read', arguments: { path: 'inputs/jd.md' } }, { id: 'r2', name: 'read', arguments: { path: 'diary.jsonl' } }]);
         if (n === 2) { summaries += 1; return emit({ text: summaries === 1 || (redoFails && summaries >= 3) ? `## summary of work history blurb\n${'word '.repeat(700)}` : SECTIONS }); }
         return turn([], 'stop');
       }

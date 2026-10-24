@@ -22,7 +22,7 @@ function runFolder(t, { rows, outcome = 'complete', attempts = [], checks = [], 
   mkdirSync(join(dir, 'artifacts'));
   writeFileSync(join(dir, 'audit.jsonl'), jl(rows));
   writeFileSync(join(dir, 'log.json'), JSON.stringify({ runId: 'run-1', outcome, attempts, artifacts: {} }));
-  if (checks.length) writeFileSync(join(dir, 'checks.jsonl'), jl(checks));
+  if (checks.length) writeFileSync(join(dir, 'diary.jsonl'), jl(checks.map((c) => ({ kind: 'checks', ...c }))));
   writeFileSync(join(dir, 'job', 'prose.txt'), 'Write a short resume summary.\n\nMore.');
   writeFileSync(join(dir, 'job', 'declaration.json'), JSON.stringify({ steps: [{ emits: 's1', goal: 'summarise', fromLine: 3 }] }));
   writeFileSync(join(dir, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source: '/nonexistent/resume.docx' }] }));

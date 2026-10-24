@@ -855,7 +855,7 @@ export async function runStepRalph({
   // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
   // against the limit, so Resume always gets at least one new try).
   readStop = null, stepNo = 0, triesDone = 0,
-  // M4d am29 item 2: the run's folder, where each try saves its checks (`checks.jsonl`, src/diary.js)
+  // M4d am29 item 2: the run's folder, where each try saves its checks (`diary.jsonl`, kind checks, src/diary.js)
   runDir = null,
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,

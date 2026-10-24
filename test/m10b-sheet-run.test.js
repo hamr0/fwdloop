@@ -11,6 +11,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { freezeInputs, runStepRalph, runFlow, readArtifactsMapChecked } from '../src/runner.js';
 import { freezeAndRecord } from './freeze-fixture.mjs';
 import { writeRunStart } from '../src/runfile.js';
+import { readChecks } from '../src/diary.js';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readAudit, readHistory } from '../src/books.js';
@@ -83,7 +84,7 @@ async function runStep(file, role, checks, answers, { mutate } = {}) {
   return { run, out, rows, calls: () => calls, spent };
 }
 const lastRecord = (run) => JSON.parse(readFileSync(path.join(run, 'sheet-checks.json'), 'utf8')).lines;
-const checksRows = (run) => readFileSync(path.join(run, 'checks.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+const checksRows = (run) => readChecks(run);
 
 test('the lock: the run\'s run.json records the tableSha of the frozen sheet, once, for a sheet a step\'s close.sheet names (and for no other input)', async () => {
   const run = tmp();

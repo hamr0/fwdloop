@@ -229,7 +229,7 @@ test('/result with a malformed record: the lines fall back to "no saved result t
   assert.ok(r.body.lines.every((l) => l.kind === 'text'));
 });
 
-// M10 am9 item 2: every job without a web page lists the checks its step ran, from the run's own checks.jsonl, that step's NEWEST try; code writes them.
+// M10 am9 item 2: every job without a web page lists the checks its step ran, from the run's own diary.jsonl (checks rows), that step's NEWEST try; code writes them.
 test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓ or ✗, in the Audit try line\'s words; the failed one carries its reason', async () => {
   const w = await world({ mode: 'red' });
   const r = (await w.get('/api/runs/job2/run-1/result')).body;
@@ -248,8 +248,8 @@ test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓
 
 test('am9: the checks come from the NEWEST try (a later try replaces an earlier one)', async () => {
   const w = await world({ mode: 'red' });
-  appendFileSync(path.join(w.root, 'job2', 'runs', 'run-1', 'checks.jsonl'), `${JSON.stringify({
-    step: 'resume-summary', try: 4, at: '2026-10-21T00:00:00Z', lastRound: 0, checks: [{ n: 1, text: 'the output exists and isn\'t empty', ok: true, result: '9 B', source: 'every step' }], output: null,
+  appendFileSync(path.join(w.root, 'job2', 'runs', 'run-1', 'diary.jsonl'), `${JSON.stringify({
+    kind: 'checks', step: 'resume-summary', try: 4, at: '2026-10-21T00:00:00Z', lastRound: 0, checks: [{ n: 1, text: 'the output exists and isn\'t empty', ok: true, result: '9 B', source: 'every step' }], output: null,
   })}\n`);
   const l3 = (await w.get('/api/runs/job2/run-1/result')).body.lines.find((l) => l.n === 3);
   assert.deepEqual(l3.checks, [{ ok: true, text: 'the output exists and isn\'t empty', result: '9 B' }]);

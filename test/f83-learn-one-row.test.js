@@ -21,7 +21,7 @@ function runFolder(/** @type {any} */ t) {
   mkdirSync(join(dir, 'artifacts'));
   writeFileSync(join(dir, 'audit.jsonl'), jl(ROWS));
   writeFileSync(join(dir, 'log.json'), JSON.stringify({ runId: 'run-1', outcome: 'complete', attempts: [{ step: 's1', attempt: 1, modelOutput: { text: 'long' } }, { step: 's1', attempt: 2, modelOutput: { text: 'short' } }], artifacts: {} }));
-  writeFileSync(join(dir, 'checks.jsonl'), jl([{ step: 's1', try: 1, checks: [{ n: 1, text: 'at most 600 words', ok: false }] }]));
+  writeFileSync(join(dir, 'diary.jsonl'), jl([{ kind: 'checks', step: 's1', try: 1, checks: [{ n: 1, text: 'at most 600 words', ok: false }] }]));
   writeFileSync(join(dir, 'job', 'prose.txt'), 'Write a short resume summary.\n\nMore.');
   writeFileSync(join(dir, 'job', 'declaration.json'), JSON.stringify({ steps: [{ emits: 's1', goal: 'summarise', fromLine: 3 }] }));
   writeFileSync(join(dir, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source: '/nonexistent/resume.docx' }] }));

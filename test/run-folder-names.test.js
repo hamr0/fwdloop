@@ -66,7 +66,7 @@ function recorder(calls, redOn = []) {
   };
 }
 // hamr 2026-10-24: no new file kinds in a run folder. The exact names this fixture's run folder held before the learnings work: a rerun run and a plain run with a retry make no other.
-const RUN_FOLDER_NAMES = ['artifacts', 'ask.json', 'asks', 'audit.jsonl', 'checks.jsonl', 'inputs', 'job', 'log.json', 'pids.jsonl', 'run.json', 'state.json'];
+const RUN_FOLDER_NAMES = ['artifacts', 'ask.json', 'asks', 'audit.jsonl', 'diary.jsonl', 'inputs', 'job', 'log.json', 'pids.jsonl', 'run.json', 'state.json'];
 
 test('no new file kinds: a rerun run and a plain run with retries leave no rerun.json, no learnings-try-*', async () => {
   for (const [tag, extra, id] of [['names-rerun', { initialGap: 'start over' }, 'run-1-rerun-1'], ['names-plain', {}, 'run-1']]) {

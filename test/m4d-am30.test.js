@@ -18,8 +18,8 @@ test('A1: try numbers never restart after a Redo - the redone step shows 1, 2, 3
   const w = await buildWorld({ redo: true });
   assert.equal(w.result.outcome, 'complete', w.result.red);
   assert.deepEqual(tryRows(w).map((r) => r.attempt), [1, 2, 3], 'audit.jsonl: each number once');
-  assert.deepEqual(readChecks(w.runDir).filter((c) => c.step === STEP).map((c) => c.try), [1, 2, 3], 'checks.jsonl');
-  assert.deepEqual([...new Set(readCalls(w.runDir).filter((c) => c.step === STEP).map((c) => c.try))], [1, 2, 3], 'calls.jsonl');
+  assert.deepEqual(readChecks(w.runDir).filter((c) => c.step === STEP).map((c) => c.try), [1, 2, 3], 'checks rows');
+  assert.deepEqual([...new Set(readCalls(w.runDir).filter((c) => c.step === STEP).map((c) => c.try))], [1, 2, 3], 'call rows');
   const f = audit(w).groups.find((g) => g.step === STEP).fold;
   assert.deepEqual(f.tries.map((t) => t.n), [1, 2, 3], 'the Audit fold');
   assert.deepEqual(f.rows.filter((r) => r.action === 'model call').map((r) => r.try).filter((x, i, a) => a.indexOf(x) === i), [1, 2, 3]);
