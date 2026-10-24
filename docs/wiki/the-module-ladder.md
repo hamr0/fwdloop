@@ -2479,6 +2479,13 @@ SIGNED by hamr 2026-10-24 ("sign m8 am7"), the text exactly as shown:
 5. With `learningHints` OFF, nothing is handed anywhere.
 - **Must fail when:** a retry, redo or rerun gets a block different from the drafter's block at that moment; a step's first try gets a block; a try that got a block has no Audit line, or its text differs from what was handed; OFF hands anything.
 
+SIGNED by hamr 2026-10-24 ("sign m8 am8"), the text exactly as shown:
+
+**M8 amendment 8 — "this place" is the file the run reads.**
+1. A run's place is its first input as the run actually reads it, not the path written in the signed job. One function decides it, and the drafter, a step's retry, redo or rerun, and the run-end tally all use it.
+2. So a job run on a different file than the one it was signed with gets that file's learnings, and its own learnings are saved under that file.
+- **Must fail when:** the drafter, a step and the run end name different places for the same run; a run on a file other than the signed path gets the signed path's place learnings.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
