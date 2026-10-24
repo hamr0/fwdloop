@@ -4,7 +4,8 @@
 // config homes (mkdtemp, cleaned up).
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { readAudit } from '../src/books.js';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -130,5 +131,21 @@ test('a resumed leg of a rerun run still counts: after a Stop, Continue\'s first
   for (const c of second) {
     assert.equal(c.mode, 'on', JSON.stringify(c));
     assert.equal(typeof c.hints, 'string', JSON.stringify(c));
+  }
+});
+
+// hamr 2026-10-24: no new file kinds in a run folder. The exact names this fixture's run folder held before the learnings work: a rerun run and a plain run with a retry make no other.
+const RUN_FOLDER_NAMES = ['artifacts', 'ask.json', 'asks', 'audit.jsonl', 'checks.jsonl', 'inputs', 'inputs.json', 'job', 'log.json', 'pids.jsonl', 'state.json', 'thinking.json'];
+
+test('no new file kinds: a rerun run and a plain run with retries leave no rerun.json, no learnings-try-*', async () => {
+  for (const [tag, extra, id] of [['names-rerun', { initialGap: 'start over' }, 'run-1-rerun-1'], ['names-plain', {}, 'run-1']]) {
+    const w = world(tag);
+    const r = await runFlow(w.args(recorder([], [1]), id, extra));
+    assert.notEqual(r.outcome, 'refused', r.red);
+    const names = readdirSync(w.runDir(id));
+    assert.ok(names.includes('thinking.json') && names.includes('audit.jsonl'), `${tag}: ${names}`);
+    assert.deepEqual([...names].sort(), RUN_FOLDER_NAMES, `${tag}: no rerun.json, no learnings-try-*, no new name`);
+    // the retry was handed its block on the audit row, not in a file
+    assert.ok(readAudit(w.runDir(id)).some((x) => typeof x.hintsText === 'string' && x.hintsText !== ''), `${tag}: the block rides the try's audit row`);
   }
 });

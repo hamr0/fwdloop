@@ -74,7 +74,7 @@ import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking, writeRunModel, readRunIsRerun, takeLearningsRecord, writeStepLearningsRecord } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel, readRunIsRerun, takeLearningsRecord } from './flowmodel.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -780,6 +780,9 @@ function makeAuditRow({
   step, attempt, verdict, gap, usd, spendComplete, wallMs, model = null, modelMatch = null, strike, at, tokens = null, tools = null, ungranted = /** @type {string[]|undefined} */ (undefined), refused = /** @type {Array<{verb:string,path:string,rule:string}>} */ ([]),
   thinking = /** @type {{asked:string, status:string|null}|undefined} */ (undefined),
   hints = /** @type {number|undefined} */ (undefined),
+  hintsText = /** @type {string|undefined} */ (undefined),
+  hintIds = /** @type {string[]|undefined} */ (undefined),
+  hintsError = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -801,8 +804,10 @@ function makeAuditRow({
   if (ungranted !== undefined && ungranted.length > 0) row.ungranted = ungranted;
   // M4d am25 item 4: the thinking this model call asked for and what bareagent reported back; the ONE writer of the field. A row with no model call has none.
   if (thinking !== undefined) row.thinking = thinking;
-  // M8 am7 item 4: how many hints from earlier runs this try was handed; the key is absent when none were (the exact text is in learnings-try-*.json, src/flowmodel.js).
-  if (hints !== undefined) row.hints = hints;
+  // M8 am7 item 4: how many hints from earlier runs this try was handed, the exact text and the ids; the keys are absent when none were. The ONE place the handed text is kept
+  // (this row, written after the call from what the try held in memory); a failed ask for the block is `hintsError`, the first line, secrets redacted.
+  if (hints !== undefined) { row.hints = hints; row.hintsText = hintsText; row.hintIds = hintIds; }
+  if (hintsError !== undefined) row.hintsError = hintsError;
   return row;
 }
 
@@ -899,22 +904,26 @@ export async function runStepRalph({
 
     const grantedTools = Object.fromEntries((step.primitives ?? []).map((verb) => [verb, primitivesMap?.[verb]]));
     // M8 am7: the earlier runs' block for THIS try only - a retry, a redo or a rerun (`triesCount`; the Chat box never decides it). It is the drafter's one block
-    // function asked again now, recorded write-once BEFORE the call (so the Audit shows what was sent), and any failure hands nothing and is written to learn-error.jsonl.
+    // function asked again now. What it handed is kept in memory and rides EVERY audit row this try writes (the row is written after the call, so the record exists once the
+    // try's row does); any failure hands nothing and rides the row as `hintsError`.
     /** @type {{text: string, ids: string[]}|null} */
     let handed = null;
+    /** @type {string|undefined} */
+    let handedError;
     if (learnHints !== null && triesCount({ attempt, rerun })) {
       try {
         handed = learnHints();
-        if (handed !== null && runDir !== null) writeStepLearningsRecord(runDir, { step: step?.emits ?? step?.goal ?? '', try: attempt, text: handed.text, ids: handed.ids });
       } catch (/** @type {any} */ e) {
         handed = null;
-        if (runDir !== null) {
-          try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(String(e?.message ?? e)).split('\n')[0] }); } catch { /* best-effort record of a failed record */ }
-        }
+        handedError = redactSecrets(String(e?.message ?? e)).split('\n')[0];
       }
     }
-    // every row this try writes from here on carries how many hints it was handed (none handed = no field)
-    const rowOf = (/** @type {any} */ a) => makeAuditRow(handed !== null ? { ...a, hints: handed.ids.length } : a);
+    // every row this try writes from here on carries how many hints it was handed, which, and what (none handed = no field)
+    const rowOf = (/** @type {any} */ a) => makeAuditRow({
+      ...a,
+      ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
+      ...(handedError !== undefined ? { hintsError: handedError } : {}),
+    });
     const executorContext = buildExecutorContext({
       goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text,
     });

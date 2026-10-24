@@ -2,7 +2,6 @@
 // (audit.jsonl's try rows + the three diaries in src/diary.js). Nothing here calls a model ($0 replay), and the page only draws what this returns,
 // so the Audit rows, the summary and the cards can only agree. A run from before am29 has no diaries: no fold, `—` on the new lines, nothing made up.
 import { readCalls, readTools, readChecks } from './diary.js';
-import { readStepLearnings } from './flowmodel.js';
 
 /** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). @param {any} r */
 export function isTryRow(r) {
@@ -17,8 +16,6 @@ export function loadDiaries(runDir) {
   // a diary file only ever exists with a row in it, so "this run has diaries" is "a diary holds a row" (read through the safe gateway, no fs here)
   return {
     present: calls.length + tools.length + checks.length > 0, calls, tools, checks,
-    // M8 am7 item 4: what each step try was handed from earlier runs (write-once per try, src/flowmodel.js); not part of "has diaries"
-    hints: readStepLearnings(runDir),
   };
 }
 
@@ -117,8 +114,8 @@ export function deriveFold(group, d, info = {}) {
       const rec = saved.length === alike ? saved[k] : null;
       tries.push({
         n: r.attempt, mark: group.tryMarks[i] ?? '·', thinking: r.thinkingPhrase ?? null, gap: r.gap || null, answer: null, about: null, checks: rec?.checks ?? [], output: rec?.output ?? null,
-        // M8 am7 item 4: the exact text this try was handed, from its own record; null (no line) when nothing was handed
-        hints: (() => { const h = (d.hints ?? []).find((x) => x.step === step && x.try === r.attempt); return h ? { n: h.ids.length, text: h.text } : null; })(),
+        // M8 am7 item 4: the exact text this try was handed, from its own audit row (`hints` count + `hintsText`); null (no line) when nothing was handed
+        hints: typeof r.hintsText === 'string' && r.hintsText !== '' && Number.isInteger(r.hints) ? { n: r.hints, text: r.hintsText } : null,
       });
     });
     // rounds count on through all of a step's tries, so they order the calls and tool calls; a try's check row goes after the last round it saw

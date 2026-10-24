@@ -13,11 +13,13 @@ import { getRunAudit } from '../src/panel/data.js';
 import { readAudit } from '../src/books.js';
 import { writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { readStepLearnings } from '../src/flowmodel.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { createPanelServer } from '../src/panel/server.js';
 import { remember } from '../scripts/panel-fixtures/panel-auth.mjs';
+
+// what each try was handed, read from its own audit row (`hints` count, `hintsText`, `hintIds`)
+const readStepLearnings = (runDir) => readAudit(runDir).filter((x) => Object.hasOwn(x, 'hints')).map((x) => ({ step: x.step, try: x.attempt, text: x.hintsText, ids: x.hintIds }));
 
 const HANDLES = [];
 const CLOSERS = [];

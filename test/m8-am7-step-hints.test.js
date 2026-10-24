@@ -15,9 +15,12 @@ import { runFlow, runStepRalph, makeParkingAskStep, LEARN_ERROR_FILE } from '../
 import { readAudit } from '../src/books.js';
 import { hintsForRun, writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { readStepLearnings, STEP_LEARNINGS_PREFIX, writeRunThinking } from '../src/flowmodel.js';
+import { writeRunThinking } from '../src/flowmodel.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { sandboxSend } from './send-sandbox.js';
+
+// what each try was handed, read from its own audit row (`hints` count, `hintsText`, `hintIds`)
+const readStepLearnings = (runDir) => readAudit(runDir).filter((x) => Object.hasOwn(x, 'hints')).map((x) => ({ step: x.step, try: x.attempt, text: x.hintsText, ids: x.hintIds }));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -121,9 +124,8 @@ test('OFF: nothing is handed anywhere - no context, no record, no count, no erro
     await w.run(recordingModel(seen, [1]));
     assert.ok(seen.length >= 2);
     assert.ok(seen.every((s) => s.hints === null), `OFF hands nothing: ${JSON.stringify(seen)}`);
-    assert.deepEqual(readdirSync(w.runDir).filter((x) => x.startsWith(STEP_LEARNINGS_PREFIX)), []);
     assert.equal(existsSync(path.join(w.runDir, LEARN_ERROR_FILE)), false);
-    assert.ok(readAudit(w.runDir).every((x) => !Object.hasOwn(x, 'hints')));
+    assert.ok(readAudit(w.runDir).every((x) => !Object.hasOwn(x, 'hints') && !Object.hasOwn(x, 'hintsText') && !Object.hasOwn(x, 'hintIds') && !Object.hasOwn(x, 'hintsError')));
   }
 });
 
@@ -168,5 +170,8 @@ test('a ledger that cannot be read hands nothing, records why, and the step stil
   const r = await w.run(recordingModel(seen, [1]));
   assert.notEqual(r.outcome, 'refused', r.red);
   assert.ok(seen.length >= 2 && seen.every((s) => s.hints === null));
-  assert.equal(existsSync(path.join(w.runDir, LEARN_ERROR_FILE)), true);
+  const errRows = readAudit(w.runDir).filter((x) => Object.hasOwn(x, 'hintsError'));
+  assert.ok(errRows.length >= 1, 'the failure rides the try\'s audit row');
+  assert.ok(errRows.every((x) => typeof x.hintsError === 'string' && x.hintsError !== '' && !Object.hasOwn(x, 'hints')));
+  assert.equal(existsSync(path.join(w.runDir, LEARN_ERROR_FILE)), false, 'no separate file for a step try\'s failure');
 });
