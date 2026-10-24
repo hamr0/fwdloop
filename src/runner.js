@@ -724,17 +724,17 @@ function recordRunNotes({
 
 /**
  * M8 am7 item 1: the step's side of "one block". `hintsForRun` (src/learnstore.js) is the ONE function that makes the block the drafter is handed; a step's try
- * calls that same function, with the run's own workflow name, first input source, signed hash and clock, and takes its answer whole (no second render, no filter).
+ * calls that same function, with the run's own workflow name, first input source and clock, and a null specHash exactly as the drafter does (so no second filter by job version), and takes its answer whole (no second render, no filter).
  * Returns null when `learningHints` is off, when there is no ledger or nothing readable, or in a test process with no config home. A ledger problem THROWS (the caller
  * hands nothing and records why in learn-error.jsonl, never a failed step).
- * @param {{flowName: string, signatureHash: string|null, source: string|null, now: () => string}} o
+ * @param {{flowName: string, source: string|null, now: () => string}} o
  * @returns {() => {text: string, ids: string[]}|null}
  */
-function stepHintsReader({ flowName, signatureHash, source, now }) {
+function stepHintsReader({ flowName, source, now }) {
   return () => {
     const door = configDoorHome();
     if (door.skip) return null;
-    return hintsForRun({ home: door.home, spec: { job: flowName, inputs: source ? [{ value: source }] : [] }, specHash: signatureHash, now: new Date(now()) });
+    return hintsForRun({ home: door.home, spec: { job: flowName, inputs: source ? [{ value: source }] : [] }, specHash: null, now: new Date(now()) });
   };
 }
 
@@ -1632,7 +1632,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, signatureHash, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1887,7 +1887,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, signatureHash, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {

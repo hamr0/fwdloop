@@ -101,6 +101,19 @@ test('a retry (try 2) is handed the drafter\'s block whole; the first try is not
   assert.equal(t2.hints, want.ids.length);
 });
 
+test('one block means one call: a row of this workflow signed under another hash is in the step\'s block exactly as in the drafter\'s', async () => {
+  const w = world('hash', true);
+  const base = row();
+  // a second row of this workflow, signed under a DIFFERENT hash, ranked first; the drafter (specHash null) keeps it, so the step must too
+  writeLedger({ ...emptyLedger(), rows: [base, { ...base, id: `${base.id}~other`, specHash: 'otherhash0000', count: base.count + 5, lesson: `${base.lesson} OTHERVERSION` }] }, w.home);
+  const want = drafterBlock(w.home, w.sources[0].path);
+  assert.ok(want && want.ids.includes(`${base.id}~other`), 'the drafter\'s block holds the other-hash row');
+  const seen = [];
+  await w.run(recordingModel(seen, [1]));
+  assert.ok(seen.length >= 2);
+  assert.equal(seen[1].hints, want.text, 'the retry gets the drafter\'s block at that moment, not a second filter\'s');
+});
+
 test('OFF: nothing is handed anywhere - no context, no record, no count, no error', async () => {
   for (const on of [false, null]) {
     const w = world('off', on);
