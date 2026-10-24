@@ -16,7 +16,7 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 /** The whole file as parsed, or why not. @param {string} runDir @returns {{ok: true, rec: Record<string, any>}|{ok: false, missing: boolean, red: string}} */
 function readWhole(runDir) {
   const r = readFileInside(runDir, LINE_CHECKS_FILE);
-  if (!r.ok) return { ok: false, missing: r.missing === true, red: r.red };
+  if (!r.ok) return r.missing ? { ok: false, missing: true, red: `no ${LINE_CHECKS_FILE}` } : { ok: false, missing: false, red: r.red };
   try {
     const rec = JSON.parse(r.text);
     return isRec(rec) ? { ok: true, rec } : { ok: false, missing: false, red: 'not a JSON object' };
