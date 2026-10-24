@@ -1287,14 +1287,27 @@ export function needsYouOf({
 }
 
 /**
+ * M11 am22: the ONE read of "does this run offer Reopen": the first of its asks `reopenOffer` (the Ask tab's own rule) says yes to, else null.
+ * The Run tab's `reopen`, Needs you's Reopen tag (`reopenableAt`) and the Ask tab's per-ask `reopen` all come from `reopenOffer`, never a second rule.
+ * @param {string} runDir @param {any} ctx `loadRunContext`'s result
+ * @returns {{askId: string, waitMs: number, late: boolean, why: string}|null}
+ */
+function runReopenOffer(runDir, ctx) {
+  if (ctx.historyRow || !ctx.askJson) return null;
+  const savedAskId = readSavedAnswer(runDir)?.askId;
+  for (const a of runAsksInOrder(runDir, false)) {
+    const offer = reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId);
+    if (offer !== null) return { askId: a.askId, ...offer };
+  }
+  return null;
+}
+
+/**
  * M11 am11 item 2: the expiry time of this run's ask when it has expired and can still be reopened (the Ask tab's own `reopenOffer` rule), else null.
  * @param {string} runDir @param {any} ctx `loadRunContext`'s result
  */
 function reopenableAt(runDir, ctx) {
-  if (ctx.historyRow || !ctx.askJson) return null;
-  const savedAskId = readSavedAnswer(runDir)?.askId;
-  const hit = runAsksInOrder(runDir, false).find((a) => reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId) !== null);
-  return hit && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
+  return runReopenOffer(runDir, ctx) !== null && typeof ctx.askJson.expiresAt === 'string' ? ctx.askJson.expiresAt : null;
 }
 
 /**
@@ -1769,6 +1782,8 @@ export function getRunDetail({
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
+    // M11 am22: the Run tab's Reopen, the Ask tab's own `reopenOffer` answer (`{askId, waitMs, late, why}`), or null
+    reopen: runReopenOffer(run.runDir, ctx),
     // M11 am11 item 3: where this run stands in Needs you now; the page shows Remove from Needs you only when `removable`
     needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
       runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
