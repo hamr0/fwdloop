@@ -2523,6 +2523,21 @@ SIGNED by hamr 2026-10-24 ("sign m8 exit"), the text exactly as shown:
 - Negative: run-6 (learnings OFF) was handed nothing. The other negatives (older than 56 days, another workflow, no model call in the learnings code) are covered by tests, not walked.
 - Known, not M8: the cap on Reuse (open question A/B); the model's place on the Reuse card (unsigned ask); m7-walk-2's trigger dead since 10-16 (M9 am20, set it again by hand).
 
+#### M8b — a tidy run folder — SIGNED by hamr 2026-10-24 ("sign m8b"), the text exactly as shown
+
+Replaces the PRD's "Parked, not scheduled: clean up the run folder's JSON files". Built on branch `launcher`. The rule (hamr 2026-10-24): cleanup, not the fewest files. Facts from the same writer, written at the same moment, that grow slowly, live together. Big files rewritten often stay separate. A lock or claim (a file whose existence or rename is the fact) stays its own file.
+
+1. **`run.json`, the run's start record.** Written once (exclusive create) by the run when it starts, with three sections: `model` (was `run-model.json`), `thinking` (was `thinking.json`), `inputs` (was `inputs.json`). Nothing else writes it.
+2. **`diary.jsonl`, the step diary.** One append-only file for what is today `calls.jsonl`, `tools.jsonl` and `checks.jsonl`; each row carries `kind`: `call`, `tool` or `checks`. Torn-line rule as today. The model is denied it as it is denied the three files today.
+3. **`line-checks.json`, the check record.** One file for what is today `cited-checks.json` and `sheet-checks.json`, with two sections, `cited` and `sheet`; same writer, same write (temporary file, then rename), same keys (line and try).
+4. **Everything else stays as it is**, each for its reason: the locks and claims (`answer*.json`, `halt*.json`, `*.stopped.json`, `stop.request`, `reopen.*`, `needs-removed-*`); what is written before the run starts, by the panel or the drafter (`signed-values*.json`, `trigger.json`, `plan.json`, `setup.jsonl`, `learnings.json`); the big files rewritten often (`log.json`, `state.json`, `ask.json`); the books (`audit.jsonl`, `spend.jsonl`, `pids.jsonl`); the archive and the product (`asks/`, `job/`, `inputs/`, `artifacts/`).
+5. **Old runs are moved once.** `fwdloop tidy --root <flows>` rewrites every run folder into the new shape and removes the old files. It skips a run whose process is alive, says which, and can be run again; a second run changes nothing. After the move, the code reads only the new files; no reader of the old names is kept. A run that cannot be moved is named, with why, and left as it is.
+6. **The rule stays:** a new feature adds no new run-folder file.
+- **POC first ($0):** on a copy of hamr's `flows/`, the move runs over every real run; for each run, the panel's run detail, the Audit tab's data, the learnings notes (`fwdloop learn seed` into a scratch ledger) and a parked run's resume form read the same before and after. Any difference stops the build.
+- **Done when:** the POC passes; `fwdloop tidy` on hamr's real `flows/` moves every run (or names the ones it cannot); the panel shows hamr's runs as before; one live run on deepseek-flash, through an ask and an accept, leaves only the new files and the panel shows it fully.
+- **Negative:** tidy never touches a run that is running or waiting on a process; a second tidy changes nothing; no file in `src/` or `bin/` reads `run-model.json`, `thinking.json`, `inputs.json`, `calls.jsonl`, `tools.jsonl`, `checks.jsonl`, `cited-checks.json` or `sheet-checks.json` after the build; a step's model still cannot read `diary.jsonl`.
+- **Cap:** $0.10 (the one live run).
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
