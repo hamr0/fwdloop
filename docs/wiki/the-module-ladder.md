@@ -2460,6 +2460,16 @@ SIGNED by hamr 2026-10-24 ("sign m8 am6"), the text exactly as shown:
 3. Running it again adds nothing: a run already in the ledger is skipped.
 4. It prints how many runs it read, how many notes it added, and how many runs it skipped and why.
 
+SIGNED by hamr 2026-10-24 ("sign m8 am7"), the text exactly as shown:
+
+**M8 amendment 7 — one memory, one block, handed whole at every place thinking switches on.**
+1. There is one block of learnings: the same one the drafter gets. It holds this job's learnings, then this place's, then all jobs'. It goes highest count first, covers the last 56 days, and stops at 2,000 characters. A step gets that same block, whole. There is no second filter and no pick per step.
+2. When: the drafter gets it at its draft, its revise rounds and the redraft after answers, as now. A step gets it on a retry, on a redo at an ask, and on a rerun: the places thinking switches on. A step's first try never gets it.
+3. Learnings lean the model; they never judge. The close alone judges, and whether a learning helped is not measured per run.
+4. Where you see it: on that step's try in Audit, one line `told from earlier runs · N hints`. A click opens the exact text handed. The line is hidden when nothing was handed.
+5. With `learningHints` OFF, nothing is handed anywhere.
+- **Must fail when:** a retry, redo or rerun gets a block different from the drafter's block at that moment; a step's first try gets a block; a try that got a block has no Audit line, or its text differs from what was handed; OFF hands anything.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
