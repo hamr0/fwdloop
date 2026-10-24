@@ -15,7 +15,7 @@ import { runFlow, runStepRalph, makeParkingAskStep, LEARN_ERROR_FILE } from '../
 import { readAudit } from '../src/books.js';
 import { hintsForRun, writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { readStepLearnings, STEP_LEARNINGS_PREFIX, writeRunRerun } from '../src/flowmodel.js';
+import { readStepLearnings, STEP_LEARNINGS_PREFIX, writeRunThinking } from '../src/flowmodel.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { sandboxSend } from './send-sandbox.js';
 
@@ -152,7 +152,7 @@ test('a redo at an ask (numbered after the last try) and a rerun run (its run fo
   const redo = await loop({ initialGap: 'fix it', attemptOffset: 2, asked: [] });
   assert.equal(redo.calls[0], 'BLOCK', 'a redo\'s first new try');
   const runDir = tmp('rerun-dir');
-  writeRunRerun(runDir);
+  writeRunThinking(tmp('rerun-flow'), runDir, true);
   const rerun = await loop({ attemptOffset: 0, asked: [], runDir });
   assert.equal(rerun.calls[0], 'BLOCK', 'a rerun run\'s first try');
   const reason = await loop({ initialGap: 'start over', attemptOffset: 0, asked: [] });

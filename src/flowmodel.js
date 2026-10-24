@@ -61,27 +61,17 @@ export function readRunThinking(runDir) {
 
 /**
  * M4d am25: a run keeps the box as the job had it when the run started (write-once, so an Edit of the job never changes a run already going).
- * Written for every fresh run, ticked or not. @param {string} flowDir @param {string} runDir
+ * Written for every fresh run, ticked or not. M4d am34: the same write-once file also says whether THIS run is a rerun (a fresh run started from a human's rerun
+ * reason): `{thinking, rerun}`. This is the ONE writer of both; `readRunIsRerun` is the only reader of `rerun`. It lives in the run's own folder, so a parked and
+ * resumed leg still counts. @param {string} flowDir @param {string} runDir @param {boolean} [rerun] true only for a run started from a rerun reason
  */
-export function writeRunThinking(flowDir, runDir) {
-  writeOnce(join(runDir, RUN_THINKING_FILE), { thinking: readModelRecord(flowDir)?.thinking === true });
+export function writeRunThinking(flowDir, runDir, rerun = false) {
+  writeOnce(join(runDir, RUN_THINKING_FILE), { thinking: readModelRecord(flowDir)?.thinking === true, rerun: rerun === true });
 }
 
-/**
- * M4d am34: the file in a run's folder that says THIS run is a rerun (a fresh run started from a human's rerun reason). Write-once, by `writeRunRerun`, the
- * only writer, called once when the rerun's fresh run starts; `readRunIsRerun` is the only reader. It lives in the run's own folder, so a parked and resumed
- * leg of the run still counts. No file (every plain run) = not a rerun.
- */
-export const RUN_RERUN_FILE = 'rerun.json';
-
-/** @param {string} runDir */
-export function writeRunRerun(runDir) {
-  writeOnce(join(runDir, RUN_RERUN_FILE), { rerun: true });
-}
-
-/** @param {string|null} runDir @returns {boolean} */
+/** M4d am34: is this run a rerun run? Reads `rerun` from the run's thinking.json; absent, false, unreadable or an older file without the field = not a rerun. @param {string|null} runDir @returns {boolean} */
 export function readRunIsRerun(runDir) {
-  const own = typeof runDir === 'string' ? readFileInside(runDir, RUN_RERUN_FILE) : null;
+  const own = typeof runDir === 'string' ? readFileInside(runDir, RUN_THINKING_FILE) : null;
   if (!own?.ok) return false;
   try { return JSON.parse(own.text)?.rerun === true; } catch { return false; }
 }

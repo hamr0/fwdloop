@@ -74,7 +74,7 @@ import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking, writeRunModel, writeRunRerun, readRunIsRerun, takeLearningsRecord, writeStepLearningsRecord } from './flowmodel.js';
+import { readJobThinking, writeRunThinking, writeRunModel, readRunIsRerun, takeLearningsRecord, writeStepLearningsRecord } from './flowmodel.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -1257,9 +1257,9 @@ export async function runFlow({
   }
 
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
-  writeRunThinking(flowDir, runDir);
+  // M4d am34: a run started from a human's rerun reason IS a rerun run; every try of it counts, on every leg (the same write-once file)
+  writeRunThinking(flowDir, runDir, typeof initialGap === 'string' && initialGap !== '');
   if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
-  if (typeof initialGap === 'string' && initialGap !== '') writeRunRerun(runDir); // M4d am34: a run started from a human's rerun reason IS a rerun run; every try of it counts, on every leg
   // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
   if (!runOwnsPlan(runDir)) {
     try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {

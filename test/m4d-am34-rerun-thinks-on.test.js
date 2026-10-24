@@ -15,7 +15,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, continueRun, requestStop, makeParkingAskStep } from '../src/runner.js';
 import { writeLedger } from '../src/learnstore.js';
 import { emptyLedger, countLedger } from '../src/learn.js';
-import { readRunIsRerun, RUN_RERUN_FILE } from '../src/flowmodel.js';
+import { readRunIsRerun } from '../src/flowmodel.js';
 import { triesCount, stepThinkingMode } from '../src/thinking.js';
 import { cardsOf } from './m8-learn-fixtures.js';
 import { sandboxSend } from './send-sandbox.js';
@@ -104,7 +104,7 @@ test('a plain run: a first try thinks off and gets no block; the retry thinks on
   const r = await runFlow(w.args(recorder(calls, [1])));
   assert.notEqual(r.outcome, 'refused', r.red);
   assert.equal(readRunIsRerun(w.runDir()), false);
-  assert.equal(existsSync(path.join(w.runDir(), RUN_RERUN_FILE)), false);
+  assert.equal(existsSync(path.join(w.runDir(), 'rerun.json')), false);
   const firsts = calls.filter((c) => c.attempt === 1);
   assert.ok(firsts.length >= 3);
   for (const c of firsts) { assert.equal(c.mode, 'off', JSON.stringify(c)); assert.equal(c.hints, null, JSON.stringify(c)); }
