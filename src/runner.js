@@ -698,7 +698,7 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 // borrowed-from: bareloop src/userrun.js@v0.46.0:2035 (the call site, in its own try/catch)
 // ---------------------------------------------------------------------------
 
-/** where a failed run-end tally is recorded (one appended row, in the run's own folder): the run itself is unaffected */
+/** where a failure of learnings work that must not stop the run is recorded (one appended row, in the run's own folder): the run-end tally (`recordRunNotes`) and the take of the draft's learnings record (`takeLearningsRecord`, in runFlow). The run itself is unaffected */
 export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
 /**

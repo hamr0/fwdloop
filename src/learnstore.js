@@ -122,7 +122,7 @@ export function releaseRun({ home, runid, now = new Date() }) {
 
 /**
  * M8 am1: the ONE setting, `learningHints` in config.json. Ships OFF (absent = off). OFF still writes the tally ($0); the drafter
- * is simply handed nothing. Copied from bareloop learnstore.js@v0.46.0:104 (borrowed-from header above). Difference: bareloop's
+ * is simply handed nothing. Copied from bareloop learnstore.js@v0.47.0:96 (borrowed-from header above). Difference: bareloop's
  * `readConfig` returns a problem, fwdloop's THROWS ConfigError on an unreadable / non-JSON / invalid file. The safe reading is kept:
  * a bad or unreadable config reads as OFF (never ON). Under a test process with no explicit home and no FWDLOOP_CONFIG_HOME it
  * reads nothing (OFF), so a test can never reach the real ~/.config/fwdloop.
@@ -259,7 +259,7 @@ export function eventsOfRun(runDir, workflow) {
  * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). M8 am4: every run's notes COUNT at once (trust 'deterministic'), a run
  * with a signed ask included; there is no hold. It runs whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
  * the run's checks.jsonl, so a check with no checks.jsonl row (a run from before am29) has no `meaning`.
- * Borrowed-from: bareloop src/learnstore.js@v0.46.0:132 (learnAtRunEnd).
+ * Borrowed-from: bareloop src/learnstore.js@v0.47.0:124 (learnAtRunEnd).
  * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null, noise: string|null, cards: number}}
  */
@@ -333,7 +333,7 @@ export function seedLedger({ root, home }) {
  * M8 item 5a: the block the DRAFTER is handed for this job, made from the ledger as it stood: null when `learningHints` is off,
  * when there is no ledger, or when nothing is readable; an unreadable ledger THROWS (the caller hands nothing and records why). The one `renderHints` render (2,000 characters at most),
  * never a second. Age (56 days), job version and level are worked out here, at read time, by renderHints.
- * Borrowed-from: bareloop src/learnstore.js@v0.46.0:148 (hintsForRun). `spec` is `{job, inputs: [{value}]}` (job = the workflow name).
+ * Borrowed-from: bareloop src/learnstore.js@v0.47.0:140 (hintsForRun). `spec` is `{job, inputs: [{value}]}` (job = the workflow name).
  * @param {{home?: string, spec: any, specHash: string|null, now?: Date}} o
  * @returns {{text: string, ids: string[]}|null}
  */

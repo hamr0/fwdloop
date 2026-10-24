@@ -98,8 +98,8 @@ export function writeRunModel(runDir, { slot, model }) {
 
 /**
  * M8 item 5a: the file that keeps EXACTLY what the drafter was handed from earlier runs (the Audit box of item 6 reads it). Bareloop's
- * `learnings` spine record shape, `{phase, text, ids, chars}`. Write-once (never over an existing record); written only when something was
- * handed, so no file = nothing handed = no box. Borrowed-from: bareloop src/planrun.js@v0.46.0:3092 (emit('learnings', ...)).
+ * `learnings` spine record shape, `{phase, text, ids, chars}`. Write-once (never over an existing record); written with something handed, or by `writeLearningsError` with an empty `text`
+ * (a failed ask: nothing handed, why in `error`); a reader treats empty text as no record, so no file or empty text = nothing handed = no box. Borrowed-from: bareloop src/planrun.js@v0.46.0:3092 (emit('learnings', ...)).
  */
 export const LEARNINGS_FILE = 'learnings.json';
 
@@ -126,7 +126,7 @@ export function writeLearningsError(dir, error) {
 export function copyLearningsRecord(fromDir, toDir) {
   const rec = readLearningsRecord(fromDir);
   if (rec === null) return false;
-  writeOnce(join(toDir, LEARNINGS_FILE), rec); // the same writer and shape as `writeLearningsRecord`: a record that reads is copied, one that does not is not
+  writeOnce(join(toDir, LEARNINGS_FILE), rec); // `writeOnce`, the same write-once JSON writer and shape as `writeLearningsRecord`: a record that reads is copied, one that does not is not
   return true;
 }
 
