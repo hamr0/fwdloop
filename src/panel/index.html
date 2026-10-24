@@ -3223,7 +3223,7 @@
     if(testId) e.setAttribute("data-testid", testId);
     return e;
   }
-  function foldTryEl(t, human){
+  function foldTryEl(t, human, stepKey){
     var wrap = document.createElement("div");
     var line = foldEl("div", "audit-try", null, "audit-try-line");
     line.appendChild(document.createTextNode("try " + t.n + " "));
@@ -3233,6 +3233,21 @@
       : [t.thinking, t.gap];
     rest.forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
     wrap.appendChild(line);
+    // M8 am7 item 4: this try was handed the earlier runs' block - one line, a click opens the exact text (the learnings box's own fold classes); hidden when nothing was handed
+    if(!human && t.hints && t.hints.text){
+      var hk = "\u0000hints:" + stepKey + ":" + t.n;
+      var hpart = foldEl("div", "audit-part", null, "audit-try-hints");
+      var hhead = foldEl("button", "btn audit-part-toggle", "told from earlier runs \u00B7 " + t.hints.n + (t.hints.n === 1 ? " hint" : " hints"), "audit-try-hints-head");
+      hhead.type = "button";
+      var hbody = foldEl("div", "audit-part-body", null, "audit-try-hints-text");
+      hbody.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0";
+      hbody.textContent = t.hints.text;
+      var paintHints = function(open){ hbody.hidden = !open; hhead.setAttribute("aria-expanded", open ? "true" : "false"); };
+      paintHints(auditExpanded[hk] === true);
+      hhead.addEventListener("click", function(ev){ ev.stopPropagation(); var open = hbody.hidden; auditExpanded[hk] = open; paintHints(open); });
+      hpart.appendChild(hhead); hpart.appendChild(hbody);
+      wrap.appendChild(hpart);
+    }
     if(!human && t.checks && t.checks.length){
       var box = foldEl("div", "audit-checks", null, "audit-checks");
       t.checks.forEach(function(c){
@@ -3295,7 +3310,7 @@
     var f = g.fold, human = f.who === "human";
     var body = foldEl("div", "audit-fold-body", null, "audit-fold-body-" + g.step);
     if(f.tally) body.appendChild(foldEl("div", "audit-tally", f.tally, "audit-tally"));
-    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human)); });
+    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human, g.step)); });
     body.appendChild(foldRoundsEl(g));
     return body;
   }
