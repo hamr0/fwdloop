@@ -2487,6 +2487,17 @@ SIGNED by hamr 2026-10-24 ("sign m8 am8"), the text exactly as shown:
 2. So a job run on a different file than the one it was signed with gets that file's learnings, and its own learnings are saved under that file.
 - **Must fail when:** the drafter, a step and the run end name different places for the same run; a run on a file other than the signed path gets the signed path's place learnings.
 
+SIGNED by hamr 2026-10-24 ("sign m8 exit"), the text exactly as shown:
+
+**M8 EXIT — signed by hamr 2026-10-24.**
+- Done when met on deepseek-flash, `learningHints` ON, job m7-walk-2:
+  - run-1 had `summary_resume` red on try 1 and fixed on try 2, and that FIXED learning is in the ledger
+  - run-11 (Reuse of the red run-10, real resume) drafted with it: 4 hints, 1181 characters, and the Audit box shows the same text
+  - run-11's `summary_resume` try 2 (thinking on) was handed the same block, and passed
+  - `scripts/m8-exit-check.mjs --root flows --flow m7-walk-2 --runs run-1,run-11 --negative m7-walk-2/run-6` printed all checks passed (exit 0)
+- Negative: run-6 (learnings OFF) was handed nothing. The other negatives (older than 56 days, another workflow, no model call in the learnings code) are covered by tests, not walked.
+- Known, not M8: the cap on Reuse (open question A/B); the model's place on the Reuse card (unsigned ask); m7-walk-2's trigger dead since 10-16 (M9 am20, set it again by hand).
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
