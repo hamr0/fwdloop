@@ -82,7 +82,7 @@ test('the existing verbs are as they were: an unknown verb is named with the lis
   const home = scratchHome();
   const u = cli(home, ['frobnicate']);
   assert.equal(u.status, 1);
-  assert.match(u.stderr, /unknown verb "frobnicate" — expected draft \| sign \| run \| inbox \| show \| answer \| resume \| continue \| panel \| learn \| start \| stop \| status \| install/);
+  assert.match(u.stderr, /unknown verb "frobnicate" — expected draft \| sign \| run \| inbox \| show \| answer \| resume \| continue \| panel \| learn \| tidy \| start \| stop \| status \| install/);
   const p = cli(home, ['panel', '--port', 'abc', '--root', '.']);
   assert.notEqual(p.status, 0);
   assert.match(p.stderr, /--port must be a valid TCP port/);
