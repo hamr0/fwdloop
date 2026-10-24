@@ -32,7 +32,7 @@ import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination, LEARN_ERROR_FILE } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
 import { keyValues } from './keysfile.js';
-import { readModelRecord, writeModelRecord, writeLearningsRecord } from './flowmodel.js';
+import { readModelRecord, writeModelRecord, writeLearningsRecord, copyLearningsRecord } from './flowmodel.js';
 import { configDoorHome } from './config.js';
 import { hintsForRun } from './learnstore.js';
 import { appendRow } from './jsonl-append.js';
@@ -526,6 +526,8 @@ export function signDraft({
     const runSetup = writeSetup({
       flowDir: ran.runDir, sessionDir, planDir: dir, hash: h.hash, signedBy, signedAt, flowHash: ran.signature?.flow, secrets: /** @type {string[]} */ (keys.filter((k) => typeof k === 'string' && k.length >= 8)),
     });
+    // M8 item 6: what this draft was handed goes into the NEW RUN's folder (the Audit box reads it there); a failure never un-signs
+    try { copyLearningsRecord(dir, ran.runDir); } catch { /* the box is then hidden; the plan is signed */ }
     // the draft's model pick is NOT written to the workflow (its files stay untouched): it is returned for the run that follows (`--model/--provider`)
     return {
       ok: true, flowDir: path.join(target.root, target.name), runId: ran.runId, runDir: ran.runDir, signature: ran.signature, setup: runSetup, modelRecord: { ok: true, recorded: false }, modelPick: readModelRecord(dir),
@@ -547,5 +549,7 @@ export function signDraft({
   if (pickRecord !== null) {
     try { writeModelRecord(written.dir, pickRecord); } catch (e) { modelRecord = { ok: false, recorded: false, why: /** @type {any} */ (e)?.code ?? 'error' }; }
   }
+  // M8 item 6: beside the flow's setup record; the first run that starts from this flow takes it (runner.js), so only that run shows the box. A failure never un-signs.
+  try { copyLearningsRecord(dir, written.dir); } catch { /* the box is then hidden; the flow is signed */ }
   return { ok: true, flowDir: written.dir, signature: written.signature, setup, modelRecord };
 }

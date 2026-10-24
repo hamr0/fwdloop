@@ -2,7 +2,7 @@
 // and a model id - is recorded in `model.json`, beside the draft and then beside the signed flow. It is NOT one of the signed files: which model
 // runs, and at what price, is Settings' to say (a line that is no longer ticked is refused by name at run time), so the record only remembers the choice.
 // One writer (`writeModelRecord`), one reader (`readModelRecord`); both go through the safe gateway.
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, renameSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
 import { isKeyName } from './provider.js';
@@ -97,4 +97,38 @@ export const LEARNINGS_FILE = 'learnings.json';
 /** @param {string} dir @param {{text: string, ids: string[]}} hints */
 export function writeLearningsRecord(dir, { text, ids }) {
   writeOnce(join(dir, LEARNINGS_FILE), { phase: 'draft', text, ids, chars: text.length });
+}
+
+/**
+ * M8 item 6: the Audit box reads the record in the RUN's folder. It reaches the run the way `model.json` does: a draft's record is copied (write-once) into the folder it is signed
+ * into (`copyLearningsRecord`: the flow folder at a new job's sign, the new run's folder at a red run's redraft), and the first run that starts from a flow folder TAKES it
+ * (`takeLearningsRecord`: a rename, so it moves once and a second run of the same job never shows it). A run that reused its plan has no draft, so it has none.
+ * @param {string} fromDir a draft folder @param {string} toDir a flow folder or a run folder @returns {boolean} true when a record was copied
+ */
+export function copyLearningsRecord(fromDir, toDir) {
+  const r = readFileInside(fromDir, LEARNINGS_FILE);
+  if (!r.ok) return false;
+  writeFileSync(join(toDir, LEARNINGS_FILE), r.text, { mode: 0o600, flag: 'wx' });
+  return true;
+}
+
+/** @param {string} flowDir @param {string} runDir @returns {boolean} true when the flow's record moved into the run (it is no longer in the flow folder) */
+export function takeLearningsRecord(flowDir, runDir) {
+  if (!readFileInside(flowDir, LEARNINGS_FILE).ok || existsSync(join(runDir, LEARNINGS_FILE))) return false;
+  renameSync(join(flowDir, LEARNINGS_FILE), join(runDir, LEARNINGS_FILE));
+  return true;
+}
+
+/**
+ * The ONE reader of a run's record. null = no record, or one that is not `{phase, text, ids, chars}` (the box is then hidden, never guessed).
+ * @param {string} runDir @returns {{phase: string, text: string, ids: string[], chars: number}|null}
+ */
+export function readLearningsRecord(runDir) {
+  const r = readFileInside(runDir, LEARNINGS_FILE);
+  if (!r.ok) return null;
+  try {
+    const j = JSON.parse(r.text);
+    return j && typeof j.text === 'string' && j.text !== '' && Array.isArray(j.ids) && j.ids.every((/** @type {any} */ x) => typeof x === 'string')
+      ? { phase: String(j.phase ?? 'draft'), text: j.text, ids: j.ids, chars: Number.isInteger(j.chars) ? j.chars : j.text.length } : null;
+  } catch { return null; }
 }
