@@ -104,7 +104,7 @@ test('capture leaves HEAD, the index, the stash list and the work tree status ex
   git(d, ['add', 'src/a.js']); // staged
   writeFileSync(join(d, 'src', 'extra.js'), 'untracked\n');
   const before = state(d);
-  const tmpBefore = readdirSync(tmpdir()).filter((n) => n.startsWith('bareloop-adiff-') && !n.startsWith('fwdloop-adiffT-')).length;
+  const tmpBefore = readdirSync(tmpdir()).filter((n) => n.startsWith('fwdloop-adiff-') && !n.startsWith('fwdloop-adiffT-')).length;
   const ad = await startAttemptDiff({ workdir: d, fence: [join(d, 'src')] });
   writeFileSync(join(d, 'src', 'a.js'), 'dirty during\n');
   const r = await ad.finish();
@@ -114,7 +114,7 @@ test('capture leaves HEAD, the index, the stash list and the work tree status ex
   assert.equal(after.index, before.index, 'the real index is untouched');
   assert.equal(after.stash, before.stash);
   assert.equal(after.status, 'MM src/a.js\n?? src/extra.js\n', 'staged edit still staged, worker edit unstaged, untracked still untracked — nothing was added to the real index');
-  assert.equal(readdirSync(tmpdir()).filter((n) => n.startsWith('bareloop-adiff-') && !n.startsWith('fwdloop-adiffT-')).length, tmpBefore, 'temp index dir removed');
+  assert.equal(readdirSync(tmpdir()).filter((n) => n.startsWith('fwdloop-adiff-') && !n.startsWith('fwdloop-adiffT-')).length, tmpBefore, 'temp index dir removed');
 });
 
 test('git failure: never throws, the failure is recorded as a field, files is empty', async (t) => {
