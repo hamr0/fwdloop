@@ -23,7 +23,7 @@ The machine never decides your work is good. It makes sure that what you said wo
 YOU (panel Chat tab, or the CLI)
   │  describe the job: numbered lines, "how I'd know" beside each (or blank)
   ▼
-SCOUT looks at the real files (read only) · DRAFTER writes steps, no tools,
+SCOUT looks at the real files, a saved web page or a sheet (read only) · DRAFTER writes steps, no tools,
 each step names the one line of yours it serves
   │
   ▼
@@ -31,7 +31,8 @@ THE TABLE: your lines and the steps for them. You answer in plain words; redraft
   │
   ▼
 CHECKS at $0 before any money: files exist · no secret in the text ·
-the monthly limit has room · every wanted tool is really built
+the monthly limit has room · every wanted tool is really built ·
+a check the machine cannot run is refused, naming the line
   │
   ▼
 YOU SIGN  (one hash covers the job, the cap, the asks, the allow-list; any edit = sign again)
@@ -39,6 +40,9 @@ YOU SIGN  (one hash covers the job, the cap, the asks, the allow-list; any edit 
   ▼
 THE RUN, one step at a time, fresh context each:
   step → "did it happen?" check → red? gap goes back, try again (2 strikes = stop)
+  The run uses the model you ticked for it (`fwdloop run --model`); resume keeps it.
+  Thinking is set by code, per try: try 1 off; a retry, and a redo or rerun at an ask, on.
+  The ticked Chat-box "Thinking on" forces it on every try. The audit row says what was asked.
   │
   ▼
 ASK: the run stops at the line you marked. It PARKS (the process ends, nothing is spent).
@@ -54,12 +58,13 @@ ENDED:  passed · failed · stopped · expired
   passed           → the output is where you signed it to go
   failed           → read why; fix the job; sign again
   stopped / capped → Resume, once the cause is gone
-  expired          → a person must reopen it
+  expired          → a person must reopen it (Reopen, on the Ask tab or the Run tab)
   │
   ▼
 NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. A schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20, released in 0.20.0).]
   │  Learnings from ended runs lean the next draft, and a step's retry, redo or rerun
-  │  (one block, at most 2,000 characters). They lean, never judge: the close alone judges.  [M8, on branch `learnings`]
+  │  (one block, at most 2,000 characters). They lean, never judge: the close alone judges.
+  They are handed where thinking switches on, never on a first try, even with the Chat-box hatch.  [M8, on branch `learnings`]
 ```
 
 ---
@@ -110,6 +115,7 @@ So in fwdloop terms:
 
 - **Built on:** the rule "something came out, and it was not empty", plus a typed `done` flag from the model.
 - **Does:** each step proves it happened. Then one of three checks: sums that point to their source (**green**), a shape you described (**softgreen**), or you look (**hitl**, a human check).
+- **Whose checks:** fwdloop owns the "something came out" rule, the typed `done` flag, page and document quotes (cited checks, with the column lock) and the ask. A sheet's checks and softgreen shapes are **bareguard's**: for a CSV sheet the drafter suggests checks from bareguard's own list, you sign them, bareguard judges, and the step only gives values in its typed boxes (M10b). bareguard's defaults equal fwdloop's closers. A step never writes its own formula.
 - **Survives:** the run's records. Nothing is judged by a model.
 - **Status:** built.
 
@@ -131,6 +137,8 @@ So in fwdloop terms:
 
 - **Built on:** a fold over the steps, each with fresh context, joined only by what the last one made.
 - **Does:** try, check, gap, retry. Two strikes stop the run. At most four tries per step. It spends only under the cap.
+- **Thinking:** code decides it per step, never the model. Try 1 off; a retry (and a redo or rerun) on; the ticked Chat-box hatch forces on everywhere. bare-agent says what a model supports; on DeepSeek, thinking cannot go with a forced tool call, so that is the drafter only. The audit row records what was asked and the status, and Audit shows it on each try.
+- **Model:** the run records the model it started on once. Resume keeps it.
 - **Survives:** books on disk: every try, its cost, its check. A red run keeps its log too.
 - **Status:** built.
 
@@ -150,7 +158,7 @@ So in fwdloop terms:
 
 ### Layer 6 and on — in-run tools, learnings, triggers, real IO
 
-- **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10). Mail and chat are not built.
+- **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10), and a sheet's checks from bareguard (M10b). Mail and chat are not built.
 - **Status:** in progress, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6, M7, M9, M10 and M11 are released. M8 is built on branch `learnings`, not yet released.
 
 ### Who keeps what
@@ -164,6 +172,8 @@ So in fwdloop terms:
 | money spent | the books | nobody; unknown stays unknown |
 | the answer to an ask | you | once |
 | learnings (notes from ended runs) | code, at run end, in one ledger per user (`~/.config/fwdloop`, mode 600) | nobody; seeded once from past runs with `fwdloop learn seed`; handed only when `learningHints` is on |
+| thinking per try | code (try 1 off, retries on) | you, only with the Chat-box "Thinking on" box; it is kept with the job |
+| a sheet's checks | bareguard judges; the drafter suggests, you sign | you |
 | the monthly limit | Settings | you, up or down |
 | providers, models, prices, base URLs | Settings (none live in code) | you; a model is usable only when ticked with both prices |
 
@@ -308,6 +318,8 @@ The one place implementation names appear:
 | the arbiter keys | `src/declaration.js` (`ARBITER_KEYS`), read by `src/flow.js` |
 | the harness (steps, strikes, caps, halts, stop) | `src/runner.js` |
 | the checks (green, softgreen, hitl) | `src/closers.js` |
+| a sheet's checks (bareguard's), cited page quotes | `src/sheetchecks.js`, `src/sheetrun.js`, `src/sheetclaims.js`; `src/cited-record.js`, `src/pagebits.js` |
+| thinking per try | `src/thinking.js`, `src/model-step.js` |
 | the description (drafter, catalogue) | `src/drafter.js`, `src/catalogue.js` |
 | the signature, sign at a terminal | `src/signature.js`, `src/authoring.js`, `src/sign-confirm.js` |
 | the ask | `src/ask.js` |
@@ -316,4 +328,5 @@ The one place implementation names appear:
 | money books, monthly limit | `src/books.js`, `src/monthly.js` |
 | stuck and running | `src/liveness.js`, `src/panel/data.js` |
 | the screen | `src/panel/` |
-| the model loop, the gate | `bare-agent`, `bareguard` |
+| the model loop, thinking support | `bare-agent` |
+| the gate, the cells and rubric checks | `bareguard` (a dependency, never copied) |
