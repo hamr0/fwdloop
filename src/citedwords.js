@@ -9,7 +9,9 @@
 // Pure: no I/O, no model. Compared white-space blind. Third outcome, named: a source with no page-read (md text, a page the look never read) is a red
 // `unread` - a check whose words were never proved against the source is never signed. What this throws away: nothing; every red is a sentence.
 
-import { asList, countExact, countPhrase, normLabel, wordsSaidOn } from './pagebits.js';
+import { asList, boundInWords, countExact, countPhrase, normLabel, wordsSaidOn } from './pagebits.js';
+import { validReading } from './pagerules.js';
+import { ruleWords } from './pageask.js';
 import { dropSentence } from './pagedropwords.js';
 import { factsOfLook } from './citedcheck.js';
 
@@ -182,6 +184,38 @@ export function placeReds({ part, line, look }) {
 }
 
 /**
+ * A limit the page look read from a guardrail ("under $40" -> price under 40, `reading` on a kept fact, src/pagerules.js) must be carried by a fact of the part,
+ * with the same kind, op and bound. A plan that leaves it out would pass a result the guardrail forbids ($48 under "under $40"). Only a reading code accepts
+ * (validReading) whose bounds are in the person's own words on the line is demanded; a bound that is not said gets its ask (src/pageask.js), never a refusal.
+ * @param {{part: any, line: number, jobLine: any, look: {facts?: any[]}|null|undefined}} o @returns {WordRed[]}
+ */
+export function boundReds({
+  part, line, jobLine, look,
+}) {
+  /** @type {WordRed[]} */
+  const reds = [];
+  const said = wordsSaidOn(jobLine);
+  const facts = Array.isArray(part.facts) ? part.facts : [];
+  const seen = new Set();
+  for (const k of Array.isArray(look?.facts) ? look.facts : []) {
+    if (k.line !== line || k.source !== part.source || !k.reading || !validReading(k.shape, k.reading)) continue;
+    const r = k.reading;
+    const bounds = r.op === 'between' ? [r.lo, r.hi] : [r.value];
+    const key = JSON.stringify([k.shape, r]);
+    if (seen.has(key) || !bounds.every((b) => boundInWords(b, said))) continue;
+    seen.add(key);
+    const has = facts.some((/** @type {any} */ f) => f.shape === k.shape && f.rule && f.rule.op === r.op && f.rule.value === r.value && f.rule.lo === r.lo && f.rule.hi === r.hi);
+    if (has) continue;
+    const words = ruleWords({ shape: k.shape, unit: k.unit, currency: k.currency, rule: r });
+    reds.push({
+      code: 'bound-missing',
+      detail: `line ${line}: your words on line ${line} set a limit, ${k.name} ${words}, but no ${k.shape} fact of this check carries it. Add "rule": ${JSON.stringify(r)} to the ${k.shape} fact that reads ${k.name}, or a quote over the limit would pass.`,
+    });
+  }
+  return reds;
+}
+
+/**
  * Every word red for one cited part, in the order a person fixes them.
  * @param {{part: any, text: string|undefined, line: number, jobLine: any, look: {facts?: any[], dropped?: any[]}|null|undefined, doc?: boolean}} o @returns {WordRed[]}
  */
@@ -193,5 +227,5 @@ export function citedWordReds({
   if (typeof text !== 'string' || kept === null) {
     return [{ code: 'unread', detail: `line ${line}: the input "${part.source}" was not read here to prove the words against it, so a check on it cannot be drafted. A check on quotes works on a saved web page.` }];
   }
-  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...countReds({ part, jobLine }), ...placeReds({ part, line, look })];
+  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...countReds({ part, jobLine }), ...placeReds({ part, line, look }), ...boundReds({ part, line, jobLine, look })];
 }
