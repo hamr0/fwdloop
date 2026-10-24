@@ -1,7 +1,7 @@
 // M10b piece 4 (docs/wiki/the-module-ladder.md "M10b amendment 2", items 4 and 7): the ONE builder of what a job line that reads a sheet shows -
 //   { guardrails, checked: [{id, name, words, covers, text}], notChecked: [guardrail, ...] | 'none' }
 // from the signed declaration (the step's `close.sheet`, each check's `covers` tag) and the job line's own `~` rules. After a run, `record` (the
-// `sheet-checks.json` lines, src/sheet-record.js) adds to each check its verdict and what was found: `{ok, found}`. Every surface (the Chat plan card, the Job tab, the
+// the `sheet` section of `line-checks.json`, lines, src/sheet-record.js) adds to each check its verdict and what was found: `{ok, found}`. Every surface (the Chat plan card, the Job tab, the
 // Result tab, the Audit's check rows) shows this block's strings; none of them words a check itself.
 // Throws away: the check's id, claim, range and the other typed fields that do not change what it says (src/sheetchecks.js `sheetCheckSentence` drops them too).
 // A green "found" is the step's OWN claimed value in plain words (a number, or a count of rows / days / bands / groups); a string claim (a looked-up cell) is never
@@ -65,7 +65,7 @@ export const coversWords = (rules) => rules.map((r) => `covers "${r}"`).join(' Â
  * The block of every job line whose step reads a sheet. A line qualifies when its green step carries `close.sheet`, or (with `csvRoles`) reads a CSV input and carries no
  * older `close.columns` / `close.cited` check (then every guardrail is Not checked).
  * @param {{declaration: any, lines: Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>, csvRoles?: string[], record?: any}} o
- *   `record` = the parsed `sheet-checks.json` (`{lines: [...]}`), only after a run
+ *   `record` = the `sheet` section of `line-checks.json` (`{lines: [...]}`), only after a run
  * @returns {Array<{line: number, guardrails: string[], checked: Array<{id: string, name: string, words: string, covers: string[], coversWords: string, text: string, ok?: boolean, found?: string}>, notChecked: string[]|'none'}>}
  */
 export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
@@ -155,7 +155,7 @@ export function claimLines(claims) {
 }
 
 /**
- * M10b am4: what an ask card shows for the claim boxes it was given. The step is the sheet step whose saved try (`sheet-checks.json`) holds exactly these claims; its block is
+ * M10b am4: what an ask card shows for the claim boxes it was given. The step is the sheet step whose saved try (the `sheet` section of `line-checks.json`) holds exactly these claims; its block is
  * the Result tab's own (`sheetLineBlocks`, that try's verdicts), and `answer` is the claims value by value. Null when no saved try matches: the caller then keeps the old line.
  * @param {{claims: unknown, declaration: any, lines: Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>, csvRoles?: string[], record?: any}} o
  * @returns {{block: ReturnType<typeof sheetLineBlocks>[number], answer: string[]}|null}

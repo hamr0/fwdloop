@@ -5,7 +5,7 @@
 // It shares no code with the check the run used: it imports nothing from src/ and nothing from bareguard, only Node's own modules. It re-reads two files of
 // the run's folder and nothing else:
 //   run.json (inputs) + inputs/<file>   the run's own saved copy of the page or doc, and the sha256 recorded when it was frozen
-//   cited-checks.json             the run's result record: per job line the quotes, the values, the signed facts and the count
+//   line-checks.json (cited)      the run's result record: per job line the quotes, the values, the signed facts and the count
 // and checks, in its own words: the saved copy is still the bytes that were frozen (and the bytes the record names); every quote is word for word on it
 // (white space and ** / __ marks aside); every value is the one its quote writes after the fact's label; every value passes its rule; the number of results
 // is as signed; a line with no results to check is not ok. `--expect <file>` takes the facts and count from a file you wrote (JSON
@@ -23,10 +23,10 @@ const fail2 = (msg) => { console.error(`cannot check: ${msg}`); process.exit(2);
 if (!runDir) fail2('usage: check-cited-run.mjs <run folder> [--expect <file>]');
 const readJson = (p) => { try { return JSON.parse(readFileSync(p, 'utf8')); } catch (e) { return fail2(`${p}: ${e.message}`); } };
 
-const record = readJson(join(runDir, 'cited-checks.json'));
+const record = readJson(join(runDir, 'line-checks.json')).cited;
 const manifest = readJson(join(runDir, 'run.json')).inputs;
 const expected = expectAt ? readJson(expectAt) : null;
-if (!record || !Array.isArray(record.lines)) fail2('cited-checks.json has no "lines"');
+if (!record || !Array.isArray(record.lines)) fail2('line-checks.json has no cited "lines"');
 if (!Array.isArray(manifest)) fail2('run.json has no list of inputs');
 
 /** white space made one space, ** and __ marks dropped, trimmed: how a quote is laid against the page */

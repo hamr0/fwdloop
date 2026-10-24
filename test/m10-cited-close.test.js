@@ -67,7 +67,7 @@ test('a run closes the step against ITS OWN saved page and writes the record the
     const rec = readCitedChecks(run);
     assert.equal(rec.ok, true, rec.red);
     assert.deepEqual(rec.lines.map((l) => [l.n, l.source, l.passed, l.rows.length]), [[1, 'flights', true, 3]]);
-    assert.equal(readRunSource(run, 'flights').sha256, JSON.parse((await import('node:fs')).readFileSync(join(run, 'cited-checks.json'), 'utf8')).lines[0].check.sha256, 'the record names the run\'s own copy by its sha256');
+    assert.equal(readRunSource(run, 'flights').sha256, JSON.parse((await import('node:fs')).readFileSync(join(run, 'line-checks.json'), 'utf8')).cited.lines[0].check.sha256, 'the record names the run\'s own copy by its sha256');
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 

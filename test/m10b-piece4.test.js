@@ -1,6 +1,6 @@
 // M10b piece 4 (docs/wiki/the-module-ladder.md "M10b amendment 2"): each guardrail shows what checked it. The drafter's `covers` tag is KEPT on the signed check (inside the
 // hash), stripped only on the way into bareguard (`bareguardChecks`); ONE builder (src/sheetblock.js `sheetLineBlocks`) makes the per-line block every surface draws; after a
-// run the block carries ✓ / ✗ and what was found, from the run's own sheet-checks.json. $0: synthetic sheets (test/fixtures/m10b-sheets), real bareguard, no model.
+// run the block carries ✓ / ✗ and what was found, from the run's own line-checks.json (sheet). $0: synthetic sheets (test/fixtures/m10b-sheets), real bareguard, no model.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { readFileSync, rmSync, mkdirSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { buildReadout, specHash } from '../src/authoring.js';
 import { checkedLines } from '../src/checked.js';
 import { bareguardChecks, sheetCheckReds } from '../src/sheetchecks.js';
 import { sheetLineBlocks, sheetCheckName, vocabularyOps, SHEET_OP_NAMES, csvRolesOf, uncoveredRules } from '../src/sheetblock.js';
-import { freezeInputs } from '../src/runner.js';
+import { freezeAndRecord as freezeInputs } from './freeze-fixture.mjs';
 import { closeSheet, readRunSheets, sheetRolesOf } from '../src/sheetrun.js';
 import { writeSheetLine, readSheetChecks } from '../src/sheet-record.js';
 import { buildResult } from '../src/panel/result.js';

@@ -83,7 +83,7 @@ async function runStep(file, role, checks, answers, { mutate } = {}) {
   });
   return { run, out, rows, calls: () => calls, spent };
 }
-const lastRecord = (run) => JSON.parse(readFileSync(path.join(run, 'sheet-checks.json'), 'utf8')).lines;
+const lastRecord = (run) => JSON.parse(readFileSync(path.join(run, 'line-checks.json'), 'utf8')).sheet.lines;
 const checksRows = (run) => readChecks(run);
 
 test('the lock: the run\'s run.json records the tableSha of the frozen sheet, once, for a sheet a step\'s close.sheet names (and for no other input)', async () => {

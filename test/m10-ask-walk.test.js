@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { world as askWorld, until, killChildrenAfter } from './m4e-world.mjs';
 import { world as parkedWorld } from './m10-am4-world.mjs';
-import { CITED_CHECKS_FILE } from '../src/panel/result.js';
+import { putCited } from './line-checks-fixture.mjs';
 import { raw } from './fixtures/m10-map/load.mjs';
 
 killChildrenAfter();
@@ -82,7 +82,7 @@ for (const width of [1280, 600, 390, 320]) {
     CLOSERS.push(async () => chrome.close());
     const url = GOLDEN.pages[0];
     const w = await parkedWorld({ mode: 'park', prose: (p) => p.replace(/guardrail: source jd = file:\S+/, `guardrail: source jd = page:${url}`) });
-    writeFileSync(path.join(w.runDir, CITED_CHECKS_FILE), JSON.stringify({ lines: GOLDEN.lines.map((l) => ({ n: 3, source: 'jd', passed: true, facts: l.facts, rows: l.rows, notChecked: [] })) }));
+    putCited(w.runDir, { lines: GOLDEN.lines.map((l) => ({ n: 3, source: 'jd', passed: true, facts: l.facts, rows: l.rows, notChecked: [] })) });
     await chrome.open(`http://127.0.0.1:${w.port}/`, width);
     const card = 'document.querySelector("[data-testid=rl-run-job2-run-1]")';
     assert.ok(await chrome.waitFor(`!!${card}`), 'the Runs list shows the run');

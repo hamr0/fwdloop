@@ -32,9 +32,9 @@ test('the recorded claims pass the signed checks on the saved sheet: ok, exit 0'
 
 test('one changed claim is RED naming the check, NOT OK, exit 1', () => {
   const root = copy();
-  const f = path.join(root, 'job', 'runs', 'run-1', 'sheet-checks.json');
+  const f = path.join(root, 'job', 'runs', 'run-1', 'line-checks.json');
   const d = JSON.parse(readFileSync(f, 'utf8'));
-  d.lines[0].claims.daysPastDue.days['2'] = 125;
+  d.sheet.lines[0].claims.daysPastDue.days['2'] = 125;
   writeFileSync(f, JSON.stringify(d));
   const r = run(root);
   assert.equal(r.status, 1, r.stdout);

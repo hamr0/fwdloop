@@ -29,8 +29,8 @@ async function makeRun(results = goodRows(PAGE).slice(0, 3)) {
   return { run, out, frozen: frozen.manifest[0].frozen };
 }
 const check = (run, extra = []) => spawnSync(process.execPath, [SCRIPT, run, ...extra], { encoding: 'utf8', timeout: 30000 });
-const recordPath = (run) => join(run, 'cited-checks.json');
-const edit = (run, fn) => { const r = JSON.parse(readFileSync(recordPath(run), 'utf8')); fn(r); writeFileSync(recordPath(run), JSON.stringify(r)); };
+const recordPath = (run) => join(run, 'line-checks.json');
+const edit = (run, fn) => { const r = JSON.parse(readFileSync(recordPath(run), 'utf8')); fn(r.cited); writeFileSync(recordPath(run), JSON.stringify(r)); };
 
 test('the script imports nothing of ours and not bareguard: only Node\'s own modules', () => {
   const src = readFileSync(SCRIPT, 'utf8');

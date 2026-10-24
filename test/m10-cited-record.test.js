@@ -1,4 +1,4 @@
-// M10 piece 4: the ONE writer of <run>/cited-checks.json and the shape the Result tab's reader (readCitedChecks) takes. $0, real saved page.
+// M10 piece 4: the writer of the cited section of <run>/line-checks.json and the shape the Result tab's reader (readCitedChecks) takes. $0, real saved page.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { readFileSync, rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { checkCited } from '../src/citedcheck.js';
-import { citedLineOf, writeCitedLine, CITED_CHECKS_FILE } from '../src/cited-record.js';
+import { citedLineOf, writeCitedLine } from '../src/cited-record.js';
 import { readCitedChecks } from '../src/panel/result.js';
 import { flightsPart, goodRows, PAGE } from './fixtures/m10-map/cited-help.mjs';
 
@@ -74,7 +74,7 @@ test('the writer keeps one line per job line: a second try replaces its own line
     writeCitedLine(dir, citedLineOf({ n: 1, part, results, check }));
     const got = readCitedChecks(dir);
     assert.deepEqual(got.lines.map((l) => [l.n, l.passed]), [[1, true], [2, true]]);
-    assert.ok(JSON.parse(readFileSync(join(dir, CITED_CHECKS_FILE), 'utf8')).lines.length === 2);
+    assert.ok(JSON.parse(readFileSync(join(dir, 'line-checks.json'), 'utf8')).cited.lines.length === 2);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

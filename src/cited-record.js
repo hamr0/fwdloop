@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/panel/server.js@2959217 (proofOf, moneyAsRead, resultCell - the row a Result tab shows, read off bareguard's evidence)
-// M10 piece 4: the ONE writer of `<run>/cited-checks.json`, the record the Result tab's reader (`readCitedChecks`, src/panel/result.js) takes. One line per
+// M10 piece 4 / M8b item 3: the writer of the `cited` section of `<run>/line-checks.json` (the file's one writer is `writeLineSection`, src/line-checks.js), the record the Result tab's reader (`readCitedChecks`, src/panel/result.js) takes. One line per
 // job line, written the moment that line's cited check has run, from the check's own answer: nothing here decides a verdict.
 //
 // Shape (the reader's, copied from bareloop): { lines: [ { n, source, passed, facts: [{name, kind: 'phrase'|'value', sentence}],
@@ -7,14 +7,9 @@
 // Extra keys the reader ignores and the separate checker (scripts/check-cited-run.mjs) reads: per line `check` {sha256 of the frozen text, the signed facts,
 // the count} and per row `values`.
 // Throws away: bareguard's evidence beyond the marks of the claim's own spans; nothing: a red line keeps its judged rows (am9); only a stopped check has none.
-import { writeFileSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
-import { readFileInside } from './flow.js';
+import { writeLineSection } from './line-checks.js';
 import { moneyAs } from './pageask.js';
 import { factSentence, countSentence, CITED_ID } from './citedcheck.js';
-
-/** the record's name in the run's own folder; the Result tab's reader takes it from here */
-export const CITED_CHECKS_FILE = 'cited-checks.json';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -120,19 +115,5 @@ export function citedLineOf({
  * @param {string} runDir @param {Record<string, any>} line @returns {void}
  */
 export function writeCitedLine(runDir, line) {
-  const file = join(runDir, CITED_CHECKS_FILE);
-  /** @type {Record<string, any>[]} */
-  let lines = [];
-  const had = readFileInside(runDir, CITED_CHECKS_FILE);
-  if (had.ok) {
-    try {
-      const rec = JSON.parse(had.text);
-      if (rec && Array.isArray(rec.lines)) lines = rec.lines.filter((/** @type {any} */ l) => isRec(l) && l.n !== line.n);
-    } catch { lines = []; }
-  }
-  lines.push(line);
-  lines.sort((a, b) => a.n - b.n);
-  const tmp = `${file}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify({ lines }, null, 2)}\n`);
-  renameSync(tmp, file);
+  writeLineSection(runDir, 'cited', (had) => [...had.filter((/** @type {any} */ l) => isRec(l) && l.n !== line.n), line].sort((a, b) => a.n - b.n));
 }

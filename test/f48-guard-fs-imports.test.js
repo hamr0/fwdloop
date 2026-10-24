@@ -375,12 +375,8 @@ const ALLOWLIST = {
     reason: "M9 am20: the ONE writer of `<flow>/schedule.json` (temp file + rename, 0600: a reader sees the old file or the new one) and its ONE remover (rmSync). The job's own files are never opened here. Every READ goes through readFileInside; the queue file goes through src/trigger-files.js and src/jsonl-append.js.",
     names: { renameSync: 1, rmSync: 1, writeFileSync: 1 },
   },
-  'src/cited-record.js': {
-    reason: "M10 piece 4: the ONE writer of `<run>/cited-checks.json` (temp file + rename: a reader sees the old file or the new one). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
-    names: { renameSync: 1, writeFileSync: 1 },
-  },
-  'src/sheet-record.js': {
-    reason: "M10b piece 2: the ONE writer of `<run>/sheet-checks.json` (temp file + rename: a reader sees the old file or the new one), append-only by (line, try). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
+  'src/line-checks.js': {
+    reason: "M8b item 3: the ONE writer of `<run>/line-checks.json` (temp file + rename: a reader sees the old file or the new one), both sections (`cited`, written for src/cited-record.js; `sheet`, for src/sheet-record.js). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
     names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/jsonl-append.js': {
