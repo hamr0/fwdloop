@@ -38,6 +38,7 @@ import {
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
+import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -47,7 +48,7 @@ import {
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
-import { readRunThinking } from '../flowmodel.js';
+import { readRunThinking, readLearningsRecord } from '../flowmodel.js';
 import {
   isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
 } from '../audit-fold.js';
@@ -1967,7 +1968,7 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
   root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
@@ -1995,6 +1996,9 @@ export function getRunAudit({
     // never a second, client-side re-grouping.
     groups,
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M8 item 6: what the planner was told from earlier runs, READ-ONLY (borrowed-from: bareloop src/panel/server.js@v0.46.0:1854): the exact block as the run's record kept it, `hints` = the same text split
+    // into fields by learn.js's parseHintBlock (the one reader). Empty (no box) when the run was handed nothing: no record, or a run that reused its plan.
+    learnings: (() => { const rec = readLearningsRecord(run.runDir); return rec === null ? [] : [{ phase: rec.phase, text: rec.text, chars: rec.text.length, ids: rec.ids, hints: parseHintBlock(rec.text) }]; })(),
     // M11 am11 items 3-4: the one row that says why the card left Needs you (by your Remove, or after 7 days); words: src/summary-words.js
     needsLeft: catalogue ? needsLeftWords(getRunNeeds({
       root, flow, runId, catalogue, nowMs: now(), resumeAttempt,
