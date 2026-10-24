@@ -2429,6 +2429,11 @@ SIGNED by hamr 2026-10-24 ("sign m8 am4"), the text exactly as shown:
 2. A stopped or cap-halted run has ended, as in bareloop. A run waiting at an ask has not ended; its notes are made when it does.
 3. Noise runs (the provider broke, the check crashed, no check ran) make no note, as bareloop does.
 
+SIGNED by hamr 2026-10-24 ("sign m8 am5"), the text exactly as shown:
+
+**M8 amendment 5 — the Audit box shows bareloop's rows.**
+1. "Done when"'s "the Audit box shows the exact text handed" means bareloop's box: each handed hint as its rows (where it came from, times seen, check, kind, fixed or not, It said). The exact text handed is kept in the run's `learnings.json`, and the separate script checks it.
+
 ## M9 — triggers and flow handover
 
 `manual`, `cron`, `file-drop`, then `inbox-poll`. Flow-to-flow handover rides `file-drop`, and the
