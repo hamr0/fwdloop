@@ -336,7 +336,7 @@ const ALLOWLIST = {
     names: { rmSync: 1 },
   },
   'src/pagefetch.js': {
-    reason: "M10 item 1: one read of barebrowse's own package.json (found next to its entry file), only to refuse a version older than 0.21.0; nothing from a run or flow dir",
+    reason: "M10 item 1: one read of barebrowse's own package.json (found next to its entry file), only to refuse a version older than 0.24.1; nothing from a run or flow dir",
     names: { readFileSync: 1 },
   },
   'src/version.js': {
