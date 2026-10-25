@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learnstore.js@v0.47.0 (66dc2b0)
-// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's checks.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
+// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's diary.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. F83 bug 2: learnAtRunEnd (the one run-end and seed path) folds with specHash null, so a lesson matches by workflow name alone, the same as the read side (M8 am7 item 1; a redraft's new plan hash no longer opens a new row); its `specHash` argument is accepted and unused. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
 // The thin reader/writer around src/learn.js (cross-run learnings, ITEM33-BUILD.md rev 2). All file IO lives here and
 // the pure rules live in learn.js; nothing in either file can reach a model.
 //
@@ -14,6 +14,7 @@ import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
 import { readAudit, readHistory } from './books.js';
 import { readChecks } from './diary.js';
+import { readRunInputs } from './runfile.js';
 import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
 
 /**
@@ -207,7 +208,8 @@ export function eventsOfRun(runDir, workflow) {
   if (!rows.length) return null;
   const log = jsonIn(runDir, 'log.json') ?? {};
   const decl = jsonIn(runDir, 'job/declaration.json') ?? { steps: [] };
-  const inputs = jsonIn(runDir, 'inputs.json');
+  const frozen = readRunInputs(runDir);
+  const inputs = frozen.ok ? frozen.entries : null;
   const prose = (() => { const r = readFileInside(runDir, 'job/prose.txt'); return r.ok ? r.text : ''; })();
   const checks = readChecks(runDir);
   const made = new Set(readdirInside(runDir, 'artifacts'));
@@ -258,7 +260,7 @@ export function eventsOfRun(runDir, workflow) {
  * THE RUN-END TALLY ($0, code only, no model; M8 item 2): turn a finished run's folder into cards and fold them into the ledger.
  * The place is the first input's source made absolute lexically (`path.resolve`, no fs: the F48 guard keeps realpathSync out of this file, so a symlinked source is not followed). The ledger run id is `<workflow>/<runId>` (fwdloop's run ids repeat across workflows, bareloop's do not). M8 am4: every run's notes COUNT at once (trust 'deterministic'), a run
  * with a signed ask included; there is no hold. It runs whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
- * the run's checks.jsonl, so a check with no checks.jsonl row (a run from before am29) has no `meaning`.
+ * the run's diary.jsonl, so a check with no checks row there (a run from before am29) has no `meaning`.
  * Borrowed-from: bareloop src/learnstore.js@v0.47.0:124 (learnAtRunEnd).
  * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null, noise: string|null, cards: number}}
@@ -269,7 +271,7 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = n
   const runid = `${workflow}/${runId}`;
   const build = buildCards({ runid, events: rec.events, spec: { job: workflow }, model: rec.model, questions: rec.questions });
   const at = rec.events.findLast((e) => e.type === 'job-end')?.ts ?? now.toISOString();
-  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf(placeSpecOf(workflow, rec.source), resolvePlace), specHash, trust: 'deterministic', at, now });
+  const r = foldRunIntoLedger({ home, runid, build, workflow, place: placeOf(placeSpecOf(workflow, rec.source), resolvePlace), specHash: null, trust: 'deterministic', at, now });
   return { ...r, noise: build.noise, cards: build.cards.length };
 }
 

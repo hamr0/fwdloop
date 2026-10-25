@@ -1,0 +1,81 @@
+{
+  "sheet": {
+    "lines": [
+      {
+        "n": 2,
+        "try": 1,
+        "passed": true,
+        "tables": [
+          {
+            "name": "aging",
+            "tableSha": "5b3adbb6018322d7247ca5bf71f12fb67c49c78e37db5b1b0b09f677fee43f1f"
+          }
+        ],
+        "checks": [
+          {
+            "id": "invoice-count",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "invoiceCount",
+            "op": "count",
+            "column": "Invoice #",
+            "covers": [
+              1
+            ]
+          },
+          {
+            "id": "days-since-due",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "daysPastDue",
+            "op": "daysSince",
+            "column": "Due date",
+            "asOf": "2026-10-11",
+            "dateFormats": [
+              {
+                "column": "Due date",
+                "format": "YYYY-MM-DD"
+              }
+            ],
+            "covers": [
+              2,
+              3
+            ]
+          }
+        ],
+        "claims": {
+          "invoiceCount": {
+            "value": 8
+          },
+          "daysPastDue": {
+            "days": {
+              "2": 124,
+              "3": 144,
+              "4": 152,
+              "5": 180,
+              "6": 119,
+              "7": 194,
+              "8": 244,
+              "9": 109
+            }
+          }
+        },
+        "results": [
+          {
+            "id": "invoice-count",
+            "text": "count \u2014 count of Invoice #",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "days-since-due",
+            "text": "date \u2014 days since Due date as of 2026-10-11",
+            "ok": true,
+            "result": null
+          }
+        ],
+        "red": null
+      }
+    ]
+  }
+}

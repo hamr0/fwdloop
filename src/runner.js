@@ -74,7 +74,8 @@ import { appendChecks, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
-import { readJobThinking, writeRunThinking, writeRunModel, takeLearningsRecord } from './flowmodel.js';
+import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
+import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -415,7 +416,7 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
 }
 
 /** Copy each named source into `<runDir>/inputs/`, hash the FROZEN copy
- *  (never the original again after this), write `inputs.json`. An
+ *  (never the original again after this) and return the manifest, which `runFlow` records as the `inputs` of `run.json` (M8b). An
  *  unreadable source refuses by name. A source that is a web address
  *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
  *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
@@ -452,7 +453,6 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
     }
     manifest.push(entry);
   }
-  writeFileSync(join(runDir, 'inputs.json'), JSON.stringify(manifest, null, 2));
   return { ok: true, manifest };
 }
 
@@ -642,11 +642,9 @@ const citedRolesOf = (step) => (step?.close?.class === 'green' && typeof step.cl
 /** A frozen CSV input as `{kind:'cells', header, rows}` (the shape `addressCells` gives), checked against the sha256 recorded at freeze.
  *  Same three outcomes as `readArtifactResult`: not an input of this run (`missing`), refused (`red`), or the cells. */
 function readInputCells(runDir, id) {
-  const manifest = readFileInside(runDir, 'inputs.json');
-  if (!manifest.ok) return manifest.missing ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
-  let entries;
-  try { entries = JSON.parse(manifest.text); } catch (err) { return { ok: false, missing: false, red: `inputs.json is not valid JSON — ${err.message}` }; }
-  const entry = Array.isArray(entries) ? entries.find((e) => e?.id === id) : undefined;
+  const manifest = readRunInputs(runDir);
+  if (!manifest.ok) return manifest.code === 'missing' ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
+  const entry = manifest.entries.find((e) => e?.id === id);
   if (!entry || !isCellsPath(entry.frozen)) return { ok: false, missing: true };
   const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
   if (!file.ok) return file.missing ? { ok: false, missing: false, red: 'the frozen copy is missing' } : { ok: false, missing: false, red: file.red };
@@ -857,7 +855,7 @@ export async function runStepRalph({
   // cut this step short of (their numbering is in `attemptOffset`; a try the Stop cut mid-way is replaced by the new one, never counted
   // against the limit, so Resume always gets at least one new try).
   readStop = null, stepNo = 0, triesDone = 0,
-  // M4d am29 item 2: the run's folder, where each try saves its checks (`checks.jsonl`, src/diary.js)
+  // M4d am29 item 2: the run's folder, where each try saves its checks (`diary.jsonl`, kind checks, src/diary.js)
   runDir = null,
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
@@ -1146,7 +1144,7 @@ export async function runStepRalph({
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
- * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run.json) and kept by every resume/continue.
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1264,9 +1262,8 @@ export async function runFlow({
     });
   }
 
-  // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume)
-  writeRunThinking(flowDir, runDir);
-  if (runModel) writeRunModel(runDir, runModel); // M4d am33: the one record of the model this run started on
+  // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume); taken here, recorded in `run.json` once the inputs are frozen
+  const thinkingBox = readModelRecord(flowDir)?.thinking === true;
   // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
   if (!runOwnsPlan(runDir)) {
     try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
@@ -1280,6 +1277,8 @@ export async function runFlow({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
+  // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
+  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest) });
   // M4c: every guard above has passed — this process records itself (pid row) before its first step.
   recordPid(runDir, 'run', now());
 
@@ -2072,7 +2071,7 @@ function sameRoot(recorded, requested) {
  * @param {() => string} [opts.clock]
  * @param {string} opts.businessDate
  * @param {number} [opts.ceilingUsd]
- * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run-model.json) and kept by every resume/continue.
+ * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run.json) and kept by every resume/continue.
  * @param {() => number} [opts.nowMs] - F45 finding 3; see `runFlow`'s own.
  * @param {(newRunDir:string) => void} [opts.onRerunStart] - amendment 16 C2: called with the new run's folder just before a `rerun` starts it.
  */
@@ -2382,7 +2381,7 @@ export async function resumeRun({
       }
       try {
         recordLateAnswerIfAny(runDir, now);
-        writeLog(runDir, { runId, outcome: 'rerun', attempts: [], artifacts: priorArtifactsForLog });
+        writeLog(runDir, { runId, outcome: 'rerun', attempts: Array.isArray(readLog(runDir)?.attempts) ? readLog(runDir).attempts : [], artifacts: priorArtifactsForLog }); // F83: keep the earlier legs' tries
       } finally {
         // Amendment 16 C6/C7: the history end row is written last, and always.
         appendHistory(flowDir, {
@@ -2464,7 +2463,8 @@ export async function resumeRun({
       }
     }
 
-    const attemptsLog = [];
+    // F83: log.json has one writer and it replaces the file, so this leg starts from the tries the earlier legs wrote (the pause's write)
+    const attemptsLog = Array.isArray(readLog(runDir)?.attempts) ? [...readLog(runDir).attempts] : [];
     const auditRows = [];
     const recordAudit = (row, modelOutput, unjudgedCount) => {
       const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };
@@ -2726,7 +2726,8 @@ export async function continueRun({
         acceptedAskEmitsThisRun.set(emits, recordedHashes.byEmits.get(emits) ?? null);
       }
     }
-    const attemptsLog = [];
+    // F83: log.json has one writer and it replaces the file, so this leg starts from the tries the earlier legs wrote (the pause's write)
+    const attemptsLog = Array.isArray(readLog(runDir)?.attempts) ? [...readLog(runDir).attempts] : [];
     const auditRows = [];
     const recordAudit = (row, modelOutput, unjudgedCount) => {
       const fullRow = unjudgedCount === undefined ? row : { ...row, unjudgedCount };

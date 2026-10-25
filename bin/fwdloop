@@ -39,6 +39,7 @@ import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
+import { readRunInputs } from '../src/runfile.js';
 import { configDoorHome } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -48,6 +49,7 @@ import {
   answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
+import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
@@ -677,24 +679,20 @@ async function cmdResume(rest) {
     what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, arbiter.capUsd - priorSpent), spentAtHold: priorSpent,
   });
 
-  // Resume never re-freezes inputs — the run's own `inputs.json` (written at
-  // park by `freezeInputs`) is the one source of the already-frozen paths a
+  // Resume never re-freezes inputs — the run's own `run.json` (its `inputs`,
+  // written at start by `runFlow`) is the one source of the already-frozen paths a
   // sandboxed primitive may read.
-  // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
-  // symlinked `inputs.json` is treated as "no manifest" (empty array) rather
-  // than followed, which would otherwise let an outside file's content name
-  // arbitrary "frozen" paths for the sandboxed read/grep/readDocx/
+  // F48 round 3: routed through `readFileInside` (`src/flow.js`, inside
+  // `readRunInputs`) — a symlinked `run.json` is treated as "no manifest" (empty
+  // array) rather than followed, which would otherwise let an outside file's
+  // content name arbitrary "frozen" paths for the sandboxed read/grep/readDocx/
   // addressCells tools built just below.
-  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
-  let inputsManifest = [];
-  if (inputsManifestRead.ok) {
-    try {
-      inputsManifest = JSON.parse(inputsManifestRead.text);
-    } catch (err) {
-      fail(`resume: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
-      return;
-    }
+  const inputsRead = readRunInputs(runDir);
+  if (!inputsRead.ok && inputsRead.code === 'invalid') {
+    fail(`resume: run "${runId}": ${inputsRead.red}`);
+    return;
   }
+  const inputsManifest = inputsRead.ok ? inputsRead.entries : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
   // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
@@ -779,16 +777,12 @@ async function cmdContinue(rest) {
     what: 'resume', flow: flowName, runId, runDir, holdUsd: Math.max(0, applied.arbiter.capUsd - spentSoFar.total), spentAtHold: spentSoFar.total,
   });
 
-  const inputsManifestRead = readFileInside(runDir, 'inputs.json');
-  let inputsManifest = [];
-  if (inputsManifestRead.ok) {
-    try {
-      inputsManifest = JSON.parse(inputsManifestRead.text);
-    } catch (err) {
-      fail(`continue: inputs.json for run "${runId}" is not valid JSON — ${err.message}`);
-      return;
-    }
+  const inputsRead = readRunInputs(runDir);
+  if (!inputsRead.ok && inputsRead.code === 'invalid') {
+    fail(`continue: run "${runId}": ${inputsRead.red}`);
+    return;
   }
+  const inputsManifest = inputsRead.ok ? inputsRead.entries : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
     runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
@@ -1014,9 +1008,21 @@ function cmdLearn(rest) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * M4b am4/am5 (the launcher): a bare `fwdloop` shows the menu; `start | stop | restart | status | install` are its five choices as verbs. All logic is src/launcher.js.
+ * `--root <flows folder>` (default '.', like `fwdloop panel`) is the folder the runs line reads and `start` hands the panel; the config home is the real ~/.config/fwdloop.
+ */
+async function cmdLauncher(cmd, rest) {
+  const at = rest.indexOf('--root');
+  const given = at === -1 ? '.' : rest[at + 1];
+  if (at !== -1 && (given === undefined || given.startsWith('--'))) fail(`${cmd}: --root needs a folder`);
+  const args = at === -1 ? rest : rest.filter((_, i) => i !== at && i !== at + 1);
+  process.exitCode = await launcherMain(cmd, args, { root: resolveRoot(cmd, given) });
+}
+
 async function main() {
   const [verb, ...rest] = process.argv.slice(2);
-  if (!verb) fail('usage: fwdloop draft|sign|run|inbox|show|answer|resume|continue|panel|learn ...');
+  if (!verb || verb === '--root') return cmdLauncher('menu', verb ? [verb, ...rest] : []);
 
   if (verb === 'draft') return cmdDraft(rest);
   if (verb === 'sign') return cmdSign(rest);
@@ -1028,7 +1034,8 @@ async function main() {
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
   if (verb === 'learn') return cmdLearn(rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn`);
+  if (verb === 'start' || verb === 'stop' || verb === 'restart' || verb === 'status' || verb === 'install') return cmdLauncher(verb, rest);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | start | stop | restart | status | install (or none, for the menu)`);
   return undefined;
 }
 

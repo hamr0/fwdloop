@@ -407,6 +407,8 @@ export function createAuthor(opts) {
       if (r.status !== 200 || !r.body.flow) return r;
       return { ...r, body: { ...r.body, flow: { ...r.body.flow, trigger: triggerDoor.card(r.body.flow.flow) } } };
     },
+    /** M4b am4 item 7: how many drafts are open for `whoami` and the launcher's stop warning: the card `live()` returns (the newest draft not abandoned or signed), 0 or 1. */
+    openDrafts() { return this.live().body.draft ? 1 : 0; },
     run: flowsDoor.run,
     reuseCheck: (b) => flowsDoor.reuseCheck(b),
     runPrepare: flowsDoor.runPrepare,

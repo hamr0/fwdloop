@@ -91,7 +91,12 @@ for (const width of [1280, 700, 390, 320]) {
       return out; })()`);
     const scrolls = await q(`Array.from(document.querySelectorAll("${BOX} .audit-table-scroll")).map(function(e){ return e.scrollWidth - e.clientWidth; })`);
     assert.ok(scrolls.length > 0 && scrolls.every((n) => n <= 1), `a hint scrolls sideways inside its own box: ${JSON.stringify(scrolls)}`);
-    assert.equal(await q(`getComputedStyle(${HEAD}, "::before").content`), '""', 'no arrow, open or closed (as bareloop\'s box)');
+    // the open click above left it open: ▼; the fwdloop fold arrow (same glyphs and colour as the other Audit folds), faint, drawn by CSS
+    assert.match(await q(`getComputedStyle(${HEAD}, "::before").content`), /^"\u25BC\s*"$/, 'open: ▼');
+    await q(`${HEAD}.click()`);
+    assert.match(await q(`getComputedStyle(${HEAD}, "::before").content`), /^"\u25B6\s*"$/, 'folded: ▶');
+    assert.equal(await q(`getComputedStyle(${HEAD}, "::before").color === getComputedStyle(document.querySelector(".audit-fold h4") || document.body).color`), false, 'faint, not the text colour');
+    await q(`${HEAD}.click()`);
     assert.equal(await q(`${HEAD}.children[0].getBoundingClientRect().top === ${HEAD}.querySelector(".st-word").getBoundingClientRect().top || Math.abs(${HEAD}.children[0].getBoundingClientRect().top - ${HEAD}.querySelector(".st-word").getBoundingClientRect().top) < 8`), true, 'chip and word are on one line');
     assert.equal(await q(`(function(){ var r = document.createRange(); r.selectNodeContents(${HEAD}); var t = r.getClientRects(); var first = ${HEAD}.querySelector(".step-state").getBoundingClientRect(); var next = ${HEAD}.lastChild; var rr = document.createRange(); rr.setStart(next, 0); rr.setEnd(next, 1); return rr.getBoundingClientRect().top < first.bottom; })()`), true, 'the title starts on the chip\'s line (one inline flow, as bareloop)');
     console.log(`# m8-6 ${width}px spill ${JSON.stringify(spill)}`);

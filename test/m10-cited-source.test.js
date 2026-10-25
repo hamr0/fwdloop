@@ -1,11 +1,12 @@
-// M10 piece 4: a cited check reads the RUN's own frozen copy, sha-checked against inputs.json - never the drafting copy. $0.
+// M10 piece 4: a cited check reads the RUN's own frozen copy, sha-checked against run.json - never the drafting copy. $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { freezeInputs, freezePage } from '../src/runner.js';
+import { freezePage } from '../src/runner.js';
+import { freezeAndRecord as freezeInputs } from './freeze-fixture.mjs';
 import { readRunSource } from '../src/cited-source.js';
 import { PAGE, CHEAT_REVERSED } from './fixtures/m10-map/load.mjs';
 
@@ -48,7 +49,7 @@ test('no frozen inputs, an unknown role, a missing file and a spreadsheet are ea
     rmSync(r.manifest[0].frozen);
     assert.match(readRunSource(run, 'flights').red, /the frozen copy is missing/);
     mkdirSync(join(run, 'inputs'), { recursive: true });
-    writeFileSync(join(run, 'inputs.json'), JSON.stringify([{ id: 'aging', source: 'a.csv', frozen: join(run, 'inputs', 'aging.csv'), sha256: 'x', bytes: 1 }]));
+    writeFileSync(join(run, 'run.json'), JSON.stringify({ inputs: [{ id: 'aging', source: 'a.csv', frozen: join(run, 'inputs', 'aging.csv'), sha256: 'x', bytes: 1 }] }));
     assert.match(readRunSource(run, 'aging').red, /a quote can be checked against a web page, a text file or a .docx here, not "aging.csv"/);
   } finally { rmSync(run, { recursive: true, force: true }); }
 });

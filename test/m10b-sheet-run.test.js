@@ -9,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { rubricVocabulary, tableSha } from 'bareguard';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { freezeInputs, runStepRalph, runFlow, readArtifactsMapChecked } from '../src/runner.js';
+import { freezeAndRecord } from './freeze-fixture.mjs';
+import { writeRunStart } from '../src/runfile.js';
+import { readChecks } from '../src/diary.js';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readAudit, readHistory } from '../src/books.js';
@@ -67,7 +70,7 @@ const stepOf = (checks, role) => ({
 /** freeze a sheet into a run folder (tableSha recorded) and run ONE step on a fake model that answers `answers[i]` on try i */
 async function runStep(file, role, checks, answers, { mutate } = {}) {
   const run = tmp();
-  const frozen = await freezeInputs(run, [{ id: role, path: file }], { tableRoles: sheetRolesOf([stepOf(checks, role)]) });
+  const frozen = await freezeAndRecord(run, [{ id: role, path: file }], { tableRoles: sheetRolesOf([stepOf(checks, role)]) });
   assert.equal(frozen.ok, true, frozen.red);
   if (mutate) mutate(run);
   const read = readArtifactsMapChecked(run, [role]);
@@ -80,27 +83,28 @@ async function runStep(file, role, checks, answers, { mutate } = {}) {
   });
   return { run, out, rows, calls: () => calls, spent };
 }
-const lastRecord = (run) => JSON.parse(readFileSync(path.join(run, 'sheet-checks.json'), 'utf8')).lines;
-const checksRows = (run) => readFileSync(path.join(run, 'checks.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+const lastRecord = (run) => JSON.parse(readFileSync(path.join(run, 'line-checks.json'), 'utf8')).sheet.lines;
+const checksRows = (run) => readChecks(run);
 
-test('the lock: the run\'s inputs.json records the tableSha of the frozen sheet, once, for a sheet a step\'s close.sheet names (and for no other input)', async () => {
+test('the lock: the run\'s run.json records the tableSha of the frozen sheet, once, for a sheet a step\'s close.sheet names (and for no other input)', async () => {
   const run = tmp();
   try {
     const other = path.join(run, 'notes.csv');
     writeFileSync(other, 'a,b\n1,2\n');
     const f = await freezeInputs(run, [{ id: 'expenses', path: EXPENSES }, { id: 'notes', path: other }], { tableRoles: ['expenses'] });
     assert.equal(f.ok, true, f.red);
-    const m = JSON.parse(readFileSync(path.join(run, 'inputs.json'), 'utf8'));
+    const m = f.manifest;
     const want = tableSha(sheetTable(parseCsv(readFileSync(path.join(run, 'inputs', 'expenses.csv'), 'utf8'))));
     assert.match(want, /^[0-9a-f]{64}$/);
     assert.equal(m.find((e) => e.id === 'expenses').tableSha, want, 'recorded from the FROZEN copy');
     assert.equal('tableSha' in m.find((e) => e.id === 'notes'), false, 'an input no sheet check names gets none');
     // read back: a later step (or a resumed run) gets the recorded sha, and nothing rewrites the file
-    const before = readFileSync(path.join(run, 'inputs.json'), 'utf8');
+    writeRunStart(run, { model: null, thinking: false, inputs: m });
+    const before = readFileSync(path.join(run, 'run.json'), 'utf8');
     const read = readRunSheets(run, EXP_CHECKS());
     assert.equal(read.ok, true, read.red);
     assert.deepEqual(read.inputs, [{ name: 'expenses', sha256: want }]);
-    assert.equal(readFileSync(path.join(run, 'inputs.json'), 'utf8'), before);
+    assert.equal(readFileSync(path.join(run, 'run.json'), 'utf8'), before);
   } finally { rmSync(run, { recursive: true, force: true }); }
 });
 
@@ -123,7 +127,7 @@ test('honest claims (rows over 500 and their count, computed here) are green; th
     assert.equal(rows.at(-1).verdict, 'green');
     const rec = lastRecord(run);
     assert.deepEqual(rec.map((l) => [l.n, l.try, l.passed]), [[2, 1, true]]);
-    assert.equal(rec[0].tables[0].tableSha, JSON.parse(readFileSync(path.join(run, 'inputs.json'), 'utf8'))[0].tableSha, 'the check used the recorded tableSha');
+    assert.equal(rec[0].tables[0].tableSha, JSON.parse(readFileSync(path.join(run, 'run.json'), 'utf8')).inputs[0].tableSha, 'the check used the recorded tableSha');
     assert.deepEqual(rec[0].checks, EXP_CHECKS(), 'the signed checks are kept as they were signed');
     const tried = checksRows(run).at(-1).checks.filter((c) => c.n >= 3);
     assert.deepEqual(tried.map((c) => [c.text, c.ok]), [['rows \u2014 rows where Amount > 500', true], ['count \u2014 count of rows where Amount > 500', true]]);
@@ -186,7 +190,7 @@ test('the signed Negative: a saved sheet changed by one cell after the run start
 test('a run that recorded no fingerprint for the sheet (nothing named it at start) is never green', async () => {
   const run = tmp();
   try {
-    await freezeInputs(run, [{ id: 'expenses', path: EXPENSES }]);
+    await freezeAndRecord(run, [{ id: 'expenses', path: EXPENSES }]);
     const read = readRunSheets(run, EXP_CHECKS());
     assert.equal(read.ok, false);
     assert.match(read.red, /input "expenses": this run recorded no table fingerprint/);
@@ -221,7 +225,7 @@ test('a whole run: the start records the sha; a wrong band retries and goes gree
     assert.notEqual(r.outcome, 'red', r.red);
     const aud = readAudit(w.runDir());
     assert.deepEqual(aud.filter((x) => x.step === 'bucket_assignment').map((x) => x.verdict), ['red', 'green']);
-    const manifest = JSON.parse(readFileSync(path.join(w.runDir(), 'inputs.json'), 'utf8'));
+    const manifest = JSON.parse(readFileSync(path.join(w.runDir(), 'run.json'), 'utf8')).inputs;
     assert.equal(manifest[0].tableSha, tableSha(sheetTable(parseCsv(readFileSync(w.csv, 'utf8')))));
     const hist = readHistory(w.flowDir).at(-1);
     const sum = aud.reduce((a, x) => a + (typeof x.usd === 'number' ? x.usd : 0), 0);
@@ -322,7 +326,7 @@ test('the request of a sheet step carries the claim names and shapes and nothing
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
 
-test('no second writer: inputs.json is written by freezeInputs only', () => {
-  const writers = readdirSync(path.join(HERE, '..', 'src')).filter((f) => f.endsWith('.js') && /writeFileSync\([^)]*inputs\.json/.test(readFileSync(path.join(HERE, '..', 'src', f), 'utf8')));
-  assert.deepEqual(writers, ['runner.js']);
+test('no second writer: run.json is written by writeRunStart only', () => {
+  const writers = readdirSync(path.join(HERE, '..', 'src')).filter((f) => f.endsWith('.js') && /(writeFileSync|writeOnce)\([^)]*(RUN_FILE|run\.json)/.test(readFileSync(path.join(HERE, '..', 'src', f), 'utf8')));
+  assert.deepEqual(writers, ['runfile.js']);
 });

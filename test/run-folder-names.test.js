@@ -66,7 +66,7 @@ function recorder(calls, redOn = []) {
   };
 }
 // hamr 2026-10-24: no new file kinds in a run folder. The exact names this fixture's run folder held before the learnings work: a rerun run and a plain run with a retry make no other.
-const RUN_FOLDER_NAMES = ['artifacts', 'ask.json', 'asks', 'audit.jsonl', 'checks.jsonl', 'inputs', 'inputs.json', 'job', 'log.json', 'pids.jsonl', 'state.json', 'thinking.json'];
+const RUN_FOLDER_NAMES = ['artifacts', 'ask.json', 'asks', 'audit.jsonl', 'diary.jsonl', 'inputs', 'job', 'log.json', 'pids.jsonl', 'run.json', 'state.json'];
 
 test('no new file kinds: a rerun run and a plain run with retries leave no rerun.json, no learnings-try-*', async () => {
   for (const [tag, extra, id] of [['names-rerun', { initialGap: 'start over' }, 'run-1-rerun-1'], ['names-plain', {}, 'run-1']]) {
@@ -74,7 +74,7 @@ test('no new file kinds: a rerun run and a plain run with retries leave no rerun
     const r = await runFlow(w.args(recorder([], [1]), id, extra));
     assert.notEqual(r.outcome, 'refused', r.red);
     const names = readdirSync(w.runDir(id));
-    assert.ok(names.includes('thinking.json') && names.includes('audit.jsonl'), `${tag}: ${names}`);
+    assert.ok(names.includes('run.json') && names.includes('audit.jsonl'), `${tag}: ${names}`);
     assert.deepEqual([...names].sort(), RUN_FOLDER_NAMES, `${tag}: no rerun.json, no learnings-try-*, no new name`);
     // the retry was handed its block on the audit row, not in a file
     assert.ok(readAudit(w.runDir(id)).some((x) => typeof x.hintsText === 'string' && x.hintsText !== ''), `${tag}: the block rides the try's audit row`);

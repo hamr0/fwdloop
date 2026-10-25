@@ -81,7 +81,7 @@ test('(d) Run again opens ANY run (a failed one too) with that run\'s own values
     }), signedBy: 't', at: '2026-10-06T10:00:00.000Z',
   }));
   mkdirSync(path.join(rd, 'inputs'), { recursive: true });
-  writeFileSync(path.join(rd, 'inputs.json'), JSON.stringify([{ id: 'resume', source: '/x/r.md' }, { id: 'jd', source: '/x/j.md' }]));
+  writeFileSync(path.join(rd, 'run.json'), JSON.stringify({ inputs: [{ id: 'resume', source: '/x/r.md' }, { id: 'jd', source: '/x/j.md' }] }));
   const again2 = (await again(w, 'job2', 'run-1')).json();
   assert.equal(again2.pick.values.capUsd, 0.4);
   assert.deepEqual(Object.values(again2.pick.values.askWaits), ['2h']);

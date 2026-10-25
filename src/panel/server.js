@@ -376,7 +376,7 @@ function authorPost(res, url, body, author) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number }} opts
+ * @param {{ root: string, port: number, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -510,7 +510,7 @@ export function handleRequest(req, res, opts) {
       return;
     }
     html = html.replace(/__FWDLOOP_PANEL_PORT__/g, String(opts.port));
-    const version = readOwnVersion(opts.packagePath); // M4d am17: the header's number, read from fwdloop's own package.json at serve time
+    const version = opts.version !== undefined ? opts.version : readOwnVersion(opts.packagePath); // M4d am17: the header's number from fwdloop's own package.json; M4b am5 item 5: the one read at panel start (opts.version), not at serve time
     html = version === null ? html.replace(/v__FWDLOOP_VERSION__/g, 'version unknown').replace(/__FWDLOOP_VERSION__/g, '') : html.replace(/__FWDLOOP_VERSION__/g, version);
     html = html.replace(/__FWDLOOP_PLAN_CHECK_RULES__/g, () => JSON.stringify(pageRules())); // M4d am15: the one copy of the plain words
     if (method === 'HEAD') {
@@ -520,6 +520,13 @@ export function handleRequest(req, res, opts) {
     }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
     res.end(html);
+    return;
+  }
+
+  // M4b am4 item 7 (borrowed-from: bareloop src/panel/server.js@cb2e8a7): who is answering here, the launcher's probe (`fwdloop start|stop|status`). Read-only, no token;
+  // the Host guard above already holds. `drafts` = the open drafting card (opts.author.openDrafts), `schedules` = jobs with a live schedule.
+  if (pathname === '/api/whoami') {
+    send(200, whoamiPayload(opts));
     return;
   }
 
@@ -630,12 +637,49 @@ export function handleRequest(req, res, opts) {
 }
 
 /**
+ * `GET /api/whoami` body (borrowed-from: bareloop src/panel/server.js@cb2e8a7 whoamiPayload, commit 98cbb1c version read at start).
+ * Adapted: app 'fwdloop'; `drafts` = `author.openDrafts()` (the open drafting card), `schedules` = the live schedules `author.trigger.scan()` finds.
+ * @param {{ port: number, version?: string|null, startedAt?: string, packagePath?: string, author?: ReturnType<typeof createAuthor> }} opts
+ */
+function whoamiPayload(opts) {
+  const drafts = opts.author ? opts.author.openDrafts() : 0;
+  let schedules = 0;
+  try { schedules = opts.author ? opts.author.trigger.scan().length : 0; } catch { schedules = 0; }
+  const version = opts.version !== undefined ? opts.version : readOwnVersion(opts.packagePath);
+  return { app: 'fwdloop', version: version ?? 'unknown', pid: process.pid, port: opts.port, drafts, schedules, startedAt: opts.startedAt };
+}
+
+/**
+ * The runs list as the panel builds it, for a caller with no panel running (the launcher header): the SAME `listRuns` over the same catalogue,
+ * so Needs you (M11's `needsYouOf` tag on each row) has ONE owner. Read-only, $0; the resume-attempt and starting-run lookups are the panel's
+ * in-memory ones and a stopped panel has none.
+ * borrowed-from: bareloop src/panel/server.js@c772d4e (runsListForCount); adapted: fwdloop's listRuns rows, no schedules-gave-up part (fwdloop has no such concept).
+ * @param {{ root: string, now?: () => number }} opts
+ * @returns {any[]} the rows of /api/runs
+ */
+export function runsListForCount(opts) {
+  const loaded = loadCatalogue();
+  if (!loaded.ok) throw new Error(`catalogue failed to load: ${loaded.reds.join('; ')}`);
+  return listRuns({ root: opts.root, catalogue: loaded.primitives, ...(opts.now ? { now: opts.now } : {}) });
+}
+
+/**
+ * The ONE spelling of the panel's own address (the launcher prints and opens it too).
+ * borrowed-from: bareloop src/panel/server.js@9104b2b (panelUrl); adaptation: none.
+ * @param {number} boundPort
+ * @returns {string}
+ */
+export function panelUrl(boundPort) {
+  return `http://127.0.0.1:${boundPort}`;
+}
+
+/**
  * Start the panel server. Binds `127.0.0.1` ONLY. A taken port is a LOUD,
  * non-zero-exit failure — this never falls back to another port (see file
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: Function, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, tick: () => void, close: () => Promise<void> }>}
  */
@@ -645,6 +689,10 @@ export function createPanelServer(opts) {
   }
   const requestedPort = opts.port ?? DEFAULT_PORT;
   const { root } = opts;
+  // M4b am5 item 5: the version THIS process runs, read once at start. package.json on disk can move on while the panel keeps running old code.
+  const version = readOwnVersion(opts.packagePath);
+  // M4b am6 item 1: when this panel started, set once here; whoami hands it out so the launcher can say how long ago.
+  const startedAt = new Date().toISOString();
   // One resumer per server: the one owner of every run's resume-attempt record.
   // M4d: the keys file is re-read before EVERY resume spawn (editing it needs no restart); an env injected by a test is the shell side.
   const resumer = createResumer({ root, loadEnv: () => keysForDoor({ env: opts.resume?.env }), ...opts.resume });
@@ -672,7 +720,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, packagePath: opts.packagePath, now: opts.author?.now,
+          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');
@@ -726,7 +774,7 @@ export async function panelMain(argv, ctx) {
     const keys = keysForDoor();
     if (!keys.ok) ctx.err(String(keys.refusal));
     ctx.out(`fwdloop panel — (root: ${root}) (Ctrl-C to stop)`);
-    ctx.out(`http://127.0.0.1:${boundPort}/`);
+    ctx.out(`${panelUrl(boundPort)}/`);
     // never resolves on its own — the process stays up until killed, same
     // shape any other long-running dev server takes.
     await new Promise(() => {});

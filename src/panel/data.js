@@ -48,7 +48,8 @@ import {
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
-import { readRunThinking, readLearningsRecord } from '../flowmodel.js';
+import { readLearningsRecord } from '../flowmodel.js';
+import { readRunThinking } from '../runfile.js';
 import {
   isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
 } from '../audit-fold.js';
@@ -2135,7 +2136,7 @@ export function getRunJob({
         trigger: f && f.trigger ? f.trigger : null, from: f?.from ?? null, model: f?.model ?? null, destination: f?.destination ?? null, inputs: f?.inputs ?? null, home,
       });
     })(),
-    // M4d am28: the run's rule from its own thinking.json; a run with none (before am25) reads `—` (thinkingRuleWords(null)); the row always shows
+    // M4d am28: the run's rule from its own run.json; a run with none (before am25) reads `—` (thinkingRuleWords(null)); the row always shows
     thinkingRule: thinkingRuleWords(readRunThinking(run.runDir)),
     jobFrom: copy.present ? 'run' : 'current',
     jobFromWhy: copy.present ? null : NO_JOB_COPY_WORDS,

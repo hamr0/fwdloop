@@ -1,4 +1,4 @@
-// M4d amendment 33, the run's own record: a run records the model it STARTED on once (run-model.json, write-once) and every continue path
+// M4d amendment 33, the run's own record: a run records the model it STARTED on once (the model section of run.json, write-once) and every continue path
 // (resume, continue, an answer-after-ask resume) keeps it. hamr 2026-10-22: "a resume keeps its model, a workflow reuse can change model".
 // A resume naming another model is refused by name at $0; a run with no record (before this) keeps today's pick (its signed model, else model.json).
 // $0: real bin/fwdloop children; a run that parks uses the test model step, a resume reads the live model gate (FWDLOOP_TEST_MODEL_STEP='').
@@ -11,7 +11,8 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { readRunModel, writeRunModel } from '../src/flowmodel.js';
+import { readRunModel } from '../src/flowmodel.js';
+import { writeRunStart } from '../src/runfile.js';
 import {
   HERE, killChildrenAfter, tickedConfig, until, world,
 } from './m4e-world.mjs';
@@ -29,7 +30,11 @@ const cli = (w, args, { live = false } = {}) => spawnSync(process.execPath, [BIN
 });
 const runArgs = (w, id, extra = []) => ['run', 'job2', '--root', w.root, '--run-id', id, ...w.inputs().flatMap((i) => ['--source', `${i.role}=${i.path}`]), ...extra];
 const resumeArgs = (w, id, extra = []) => ['resume', id, '--flow', 'job2', '--root', w.root, ...extra];
-const recordOf = (w, id) => path.join(w.root, 'job2', 'runs', id, 'run-model.json');
+const runJsonOf = (w, id) => path.join(w.root, 'job2', 'runs', id, 'run.json');
+/** the model a run recorded (the `model` section of its run.json) */
+const recordOf = (w, id) => JSON.parse(readFileSync(runJsonOf(w, id), 'utf8')).model;
+/** a run from before the record: its run.json with the model section taken out (the inputs stay, the resume still needs them) */
+const dropModel = (w, id) => { const f = runJsonOf(w, id); const j = JSON.parse(readFileSync(f, 'utf8')); delete j.model; writeFileSync(f, JSON.stringify(j)); };
 async function parkedRun(w, id, extra = []) {
   const r = cli(w, runArgs(w, id, extra));
   await until(() => existsSync(path.join(w.root, 'job2', 'runs', id, 'ask.json')));
@@ -40,11 +45,11 @@ test('the record is write-once and reads back only a name and a model id', () =>
   const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-am33rec-'));
   try {
     assert.equal(readRunModel(dir), null, 'no record');
-    writeRunModel(dir, { slot: SLOT, model: 'm1' });
+    writeRunStart(dir, { model: { slot: SLOT, model: 'm1' }, thinking: false, inputs: [] });
     assert.deepEqual(readRunModel(dir), { slot: SLOT, model: 'm1' });
-    assert.throws(() => writeRunModel(dir, { slot: SLOT, model: 'm2' }), /EEXIST/);
+    assert.throws(() => writeRunStart(dir, { model: { slot: SLOT, model: 'm2' }, thinking: false, inputs: [] }), /EEXIST/);
     assert.deepEqual(readRunModel(dir), { slot: SLOT, model: 'm1' }, 'never overwritten');
-    writeFileSync(path.join(dir, 'run-model.json'), '{"slot":"not a key name","model":"x"}');
+    writeFileSync(path.join(dir, 'run.json'), '{"model":{"slot":"not a key name","model":"x"}}');
     assert.equal(readRunModel(dir), null, 'unusable record reads as none');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -54,9 +59,9 @@ test('a run started with --model records that model once; a run without it recor
   await w.signedFlow();
   config(w, ['fake-ticked', 'fake-second']);
   await parkedRun(w, 'r-b', ['--model', 'fake-second']);
-  assert.deepEqual(JSON.parse(readFileSync(recordOf(w, 'r-b'), 'utf8')), { slot: SLOT, model: 'fake-second' });
+  assert.deepEqual(recordOf(w, 'r-b'), { slot: SLOT, model: 'fake-second' });
   await parkedRun(w, 'r-a');
-  assert.deepEqual(JSON.parse(readFileSync(recordOf(w, 'r-a'), 'utf8')), { slot: SLOT, model: 'fake-ticked' }, 'default pick = the job record');
+  assert.deepEqual(recordOf(w, 'r-a'), { slot: SLOT, model: 'fake-ticked' }, 'default pick = the job record');
   assert.match(readFileSync(path.join(w.root, 'job2', 'model.json'), 'utf8'), /fake-ticked/, 'model.json is untouched');
 });
 
@@ -86,7 +91,7 @@ test('an old run with no record keeps today\'s pick: the job default, and a --mo
   await w.signedFlow();
   config(w, ['fake-ticked', 'fake-second']);
   await parkedRun(w, 'r-old');
-  rmSync(recordOf(w, 'r-old'));
+  dropModel(w, 'r-old');
   config(w, ['fake-second']);   // the job default is un-ticked: with no record the default is read and refused by name, never a crash
   const old = cli(w, resumeArgs(w, 'r-old'), { live: true });
   assert.match(old.stderr, /Tick fake-ticked/, old.stderr);
@@ -99,7 +104,7 @@ test('a run signed with its own model (signed-values.json) and no record keeps t
   await w.signedFlow();
   config(w, ['fake-ticked', 'fake-second']);
   await parkedRun(w, 'r-sv');
-  rmSync(recordOf(w, 'r-sv'));
+  dropModel(w, 'r-sv');
   const dir = path.join(w.root, 'job2', 'runs', 'r-sv');
   const sig = JSON.parse(readFileSync(path.join(w.root, 'job2', 'signature.json'), 'utf8')).flow;
   const { valuesHash, writeRunValues } = await import('../src/runvalues.js');

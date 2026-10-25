@@ -47,8 +47,8 @@ try {
   if (steps.length === 0) throw new Error('the signed job has no sheet checks');
 
   // 2-3. the saved sheets and their fingerprints
-  const recorded = readJson(path.join(runDir, 'inputs.json'));
-  const rec = readJson(path.join(runDir, 'sheet-checks.json'));
+  const recorded = readJson(path.join(runDir, 'run.json')).inputs;
+  const rec = readJson(path.join(runDir, 'line-checks.json')).sheet;
   const tables = {};
   const inputs = [];
   for (const i of recorded) {
@@ -59,7 +59,7 @@ try {
     const logged = (rec.lines ?? []).flatMap((l) => l.tables ?? []).filter((t) => t.name === i.id).map((t) => t.tableSha);
     const same = mine === i.tableSha && logged.every((s) => s === mine);
     if (same) out(`ok table ${i.id} ${mine.slice(0, 12)}`);
-    else fail(`mismatch table ${i.id}: saved sheet gives ${mine}, run recorded ${i.tableSha}${logged.length ? ` (sheet-checks.json: ${[...new Set(logged)].join(', ')})` : ''}`);
+    else fail(`mismatch table ${i.id}: saved sheet gives ${mine}, run recorded ${i.tableSha}${logged.length ? ` (line-checks.json sheet: ${[...new Set(logged)].join(', ')})` : ''}`);
     inputs.push({ name: i.id, sha256: i.tableSha });
   }
 

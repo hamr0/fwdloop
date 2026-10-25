@@ -1,4 +1,4 @@
-// M10 piece 5 (item 2, "a quote in a doc"): a cited check reads the RUN's own frozen copy of a .docx, sha-checked against inputs.json - never the drafting copy
+// M10 piece 5 (item 2, "a quote in a doc"): a cited check reads the RUN's own frozen copy of a .docx, sha-checked against run.json - never the drafting copy
 // and never the raw bytes as text. $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rmSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { freezeInputs } from '../src/runner.js';
+import { freezeAndRecord as freezeInputs } from './freeze-fixture.mjs';
 import { readRunSource } from '../src/cited-source.js';
 import { checkCited } from '../src/citedcheck.js';
 import { makeDocx, para } from './fixtures/docx-make.mjs';

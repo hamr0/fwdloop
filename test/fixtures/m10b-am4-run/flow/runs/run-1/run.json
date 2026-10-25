@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    {
+      "id": "aging",
+      "source": "/home/hamr/PycharmProjects/fwdloop/fixtures/ar-aging.csv",
+      "frozen": "/home/hamr/PycharmProjects/fwdloop/flows/m10b-aging/runs/run-1/inputs/aging.csv",
+      "sha256": "f2960d9eaeedb1f211b46af7580f2f67ef02223503dba90ea37cd5f8035d39d7",
+      "bytes": 572,
+      "tableSha": "5b3adbb6018322d7247ca5bf71f12fb67c49c78e37db5b1b0b09f677fee43f1f"
+    }
+  ]
+}

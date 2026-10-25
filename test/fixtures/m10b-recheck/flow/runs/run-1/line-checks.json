@@ -1,0 +1,122 @@
+{
+  "sheet": {
+    "lines": [
+      {
+        "n": 2,
+        "try": 1,
+        "passed": true,
+        "tables": [
+          {
+            "name": "aging",
+            "tableSha": "5b3adbb6018322d7247ca5bf71f12fb67c49c78e37db5b1b0b09f677fee43f1f"
+          }
+        ],
+        "checks": [
+          {
+            "id": "days-since-due",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "daysPastDue",
+            "op": "daysSince",
+            "column": "Due date",
+            "asOf": "2026-10-11",
+            "dateFormats": [
+              {
+                "column": "Due date",
+                "format": "YYYY-MM-DD"
+              }
+            ],
+            "covers": [
+              3
+            ]
+          },
+          {
+            "id": "bucket-per-row",
+            "rule": "cells",
+            "table": "aging",
+            "claim": "bucketByRow",
+            "op": "band",
+            "column": "Due date",
+            "asOf": "2026-10-11",
+            "dateFormats": [
+              {
+                "column": "Due date",
+                "format": "YYYY-MM-DD"
+              }
+            ],
+            "bands": [
+              {
+                "name": "Current",
+                "lte": 0
+              },
+              {
+                "name": "1-30",
+                "gte": 1,
+                "lte": 30
+              },
+              {
+                "name": "31-60",
+                "gte": 31,
+                "lte": 60
+              },
+              {
+                "name": "61-90",
+                "gte": 61,
+                "lte": 90
+              },
+              {
+                "name": "90+",
+                "gt": 90
+              }
+            ],
+            "covers": [
+              2,
+              3
+            ]
+          }
+        ],
+        "claims": {
+          "daysPastDue": {
+            "days": {
+              "2": 124,
+              "3": 144,
+              "4": 152,
+              "5": 180,
+              "6": 119,
+              "7": 194,
+              "8": 244,
+              "9": 109
+            }
+          },
+          "bucketByRow": {
+            "bands": {
+              "2": "90+",
+              "3": "90+",
+              "4": "90+",
+              "5": "90+",
+              "6": "90+",
+              "7": "90+",
+              "8": "90+",
+              "9": "90+"
+            }
+          }
+        },
+        "results": [
+          {
+            "id": "days-since-due",
+            "text": "date \u2014 days since Due date as of 2026-10-11",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "bucket-per-row",
+            "text": "bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+",
+            "ok": true,
+            "result": null
+          }
+        ],
+        "red": null
+      }
+    ]
+  }
+}

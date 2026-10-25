@@ -1,6 +1,6 @@
 // M10b piece 2 (docs/wiki/the-module-ladder.md "M10b scope" items 5-6 and amendment 1): a sheet check at RUN time.
 //   - the lock: at run start each CSV input a step's `close.sheet` names gets its `tableSha` (bareguard's fingerprint of the table made from the run's frozen copy)
-//     written down once with that run's inputs (`freezeInputs` is the one writer of inputs.json and calls `tableShaOfFile`); here is how it is read back;
+//     written down once with that run's inputs (`freezeInputs` makes the manifest, `runFlow` records it in run.json, and it calls `tableShaOfFile`); here is how it is read back;
 //   - the judge: `closeSheet` hands the signed checks, the step's typed answer and the run's table to bareguard's `checkStep`. No model grades.
 // Third outcomes, each named, never green: a sheet the run recorded no fingerprint for, a frozen copy that is missing, a table that no longer gives the recorded
 // `tableSha` (bareguard stops the check; the red names the input), any other stopped check.
@@ -9,6 +9,7 @@ import { basename } from 'node:path';
 import { createRubric, checkStep, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
 import { readFileInside } from './flow.js';
+import { readRunInputs } from './runfile.js';
 import { sheetCheckSentence, bareguardChecks } from './sheetchecks.js';
 import { sheetCheckName, sheetFoundWords } from './sheetblock.js';
 
@@ -37,16 +38,15 @@ export function tableShaOfFrozen(runDir, name) {
 const SHA_RE = /^[0-9a-f]{64}$/;
 
 /**
- * What a sheet check reads in a run: the run's OWN frozen copy of each sheet its checks name, as bareguard's table, and the `tableSha` recorded in `inputs.json` at
+ * What a sheet check reads in a run: the run's OWN frozen copy of each sheet its checks name, as bareguard's table, and the `tableSha` recorded in `run.json` (inputs) at
  * the run's start. The table is NOT compared here: bareguard compares it to the recorded sha when it checks (and stops if it differs).
  * @param {string} runDir @param {any[]} checks the step's `close.sheet`
  * @returns {{ok: true, tables: Record<string, {header: string[], rows: any[]}>, inputs: Array<{name: string, sha256: string}>}|{ok: false, red: string}}
  */
 export function readRunSheets(runDir, checks) {
-  const manifest = readFileInside(runDir, 'inputs.json');
-  if (!manifest.ok) return { ok: false, red: manifest.missing ? 'this run has no frozen inputs' : `inputs.json: ${manifest.red}` };
-  let entries;
-  try { entries = JSON.parse(manifest.text); } catch (err) { return { ok: false, red: `inputs.json is not valid JSON - ${/** @type {any} */ (err).message}` }; }
+  const manifest = readRunInputs(runDir);
+  if (!manifest.ok) return { ok: false, red: manifest.code === 'missing' ? 'this run has no frozen inputs' : manifest.red };
+  const { entries } = manifest;
   /** @type {Record<string, any>} */
   const tables = {};
   const inputs = [];

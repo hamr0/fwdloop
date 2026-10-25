@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { world } from './m10-am4-world.mjs';
-import { CITED_CHECKS_FILE } from '../src/panel/result.js';
+import { putCited } from './line-checks-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'm10-result', 'result-mvfphtwl.json'), 'utf8'));
@@ -23,7 +23,7 @@ async function walkWorld() {
   const url = GOLDEN.pages[0];
   const w = await world({ prose: (p) => p.replace(/guardrail: source jd = file:\S+/, `guardrail: source jd = page:${url}`) });
   const rec = { lines: GOLDEN.lines.map((l) => ({ n: 3, source: 'jd', passed: true, facts: l.facts.map((f, i) => ({ ...f, ...(i === 0 ? { confirmed: true } : {}) })), rows: l.rows, notChecked: ['a long reading with a longunbrokenwordthatcouldpushabox'.repeat(3)] })) };
-  writeFileSync(path.join(w.runDir, CITED_CHECKS_FILE), JSON.stringify(rec));
+  putCited(w.runDir, rec);
   return w;
 }
 

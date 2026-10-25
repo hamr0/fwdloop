@@ -95,7 +95,7 @@ test('cli: a run naming a different address for a page input is refused at $0, n
   const r = cli(['run', 'job2', '--root', root, '--source', `resume=${resume}`, '--source', 'jd=https://evil.example/x', '--run-id', 'run-1']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /the input "jd" is a web page signed as http:\/\/127\.0\.0\.1:1\/signed-page/);
-  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-1', 'inputs.json')), false);
+  assert.equal(existsSync(path.join(root, 'job2', 'runs', 'run-1', 'run.json')), false);
 });
 
 test('cli: a page input needs no --source; the run fetches the SIGNED address, and a fetch that fails stops at $0 naming the input', () => {

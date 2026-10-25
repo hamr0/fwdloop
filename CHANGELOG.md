@@ -5,6 +5,46 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-10-25
+
+M4b amendments 4-6 (the `fwdloop` launcher: menu, start, stop, restart, status, install; copied from
+bareloop v0.47.1), M8b (a tidy run folder), M6 amendments 11-12 (Reuse), M9 amendment 24 (NEXT, one
+instruction per line), and two learnings fixes (F83).
+
+### Added
+- The launcher. A bare `fwdloop` shows a menu (`1 start  2 stop  3 restart  4 status  5 install  q quit`)
+  under a two-line header (version, the panel's address and start time, the run counts); the same five
+  are verbs: `fwdloop start | stop | restart | status | install`. The panel is found by asking ports
+  4800 to 4809 for `GET /api/whoami`; there is no pid file. `start` runs the panel detached and opens it;
+  it refuses to start a second panel next to a taken port that stays silent. `stop` signals every panel
+  it finds and, with drafts open, warns that they will be lost and asks y/N (`--yes` skips the question).
+  `restart` is stop then start, on the stopped panel's port when it is free; with no panel running it just
+  starts; a declined or failed stop starts nothing. `install` creates the keys file (mode 600) and the
+  config. Colour follows the terminal (`NO_COLOR` is honoured).
+- `GET /api/whoami` on the panel: app, pid, version (read once at start), open drafts, schedules and the
+  time the panel started. The header and `status` show `started MM/DD HH:MM` (local time); an older panel
+  without the field shows nothing extra.
+- A run folder has fewer files. `run.json` is the run's start record (model, thinking and inputs in one
+  file, written once); `diary.jsonl` is the step diary (rows of kind `call`, `tool` or `checks`);
+  `line-checks.json` holds the cited and sheet check records (sections `cited` and `sheet`). The step's
+  model is still denied the diary. No reader of the old file names is kept.
+
+### Changed
+- NEXT on the Run tab puts one instruction per line, as a label and an instruction in two columns, for the
+  four endings that carry more than one.
+- Reuse workflow: the Model line and picker sit under Signed flow, above the job.
+- The Audit tab's learnings fold wears the same arrow as the other folds.
+- Settings' Open keys folder and the launcher share one OS opener.
+
+### Fixed
+- Reuse workflow fills Cap $ with the job's signed cap, not the earlier run's cap.
+- A run that went through an ask keeps every earlier try in `log.json` (a resumed or continued leg used to
+  replace the file with only its own tries) (F83).
+- A lesson's notes are counted on one row per workflow, not one per plan version, so one lesson no longer
+  fills several hint slots (F83).
+- Piped input to the launcher's prompts is queued, not dropped, when a line ends during the header's port
+  probe (bareloop 1bad2c8).
+
 ## [0.24.0] - 2026-10-24
 
 M8 (learnings: notes from earlier runs handed to drafts and retries, copied from bareloop v0.46.0 and

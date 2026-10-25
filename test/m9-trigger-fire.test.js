@@ -112,9 +112,9 @@ test('Must fail: a month that cannot fund a run records monthly-exhausted with w
 
 test('a clock fire with no earlier run to take inputs from is refused by name, nothing starts', async () => {
   const f = await fireWorld();
-  // the green run exists, but its inputs.json is gone: there is nothing to take the inputs from
+  // the green run exists, but its run.json is gone: there is nothing to take the inputs from
   const { rmSync } = await import('node:fs');
-  rmSync(path.join(f.flowDir, 'runs', 'seed-pass', 'inputs.json'));
+  rmSync(path.join(f.flowDir, 'runs', 'seed-pass', 'run.json'));
   assert.equal((await setTrigger(f.w, DAILY)).status, 200);
   f.clock.t = at(13, 9, 0, 10); f.tick();
   const [row] = f.rows();

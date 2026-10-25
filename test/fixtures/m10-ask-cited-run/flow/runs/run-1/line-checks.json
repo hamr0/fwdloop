@@ -1,0 +1,169 @@
+{
+  "cited": {
+    "lines": [
+      {
+        "n": 2,
+        "source": "flights",
+        "passed": true,
+        "facts": [
+          {
+            "name": "origin",
+            "kind": "phrase",
+            "sentence": "fact \u00b7 origin \u2014 phrase, must say \"Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport\", quoted from \"flights\""
+          },
+          {
+            "name": "price",
+            "kind": "value",
+            "sentence": "fact \u00b7 price \u2014 money in US dollars or $, after \"From\", quoted from \"flights\""
+          },
+          {
+            "name": "stops",
+            "kind": "phrase",
+            "sentence": "fact \u00b7 stops \u2014 phrase, must say \"Nonstop\", quoted from \"flights\""
+          }
+        ],
+        "rows": [
+          {
+            "n": 1,
+            "quote": "From 39 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. Operated by Malta Air. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 9:35 AM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:00 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+            "proof": {
+              "text": "From 39 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. Operated by Malta Air. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 9:35 AM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:00 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+              "marks": [
+                [
+                  0,
+                  4
+                ],
+                [
+                  5,
+                  7
+                ],
+                [
+                  8,
+                  18
+                ],
+                [
+                  68,
+                  75
+                ],
+                [
+                  120,
+                  163
+                ]
+              ]
+            },
+            "cells": [
+              "Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport",
+              "39 US dollars",
+              "Nonstop"
+            ],
+            "values": {
+              "price": "39"
+            }
+          },
+          {
+            "n": 2,
+            "quote": "From 48 US dollars. Nonstop flight with Iberia. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 9:50 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:15 AM on Thursday, November 26. Total duration 2 hr 25 min. Select flight",
+            "proof": {
+              "text": "From 48 US dollars. Nonstop flight with Iberia. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 9:50 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 12:15 AM on Thursday, November 26. Total duration 2 hr 25 min. Select flight",
+              "marks": [
+                [
+                  0,
+                  4
+                ],
+                [
+                  5,
+                  7
+                ],
+                [
+                  8,
+                  18
+                ],
+                [
+                  20,
+                  27
+                ],
+                [
+                  48,
+                  91
+                ]
+              ]
+            },
+            "cells": [
+              "Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport",
+              "48 US dollars",
+              "Nonstop"
+            ],
+            "values": {
+              "price": "48"
+            }
+          },
+          {
+            "n": 3,
+            "quote": "From 63 US dollars. Nonstop flight with Air Europa. Operated by Air Europa Express. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 12:40 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 3:05 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+            "proof": {
+              "text": "From 63 US dollars. Nonstop flight with Air Europa. Operated by Air Europa Express. Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport at 12:40 PM on Wednesday, November 25 and arrives at Leonardo da Vinci International Airport at 3:05 PM on Wednesday, November 25. Total duration 2 hr 25 min. Select flight",
+              "marks": [
+                [
+                  0,
+                  4
+                ],
+                [
+                  5,
+                  7
+                ],
+                [
+                  8,
+                  18
+                ],
+                [
+                  20,
+                  27
+                ],
+                [
+                  84,
+                  127
+                ]
+              ]
+            },
+            "cells": [
+              "Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport",
+              "63 US dollars",
+              "Nonstop"
+            ],
+            "values": {
+              "price": "63"
+            }
+          }
+        ],
+        "notChecked": [],
+        "check": {
+          "sha256": "c726f1307653962235111426d62b599df6e349161552eafe1fe3eca421be496a",
+          "facts": [
+            {
+              "name": "origin",
+              "shape": "phrase",
+              "phrase": "Leaves Adolfo Su\u00e1rez Madrid-Barajas Airport"
+            },
+            {
+              "name": "price",
+              "shape": "money",
+              "anchor": "From",
+              "unit": "US dollars",
+              "currency": "$"
+            },
+            {
+              "name": "stops",
+              "shape": "phrase",
+              "phrase": "Nonstop"
+            }
+          ],
+          "count": {
+            "min": 3,
+            "max": 3
+          },
+          "countSentence": "fact \u00b7 results \u2014 exactly 3 results, each quoted from \"flights\""
+        }
+      }
+    ]
+  }
+}

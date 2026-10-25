@@ -67,7 +67,7 @@ test('getRunAsks: the ask carries the Result tab\'s line for the cited results (
 
 test('getRunAsks: with no cited record the results still show (quote and values), never an error line', () => {
   const { root } = rootOf();
-  rmSync(path.join(root, FLOW, 'runs', 'run-1', 'cited-checks.json'));
+  rmSync(path.join(root, FLOW, 'runs', 'run-1', 'line-checks.json'));
   const ev = getRunAsks({ root, flow: FLOW, runId: 'run-1', catalogue: CAT }).asks[0].evidence;
   assert.equal(ev.why, undefined);
   assert.equal(ev.cited.rows.length, 3);

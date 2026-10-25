@@ -18,7 +18,7 @@ import { NOT_CHECKED_LABEL } from '../checked.js';
 import { checkSendDestination } from '../runner.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
-import { CITED_CHECKS_FILE } from '../cited-record.js';
+import { readLineSection, LINE_CHECKS_FILE } from '../line-checks.js';
 import { readChecks } from '../diary.js';
 import { sheetLineBlocks, csvRolesOf } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -33,8 +33,6 @@ export const RESULT_YOU_CONFIRMED = '(you confirmed)';
 /** the Your-call card's words (bareloop server.js@2959217 DOOR_WORDS.waiting.head and RESULT_DOOR_ASK); the page types none of them */
 export const RESULT_DOOR_HEAD = 'waiting for you';
 export const RESULT_DOOR_ASK = 'the checks passed; is this what you wanted?';
-/** the M10 cited-check record, in the run's own folder: `writeCitedLine` (src/cited-record.js) is its one writer, `readCitedChecks` its one reader. */
-export { CITED_CHECKS_FILE };
 
 /** end-row outcomes that are not a failure of the job */
 const NOT_FAILED = new Set(['complete', 'stopped', 'cap-halt', 'rerun', 'ask-expired']);
@@ -78,7 +76,7 @@ function readProof(p) {
 }
 
 /**
- * The ONE reader of the M10 cited-check record (`<run>/cited-checks.json`). Expected shape (typed, nothing parsed out of prose):
+ * The ONE reader of the M10 cited-check record (the `cited` section of `<run>/line-checks.json`, src/line-checks.js; `writeCitedLine`, src/cited-record.js, writes it). Expected shape (typed, nothing parsed out of prose):
  *   { lines: [ { n: int, source: string (the role of a signed source), passed: boolean,
  *                facts: [ { name: string, kind: 'phrase'|'value', sentence: string, confirmed?: true } ],
  *                rows: [ { n: int, quote: string, cells: string[] (one per fact), proof?: { text: string, marks: [[start, end], ...] } } ] | null,
@@ -88,15 +86,12 @@ function readProof(p) {
  * @returns {{present: false}|{present: true, ok: false, red: string}|{present: true, ok: true, lines: any[]}}
  */
 export function readCitedChecks(runDir) {
-  const r = readFileInside(runDir, CITED_CHECKS_FILE);
+  const r = readLineSection(runDir, 'cited');
   if (!r.ok) return r.missing ? { present: false } : { present: true, ok: false, red: r.red };
   /** @param {string} why @returns {{present: true, ok: false, red: string}} */
-  const red = (why) => ({ present: true, ok: false, red: `${CITED_CHECKS_FILE}: ${why}` });
-  let rec;
-  try { rec = JSON.parse(r.text); } catch { return red('not valid JSON'); }
-  if (!rec || !Array.isArray(rec.lines)) return red('"lines" is not a list');
+  const red = (why) => ({ present: true, ok: false, red: `${LINE_CHECKS_FILE} (cited): ${why}` });
   const lines = [];
-  for (const l of rec.lines) {
+  for (const l of r.lines) {
     if (!l || !isInt(l.n) || !isStr(l.source)) return red('a line needs an integer "n" and a "source"');
     if (typeof l.passed !== 'boolean') return red(`line ${l.n}: "passed" is not true or false`);
     if (!Array.isArray(l.facts)) return red(`line ${l.n}: "facts" is not a list`);
@@ -199,7 +194,7 @@ export function deliveredOf({
 }
 
 /**
- * M10 am9 item 2: the checks one job line's step(s) ran, from the run's own check record (`checks.jsonl`, written by code at every try), each step's NEWEST
+ * M10 am9 item 2: the checks one job line's step(s) ran, from the run's own check record (`diary.jsonl` rows of kind checks, written by code at every try), each step's NEWEST
  * try, in the Audit try line's words (`text`, `result`). Never the AI's words. A line no step ran (an ask, a send) has none.
  * @param {any[]} stepsOfLine the declaration's steps for the line @param {any[]} diary `readChecks(runDir)`
  * @returns {{ok: boolean, text: string, result: string|null}[]}
@@ -237,7 +232,7 @@ export function buildResult({
   // am9: a page job's card is bareloop's (no checks list); every other job lists what each step checked
   const diary = urls.size === 0 ? readChecks(runDir) : [];
   // M10b am2: the block of every job line that reads a sheet (guardrails, Checked with ✓ / ✗ and what was found, Not checked), from the signed job and the run's
-  // sheet-checks.json; it is there with no rows found and when the result is written to a doc
+  // the sheet section of line-checks.json; it is there with no rows found and when the result is written to a doc
   const sheetBlocks = sheetLineBlocks({ declaration, lines: flowRead.lines, csvRoles: csvRolesOf(arbiter), record: readSheetChecks(runDir) });
   const lines = flowRead.lines.filter((l) => !taken.has(l.n)).map((l) => {
     const c = record.find((x) => x.n === l.n) ?? null;

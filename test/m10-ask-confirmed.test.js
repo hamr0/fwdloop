@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { world } from './m10-am4-world.mjs';
-import { CITED_CHECKS_FILE } from '../src/panel/result.js';
+import { putCited } from './line-checks-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'm10-result', 'result-mvfphtwl.json'), 'utf8'));
@@ -22,7 +22,7 @@ async function scene(rows, { prose = withReading } = {}) {
   const URL1 = GOLDEN.pages[0];
   const w = await world({ mode: 'park', prose: (p) => prose(p.replace(/guardrail: source jd = file:\S+/, `guardrail: source jd = page:${URL1}`)) });
   const rec = { lines: GOLDEN.lines.map((l) => ({ n: 3, source: 'jd', passed: l.passed, facts: l.facts, rows: l.rows, notChecked: [] })) };
-  writeFileSync(path.join(w.runDir, CITED_CHECKS_FILE), JSON.stringify(rec));
+  putCited(w.runDir, rec);
   if (rows !== null) writeFileSync(path.join(w.root, 'job2', 'setup.jsonl'), `${rows.map((r) => JSON.stringify(r)).join('\n')}\n`);
   const l3 = (await w.get('/api/runs/job2/run-1/result')).body.lines.find((l) => l.n === 3);
   return l3.facts.filter((f) => f.note === '(you confirmed)').map((f) => f.name);

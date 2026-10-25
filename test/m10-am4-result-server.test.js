@@ -2,6 +2,7 @@
 // getRunDownload, tests part6-result / part6-red-rows / part6-page). Built from fwdloop's OWN books: the signed job lines, the accepted ask's hash, the
 // send step's audit row, the signed `page:` source. The per-result rows/proof/marks come from the M10 cited-check record, which is not built yet:
 // `readCitedChecks` is its ONE reader and these tests feed it a file made from bareloop's own export (test/fixtures/m10-result/result-mvfphtwl.json).
+import { putCited } from './line-checks-fixture.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -15,7 +16,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { SEND_DIR } from './send-sandbox.js';
 import { world } from './m10-am4-world.mjs';
 import {
-  isResultRun, readCitedChecks, readDelivered, CITED_CHECKS_FILE, RESULT_FILE_GONE, RESULT_FILE_CHANGED, RESULT_PAGE_MAY_CHANGE,
+  isResultRun, readCitedChecks, readDelivered, RESULT_FILE_GONE, RESULT_FILE_CHANGED, RESULT_PAGE_MAY_CHANGE,
 } from '../src/panel/result.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -161,7 +162,7 @@ test('a flow symlinked outside --root is refused by name on /result and /downloa
 });
 
 // ---- the M10 cited-check record's ONE reader ----
-// File `<run>/cited-checks.json` (name: CITED_CHECKS_FILE). The writer is not built; these tests feed the reader a record made from bareloop's export.
+// The `cited` section of `<run>/line-checks.json`. The writer is not built; these tests feed the reader a record made from bareloop's export.
 const recordFrom = (g) => ({
   lines: g.lines.map((l) => ({
     n: l.n, source: l.source, passed: l.passed,
@@ -169,7 +170,7 @@ const recordFrom = (g) => ({
     rows: l.rows, notChecked: ['the page says nothing about seats'],
   })),
 });
-const put = (w, rec) => writeFileSync(path.join(w.runDir, CITED_CHECKS_FILE), typeof rec === 'string' ? rec : JSON.stringify(rec));
+const put = (w, rec) => putCited(w.runDir, rec);
 
 test('readCitedChecks: no file is "not present"; a good record comes back typed; the proof marks are kept', async () => {
   const w = await world({ mode: 'park' });
@@ -229,7 +230,7 @@ test('/result with a malformed record: the lines fall back to "no saved result t
   assert.ok(r.body.lines.every((l) => l.kind === 'text'));
 });
 
-// M10 am9 item 2: every job without a web page lists the checks its step ran, from the run's own checks.jsonl, that step's NEWEST try; code writes them.
+// M10 am9 item 2: every job without a web page lists the checks its step ran, from the run's own diary.jsonl (checks rows), that step's NEWEST try; code writes them.
 test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓ or ✗, in the Audit try line\'s words; the failed one carries its reason', async () => {
   const w = await world({ mode: 'red' });
   const r = (await w.get('/api/runs/job2/run-1/result')).body;
@@ -248,8 +249,8 @@ test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓
 
 test('am9: the checks come from the NEWEST try (a later try replaces an earlier one)', async () => {
   const w = await world({ mode: 'red' });
-  appendFileSync(path.join(w.root, 'job2', 'runs', 'run-1', 'checks.jsonl'), `${JSON.stringify({
-    step: 'resume-summary', try: 4, at: '2026-10-21T00:00:00Z', lastRound: 0, checks: [{ n: 1, text: 'the output exists and isn\'t empty', ok: true, result: '9 B', source: 'every step' }], output: null,
+  appendFileSync(path.join(w.root, 'job2', 'runs', 'run-1', 'diary.jsonl'), `${JSON.stringify({
+    kind: 'checks', step: 'resume-summary', try: 4, at: '2026-10-21T00:00:00Z', lastRound: 0, checks: [{ n: 1, text: 'the output exists and isn\'t empty', ok: true, result: '9 B', source: 'every step' }], output: null,
   })}\n`);
   const l3 = (await w.get('/api/runs/job2/run-1/result')).body.lines.find((l) => l.n === 3);
   assert.deepEqual(l3.checks, [{ ok: true, text: 'the output exists and isn\'t empty', result: '9 B' }]);

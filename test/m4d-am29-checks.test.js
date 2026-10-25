@@ -72,7 +72,7 @@ test('B2: the output judged is the file name, size and sha256 of the exact bytes
   const bytes = serializeArtifact({ text: good.text });
   assert.deepEqual(rec.output, { file: 'artifacts/resume-summary.json', bytes: Buffer.byteLength(bytes), sha256: createHash('sha256').update(bytes).digest('hex') });
   assert.equal(readFileSync(path.join(runDir, rec.output.file), 'utf8'), bytes, 'the file on disk is those bytes');
-  for (const f of ['checks.jsonl']) assert.ok(!readFileSync(path.join(runDir, f), 'utf8').includes(SECRET_WORDS), 'no model text in the record');
+  assert.ok(!readFileSync(path.join(runDir, 'diary.jsonl'), 'utf8').includes(SECRET_WORDS), 'no model text in the record');
 });
 
 test('B3: a plain read step lists exactly the two checks every step has, both from "every step"', async () => {

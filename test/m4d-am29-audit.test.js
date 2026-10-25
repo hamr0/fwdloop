@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { buildWorld, CAT } from './m4d-am29-world.mjs';
 import { getRunAudit, getRunDetail } from '../src/panel/data.js';
-import { DIARY_FILES, appendTool } from '../src/diary.js';
+import { DIARY_FILE, appendTool } from '../src/diary.js';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { createPanelServer } from '../src/panel/server.js';
 import { remember } from '../scripts/panel-fixtures/panel-auth.mjs';
@@ -47,7 +47,7 @@ test('D2: the step fold has the tally, a line per try with its checks and output
   assert.deepEqual(f.tries[1].checks.map((c) => c.ok), [true, true, true, true, true]);
   // Round, Try, Action, Path, Decision in call order; a check row has no round; rounds count on across tries
   assert.deepEqual(f.rows.slice(0, 6).map((r) => [r.round, r.try, r.action, r.path, r.decision.replace(/^\$.*$/, '$')]), [
-    [1, 1, 'model call', null, '$'], [1, 1, 'model · read', 'inputs/jd.md', 'allow'], [1, 1, 'model · read', 'calls.jsonl', 'deny (fs.deny)'],
+    [1, 1, 'model call', null, '$'], [1, 1, 'model · read', 'inputs/jd.md', 'allow'], [1, 1, 'model · read', 'diary.jsonl', 'deny (fs.deny)'],
     [2, 1, 'model call', null, '$'], [3, 1, 'model call', null, '$'], [null, 1, 'check', 'artifacts/resume-summary.json', '✗ #4 #5 failed'],
   ]);
   assert.deepEqual(f.rows.filter((r) => r.round !== null).map((r) => r.round).filter((x, i, all) => i === 0 || x >= all[i - 1]).length, f.rows.filter((r) => r.round !== null).length, 'rounds never go back');
@@ -99,7 +99,7 @@ test('D5: an unknown cost never reads $0 in a Round row', async () => {
 
 test('D6: an old run (no diaries) shows what it showed: no fold, no marker, `—` on the new lines, nothing made up', async () => {
   const w = await buildWorld();
-  for (const f of Object.values(DIARY_FILES)) rmSync(path.join(w.runDir, f), { force: true });
+  rmSync(path.join(w.runDir, DIARY_FILE), { force: true });
   const a = audit(w);
   assert.ok(a.groups.every((g) => g.fold === undefined));
   const d = detail(w);

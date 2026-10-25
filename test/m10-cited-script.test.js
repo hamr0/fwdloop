@@ -9,7 +9,8 @@ import { join } from 'node:path';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { freezeInputs, runStepRalph } from '../src/runner.js';
+import { runStepRalph } from '../src/runner.js';
+import { freezeAndRecord as freezeInputs } from './freeze-fixture.mjs';
 import { flightsPart, flightRows, goodRows, PAGE } from './fixtures/m10-map/cited-help.mjs';
 
 const SCRIPT = new URL('../scripts/check-cited-run.mjs', import.meta.url).pathname;
@@ -28,8 +29,8 @@ async function makeRun(results = goodRows(PAGE).slice(0, 3)) {
   return { run, out, frozen: frozen.manifest[0].frozen };
 }
 const check = (run, extra = []) => spawnSync(process.execPath, [SCRIPT, run, ...extra], { encoding: 'utf8', timeout: 30000 });
-const recordPath = (run) => join(run, 'cited-checks.json');
-const edit = (run, fn) => { const r = JSON.parse(readFileSync(recordPath(run), 'utf8')); fn(r); writeFileSync(recordPath(run), JSON.stringify(r)); };
+const recordPath = (run) => join(run, 'line-checks.json');
+const edit = (run, fn) => { const r = JSON.parse(readFileSync(recordPath(run), 'utf8')); fn(r.cited); writeFileSync(recordPath(run), JSON.stringify(r)); };
 
 test('the script imports nothing of ours and not bareguard: only Node\'s own modules', () => {
   const src = readFileSync(SCRIPT, 'utf8');

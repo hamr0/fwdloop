@@ -313,7 +313,7 @@ const ALLOWLIST = {
     names: {
       accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
       mkdirSync: 7, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
-      statSync: 3, unlinkSync: 4, writeFileSync: 8,
+      statSync: 3, unlinkSync: 4, writeFileSync: 7,
     },
     readArtifactCallSites: 4,
   },
@@ -375,12 +375,8 @@ const ALLOWLIST = {
     reason: "M9 am20: the ONE writer of `<flow>/schedule.json` (temp file + rename, 0600: a reader sees the old file or the new one) and its ONE remover (rmSync). The job's own files are never opened here. Every READ goes through readFileInside; the queue file goes through src/trigger-files.js and src/jsonl-append.js.",
     names: { renameSync: 1, rmSync: 1, writeFileSync: 1 },
   },
-  'src/cited-record.js': {
-    reason: "M10 piece 4: the ONE writer of `<run>/cited-checks.json` (temp file + rename: a reader sees the old file or the new one). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
-    names: { renameSync: 1, writeFileSync: 1 },
-  },
-  'src/sheet-record.js': {
-    reason: "M10b piece 2: the ONE writer of `<run>/sheet-checks.json` (temp file + rename: a reader sees the old file or the new one), append-only by (line, try). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
+  'src/line-checks.js': {
+    reason: "M8b item 3: the ONE writer of `<run>/line-checks.json` (temp file + rename: a reader sees the old file or the new one), both sections (`cited`, written for src/cited-record.js; `sheet`, for src/sheet-record.js). The run's own folder, written by the run that owns it. The READ of the existing record goes through readFileInside.",
     names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/jsonl-append.js': {
@@ -441,11 +437,21 @@ const ALLOWLIST = {
     reason: 'M4e piece 2a/2b: the ONE detached spawn the panel uses for its CLI children (resume, draft, run) — opens (creates 0600, appends) the child\'s own log file and closes the fd after the spawn, and (`writePidFile`, the one writer) writes the child\'s own `pid.json` 0600 in that same panel-owned folder (resume: the private log dir; draft: the draft folder; start: the start folder), never a run/flow-dir book. Every read goes through readFileInside.',
     names: { closeSync: 1, openSync: 1, writeFileSync: 1 },
   },
+  'src/launcher.js': {
+    reason: "M4b am4/am5: the launcher (`fwdloop` menu, start | stop | status | install) looks at the per-person config home (~/.config/fwdloop), a folder OUTSIDE any run/flow dir, not a book: existsSync for the folder, config.json and the keys file, one statSync of the keys file for its MODE only (never read; the file's values are never opened here), mkdirSync for the folder (0700) and the panel log's folder, chmodSync of a loose keys file to 0600. The keys file itself is created by src/keysfile.js and config.json written by src/config.js; the panel log is opened by src/panel/spawn.js. Nothing under a flows root is read here (the runs line goes through listRuns).",
+    names: {
+      chmodSync: 1, existsSync: 5, mkdirSync: 2, statSync: 2,
+    },
+  },
   'src/panel/authorcard.js': {
     reason: 'M4e piece 2a: the card\'s $0 checks at the click — realpathSync/statSync/accessSync on each INPUT path the human typed (a business file, never a run/flow-dir book, nothing read), and one lstatSync on `<root>/<flowName>` (presence only; a symlink is not followed) to refuse a flow name that is already taken. Writes nothing.',
     names: {
       accessSync: 1, constants: 1, lstatSync: 1, realpathSync: 1, statSync: 1,
     },
+  },
+  'src/runfile.js': {
+    reason: 'M8b item 1: the ONE writer of `run.json` - one exclusive create (flag wx, 0600) of the run\'s start record in the run folder `runFlow` made (or `fwdloop tidy`, through the same function). Every READ goes through readFileInside.',
+    names: { writeFileSync: 1 },
   },
   'src/flowmodel.js': {
     reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside. M8 item 6: also the ONE `renameSync` that moves the draft record `learnings.json` from a freshly signed flow folder into the folder of the first run (a rename, so it moves once); the copy and the write use the same exclusive writer.',
@@ -480,7 +486,7 @@ const ALLOWLIST = {
     names: { realpathSync: 1 },
   },
   'src/panel/authorflows.js': {
-    reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `inputs.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
+    reason: 'M4e piece 2b: the Run-a-signed-flow door — realpathSync of the typed --root at use time, and one lstatSync of each run\'s `run.json` for its mtime only (to find the NEWEST run; nothing is read from it this way — the manifest itself is read through readFileInside). Writes nothing.',
     names: { lstatSync: 1, realpathSync: 1 },
   },
   'src/panel/lock.js': {
