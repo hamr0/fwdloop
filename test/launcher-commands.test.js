@@ -394,6 +394,20 @@ test('launcherMain: bare `fwdloop` shows the menu; the sub-commands status|insta
   assert.match(out2.join(''), new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: `));
 });
 
+// borrowed-from: bareloop src/prompts.js@1bad2c8 (the timing case: stdin ends while the header is still probing)
+test('launcherMain: piped input that ENDS before the header finishes is kept - the prompt prints and the choice runs', async () => {
+  const home = installedHome();
+  const base = await freeBase();
+  const out = [];
+  const stdout = { write: (s) => { out.push(s); return true; } };
+  const stdin = new PassThrough();
+  stdin.end('zzz\n'); // line and EOF arrive before any question is pending
+  const launcher = { ports: [base, base + 1], timeoutMs: 2000, nodeVersion: '22.1.0', version: V };
+  // an unknown choice exits 1; the dropped-line bug quit with 0 and no prompt
+  assert.equal(await launcherMain('menu', [], { stdin, stdout, stderr: { write: () => true }, home, root: home, launcher }), 1);
+  assert.match(out.join(''), /q quit\n> /);
+});
+
 test('version: status shows the panel\'s own version; a differing panel gets the header note and the start line; a matching one gets neither; colour words equal plain', async () => {
   const home = installedHome();
   const base = await freeBase();

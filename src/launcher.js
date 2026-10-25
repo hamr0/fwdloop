@@ -17,7 +17,7 @@ import {
   existsSync, statSync, mkdirSync, chmodSync,
 } from 'node:fs';
 import { createServer } from 'node:net';
-import { createInterface } from 'node:readline/promises';
+import { openAsker } from './prompts.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, updateConfig, configPath, ConfigError } from './config.js';
@@ -490,14 +490,8 @@ export async function launcherMain(cmd, rest, deps) {
   const stdout = deps.stdout ?? process.stdout;
   const stderr = deps.stderr ?? process.stderr;
   const io = { out: (/** @type {string} */ s) => stdout.write(`${s}\n`), err: (/** @type {string} */ s) => stderr.write(`${s}\n`) };
-  const rl = createInterface({ input: deps.stdin ?? process.stdin, output: stdout });
-  let closed = false;
-  rl.once('close', () => { closed = true; });
-  // a closed stdin answers '' (= the safe default: quit / "no"), never hangs
-  const ask = (/** @type {string} */ q) => (closed ? Promise.resolve('') : Promise.race([
-    rl.question(q),
-    new Promise((resolve) => { rl.once('close', () => resolve('')); }),
-  ]).then(String));
+  // borrowed-from: bareloop src/prompts.js@1bad2c8 — a line queue, so input that ends during the header's port probe is not dropped
+  const { ask, close } = openAsker({ stdin: deps.stdin, stdout });
   const rawEnv = deps.processEnv ?? process.env;
   const d = {
     home: deps.home, root: deps.root, ask, paint: makePaint(stdout, rawEnv), paintErr: makePaint(stderr, rawEnv), ...(deps.launcher ?? {}),
@@ -509,6 +503,6 @@ export async function launcherMain(cmd, rest, deps) {
     if (cmd === 'install') return await installCmd(io, d);
     return await menuCmd(io, d);
   } finally {
-    rl.close();
+    close();
   }
 }
