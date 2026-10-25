@@ -2690,6 +2690,12 @@ monthly wall is enforced **by the trigger**, before a run starts.
   3. This replaces the order in am9 item 2. The sign rule from am11 stays.
   - **Must fail when:** `schedule` comes before the sign; the word is missing; the word doesn't match the table.
 - *Built after signing — not signed text:* M9 am23 built in `97981d9` (`src/panel/data.js`, `src/panel/index.html`); test `test/m9-am23.test.js` (`test/m9-am9-am11.test.js` updated for the new order). The word comes from the one sign-to-word table.
+- **M9 amendment 24 — SIGNED by hamr 2026-10-25 ("sign m9 am24"): NEXT says one instruction per line.** A NEXT with more than one instruction shows each on its own line: a plain label in the muted label colour, then the instruction, aligned in a second column (bareloop's shape, 2026-10-25). A NEXT with one instruction stays one line. The four that split:
+  - Ask expired: `reopen it:` from the Ask tab · `or run it again:` from the Chat card
+  - Cap halt, can resume: `raise the cap:` Cap $ on the Chat card · `then:` Resume from the Chat card
+  - Pre-run checks failed: `fix it:` what the Audit / logs tab names · `then:` run it again from the Chat card
+  - Run refused: `see why:` the Audit / logs tab · `then:` fix that and run it again from the Chat card
+  - **Done when:** a test that fails first for each of the four, plus one single-line case; screenshots at 1280, 390 and 320 px with nothing spilling. **Cap:** $0.
 
 ## M10 — real IO
 
