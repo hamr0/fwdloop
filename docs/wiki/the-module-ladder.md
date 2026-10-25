@@ -1043,6 +1043,15 @@ Copied from bareloop v0.47.1 (PANEL-BUILD.md, the two "L amendment 2026-10-24" r
   - Silent taken port: the words are am5 item 3's (bareloop 6d10023).
   - `src/launcher.js` reaches `fs` (existsSync, statSync, mkdirSync, chmodSync) for the config home; `test/f48-guard-fs-imports.test.js` has no allow-list entry for it yet, so that one test is red until hamr adds one.
 
+#### M4b amendment 6 — the panel's start time, and restart — SIGNED by hamr 2026-10-25 ("sign m4b am6"), the text exactly as shown
+
+1. `GET /api/whoami` gains `startedAt`, set once when the panel starts. The launcher header shows `panel running at http://127.0.0.1:4800 · started 10/24 21:40` (local time, the panel's own date style), and `status` prints it too. An older panel without the field shows nothing extra.
+2. A `restart` command and menu item: the existing stop (same open-drafts warning and question, `--yes` skips it), then the existing start, on the same port when it's free. With no panel running, it just starts. The menu becomes `1 start   2 stop   3 restart   4 status   5 install   q quit`.
+
+Copied from bareloop's `fix/records-and-stop` branch.
+
+**Done when:** a test that fails first for each item, plus your walk of restart. **Cap:** $0.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
