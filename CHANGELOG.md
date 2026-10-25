@@ -39,7 +39,7 @@ instruction per line), and two learnings fixes (F83).
 ### Fixed
 - Reuse workflow fills Cap $ with the job's signed cap, not the earlier run's cap.
 - A run that went through an ask keeps every earlier try in `log.json` (a resumed or continued leg used to
-  replace the file with only its own tries), so its notes carry "What changed" (F83).
+  replace the file with only its own tries) (F83).
 - A lesson's notes are counted on one row per workflow, not one per plan version, so one lesson no longer
   fills several hint slots (F83).
 - Piped input to the launcher's prompts is queued, not dropped, when a line ends during the header's port
