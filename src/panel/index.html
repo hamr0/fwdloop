@@ -437,10 +437,12 @@
   .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
   .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
-  /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.46.0 :421-424): a framed row, the header a full-width button with the chip and words inline, no arrow */
+  /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.47.1 417e80c, the learnings arrow only): a framed row, the header a full-width button with the arrow, chip and words inline; the arrow is the same ▶ / ▼ the other Audit folds draw (h4.audit-status-header::before), faint, a smaller gap on a phone */
   .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
   .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
   .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
+  .audit-part-toggle.audit-learn-fold::before{content:"\25B6  ";color:var(--text-faint);}
+  .audit-part-toggle.audit-learn-fold[aria-expanded="true"]::before{content:"\25BC  ";}
   .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
   @media (max-width: 640px){
     /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
@@ -449,6 +451,8 @@
     .audit-group.audit-fold h4.audit-status-header > .badge{padding-left:0;padding-right:0;font-size:10px;}
     .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6";}
     .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
+    .audit-part-toggle.audit-learn-fold::before{content:"\25B6 ";}
+    .audit-part-toggle.audit-learn-fold[aria-expanded="true"]::before{content:"\25BC ";}
     .audit-fold-sep{display:none;}
     .audit-fold-try{margin-left:.4em;}   /* the cost and the try count never touch: "$0.0010" + "1" must not read $0.00101 */
     /* the tail wraps inside the header (never spills or is cut): it may break at its spaces and shrink */
@@ -3317,7 +3321,7 @@
   var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
   var auditExpandedRun = null;
   // M8 item 6: cross-run learnings, READ-ONLY: what the drafter was handed from earlier runs. ONE fold at the top of the Audit tab, in both views, hidden when the run was handed nothing.
-  // borrowed-from: bareloop src/panel/index.html@v0.46.0 :2843-2931 (learnRow, learnHintLabel, renderAuditLearnings), drawn in fwdloop's own fold (the schedule section's header and body shape)
+  // borrowed-from: bareloop src/panel/index.html@v0.47.1 (417e80c, the learnings fold arrow; the rest as @v0.46.0 :2843-2931: learnRow, learnHintLabel, renderAuditLearnings), drawn in fwdloop's own fold (the schedule section's header and body shape)
   // instead of bareloop's .audit-part button. The fields come from the server (learn.js parseHintBlock, the one reader of the block) - this page never splits the prose. No edit, no button but the fold.
   function learnRow(tbody, testid, label, lines){
     var tr = document.createElement("tr");
@@ -3354,7 +3358,7 @@
     wrap.setAttribute("data-testid", "audit-group-learnings");
     var head = document.createElement("button");
     head.type = "button";
-    head.className = "btn audit-part-toggle";
+    head.className = "btn audit-part-toggle audit-learn-fold";
     head.setAttribute("aria-expanded", "false");
     head.setAttribute("data-testid", "audit-learnings-head");
     var label = "What the planner was told from earlier runs \u00B7 " + count + (count === 1 ? " hint" : " hints");
