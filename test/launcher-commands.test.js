@@ -77,7 +77,7 @@ test('start: nothing running -> a detached panel on the first free port, waits f
   assert.equal(await startCmd(io2, d), 0);
   assert.equal(d.spawned.length, 1, 'already running: nothing started');
   assert.equal(io2.lines.at(-1), `Panel already running at ${panelUrl(base)} — opening the page.`);
-  assert.ok(io2.lines[0].endsWith(`panel running at ${panelUrl(base)}`));
+  assert.match(io2.lines[0], new RegExp(`panel running at ${panelUrl(base).replace(/\./g, '\\.')}( · started \\d\\d/\\d\\d \\d\\d:\\d\\d)?$`));
 });
 
 test('start with the REAL detached spawn: the child\'s output is appended to panel.log (mode 600) and an unanswering panel is named at the deadline', async () => {
@@ -281,7 +281,7 @@ test('status: not running -> header then "Panel not running.", exit 3 (the sub-c
   assert.match(none.lines[0], /panel not running$/);
   assert.equal(none.lines[2], 'Panel not running.');
   const viaMenu = sink();
-  assert.equal(await menuCmd(viaMenu, deps(home, base, { ask: async () => '3' })), 0, 'the menu worked: exit 0');
+  assert.equal(await menuCmd(viaMenu, deps(home, base, { ask: async () => '4' })), 0, 'the menu worked: exit 0');
   assert.equal(viaMenu.lines.at(-1), 'Panel not running.');
   await fakePanel(base + 2, { pid: 48213, drafts: 1, schedules: 3 });
   const io = sink();
@@ -295,7 +295,7 @@ test('install: creates what is missing (dir 700, .env 600, config.json), then sa
   const io = sink();
   const d = deps(home, 1);
   assert.equal(await installCmd(io, d), 0, io.text());
-  assert.match(io.lines[0], /not installed — no fwdloop folder yet, pick 4 install · panel not running/);
+  assert.match(io.lines[0], /not installed — no fwdloop folder yet, pick 5 install · panel not running/);
   assert.ok(io.lines.some((l) => /^Installed\. Created:/.test(l)));
   assert.equal(statSync(home).mode & 0o777, 0o700);
   assert.equal(statSync(join(home, '.env')).mode & 0o777, 0o600);
@@ -345,17 +345,17 @@ test('menu (the approved layout): two header lines, a blank line, the four choic
     `fwdloop ${V} · installed ✓ · panel running at ${panelUrl(base + 1)}`,
     'runs: 0 running · 0 need you · 0 in all',
     '',
-    '1 start   2 stop   3 status   4 install   q quit',
+    '1 start   2 stop   3 restart   4 status   5 install   q quit',
   ]);
   assert.deepEqual(asked, ['> ']);
 });
 
-test('menu: choice 3 runs status through the same code WITHOUT printing the header twice; an unknown choice is refused', async () => {
+test('menu: choice 4 runs status through the same code WITHOUT printing the header twice; an unknown choice is refused', async () => {
   const home = installedHome();
   const base = await freeBase();
   await fakePanel(base, { pid: 48213, drafts: 1, schedules: 3 });
   const io = sink();
-  assert.equal(await menuCmd(io, deps(home, base, { ask: async () => '3' })), 0);
+  assert.equal(await menuCmd(io, deps(home, base, { ask: async () => '4' })), 0);
   assert.equal(io.lines.filter((l) => l.startsWith(`fwdloop ${V}`)).length, 1);
   assert.equal(io.lines.at(-1), `pid 48213 · version ${V} · 1 draft open · 3 schedules on`);
   const bad = sink();
@@ -388,7 +388,7 @@ test('launcherMain: bare `fwdloop` shows the menu; the sub-commands status|insta
   stdin.write('q\n');
   assert.equal(await run, 0);
   const text = out.join('');
-  assert.match(text, new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: 0 running · 0 need you · 0 in all\n\n1 start   2 stop   3 status   4 install   q quit\n`));
+  assert.match(text, new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: 0 running · 0 need you · 0 in all\n\n1 start   2 stop   3 restart   4 status   5 install   q quit\n`));
   const out2 = [];
   assert.equal(await launcherMain('status', [], { stdout: { write: (s) => { out2.push(s); return true; } }, stderr, home, root: home, launcher }), 3);
   assert.match(out2.join(''), new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: `));

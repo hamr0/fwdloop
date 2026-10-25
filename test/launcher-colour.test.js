@@ -42,15 +42,15 @@ test('header + menu: with colour the words are the same (stripped), the rule fra
   assert.equal(strip(col.lines[3]), '─'.repeat(56));
   assert.deepEqual(col.lines.slice(1, 3).map(strip), plain.lines);
   assert.match(col.lines[1], new RegExp(`\\x1b\\[1;36mfwdloop\\x1b\\[0m \\x1b\\[90m${VRE}`));
-  assert.match(col.lines[1], /\x1b\[31mnot installed\x1b\[0m — no fwdloop folder yet, pick \x1b\[1;36m4\x1b\[0m install/);
+  assert.match(col.lines[1], /\x1b\[31mnot installed\x1b\[0m — no fwdloop folder yet, pick \x1b\[1;36m5\x1b\[0m install/);
   assert.ok(col.lines[1].includes(`panel \x1b[32mrunning\x1b[0m at \x1b[36m${panelUrl(port)}\x1b[0m`), col.lines[1]);
   assert.match(col.lines[2], /\x1b\[90mruns:\x1b\[0m \x1b\[90m0 running\x1b\[0m/);
   const io = sink();
   await menuCmd(io, { ...base, ask: async () => 'q', paint: makePaint({ isTTY: true }, {}) });
-  assert.equal(io.lines.at(-1), `  ${'\x1b[1;36m1\x1b[0m'} start   \x1b[1;36m2\x1b[0m stop   \x1b[1;36m3\x1b[0m status   \x1b[1;36m4\x1b[0m install   \x1b[1;36mq\x1b[0m quit`);
+  assert.equal(io.lines.at(-1), `  ${'\x1b[1;36m1\x1b[0m'} start   \x1b[1;36m2\x1b[0m stop   \x1b[1;36m3\x1b[0m restart   \x1b[1;36m4\x1b[0m status   \x1b[1;36m5\x1b[0m install   \x1b[1;36mq\x1b[0m quit`);
   const ioPlain = sink();
   await menuCmd(ioPlain, { ...base, ask: async () => 'q', paint: makePaint({ isTTY: false }, {}) });
-  assert.equal(ioPlain.lines.at(-1), '1 start   2 stop   3 status   4 install   q quit');
+  assert.equal(ioPlain.lines.at(-1), '1 start   2 stop   3 restart   4 status   5 install   q quit');
 });
 
 test('refusals are red on a colour terminal, plain words when stripped', async () => {
@@ -81,5 +81,5 @@ test('launcherMain: stdout a TTY and no NO_COLOR -> coloured header; NO_COLOR se
   assert.doesNotMatch(await run(true, { NO_COLOR: '1' }), /\x1b/);
   assert.doesNotMatch(await run(true, { TERM: 'dumb' }), /\x1b/);
   assert.doesNotMatch(await run(false, {}), /\x1b/);
-  assert.match(strip(on), new RegExp(`fwdloop ${VRE} · not installed — no fwdloop folder yet, pick 4 install · panel not running`));
+  assert.match(strip(on), new RegExp(`fwdloop ${VRE} · not installed — no fwdloop folder yet, pick 5 install · panel not running`));
 });

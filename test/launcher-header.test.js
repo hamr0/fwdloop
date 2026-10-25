@@ -89,7 +89,7 @@ test('headerLines: the two lines, installed + panel running; not installed + pan
   mkdirSync(empty);
   const noHome = await headerLines({ home, root: empty, ports: [1], version: V, nodeVersion: '22.1.0', timeoutMs: 100 });
   assert.equal(noHome.length, 2);
-  assert.equal(noHome[0], `fwdloop ${V} · not installed — no fwdloop folder yet, pick 4 install · panel not running`);
+  assert.equal(noHome[0], `fwdloop ${V} · not installed — no fwdloop folder yet, pick 5 install · panel not running`);
   assert.equal(noHome[1], 'runs: 0 running · 0 need you · 0 in all');
   mkdirSync(home, { mode: 0o700 });
   writeFileSync(join(home, 'config.json'), '{}');

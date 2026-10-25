@@ -5,7 +5,7 @@
 // install creates the keys file with `createKeysFile`; the silent-port words are M4b am5 item 3's (bareloop 6d10023, unreleased); `launcherMain` is the entry bin/fwdloop calls
 // (bareloop's runLauncher in cli.js). M4b am4 + am5.
 //
-// M4b am4/am5 (bareloop PANEL-BUILD.md addendum 2026-10-24, L) - the `fwdloop` launcher: the bare-`fwdloop` menu and `fwdloop start | stop | status | install`.
+// M4b am4/am5 (bareloop PANEL-BUILD.md addendum 2026-10-24, L) - the `fwdloop` launcher: the bare-`fwdloop` menu and `fwdloop start | stop | restart | status | install`.
 //
 // No pid file: the panel is FOUND by asking the panel ports 4800..4809 for `GET /api/whoami` (src/panel/server.js), several at once, 2000 ms
 // each; a reply with `app === "fwdloop"` is a panel. Every call prints the same two header lines first, from {@link buildHeader}.
@@ -42,7 +42,7 @@ const RULE_WIDTH = 56;
 
 /**
  * @typedef {object} Panel one answered probe
- * @property {number} port @property {number} pid @property {string} version @property {number} drafts @property {number} schedules
+ * @property {number} port @property {number} pid @property {string} version @property {number} drafts @property {number} schedules @property {string} [startedAt] ISO, absent on an older panel
  * @property {string} url
  */
 
@@ -133,6 +133,7 @@ export async function probePort(o) {
         version: String(j.version ?? ''),
         drafts: Number(j.drafts) || 0,
         schedules: Number(j.schedules) || 0,
+        ...(typeof j.startedAt === 'string' && j.startedAt !== '' ? { startedAt: j.startedAt } : {}),
         url: panelUrl(port),
       },
     };
@@ -150,6 +151,17 @@ export async function probePort(o) {
 export async function probePanels(o) {
   const answers = await Promise.all(o.ports.map((port) => probePort({ port, timeoutMs: o.timeoutMs, fetchImpl: o.fetchImpl })));
   return /** @type {Panel[]} */ (answers.flatMap((a) => (a.state === 'panel' ? [a.panel] : [])));
+}
+
+/**
+ * The panel's own date style (src/panel/index.html rlShortDate): local `MM/DD HH:MM`; an unparseable stamp is shown raw, never blank.
+ * @param {string} iso
+ */
+export function shortDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const t = (/** @type {number} */ n) => String(n).padStart(2, '0');
+  return `${t(d.getMonth() + 1)}/${t(d.getDate())} ${t(d.getHours())}:${t(d.getMinutes())}`;
 }
 
 /** @param {LauncherDeps} d @returns {number[]} */
@@ -178,8 +190,8 @@ export async function buildHeader(d) {
   const sep = P.grey(' · ');
   const where = panels.length === 0
     ? `panel ${P.grey('not running')}`
-    : `panel${panels.length > 1 ? 's' : ''} ${P.green('running')} at ${panels.map((p) => P.cyan(p.url) + (p.version !== version ? P.yellow(` (version ${p.version} — stop and start to use ${version})`) : '')).join(', ')}`;
-  const state = inst.ok ? P.green('installed ✓') : `${P.red('not installed')} — ${inst.problem}, pick ${P.boldCyan('4')} install`;
+    : `panel${panels.length > 1 ? 's' : ''} ${P.green('running')} at ${panels.map((p) => P.cyan(p.url) + (p.startedAt ? P.grey(` · started ${shortDate(p.startedAt)}`) : '') + (p.version !== version ? P.yellow(` (version ${p.version} — stop and start to use ${version})`) : '')).join(', ')}`;
+  const state = inst.ok ? P.green('installed ✓') : `${P.red('not installed')} — ${inst.problem}, pick ${P.boldCyan('5')} install`;
   const first = `${P.boldCyan('fwdloop')} ${P.grey(version)}${sep}${state}${sep}${where}`;
   let second;
   try {
@@ -286,7 +298,7 @@ export async function statusCmd(io, d, shown) {
     return shown ? 0 : 3;
   }
   for (const p of h.panels) {
-    const body = `pid ${p.pid} · version ${p.version} · ${plural(p.drafts, 'draft', 'drafts')} open · ${plural(p.schedules, 'schedule', 'schedules')} on`;
+    const body = `pid ${p.pid} · version ${p.version} · ${plural(p.drafts, 'draft', 'drafts')} open · ${plural(p.schedules, 'schedule', 'schedules')} on${p.startedAt ? ` · started ${shortDate(p.startedAt)}` : ''}`;
     io.out(h.panels.length > 1 ? `${p.url} · ${body}` : body);
   }
   return 0;
@@ -400,29 +412,42 @@ export async function startCmd(io, d, shown) {
  * @returns {Promise<number>}
  */
 export async function stopCmd(args, io, d, shown) {
+  return (await stopPanels('stop', args, io, d, shown)).rc;
+}
+
+/**
+ * The one stop: `stopCmd` and `restartCmd` both run it. `stopped` is true only when panels were signalled and are gone (declined, not-running and failed are all
+ * false), so `restart` can tell "Not stopped." (exit 0) from a stop that happened.
+ * @param {string} verb the word the unknown-option line names (stop | restart)
+ * @param {string[]} args @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d @param {{lines: string[], panels: Panel[]}} [shown]
+ * @returns {Promise<{rc: number, stopped: boolean, panels: Panel[], shown: {lines: string[], panels: Panel[]}}>}
+ */
+async function stopPanels(verb, args, io, d, shown) {
+  /** @param {number} rc */
+  const done = (rc, stopped = false, panels = /** @type {Panel[]} */ ([]), h = shown ?? { lines: [], panels: [] }) => ({ rc, stopped, panels, shown: h });
   const bad = args.find((a) => a !== '--yes');
   if (bad !== undefined) {
-    fail(io, d, `Unknown option ${JSON.stringify(bad)} — fwdloop stop takes only --yes. It stops every panel it finds.`);
-    return 1;
+    fail(io, d, `Unknown option ${JSON.stringify(bad)} — fwdloop ${verb} takes only --yes. It stops every panel it finds.`);
+    return done(1);
   }
   const h = await headerOnce(io, d, shown);
   const yes = args.includes('--yes');
   const panels = h.panels;
-  if (panels.length === 0) { io.out('Panel not running.'); return 0; }
+  if (panels.length === 0) { io.out('Panel not running.'); return done(0, false, [], h); }
   const ask = d.ask;
   const drafts = panels.reduce((n, p) => n + p.drafts, 0);
   if (drafts > 0 && !yes) {
     io.out(`${drafts === 1 ? '1 draft is' : `${drafts} drafts are`} open in the panel and will be lost.`);
     io.out('Runs keep going. Scheduled runs wait until the panel is started again.');
     const a = ask ? (await ask('Stop the panel? [y/N] ')).trim().toLowerCase() : '';
-    if (a !== 'y' && a !== 'yes') { io.out('Not stopped.'); return 0; }
+    if (a !== 'y' && a !== 'yes') { io.out('Not stopped.'); return done(0, false, [], h); }
   }
   const kill = d.kill ?? ((/** @type {number} */ pid, /** @type {string} */ sig) => process.kill(pid, /** @type {NodeJS.Signals} */ (sig)));
   for (const p of panels) {
-    if (!Number.isInteger(p.pid) || p.pid <= 1) { fail(io, d, `The panel at ${p.url} reported no usable pid, so it was not stopped.`); return 1; }
+    if (!Number.isInteger(p.pid) || p.pid <= 1) { fail(io, d, `The panel at ${p.url} reported no usable pid, so it was not stopped.`); return done(1, false, [], h); }
     try { kill(p.pid, 'SIGTERM'); } catch (e) {
       fail(io, d, `Could not stop the panel at ${p.url} (pid ${p.pid}): ${/** @type {Error} */ (e).message}`);
-      return 1;
+      return done(1, false, [], h);
     }
   }
   // the pid being gone is the truth (signal 0: ESRCH = gone, EPERM = alive); the port going quiet is checked after, for those that went
@@ -442,20 +467,37 @@ export async function stopCmd(args, io, d, shown) {
       if (!pending.includes(p)) io.out(`The panel at ${p.url} (pid ${p.pid}) stopped.`);
     }
     for (const p of pending) fail(io, d, `The panel at ${p.url} (pid ${p.pid}) did not stop.`);
-    return 1;
+    return done(1, false, [], h);
   }
   for (const p of panels) {
     if (!(await waitFor(d, p.port, true))) {
       fail(io, d, `The panel at ${p.url} still answers after ${(d.deadlineMs ?? WAIT_DEADLINE_MS) / 1000} seconds (pid ${p.pid}).`);
-      return 1;
+      return done(1, false, [], h);
     }
   }
   io.out((d.paint ?? PLAIN).green(panels.length > 1 ? `${panels.length} panels stopped.` : 'Panel stopped.'));
-  return 0;
+  return done(0, true, panels, h);
 }
 
 /**
- * The bare `fwdloop` menu: header, the four choices, one question. Runs the chosen command and returns its exit code.
+ * `fwdloop restart [--yes]` (M4b am6 item 2) — the existing stop (same open-drafts warning and question; `--yes` skips it), then the existing start, on the port
+ * the panel had when it is free. No panel running: it just starts. A declined or failed stop starts nothing.
+ * @param {string[]} args
+ * @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d @param {{lines: string[], panels: Panel[]}} [shown]
+ * @returns {Promise<number>}
+ */
+export async function restartCmd(args, io, d, shown) {
+  const r = await stopPanels('restart', args, io, d, shown);
+  if (r.rc !== 0) return r.rc;
+  // the header is already on screen and nothing is running now: start must not see the old panels
+  const afterStop = { lines: r.shown.lines, panels: /** @type {Panel[]} */ ([]) };
+  if (!r.stopped) return r.shown.panels.length > 0 ? 0 : startCmd(io, d, afterStop); // panels found but not stopped = declined ("Not stopped.")
+  const same = r.panels[0].port;
+  return startCmd(io, { ...d, ports: [same, ...portsOf(d).filter((p) => p !== same)] }, afterStop);
+}
+
+/**
+ * The bare `fwdloop` menu: header, the five choices, one question. Runs the chosen command and returns its exit code.
  * @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d
  * @returns {Promise<number>}
  */
@@ -466,23 +508,24 @@ export async function menuCmd(io, d) {
   const P = d.paint ?? PLAIN;
   if (!P.on) io.out('');
   const n = (/** @type {string} */ k) => P.boldCyan(k);
-  const items = `${n('1')} start   ${n('2')} stop   ${n('3')} status   ${n('4')} install   ${n('q')} quit`;
+  const items = `${n('1')} start   ${n('2')} stop   ${n('3')} restart   ${n('4')} status   ${n('5')} install   ${n('q')} quit`;
   io.out(P.on ? `  ${items}` : items);
   const choice = ask ? (await ask(`${P.cyan('>')} `)).trim().toLowerCase() : 'q';
   // the header is already on screen: the chosen command reuses it instead of printing it a second time
   if (choice === '1' || choice === 'start') return startCmd(io, d, h);
   if (choice === '2' || choice === 'stop') return stopCmd([], io, d, h);
-  if (choice === '3' || choice === 'status') return statusCmd(io, d, h);
-  if (choice === '4' || choice === 'install') return installCmd(io, d, h);
+  if (choice === '3' || choice === 'restart') return restartCmd([], io, d, h);
+  if (choice === '4' || choice === 'status') return statusCmd(io, d, h);
+  if (choice === '5' || choice === 'install') return installCmd(io, d, h);
   if (choice === '' || choice === 'q' || choice === 'quit') return 0;
-  fail(io, d, `unknown choice ${JSON.stringify(choice)} — one of: 1, 2, 3, 4, q`);
+  fail(io, d, `unknown choice ${JSON.stringify(choice)} — one of: 1, 2, 3, 4, 5, q`);
   return 1;
 }
 
 /**
- * The launcher doors: the bare `fwdloop` menu and `start | stop | status | install` (bin/fwdloop calls this; bareloop's runLauncher in src/cli.js). All logic is above;
+ * The launcher doors: the bare `fwdloop` menu and `start | stop | restart | status | install` (bin/fwdloop calls this; bareloop's runLauncher in src/cli.js). All logic is above;
  * this only supplies the line reader and the colour. `deps.launcher` is the test seam for every OS touch (ports, spawn, kill, opener, clock).
- * @param {'menu'|'start'|'stop'|'status'|'install'} cmd @param {string[]} rest
+ * @param {'menu'|'start'|'stop'|'restart'|'status'|'install'} cmd @param {string[]} rest
  * @param {{ stdin?: any, stdout?: any, stderr?: any, home?: string, root?: string, processEnv?: Record<string, string|undefined>, launcher?: LauncherDeps & {version?: string} }} deps
  * @returns {Promise<number>}
  */
@@ -499,6 +542,7 @@ export async function launcherMain(cmd, rest, deps) {
   try {
     if (cmd === 'start') return await startCmd(io, d);
     if (cmd === 'stop') return await stopCmd(rest, io, d);
+    if (cmd === 'restart') return await restartCmd(rest, io, d);
     if (cmd === 'status') return await statusCmd(io, d);
     if (cmd === 'install') return await installCmd(io, d);
     return await menuCmd(io, d);

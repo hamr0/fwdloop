@@ -11,7 +11,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 
 const BIN = fileURLToPath(new URL('../bin/fwdloop', import.meta.url));
-const HEADER1 = /^fwdloop \d+\.\d+\.\d+\S* · (installed ✓|not installed — [^\n]+, pick 4 install) · panels? (not running|running at http:\/\/127\.0\.0\.1:48\d\d)/;
+const HEADER1 = /^fwdloop \d+\.\d+\.\d+\S* · (installed ✓|not installed — [^\n]+, pick 5 install) · panels? (not running|running at http:\/\/127\.0\.0\.1:48\d\d)/;
 const scratchHome = () => mkdtempSync(join(tmpdir(), 'fwdloop-bin-home-'));
 const cli = (home, args, input = '') => spawnSync(process.execPath, [BIN, ...args], {
   input, encoding: 'utf8', timeout: 60_000, env: { PATH: process.env.PATH, HOME: home, NO_COLOR: '1' },
@@ -40,13 +40,13 @@ test('bare `fwdloop`: the header, a blank line, the four choices, a prompt; q qu
   assert.match(lines[0], HEADER1);
   assert.match(lines[1], /^runs: \d+ running · \d+ need you · \d+ in all$/);
   assert.equal(lines[2], '');
-  assert.equal(lines[3], '1 start   2 stop   3 status   4 install   q quit');
+  assert.equal(lines[3], '1 start   2 stop   3 restart   4 status   5 install   q quit');
   assert.ok(lines[4].startsWith('>'));
 });
 
-test('menu 4 install on a fresh HOME creates the folder (700), .env (600) and config.json; a second install says there is nothing to do', async () => {
+test('menu 5 install on a fresh HOME creates the folder (700), .env (600) and config.json; a second install says there is nothing to do', async () => {
   const home = scratchHome();
-  const r = await menuWith(home, '4');
+  const r = await menuWith(home, '5');
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /Installed\. Created:/);
   const dir = join(home, '.config', 'fwdloop');
@@ -82,7 +82,7 @@ test('the existing verbs are as they were: an unknown verb is named with the lis
   const home = scratchHome();
   const u = cli(home, ['frobnicate']);
   assert.equal(u.status, 1);
-  assert.match(u.stderr, /unknown verb "frobnicate" — expected draft \| sign \| run \| inbox \| show \| answer \| resume \| continue \| panel \| learn \| start \| stop \| status \| install/);
+  assert.match(u.stderr, /unknown verb "frobnicate" — expected draft \| sign \| run \| inbox \| show \| answer \| resume \| continue \| panel \| learn \| start \| stop \| restart \| status \| install/);
   const p = cli(home, ['panel', '--port', 'abc', '--root', '.']);
   assert.notEqual(p.status, 0);
   assert.match(p.stderr, /--port must be a valid TCP port/);

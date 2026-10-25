@@ -81,3 +81,14 @@ test('whoami drafts is the open drafting card (a draft folder that is not abando
   writeFileSync(join(dd, 'abandoned.json'), JSON.stringify({ at: new Date().toISOString() }));
   assert.equal(JSON.parse((await get(h.port, '/api/whoami')).body).drafts, 0, 'an abandoned draft does not');
 });
+
+test('M4b am6 item 1: whoami carries startedAt, an ISO stamp set once when the panel starts (the same value on every ask)', async () => {
+  const before = Date.now();
+  const { h } = await panel();
+  const a = JSON.parse((await get(h.port, '/api/whoami')).body);
+  await new Promise((r) => { setTimeout(r, 30); });
+  const b = JSON.parse((await get(h.port, '/api/whoami')).body);
+  assert.match(a.startedAt, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+  assert.ok(Date.parse(a.startedAt) >= before - 1000 && Date.parse(a.startedAt) <= Date.now());
+  assert.equal(b.startedAt, a.startedAt, 'set once, not per request');
+});
