@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.1] - 2026-10-25
+
+A fix for CSV files saved by Excel.
+
+### Fixed
+- A CSV saved from Excel as "CSV UTF-8" starts with a byte-order mark. When its first header was in
+  quotes, the file did not parse. The mark is now dropped before the file is read.
+
 ## [0.25.0] - 2026-10-25
 
 M4b amendments 4-6 (the `fwdloop` launcher: menu, start, stop, restart, status, install; copied from

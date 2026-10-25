@@ -33,10 +33,11 @@ export function parseCellRef(cell) {
 /**
  * Split CSV text into records (RFC 4180): a cell may be quoted ("1,200.50" is one cell, "" inside quotes is one quote, a comma or a line break inside quotes
  * stays in the cell); LF and CRLF both end a record. Each record carries `line`, the 1-based line of the text it starts on, so a line break inside a quoted
- * cell still counts. A blank line (nothing, not even quotes) is no record, but its line is counted. A quote inside an unquoted cell is just a character.
+ * cell still counts. A leading byte-order mark is dropped. A blank line (nothing, not even quotes) is no record, but its line is counted. A quote inside an unquoted cell is just a character.
  * @param {string} text @returns {{line: number, fields: string[]}[]}
  */
 function records(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // Excel "CSV UTF-8" starts with a byte-order mark; it is not part of the first cell (the one place it is dropped)
   /** @type {{line: number, fields: string[]}[]} */
   const out = [];
   let line = 1;

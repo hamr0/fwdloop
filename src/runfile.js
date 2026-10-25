@@ -49,12 +49,11 @@ export function readRunInputs(runDir) {
 /**
  * M8b item 1: the ONE writer of `run.json`, called once when a fresh run has frozen its inputs (`runFlow`); never over an existing record. `model` is the pick
  * the run started on (M4d am33; null = the section is left out), `thinking` the job's "Thinking on" box as it was at the start (M4d am25: written for every fresh
- * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A section given as null is left out;
- * a fresh run always has `thinking` and `inputs`.
- * @param {string} runDir @param {{ model: { slot: string, model: string }|null, thinking: boolean|null, inputs: any[]|null }} start
+ * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A fresh run always has `thinking` and `inputs`.
+ * @param {string} runDir @param {{ model: { slot: string, model: string }|null, thinking: boolean, inputs: any[] }} start
  */
 export function writeRunStart(runDir, { model, thinking, inputs }) {
   writeFileSync(join(runDir, RUN_FILE), `${JSON.stringify({
-    ...(model ? { model: { slot: model.slot, model: model.model } } : {}), ...(thinking === null ? {} : { thinking }), ...(inputs === null ? {} : { inputs }),
+    ...(model ? { model: { slot: model.slot, model: model.model } } : {}), thinking, inputs,
   }, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
 }

@@ -19,7 +19,9 @@ import { startPageServer, fakeConnect, pageText } from './fixtures/m10-page-serv
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-m10-${p}-`));
-const FAST = { idleMs: 5, idleTimeoutMs: 40, timeoutMs: 400, closeWaitMs: 50 };
+// timeoutMs is src's whole-fetch deadline, and the fake browser does a REAL local http fetch inside it, so a loaded machine can pass 400 ms ("no answer inside 0 seconds",
+// seen under full-suite load). Nothing in this file tests the deadline firing (no 'hang' fake), so it only needs to be far above the slowest loaded fetch.
+const FAST = { idleMs: 5, idleTimeoutMs: 40, timeoutMs: 15000, closeWaitMs: 50 };
 /** the fetch seam: the fake browser over the local server, fast limits */
 const seam = (fc) => (url) => import('../src/pagefetch.js').then((m) => m.fetchPageText(url, { connect: fc.connect, ...FAST }));
 

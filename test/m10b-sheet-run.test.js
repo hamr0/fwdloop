@@ -163,6 +163,20 @@ test('a number given as a string is red claim-malformed, not green', async () =>
   } finally { rmSync(r.run, { recursive: true, force: true }); }
 });
 
+test('an Excel "CSV UTF-8" sheet (BOM, quoted first header) is read as the same table: the check on its first column still runs and is green', async () => {
+  const dir = tmp();
+  try {
+    const f = path.join(dir, 'aging.csv');
+    writeFileSync(f, '\uFEFF' + readFileSync(AGING, 'utf8').replace('Invoice #,', '"Invoice #",'));
+    const r = await runStep(f, 'aging', AGING_CHECKS(), [sheetAnswer(AGING_BANDS)]);
+    try {
+      assert.equal(r.out.ok, true, r.out.red);
+      assert.deepEqual(r.rows.map((x) => x.verdict), ['green']);
+      assert.equal(checksRows(r.run)[0].checks.some((c) => c.ok === false), false);
+    } finally { rmSync(r.run, { recursive: true, force: true }); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('days and bands on the aging sheet (computed here): honest is green; one wrong band is red naming that row; a table check needs no claim', async () => {
   const wrongBands = { ...AGING_BANDS, 3: 'Current' };
   const r = await runStep(AGING, 'aging', AGING_CHECKS(), [sheetAnswer(wrongBands), sheetAnswer(AGING_BANDS)]);
