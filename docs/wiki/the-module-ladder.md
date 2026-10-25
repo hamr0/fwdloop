@@ -1041,7 +1041,7 @@ Copied from bareloop v0.47.1 (PANEL-BUILD.md, the two "L amendment 2026-10-24" r
   - The runs line is `countRuns(runsListForCount({root}))`: `runsListForCount` (`src/panel/server.js`) is `listRuns` over the same catalogue as `GET /api/runs`; Running = a row's `live === true`, Need you = a non-empty `needs` (M11's `needsYouOf` tag), In all = rows that have a `runId`. These are the two reads the page makes (`src/panel/index.html`, Running now / Needs you); `test/launcher-header.test.js` pins both. fwdloop has no "schedule gave up" concept, so bareloop's c772d4e part is not copied.
   - `start` spawns `fwdloop panel --port N --root <root>` through `spawnDetached` (`src/panel/spawn.js`: own session, `panel.log` appended, mode 600) instead of bareloop's `setsid` wrapper. The launcher's folder is `--root <flows folder>` (default `.`, as `fwdloop panel`) for the runs line and for the panel it starts; the signed text does not name it.
   - Silent taken port: the words are am5 item 3's (bareloop 6d10023).
-  - `src/launcher.js` reaches `fs` (existsSync, statSync, mkdirSync, chmodSync) for the config home; `test/f48-guard-fs-imports.test.js` has no allow-list entry for it yet, so that one test is red until hamr adds one.
+  - `src/launcher.js` reaches `fs` (existsSync, statSync, mkdirSync, chmodSync) for the config home; `test/f48-guard-fs-imports.test.js` now has its allow-list entry (`e93ec2d`).
 
 #### M4b amendment 6 — the panel's start time, and restart — SIGNED by hamr 2026-10-25 ("sign m4b am6"), the text exactly as shown
 
@@ -1051,6 +1051,8 @@ Copied from bareloop v0.47.1 (PANEL-BUILD.md, the two "L amendment 2026-10-24" r
 Copied from bareloop's `fix/records-and-stop` branch.
 
 **Done when:** a test that fails first for each item, plus your walk of restart. **Cap:** $0.
+
+- *Built after signing — not signed text (2026-10-25), M4b am6 (branch `launcher`, `33ba7b6`):* `createPanelServer` (`src/panel/server.js`) sets `startedAt` once at start and `whoami` hands it out; `probePort` keeps it when it is a non-empty string, `buildHeader` and `statusCmd` print `started MM/DD HH:MM` (`shortDate`, local time), an older panel without the field shows nothing extra. `restartCmd` (`src/launcher.js`) runs the same `stopPanels` as `stop` (same warning and question, `--yes` skips it), then `startCmd` with the stopped panel's port tried first; no panel running just starts; a declined or failed stop starts nothing; menu item 3 is restart. `src/prompts.js` (`openAsker`, borrowed-from bareloop `1bad2c8`, unreleased, on hamr's ruling) queues piped input so a line that ends during the header's port probe is not dropped. Tests: `test/launcher-restart.test.js`, `launcher-whoami.test.js`, and the menu/bin tests updated.
 
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
@@ -2410,6 +2412,7 @@ through M5 (docs/archive/PRD.md:597-605).
   4. **Replaces** "cap" in M4e amendment 7 items 6 and 7's "filled in" values. Inputs, destination, ask wait and model are still filled in from the run.
   - **Must fail when:** Reuse on a first run shows less than the signed cap; or leaving the box at the signed cap turns Run into Sign & run.
 - **M6 amendment 12 — SIGNED by hamr 2026-10-25 ("sign m6 am12"): Reuse shows the model above the job.** On the Job card's "Run a signed flow", the Model line and its picker sit right under SIGNED FLOW, above THE JOB. Nothing else moves. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with nothing spilling past the screen. **Cap:** $0.
+  - *Built after signing — not signed text (2026-10-25), M6 am11 and am12 (branch `launcher`, `dd18f39`, `9b9e21e`):* am11: `src/panel/index.html` fills the Cap $ box from the job's signed cap (`f.values.capUsd`), not from the earlier run's cap; test `test/m6-am11-reuse-cap.test.js`. am12: the Model line and picker (`jf-run-model`, `jf-run-pick`) moved under Signed flow, above the job box; test `test/m6-am12-model-order.test.js`.
 
 ## M7 — skills and persona
 
@@ -2547,7 +2550,7 @@ Replaces the PRD's "Parked, not scheduled: clean up the run folder's JSON files"
 - **Done when:** the POC passes; `fwdloop tidy` on hamr's real `flows/` moves every run (or names the ones it cannot); the panel shows hamr's runs as before; one live run on deepseek-flash, through an ask and an accept, leaves only the new files and the panel shows it fully.
 - **Negative:** tidy never touches a run that is running or waiting on a process; a second tidy changes nothing; no file in `src/` or `bin/` reads `run-model.json`, `thinking.json`, `inputs.json`, `calls.jsonl`, `tools.jsonl`, `checks.jsonl`, `cited-checks.json` or `sheet-checks.json` after the build; a step's model still cannot read `diary.jsonl`.
 - **Cap:** $0.10 (the one live run).
-- **Built after signing — not signed text (2026-10-24), M8b:** items 1, 2, 3 and 5 are built on `launcher` (`cd4ebe4`, `3aca7fb`, `493f63c` + `0f9a073`, `660415f`); the live run of "Done when" and `fwdloop tidy` on the real `flows/` are not done.
+- **Built after signing — not signed text (2026-10-24), M8b:** items 1, 2, 3 and 5 are built on `launcher` (`cd4ebe4`, `3aca7fb`, `493f63c` + `0f9a073`, `660415f`); `fwdloop tidy` has since run on the real `flows/` and been deleted (see the next bullets); the live run of "Done when" is not recorded here.
   - *`run.json` (`src/runfile.js`):* `writeRunStart` is its one writer (exclusive create, 0600; `runFlow` calls it once, right after `freezeInputs`, which now only returns the manifest and writes nothing); `readRunThinking`, `readRunInputs` and `readRunRecord` read it, `readRunModel` (`src/flowmodel.js`) reads its `model`. The module imports no provider code, so the learnings note code (which reads `inputs`) still reaches none. A refused freeze now leaves no `run.json` (before: a `thinking.json` and a `run-model.json`).
   - *`diary.jsonl` (`src/diary.js`):* `appendCall`, `appendTool` and `appendChecks` write it with `kind` `call`, `tool`, `checks`; `readCalls`, `readTools`, `readChecks` return one kind; `diaryPaths` is the one file in the model's deny list.
   - *`line-checks.json` (`src/line-checks.js`):* `writeLineSection` is its one writer and `readLineSection` its one reader; `writeCitedLine` (`src/cited-record.js`) and `writeSheetLine` (`src/sheet-record.js`) say only what their lines are (keys unchanged: the line; the line and try). Shape `{cited: {lines}, sheet: {lines}}`. The Result tab's red for a damaged cited record now names `line-checks.json (cited)`.
@@ -2705,6 +2708,7 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - Pre-run checks failed: `fix it:` what the Audit / logs tab names · `then:` run it again from the Chat card
   - Run refused: `see why:` the Audit / logs tab · `then:` fix that and run it again from the Chat card
   - **Done when:** a test that fails first for each of the four, plus one single-line case; screenshots at 1280, 390 and 320 px with nothing spilling. **Cap:** $0.
+- *Built after signing — not signed text (2026-10-25), M9 am24 (branch `launcher`, `02b4ce4`):* `endedWords` (`src/summary-words.js`) returns `rows` ([label, instruction] pairs) beside the one-string `next` for the four that split (`splitNext` is the only writer of both; `next` is the rows joined "label instruction", one per line); the Run tab draws `rows` as a two-column grid (`nextRow`, `src/panel/index.html`); a NEXT with one instruction is unchanged. Test: `test/m9-am24.test.js` (and `test/m9-summary-words.test.js`).
 
 ## M10 — real IO
 

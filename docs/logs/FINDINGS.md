@@ -3633,7 +3633,7 @@ Caveats, plain:
 
 ## F83 — learnings hints: "What changed" is empty after an ask, and one lesson fills several hint slots (2026-10-24, read only; not fixed)
 
-**Status.** Finding, diagnosed, unsigned. Nothing built. Raised by the `loop` session reading hamr's real Audit box (m7-walk-2 run-11: 4 hints, 1,181 chars). Tags: **[MEASURED]** from files on disk (read only); **[CODE]** read from the source at v0.24.0.
+**Status.** Finding, diagnosed, unsigned. Nothing built. *Update 2026-10-25: both proposed fixes are built on branch `launcher`: bug 1 in `be579a2` (a resumed or continued leg seeds its tries from `log.json`; `test/f83-log-keeps-tries.test.js`), bug 2 in `808ff1d` (run-end notes match by workflow name alone; `test/f83-learn-one-row.test.js`). The idea and the trial below are not built.* Raised by the `loop` session reading hamr's real Audit box (m7-walk-2 run-11: 4 hints, 1,181 chars). Tags: **[MEASURED]** from files on disk (read only); **[CODE]** read from the source at v0.24.0.
 
 **Bug 1, a run that went through an ask loses its earlier tries from log.json, so its notes have no "What changed".**
 - [MEASURED] `~/.config/fwdloop/learn/ledger.json`: 9 FIXED rows, only 2 carry a non-empty diff. Both m7-walk-2 `summary_resume` FIXED rows store `whatChanged.files[0].diff = ""`.
