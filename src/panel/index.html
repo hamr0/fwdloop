@@ -321,6 +321,10 @@
   .ended-row:last-child{margin-bottom:0;}
   .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+  /* M9 am24: a NEXT with several instructions is one per line, label muted, instructions in a second column (shape: bareloop 8cad363, with labels in the muted colour) */
+  .next-rows{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;row-gap:2px;}
+  .next-label{color:var(--text-faint);}
+  .next-text{min-width:0;overflow-wrap:anywhere;}
   .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
   .when-sub > *{flex:1 1 120px;min-width:0;}
@@ -2633,6 +2637,12 @@
     var c = red ? ' is-red' : '';
     return '<div class="ended-row"><span class="ended-label' + c + '">' + label + '</span><span class="ended-text' + c + '"' + (testid ? ' data-testid="' + testid + '"' : '') + '>' + escapeXml(value) + '</span></div>';
   }
+  // M9 am24: `next` is one string; `rows` ([label, instruction] pairs, from summary-words.js) is there only when it holds several instructions
+  function nextRow(ended){
+    if(!Array.isArray(ended.rows) || ended.rows.length < 2) return summaryRow("NEXT", ended.next, "ended-next");
+    var grid = ended.rows.map(function(r){ return '<span class="next-row" style="display:contents"><span class="next-label">' + escapeXml(r[0]) + '</span><span class="next-text">' + escapeXml(r[1]) + '</span></span>'; }).join("");
+    return '<div class="ended-row"><span class="ended-label">NEXT</span><span class="ended-text next-rows" data-testid="ended-next">' + grid + '</span></div>';
+  }
   function renderSummary(detail){
     var sm = detail.summary || {};
     var box = document.getElementById("ended-block");
@@ -2643,7 +2653,7 @@
       if(sc && sc.red === true) tone = "red";
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");
-      box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + summaryRow("NEXT", sm.ended.next, "ended-next") : "") +
+      box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
         (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true) : "") : "");
     } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;

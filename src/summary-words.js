@@ -111,10 +111,18 @@ const stoppedAt = (line, rest) => (line === null ? `Stopped: ${rest}` : `Stopped
 const RERUN_NEXT = 'Run it again from the Chat card.';
 
 /**
+ * M9 am24: a NEXT with more than one instruction is `rows` of [label, instruction], one per line (label muted, instruction in a second column).
+ * `next` stays the one string every other reader gets: the rows joined "label instruction", one per line. The only writer of both.
+ * @param {Array<[string, string]>} rows
+ * @returns {{next: string, rows: Array<[string, string]>}}
+ */
+const splitNext = (rows) => ({ next: rows.map(([l, t]) => `${l} ${t}`).join('\n'), rows });
+
+/**
  * ENDED / NEXT of a finished run. Every outcome the history row can hold has a fixed sentence; an unknown one gets an honest fixed fallback
  * that names the code and guesses nothing. `null` when there is no ending (still running, waiting, or no history row and not died).
  * @param {{outcome: string|null, died?: boolean, line: number|null, destination: string|null, canResume: boolean, home?: string}} f
- * @returns {{reason: string, next: string}|null}
+ * @returns {{reason: string, next: string, rows?: Array<[string, string]>}|null}
  */
 export function endedWords(f) {
   const {
@@ -129,12 +137,12 @@ export function endedWords(f) {
     case 'stopped':
       return { reason: 'Stopped by you.', next: resumeOrAgain };
     case 'cap-halt':
-      return { reason: stoppedAt(line, 'the next try could not fit under the money cap.'), next: canResume ? 'Raise the cap and Resume from the Chat card.' : RERUN_NEXT };
+      return { reason: stoppedAt(line, 'the next try could not fit under the money cap.'), ...(canResume ? splitNext([['raise the cap:', 'Cap $ on the Chat card'], ['then:', 'Resume from the Chat card']]) : { next: RERUN_NEXT }) };
     case 'redo-halt':
       return { reason: stoppedAt(line, 'you rejected it.'), next: RERUN_NEXT };
     case 'ask-expired':
     case 'ask-timeout':
-      return { reason: stoppedAt(line, 'nobody answered in time.'), next: 'Reopen it from the Ask tab, or run it again from the Chat card.' };
+      return { reason: stoppedAt(line, 'nobody answered in time.'), ...splitNext([['reopen it:', 'from the Ask tab'], ['or run it again:', 'from the Chat card']]) };
     case 'not-done':
       return { reason: stoppedAt(line, 'the step said it did not finish.'), next: RERUN_NEXT };
     case 'struck-out':
@@ -152,9 +160,9 @@ export function endedWords(f) {
     case 'rerun':
       return { reason: 'You ended this run on purpose; a fresh run was started.', next: 'Look at the newest run of this job.' };
     case 'preflight-red':
-      return { reason: 'It did not start: the job could not pass its pre-run checks. Nothing was spent.', next: 'Fix what the Audit / logs tab names, then run it again from the Chat card.' };
+      return { reason: 'It did not start: the job could not pass its pre-run checks. Nothing was spent.', ...splitNext([['fix it:', 'what the Audit / logs tab names'], ['then:', 'run it again from the Chat card']]) };
     case 'refused':
-      return { reason: 'It did not start: the run was refused. Nothing was spent.', next: 'The Audit / logs tab says why. Fix that, then run it again from the Chat card.' };
+      return { reason: 'It did not start: the run was refused. Nothing was spent.', ...splitNext([['see why:', 'the Audit / logs tab'], ['then:', 'fix that and run it again from the Chat card']]) };
     default: {
       // an unknown code: say so, name the code (from the books, capped), guess nothing
       const code = String(outcome).replace(/[^\w-]/g, '').slice(0, 40);

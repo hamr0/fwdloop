@@ -55,7 +55,7 @@ test('ENDED words, every outcome the books can hold has a fixed sentence', () =>
   assert.equal(endedWords({ ...f, outcome: 'redo-halt', line: null }).reason, 'Stopped: you rejected it.');
   assert.deepEqual(endedWords({ ...f, outcome: 'stopped', canResume: true }), { reason: 'Stopped by you.', next: 'Resume from the Chat card.' });
   assert.equal(endedWords({ ...f, outcome: 'stopped' }).next, 'Run it again from the Chat card.');
-  assert.equal(endedWords({ ...f, outcome: 'cap-halt', canResume: true }).next, 'Raise the cap and Resume from the Chat card.');
+  assert.equal(endedWords({ ...f, outcome: 'cap-halt', canResume: true }).next, 'raise the cap: Cap $ on the Chat card\nthen: Resume from the Chat card'); // M9 am24: one instruction per line
   for (const o of ['ask-expired', 'ask-timeout', 'not-done', 'struck-out', 'attempt-fallback', 'close-casualty', 'provider-red', 'pricing-red', 'red', 'cap-halt']) {
     const w = endedWords({ ...f, outcome: o });
     assert.match(w.reason, /^Stopped at line 4: /, o);
