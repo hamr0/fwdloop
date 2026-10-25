@@ -453,12 +453,6 @@ const ALLOWLIST = {
     reason: 'M8b item 1: the ONE writer of `run.json` - one exclusive create (flag wx, 0600) of the run\'s start record in the run folder `runFlow` made (or `fwdloop tidy`, through the same function). Every READ goes through readFileInside.',
     names: { writeFileSync: 1 },
   },
-  'src/tidy.js': {
-    reason: "M8b item 5: `fwdloop tidy` - moves a run folder to the new shape. It creates `<run>/diary.jsonl` (a temporary file, then a rename; every other new file is made by its own writer: writeRunStart, writeLineSection), gives each new file the modified time of the old file it replaces (utimesSync), lstatSync of an old file for that time only, and unlinks the eight old files only after the real readers have read the new files back equal. It never runs on a run whose process is alive (src/liveness.js). Every READ goes through readFileInside/readLines.",
-    names: {
-      lstatSync: 1, renameSync: 1, unlinkSync: 4, utimesSync: 1, writeFileSync: 1,
-    },
-  },
   'src/flowmodel.js': {
     reason: 'M4d amendment 6: the ONE writer of `model.json` - one exclusive create (flag wx, 0600) of the model pick in the draft folder `draftToDir` made, or in the flow folder `signDraft` just wrote. Every READ goes through readFileInside. M8 item 6: also the ONE `renameSync` that moves the draft record `learnings.json` from a freshly signed flow folder into the folder of the first run (a rename, so it moves once); the copy and the write use the same exclusive writer.',
     names: { renameSync: 1, writeFileSync: 1 },

@@ -49,8 +49,8 @@ export function readRunInputs(runDir) {
 /**
  * M8b item 1: the ONE writer of `run.json`, called once when a fresh run has frozen its inputs (`runFlow`); never over an existing record. `model` is the pick
  * the run started on (M4d am33; null = the section is left out), `thinking` the job's "Thinking on" box as it was at the start (M4d am25: written for every fresh
- * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A section given as null is left out: `fwdloop tidy` (src/tidy.js) calls this too, for a run
- * from before a record existed (no thinking, no model, or no inputs); a fresh run always has `thinking` and `inputs`.
+ * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A section given as null is left out;
+ * a fresh run always has `thinking` and `inputs`.
  * @param {string} runDir @param {{ model: { slot: string, model: string }|null, thinking: boolean|null, inputs: any[]|null }} start
  */
 export function writeRunStart(runDir, { model, thinking, inputs }) {
