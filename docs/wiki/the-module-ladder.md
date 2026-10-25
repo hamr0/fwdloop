@@ -2400,6 +2400,7 @@ through M5 (docs/archive/PRD.md:597-605).
   3. The signed cap is what decides Run or Sign & run (amendment 6 item 2): the box left at the signed cap is not a changed cap.
   4. **Replaces** "cap" in M4e amendment 7 items 6 and 7's "filled in" values. Inputs, destination, ask wait and model are still filled in from the run.
   - **Must fail when:** Reuse on a first run shows less than the signed cap; or leaving the box at the signed cap turns Run into Sign & run.
+- **M6 amendment 12 — SIGNED by hamr 2026-10-25 ("sign m6 am12"): Reuse shows the model above the job.** On the Job card's "Run a signed flow", the Model line and its picker sit right under SIGNED FLOW, above THE JOB. Nothing else moves. **Done when:** a test that fails first, plus screenshots at 1280, 390 and 320 px with nothing spilling past the screen. **Cap:** $0.
 
 ## M7 — skills and persona
 
