@@ -5490,7 +5490,7 @@
       runDestEl.readOnly = !(f && f.hasSend);
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
       byId("jf-run-dest-hint").textContent = !f ? "" : (f.hasSend ? "Where the accepted result is placed, at the last step. A different folder is signed for this run only." : "This flow has no send step, so there is no destination to set.");
-      runCapEl.value = v ? String(v.capUsd) : "";
+      runCapEl.value = f ? String(f.values.capUsd) : "";   // M6 am11: the job's SIGNED cap, never what an earlier run was capped at after drafting (v)
       runWaitsEl.innerHTML = "";
       Object.keys((v && v.askWaits) || {}).forEach(function(line){
         var row = document.createElement("div");
