@@ -75,3 +75,13 @@ test('bareguard accepts the table: tableSha is a sha256, and moves when one cell
   const u = sheetTable(parseCsv(fixture('aging.csv').replace('200.00', '201.00')));
   assert.notEqual(tableSha(u), sha);
 });
+
+test('a leading UTF-8 byte-order mark is dropped once: a BOM + quoted first header parses like the same text without it', () => {
+  const plain = parseCsv('"Invoice #",Amt\n1,2\n');
+  const bom = parseCsv('﻿"Invoice #",Amt\n1,2\n');
+  assert.deepEqual(plain.header, ['Invoice #', 'Amt']);
+  assert.deepEqual(bom, plain);
+  assert.deepEqual(parseCsv('﻿Invoice #,Amt\n1,2\n').header, ['Invoice #', 'Amt'], 'a plain BOM file still works');
+  assert.deepEqual(parseCsv('Invoice #,Amt\n1,2\n').header, ['Invoice #', 'Amt'], 'no BOM: unchanged');
+  assert.equal(parseCsv('A,B\n﻿1,2\n').rows[0].cells.A, '﻿1', 'only a LEADING mark is dropped; one inside the data is data');
+});
