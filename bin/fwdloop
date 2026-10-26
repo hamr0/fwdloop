@@ -148,8 +148,10 @@ function resolveRoot(cmd, given) {
     // M4b am7: no `--root` = the ONE default (`defaultFlowsRoot`: <config home>/flows), never the current folder
     return realpathSync(given === undefined ? defaultFlowsRoot() : resolve(given));
   } catch (err) {
-    if (err.code === 'ENOENT') fail(`${cmd}: --root "${given}" does not exist`);
-    fail(`${cmd}: --root "${given}" cannot be resolved: ${err.code ?? err.message}`);
+    // No --root given: name the default jobs folder (the failing path from the error), never the word "undefined".
+    const what = given === undefined ? `the jobs folder "${err.path ?? '~/.config/fwdloop/flows'}"` : `--root "${given}"`;
+    if (err.code === 'ENOENT') fail(`${cmd}: ${what} does not exist`);
+    fail(`${cmd}: ${what} cannot be resolved: ${err.code ?? err.message}`);
   }
 }
 
