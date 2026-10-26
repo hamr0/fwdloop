@@ -1008,9 +1008,11 @@ export async function runStepRalph({
       const strike = seenGaps.has(normalised);
       seenGaps.add(normalised);
       if (strike) strikes += 1;
+      // A floor from a faulted first call plus a retry whose own cost is unknown is "at least" the floor, never complete: complete needs THIS call's cost known
+      // (no floor and an unknown cost is usd null, also incomplete - the "no provider ever built" case).
       const usd = sumKnownUsd(attemptFloorUsd, result?.costUsd);
       recordAudit(rowOf({
-        step, attempt, verdict: 'red', gap: red, usd, spendComplete: usd !== null, wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused, thinking: result?.thinking,
+        step, attempt, verdict: 'red', gap: red, usd, spendComplete: typeof result?.costUsd === 'number', wallMs, model: result?.model, modelMatch: result?.modelMatch, strike, at: now(), tokens: result?.tokens ?? null, tools: result?.tools ?? null, ungranted: result?.ungranted, refused: result?.refused, thinking: result?.thinking,
       }), red);
       if (n === maxN) return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — ${red}` };
       if (strikes >= STRIKE_LIMIT) return { ok: false, outcome: 'struck-out', red: `struck-out: step "${step.goal}" — ${red}` };
