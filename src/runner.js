@@ -979,7 +979,7 @@ export async function runStepRalph({
       const usd = sumKnownUsd(attemptFloorUsd, result.costUsd);
       const ranCalls = (turns ?? 0) > 0 || attemptFloorUsd !== null;
       return stopped(stopWords(ranCalls ? attempt : attempt - 1, turns ?? 0), rowOf({
-        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: usd !== null, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
+        step, attempt: ranCalls ? attempt : null, verdict: 'stopped', gap: null, usd, spendComplete: typeof result.costUsd === 'number', wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }));
     }
 
