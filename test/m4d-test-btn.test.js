@@ -24,7 +24,7 @@ const CLOSERS = [];
 after(() => Promise.all([...HANDLES.map((h) => h.close()), ...CLOSERS.map((c) => c())]));
 
 /** A ok, B refused (401), C server error (500), D slow-abort-free but no Base URL, E network failure. */
-async function world() {
+async function world(gateA = null) {
   const home = path.join(tmp('home'), 'fwdloop');
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(keysFilePath(home), ['A_KEY', 'B_KEY', 'C_KEY', 'D_KEY', 'E_KEY'].map((k) => `${k}=k-${k}-0123456789abcdef\n`).join(''), { mode: 0o600 });
@@ -35,7 +35,7 @@ async function world() {
   const fetchImpl = async (url) => {
     const host = new URL(String(url)).host;
     calls.push(host);
-    if (host === 'a.test') { await new Promise((r) => setTimeout(r, 30)); return { ok: true, status: 200, json: async () => ({ data: [{ id: 'flash' }] }) }; }
+    if (host === 'a.test') { await (gateA ?? new Promise((r) => setTimeout(r, 30))); return { ok: true, status: 200, json: async () => ({ data: [{ id: 'flash' }] }) }; }
     if (host === 'b.test') return { ok: false, status: 401, json: async () => ({}) };
     if (host === 'e.test') throw new Error('down');
     return { ok: false, status: 500, json: async () => ({}) };
@@ -56,7 +56,9 @@ test('browser: Test per key row; no Base URL = text and no call; ok = "OK · N m
   const chrome = await launchChrome();
   if (!chrome) { t.skip('no chromium installed'); return; }
   CLOSERS.push(async () => chrome.close());
-  const { h, calls } = await world();
+  let openA = () => {};
+  const gateA = new Promise((r) => { openA = r; }); // A's reply is held until the "testing…" read is done, so load cannot finish it first
+  const { h, calls } = await world(gateA);
   await chrome.open(`http://127.0.0.1:${h.port}/`, 1280);
   await chrome.ev('document.getElementById("settings-open").click()');
   assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
@@ -73,6 +75,7 @@ test('browser: Test per key row; no Base URL = text and no call; ok = "OK · N m
   assert.equal(calls.length, before, 'no Base URL: no call');
   await click('A_KEY');
   assert.equal(await chrome.ev(`(function(){var b=document.querySelector('.pv-key[data-slot="A_KEY"] [data-act=test-key]');return b.disabled+"|"+b.textContent;})()`), 'true|testing…');
+  openA();
   assert.ok(await chrome.waitFor(`/^OK · \\d+ ms$/.test(document.querySelector('.pv-key[data-slot="A_KEY"] [data-f=msg-test]').textContent)`));
   assert.equal(await chrome.ev(`document.querySelector('.pv-key[data-slot="A_KEY"] [data-act=test-key]').disabled`), false);
   assert.equal(await chrome.ev(`document.querySelector('.pv-key[data-slot="A_KEY"] [data-act=test-key]').textContent`), 'Test');
