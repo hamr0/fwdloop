@@ -51,12 +51,17 @@ const ALLOWED = [
   {
     file: 'src/panel/index.html',
     re: /https:\/\/fonts\.(googleapis|gstatic)\.com[^\s'"]*|fonts\.(googleapis|gstatic)\.com|\bGoogle Fonts\b|https:\/\/fonts[^\s'"]*/g,
-    why: 'the page font stylesheet host (not a model provider; no key or request body ever goes there). It is the only address in src/.',
+    why: 'the page font stylesheet host (not a model provider; no key or request body ever goes there).',
   },
   {
     file: 'src/panel/server.js',
     re: /http:\/\/(127\.0\.0\.1|localhost)[^\s'"`)]*/g,
     why: 'the panel\'s own loopback address (its Origin check and the line it prints). Not a provider.',
+  },
+  {
+    file: 'src/registry.js',
+    re: /https:\/\/registry\.npmjs\.org\/fwdloop\/latest/g,
+    why: 'the npm registry address `fwdloop update` reads the latest version from (M4b am8, signed 2026-10-26), only when the human presses update. Not a provider; no key or request body goes there.',
   },
   {
     file: 'bin/fwdloop',

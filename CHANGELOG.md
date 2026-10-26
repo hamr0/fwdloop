@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.1] - 2026-10-26
+
+M4b amendment 8: the launcher can check for a newer fwdloop.
+
+### Added
+- `6 update` in the `fwdloop` menu, and `fwdloop update`. Only when pressed, it asks the npm registry
+  for the latest version (5-second deadline). Nothing goes online at start, in the panel, or in the
+  background.
+- When a newer version is out it asks `Update now? (y/n)`; `y` runs `npm install -g fwdloop@latest`
+  and says to pick `3 restart`. With no terminal it never installs, it prints the command.
+
+### Changed
+- `5 install` with nothing to do now says `Already set up. This does not update fwdloop. Pick 6 update for that.`
+
 ## [0.26.0] - 2026-10-26
 
 M4b amendment 7 (all jobs live in one folder), barebrowse 0.24.1, honest spend rows, a scheduled-run

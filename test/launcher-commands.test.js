@@ -304,7 +304,7 @@ test('install: creates what is missing (dir 700, .env 600, config.json), then sa
   writeFileSync(join(home, '.env'), 'MY_KEY=abc\n', { mode: 0o600 });
   const again = sink();
   assert.equal(await installCmd(again, d), 0);
-  assert.equal(again.lines.at(-1), 'Already installed, nothing to do.');
+  assert.equal(again.lines.at(-1), 'Already set up. This does not update fwdloop. Pick 6 update for that.');
   assert.match(again.lines[0], /installed ✓/);
   assert.equal(readFileSync(join(home, '.env'), 'utf8'), 'MY_KEY=abc\n');
 });
@@ -345,7 +345,7 @@ test('menu (the approved layout): two header lines, a blank line, the four choic
     `fwdloop ${V} · installed ✓ · panel running at ${panelUrl(base + 1)}`,
     'runs: 0 running · 0 need you · 0 in all',
     '',
-    '1 start   2 stop   3 restart   4 status   5 install   q quit',
+    '1 start   2 stop   3 restart   4 status   5 install   6 update   q quit',
   ]);
   assert.deepEqual(asked, ['> ']);
 });
@@ -388,7 +388,7 @@ test('launcherMain: bare `fwdloop` shows the menu; the sub-commands status|insta
   stdin.write('q\n');
   assert.equal(await run, 0);
   const text = out.join('');
-  assert.match(text, new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: 0 running · 0 need you · 0 in all\n\n1 start   2 stop   3 restart   4 status   5 install   q quit\n`));
+  assert.match(text, new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: 0 running · 0 need you · 0 in all\n\n1 start   2 stop   3 restart   4 status   5 install   6 update   q quit\n`));
   const out2 = [];
   assert.equal(await launcherMain('status', [], { stdout: { write: (s) => { out2.push(s); return true; } }, stderr, home, root: home, launcher }), 3);
   assert.match(out2.join(''), new RegExp(`^fwdloop ${VRE} · installed ✓ · panel not running\nruns: `));
