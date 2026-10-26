@@ -67,7 +67,7 @@ standalone.
 
 ## Status
 
-Work in progress, on npm as `fwdloop` (`npm install -g fwdloop`); expect changes between versions. `fwdloop` with no arguments opens a menu to start the panel. All jobs live in `~/.config/fwdloop/flows`, next to the settings; `--root <folder>` points a command somewhere else.
+Work in progress, on npm as `fwdloop` (`npm install -g fwdloop`); expect changes between versions. `fwdloop` with no arguments opens a menu to start the panel; the menu also checks for a newer fwdloop on `6 update` (online only when pressed). All jobs live in `~/.config/fwdloop/flows`, next to the settings; `--root <folder>` points a command somewhere else.
 
 The in-run `impact` tool needs ripgrep (`rg`) on PATH; without it the tool is refused with a message, never a wrong answer.
 
