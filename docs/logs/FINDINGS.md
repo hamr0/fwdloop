@@ -3385,7 +3385,7 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 2. An amendment for the ask card to show the sheet block (the claim boxes) as the plan card does.
 3. Drop an identical `~` rule on redraft instead of appending it again.
 
-## F78 — M10b exit walks 2026-10-23: expenses green; aging open (drafter drops or mis-tags the bucket check) (open)
+## F78 — M10b exit walks 2026-10-23: expenses green; aging open (drafter drops or mis-tags the bucket check) (closed 2026-10-26)
 
 **Status.** Finding, no build. Recorded unsigned until hamr signs. Tags: **[MEASURED]** the flow files named below (read only). Lessons are observations, not proven causes. Branch m10b.
 
@@ -3406,6 +3406,8 @@ There is no destination fact. The sign row in `setup.jsonl` says why, under notC
 (c) No code fix was made for (b), on hamr's ruling: a send-back loop would fit code to one job.
 
 **Status of the exit.** M10b exit is open on the aging job only. Next: reopen after bareloop's learnings, copied byte for byte (UI and inner working), on hamr's word 2026-10-23.
+
+**Update 2026-10-26 — closed.** Reopened after M8 learnings shipped: `m10b-aging-5` run-1 on deepseek-flash drafted with the band, no-duplicate and days-since checks all present (1 draft), green, books 0.0097338 = 0.0097338, recheck ok. M10b exit signed by hamr 2026-10-26 (docs/wiki/the-module-ladder.md). Not proven: that learnings caused it; the job's answers to the plan's column question differed from 10-23, and it is one draft.
 
 ## F79 — POC: does bareloop's learnings card shape, copied as is, make worthy notes from fwdloop's real runs? (pre-registered 2026-10-23, before any run)
 
