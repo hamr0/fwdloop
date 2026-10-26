@@ -11,6 +11,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { reapChildren } from './m4e-world.mjs';
 import { procStartOf } from '../src/liveness.js';
 
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const until = async (fn, ms = 5000) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) return false; await new Promise((r) => { setTimeout(r, 25); }); } return true; };
 
@@ -42,7 +43,7 @@ test('reapChildren kills a child spawned by a panel close', async () => {
   }
 });
 
-test('reapChildren on a child that is mid page fetch leaves no chromium (barebrowse tethers it to the child)', async () => {
+test('reapChildren on a child that is mid page fetch leaves no chromium (barebrowse tethers it to the child)', { skip: SKIP && 'no browser' }, async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-reap-'));
   // a page that starts answering and never finishes, so the child's real fetchPageText stays inside barebrowse with a live chromium
   const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.write(`<html><body>${'x'.repeat(2000)}`); });
@@ -72,6 +73,8 @@ test('reapChildren on a child that is mid page fetch leaves no chromium (barebro
   } finally {
     for (const n of chromiumOf(c.pid)) { try { process.kill(Number(n), 'SIGKILL'); } catch { /* gone */ } }
     try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ }
+    // chromium's profile dirs, only this child's pid (barebrowse-<pid>-*)
+    for (const d of readdirSync(tmpdir())) if (d.startsWith(`barebrowse-${c.pid}-`)) rmSync(path.join(tmpdir(), d), { recursive: true, force: true });
     srv.closeAllConnections();
     srv.close();
     rmSync(root, { recursive: true, force: true });
