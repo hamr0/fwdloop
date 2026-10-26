@@ -1054,6 +1054,15 @@ Copied from bareloop's `fix/records-and-stop` branch.
 
 - *Built after signing — not signed text (2026-10-25), M4b am6 (branch `launcher`, `33ba7b6`):* `createPanelServer` (`src/panel/server.js`) sets `startedAt` once at start and `whoami` hands it out; `probePort` keeps it when it is a non-empty string, `buildHeader` and `statusCmd` print `started MM/DD HH:MM` (`shortDate`, local time), an older panel without the field shows nothing extra. `restartCmd` (`src/launcher.js`) runs the same `stopPanels` as `stop` (same warning and question, `--yes` skips it), then `startCmd` with the stopped panel's port tried first; no panel running just starts; a declined or failed stop starts nothing; menu item 3 is restart. `src/prompts.js` (`openAsker`, borrowed-from bareloop `1bad2c8`, unreleased, on hamr's ruling) queues piped input so a line that ends during the header's port probe is not dropped. Tests: `test/launcher-restart.test.js`, `launcher-whoami.test.js`, and the menu/bin tests updated.
 
+#### M4b amendment 7 — one place for all jobs — SIGNED by hamr 2026-10-26 ("sign m4b am7"), the text exactly as shown
+
+- **M4b amendment 7 — one place for all jobs.** Today every command's `--root` defaults to the folder it is typed in, so a panel started from the repo read the whole repo as its jobs (an old refused start showed again; a new flow landed at the repo root). bareloop keeps all jobs in one fixed folder beside its config (`src/panel/authorsession.js:429` at v0.48.0); fwdloop does the same.
+  1. With no `--root`, every command (the menu, `start`, `stop`, `restart`, `status`, `panel`, `draft`, `sign`, `run`, `inbox`, `show`, `answer`, `resume`, `continue`, `learn`) uses `~/.config/fwdloop/flows`, beside `config.json`, `.env`, `learn/`, `runs.jsonl` and `panel.log`. It is made (0700) if missing. The current folder is never the default.
+  2. `--root <folder>` still overrides it, as now.
+  3. The jobs in the repo's `flows/` move there once, by hamr, after a backup. Before he moves anything, a $0 check on a copy shows whether the old runs still list, open and keep their books, since `runs.jsonl` holds 464 full paths into the old folder. If they do not, the fix is drafted and signed before the move.
+  - **Done when:** from any folder, `fwdloop start` opens the panel on `~/.config/fwdloop/flows`; after the move the Runs list shows hamr's jobs and old runs open; a new draft lands there.
+  - **Negative:** `fwdloop start` typed in the repo folder without `--root` never reads the repo: the old refused start from 10-08 does not show. A test proves the current folder is never the default.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
