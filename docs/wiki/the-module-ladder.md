@@ -1063,6 +1063,8 @@ Copied from bareloop's `fix/records-and-stop` branch.
   - **Done when:** from any folder, `fwdloop start` opens the panel on `~/.config/fwdloop/flows`; after the move the Runs list shows hamr's jobs and old runs open; a new draft lands there.
   - **Negative:** `fwdloop start` typed in the repo folder without `--root` never reads the repo: the old refused start from 10-08 does not show. A test proves the current folder is never the default.
 
+- *Built after signing — not signed text (2026-10-26), M4b am7 (branch `chore/bareloop-0.48`, `e56388c`):* `defaultFlowsRoot` (`src/config.js`) is the one decider of the default jobs folder, `<config home>/flows`, made 0700 (chmod only when this call made it) and, under a test process with no config home, a throw rather than a folder under the real `~/.config/fwdloop`. `bin/fwdloop` `resolveRoot` and `cmdDraft` take it when no `--root` is given; `run`, `resume`, `continue`, `draft` and `learn seed` no longer require `--root`; `src/launcher.js` uses it for the runs line and for `start`. A verb typed with no `--root` and a jobs folder that cannot be resolved names the folder, never "undefined" (`5ae9d8c`). `fwdloop status` creates the folder when it is missing, by hamr's ruling 2026-10-26 (it follows item 1 as signed). Known and accepted by hamr: 8 older runs' Resume refuses after the jobs move, because their `state.json` and `halt.json` hold absolute roots. Tests: `test/launcher-default-root.test.js`, `test/cli-jobs-folder-error.test.js`, `launcher-bin.test.js` updated.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
@@ -2718,6 +2720,7 @@ monthly wall is enforced **by the trigger**, before a run starts.
   - Run refused: `see why:` the Audit / logs tab · `then:` fix that and run it again from the Chat card
   - **Done when:** a test that fails first for each of the four, plus one single-line case; screenshots at 1280, 390 and 320 px with nothing spilling. **Cap:** $0.
 - *Built after signing — not signed text (2026-10-25), M9 am24 (branch `launcher`, `02b4ce4`):* `endedWords` (`src/summary-words.js`) returns `rows` ([label, instruction] pairs) beside the one-string `next` for the four that split (`splitNext` is the only writer of both; `next` is the rows joined "label instruction", one per line); the Run tab draws `rows` as a two-column grid (`nextRow`, `src/panel/index.html`); a NEXT with one instruction is unchanged. Test: `test/m9-am24.test.js` (and `test/m9-summary-words.test.js`).
+- *Built after signing — not signed text (2026-10-26), schedules on a retired job (branch `chore/bareloop-0.48`, `6967779`):* a clock or file fire runs the Run door's own `canFlowRun` on the plan it is about to run, so a job that cannot run (a retired check form, an unwired verb) is one `refused` row in the schedule's outcome ledger, in the Run door's sentence (`willNotRunSay`), at $0, with nothing started and no run folder, the same as the model check. Test: `test/m9-trigger-fire.test.js`.
 
 ## M10 — real IO
 
