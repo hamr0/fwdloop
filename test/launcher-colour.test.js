@@ -47,10 +47,10 @@ test('header + menu: with colour the words are the same (stripped), the rule fra
   assert.match(col.lines[2], /\x1b\[90mruns:\x1b\[0m \x1b\[90m0 running\x1b\[0m/);
   const io = sink();
   await menuCmd(io, { ...base, ask: async () => 'q', paint: makePaint({ isTTY: true }, {}) });
-  assert.equal(io.lines.at(-1), `  ${'\x1b[1;36m1\x1b[0m'} start   \x1b[1;36m2\x1b[0m stop   \x1b[1;36m3\x1b[0m restart   \x1b[1;36m4\x1b[0m status   \x1b[1;36m5\x1b[0m install   \x1b[1;36mq\x1b[0m quit`);
+  assert.equal(io.lines.at(-1), `  ${'\x1b[1;36m1\x1b[0m'} start   \x1b[1;36m2\x1b[0m stop   \x1b[1;36m3\x1b[0m restart   \x1b[1;36m4\x1b[0m status   \x1b[1;36m5\x1b[0m install   \x1b[1;36m6\x1b[0m update   \x1b[1;36mq\x1b[0m quit`);
   const ioPlain = sink();
   await menuCmd(ioPlain, { ...base, ask: async () => 'q', paint: makePaint({ isTTY: false }, {}) });
-  assert.equal(ioPlain.lines.at(-1), '1 start   2 stop   3 restart   4 status   5 install   q quit');
+  assert.equal(ioPlain.lines.at(-1), '1 start   2 stop   3 restart   4 status   5 install   6 update   q quit');
 });
 
 test('refusals are red on a colour terminal, plain words when stripped', async () => {

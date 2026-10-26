@@ -40,7 +40,7 @@ test('bare `fwdloop`: the header, a blank line, the four choices, a prompt; q qu
   assert.match(lines[0], HEADER1);
   assert.match(lines[1], /^runs: \d+ running · \d+ need you · \d+ in all$/);
   assert.equal(lines[2], '');
-  assert.equal(lines[3], '1 start   2 stop   3 restart   4 status   5 install   q quit');
+  assert.equal(lines[3], '1 start   2 stop   3 restart   4 status   5 install   6 update   q quit');
   assert.ok(lines[4].startsWith('>'));
 });
 
@@ -55,7 +55,7 @@ test('menu 5 install on a fresh HOME creates the folder (700), .env (600) and co
   assert.equal(readFileSync(join(dir, 'config.json'), 'utf8').trim(), '{}');
   const again = cli(home, ['install']);
   assert.equal(again.status, 0, again.stderr);
-  assert.match(again.stdout, /Already installed, nothing to do\.\n$/);
+  assert.match(again.stdout, /Already set up\. This does not update fwdloop\. Pick 6 update for that\.\n$/);
   assert.match(again.stdout.split('\n')[0], /· installed ✓ ·/);
 });
 

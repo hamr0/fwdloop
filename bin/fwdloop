@@ -1008,7 +1008,7 @@ function cmdLearn(rest) {
 // ---------------------------------------------------------------------------
 
 /**
- * M4b am4/am5 (the launcher): a bare `fwdloop` shows the menu; `start | stop | restart | status | install` are its five choices as verbs. All logic is src/launcher.js.
+ * M4b am4/am5 (the launcher): a bare `fwdloop` shows the menu; `start | stop | restart | status | install | update` are its six choices as verbs. All logic is src/launcher.js.
  * `--root <flows folder>` (default <config home>/flows, M4b am7) is the folder the runs line reads and `start` hands the panel; the config home is the real ~/.config/fwdloop.
  */
 async function cmdLauncher(cmd, rest) {
@@ -1033,8 +1033,8 @@ async function main() {
   if (verb === 'continue') return cmdContinue(rest);
   if (verb === 'panel') return cmdPanel(rest);
   if (verb === 'learn') return cmdLearn(rest);
-  if (verb === 'start' || verb === 'stop' || verb === 'restart' || verb === 'status' || verb === 'install') return cmdLauncher(verb, rest);
-  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | start | stop | restart | status | install (or none, for the menu)`);
+  if (verb === 'start' || verb === 'stop' || verb === 'restart' || verb === 'status' || verb === 'install' || verb === 'update') return cmdLauncher(verb, rest);
+  fail(`unknown verb "${verb}" — expected draft | sign | run | inbox | show | answer | resume | continue | panel | learn | start | stop | restart | status | install | update (or none, for the menu)`);
   return undefined;
 }
 

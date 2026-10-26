@@ -125,19 +125,19 @@ test('item 2: restart with open drafts asks the stop question; n leaves it runni
   assert.equal(d2.spawned.length, 1);
 });
 
-test('item 2: the menu is "1 start   2 stop   3 restart   4 status   5 install   q quit"; 3 restarts, 4 is status, 5 is install; the unknown-choice line lists 1-5', async () => {
+test('item 2: the menu is "1 start   2 stop   3 restart   4 status   5 install   6 update   q quit"; 3 restarts, 4 is status, 5 is install; the unknown-choice line lists 1-5', async () => {
   const home = installedHome();
   const base = await freeBase();
   const io = sink();
   await menuCmd(io, deps(home, base, { ask: async () => 'q' }));
-  assert.equal(io.lines.at(-1), '1 start   2 stop   3 restart   4 status   5 install   q quit');
+  assert.equal(io.lines.at(-1), '1 start   2 stop   3 restart   4 status   5 install   6 update   q quit');
   const r = sink();
   const dr = deps(home, base, { ask: async () => '3' });
   assert.equal(await menuCmd(r, dr), 0, r.text());
   assert.equal(dr.spawned.length, 1, '3 = restart (no panel: starts)');
   const bad = sink();
   assert.equal(await menuCmd(bad, deps(home, base, { ask: async () => '9' })), 1);
-  assert.match(bad.text(), /one of: 1, 2, 3, 4, 5, q/);
+  assert.match(bad.text(), /one of: 1, 2, 3, 4, 5, 6, q/);
   const st = sink();
   assert.equal(await menuCmd(st, deps(home, await freeBase(), { ask: async () => '4' })), 0);
   assert.equal(st.lines.at(-1), 'Panel not running.');

@@ -4,6 +4,9 @@
 // `readOwnVersion`; `start` spawns through src/panel/spawn.js `spawnDetached` (detached = its own session, log opened 0600 and appended) with `--root <flows folder>`;
 // install creates the keys file with `createKeysFile`; the silent-port words are M4b am5 item 3's (bareloop 6d10023, unreleased); `launcherMain` is the entry bin/fwdloop calls
 // (bareloop's runLauncher in cli.js). M4b am4 + am5.
+// M4b am8 (built from the signed text): `6 update` / `fwdloop update` - the only online touch in this file, and only when pressed: node's own fetch of
+// registry.npmjs.org/fwdloop/latest (`.version`, 5 s), a plain X.Y.Z compare, a y/n, then `npm install -g fwdloop@latest` (no shell, npm's output shown, a 5-minute
+// deadline that kills only its own child; the number is the builder's, not signed). Piped input (no terminal) never asks and never installs.
 //
 // M4b am4/am5 (bareloop PANEL-BUILD.md addendum 2026-10-24, L) - the `fwdloop` launcher: the bare-`fwdloop` menu and `fwdloop start | stop | restart | status | install`.
 //
@@ -17,6 +20,7 @@ import {
   existsSync, statSync, mkdirSync, chmodSync,
 } from 'node:fs';
 import { createServer } from 'node:net';
+import { spawn as realSpawn } from 'node:child_process';
 import { openAsker } from './prompts.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +29,7 @@ import { keysHome, keysFilePath, createKeysFile } from './keysfile.js';
 import { openInOs } from './opener.js';
 import { PLAIN, makePaint } from './tty-colour.js';
 import { readOwnVersion } from './version.js';
+import { REGISTRY_URL } from './registry.js';
 import { spawnDetached } from './panel/spawn.js';
 import { runsListForCount, panelUrl } from './panel/server.js';
 
@@ -39,6 +44,11 @@ const SILENT_PORT_WAIT_MS = 10_000;
 const POLL_MS = 100;
 const MIN_NODE_MAJOR = 22;
 const RULE_WIDTH = 56;
+const REGISTRY_TIMEOUT_MS = 5000;
+/** not in the signed text: how long `npm install -g` may run before its own child is killed */
+const NPM_DEADLINE_MS = 300_000;
+const NPM_ARGS = ['install', '-g', 'fwdloop@latest'];
+const UPDATE_LATER = 'Not updated. To update later: npm install -g fwdloop@latest';
 
 /**
  * @typedef {object} Panel one answered probe
@@ -57,6 +67,9 @@ const RULE_WIDTH = 56;
  * @property {number} [silentWaitMs] how long start keeps asking a taken, silent port (default 10 s)
  * @property {string} [nodeVersion] default process.versions.node
  * @property {typeof fetch} [fetchImpl]
+ * @property {typeof fetch} [registryFetch] the registry read of `update` (default global fetch); tests never go online
+ * @property {(args: string[]) => Promise<number>} [spawnNpm] runs npm with these args, resolves its exit code (non-zero = failed, deadline included); default {@link runNpm}
+ * @property {boolean} [isTTY] stdin is a terminal (launcherMain sets it); false/absent = `update` never asks and never installs
  * @property {(a: {bin: string, argv: string[], env: Record<string, string|undefined>, logPath: string}) => any} [spawnFn] default src/panel/spawn.js `spawnDetached`
  * @property {(pid: number, sig: string|number) => void} [kill] default process.kill
  * @property {((target: string) => Promise<boolean>)} [open] default the shared OS opener
@@ -244,7 +257,7 @@ function bindFree(port) {
 }
 
 /**
- * `fwdloop install` — creates only what is missing, never reads a key value.
+ * `fwdloop install` (menu 5) — creates only what is missing, never reads a key value.
  * @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d @param {{lines: string[], panels: Panel[]}} [shown]
  * @returns {Promise<number>}
  */
@@ -279,9 +292,61 @@ export async function installCmd(io, d, shown) {
       return 1;
     }
   }
-  if (made.length === 0) { io.out('Already installed, nothing to do.'); return 0; }
+  if (made.length === 0) { io.out('Already set up. This does not update fwdloop. Pick 6 update for that.'); return 0; }
   io.out('Installed. Created:');
   for (const m of made) io.out(`  ${m}`);
+  return 0;
+}
+
+/**
+ * Run `npm install -g fwdloop@latest`: no shell, npm's output on the terminal, killed by its own child handle at the deadline.
+ * @param {string[]} args @param {{spawnImpl?: typeof realSpawn, deadlineMs?: number}} [o]
+ * @returns {Promise<number>} npm's exit code; 1 when it could not start, was killed by a signal, or hit the deadline
+ */
+export function runNpm(args, o = {}) {
+  const spawnImpl = o.spawnImpl ?? realSpawn;
+  return new Promise((resolve) => {
+    let child;
+    try { child = spawnImpl('npm', args, { shell: false, stdio: 'inherit' }); } catch { resolve(1); return; }
+    let done = false;
+    const end = (/** @type {number} */ code) => { if (done) return; done = true; clearTimeout(timer); resolve(code); };
+    const timer = setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* already gone */ } end(1); }, o.deadlineMs ?? NPM_DEADLINE_MS);
+    child.once('error', () => end(1));
+    child.once('close', (/** @type {number|null} */ code) => end(code === 0 ? 0 : 1));
+  });
+}
+
+/** @param {string} v @returns {number[]|null} X.Y.Z as numbers, nothing else counts */
+const semverOf = (v) => { const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v); return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null; };
+/** @param {number[]} a @param {number[]} b @returns {boolean} a is newer than b */
+const isNewer = (a, b) => { for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
+
+/**
+ * `fwdloop update` (menu 6, M4b am8) - the one online press. Exit 0: newest / updated / not updated; 1: could not reach npm, update failed.
+ * @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d @param {{lines: string[], panels: Panel[]}} [shown]
+ * @returns {Promise<number>}
+ */
+export async function updateCmd(io, d, shown) {
+  await headerOnce(io, d, shown);
+  const mine = d.version ?? readOwnVersion() ?? 'unknown';
+  /** @type {string|null} */
+  let latest = null;
+  try {
+    const res = await (d.registryFetch ?? fetch)(REGISTRY_URL, { signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS) });
+    if (res.ok) { const v = /** @type {any} */ (await res.json())?.version; if (typeof v === 'string' && semverOf(v)) latest = v; }
+  } catch { /* offline, timeout or bad JSON: the same answer */ }
+  if (latest === null) { fail(io, d, 'Could not reach npm to check. Try again later.'); return 1; }
+  const a = /** @type {number[]} */ (semverOf(latest));
+  const b = semverOf(mine) ?? [0, 0, 0];
+  if (!isNewer(a, b)) { io.out(`You have the newest fwdloop (${mine}).`); return 0; }
+  io.out(`fwdloop ${latest} is out. You have ${mine}.`);
+  if (!d.isTTY || !d.ask) { io.out(UPDATE_LATER); return 0; }
+  let answer = (await d.ask('Update now? (y/n) ')).trim().toLowerCase();
+  if (answer === '') answer = (await d.ask('Update now? (y/n) ')).trim().toLowerCase();
+  if (answer !== 'y' && answer !== 'yes') { io.out(UPDATE_LATER); return 0; }
+  const code = await (d.spawnNpm ?? runNpm)(NPM_ARGS);
+  if (code !== 0) { fail(io, d, 'The update did not finish. Run it yourself: npm install -g fwdloop@latest'); return 1; }
+  io.out(`Updated to ${latest}. Then pick 3 restart.`);
   return 0;
 }
 
@@ -497,7 +562,7 @@ export async function restartCmd(args, io, d, shown) {
 }
 
 /**
- * The bare `fwdloop` menu: header, the five choices, one question. Runs the chosen command and returns its exit code.
+ * The bare `fwdloop` menu: header, the six choices, one question. Runs the chosen command and returns its exit code.
  * @param {{out: (s: string) => void, err: (s: string) => void}} io @param {LauncherDeps & {version?: string}} d
  * @returns {Promise<number>}
  */
@@ -508,7 +573,7 @@ export async function menuCmd(io, d) {
   const P = d.paint ?? PLAIN;
   if (!P.on) io.out('');
   const n = (/** @type {string} */ k) => P.boldCyan(k);
-  const items = `${n('1')} start   ${n('2')} stop   ${n('3')} restart   ${n('4')} status   ${n('5')} install   ${n('q')} quit`;
+  const items = `${n('1')} start   ${n('2')} stop   ${n('3')} restart   ${n('4')} status   ${n('5')} install   ${n('6')} update   ${n('q')} quit`;
   io.out(P.on ? `  ${items}` : items);
   const choice = ask ? (await ask(`${P.cyan('>')} `)).trim().toLowerCase() : 'q';
   // the header is already on screen: the chosen command reuses it instead of printing it a second time
@@ -517,15 +582,16 @@ export async function menuCmd(io, d) {
   if (choice === '3' || choice === 'restart') return restartCmd([], io, d, h);
   if (choice === '4' || choice === 'status') return statusCmd(io, d, h);
   if (choice === '5' || choice === 'install') return installCmd(io, d, h);
+  if (choice === '6' || choice === 'update') return updateCmd(io, d, h);
   if (choice === '' || choice === 'q' || choice === 'quit') return 0;
-  fail(io, d, `unknown choice ${JSON.stringify(choice)} — one of: 1, 2, 3, 4, 5, q`);
+  fail(io, d, `unknown choice ${JSON.stringify(choice)} — one of: 1, 2, 3, 4, 5, 6, q`);
   return 1;
 }
 
 /**
- * The launcher doors: the bare `fwdloop` menu and `start | stop | restart | status | install` (bin/fwdloop calls this; bareloop's runLauncher in src/cli.js). All logic is above;
+ * The launcher doors: the bare `fwdloop` menu and `start | stop | restart | status | install | update` (bin/fwdloop calls this; bareloop's runLauncher in src/cli.js). All logic is above;
  * this only supplies the line reader and the colour. `deps.launcher` is the test seam for every OS touch (ports, spawn, kill, opener, clock).
- * @param {'menu'|'start'|'stop'|'restart'|'status'|'install'} cmd @param {string[]} rest
+ * @param {'menu'|'start'|'stop'|'restart'|'status'|'install'|'update'} cmd @param {string[]} rest
  * @param {{ stdin?: any, stdout?: any, stderr?: any, home?: string, root?: string, processEnv?: Record<string, string|undefined>, launcher?: LauncherDeps & {version?: string} }} deps
  * @returns {Promise<number>}
  */
@@ -537,7 +603,7 @@ export async function launcherMain(cmd, rest, deps) {
   const { ask, close } = openAsker({ stdin: deps.stdin, stdout });
   const rawEnv = deps.processEnv ?? process.env;
   const d = {
-    home: deps.home, root: deps.root, ask, paint: makePaint(stdout, rawEnv), paintErr: makePaint(stderr, rawEnv), ...(deps.launcher ?? {}),
+    home: deps.home, root: deps.root, ask, isTTY: Boolean((deps.stdin ?? process.stdin).isTTY), paint: makePaint(stdout, rawEnv), paintErr: makePaint(stderr, rawEnv), ...(deps.launcher ?? {}),
   };
   try {
     if (cmd === 'start') return await startCmd(io, d);
@@ -545,6 +611,7 @@ export async function launcherMain(cmd, rest, deps) {
     if (cmd === 'restart') return await restartCmd(rest, io, d);
     if (cmd === 'status') return await statusCmd(io, d);
     if (cmd === 'install') return await installCmd(io, d);
+    if (cmd === 'update') return await updateCmd(io, d);
     return await menuCmd(io, d);
   } finally {
     close();
