@@ -260,3 +260,36 @@ test('F4 a start the starter refuses (409) is one refused row with its say, neve
   assert.match(row.why, /already starting/);
   assert.deepEqual(f.rows().map((r) => r.outcome), ['refused']);
 });
+
+test('a fire on a job canFlowRun refuses (an old check form that no longer runs) is one refused row in the Run door\'s own sentence, nothing started, no run folder; a job that can run still starts', async () => {
+  const { createTriggerDoor } = await import('../src/panel/authortrigger.js');
+  const { willNotRunSay } = await import('../src/canrun.js');
+  const f = await fireWorld();
+  assert.equal((await setTrigger(f.w, DAILY)).status, 200);
+  const slot = JSON.parse(readFileSync(path.join(f.flowDir, 'model.json'), 'utf8')).slot;
+  const starts = [];
+  const door = createTriggerDoor({
+    root: f.w.root,
+    flowsDoor: { scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume: path.join(f.w.inDir, 'resume.md'), jd: path.join(f.w.inDir, 'jd.md') } }) },
+    starter: { canStart: () => null, start: (req) => { starts.push(req); return { status: 202, body: { ok: true, runId: 'run-1', startId: 's1' } }; } },
+    loadEnv: () => ({ ok: true, env: {}, keyNames: [slot] }),
+    monthlyClaim: () => null,
+    modelRefusal: () => [],
+    now: () => at(13, 9, 0, 10),
+  });
+  const [job] = door.scan();
+  const cause = { kind: 'clock', slot: at(13, 9), catchUp: false, missed: 0 };
+  // the retired cell cite: a green step with neither close.sheet nor close.cited
+  const steps = job.read.declaration.steps.map((s, i) => (i === 0 ? { ...s, close: { class: 'green' } } : s));
+  const old = { ...job, read: { ...job.read, declaration: { ...job.read.declaration, steps } } };
+  const row = door.fire(old, cause);
+  assert.equal(row.outcome, 'refused', JSON.stringify(row));
+  assert.match(row.why, /^This flow will not run: Line 1's check cannot cite cells any more/);
+  assert.equal(row.why, willNotRunSay('job2', `This flow will not run: Line ${steps[0].fromLine}'s check cannot cite cells any more. Draft it again to run it.`));
+  assert.deepEqual(starts, [], 'nothing started');
+  assert.deepEqual(f.runs(), [], 'no run folder');
+  assert.deepEqual(f.rows().map((r) => r.outcome), ['refused']);
+  // the same job, unmodified, still starts
+  assert.equal(door.fire(job, cause).outcome, 'started');
+  assert.equal(starts.length, 1);
+});
