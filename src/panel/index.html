@@ -5224,7 +5224,7 @@
         askWait: askWaitEl.value.trim(),
         provider: modelPick().provider,
         model: modelPick().model,
-        thinking: thinkingEl.checked && !thinkingEl.disabled,
+        thinking: thinkingEl.checked && !thinkingNone,
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
@@ -5377,6 +5377,7 @@
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
       card.querySelectorAll('input[name="jf-mode"]').forEach(function(r){ r.disabled = on || sessionLive; });
+      paintModelLock();
     }
     // top-right: Abandon while a draft is live and unsigned, else Clear
     function clearButtonFor(live, hasId){
@@ -5683,6 +5684,16 @@
     var modelEl = byId("jf-model");
     var thinkingEl = byId("jf-thinking");
     var modelLines = [];
+    var modelNone = true;      // no model to pick (none ticked, or the list could not be read): the menu stays shut
+    var thinkingNone = true;   // Thinking cannot change for the picked line (thinkingBoxState): the box stays shut
+    // M6 item 7: the card is locked as a whole, so the Model menu and the Thinking box lock with it. THE one writer of both `disabled`s:
+    // shut when the card is locked OR for their own reason above; the other sites only set the reason and call this.
+    function paintModelLock(){
+      if(!modelEl || !thinkingEl) return;   // syncCardLock can run before these two are looked up
+      var on = cardLocked();
+      modelEl.disabled = on || modelNone; modelEl.classList.toggle("locked", on);
+      thinkingEl.disabled = on || thinkingNone; thinkingEl.classList.toggle("locked", on);
+    }
     function modelPick(){
       var l = modelLines[Number(modelEl.value)];
       return l ? {provider: l.slot, model: l.model} : {provider: "", model: ""};
@@ -5696,7 +5707,8 @@
     }
     function paintThinking(){
       var st = thinkingBoxState(modelLines[Number(modelEl.value)], thinkingEl.checked);
-      thinkingEl.disabled = st.disabled; thinkingEl.checked = st.checked;
+      thinkingNone = st.disabled; thinkingEl.checked = st.checked;
+      paintModelLock();
       byId("jf-thinking-note").textContent = st.note;
       drafterModel = modelPick().model;
     }
@@ -5716,7 +5728,7 @@
     }
     runPickEl.addEventListener("change", function(){ runPicked = runPickChoice(); });
     function syncRunPick(){
-      runPickEl.innerHTML = modelEl.innerHTML; runPickEl.disabled = modelEl.disabled;
+      runPickEl.innerHTML = modelEl.innerHTML; runPickEl.disabled = modelNone;
       for(var i = 0; i < modelLines.length; i += 1){ if(modelLines[i].slot === runPicked.provider && modelLines[i].model === runPicked.model){ runPickEl.value = String(i); break; } }
     }
     // `tries` counts the reads that failed in a row (a click passes an Event, which is not a number: that is a fresh read).
@@ -5725,7 +5737,7 @@
       var failed = typeof tries === "number" ? tries : 0;
       function unread(){
         if(modelLines.length > 0) return;   // a menu that was filled keeps what it had
-        modelEl.innerHTML = ""; modelEl.disabled = true;
+        modelEl.innerHTML = ""; modelNone = true; paintModelLock();
         var o = document.createElement("option"); o.value = "";
         o.textContent = failed < 5 ? "Could not read your models. Trying again\u2026" : "Could not read your models. Reload the page.";
         modelEl.appendChild(o);
@@ -5739,12 +5751,12 @@
         modelEl.innerHTML = "";
         if(modelLines.length === 0){
           var none = document.createElement("option"); none.value = ""; none.textContent = j.say || "Tick a model in Settings > Providers."; modelEl.appendChild(none);
-          modelEl.disabled = true;
+          modelNone = true;
         } else {
-          modelEl.disabled = false;
+          modelNone = false;
           modelLines.forEach(function(l, i){ var o = document.createElement("option"); o.value = String(i); o.textContent = l.label; modelEl.appendChild(o); });
         }
-        setModelPick(was.provider, was.model);
+        setModelPick(was.provider, was.model);   // (paints the lock through paintThinking)
         syncRunPick();
       }).catch(function(){ failed += 1; unread(); });
     }
@@ -6235,7 +6247,7 @@
       openNewCard();
       setMode("new");
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
-      setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingEl.disabled;
+      setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       sessionId = d.draftId;
