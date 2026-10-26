@@ -1065,6 +1065,19 @@ Copied from bareloop's `fix/records-and-stop` branch.
 
 - *Built after signing — not signed text (2026-10-26), M4b am7 (branch `chore/bareloop-0.48`, `e56388c`):* `defaultFlowsRoot` (`src/config.js`) is the one decider of the default jobs folder, `<config home>/flows`, made 0700 (chmod only when this call made it) and, under a test process with no config home, a throw rather than a folder under the real `~/.config/fwdloop`. `bin/fwdloop` `resolveRoot` and `cmdDraft` take it when no `--root` is given; `run`, `resume`, `continue`, `draft` and `learn seed` no longer require `--root`; `src/launcher.js` uses it for the runs line and for `start`. A verb typed with no `--root` and a jobs folder that cannot be resolved names the folder, never "undefined" (`5ae9d8c`). `fwdloop status` creates the folder when it is missing, by hamr's ruling 2026-10-26 (it follows item 1 as signed). Known and accepted by hamr: 8 older runs' Resume refuses after the jobs move, because their `state.json` and `halt.json` hold absolute roots. Tests: `test/launcher-default-root.test.js`, `test/cli-jobs-folder-error.test.js`, `launcher-bin.test.js` updated.
 
+#### M4b amendment 8 — the launcher's update option, in bareloop's words — SIGNED by hamr 2026-10-26 ("sign m4b am8"), the text exactly as shown
+
+1. Menu. The top line becomes `1 start   2 stop   3 restart   4 status   5 install   6 update   q quit`. `fwdloop update` runs the same thing as a sub-command.
+2. Online only when pressed: node's own fetch to https://registry.npmjs.org/fwdloop/latest, reading `.version`, with a 5-second deadline. No `npm view`. Nothing goes online at start, in the panel, or in the background.
+3. Newest: `You have the newest fwdloop (X).`
+4. Newer: `fwdloop Y is out. You have X.` then `Update now? (y/n) `.
+   - y: runs `npm install -g fwdloop@latest` (no shell, npm's output shown). It worked: `Updated to Y. Then pick 3 restart.` It failed: `The update did not finish. Run it yourself: npm install -g fwdloop@latest` (exit code not 0).
+   - n: `Not updated. To update later: npm install -g fwdloop@latest`
+   - Enter with nothing typed asks once more; a second empty Enter counts as n. No terminal (piped input) never installs.
+5. Could not reach npm (timeout, offline, bad reply): `Could not reach npm to check. Try again later.`
+6. `5 install` with nothing to do: `Already set up. This does not update fwdloop. Pick 6 update for that.`
+7. Exit: tests cover every line above with a fake registry and a fake npm (one test able to fail), and one live press on hamr's machine against the real npm.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
