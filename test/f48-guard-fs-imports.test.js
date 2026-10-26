@@ -344,9 +344,9 @@ const ALLOWLIST = {
     names: { readFileSync: 1 },
   },
   'src/config.js': {
-    reason: 'M4d: the ONE reader/writer of the per-person config.json (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book. One read (ENOENT = nothing set); the atomic write is mkdir + tmp write + chmod 0600 + rename. Never follows into a run dir.',
+    reason: 'M4d: the ONE reader/writer of the per-person config.json (~/.config/fwdloop), a regular file OUTSIDE any run/flow dir, not a book. One read (ENOENT = nothing set); the atomic write is mkdir + tmp write + chmod 0600 + rename. M4b am7: `defaultFlowsRoot` makes the default jobs folder `<config home>/flows` (mkdir 0700, chmod 0700 only when it made it), a folder not a book, nothing read. Never follows into a run dir.',
     names: {
-      chmodSync: 1, mkdirSync: 1, readFileSync: 1, renameSync: 1, writeFileSync: 1,
+      chmodSync: 2, mkdirSync: 2, readFileSync: 1, renameSync: 1, writeFileSync: 1,
     },
   },
   'src/keysfile.js': {

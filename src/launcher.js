@@ -20,7 +20,7 @@ import { createServer } from 'node:net';
 import { openAsker } from './prompts.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readConfig, updateConfig, configPath, ConfigError } from './config.js';
+import { readConfig, updateConfig, configPath, defaultFlowsRoot, ConfigError } from './config.js';
 import { keysHome, keysFilePath, createKeysFile } from './keysfile.js';
 import { openInOs } from './opener.js';
 import { PLAIN, makePaint } from './tty-colour.js';
@@ -49,7 +49,7 @@ const RULE_WIDTH = 56;
 /**
  * @typedef {object} LauncherDeps every OS touch, injectable (a test passes all of them)
  * @property {string} [home] the fwdloop config home (`~/.config/fwdloop`, src/config.js `configHome`); undefined = the real one
- * @property {string} [root] the flows folder the runs line reads and `start` hands the panel (`--root`); default '.' like `fwdloop panel`
+ * @property {string} [root] the flows folder the runs line reads and `start` hands the panel (`--root`); default `<config home>/flows` (`defaultFlowsRoot`)
  * @property {number} [portStart] @property {number} [portCount]
  * @property {number[]} [ports] an explicit port list (tests); wins over portStart/portCount
  * @property {number} [timeoutMs] probe timeout per port
@@ -195,7 +195,7 @@ export async function buildHeader(d) {
   const first = `${P.boldCyan('fwdloop')} ${P.grey(version)}${sep}${state}${sep}${where}`;
   let second;
   try {
-    const c = countRuns(runsListForCount({ root: d.root ?? '.', ...(typeof d.now === 'number' ? { now: () => /** @type {number} */ (d.now) } : {}) }));
+    const c = countRuns(runsListForCount({ root: d.root ?? defaultFlowsRoot(d.home), ...(typeof d.now === 'number' ? { now: () => /** @type {number} */ (d.now) } : {}) }));
     second = `${P.grey('runs:')} ${c.running > 0 ? P.green(`${c.running} running`) : P.grey(`${c.running} running`)}${sep}`
       + `${c.needYou > 0 ? P.yellow(`${c.needYou} need you`) : P.grey(`${c.needYou} need you`)}${sep}${c.total} in all`;
   } catch {
@@ -387,7 +387,7 @@ export async function startCmd(io, d, shown) {
   try { mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch { /* the log open below reports it */ }
   const logFile = join(dir, 'panel.log');
   const bin = d.fwdloopBin ?? join(HERE, '..', 'bin', 'fwdloop');
-  const argv = ['panel', '--port', String(chosen), '--root', d.root ?? '.'];
+  const argv = ['panel', '--port', String(chosen), '--root', d.root ?? defaultFlowsRoot(d.home)];
   const spawnFn = d.spawnFn ?? spawnDetached;
   try {
     const child = spawnFn({ bin, argv, env: d.env ?? process.env, logPath: logFile });

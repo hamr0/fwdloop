@@ -38,6 +38,26 @@ export function configHome(home) {
 }
 
 /**
+ * M4b am7: the ONE decider of the default jobs folder, `<config home>/flows`, used by every verb given no `--root` (the current
+ * folder is never the default). Made 0700 if missing (chmod only when this call made it, so umask cannot loosen it and an
+ * existing folder is never touched). Under a test process with no explicit home and no `FWDLOOP_CONFIG_HOME` it THROWS rather
+ * than make a folder under the real ~/.config/fwdloop (the same door as `configDoorHome`).
+ * @param {string} [home] test seam; production never passes it
+ * @returns {string}
+ */
+export function defaultFlowsRoot(home) {
+  let base = home;
+  if (base === undefined) {
+    const door = configDoorHome();
+    if (door.skip) throw new Error('a test process has no config home for the default jobs folder (set FWDLOOP_CONFIG_HOME or pass --root)');
+    base = door.home;
+  }
+  const root = join(configHome(base), 'flows');
+  if (mkdirSync(root, { recursive: true, mode: 0o700 }) !== undefined) chmodSync(root, 0o700);
+  return root;
+}
+
+/**
  * @param {string} [home]
  * @returns {string} `<home>/config.json`
  */

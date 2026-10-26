@@ -40,7 +40,7 @@ import {
 } from '../src/provider.js';
 import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
 import { readRunInputs } from '../src/runfile.js';
-import { configDoorHome } from '../src/config.js';
+import { configDoorHome, defaultFlowsRoot } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
 } from '../src/monthly.js';
@@ -145,7 +145,8 @@ function fail(message) {
  */
 function resolveRoot(cmd, given) {
   try {
-    return realpathSync(resolve(given));
+    // M4b am7: no `--root` = the ONE default (`defaultFlowsRoot`: <config home>/flows), never the current folder
+    return realpathSync(given === undefined ? defaultFlowsRoot() : resolve(given));
   } catch (err) {
     if (err.code === 'ENOENT') fail(`${cmd}: --root "${given}" does not exist`);
     fail(`${cmd}: --root "${given}" cannot be resolved: ${err.code ?? err.message}`);
@@ -326,7 +327,6 @@ async function cmdRun(rest) {
 
   const flowName = positionals[0];
   if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
-  if (!values.root) fail('run: --root <dir> is required');
 
   const root = resolveRoot('run', values.root);
   const nameCheck = checkFlowName(flowName);
@@ -444,7 +444,7 @@ async function cmdRun(rest) {
   });
 
   for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
-  reportRunResult(result, { rootArg: values.root });
+  reportRunResult(result, { rootArg: values.root ?? root });
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +456,7 @@ function cmdInbox(rest) {
     args: rest,
     options: { root: { type: 'string' } },
   });
-  const root = resolveRoot('inbox', values.root ?? '.');
+  const root = resolveRoot('inbox', values.root);
 
   const rows = [];
   // F48 round 3: flow/run identity is walked via `listFlowNames`/
@@ -552,7 +552,7 @@ function cmdShow(rest) {
   const [askId] = positionals;
   if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
 
-  const root = resolveRoot('show', values.root ?? '.');
+  const root = resolveRoot('show', values.root);
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`show: no open ask found for askId "${askId}" under ${root}`);
 
@@ -609,7 +609,7 @@ function cmdAnswer(rest) {
   if (!askId) fail('answer: an askId is required — fwdloop answer <askId> accept|redo "<reason>"|rerun "<reason>"');
   if (!decision) fail(`answer: a decision (accept|redo|rerun) is required for askId "${askId}"`);
 
-  const root = resolveRoot('answer', values.root ?? '.');
+  const root = resolveRoot('answer', values.root);
   const runDir = findRunDirByAskId(root, askId);
   if (!runDir) fail(`answer: no open ask found for askId "${askId}" under ${root}`);
 
@@ -639,7 +639,6 @@ async function cmdResume(rest) {
   const runId = positionals[0];
   if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> --root <dir>');
   if (!values.flow) fail('resume: --flow <name> is required');
-  if (!values.root) fail('resume: --root <dir> is required');
 
   const root = resolveRoot('resume', values.root);
   const flowName = values.flow;
@@ -716,7 +715,7 @@ async function cmdResume(rest) {
   });
 
   for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
-  reportRunResult(result, { rootArg: values.root });
+  reportRunResult(result, { rootArg: values.root ?? root });
 }
 
 // ---------------------------------------------------------------------------
@@ -739,7 +738,6 @@ async function cmdContinue(rest) {
   const runId = positionals[0];
   if (!runId) fail('continue: a runId is required — fwdloop continue <runId> --flow <name> --root <dir>');
   if (!values.flow) fail('continue: --flow <name> is required');
-  if (!values.root) fail('continue: --root <dir> is required');
 
   const root = resolveRoot('continue', values.root);
   const flowName = values.flow;
@@ -802,7 +800,7 @@ async function cmdContinue(rest) {
   });
 
   for (const d of rerunDirs(result, join(root, flowName))) hold.addRunDir(d);
-  reportRunResult(result, { rootArg: values.root });
+  reportRunResult(result, { rootArg: values.root ?? root });
 }
 
 // ---------------------------------------------------------------------------
@@ -823,7 +821,7 @@ async function cmdPanel(rest) {
       root: { type: 'string' },
     },
   });
-  const root = resolveRoot('panel', values.root ?? '.');
+  const root = resolveRoot('panel', values.root);
 
   const argv = ['--root', root];
   if (values.port) argv.push('--port', values.port);
@@ -863,7 +861,7 @@ async function cmdDraft(rest) {
   const { env } = keysLoad;
   const proseFile = positionals[0];
   if (!proseFile) fail('draft: a prose file is required — fwdloop draft <prose.txt> --out <draftDir> --root <flowsDir> --name <flow>');
-  for (const req of ['out', 'root', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
+  for (const req of ['out', 'name']) if (!values[req]) fail(`draft: --${req} is required`);
 
   const leftRules = [];
   for (const pair of values.left === undefined ? [] : values.left.split(',')) {
@@ -926,7 +924,7 @@ async function cmdDraft(rest) {
     proseFile: resolve(proseFile),
     proseRead,
     dir: resolve(values.out),
-    root: resolve(values.root),
+    root: values.root === undefined ? defaultFlowsRoot() : resolve(values.root),
     name: values.name,
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
@@ -996,7 +994,6 @@ function cmdLearn(rest) {
   const [sub, ...args] = rest;
   if (sub !== 'seed') fail('learn: expected "seed" — fwdloop learn seed --root <flows folder>');
   const { values } = parseArgs({ args, options: { root: { type: 'string' } } });
-  if (!values.root) fail('learn seed: --root <flows folder> is required');
   const root = resolveRoot('learn seed', values.root);
   const r = seedLedger({ root });
   if (r.skippedNoDoor) fail('learn seed: a test process has no config home (set FWDLOOP_CONFIG_HOME)');
@@ -1010,11 +1007,11 @@ function cmdLearn(rest) {
 
 /**
  * M4b am4/am5 (the launcher): a bare `fwdloop` shows the menu; `start | stop | restart | status | install` are its five choices as verbs. All logic is src/launcher.js.
- * `--root <flows folder>` (default '.', like `fwdloop panel`) is the folder the runs line reads and `start` hands the panel; the config home is the real ~/.config/fwdloop.
+ * `--root <flows folder>` (default <config home>/flows, M4b am7) is the folder the runs line reads and `start` hands the panel; the config home is the real ~/.config/fwdloop.
  */
 async function cmdLauncher(cmd, rest) {
   const at = rest.indexOf('--root');
-  const given = at === -1 ? '.' : rest[at + 1];
+  const given = at === -1 ? undefined : rest[at + 1];
   if (at !== -1 && (given === undefined || given.startsWith('--'))) fail(`${cmd}: --root needs a folder`);
   const args = at === -1 ? rest : rest.filter((_, i) => i !== at && i !== at + 1);
   process.exitCode = await launcherMain(cmd, args, { root: resolveRoot(cmd, given) });
