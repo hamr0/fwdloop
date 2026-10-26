@@ -105,8 +105,9 @@ export function providerFieldProblem(field, v) {
   return null;
 }
 
-/** A Base URL as stored: trailing slashes dropped. */
-export const cleanBaseUrl = (v) => v.replace(/\/+$/, '');
+/** A Base URL as stored: trailing slashes dropped. The lookbehind starts the match only at the start of a run of slashes, so a long run is linear.
+ *  // borrowed-from: bareloop src/config.js@v0.48.0 (ed3a110) */
+export const cleanBaseUrl = (v) => v.replace(/(?<!\/)\/+$/, '');
 
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
