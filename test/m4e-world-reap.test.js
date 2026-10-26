@@ -3,13 +3,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, chmodSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, chmodSync, rmSync, readdirSync, readFileSync } from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { reapChildren, killBarebrowseOf } from './m4e-world.mjs';
+import { reapChildren } from './m4e-world.mjs';
 import { procStartOf } from '../src/liveness.js';
 
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const until = async (fn, ms = 5000) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) return false; await new Promise((r) => { setTimeout(r, 25); }); } return true; };
 
@@ -41,41 +43,40 @@ test('reapChildren kills a child spawned by a panel close', async () => {
   }
 });
 
-test('reapChildren also kills the chromium a killed child left behind, and removes its profile dir', async () => {
+test('reapChildren on a child that is mid page fetch leaves no chromium (barebrowse tethers it to the child)', { skip: SKIP && 'no browser' }, async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-reap-'));
-  const script = path.join(root, 'fwdloop');
-  writeFileSync(script, 'setInterval(() => {}, 1000);\n');
+  // a page that starts answering and never finishes, so the child's real fetchPageText stays inside barebrowse with a live chromium
+  const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.write(`<html><body>${'x'.repeat(2000)}`); });
+  await new Promise((r) => { srv.listen(0, '127.0.0.1', r); });
+  const url = `http://127.0.0.1:${srv.address().port}/`;
+  const script = path.join(root, 'fwdloop'); // liveness names the script `fwdloop`
+  const src = new URL('../src/pagefetch.js', import.meta.url).href;
+  const bb = new URL('../node_modules/barebrowse/src/index.js', import.meta.url).href;
+  // the one deviation from production: the private-network block is off, or the loopback page would be refused before it hangs
+  writeFileSync(script, `import { fetchPageText } from ${JSON.stringify(src)};\nimport { connect } from ${JSON.stringify(bb)};\n`
+    + `await fetchPageText(${JSON.stringify(url)}, { connect: (o) => connect({ ...o, blockPrivateNetwork: false }), timeoutMs: 120000, idleTimeoutMs: 120000 });\n`);
   chmodSync(script, 0o755);
   const c = spawn(process.execPath, [script], { detached: true, stdio: 'ignore' });
   c.unref();
-  // a stand-in for barebrowse's detached chromium: its own process group, profile dir stamped with the CHILD's pid, outliving the child
-  const udd = path.join(tmpdir(), `barebrowse-${c.pid}-${Date.now()}`);
-  mkdirSync(udd, { recursive: true });
-  const ch = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', '--', `--user-data-dir=${udd}`, 'about:blank'], { detached: true, stdio: 'ignore' });
-  ch.unref();
-  // a bystander with a different pid in its dir name must survive
-  const other = path.join(tmpdir(), `barebrowse-${c.pid + 1000000}-${Date.now()}`);
-  mkdirSync(other, { recursive: true });
-  const by = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', '--', `--user-data-dir=${other}`, 'about:blank'], { detached: true, stdio: 'ignore' });
-  by.unref();
+  const chromiumOf = (pid) => readdirSync('/proc').filter((n) => /^\d+$/.test(n)).filter((n) => {
+    try { return readFileSync(`/proc/${n}/cmdline`, 'utf8').includes(`/barebrowse-${pid}-`); } catch { return false; }
+  });
   try {
     const dir = path.join(root, '.starts', 'x');
     mkdirSync(dir, { recursive: true });
     await until(() => procStartOf(c.pid) !== null);
     writeFileSync(path.join(dir, 'pid.json'), JSON.stringify({ pid: c.pid, procStart: procStartOf(c.pid) }));
-    await new Promise((r) => { setTimeout(r, 300); }); // let both argv's settle in /proc
+    assert.ok(await until(() => chromiumOf(c.pid).length > 0, 30000), 'the child started a chromium (the test must see one to prove it is gone)');
     await reapChildren([root], []);
     assert.ok(await until(() => !alive(c.pid)), 'the child is dead');
-    assert.ok(await until(() => !alive(ch.pid)), `the chromium on ${udd} (pid ${ch.pid}) is still alive after reapChildren`);
-    assert.equal(existsSync(udd), false, 'its profile dir is removed');
-    assert.equal(alive(by.pid), true, 'a chromium stamped with another pid is not touched');
-    assert.equal(existsSync(other), true);
+    assert.ok(await until(() => chromiumOf(c.pid).length === 0, 15000), `chromium for child ${c.pid} is still alive after reapChildren`);
   } finally {
-    for (const p of [c.pid, ch.pid, by.pid]) { try { process.kill(-p, 'SIGKILL'); } catch { /* gone */ } }
-    rmSync(udd, { recursive: true, force: true });
-    rmSync(other, { recursive: true, force: true });
+    for (const n of chromiumOf(c.pid)) { try { process.kill(Number(n), 'SIGKILL'); } catch { /* gone */ } }
+    try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ }
+    // chromium's profile dirs, only this child's pid (barebrowse-<pid>-*)
+    for (const d of readdirSync(tmpdir())) if (d.startsWith(`barebrowse-${c.pid}-`)) rmSync(path.join(tmpdir(), d), { recursive: true, force: true });
+    srv.closeAllConnections();
+    srv.close();
     rmSync(root, { recursive: true, force: true });
   }
 });
-
-test('killBarebrowseOf with no pids does nothing', () => { killBarebrowseOf([]); });

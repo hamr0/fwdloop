@@ -7,13 +7,13 @@ import {
   readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync,
 } from 'node:fs';
 import path from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { mkdtempSync } from '../../scripts/tmp-track.mjs';
 import { ceilingCostUsd } from '../../src/provider.js';
 import {
   runBatch, evaluate, totals, paired, stepsOf, injectionProof, sampleCap, gateJobs, loadPool, SPEND_STOP_USD, PER_ARM, SIGNER, SLOT, MIN_SAMPLE_CAP_USD,
 } from './run.mjs';
-import { withCap, JOB_CAP_USD, loadJobs, FLOWS_ROOT } from './notes.mjs';
+import { withCap, JOB_CAP_USD, loadJobs } from './notes.mjs';
 import { HINT_HEADER } from './learn-ours.mjs';
 import { armProvider, DRAFTER_PROMPT_START } from '../m8-refused/run.mjs';
 import { HINT_HEADER as F80_HEADER } from '../m8-refused/learn-poc.mjs';
@@ -288,8 +288,10 @@ test('constants: HINT_HEADER is the one string F80 used; the stop line is the 2.
   assert.throws(() => withCap('no cap line here', 0.1), /no cap line/);
 });
 
-test('the real jobs (only where flows/ exists): each block is a hint block, every input reads and every send folder is allowed', { skip: !existsSync(path.join(FLOWS_ROOT, 'm7-walk-2', 'prose.txt')) || !existsSync(path.join(FLOWS_ROOT, 'm10b-expenses', 'prose.txt')) }, () => {
-  const jobs = loadJobs();
+// M4b am7: the jobs live in ~/.config/fwdloop/flows (read-only here); a machine without them skips.
+const JOBS_ROOT = path.join(homedir(), '.config', 'fwdloop', 'flows');
+test('the real jobs (only where the jobs folder exists): each block is a hint block, every input reads and every send folder is allowed', { skip: !existsSync(path.join(JOBS_ROOT, 'm7-walk-2', 'prose.txt')) || !existsSync(path.join(JOBS_ROOT, 'm10b-expenses', 'prose.txt')) }, () => {
+  const jobs = loadJobs(JOBS_ROOT);
   assert.deepEqual(jobs.map((j) => j.id), ['m7-walk-2', 'm10b-expenses']);
   for (const j of jobs) assert.ok(j.hint.startsWith(HINT_HEADER) && j.hint.length <= 2000);
   gateJobs(jobs, path.join(tmpdir(), 'x'));

@@ -25,6 +25,7 @@ import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.j
 import { endRow, readHistory } from '../books.js';
 import { appendRow } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
+import { canFlowRun, willNotRunSay } from '../canrun.js';
 import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
 } from '../flow.js';
@@ -398,6 +399,9 @@ export function createTriggerDoor(opts) {
         read = /** @type {any} */ (kept);
         planRun = planRec.run;
       }
+      // the Run door's own `canFlowRun` (a retired check form, an unwired verb), on the plan this fire runs, in the Run door's own sentence: refused at $0, nothing started
+      const can = canFlowRun(read);
+      if (!can.ok) return done({ outcome: 'refused', why: willNotRunSay(flow, String(can.red)) });
       const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
       if (claim && 'problem' in claim) return done({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
       if (claim && !claim.ok) return done({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });

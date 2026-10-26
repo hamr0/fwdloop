@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/prompts.js@1bad2c8 (openAsker only; askRequired and the menu changes are not copied)
+// borrowed-from: bareloop src/prompts.js@v0.48.0 (openAsker only; askRequired and the menu changes are not copied)
 // The CLI's one line-asker. Every prompt in the launcher reads through this, so a closed stdin behaves the same everywhere.
 
 import { createInterface } from 'node:readline';

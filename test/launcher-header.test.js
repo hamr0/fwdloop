@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { countRuns, installState, probePanels, headerLines } from '../src/launcher.js';
 import { createPanelServer, panelUrl, runsListForCount } from '../src/panel/server.js';
 import {
-  V, scratch, closers, closeAll, parkedRoot, fakePanel,
+  V, scratch, closers, closeAll, parkedRoot, fakePanel, freeBase,
 } from './launcher-world.mjs';
 
 after(closeAll);
@@ -70,7 +70,7 @@ test('installState: missing folder, missing config, bad config, missing/loose .e
 });
 
 test('probePanels: fwdloop answers win, a non-fwdloop answer (even a bareloop one) and a closed port are skipped; several are all listed', async () => {
-  const base = 41000 + Math.floor(Math.random() * 15000);
+  const base = await freeBase();
   const a = await fakePanel(base, { drafts: 1 });
   const b = await fakePanel(base + 1);
   const other = await fakePanel(base + 2, { app: 'bareloop' });
@@ -84,7 +84,7 @@ test('probePanels: fwdloop answers win, a non-fwdloop answer (even a bareloop on
 test('headerLines: the two lines, installed + panel running; not installed + panel not running; zero parts still show', async () => {
   const root = scratch();
   const home = join(root, 'fl');
-  const p = await fakePanel(41000 + Math.floor(Math.random() * 15000));
+  const p = await fakePanel(await freeBase());
   const empty = join(root, 'flows');
   mkdirSync(empty);
   const noHome = await headerLines({ home, root: empty, ports: [1], version: V, nodeVersion: '22.1.0', timeoutMs: 100 });

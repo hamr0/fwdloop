@@ -87,11 +87,13 @@ test('an address with a password, a secret shape, or not http is refused before 
   assert.equal(fc.calls.connect.length, 0);
 });
 
-test('barebrowse older than 0.21.0 is refused (it would drop incognito and the private-network guard in silence)', () => {
+test('barebrowse older than 0.24.1 is refused (it would drop incognito and the private-network guard in silence)', () => {
   assert.equal(barebrowseNewEnough('0.5.9'), false);
   assert.equal(barebrowseNewEnough('0.20.9'), false);
-  assert.equal(barebrowseNewEnough('0.21.0'), true);
-  assert.equal(barebrowseNewEnough('0.23.0'), true);
+  assert.equal(barebrowseNewEnough('0.21.0'), false);
+  assert.equal(barebrowseNewEnough('0.24.0'), false);
+  assert.equal(barebrowseNewEnough('0.24.1'), true);
+  assert.equal(barebrowseNewEnough('0.25.0'), true);
   assert.equal(barebrowseNewEnough('1.0.0'), true);
 });
 

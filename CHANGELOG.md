@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 2026-10-26
+
+M4b amendment 7 (all jobs live in one folder), barebrowse 0.24.1, honest spend rows, a scheduled-run
+fix, and the M10b exit (sheet checks through bareguard; the aging job is green on deepseek-flash).
+
+### Changed
+- With no `--root`, every command uses `~/.config/fwdloop/flows`, never the current folder. The folder
+  is made if it is missing, even by `status`. `--root <folder>` still overrides it. `run`, `resume`,
+  `continue`, `draft` and `learn seed` no longer require `--root`.
+- Upgrade note: jobs kept anywhere else (for example a `flows/` folder in the folder you used to start
+  from) must be moved into `~/.config/fwdloop/flows` or opened with `--root`. A run that was stopped and
+  offered Resume before such a move is refused on Resume (it recorded the old folder); listing,
+  opening and books still work.
+- barebrowse `^0.24.1` is now required for a web page input. It keeps its browser tied to the run, so a
+  killed run or an Abandoned draft leaves no browser behind. An older barebrowse is refused by name.
+- The job card's Model menu and Thinking box lock with the rest of the card while a draft is live.
+- README: a walkthrough GIF of a real flights run (Job, Run, Ask, Audit, Result).
+
+### Fixed
+- A scheduled run on a job that can no longer run (a retired check form) is refused at $0 and starts
+  nothing, instead of leaving a red run folder every day.
+- An audit row whose retry cost is unknown is no longer marked complete (red and stopped rows); the
+  panel shows "at least".
+- A jobs-folder error with no `--root` names the folder instead of `--root "undefined"`.
+- The base URL trailing-slash cleanup is linear (copied from bareloop v0.48.0).
+
 ## [0.25.1] - 2026-10-25
 
 A fix for CSV files saved by Excel.

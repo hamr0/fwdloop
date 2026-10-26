@@ -1,4 +1,4 @@
-// Shared by the launcher tests (M4b am4/am5). Scratch dirs only (removed at exit by scripts/tmp-track.mjs), a free HIGH port range (never 4800-4809),
+// Shared by the launcher tests (M4b am4/am5). Scratch dirs only (removed at exit by scripts/tmp-track.mjs), a free port range below the kernel's ephemeral range (never 4800-4809),
 // fake panels that answer /api/whoami, a real in-process panel for the probe, and a signed job whose run is parked at its ask (the runs line has
 // something to count). Nothing here touches the real HOME, ~/.config/fwdloop, or a real panel.
 import {
@@ -30,10 +30,10 @@ export async function closeAll() {
 
 /** @param {number} port @returns {Promise<boolean>} */
 const bindable = (port) => new Promise((res) => { const s = netServer(); s.once('error', () => res(false)); s.listen(port, '127.0.0.1', () => s.close(() => res(true))); });
-/** a base such that base..base+3 are free, in a high range (never the panel's own 4800-4809) */
+/** a base such that base..base+3 are free. Picked below the kernel's ephemeral range (32768-60999) so no other test's outgoing socket or listen(0) can be handed the port between this check and the start; never the panel's own 4800-4809. Copied from bareloop tests/launcher-commands.test.js@v0.48.0 (f1819ca). */
 export async function freeBase() {
   for (let i = 0; i < 200; i += 1) {
-    const base = 41000 + Math.floor(Math.random() * 20000);
+    const base = 20000 + Math.floor(Math.random() * 12000);
     const all = await Promise.all([0, 1, 2, 3].map((k) => bindable(base + k)));
     if (all.every(Boolean)) return base;
   }

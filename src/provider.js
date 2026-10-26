@@ -21,7 +21,7 @@ import {
 import { dirname, basename } from 'node:path';
 import { readFileInside } from './flow.js';
 import { appendRow } from './jsonl-append.js';
-import { readConfig, configDoorHome } from './config.js';
+import { readConfig, configDoorHome, cleanBaseUrl } from './config.js';
 import { isKeyName } from './keysfile.js';
 import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
 
@@ -81,7 +81,7 @@ export function resolveSlot(slotName, { config = {} } = {}) {
     // F11: some providers ignore `max_completion_tokens`; only the legacy `max_tokens` key bounds their output. A per-row tick in Settings.
     legacyMaxTokens: saved.legacyMaxTokens === true && shape === 'openai-api',
     shape,
-    baseUrl: typeof saved.baseUrl === 'string' ? saved.baseUrl.replace(/\/+$/, '') : '',
+    baseUrl: typeof saved.baseUrl === 'string' ? cleanBaseUrl(saved.baseUrl) : '',
   };
 }
 

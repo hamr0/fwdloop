@@ -28,6 +28,13 @@ change.
 It is built mainly for that shape of work: gather, decide, pause, hand off, continue. Not a
 general agent. Not a chat bot. A workflow that a person can read, approve, rerun, and edit.
 
+## See it
+
+A real past run: a job that reads a public flights page, lists 3 Madrid→Rome flights, asks a
+human to check them, then writes the result out. Shown across the panel's Job, Run, Ask, Audit and Result tabs.
+
+<img src="https://raw.githubusercontent.com/hamr0/fwdloop/main/docs/media/walkthrough.gif" alt="fwdloop panel walkthrough: Job, Run, Ask, Audit, Result" width="100%">
+
 ## Where it comes from
 
 fwdloop carries forward what the bare suite learned about agentic automation: how to author
@@ -60,7 +67,7 @@ standalone.
 
 ## Status
 
-Work in progress. Nothing here is ready to install yet.
+Work in progress, on npm as `fwdloop` (`npm install -g fwdloop`); expect changes between versions. `fwdloop` with no arguments opens a menu to start the panel. All jobs live in `~/.config/fwdloop/flows`, next to the settings; `--root <folder>` points a command somewhere else.
 
 The in-run `impact` tool needs ripgrep (`rg`) on PATH; without it the tool is refused with a message, never a wrong answer.
 

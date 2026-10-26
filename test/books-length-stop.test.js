@@ -75,3 +75,48 @@ test('books: the cap check sees the length-stop spend, so costly no-artifact tri
   const hist = readHistory(w.flowDir).at(-1);
   assert.ok(Math.abs(hist.spentUsd - auditSum(w.runDir)) < 1e-9, `history ${hist.spentUsd} vs audit ${auditSum(w.runDir)}`);
 });
+
+// Unknown cost never reads "complete": a transport fault with a known floor, then a same-attempt retry that fails with NO known cost
+// (no usage on the reply), is a red row at the floor that says spendComplete false - and a later green try never flips the run back.
+test('books: a red row whose retry cost is unknown is not spendComplete (usd stays the known floor), and a later green try keeps the run "at least"', async () => {
+  const w = mk('unknown-retry');
+  let calls = 0;
+  const modelStep = async (ctx) => {
+    const emits = emitsOf(ctx);
+    if (emits !== 'resume-summary') return { ok: true, costUsd: 0.001, turns: 1, artifact: { text: emits, done: true } };
+    calls += 1;
+    if (calls === 1) return { ok: false, transport: true, costUsd: 0.01, red: 'ECONNRESET' };
+    if (calls === 2) return { ok: false, red: 'truncated: no usage, no tool call', costUsd: null, turns: 1 };
+    return { ok: true, costUsd: 0.001, turns: 1, artifact: { text: '# summary of work history blurb\nx\n# professional skills\nx\n# soft skills\nx', done: true } };
+  };
+  const r = await runFlow({ ...args(w, modelStep), askStep: async () => ({ decision: 'accept' }) });
+  assert.notEqual(r.outcome, 'attempt-fallback', r.red);
+  const row = readAudit(w.runDir).find((x) => x.attempt === 1 && x.verdict === 'red' && String(x.gap).startsWith('truncated: no usage'));
+  assert.ok(row, 'the attempt-1 red row is on the audit');
+  assert.equal(row.usd, 0.01, 'usd is the known floor, never 0');
+  assert.equal(row.spendComplete, false, 'a retry whose cost is unknown is not complete spend');
+  const hist = readHistory(w.flowDir).at(-1);
+  assert.equal(hist.spendComplete, false, 'a later green try with a known cost does not flip the run back to complete');
+  assert.ok(Math.abs(hist.spentUsd - auditSum(w.runDir)) < 1e-9, `history ${hist.spentUsd} vs audit ${auditSum(w.runDir)}`);
+});
+
+// Same rule on the stopped row: a transport fault with a known floor, then a retry that is Stopped with NO known cost, is "at least" the floor.
+test('books: a stopped row whose retry cost is unknown is not spendComplete (usd stays the known floor)', async () => {
+  const w = mk('unknown-stop');
+  let calls = 0;
+  const modelStep = async (ctx) => {
+    const emits = emitsOf(ctx);
+    if (emits !== 'resume-summary') return { ok: true, costUsd: 0.001, turns: 1, artifact: { text: emits, done: true } };
+    calls += 1;
+    if (calls === 1) return { ok: false, transport: true, costUsd: 0.01, red: 'ECONNRESET' };
+    return { ok: false, stopped: true, red: 'stopped by you', costUsd: null, turns: 1 };
+  };
+  await runFlow({ ...args(w, modelStep), askStep: async () => ({ decision: 'accept' }) });
+  const row = readAudit(w.runDir).find((x) => x.verdict === 'stopped');
+  assert.ok(row, 'the stopped row is on the audit');
+  assert.equal(row.usd, 0.01, 'usd is the known floor, never 0');
+  assert.equal(row.spendComplete, false, 'a stopped retry whose cost is unknown is not complete spend');
+  const hist = readHistory(w.flowDir).at(-1);
+  assert.equal(hist.spendComplete, false);
+  assert.ok(Math.abs(hist.spentUsd - auditSum(w.runDir)) < 1e-9, `history ${hist.spentUsd} vs audit ${auditSum(w.runDir)}`);
+});

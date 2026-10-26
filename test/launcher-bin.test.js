@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { statSync, readFileSync, existsSync } from 'node:fs';
+import { statSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
@@ -65,7 +65,8 @@ test('`fwdloop status` prints the header first, then either the panels or "Panel
   assert.match(r.stdout.split('\n')[0], HEADER1);
   if (r.stdout.includes('Panel not running.')) assert.equal(r.status, 3);
   else assert.equal(r.status, 0);
-  assert.equal(existsSync(join(home, '.config')), false, 'status creates nothing');
+  // M4b am7 item 1: the default jobs folder is made (0700) if missing, by whichever verb runs first; nothing else is created
+  assert.deepEqual(readdirSync(join(home, '.config', 'fwdloop')), ['flows'], 'status creates only the default jobs folder');
 });
 
 test('`fwdloop stop --port 4800` is refused (am5 item 1: stop --port is removed) and `fwdloop start --root` needs an existing folder', () => {

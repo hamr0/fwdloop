@@ -3,7 +3,7 @@
 // the test model step (both $0). Everything lives under mkdtemp dirs removed at exit; `killChildren` kills every child a
 // test left running (the draft and start folders' pid files). Never touches the real HOME or config home.
 import {
-  appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync,
+  appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -50,32 +50,13 @@ function killListedChildren(roots, signal = 'SIGKILL') {
   return hit;
 }
 
-/** barebrowse starts chromium detached, with --user-data-dir=<tmp>/barebrowse-<the pid of the node process that launched it>-<ms>. When that node process
- *  dies without its handler (a SIGKILL, which the fallback below sends under load), the chromium lives on, reparented. Kill what is left on the
- *  profile dirs of the pids we just killed, and remove those dirs. Only the exact pid-stamped dir of a pid this reaper killed is touched. */
-export function killBarebrowseOf(pids) {
-  if (pids.length === 0) return;
-  const want = new RegExp(`--user-data-dir=(\\S*/barebrowse-(?:${pids.join('|')})-\\d+)(?:\\s|$)`);
-  /** @type {Set<string>} */
-  const dirs = new Set();
-  for (const n of readdirSync('/proc').filter((x) => /^\d+$/.test(x))) {
-    try {
-      const m = want.exec(readFileSync(`/proc/${n}/cmdline`, 'utf8').replace(/\0/g, ' '));
-      if (m) { dirs.add(m[1]); process.kill(Number(n), 'SIGKILL'); }
-    } catch { /* gone, or not ours to read */ }
-  }
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
-}
-
 /** A child that is mid page-fetch owns a chromium that barebrowse started detached (its own process group): a SIGKILL cannot reach it
- *  and it is orphaned. SIGTERM lets barebrowse's own handler reap it; wait for the child to exit, then SIGKILL what is left,
- *  then sweep any chromium that child's barebrowse left behind (under load the child may not finish its own cleanup in time). */
+ *  and it is orphaned. SIGTERM lets barebrowse's own handler reap it; wait for the child to exit, then SIGKILL what is left. */
 async function termThenKill(roots) {
   const hit = killListedChildren(roots, 'SIGTERM');
   const gone = (pid) => isFwdloopAlive(pid, null) !== true;
   for (let i = 0; i < 100 && !hit.every(gone); i++) await sleep(50);
-  const late = killListedChildren(roots);
-  killBarebrowseOf([...new Set([...hit, ...late])]);
+  killListedChildren(roots);
 }
 
 /**
@@ -86,7 +67,7 @@ async function termThenKill(roots) {
 export async function reapChildren(roots = ROOTS, handles = HANDLES) {
   await Promise.all(handles.map((h) => h.close()));
   await termThenKill(roots);
-  killBarebrowseOf(killListedChildren(roots));
+  killListedChildren(roots);
 }
 
 /** Close every panel, then kill every child a test started (drafts and starts). Call once per test file. */
