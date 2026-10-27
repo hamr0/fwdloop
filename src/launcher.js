@@ -4,7 +4,7 @@
 // `readOwnVersion`; `start` spawns through src/panel/spawn.js `spawnDetached` (detached = its own session, log opened 0600 and appended) with `--root <flows folder>`;
 // install creates the keys file with `createKeysFile`; the silent-port words are M4b am5 item 3's (bareloop 6d10023, unreleased); `launcherMain` is the entry bin/fwdloop calls
 // (bareloop's runLauncher in cli.js). M4b am4 + am5.
-// M4b am8 (built from the signed text): `6 update` / `fwdloop update` - the only online touch in this file, and only when pressed: node's own fetch of
+// M4b am8/am9 (built from the signed text; am9: the typed `fwdloop update` ends "Then run fwdloop restart.", the menu keeps "pick 3 restart"): `6 update` / `fwdloop update` - the only online touch in this file, and only when pressed: node's own fetch of
 // registry.npmjs.org/fwdloop/latest (`.version`, 5 s), a plain X.Y.Z compare, a y/n, then `npm install -g fwdloop@latest` (no shell, npm's output shown, a 5-minute
 // deadline that kills only its own child; the number is the builder's, not signed). Piped input (no terminal) never asks and never installs.
 //
@@ -346,7 +346,8 @@ export async function updateCmd(io, d, shown) {
   if (answer !== 'y' && answer !== 'yes') { io.out(UPDATE_LATER); return 0; }
   const code = await (d.spawnNpm ?? runNpm)(NPM_ARGS);
   if (code !== 0) { fail(io, d, 'The update did not finish. Run it yourself: npm install -g fwdloop@latest'); return 1; }
-  io.out(`Updated to ${latest}. Then pick 3 restart.`);
+  // am9: the menu says pick 3; the typed sub-command has no menu (`shown` is the menu's header, as statusCmd uses it)
+  io.out(shown ? `Updated to ${latest}. Then pick 3 restart.` : `Updated to ${latest}. Then run fwdloop restart.`);
   return 0;
 }
 
