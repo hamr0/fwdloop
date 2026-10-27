@@ -388,6 +388,16 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
         sources.push({ role, kind: 'page', path });
         continue;
       }
+      if (kind.toLowerCase() === 'tickets') {
+        // M12 item 5: a ticket list's address is signed with the job (`source <role> = tickets:<http(s) list address>`)
+        if (!/^https?:\/\/[^\s/?#]+/i.test(path)) {
+          reds.push(`arbiter: line ${fileLine} field "sources" tickets list address must be a full http:// or https:// address: "${text}"`);
+          continue;
+        }
+        sourceRolesSeen.add(role);
+        sources.push({ role, kind: 'ticket', path });
+        continue;
+      }
       if (kind.toLowerCase() !== 'file') {
         reds.push(`arbiter: line ${fileLine} field "sources" source kind "${kind}" is not available until M9`);
         continue;

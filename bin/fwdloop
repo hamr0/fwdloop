@@ -53,7 +53,7 @@ import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
-import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
+import { pageAddressesOf, pageAddressRefusal, ticketListsOf, ticketUnderList, ticketRefusal } from '../src/pagefetch.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
@@ -357,7 +357,12 @@ async function cmdRun(rest) {
     if (Object.hasOwn(parsedSources, role) && parsedSources[role] !== pages[role]) fail(`run: ${pageAddressRefusal(role, pages[role])}`);
     parsedSources[role] = pages[role];
   }
-  for (const role of Object.keys(parsedSources)) if (!Object.hasOwn(pages, role)) parsedSources[role] = resolve(parsedSources[role]);
+  // M12 item 7: a ticket input's address is the run's own, and it must be one ticket of the signed list; anything else is refused at $0
+  const tickets = ticketListsOf(read.arbiter);
+  for (const role of Object.keys(tickets)) {
+    if (Object.hasOwn(parsedSources, role) && !ticketUnderList(parsedSources[role], tickets[role])) fail(`run: ${ticketRefusal(role, tickets[role])}`);
+  }
+  for (const role of Object.keys(parsedSources)) if (!Object.hasOwn(pages, role) && !Object.hasOwn(tickets, role)) parsedSources[role] = resolve(parsedSources[role]);
   for (const role of declaredRoles) {
     if (!Object.hasOwn(parsedSources, role)) {
       fail(`run: flow "${flowName}" declares source role "${role}" — pass --source ${role}=<path>`);
@@ -370,7 +375,7 @@ async function cmdRun(rest) {
   }
   const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
   for (const src of sources) {
-    if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
+    if (!Object.hasOwn(pages, src.id) && !Object.hasOwn(tickets, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
   }
 
   // M4e amendment 3: no --run-id -> the ONE claim (`run-<n>`, the folder created exclusively). A typed id is checked as before; its
