@@ -3745,3 +3745,15 @@ V9 token never in any result, file or captured output. V10 cleanup: no container
 - **V10 PASS.** After close: no container with the run label, no process with the label, mkdtemp removed.
 
 **Upstream asks to bare-agent.** None. The signed list in memory, a distinct `denied: true` refusal, no restricted text and no cache file are all present as installed.
+
+## F87 — barebrowse 0.26.0 links + load outcome, validated for tickets and for fwdloop's page fetch (pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. $0, no model calls, no fwdloop code changed: the installed `barebrowse` v0.26.0 (`connect()` / `goto()` / `snapshot()`), plus one direct call of fwdloop's own `fetchPageText` (src/pagefetch.js) with no model and no run. Harness: `poc/browse/f87.mjs`, one result file `poc/browse/results-f87-1.json` (written once, `wx`), whole-script deadline 240 s. Logged out (incognito, no cookies), read only (`consent: false`, never click). `node_modules` and `../barebrowse` untouched; gaps go up as upstream asks. `MIN_BAREBROWSE` (0.24.1) is left as is.
+
+**Pass criteria (PASS / FAIL / GAP each), B1-B4 on BOTH engines (chromium and firefox).**
+B1 links: `snapshot({ mode: 'data', links: true })` (via connect()+goto()) on https://github.com/nodejs/node/issues gives link lines `link "<title>" <https://github.com/nodejs/node/issues/NNNNN> [ref=N]`; count list items whose block has a link whose path is /nodejs/node/issues/<digits> (fwdloop's own picking rule: path under the list's path + /<digits>); report count and 3 sample (number, title) pairs. Must be >= 10.
+B2 links off: the same page with links off has no `<https://` in link lines (default unchanged).
+B3 status: goto() resolves `{url, status}`: the issues page -> 200; https://github.com/nodejs/node/issues-nope-f87 -> 404 and the snapshot starts with `[HTTP 404`; http://github.com/nodejs/node/issues -> final https URL, 200.
+B4 unreachable: goto('http://nonexistent-f87.invalid/') rejects with err.code === 'NAV_FAILED' and err.reason set.
+B5 fwdloop's own page fetch (chromium): read how src/pagefetch.js handles a goto that rejects; call `fetchPageText` directly on an unreachable host: does it turn the NAV_FAILED rejection into a clean refusal naming the page (good) or crash/hang/leave a browser behind (gap)? Also fetch a 404 page and report what fwdloop does with the `[HTTP 404 ...]` line. Report only; no fwdloop fix in this task.
+B6 cleanup: no leftover browser processes from the script's own PIDs, no /tmp/barebrowse-* dirs of its own.
