@@ -1,6 +1,6 @@
 // borrowed-from: bareloop src/pagemap.js@0a34846 (DROP_IT, isDropIt, isAgree, readingQuestion, readingOfQuestion, askableFromLook, ruleBounds, tooManyAsksText)
 // borrowed-from: bareloop src/facts.js@0a34846 (ruleWords, sayBound, moneyAs)
-// borrowed-from: bareloop src/pagemap.js@v0.49.0 (d51a367) (stripAgreeLead, F240)
+// borrowed-from: bareloop src/pagemap.js@v0.49.0 (d51a367) (stripAgreeLead, F240; adapted: literal regex, src/ bans new RegExp)
 // M10 piece 3 (docs/wiki/the-module-ladder.md "M10", item 4, am1, am2, am5): the early asks CODE forces before any paid drafting, from the page look's own
 // result. The model never decides whether to ask: this file reads a kept fact's own keys (line, forRule, name, shape, unit, currency, reading) and the job
 // lines, and nothing else (test/m10-pageask.test.js greps for it). The question words are bareloop's, verbatim (am5 item 1); the answer words are
@@ -35,7 +35,8 @@ export const isAgree = (text) => AGREE_WORDS.includes(String(text ?? '').trim().
  * @param {string} text @returns {string}
  */
 export const stripAgreeLead = (text) => {
-  const m = String(text ?? '').match(new RegExp(`^(?:${AGREE_WORDS.join('|')})[,:]\\s*(\\S[\\s\\S]*)$`, 'i'));
+  // a literal that spells out AGREE_WORDS (src/ bans dynamic RegExp, the ReDoS guard); the two must stay in step
+  const m = String(text ?? '').match(/^(?:agree|yes)[,:]\s*(\S[\s\S]*)$/i);
   return m ? m[1].trim() : String(text ?? '');
 };
 
