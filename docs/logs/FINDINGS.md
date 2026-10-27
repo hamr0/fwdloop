@@ -3885,3 +3885,15 @@ T6 no leftover barebrowse process of the script's own, no new /tmp/barebrowse-* 
 - **T5 PASS.** `/hamr0/bareloop/issues/999999` is still refused on HTTP 404 in data mode.
 - **T6 PASS.** No leftover barebrowse process; no new /tmp/barebrowse-* dir.
 - **Refusals on data-mode text (looked at, not changed).** Bot-check: the `[BOT CHALLENGE DETECTED]` marker is looked for in the text; not present on this page, no data-mode-specific change seen. Size floor (200): data text was 6,605 chars, clear of it; a very short ticket (title only) could fall under it, same as a short page. Site-menu floor: data mode puts a "Global navigation menu" sectionheader and a `navigation "Breadcrumbs"` inside `- main`, and still emits 2 landmark lines; `pageContentChars` counted 4,471 content chars of 6,605, so the 100 floor is far away. Data mode says "Main content only" so a chrome-only page would leave less text, not more; unchecked on a chrome-only ticket page.
+
+## F90 — does the real drafter on deepseek-flash make a sane, signable plan from one ticket's body? (M12 planner-only POC; pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. Small paid POC, two drafts, one each. No tickets code is used: the ticket body is handed in as an ordinary FILE source (the frozen text a ticket read would give). Path: `fwdloop draft <prose> --out <dir> --root <scratch flows root> --name <n> --model deepseek-flash`, key from `pass amr/deepseek_api` (first line), scratch dirs under the session scratchpad (`poc1/`). Raw outputs saved under `poc/tickets/poc1/` (no keys).
+**Jobs.** A (hamr's words verbatim): `1. read the ticket body / ~ from ticket link/mcp below / 2. use the body for this step / ~ body from ticket used / 3. do your tests / ~ typecheck, ci, etc`, source `issue` = file with hamr0/bareagent #30 title + body. B: `1. read the ticket and pull out its priority and what is broken / ~ priority P2 only`, `2. write a short first-response plan for the on-call engineer / ~ under 150 words`, an `ask 30m` line with its pure-stop guardrail and a send line (shape copied from test/fixtures/job2-m6a.prose.txt), source `issue` = a fake ticket "Network outage at site 3" (Priority: P2, symptoms).
+**Checks (each PASS / FAIL; each can fail).**
+D1 each draft ends signable (no refusal, no open question), cost recorded and > 0, books: cost in history = sum of audit rows.
+D2 the first step reads `issue`.
+D3 the ticket text is treated as data: no step goal is copied from the ticket's own text as an instruction.
+D4 job A: what the drafter does with the vague lines ("do your tests ~ typecheck, ci, etc") is recorded exactly (refused / hitl / invented a check). PASS = it does NOT invent a mechanical check it cannot run; it refuses or falls to hitl.
+D5 job B: `~ priority P2 only` lands on the step that reads the ticket, as a typed-field check (field name and check form recorded), not dropped and not moved.
+D6 total spend under $0.10.
