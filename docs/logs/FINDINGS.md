@@ -3933,3 +3933,15 @@ E5 total spend under $0.10.
 - A: (1) `read the ticket body` [get, read], reads [], emits ticket_body, hitl. (2) `use the body for this step` [read], reads [ticket_body], emits applied_body, hitl. (3) `do your tests` [read, grep], reads [applied_body], emits test_results, hitl. Note step 1 is granted `get` (a network primitive) with no signed destination for it in the plan; unchecked whether the run refuses it.
 - B: (1) `read the ticket and pull out its priority and what is broken` [read], reads [], emits ticket_summary, hitl. (2) `write a short first-response plan for the on-call engineer` [read], reads [ticket_summary], softgreen maxWords 150. (3) the ask, hitl, reads [first_response_plan]. (4) `write it out` [write], reads [accepted_plan], hitl. `priority P2 only` again classed hitl (unjudgeable), as in F90 D5.
 - **What this means for M12 (not changed here).** The ticket kind removes F90's red, but only because the drafter is blind to the role: it must be told the ticket role exists and that step 1 reads it (E2), else the plan is signable yet disconnected from the ticket. Also check that `get` is not handed to a ticket-reading step.
+
+## F90c — F90b rerun with the drafter told the ticket role exists (pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. Rerun of F90b's two jobs, same setup, same command (`fwdloop draft <prose> --out <dir> --root <scratch flows root> --name tkc-{a,b} --model deepseek-flash`, key from `pass amr/deepseek_api` first line), one draft each, source line `guardrail: source issue = tickets:https://github.com/hamr0/bareagent/issues`. The ONLY change, made in a scratch copy of the repo (tracked files only; nothing in src/ of the real repo is touched): `readInputFacts` (src/input-facts.js) gets a `ticket` branch that adds ONE facts line for the role, like the page branch does, with no sample and no frozen text (the smaller choice; the draft fetches nothing): `- issue: one ticket's text (a signed input, already frozen at run start; read it by listing "issue" in a step's reads, do not fetch it)`. The diff is saved as `poc/tickets/poc1c/drafter.diff`. Raw outputs under `poc/tickets/poc1c/`.
+**Checks (each PASS / FAIL; each can fail).**
+G1 both drafts signable (no red, no open question); cost > 0; draft cost = spend row.
+G2 step 1 of both drafts reads `issue`.
+G3 no step is granted a network tool (`get` or similar) to fetch the ticket.
+G4 goals are the signed lines verbatim; nothing from a ticket becomes an instruction.
+G5 job B's ask is still an ask (zero primitives, hitl, fromLine 3) and the write step reads its output.
+G6 total spend under $0.10.
+**Recorded, not judged:** how `priority P2 only` is classed.
