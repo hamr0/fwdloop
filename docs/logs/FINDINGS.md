@@ -3716,3 +3716,18 @@ P7 cleanup: after closing the bridge, no container from this run is left (`docke
 - **A distinct refusal for a denied tool.** What fwdloop needs: the audit and the run page must say "not on the signed list", not "unknown tool". Today a denied and a non-existent tool throw the same `unknown tool` ToolError. Ask: a ToolError with a `denied: true` context for a name the config denies.
 - **A programmatic allow-list.** What fwdloop needs: the signed list lives in the job, not in a `.mcp-bridge.json` the bridge may rewrite. Ask: accept `tools: { server: ['list_issues', ...] }` (or a loaded config object) in `createMCPBridge`, never written back.
 - No ask for: server start, tool listing, calling a tool, secrets by inheritance, cleanup of containers and processes: all worked as installed.
+
+## F86 — bare-agent 0.53.0 MCP allow mode, validated on the real GitHub MCP server (pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. $0, no model calls, no fwdloop code under test: only the installed `bare-agent` v0.53.0 (`bare-agent/mcp`: `createMCPBridge` with the new `allow` option) against `ghcr.io/github/github-mcp-server stdio --read-only` (docker). Harness: `poc/mcp/f86.mjs`, F85's setup (scratch MCP config in a mkdtemp via explicit `configPaths`, token only from the launching env passed by name with `-e`, never written). Gaps go up as upstream asks; `node_modules` and `../bareagent` are untouched. Follows F85's four upstream asks (this release is the answer to them).
+
+**Pass criteria (PASS / FAIL / GAP each).** Raw MCP tool names go in `allow`; `bridge.tools` names come out prefixed (`github_list_issues`).
+V1 allow {github:['list_issues','issue_read']}: bridge.tools names are exactly github_list_issues and github_issue_read; bridge.missing is []; bridge.denied is [] (or empty).
+V2 github_list_issues on owner nodejs, repo node, state OPEN, perPage 5 returns issues (report count and numbers).
+V3 negative that must be able to fail: get_me absent from bridge.tools with V1's allow; then a second bridge with allow {github:['list_issues','get_me']} has github_get_me present and a call succeeds. (Both reads.)
+V4 missing: allow {github:['list_issues','no_such_tool_f86']} -> bridge.missing contains {server:'github', tool:'no_such_tool_f86'}, and list_issues still works.
+V5 no cache and no stdout: no `.mcp-bridge.json` is created or modified anywhere checkable (cwd, the mkdtemp, $HOME: existence/mtime before and after), and nothing is written to process.stdout during createMCPBridge/close (wrap process.stdout.write to capture during those calls only).
+V6 systemContext for V1 names no tool outside the allow list (get_me, create_issue, search_repositories absent) and has no "Restricted" text.
+V7 timeout: a bridge with callTimeout 1 ms, call github_list_issues -> throws ToolError whose context has timeout === true, server 'github', tool name, timeoutMs; the error MESSAGE does not contain server stderr text (compare with context.stderr if present).
+V8 empty list: allow {github:[]} throws ValidationError.
+V9 token never in any result, file or captured output. V10 cleanup: no container, child or mkdtemp left after close().
