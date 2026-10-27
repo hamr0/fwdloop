@@ -3848,3 +3848,13 @@ T3 the frozen text contains a 40-character run taken from the issue body.
 T4 the text is not the 404 text: it does not contain `[HTTP 404`.
 T5 `fetchPageText('https://github.com/hamr0/bareloop/issues/999999')` returns `ok:false` with an error naming `HTTP 404` (the am13 rule).
 T6 no leftover barebrowse process of the script's own, no new /tmp/barebrowse-* dir.
+
+**RESULT (2026-10-27, $0, no model call).** [MEASURED] `node poc/tickets/f89.mjs`; result file `poc/tickets/results-f89-1.json`.
+- **T1 PASS.** `fetchPageText` on hamr0/bareagent #30 returned ok (7,005 chars after whitespace collapse).
+- **T2 PASS.** The title is in the frozen text (it is the level-1 heading).
+- **T3 FAIL.** The 40-character body run ("Status: BLOCKED / conditional — no actio") is NOT in the frozen text. Cause (probe, not part of the registered checks): `fetchPageText` snapshots with `mode: 'act'` (SNAPSHOT_OPTIONS), which keeps headings, links, checkboxes and list items but drops the body's prose paragraphs (`BLOCKED`, `Tracking a cross-repo` absent; 23,051 chars pruned to 8,216). Same page, same session, other modes: `data` 6,605 chars carries the body (BLOCKED yes, Tracking yes, title yes); `read` 11,770 chars carries it; `full` 8,830 drops it like `act`. So a ticket read through today's page path holds its title and its checklist/headings but not its body text.
+- **T4 PASS.** No `[HTTP 404` in the text.
+- **T5 PASS.** `/hamr0/bareloop/issues/999999` is refused: "https://github.com/hamr0/bareloop/issues/999999 came back as an error page (HTTP 404), so there is nothing to read".
+- **T6 PASS.** No leftover barebrowse process or /tmp dir.
+- **Note.** hamr0/bareloop has no issues (open or closed), so the target was hamr0/bareagent #30 (closed).
+- **Needs hamr's ruling (not changed here).** M12 item 7 says a ticket is read "like a page today"; the page path's `act` snapshot loses ticket body prose. A ticket read needs the `data` (or `read`) snapshot mode. Cost of leaving it: a run's ticket input has the title but not the issue's description, so the job works on the title and checklist only.
