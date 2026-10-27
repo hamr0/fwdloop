@@ -3064,3 +3064,10 @@ same run. Scope is stated when its turn comes.
   1. A ticket's own page is read with barebrowse's `data` snapshot mode, the mode item 5 already uses for the list. It is still frozen as the run's `<role>` input (copy + sha256), refused on a non-2xx status (M10 am13), and it is data only (item 8).
   2. `page:` inputs keep today's reader. Nothing about them changes here.
   3. Exit: on a real issue, the issue's body text is in the frozen input (F89's T3 passes), and a test with today's reader fails.
+- **M12 amendment 3 — SIGNED by hamr 2026-10-27 ("sign m12 am3"): a ticket the job's guardrails do not match is skipped, not red.** Asked by hamr 2026-10-27: the job's own guardrails say which tickets matter (for example "priority P2 only", "network outages"); any other ticket is ignored.
+  1. No special words. The guardrails on the step that first reads the ticket are the filter, written like any guardrail.
+  2. That step reads the ticket into typed fields, like any step. Code checks the fields against those guardrails; the model never decides a match.
+  3. If a field read from the ticket does not meet a guardrail on that step, the run ends **skipped**: shown grey, no later step runs, nothing is sent, and the ticket stays seen.
+  4. Everything else on that step stays red, as today: no output, `done:false`, a crash, an unreadable answer. Skipped means only "the ticket says something else".
+  5. A skipped run's cost is counted and its books balance, like any run.
+  6. Exit: on deepseek-flash, a job with `~ priority P2 only` on its first step skips a P3 ticket and runs on with a P2 ticket; a step that gives no output stays red. The cost of one skipped ticket is measured.
