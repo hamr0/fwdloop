@@ -3836,3 +3836,15 @@ P13 cleanup: no container, no child, mkdtemp removed after the run.
 
 **New gap for bareagent.**
 - **The spawn-notice line prints server args.** With no `confirmServer`, `createMCPBridge` writes `[MCP Bridge] spawning N server command(s) without a confirmServer hook:` and each server's command and args to stderr (seen with a fake `--token` secret). Args can carry tokens; the new spawn-error message correctly names only the command. Ask (not a regression of the fix): print the command only, or redact args, in that notice. fwdloop's own use passes explicit configs and a `confirmServer`, so the exposure is unchecked there.
+
+## F89 — a ticket's own page read through fwdloop's page fetch (M12 piece 1; pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. $0, no model call, read only. Harness `poc/tickets/f89.mjs` calls fwdloop's own `fetchPageText` (src/pagefetch.js, M10 am13's 2xx rule) with the installed barebrowse; result `poc/tickets/results-f89-1.json` (write-once). Whole script 120 s. M12 item 7: the ticket's page is the run's input, read like a page.
+**Target.** hamr0/bareloop has no issues (open or closed), so the real issue is hamr0/bareagent #30 (a closed issue; its page loads the same way): `https://github.com/hamr0/bareagent/issues/30`. Title and body text are taken at run time from `gh issue view 30 -R hamr0/bareagent --json title,body`; the body check uses its first 40 non-empty characters of a body line.
+**Checks (each PASS / FAIL; each can fail).**
+T1 `fetchPageText(<issue 30>)` returns `ok:true`.
+T2 the frozen text contains the issue title (whitespace-collapsed, case as written).
+T3 the frozen text contains a 40-character run taken from the issue body.
+T4 the text is not the 404 text: it does not contain `[HTTP 404`.
+T5 `fetchPageText('https://github.com/hamr0/bareloop/issues/999999')` returns `ok:false` with an error naming `HTTP 404` (the am13 rule).
+T6 no leftover barebrowse process of the script's own, no new /tmp/barebrowse-* dir.
