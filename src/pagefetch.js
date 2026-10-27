@@ -23,8 +23,12 @@ const TAG = /\[(?=[A-Za-z]+=)(?<!\[[A-Za-z]+=[^\]\s]*?)[A-Za-z]+=[^\]\s]*\]/g;
 
 /** the session options (incognito: no auth ever enters; blockPrivateNetwork: SSRF guard); ONE frozen object so a test can pin them */
 export const CONNECT_OPTIONS = Object.freeze({ incognito: true, blockPrivateNetwork: true });
-/** the snapshot options step 0 proved */
+/** the snapshot options step 0 proved (a page) */
 export const SNAPSHOT_OPTIONS = Object.freeze({ mode: 'act' });
+/** M12 am1: a ticket's own page keeps its body text only in barebrowse's `data` mode (F89: `act` drops the body paragraphs) */
+export const TICKET_SNAPSHOT_OPTIONS = Object.freeze({ mode: 'data' });
+/** M12 am1: the ONE place that decides the snapshot mode per input kind. @param {boolean} isTicket */
+export function snapshotOptionsFor(isTicket) { return isTicket ? TICKET_SNAPSHOT_OPTIONS : SNAPSHOT_OPTIONS; }
 /** the page's network must be quiet this long (ms) before we read it: long enough to span the gap between a page's first load and the
  *  script requests that fill the results, short enough not to stretch a plain page */
 export const NETWORK_IDLE_MS = 1500;
@@ -143,10 +147,10 @@ async function loadConnect() {
 /**
  * Fetch one page's text. `connect` is injected (a test never reaches the network); the default is barebrowse's own `connect`.
  * @param {string} url
- * @param {{connect?: (opts: Record<string, any>) => Promise<FetchPage>, timeoutMs?: number, idleMs?: number, idleTimeoutMs?: number, closeWaitMs?: number}} [o]
+ * @param {{ticket?: boolean, connect?: (opts: Record<string, any>) => Promise<FetchPage>, timeoutMs?: number, idleMs?: number, idleTimeoutMs?: number, closeWaitMs?: number}} [o]
  * @returns {Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>} `error` is plain words, without a spend line
  */
-export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEOUT_MS, idleMs = NETWORK_IDLE_MS, idleTimeoutMs = NETWORK_IDLE_TIMEOUT_MS, closeWaitMs = 3000 } = {}) {
+export async function fetchPageText(url, { ticket = false, connect, timeoutMs = PAGE_FETCH_TIMEOUT_MS, idleMs = NETWORK_IDLE_MS, idleTimeoutMs = NETWORK_IDLE_TIMEOUT_MS, closeWaitMs = 3000 } = {}) {
   let u;
   try { u = new URL(url.trim()); } catch { return { ok: false, error: `${url} is not a web address fwdloop can read` }; }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, error: `${url} is not an http or https address` };
@@ -177,7 +181,7 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
         if (st < 200 || st > 299) return { refused: `${u.href} came back as an error page (HTTP ${st}), so there is nothing to read` };
         // bounded: a page that never goes quiet (polling, streaming) is read as it stands (bareloop); the size and chrome floors below then decide
         try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { /* read what is there */ }
-        return p.snapshot({ ...SNAPSHOT_OPTIONS });
+        return p.snapshot({ ...snapshotOptionsFor(ticket) });
       })(),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer inside ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs); }),
     ]);
