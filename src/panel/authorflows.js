@@ -34,7 +34,7 @@ import { checkValues } from './authorvalues.js';
 import { getRunControls, getRunGlyph } from './data.js';
 import { SCHEDULE_BUSY_SAY } from '../summary-words.js';
 import { providerKeys } from './spawn.js';
-import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
+import { pageAddressesOf, pageAddressRefusal, ticketListsOf, ticketUnderList, ticketRefusal } from '../pagefetch.js';
 import { readModelRecord, writeModelRecord } from '../flowmodel.js';
 import { readRunInputs, RUN_FILE } from '../runfile.js';
 
@@ -225,6 +225,11 @@ export function createFlowsDoor(opts) {
     const pages = pageAddressesOf(read.arbiter);
     const rows = runInputRows(body?.inputs).map((r) => (Object.hasOwn(pages, r.role) && r.path === '' ? { ...r, path: pages[r.role] } : r));
     refusals.push(...checkInputRows(rows));
+    // M12 item 7: a ticket input is typed per run and must be one ticket of the signed list; another address is refused at $0 naming the input and the list
+    const tickets = ticketListsOf(read.arbiter);
+    rows.forEach((r, n) => {
+    if (Object.hasOwn(tickets, r.role) && r.path !== '' && !ticketUnderList(r.path, tickets[r.role])) refusals.push({ field: `inputs.${n}`, say: ticketRefusal(r.role, tickets[r.role]) });
+    });
     rows.forEach((r, n) => {
     if (Object.hasOwn(pages, r.role) && r.path !== pages[r.role]) refusals.push({ field: `inputs.${n}`, say: pageAddressRefusal(r.role, pages[r.role]) });
     });
@@ -298,7 +303,7 @@ export function createFlowsDoor(opts) {
     const last = lastSources(flowDir, roles, pageAddressesOf(read.arbiter));
     const { passed, stats } = runsOf(flowDir, name, read, roles);
     return {
-      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), tickets: ticketListsOf(read.arbiter), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
