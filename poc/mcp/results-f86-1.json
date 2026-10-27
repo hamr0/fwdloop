@@ -1,0 +1,144 @@
+{
+  "run": "f86-d6673f0d",
+  "bridge": "bare-agent/mcp createMCPBridge({allow})",
+  "V": {
+    "V1": {
+      "names": [
+        "github_issue_read",
+        "github_list_issues"
+      ],
+      "missing": [],
+      "denied": [],
+      "errors": [],
+      "verdict": "PASS"
+    },
+    "V2": {
+      "count": 5,
+      "numbers": [
+        67049,
+        67048,
+        67047,
+        67043,
+        67033
+      ],
+      "verdict": "PASS"
+    },
+    "V6": {
+      "leaked": [],
+      "hasRestricted": false,
+      "mentionsAllowed": false,
+      "ctxChars": 89,
+      "ctxHead": [
+        "MCP Bridge: 2 tools available from 1 server(s): github.",
+        "  github: issue_read, list_issues"
+      ],
+      "verdict": "PASS"
+    },
+    "V3": {
+      "absentWithV1Allow": true,
+      "presentWhenAllowed": true,
+      "callWhenAllowed": {
+        "ok": true,
+        "len": 451
+      },
+      "mcpInvokeOnExcluded": {
+        "refused": true,
+        "name": "ToolError",
+        "message": "mcp_invoke: \"github_get_me\" is not on this run's allowed list",
+        "contextKeys": [
+          "denied",
+          "server",
+          "tool"
+        ],
+        "denied": true
+      },
+      "verdict": "PASS"
+    },
+    "V4": {
+      "missing": [
+        {
+          "server": "github",
+          "tool": "no_such_tool_f86"
+        }
+      ],
+      "names": [
+        "github_list_issues"
+      ],
+      "listIssuesWorks": true,
+      "verdict": "PASS"
+    },
+    "V7": {
+      "threw": true,
+      "name": "ToolError",
+      "message": "MCP server \"github\" tool \"list_issues\" timed out after 1ms",
+      "timeout": true,
+      "server": "github",
+      "tool": "list_issues",
+      "timeoutMs": 1,
+      "contextKeys": [
+        "timeout",
+        "server",
+        "tool",
+        "timeoutMs",
+        "stderr"
+      ],
+      "stderrLen": 439,
+      "messageHasStderr": false,
+      "verdict": "PASS"
+    },
+    "V8": {
+      "threw": true,
+      "name": "ValidationError",
+      "message": "[MCP Bridge] allow values must be non-empty arrays of tool names (got an empty array)",
+      "contextKeys": [
+        "lib"
+      ],
+      "verdict": "PASS"
+    },
+    "V5": {
+      "probed": [
+        {
+          "where": "cwd",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "mkdtemp",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "HOME",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "script dir",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        }
+      ],
+      "stdoutBytesDuringBridgeCalls": 0,
+      "verdict": "PASS"
+    },
+    "V10": {
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS (mkdtemp removal checked after write)",
+      "mkdtempRemoved": true
+    },
+    "V9": {
+      "filesScanned": 5,
+      "tokenInFiles": 0,
+      "tokenInStdoutCapture": false,
+      "tokenInStderrCapture": false,
+      "tokenInResultObject": false,
+      "verdict": "PASS"
+    }
+  },
+  "stderrBytes": 1184
+}

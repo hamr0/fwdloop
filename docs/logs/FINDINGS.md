@@ -3731,3 +3731,17 @@ V6 systemContext for V1 names no tool outside the allow list (get_me, create_iss
 V7 timeout: a bridge with callTimeout 1 ms, call github_list_issues -> throws ToolError whose context has timeout === true, server 'github', tool name, timeoutMs; the error MESSAGE does not contain server stderr text (compare with context.stderr if present).
 V8 empty list: allow {github:[]} throws ValidationError.
 V9 token never in any result, file or captured output. V10 cleanup: no container, child or mkdtemp left after close().
+
+**RESULT (2026-10-27, $0, no model call).** [MEASURED] `GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)" node poc/mcp/f86.mjs`, bare-agent 0.53.0, read-only GitHub MCP server. Result file: `poc/mcp/results-f86-1.json`. All ten PASS; F85's four upstream asks are answered by this release.
+- **V1 PASS.** `bridge.tools` = github_issue_read, github_list_issues exactly; `missing` [], `denied` [], `errors` [].
+- **V2 PASS.** `list_issues` (nodejs/node, OPEN, perPage 5): 5 issues, numbers 67049, 67048, 67047, 67043, 67033.
+- **V3 PASS.** get_me absent under V1's allow; with allow [list_issues, get_me] github_get_me is present and its call succeeded (451 chars). Extra: `mcp_invoke {name:'github_get_me'}` on the V1 bridge throws ToolError "is not on this run's allowed list" with `context.denied === true`, server, tool (distinct from unknown-tool; answers F85 ask 3).
+- **V4 PASS.** `missing` = [{server:'github', tool:'no_such_tool_f86'}]; list_issues still worked; no throw.
+- **V5 PASS.** No `.mcp-bridge.json` in cwd, the mkdtemp, $HOME or the script dir before or after (existence and mtime); 0 bytes written to process.stdout during createMCPBridge/close (5 bridges).
+- **V6 PASS.** systemContext is 89 chars: "MCP Bridge: 2 tools available from 1 server(s): github. / github: issue_read, list_issues". No get_me, create_issue, search_repositories, no "Restricted" text. It lists raw names, not the prefixed ones.
+- **V7 PASS.** callTimeout 1: ToolError, context {timeout:true, server:'github', tool:'list_issues', timeoutMs:1, stderr}; message "MCP server \"github\" tool \"list_issues\" timed out after 1ms" does not contain the 439-char stderr held in `context.stderr`. Not scanned: whether that `context.stderr` text could hold a secret (only its length is recorded); a caller that logs `context` whole should treat it as untrusted.
+- **V8 PASS.** `allow {github:[]}` throws ValidationError "allow values must be non-empty arrays of tool names (got an empty array)".
+- **V9 PASS.** Token checked in memory against the five mkdtemp files, captured stdout, captured stderr (1184 bytes) and the result object: absent. Result writer refuses if it contains the token.
+- **V10 PASS.** After close: no container with the run label, no process with the label, mkdtemp removed.
+
+**Upstream asks to bare-agent.** None. The signed list in memory, a distinct `denied: true` refusal, no restricted text and no cache file are all present as installed.
