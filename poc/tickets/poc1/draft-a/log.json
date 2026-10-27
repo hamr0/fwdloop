@@ -1,0 +1,58 @@
+{
+  "ok": false,
+  "stop": "validator",
+  "reds": [
+    "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+  ],
+  "rounds": 3,
+  "calls": 3,
+  "costUsd": 0.0084936,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 2,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [
+    {
+      "role": "issue",
+      "detail": "5 headings"
+    }
+  ],
+  "log": [
+    {
+      "round": 1,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 1 red(s)",
+      "reds": [
+        "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+      ]
+    },
+    {
+      "round": 2,
+      "kind": "revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 1 red(s)",
+      "reds": [
+        "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+      ]
+    },
+    {
+      "round": 3,
+      "kind": "revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 1 red(s)",
+      "reds": [
+        "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+      ]
+    }
+  ]
+}

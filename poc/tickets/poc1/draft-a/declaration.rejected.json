@@ -1,0 +1,64 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "hitl"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_body",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket body"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_body"
+      ],
+      "emits": "ticket_body_used",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "use the body for this step"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep",
+        "write"
+      ],
+      "reads": [
+        "ticket_body_used"
+      ],
+      "emits": "test_report",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "do your tests"
+    }
+  ],
+  "inputFacts": {
+    "issue": [
+      "Status: BLOCKED / conditional — no action until bareguard 0.13.0 is approved & released",
+      "Context",
+      "Why it matters",
+      "The action (only when the trigger fires)",
+      "References"
+    ]
+  }
+}

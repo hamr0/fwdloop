@@ -1,0 +1,13 @@
+Network outage at site 3
+
+Priority: P2
+Reported by: front desk, site 3
+Opened: 2026-10-26 08:40
+
+Symptoms:
+- Staff at site 3 cannot reach the shared drive or the VPN since about 08:15.
+- Wi-Fi shows connected but no internet; wired desks in the back office still work.
+- The site 3 router status light is blinking amber.
+- Two phones on the VoIP system drop calls every few minutes.
+
+Already tried: front desk power-cycled the router once, no change.

@@ -1,0 +1,59 @@
+{
+  "ok": false,
+  "stop": "validator",
+  "reds": [
+    "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+  ],
+  "rounds": 3,
+  "calls": 3,
+  "costUsd": 0.0086124,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 2,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [
+    {
+      "role": "issue",
+      "detail": "0 headings"
+    }
+  ],
+  "log": [
+    {
+      "round": 1,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 1 red(s)",
+      "reds": [
+        "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+      ]
+    },
+    {
+      "round": 2,
+      "kind": "revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 2 red(s)",
+      "reds": [
+        "declaration: line 1 is marked unjudgeable but guardrailClasses proposes \"softgreen\" — unjudgeable never upgrades or downgrades the class, it can only explain a hitl",
+        "declaration: steps[0].close.class \"hitl\" does not match \"softgreen\", which is what fromLine derives to — a step cannot claim a class its own guardrail does not produce"
+      ]
+    },
+    {
+      "round": 3,
+      "kind": "revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 1 red(s)",
+      "reds": [
+        "declaration: steps[0] reads artifact \"issue\" that no earlier step declared"
+      ]
+    }
+  ]
+}
