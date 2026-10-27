@@ -3682,3 +3682,20 @@ Caveats, plain:
 - `fwdloop tidy` on the copy: 70 runs, moved 66, already tidy 4 (no old file at all), skipped 0, cannot move 0. After it: no old-name file left anywhere; `run.json` 66, `diary.jsonl` 24, `line-checks.json` 14. A second `fwdloop tidy`: moved 0, already tidy 70, and the tree's sha256 listing is identical before and after.
 - BEFORE (old code, unmoved copy) vs AFTER (new code, tidied copy): **0 differing paths**, over all 72 folders and every view above. No exclusion was added after a difference was seen (there was none).
 - What this does not show: no run in the copy had a live process, so the "skip a live run" rule is covered by tests only (an injected check, a live resume lock, the 10-minute books rule), not by this data. Diary rows from the three old files are interleaved by their own `at`; the old files never recorded the order between kinds, so across kinds the order is the harness's best reading, and every reader filters by kind.
+
+## F85 — MCP bridge POC — bareagent's createMCPBridge on a real GitHub MCP server, read-only, distilled tool list (pre-registered 2026-10-27, before any run)
+
+**Status.** PRE-REGISTERED. $0, no model calls, no fwdloop code under test: only the installed `bare-agent` v0.52.0 (`bare-agent/mcp`: `createMCPBridge`, `buildMetaTools`) against the official GitHub MCP server (`ghcr.io/github/github-mcp-server stdio --read-only`, docker). Harness: `poc/mcp/f85.mjs`. Gaps found are written up as upstream asks to bareagent; nothing is patched or worked around in fwdloop, and `node_modules` and `../bareagent` are untouched.
+
+**Question.** Can fwdloop take its outside-tools path (parked: MCP) straight from bareagent's bridge: start a real server from a config, list tools, call one, keep a distilled allow-list enforced by the bridge itself, default new tools to deny, hide denied tools from the agent, and keep the token out of every file?
+
+**Setup.** A scratch MCP config and the bridge's own config file (`bridgePath`) both live in a mkdtemp dir, passed as explicit `configPaths` / `bridgePath`; hamr's `~/.mcp.json` is never read or written. The token comes only from `gh auth token` in the launching environment, passed into the container with `-e GITHUB_PERSONAL_ACCESS_TOKEN` (no value in any config). Read-only tools are called only. Every RPC has a hard deadline; the whole script has a 240 s deadline.
+
+**Pass criteria (each PASS / FAIL / GAP).**
+P1 the bridge starts the GitHub MCP server from the scratch config and lists its tools (report count and whether list_issues, get_issue exist).
+P2 a call to list_issues on owner=nodejs repo=node (state open, perPage 5 or the server's equivalent) returns issues with number, title and html_url.
+P3 distilled list: with only list_issues and get_issue allowed for that server, calling one other READ tool (e.g. get_me or search_repositories — a read so a failure to block does no harm) is REFUSED by the bridge's own mechanism (allow/deny config or whatever the API offers), not by our code. This test must be able to fail: first run the same call with that tool allowed and see it succeed, then deny it and see it refused. Report the exact refusal (error/message shape).
+P4 deny by default: when the server offers a tool that is not in the existing config, does the bridge default it to deny, or allow? (Expected from source: "New tools on existing server: added as allow" — confirm by running, report GAP if allow.)
+P5 the agent-facing surface: what does buildMetaTools expose (mcp_discover / mcp_invoke?) and does a denied tool appear in mcp_discover's list at all? (A distilled list should not even be visible.)
+P6 secrets: the token never appears in the bridge's config/cache file, stderr capture, or our result file.
+P7 cleanup: after closing the bridge, no container from this run is left (`docker ps` filtered by your own container/run), no child process left, mkdtemp removed.
