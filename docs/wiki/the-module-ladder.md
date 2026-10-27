@@ -2876,6 +2876,13 @@ same run. Scope is stated when its turn comes.
 
 **M10 EXIT SIGNED — hamr, 2026-10-22** ("sign m10 exit"). **M10 exit — met 2026-10-22.** The flights job `m10-walk-flights-4` (run-1), a route bareloop never used, drafted with 0 asks on deepseek-flash, signed, and ran green. Its 3 quotes were checked against the run's own saved page by `scripts/check-cited-run.mjs` (ok). The CSV case `m10-walk-csv-3` asked once, and the answer is in the draft log, the Audit and the signed job. CSV "runs green" waits for bareguard (am12).
 
+- **M10 amendment 13 — SIGNED by hamr 2026-10-27 ("sign m10 am13"): an error page is never a job's input.** Seen in F87: a page address that answers 404 was read as input, and its "not found" text passed the size floors.
+  1. When fwdloop reads a page input, it takes the HTTP status barebrowse reports for the load (`goto()` → `{status}`, barebrowse 0.26.0). It never reads the status from the page's text.
+  2. Any status outside 200-299 refuses the page at $0, before a run starts, by name: `<address> came back as an error page (HTTP 404), so there is nothing to read`.
+  3. A missing status (an older barebrowse, or a download) is refused the same way: `<address> did not say whether it loaded (no HTTP status), so it is not read`. barebrowse ^0.26.0 is the minimum from then on.
+  4. Nothing else changes: the bot-check, size and site-menu refusals stay as they are.
+  5. Exit: a test with a fake 404 load refuses with the exact words (one test able to fail), and the F87 404 address refuses live on hamr's machine.
+
 - **M10b scope — SIGNED by hamr 2026-10-22 ("sign m10b"): a sheet's checks are bareguard's cells checks; the CSV case runs green.** Finishes what M10 am12 split off. Ruling F74 (hamr 2026-10-22): sheet checks live in bareguard's rubric; the drafter suggests them from `rubricVocabulary`, you sign them, bareguard's `checkStep` judges, the step only gives values. Cap $0.50.
   0. **Test first.** Before any M10b code is built: a $0 replay of the two real sheets (expenses from `m10-walk-csv`, the aging sheet from `aging-live-4`) through bareguard 0.26.0's checks, honest and wrong claims, plus one small paid POC: 3 drafts per job on deepseek-flash, to see whether the drafter picks the right ops from `rubricVocabulary`. The pass marks are written into FINDINGS before anything runs. Nothing is built until it passes.
   1. **bareguard 0.26.0.** fwdloop moves from `^0.25.1` to `^0.26.0` on purpose. A signed money unit list with two equal entries now fails to sign; no job of ours has one today.
