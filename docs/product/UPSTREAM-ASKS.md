@@ -39,6 +39,16 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   `poc/m0/provider.mjs`, tested). It matters for the **next** provider that does this quietly, and
   F12 has now made that flag load-bearing on the default path. Surfaced by F11, 2026-09-09.
 
+- **barebrowse · link URLs and load status on a page read** (asked 2026-10-27, asked, POC first,
+  unsigned). Two asks: (a) link lines in the page read carry their absolute URL (href); (b) after a
+  load, the final URL and the HTTP status. *Use:* the tickets-as-input idea (PRD, "Next, not
+  scheduled: tickets as an input and a trigger") must tell new tickets from seen ones and open them
+  (needs (a)), and tell a broken list page from an empty one and spot an expired login (needs (b)).
+  *Declined workaround:* page JS through the escape hatch — that is a site-shaped scraper inside
+  fwdloop. *barebrowse's own answer (0.25.0):* link lines have no hrefs or stable ids; `goto()`
+  rejects only on a load timeout; there is no login-state signal; `consent:false` covers
+  never-click. Does not block anything built today.
+
 ## Watch list (not asks — becomes one only when a run proves it)
 
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The

@@ -150,6 +150,15 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 3. Its rules: the ledger keeps every row; a row last seen over 56 days ago, or from another signed job version, is not handed to the drafter; levels (this job, this place, all jobs) are worked out at read time; the block is capped at 2,000 characters; rubric lessons count only after a human Accept.
 4. Open before it is built (hamr to rule): (a) this PRD says fwdloop does not learn across runs in v1, and if it ever does it comes in as its own signed module (Guiding principles, "Deliberately not borrowed"), so it needs a signed scope, exit and negative scenario first; (b) bareloop has a mid-run replan and fwdloop redrafts instead, so "At the first replan" needs a fwdloop meaning; (c) phone width is not yet checked on bareloop's side.
 
+**Next, not scheduled: tickets as an input and a trigger** (hamr, 2026-10-27, unsigned; chained workflows parked for this, beta first). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. hamr's direction, from the 2026-10-26/27 discussion:
+1. A job names a ticket list as a source, like a page today: `guardrail: source issue = tickets:<list page URL>`. First target GitHub issues; later any ticket system (ServiceNow, Jira) through barebrowse. The human is already logged in in their own browser.
+2. The job stays signed and fixed; a ticket only brings this run's case. Its top part (title, description, link) is the run's frozen input. A ticket can never change steps, rules, cap, asks or destinations.
+3. A `tickets:` source unlocks a trigger "When a new ticket arrives in <role>"; fwdloop remembers which tickets it has seen. By hand, Run asks which ticket (`#42` or its link).
+4. A step may open the ticket's page and tickets it refers to ("see #41") on the same host as the signed list; anything else needs a signed address.
+5. Writing back on a ticket (a comment) is a send: a signed destination plus an accept. After beta.
+6. Email is the same shape later; until a mail peer exists, a request can arrive as a file in a folder (the new-file trigger today).
+7. Waits on barebrowse (asked 2026-10-27, POC first): (a) link lines carry their absolute URL; (b) after a load, the final URL and HTTP status. fwdloop's own guard: a known list landmark must be present before "0 new" is trusted.
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.

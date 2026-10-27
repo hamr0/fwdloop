@@ -1080,6 +1080,12 @@ Copied from bareloop's `fix/records-and-stop` branch.
 
 - *Built after signing — not signed text (2026-10-26), M4b am8 (branch `launcher-update`, `9c4c94a`, `a804214`):* the registry address lives in `src/registry.js` (`REGISTRY_URL`), not `src/launcher.js`, whose test pins no address but `panelUrl`; `test/m4d-am6-e.test.js` allow-lists it (hamr ruled 2026-10-26, `a804214`). The npm install has a 5-minute deadline (300000 ms; not in the signed text). With no terminal, `update` prints the newer line and then the "Not updated" line and exits 0. It exits 1 for could-not-reach and for update-failed, the same from the menu. Live press by hamr on 2026-10-26 from the repo (`node bin/fwdloop update`) printed `You have the newest fwdloop (0.26.0).`. Full suite: 4083 tests, 0 fail.
 
+#### M4b amendment 9 — the update command's restart words follow bareloop v0.49.0 — SIGNED by hamr 2026-10-27 ("sign m4b am9"), the text exactly as shown
+
+1. From the menu, a good update still says `Updated to Y. Then pick 3 restart.`
+2. From the typed command `fwdloop update`, a good update says `Updated to Y. Then run fwdloop restart.` (there is no menu to pick from).
+3. Nothing else in amendment 8 changes.
+
 #### M4b exit — SIGNED by hamr 2026-09-30 ("sign m4b exit"); evidence from hamr's live walk
 
 hamr signed the M4b exit on 2026-09-30 after the walk below. Numbers are from the books on disk.
