@@ -5199,10 +5199,7 @@
         var ro = document.createElement("div");
         ro.className = "jf-role-ro"; ro.textContent = role; ro.setAttribute("data-role", role);
         row.appendChild(ro);
-        var isTicket = !!(f && f.tickets && f.tickets[role]);
-        // M12: a ticket input keeps its row; its box is editable, starts empty (a ticket is typed per run, never offered again) and says where a ticket lives
-        var pathEl = isTicket ? makeInput("jf-path", "a ticket under " + f.tickets[role], "") : makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
-        if(isTicket) pathEl.setAttribute("data-ticket", "1");
+        var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
         if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
         row.appendChild(pathEl);
         row.appendChild(makeErr());
@@ -5574,7 +5571,7 @@
       var roleSel = byId("jf-when-role");
       roleSel.innerHTML = "";
       // M10: a file trigger watches a FILE; a web-page input is never offered (a job with only page inputs gets the clock options only)
-      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]) && !(f.tickets && f.tickets[r]); });
+      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); });
       fileRoles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
       ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
       var t = c ? c.trigger : null;
