@@ -1,0 +1,2 @@
+draft dir: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1c/draft-a  cost: $0.0024
+DRAFTED — NOT SIGNED. To sign: fwdloop sign /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1c/draft-a --approve 275025aeb81ea340f78fdfb5a6eba1ca54b13b70c2884e01623056b76a6ed8ce

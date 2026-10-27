@@ -3945,3 +3945,16 @@ G4 goals are the signed lines verbatim; nothing from a ticket becomes an instruc
 G5 job B's ask is still an ask (zero primitives, hitl, fromLine 3) and the write step reads its output.
 G6 total spend under $0.10.
 **Recorded, not judged:** how `priority P2 only` is classed.
+
+**RESULT (2026-10-27, paid, 2 drafts, $0.0049 total).** [MEASURED] same command as pre-registered (`fwdloop draft ... --name tkc-{a,b} --model deepseek-flash`) run from a tracked-files-only scratch copy with the one-line change in `poc/tickets/poc1c/drafter.diff` (a `ticket` branch in `readInputFacts` adding one facts line per ticket role; no sample, no frozen text, the smaller choice). Raw outputs in `poc/tickets/poc1c/`. Both drafts DRAFTED (validator green), one round each, A $0.0024486, B $0.0024984 (F90b: $0.0047 / $0.0100, 2 and 4 rounds). `input-facts.json` is still `{}` (the line goes in the drafter's Inputs list only, as for a page).
+- **G1 PASS.** Both signable, no red, no open question; cost > 0; draft-spend.json cost = the single spend.jsonl row (spendComplete true). No run, so history/audit not exercised.
+- **G2 PASS.** Step 1 of both reads `issue` (A also lists `issue` in step 2's reads). F90b: `reads: []`.
+- **G3 PASS.** No `get` or other network tool anywhere. A's step 3 has `recent` (a litectx memory verb in CTX_VERBS, not network) with `read, grep`; B's steps hold only `read` and `write` (send). F90b's `get` on A step 1 is gone.
+- **G4 PASS.** Every goal is the signed line verbatim; nothing from a ticket (none was shown to the drafter).
+- **G5 PASS.** B step 3 `check it with me,` is primitives [], hitl, fromLine 3, reads `first_response_plan`; step 4 `write` reads its output `plan_accepted`.
+- **G6 PASS.** $0.0049 (limit $0.10).
+- **Recorded, not judged: `priority P2 only`.** Class hitl on step 1 (guardrailClasses 1 = hitl), `unjudgeable.1`: "priority P2 only names a field value, not a sheet figure check nor a declared output shape". No typed field; same as F90 D5 and F90b.
+**Plans.**
+- A: (1) `read the ticket body` [read] reads [issue] emits ticket_body, hitl. (2) `use the body for this step` [read] reads [issue, ticket_body] emits work_from_body, hitl. (3) `do your tests` [read, grep, recent] reads [work_from_body] emits test_report, hitl. All three guardrails hitl (2 and 3 unjudgeable: no checkable shape).
+- B: (1) `read the ticket and pull out its priority and what is broken` [read] reads [issue] emits ticket_extract, hitl. (2) `write a short first-response plan for the on-call engineer` [read] reads [ticket_extract], softgreen maxWords 150. (3) the ask [] reads [first_response_plan], hitl. (4) `and once I accept, write it out.` [write] reads [plan_accepted], hitl.
+- **What this means for M12 (not changed here).** Telling the drafter the role exists is enough: step 1 reads the ticket, grounded, signable, no fetch tool. The build needs that one facts line (a ticket branch in the drafter's input list, no sample). `priority P2 only` stays hitl; a typed priority check would be a separate decision. Only 2 drafts: shape evidence, not a rate.

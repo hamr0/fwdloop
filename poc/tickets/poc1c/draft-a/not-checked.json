@@ -1,0 +1,8 @@
+{
+  "notChecked": [
+    "whether the body was actually read from the linked ticket",
+    "that the step's work truly used the ticket body",
+    "that tests/typecheck/CI actually ran and passed",
+    "quality and correctness of any prose"
+  ]
+}
