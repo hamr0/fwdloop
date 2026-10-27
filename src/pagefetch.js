@@ -86,12 +86,12 @@ export function pageContentChars(text) {
 }
 
 /**
- * @typedef {{goto: (url: string, timeout?: number) => Promise<void>, waitForNetworkIdle: (o?: {idle?: number, timeout?: number}) => Promise<void>,
+ * @typedef {{goto: (url: string, timeout?: number) => Promise<{url: string, status: number}>, waitForNetworkIdle: (o?: {idle?: number, timeout?: number}) => Promise<void>,
  *   snapshot: (o?: {mode?: string}) => Promise<string>, close: () => Promise<void>}} FetchPage the part of barebrowse's page handle the fetch uses
  */
 
-/** the oldest barebrowse we accept: 0.21.0 honours CONNECT_OPTIONS (incognito, blockPrivateNetwork; an older one would drop both guards without a word); 0.24.1 tethers Chromium to its launcher, so a killed run or an Abandoned draft leaves no browser behind */
-export const MIN_BAREBROWSE = [0, 24, 1];
+/** the oldest barebrowse we accept: 0.21.0 honours CONNECT_OPTIONS (incognito, blockPrivateNetwork; an older one would drop both guards without a word); 0.24.1 tethers Chromium to its launcher, so a killed run or an Abandoned draft leaves no browser behind; 0.26.0 makes goto() resolve to {url, status}, the HTTP status an error page is refused on (M10 am13) */
+export const MIN_BAREBROWSE = [0, 26, 0];
 
 /** @param {string} v @returns {boolean} true when `v` (x.y.z) is at least MIN_BAREBROWSE */
 export function barebrowseNewEnough(v) {
@@ -108,7 +108,7 @@ async function loadConnect() {
   try {
     const mod = /** @type {any} */ (await import('barebrowse'));
     const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.resolve('barebrowse'))), '..', 'package.json'), 'utf8'));
-    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.24.1 or newer, which keeps the browser private, off the local network, and closed when the run ends` };
+    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.26.0 or newer, which keeps the browser private, off the local network, closed when the run ends, and says whether the page loaded` };
     return { ok: /** @type {const} */ (true), connect: /** @type {(opts: Record<string, any>) => Promise<FetchPage>} */ (mod.connect) };
   } catch (e) { return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse) could not be loaded: ${/** @type {Error} */ (e).message}` }; }
 }
@@ -143,13 +143,18 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
     const text = await Promise.race([
       (async () => {
         const p = await page;
-        await p.goto(u.href, GOTO_TIMEOUT_MS);
+        const nav = await p.goto(u.href, GOTO_TIMEOUT_MS);
+        // M10 am13: the status is goto's typed result, never read from the page text; decided before any reading
+        const st = nav && typeof nav === 'object' ? /** @type {any} */ (nav).status : undefined;
+        if (typeof st !== 'number' || !Number.isFinite(st) || st <= 0) return { refused: `${u.href} did not say whether it loaded (no HTTP status), so it is not read` };
+        if (st < 200 || st > 299) return { refused: `${u.href} came back as an error page (HTTP ${st}), so there is nothing to read` };
         // bounded: a page that never goes quiet (polling, streaming) is read as it stands (bareloop); the size and chrome floors below then decide
         try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { /* read what is there */ }
         return p.snapshot({ ...SNAPSHOT_OPTIONS });
       })(),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer inside ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs); }),
     ]);
+    if (text && typeof text === 'object' && 'refused' in text) return { ok: false, error: String(text.refused) };
     if (typeof text !== 'string') return { ok: false, error: `${u.href} did not come back as text` };
     if (/\[BOT CHALLENGE DETECTED\]/.test(text)) return { ok: false, error: `${u.href} asked for a human check (a bot challenge), so the page could not be read` };
     const size = text.trim().length;

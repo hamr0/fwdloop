@@ -87,13 +87,15 @@ test('an address with a password, a secret shape, or not http is refused before 
   assert.equal(fc.calls.connect.length, 0);
 });
 
-test('barebrowse older than 0.24.1 is refused (it would drop incognito and the private-network guard in silence)', () => {
+test('barebrowse older than 0.26.0 is refused (it would drop incognito and the private-network guard in silence, or give goto no status)', () => {
   assert.equal(barebrowseNewEnough('0.5.9'), false);
   assert.equal(barebrowseNewEnough('0.20.9'), false);
   assert.equal(barebrowseNewEnough('0.21.0'), false);
   assert.equal(barebrowseNewEnough('0.24.0'), false);
-  assert.equal(barebrowseNewEnough('0.24.1'), true);
-  assert.equal(barebrowseNewEnough('0.25.0'), true);
+  assert.equal(barebrowseNewEnough('0.24.1'), false);
+  assert.equal(barebrowseNewEnough('0.25.9'), false);
+  assert.equal(barebrowseNewEnough('0.26.0'), true);
+  assert.equal(barebrowseNewEnough('0.26.1'), true);
   assert.equal(barebrowseNewEnough('1.0.0'), true);
 });
 
@@ -102,4 +104,45 @@ test('pageContentChars counts a 50000-character line of "[a=[a=..." (no closing 
   assert.equal(pageContentChars('[a='.repeat(16666)), 49998);
   assert.equal(pageContentChars('- text [ref=12] more'), 'text more'.length);
   assert.ok(performance.now() - t0 < 1000, `took ${performance.now() - t0} ms`);
+});
+
+// M10 am13 - the status comes from goto's typed result, never from the page text
+/** @param {() => Promise<any>} gotoFn */
+function connectWithGoto(gotoFn) {
+  return async () => ({
+    goto: gotoFn,
+    waitForNetworkIdle: async () => {},
+    snapshot: async () => pageText(),
+    close: async () => {},
+  });
+}
+const U = 'https://example.test/x';
+
+test('M10 am13: an error status refuses the page by name, whatever its text says', async () => {
+  for (const status of [404, 500, 301, 199, 300]) {
+    const r = await fetchPageText(U, { connect: connectWithGoto(async () => ({ url: U, status })), ...FAST });
+    assert.deepEqual(r, { ok: false, error: `${U} came back as an error page (HTTP ${status}), so there is nothing to read` });
+  }
+});
+
+test('M10 am13: a 2xx status passes through to the existing floors', async () => {
+  const r = await fetchPageText(U, { connect: connectWithGoto(async () => ({ url: U, status: 200 })), ...FAST });
+  assert.equal(r.ok, true);
+  const t = await fetchPageText(U, { connect: async () => ({ goto: async () => ({ url: U, status: 204 }), waitForNetworkIdle: async () => {}, snapshot: async () => 'Loading...', close: async () => {} }), ...FAST });
+  assert.match(!t.ok ? t.error : '', /only 10 characters/);
+});
+
+test('M10 am13: no usable status (undefined, status 0, not an object) refuses with the no-status words', async () => {
+  const words = `${U} did not say whether it loaded (no HTTP status), so it is not read`;
+  for (const res of [undefined, null, 'ok', { url: U, status: 0 }, { url: U }, { url: U, status: NaN }, { url: U, status: '200' }]) {
+    const r = await fetchPageText(U, { connect: connectWithGoto(async () => res), ...FAST });
+    assert.deepEqual(r, { ok: false, error: words }, JSON.stringify(res));
+  }
+});
+
+test('M10 am13: the status is decided before the page is read', async () => {
+  let snaps = 0;
+  const r = await fetchPageText(U, { connect: async () => ({ goto: async () => ({ url: U, status: 404 }), waitForNetworkIdle: async () => {}, snapshot: async () => { snaps += 1; return pageText(); }, close: async () => {} }), ...FAST });
+  assert.equal(r.ok, false);
+  assert.equal(snaps, 0);
 });

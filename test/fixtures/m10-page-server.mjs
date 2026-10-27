@@ -30,7 +30,7 @@ export function fakeConnect({ idle = 'ok' } = {}) {
       calls.connect.push(opts);
       let body = '';
       return {
-        async goto(url) { calls.goto.push(url); body = await (await fetch(url)).text(); },
+        async goto(url) { calls.goto.push(url); const res = await fetch(url); body = await res.text(); return { url, status: res.status }; },
         waitForNetworkIdle(o = {}) {
           if (idle === 'ok') return Promise.resolve();
           if (idle === 'hang') return new Promise(() => {});
