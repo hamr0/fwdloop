@@ -49,6 +49,37 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   rejects only on a load timeout; there is no login-state signal; `consent:false` covers
   never-click. Does not block anything built today.
 
+- **bare-agent · an in-memory allow-list for the MCP bridge** (asked 2026-10-27 from F85; shape
+  agreed with the bare-agent session the same day; waits on hamr's OK to build, then bare-agent
+  POCs on the real github-mcp-server; opt-in minor, 0.53.0). One option,
+  `createMCPBridge({ configPaths, allow: { github: ['list_issues','issue_read'] }, confirmServer, callTimeout })`:
+  - in memory only: never reads or writes `.mcp-bridge.json`, no TTL/refresh; the server command
+    comes only from configPaths discovery; only servers named in `allow` are spawned;
+  - exposed = signed ∩ what the server lists; anything else is absent (a server update cannot
+    widen it);
+  - `bridge.denied = []` and no Restricted section in `systemContext`: the model is never told
+    other tools exist;
+  - a signed tool the server does not list is returned in `bridge.missing = [{server, tool}]` (a
+    field, not a throw); fwdloop refuses the job at preflight at $0, naming it;
+  - a listed-but-not-allowed name via `mcp_invoke` throws ToolError "<name> is not on this run's
+    allowed list", context `{denied:true, server, tool}`; a truly unknown name keeps
+    `unknown tool`;
+  - no stdout in allow mode (the connect `console.log` is skipped; stderr warnings stay;
+    `confirmServer` passed by us removes the unvetted-spawn warning);
+  - every mode: a tools/call timeout throws ToolError with context
+    `{timeout:true, server, tool, timeoutMs}`, and the server's stderr tail moves out of the
+    message into `context.stderr` (a model-facing string never carries raw server stderr).
+    `callTimeout` already exists (default 120000 ms). Limit: on timeout the bridge stops waiting
+    but does not cancel the call on the server.
+  - without `allow`, behaviour is byte-identical to today.
+
+  *Why:* F85 (docs/logs/FINDINGS.md) on 0.52.0: new tools are merged in as allow on refresh/TTL
+  (exposed 1 → 3); denied tools are still named with descriptions to the model; denied and unknown
+  give the same refusal; the allow list lives in a file the bridge rewrites, and the main connect
+  spawns the command/args/env read from that cache file (found by the bare-agent session: whoever
+  can write the file chooses what runs). *fwdloop's use:* bulk mode (`bridge.tools`) plus bareguard
+  `tools.allowlist` by tool name as a second lock (works today).
+
 ## Watch list (not asks — becomes one only when a run proves it)
 
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The
