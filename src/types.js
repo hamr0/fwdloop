@@ -35,7 +35,7 @@
 /**
  * @typedef {object} SourceSlot
  * @property {string} role - `[a-z][a-z0-9_-]*`, unique across sources.
- * @property {'file'|'page'|'ticket'} kind - `file:` (a path), `page:` (a web address, M10 am3) or `tickets:` (a ticket list's address, M12); nothing else is available.
+ * @property {'file'|'page'} kind - `file:` (a path) or `page:` (a web address, M10 am3); nothing else is available.
  * @property {string} path - everything after `file:` / `page:` to end of line, trimmed.
  */
 

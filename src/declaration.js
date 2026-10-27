@@ -567,7 +567,7 @@ export function validateDeclaration(declaration, context = {}) {
   const cellsRoles = Array.isArray(safeArbiter.sources)
     ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
   // M10 am7 item 3: a web page is an input too, frozen at run start; a step reads it by its role (its quotes are checked against the run's own copy)
-  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page' || s?.kind === 'ticket').map((s) => s.role) : []; // M12: a ticket's page is frozen at run start like a page
+  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page').map((s) => s.role) : [];
   // M10 piece 5 (item 2): a document (.docx / .md / .txt) may be READ by a step that quotes it (its close.cited.source), and by no other step
   const docRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'file' && ['.docx', '.md', '.txt'].some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role) : [];
   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];

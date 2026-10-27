@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -120,7 +120,7 @@ guardrail: source ticket = tickets:${LIST}
 `);
   const declaration = {
     steps: [
-      { goal: 'Summarise the ticket,', primitives: ['read'], reads: ['ticket'], emits: 'summary', fromLine: 1, close: { class: 'hitl' } },
+      { goal: 'Summarise the ticket,', primitives: [], reads: ['ticket'], emits: 'summary', fromLine: 1, close: { class: 'hitl' } },
       { goal: 'ask 30m: check it with me,', primitives: [], reads: ['summary'], emits: 'accepted', fromLine: 2, close: { class: 'hitl' } },
       { goal: 'and once I accept, write it out.', primitives: ['write'], reads: ['accepted'], emits: 'sent', fromLine: 3, close: { class: 'hitl' } },
     ],
@@ -134,12 +134,7 @@ guardrail: source ticket = tickets:${LIST}
   const fetchPage = async (url) => ({ ok: true, text: ticketText, url });
   try {
     const r = await runFlow({ root, name: 'tk', runId: 'run-1', catalogue, modelStep, askStep: makeParkingAskStep(), sendStep: sendViaPrimitive, primitives: {}, businessDate: '2026-11-18', sources: [{ id: 'ticket', path: 'https://github.com/hamr0/bareloop/issues/57' }], fetchPage });
-    assert.ok(r.runDir, JSON.stringify(r).slice(0, 600));
-    // the job as signed (its files in the flow folder) and the run's ask, with times and ids left out
-    const flowDir = path.join(root, 'tk');
-    const jobFiles = readdirSync(flowDir).filter((f) => statSync(path.join(flowDir, f)).isFile()).sort().map((f) => [f, readFileSync(path.join(flowDir, f), 'utf8')]);
-    const ask = JSON.parse(readFileSync(path.join(r.runDir, 'ask.json'), 'utf8'));
-    const plan = JSON.stringify({ jobFiles: jobFiles.filter(([f]) => !/ledger|runs|history/.test(f)), ask: { question: ask.question, ttlMs: Date.parse(ask.expiresAt) - Date.parse(ask.askedAt) } });
+    const plan = readFileSync(path.join(r.runDir, 'plan.json'), 'utf8');
     return { r, seen, plan };
   } finally { rmSync(base, { recursive: true, force: true }); }
 }

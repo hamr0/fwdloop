@@ -58,33 +58,6 @@ export function pageAddressRefusal(role, signed) {
   return `the input "${role}" is a web page signed as ${signed}; a run cannot name a different address (a changed address is a changed job, a new workflow). Nothing started.`;
 }
 
-/** M12 item 5: the ticket lists a signed job names, role -> list address (`source <role> = tickets:<address>`). The ONE reader of which roles are ticket roles and their signed list address.
- *  @param {{sources?: Array<{role: string, kind?: string, path: string}>}} arbiter @returns {Record<string, string>} */
-export function ticketListsOf(arbiter) {
-  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'ticket').map((s) => [s.role, s.path]));
-}
-
-/** M12 item 7: is `address` a ticket of `list`? Same origin, no credentials, and the list's own path plus exactly one more part (any text, not only digits).
- *  The query and fragment of either address are not part of the path. Decided on parsed addresses, never on prose.
- *  @param {string} address @param {string} list @returns {boolean} */
-export function ticketUnderList(address, list) {
-  let a; let l;
-  try { a = new URL(String(address).trim()); l = new URL(String(list).trim()); } catch { return false; }
-  if (a.protocol !== 'http:' && a.protocol !== 'https:') return false;
-  if (a.username !== '' || a.password !== '') return false;
-  if (a.origin !== l.origin) return false;
-  const parts = (u) => u.pathname.split('/').filter((x) => x !== '');
-  const base = parts(l);
-  const mine = parts(a);
-  if (mine.length !== base.length + 1 || !base.every((x, i) => x === mine[i])) return false;
-  return !a.pathname.endsWith('/');
-}
-
-/** M12 item 7: why a run may not name this address for a ticket input. @param {string} role @param {string} list */
-export function ticketRefusal(role, list) {
-  return `the input "${role}" is a ticket from the list ${list}; the address given is not one ticket of that list (a ticket's address is the list's own path plus one more part, on the same site). Nothing started.`;
-}
-
 /**
  * How much of a fetched page is the page's own content: the snapshot's header lines (url, size note, hint) and every part of the tree
  * under a banner / navigation / contentinfo landmark are taken out, the page reader's bracketed tags are removed, and what is left is
