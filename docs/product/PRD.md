@@ -169,6 +169,19 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 6. Email is the same shape later; until a mail peer exists, a request can arrive as a file in a folder (the new-file trigger today).
 7. Waits on barebrowse (asked 2026-10-27, POC first): (a) link lines carry their absolute URL; (b) after a load, the final URL and HTTP status. fwdloop's own guard: a known list landmark must be present before "0 new" is trusted.
 
+*Update 2026-10-27 (MCP and tickets).* M12 was signed, partly built, then withdrawn and reverted by hamr ("a, revert"): the code was built without a live POC. It restarts on a new branch after this release, with a fresh scope and a POC before every build. What the POCs proved:
+- F85/F86/F88, the bare-agent bridge: allow mode, readOnlyHint marks, listServerTools; spawn errors fixed in bare-agent 0.54.1.
+- F87, barebrowse: links carry their address, and a page reports its load status.
+- F89 and its rerun: a ticket page needs `data` mode, or the body text is lost.
+- F90/F90b/F90c: the drafter must be told the ticket role exists (one facts line); without it plans sign but never read the ticket, and once granted `get`. "priority P2 only" becomes hitl, not a typed check.
+
+hamr's design asks to carry into the fresh scope:
+- The ticket list address goes in the Inputs box (`issue: tickets <list url>`).
+- New tickets queue and run one after another, oldest first.
+- The job's own guardrails filter which tickets matter, no special words; a non-match ends skipped (grey), never red; a real failure stays red.
+- The queue view could go in Result (needs a mockup first).
+- `~/.mcp.json` is the only MCP config read.
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.

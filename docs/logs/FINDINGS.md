@@ -3966,3 +3966,7 @@ G6 total spend under $0.10.
 - A: (1) `read the ticket body` [read] reads [issue] emits ticket_body, hitl. (2) `use the body for this step` [read] reads [issue, ticket_body] emits work_from_body, hitl. (3) `do your tests` [read, grep, recent] reads [work_from_body] emits test_report, hitl. All three guardrails hitl (2 and 3 unjudgeable: no checkable shape).
 - B: (1) `read the ticket and pull out its priority and what is broken` [read] reads [issue] emits ticket_extract, hitl. (2) `write a short first-response plan for the on-call engineer` [read] reads [ticket_extract], softgreen maxWords 150. (3) the ask [] reads [first_response_plan], hitl. (4) `and once I accept, write it out.` [write] reads [plan_accepted], hitl.
 - **What this means for M12 (not changed here).** Telling the drafter the role exists is enough: step 1 reads the ticket, grounded, signable, no fetch tool. The build needs that one facts line (a ticket branch in the drafter's input list, no sample). `priority P2 only` stays hitl; a typed priority check would be a separate decision. Only 2 drafts: shape evidence, not a rate.
+
+## Note — F89 to F90c fed the M12 restart (2026-10-27)
+
+F89 to F90c fed the M12 restart. The M12 piece 1 and am1 code was reverted 2026-10-27.

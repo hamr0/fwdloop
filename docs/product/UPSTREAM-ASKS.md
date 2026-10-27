@@ -72,6 +72,7 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
     `callTimeout` already exists (default 120000 ms). Limit: on timeout the bridge stops waiting
     but does not cancel the call on the server.
   - without `allow`, behaviour is byte-identical to today.
+  - *Status 2026-10-27: the "waits on hamr's OK" above is stale. `allow` shipped in bare-agent 0.53.0; annotations, `listServerTools` and pagination in 0.54.0; spawn errors and no args in logs in 0.54.1, validated by the F88 reruns.*
 
   *Why:* F85 (docs/logs/FINDINGS.md) on 0.52.0: new tools are merged in as allow on refresh/TTL
   (exposed 1 → 3); denied tools are still named with descriptions to the model; denied and unknown
