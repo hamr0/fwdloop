@@ -1,0 +1,30 @@
+DRAFT READOUT — NOT SIGNED — flow "tkb-a"
+
+Drafted by: deepseek-flash in 2 round(s), cost $0.0047
+Flows root: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1b/root  (the flow is written to <flows root>/tkb-a when you sign)
+Cap per run (signed by you in the prose): $0.25
+
+INPUTS
+  issue = https://github.com/hamr0/bareagent/issues
+
+STEPS
+  1. (line 1) read the ticket body
+     grants: get, read | reads: - | emits: ticket_body | check: hitl
+  2. (line 2) use the body for this step
+     grants: read | reads: ticket_body | emits: applied_body | check: hitl
+  3. (line 3) do your tests
+     grants: read, grep | reads: applied_body | emits: test_results | check: hitl
+
+ASKS (human stops)
+  none
+
+SEND TARGET (nothing leaves before an accepted ask)
+  none
+
+JOB LINES
+  1. read the ticket body
+  ~ from ticket link/mcp below
+  2. use the body for this step
+  ~ body from ticket used
+  3. do your tests
+  ~ typecheck, ci, etc
