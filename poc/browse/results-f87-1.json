@@ -1,0 +1,132 @@
+{
+  "barebrowse": "0.26.0",
+  "engines": {
+    "chromium": {
+      "B1": {
+        "verdict": "PASS",
+        "count": 25,
+        "linkLinesWithUrl": 43,
+        "sample": [
+          {
+            "number": "67049",
+            "title": "dns: Resolver#setLocalAddress() applies the first address even when it throws"
+          },
+          {
+            "number": "67048",
+            "title": "sea: --build-sea linux-arm64 output fails on 16 KiB and 64 KiB page kernels"
+          },
+          {
+            "number": "67047",
+            "title": "net: socket.setTimeout() from a nextTick fires the old timeout at once and drops the new one (regression from #64254)"
+          }
+        ],
+        "chars": 19710
+      },
+      "B2": {
+        "verdict": "PASS",
+        "linkLinesWithUrl": 0,
+        "chars": 15910
+      },
+      "B3": {
+        "issues": {
+          "url": "https://github.com/nodejs/node/issues",
+          "status": 200
+        },
+        "nope": {
+          "url": "https://github.com/nodejs/node/issues-nope-f87",
+          "status": 404
+        },
+        "snapshot404Head": "url: https://github.com/nodejs/node/issues-nope-f87",
+        "http": {
+          "url": "https://github.com/nodejs/node/issues",
+          "status": 200
+        },
+        "verdict": "FAIL"
+      },
+      "B4": {
+        "verdict": "PASS",
+        "name": "Error",
+        "code": "NAV_FAILED",
+        "reason": "net::ERR_NAME_NOT_RESOLVED",
+        "message": "Navigation to http://nonexistent-f87.invalid/ failed: net::ERR_NAME_NOT_RESOLVED"
+      }
+    },
+    "firefox": {
+      "B1": {
+        "verdict": "PASS",
+        "count": 25,
+        "linkLinesWithUrl": 43,
+        "sample": [
+          {
+            "number": "67049",
+            "title": "dns: Resolver#setLocalAddress() applies the first address even when it throws"
+          },
+          {
+            "number": "67048",
+            "title": "sea: --build-sea linux-arm64 output fails on 16 KiB and 64 KiB page kernels"
+          },
+          {
+            "number": "67047",
+            "title": "net: socket.setTimeout() from a nextTick fires the old timeout at once and drops the new one (regression from #64254)"
+          }
+        ],
+        "chars": 19823
+      },
+      "B2": {
+        "verdict": "PASS",
+        "linkLinesWithUrl": 0,
+        "chars": 16023
+      },
+      "B3": {
+        "issues": {
+          "url": "https://github.com/nodejs/node/issues",
+          "status": 200
+        },
+        "nope": {
+          "url": "https://github.com/nodejs/node/issues-nope-f87",
+          "status": 404
+        },
+        "snapshot404Head": "url: https://github.com/nodejs/node/issues-nope-f87",
+        "http": {
+          "url": "https://github.com/nodejs/node/issues",
+          "status": 200
+        },
+        "verdict": "FAIL"
+      },
+      "B4": {
+        "verdict": "PASS",
+        "name": "Error",
+        "code": "NAV_FAILED",
+        "reason": "NS_ERROR_UNKNOWN_HOST",
+        "message": "Navigation to http://nonexistent-f87.invalid/ failed: NS_ERROR_UNKNOWN_HOST"
+      }
+    }
+  },
+  "B5": {
+    "404": {
+      "url": "https://github.com/nodejs/node/issues-nope-f87",
+      "ms": 5597,
+      "thrown": null,
+      "ok": true,
+      "textHead": [
+        "url: https://github.com/nodejs/node/issues-nope-f87",
+        "10,969 chars → 7,476 chars (32% pruned)",
+        "[HTTP 404 — the page may be an error page]"
+      ],
+      "textChars": 7611,
+      "browserPidsLeftAfterFetch": 0
+    },
+    "unreachable": {
+      "url": "http://nonexistent-f87.invalid/",
+      "ms": 2903,
+      "thrown": null,
+      "ok": false,
+      "error": "http://nonexistent-f87.invalid/ could not be read: Navigation to http://nonexistent-f87.invalid/ failed: net::ERR_NAME_NOT_RESOLVED",
+      "browserPidsLeftAfterFetch": 0
+    }
+  },
+  "B6": {
+    "leftoverPids": 0,
+    "leftoverTmpDirs": []
+  }
+}
