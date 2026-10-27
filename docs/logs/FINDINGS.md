@@ -3878,3 +3878,10 @@ T6 no leftover barebrowse process of the script's own, no new /tmp/barebrowse-* 
 - **T6 PASS.** No leftover barebrowse process or /tmp dir.
 - **Note.** hamr0/bareloop has no issues (open or closed), so the target was hamr0/bareagent #30 (closed).
 - **Needs hamr's ruling (not changed here).** M12 item 7 says a ticket is read "like a page today"; the page path's `act` snapshot loses ticket body prose. A ticket read needs the `data` (or `read`) snapshot mode. Cost of leaving it: a run's ticket input has the title but not the issue's description, so the job works on the title and checklist only.
+
+**RESULT after M12 am1 (2026-10-27, $0, no model call).** [MEASURED] `node poc/tickets/f89-2.mjs` (same checks as F89, the ticket read: `fetchPageText(url, { ticket: true })`, barebrowse `data` snapshot mode); result file `poc/tickets/results-f89-2.json` (write-once). Same target, hamr0/bareagent #30.
+- **T1 PASS, T2 PASS, T4 PASS.** 5,897 chars after whitespace collapse (act mode: 7,005).
+- **T3 PASS.** The 40-character body run ("Status: BLOCKED / conditional — no actio") is now in the frozen text. The F89 failure is fixed by the mode.
+- **T5 PASS.** `/hamr0/bareloop/issues/999999` is still refused on HTTP 404 in data mode.
+- **T6 PASS.** No leftover barebrowse process; no new /tmp/barebrowse-* dir.
+- **Refusals on data-mode text (looked at, not changed).** Bot-check: the `[BOT CHALLENGE DETECTED]` marker is looked for in the text; not present on this page, no data-mode-specific change seen. Size floor (200): data text was 6,605 chars, clear of it; a very short ticket (title only) could fall under it, same as a short page. Site-menu floor: data mode puts a "Global navigation menu" sectionheader and a `navigation "Breadcrumbs"` inside `- main`, and still emits 2 landmark lines; `pageContentChars` counted 4,471 content chars of 6,605, so the 100 floor is far away. Data mode says "Main content only" so a chrome-only page would leave less text, not more; unchecked on a chrome-only ticket page.

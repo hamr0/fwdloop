@@ -1,0 +1,12 @@
+{
+  "title": "Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships)",
+  "bodyRun": "Status: BLOCKED / conditional — no actio",
+  "T1": "PASS",
+  "T2": "PASS",
+  "T3": "PASS",
+  "T4": "PASS",
+  "chars": 5897,
+  "T5": "PASS",
+  "T5error": "https://github.com/hamr0/bareloop/issues/999999 came back as an error page (HTTP 404), so there is nothing to read",
+  "T6": "PASS"
+}
