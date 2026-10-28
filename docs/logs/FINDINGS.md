@@ -4253,3 +4253,44 @@ D6 spend under $0.10 total, counting the four smoke drafts ($0.0114). Estimate: 
 - C7 nothing else moved. `mustCarry` (12 single-phrase checks per ticket, F98 method) on the same 32 gives per-ticket hit lists identical to F98's recorded `g3Hits` in `poc/tickets/f98/out/results.json`. PASS = 32 of 32 identical.
 **Recorded, not judged.** bareguard version and sha; ms per ticket decision for `carriesAny` against F98's 0.44 ms for 12 `mustCarry` checks; the exact shape of `checkStep`'s result as built (`gaps` / `full.matched` location): `f99.mjs` reads `res.gaps ?? res.full.gaps` and `res.full.matched` as ruling #69 says; if the built shape differs that is itself a recorded finding for the guard session, not a reason to refit.
 **Limits stated up front.** Same 32 tickets and keyword list as F98 (nothing new about recall); the reference and the rule were both specified from #69, so a shared misreading of the text would pass C2: the made-up C5 cases carry the literal examples from #69 to catch that; one sha; the diagnostic labels (`c: crash`) are untouched.
+
+## Note — MCP + tickets (barebrowse and MCP) — tried, proven, pending (2026-10-28)
+
+Summary of F85-F90c and F92-F99 so nothing is lost. Facts from the entries only; nothing new. M12 (signed 2026-10-27) is withdrawn; the fresh scope is named M12 (PRD, ruled 2026-10-28).
+
+**Proven**
+- A ticket is read with its body through barebrowse `data` mode (F89, F92); without it the body is lost.
+- One ticket end to end on a page: data-mode read, frozen input, signed, ask, accept, green, books balance (F92, 6/6 PASS); a 404 ticket is refused at $0 naming the input (F92 H6).
+- The drafter needs one facts line to read a ticket role; without it plans sign but never read the ticket (F90b, F90c).
+- List page: ticket links found, seen list kept, new tickets oldest first, an unreadable page is never "0 new" (F94).
+- GitHub MCP read-only with GITHUB_READ_ONLY=1 + GITHUB_TOOLSETS=issues: 6 tools, all readOnlyHint, allow list holds (F88, F96).
+- Typed labels let code decide priority 12 of 12, odd spellings too; an off-scale label goes to unsure (F96, F98).
+- MCP lists newest first with an `after` cursor; `since` is last update, so it cannot find new tickets (F96).
+- Labels are exact; the type label is `c: crash` (F98).
+- AI boxes never wrongly skipped in 18 calls (F95), but superseded by the pure-matching ruling.
+
+**Disproved / limits**
+- Keywords alone miss 1-3 of 12 crash tickets and false-run about half of the unlabelled ones (F98).
+- bareguard mustCarry is a substring ("hang" in "change") and needs all phrases (F98; guard confirmed on 0.27.0).
+- The drafter made no topic boxes, 0 of 6 (F97).
+- "priority P2 only" filtered nothing in F92 (it became hitl).
+- F93 cost ($0.1286) is over its own bar ($0.08); F95 Q1/Q3 FAIL on one fuzzy-topic ticket (#180865).
+
+**Pending / not proven**
+- Page flood: F94b was inconclusive (the case did not happen); a pinned item must be skipped. MCP flood not run.
+- An MCP-read ticket as a run's frozen input, end to end.
+- A missing MCP tool refused at $0.
+- Injection ("ignore your rules") changes nothing.
+- New-ticket trigger over time via MCP.
+- The skipped outcome and skip row in the product.
+- Page Labels-row second shape, and a page older than the ticket (F98 R2).
+- The rule "no labels key = no labels" (F98 R3).
+- bareguard carriesAny (ruling #69, branch feat/carries-any): F99 pre-registered at 165843c, waiting for guard's sha.
+- Ticket address form: hamr to confirm `issue: tickets <url>` in the Inputs box.
+
+**Where things are**
+- POC code: poc/tickets/ (f89*, poc1*, f92-f99) and poc/mcp/ (f85-f88, f96).
+- ~/.mcp.json `github` server loads its token from `pass fwdloop/gh_token`; never in a file.
+- Scratch diffs: poc/tickets/f92/scratch.diff (ticket kind), poc/tickets/f97/scratch.diff (drafter ticketFilter).
+
+**Spend, 2026-10-28:** F92 $0.0200 + F93 $0.1286 + F95 $0.2192 + F97 $0.0488 (incl. $0.0114 smoke) = **$0.4166**. F94, F94b, F96, F98 were $0. (2026-10-27 paid: F90 $0.0171, F90b $0.0147, F90c $0.0049.)

@@ -205,6 +205,10 @@ hamr's rulings 2026-10-28:
 4. Two readers: MCP typed fields when the source has them; barebrowse page plus AI boxes otherwise. Same guardrail, same check.
 5. What cannot be boxed goes to hitl.
 
+- Tried / proven / pending: see docs/logs/FINDINGS.md "Note — MCP + tickets (barebrowse and MCP) — tried, proven, pending (2026-10-28)".
+- Ruled by hamr 2026-10-28: the fresh scope is named M12. The first slice delivers what MCP proved; skipped tickets show in the Results tab (placement detail still needs a mockup before build).
+- Asked of bareguard 2026-10-28: carriesAny (ruling #69, any-of phrases on word edges, which phrase hit in full.matched); F99 pre-registered to validate it (see UPSTREAM-ASKS.md).
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.
