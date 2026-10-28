@@ -128,6 +128,8 @@
   .topbar .tagline::before{content:"· ";color:var(--text-faint);}
   @media (max-width: 600px){ .topbar .tagline{display:none;} }
   .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #online-dot{font-size:12px;white-space:nowrap;flex:none;}
+  #online-dot.on{color:var(--green);} #online-dot.off{color:var(--red);}
 
   [hidden]{display:none !important;}
   .main{display:flex;flex:1;min-height:0;}
@@ -891,6 +893,7 @@
     <div class="topbar-right">
       <span class="hint" id="host-line"></span>
       <button class="btn small" id="settings-open" type="button" data-testid="settings-open">&#9881; Settings</button>
+      <span id="online-dot" class="on" data-testid="online-dot" role="status">&#9679; online</span>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button>
     </div>
   </header>
@@ -3815,6 +3818,13 @@
     document.getElementById("update-bar").hidden = text === null;
     if(text !== null) document.getElementById("update-text").textContent = text;
   }
+  // M4d am35: the Inbox poll (every LISTS_POLL_MS) is the panel's heartbeat. A reply of any kind (even an HTTP error) means node answered = online; only a
+  // failed read with no HTTP status (the network, a dead panel) = offline. ONE painter writes the dot; the served page starts online.
+  function paintOnline(isOnline){
+    var el = document.getElementById("online-dot");
+    el.className = isOnline ? "on" : "off";
+    el.textContent = isOnline ? "\u25CF online" : "\u25CF offline";
+  }
   document.getElementById("update-reload").addEventListener("click", function(){ location.reload(); });
   function tickLeft(){
     document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
@@ -3915,7 +3925,8 @@
   // Immediate (every user action that re-reads calls this); the tick uses `listsDue` to throttle.
   function reloadLists(){
     lastListsAt = Date.now();
-    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); })
+      .then(function(){ paintOnline(true); }, function(err){ paintOnline(!!(err && typeof err.status === "number")); }).catch(function(){});
     getJSON("/api/runs").then(function(r){
       var next = sig(r);
       if(next !== null && next === lastSig.runs) return;
