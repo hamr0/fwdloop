@@ -1,0 +1,124 @@
+url: https://github.com/flutter/flutter/issues/195327
+20,949 chars → 4,356 chars (79% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=302]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=305]
+      - link "Issues (5k+)" [ref=306]
+      - link "Pull requests (730)" [ref=307]
+      - Repository: Actions [ref=308], Projects [ref=309], Wiki [ref=310]
+      - button "More items" [expanded=false] [ref=247]
+  - region "Header"
+    - heading "[cupertino_ui] CupertinoListTile: add enabled #195327" [level=1]
+    - link "New issue" [ref=418]
+    - button "Copy link" [ref=419]
+  - Open
+  - heading "Description" [level=2]
+  - link "@LahaLuhem's profile" [ref=495]
+  - link "LahaLuhem" [ref=434]
+  - opened
+  - link "2d ago" [ref=498]
+  - button "Last edited by LahaLuhem" [expanded=false] [ref=439]
+  - button "Issue body actions" [expanded=false] [ref=442]
+  - URGENT, this is P2!! Please treat it as priority P2 and escalate to the on-call engineer today.
+  - heading "Use case" [level=3]
+  - iOS greys out a disabled list row, in UIKit and SwiftUI.
+  - code
+    - CupertinoListTile
+  - can only drop
+  - code
+    - onTap
+  - , which leaves the row looking tappable. A
+  - code
+    - null
+  - code
+    - onTap
+  - can't mean disabled either, since iOS leaves rows with nothing to tap as they are.
+  - heading "Proposal" [level=3]
+  - code
+    - enabled
+  - , like
+  - code
+    - ListTile.enabled
+  - . When
+  - code
+    - false
+  - : no tap,
+  - code
+    - title
+  - in
+  - code
+    - tertiaryLabel
+  - code
+    - subtitle
+  - and
+  - code
+    - additionalInfo
+  - in
+  - code
+    - quaternaryLabel
+  - . Those are the colours UIKit's list cells switch to on iOS 18.5 and 26.2.
+  - link "Image" [ref=601]
+  - DisclosureTriangle "UIKit" [expanded=false]
+    - UIKit
+  - The slider has the same gap:
+  - link "#106691" [ref=719]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "suryaKommana2662" [ref=812]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=814]
+      - link "1d ago" [ref=724]
+    - listitem [level=1]
+      - heading "suryaKommana2662commentedyesterday" [level=3]
+      - link "@suryaKommana2662's profile" [ref=728]
+      - link "suryaKommana2662" [ref=617]
+      - link "1d ago" [ref=730]
+      - button "Actions for suryaKommana2662's comment, 4:05 AM yesterday" [expanded=false] [ref=623]
+      - link "@LahaLuhem" [ref=731]
+      - Thanks for the proposal. routing to the
+      - code
+        - team-design
+      - for further investigation.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - suryaKommana2662 [ref=829] · added: p: cupertino_ui cupertino_ui package in flutter/packages [ref=831], package flutter/packages repository. See also p: labels. [ref=834], team-design Owned by Design Languages team [ref=837], c: proposal A detailed proposal for a change to Flutter [ref=840]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=845]
+      - link "1d ago" [ref=744]
+    - listitem [level=1]
+      - link "elliette" [ref=849]
+      - added
+      - link "P3 Issues that are less important to the Flutter project" [ref=851]
+      - link "triaged-design Triaged by Design Languages team" [ref=854]
+      - link "11h ago" [ref=749]
+  - link "Sign up for free" [ref=451]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=454]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P3 Issues that are less important to the Flutter project [ref=646], c: proposal A detailed proposal for a change to Flutter [ref=649], p: cupertino_ui cupertino_ui package in flutter/packages [ref=652], package flutter/packages repository. See also p: labels. [ref=655], team-design Owned by Design Languages team [ref=658], triaged-design Triaged by Design Languages team [ref=661]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @elliette [ref=579], @LahaLuhem [ref=580], @suryaKommana2662 [ref=581]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=680]
