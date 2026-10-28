@@ -81,6 +81,20 @@ it · the fix (upstream commit/PR) · the version fwdloop consumed.**
   can write the file chooses what runs). *fwdloop's use:* bulk mode (`bridge.tools`) plus bareguard
   `tools.allowlist` by tool name as a second lock (works today).
 
+- **bareguard · a rubric rule "any of these words, on word edges"** (asked 2026-10-28, asked,
+  waiting). A NEW rule on a text field: passes when any signed phrase appears on word edges,
+  case-insensitive; when none is found, a typed gap naming the phrases, distinct from
+  missing-field and wrong-type. `mustCarry`, `carries()` and the presence decide `{phrases}` stay
+  unchanged, so no signed spec moves. *Why:* F98 (2026-10-28): `mustCarry` is a case-insensitive
+  substring (`hang` matched change/unchanged/changing: 3 of 10 false runs on real tickets) and
+  all-of (one rubric per keyword was needed). Used by the M12 ticket keyword guardrail; hamr's
+  ruling: a keyword miss is a listed skip with "Run it anyway". *Who:* hamr chose option A,
+  2026-10-28; sent to the `guard` session the same day. guard had replied earlier that day: not
+  planned, no branch (main d111db8 = 0.27.0), and changing `mustCarry` itself would tighten signed
+  specs, so a new rule was chosen. *Status:* blocks only M12's keyword guardrail; the labels part
+  does not wait. fwdloop validates with pre-registered POCs on guard's branch before release and on
+  the installed package after.
+
 ## Watch list (not asks — becomes one only when a run proves it)
 
 - **bare-agent · `response_format` / JSON-schema pass-through in the OpenAI provider.** The
