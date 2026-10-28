@@ -183,6 +183,25 @@ hamr's design asks to carry into the fresh scope:
 - `~/.mcp.json` is the only MCP config read.
 - Ruled 2026-10-28 (after F93): a ticket's priority starts as its label; the goal is several guardrails that filter tickets from any ticket page or MCP source, label or a "Priority:" line in the text. A skipped ticket's read cost (about $0.003-$0.009, F93) is accepted.
 
+*Update 2026-10-28 (MCP and tickets POCs).* Five more POCs ran on the restart branch; none changes the signed text (M12 is still withdrawn, nothing is signed). What they showed:
+- F92: one ticket address runs end to end on the real path (data-mode read, frozen input, signed, ask, accept, send), 6/6 PASS, $0.02 total.
+- F93: the model reads a ticket's priority label into a typed box (15/15 exact, none = null 5/5, label beats a body line 5/5). Its cost and round-count numbers failed my own registered bars (about $0.003-$0.009 a read).
+- F94: new tickets on a real list page are found by code alone, oldest first, with no false hits and no model ($0). F94b: the flood case (more new tickets than page 1 holds) did not happen, so page-through is INCONCLUSIVE; the "too many new" path was never run.
+- F95: plain-language guardrails read into boxes with an explicit `unsure`, and code decides RUN / SKIP / HITL with bareguard `in`: no wrong skip in 18 calls (Q2), label beats body (Q4), boxes always typed (Q5). Q1 and Q3 FAIL on one ticket (#180865, a fuzzy topic the model called crash-or-hang every time), $0.2192 for 42 calls.
+- F96: the same tickets through the real GitHub MCP server, no model, $0: tools are all read-only, allow mode holds, labels/state/created_at are typed fields, code alone got 12 of 12 priorities, and the list pages by cursor (`after`). `since` filters on last update, so it cannot find new tickets. The flood was not run on MCP either.
+
+Research done 2026-10-28 (web, some items unverified):
+- Usual practice is poll + seen-id dedupe, existing items baselined at switch-on, and a non-match is no action and no cost (Zapier filter, n8n drop). Zapier polls page 1 only, so a flood can lose items; page-until-seen or a cursor fixes that.
+- Structured fields come first (Jira recommends field conditions before JQL/regex; gitlab-triage conditions are structured). AI triage products mostly suggest and a human accepts (Linear, GitHub), so AI-into-enum-boxes with code checks is less common.
+- Two patterns adopted for the design: an explicit `unsure` value in every box (unsure goes to a human, never skipped), and skipped tickets kept visible (a skip row).
+
+hamr's rulings 2026-10-28:
+1. A ticket's priority starts as its label, else a "Priority:" line in the text; the label wins (recorded above).
+2. The goal is several plain-language guardrails that filter tickets from any ticket page or MCP source. No new bareguard shapes unless proven.
+3. The cost of reading a skipped ticket is accepted.
+4. Two readers: MCP typed fields when the source has them; barebrowse page plus AI boxes otherwise. Same guardrail, same check.
+5. What cannot be boxed goes to hitl.
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.
