@@ -1,0 +1,391 @@
+url: https://github.com/flutter/flutter/issues?page=2
+57,096 chars → 23,258 chars (59% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls. Links: "name" <url>.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" <https://github.com/flutter> [ref=325]
+      - link "flutter" <https://github.com/flutter/flutter> [ref=327]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" <https://github.com/flutter/flutter> [ref=328]
+      - link "Issues (5k+)" <https://github.com/flutter/flutter/issues> [ref=329]
+      - link "Pull requests (728)" <https://github.com/flutter/flutter/pulls> [ref=330]
+      - Repository: Actions <https://github.com/flutter/flutter/actions> [ref=331], Projects <https://github.com/flutter/flutter/projects> [ref=332], Wiki <https://github.com/flutter/flutter/wiki> [ref=333]
+      - button "More items" [expanded=false] [ref=248]
+  - complementary "Issues sidebar navigation"
+    - navigation "Issue filters"
+      - Issue filters: Issues <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=1562], Assigned to me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me> [ref=1563], Created by me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+author%3A%40me> [ref=1564], Mentioned <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me> [ref=1565], Recent activity <https://github.com/flutter/flutter/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc> [ref=1566]
+    - navigation "Pages"
+      - Pages: Views <https://github.com/flutter/flutter/issues/views> [ref=1567], Projects <https://github.com/flutter/flutter/projects> [ref=1568], Milestones <https://github.com/flutter/flutter/milestones> [ref=1569], Labels <https://github.com/flutter/flutter/labels> [ref=1570]
+    - navigation "Feedback"
+      - link "Feedback Preview" <https://gh.io/issues-sidebar-feedback> [ref=1571]
+    - button "Collapse sidebar" [expanded=true] [ref=1144]
+  - heading "Issues" [level=1]
+  - link "New issue" <https://github.com/login?return_to=https://github.com/flutter/flutter/issues?page=2> [ref=339]
+  - search "Issues"
+    - form "Search issues"
+      - LabelText
+        - Search issues
+      - combobox "Search issues" [expanded=false] [ref=1576]
+        - is:issue state:open
+      - button "Clear filter" [ref=1149]
+      - button "Search" [ref=1152]
+  - heading "Issues" [level=2]
+  - list "Filter issues by state"
+    - link "Open (12,757)" [ref=1155]
+    - link "Closed (103,741)" [ref=1156]
+  - toolbar "Issue list controls"
+    - button "Filter by author" [expanded=false] [ref=471]
+      - Author
+    - button "More Issue list controls" [expanded=false] [ref=472]
+  - list "Issues display density"
+    - button "Comfortable display density" [ref=1588]
+    - button "Compact display density" [ref=1591]
+  - list "Issues"
+    - listitem "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag. More information available below." [level=1]
+      - heading [level=3]
+        - link "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag" <https://github.com/flutter/flutter/issues/195415> [ref=1594]
+      - button "Filter by label f: gestures" [ref=1165]
+      - button "Filter by label framework" [ref=1166]
+      - button "Filter by label has reproducible steps" [ref=1167]
+      - button "Filter by label P2" [ref=1168]
+      - button "Filter by label team-framework" [ref=1169]
+      - button "Filter by label triaged-framework" [ref=1170]
+      - Unread
+      - flutter/flutter#195415
+      - button "Filter by author Pancf" [ref=491]
+      - opened
+      - generic "Oct 27, 2026, 2:01 PM GMT+1"
+        - 1d ago
+      - 1
+      - button "Filter by assignee Renzo-Olivares" [ref=502]
+    - listitem "macOS app target app crash. More information available below." [level=1]
+      - heading [level=3]
+        - link "macOS app target app crash" <https://github.com/flutter/flutter/issues/195414> [ref=1610]
+      - button "Filter by label needs repro info" [ref=1184]
+      - button "Filter by label waiting for response" [ref=1185]
+      - Unread
+      - flutter/flutter#195414
+      - button "Filter by author ekuleshov" [ref=518]
+      - opened
+      - generic "Oct 27, 2026, 1:51 PM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "Update counter example to contain Dark theme option and start with ThemeMode.system. More information available below." [level=1]
+      - heading [level=3]
+        - link "Update counter example to contain Dark theme option and start with ThemeMode.system" <https://github.com/flutter/flutter/issues/195412> [ref=1618]
+      - button "Filter by label c: proposal" [ref=1198]
+      - button "Filter by label team-tool" [ref=1199]
+      - button "Filter by label tool" [ref=1200]
+      - Unread
+      - flutter/flutter#195412
+      - button "Filter by author FMorschel" [ref=544]
+      - opened
+      - generic "Oct 27, 2026, 1:37 PM GMT+1"
+        - 1d ago
+      - 2
+    - listitem "[cupertino_ui] OverlayVisibilityMode.editing and .notEditing ignore focus. More information available below." [level=1]
+      - heading [level=3]
+        - link "[cupertino_ui] OverlayVisibilityMode.editing and .notEditing ignore focus" <https://github.com/flutter/flutter/issues/195410> [ref=1628]
+      - button "Filter by label c: proposal" [ref=1213]
+      - button "Filter by label p: cupertino_ui" [ref=1214]
+      - button "Filter by label package" [ref=1215]
+      - button "Filter by label team-design" [ref=1216]
+      - Unread
+      - flutter/flutter#195410
+      - button "Filter by author LahaLuhem" [ref=570]
+      - opened
+      - generic "Oct 27, 2026, 11:25 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "[Packages] [flutter_shaders] InkWell shader golden test fails on Flutter stable and Master channels. More information available below." [level=1]
+      - heading [level=3]
+        - link "[Packages] [flutter_shaders] InkWell shader golden test fails on Flutter stable and Master channels" <https://github.com/flutter/flutter/issues/195409> [ref=1640]
+      - button "Filter by label a: tests" [ref=1229]
+      - button "Filter by label from: manual-qa" [ref=1230]
+      - button "Filter by label package" [ref=1231]
+      - button "Filter by label team-engine" [ref=1232]
+      - Unread
+      - flutter/flutter#195409
+      - button "Filter by author preethi0228-git" [ref=596]
+      - opened
+      - generic "Oct 27, 2026, 10:56 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "[Android] TextField context menu does not show on long press after focus returns with an unchanged selection. More information available below." [level=1]
+      - heading [level=3]
+        - link "[Android] TextField context menu does not show on long press after focus returns with an unchanged selection" <https://github.com/flutter/flutter/issues/195408> [ref=1652]
+      - button "Filter by label a: text input" [ref=1245]
+      - button "Filter by label f: selection" [ref=1246]
+      - button "Filter by label framework" [ref=1247]
+      - button "Filter by label platform-android" [ref=1248]
+      - button "Filter by label team-text-input" [ref=1249]
+      - Unread
+      - flutter/flutter#195408
+      - button "Filter by author SotnikAP" [ref=622]
+      - opened
+      - generic "Oct 27, 2026, 10:51 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "EditableText does not update RenderEditable.hasFocus or its semantics isFocused when it regains focus with a valid selection. More information available below." [level=1]
+      - heading [level=3]
+        - link "EditableText does not update RenderEditable.hasFocus or its semantics isFocused when it regains focus with a valid selection" <https://github.com/flutter/flutter/issues/195407> [ref=1666]
+      - button "Filter by label a: text input" [ref=1262]
+      - button "Filter by label f: focus" [ref=1263]
+      - button "Filter by label framework" [ref=1264]
+      - button "Filter by label has reproducible steps" [ref=1265]
+      - button "Filter by label team-text-input" [ref=1266]
+      - Unread
+      - flutter/flutter#195407
+      - button "Filter by author ShobhitPatra" [ref=648]
+      - opened
+      - generic "Oct 27, 2026, 10:33 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "SpellCheckConfiguration == and hashCode ignore misspelledSelectionColor. More information available below." [level=1]
+      - heading [level=3]
+        - link "SpellCheckConfiguration == and hashCode ignore misspelledSelectionColor" <https://github.com/flutter/flutter/issues/195403> [ref=1680]
+      - button "Filter by label a: text input" [ref=1279]
+      - button "Filter by label framework" [ref=1280]
+      - button "Filter by label has reproducible steps" [ref=1281]
+      - button "Filter by label team-text-input" [ref=1282]
+      - Unread
+      - flutter/flutter#195403
+      - button "Filter by author ChandraChaan" [ref=674]
+      - opened
+      - generic "Oct 27, 2026, 10:18 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/flutter#195404: Include misspelledSelectionColor in SpellCheckConfiguration equality, Open" <https://github.com/flutter/flutter/pull/195404> [ref=680]
+      - 2
+    - listitem "[Impeller][macOS] Image.toByteData returns all zeros on Intel Macs with a discrete AMD GPU (missing synchronizeResource on managed readback buffer). More information available below." [level=1]
+      - heading [level=3]
+        - link "[Impeller][macOS] Image.toByteData returns all zeros on Intel Macs with a discrete AMD GPU (missing synchronizeResource on managed readback buffer)" <https://github.com/flutter/flutter/issues/195402> [ref=1692]
+      - button "Filter by label e: impeller" [ref=1295]
+      - button "Filter by label engine" [ref=1296]
+      - button "Filter by label has reproducible steps" [ref=1297]
+      - button "Filter by label platform-macos" [ref=1298]
+      - button "Filter by label team-engine" [ref=1299]
+      - Unread
+      - flutter/flutter#195402
+      - button "Filter by author OAConsulenze" [ref=701]
+      - opened
+      - generic "Oct 27, 2026, 10:18 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "[iPhone Duo] Blank screen on unfolded cold start: engine CADisplayLink bound to UIScreen.main (outer display) never fires; UIWindowScene display link fixes it. More information available below." [level=1]
+      - heading [level=3]
+        - link "[iPhone Duo] Blank screen on unfolded cold start: engine CADisplayLink bound to UIScreen.main (outer display) never fires; UIWindowScene display link fixes it" <https://github.com/flutter/flutter/issues/195401> [ref=1706]
+      - button "Filter by label e: device-specific" [ref=1312]
+      - button "Filter by label engine" [ref=1313]
+      - button "Filter by label has reproducible steps" [ref=1314]
+      - button "Filter by label platform-ios" [ref=1315]
+      - button "Filter by label team-ios" [ref=1316]
+      - Unread
+      - flutter/flutter#195401
+      - button "Filter by author levili-T" [ref=727]
+      - opened
+      - generic "Oct 27, 2026, 9:48 AM GMT+1"
+        - 1d ago
+      - 3
+    - listitem "Crash: ACCESS_VIOLATION c0000005 in FlutterPlatformNodeDelegate::ChildAtIndex during rapid UIA tree traversal. More information available below." [level=1]
+      - heading [level=3]
+        - link "Crash: ACCESS_VIOLATION c0000005 in FlutterPlatformNodeDelegate::ChildAtIndex during rapid UIA tree traversal" <https://github.com/flutter/flutter/issues/195399> [ref=1720]
+      - button "Filter by label a: accessibility" [ref=1329]
+      - button "Filter by label a: desktop" [ref=1330]
+      - button "Filter by label c: fatal crash" [ref=1331]
+      - button "Filter by label engine" [ref=1332]
+      - button "Filter by label fyi-windows" [ref=1333]
+      - button "Filter by label platform-windows" [ref=1334]
+      - button "Filter by label team-accessibility" [ref=1335]
+      - Unread
+      - flutter/flutter#195399
+      - button "Filter by author yalpayelekon" [ref=753]
+      - opened
+      - generic "Oct 27, 2026, 9:17 AM GMT+1"
+        - 1d ago
+      - 11
+    - listitem "TableBorder.lerp and TableBorder.scale drop borderRadius. More information available below." [level=1]
+      - heading [level=3]
+        - link "TableBorder.lerp and TableBorder.scale drop borderRadius" <https://github.com/flutter/flutter/issues/195397> [ref=1738]
+      - button "Filter by label framework" [ref=1348]
+      - button "Filter by label has reproducible steps" [ref=1349]
+      - button "Filter by label P2" [ref=1350]
+      - button "Filter by label team-framework" [ref=1351]
+      - button "Filter by label triaged-framework" [ref=1352]
+      - Unread
+      - flutter/flutter#195397
+      - button "Filter by author ChandraChaan" [ref=779]
+      - opened
+      - generic "Oct 27, 2026, 8:53 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/flutter#195398: Fix TableBorder.lerp and scale dropping borderRadius, Open" <https://github.com/flutter/flutter/pull/195398> [ref=785]
+      - 4
+      - button "Filter by assignee ChandraChaan" [ref=791]
+    - listitem "[camera_platform_interface] VideoRecordedEvent == and hashCode disagree. More information available below." [level=1]
+      - heading [level=3]
+        - link "[camera_platform_interface] VideoRecordedEvent == and hashCode disagree" <https://github.com/flutter/flutter/issues/195396> [ref=1752]
+      - button "Filter by label has reproducible steps" [ref=1366]
+      - button "Filter by label p: camera" [ref=1367]
+      - button "Filter by label package" [ref=1368]
+      - button "Filter by label team-ecosystem" [ref=1369]
+      - Unread
+      - flutter/flutter#195396
+      - button "Filter by author ChandraChaan" [ref=807]
+      - opened
+      - generic "Oct 27, 2026, 8:49 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/packages#13452: [camera_platform_interface] Fix VideoRecordedEvent equality and hashCode, Draft" <https://github.com/flutter/packages/pull/13452> [ref=813]
+      - 2
+    - listitem "[gen-l10n] Support optional nested message groups in ARB input. More information available below." [level=1]
+      - heading [level=3]
+        - link "[gen-l10n] Support optional nested message groups in ARB input" <https://github.com/flutter/flutter/issues/195395> [ref=1764]
+      - button "Filter by label a: internationalization" [ref=1382]
+      - button "Filter by label c: proposal" [ref=1383]
+      - button "Filter by label team-tool" [ref=1384]
+      - button "Filter by label tool" [ref=1385]
+      - Unread
+      - flutter/flutter#195395
+      - button "Filter by author kecson" [ref=834]
+      - opened
+      - generic "Oct 27, 2026, 8:01 AM GMT+1"
+        - 1d ago
+      - 2
+    - listitem "[cupertino_ui] NoDefaultCupertinoThemeData == and hashCode ignore selectionHandleColor. More information available below." [level=1]
+      - heading [level=3]
+        - link "[cupertino_ui] NoDefaultCupertinoThemeData == and hashCode ignore selectionHandleColor" <https://github.com/flutter/flutter/issues/195391> [ref=1776]
+      - button "Filter by label p: cupertino_ui" [ref=1398]
+      - button "Filter by label P2" [ref=1399]
+      - button "Filter by label package" [ref=1400]
+      - button "Filter by label team-design" [ref=1401]
+      - button "Filter by label triaged-design" [ref=1402]
+      - Unread
+      - flutter/flutter#195391
+      - button "Filter by author ChandraChaan" [ref=860]
+      - opened
+      - generic "Oct 27, 2026, 4:59 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/packages#13450: [cupertino_ui] Include selectionHandleColor in NoDefaultCupertinoThemeData equality, Open" <https://github.com/flutter/packages/pull/13450> [ref=866]
+      - 1
+    - listitem "[material_ui] SnackBarThemeData.lerp drops showCloseIcon. More information available below." [level=1]
+      - heading [level=3]
+        - link "[material_ui] SnackBarThemeData.lerp drops showCloseIcon" <https://github.com/flutter/flutter/issues/195390> [ref=1790]
+      - button "Filter by label p: material_ui" [ref=1415]
+      - button "Filter by label package" [ref=1416]
+      - button "Filter by label team-design" [ref=1417]
+      - Unread
+      - flutter/flutter#195390
+      - button "Filter by author ChandraChaan" [ref=887]
+      - opened
+      - generic "Oct 27, 2026, 4:59 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/packages#13449: [material_ui] Fix SnackBarThemeData.lerp dropping showCloseIcon, Open" <https://github.com/flutter/packages/pull/13449> [ref=893]
+      - 1
+    - listitem "Request to backport the Dart TLS security fix to older Flutter releases. More information available below." [level=1]
+      - heading [level=3]
+        - link "Request to backport the Dart TLS security fix to older Flutter releases." <https://github.com/flutter/flutter/issues/195385> [ref=1800]
+      - button "Filter by label infra: release" [ref=1430]
+      - button "Filter by label team-infra" [ref=1431]
+      - Unread
+      - flutter/flutter#195385
+      - button "Filter by author daoliam" [ref=914]
+      - opened
+      - generic "Oct 27, 2026, 2:33 AM GMT+1"
+        - 1d ago
+      - 1
+    - listitem "[batch release] Repo tool should replace placeholder text with release version. More information available below." [level=1]
+      - heading [level=3]
+        - link "[batch release] Repo tool should replace placeholder text with release version" <https://github.com/flutter/flutter/issues/195374> [ref=1808]
+      - button "Filter by label p: tooling" [ref=1444]
+      - button "Filter by label P1" [ref=1445]
+      - button "Filter by label team-ecosystem" [ref=1446]
+      - button "Filter by label triaged-ecosystem" [ref=1447]
+      - button "Filter by label waiting for PR to land (fixed)" [ref=1448]
+      - Unread
+      - flutter/flutter#195374
+      - button "Filter by author elliette" [ref=940]
+      - opened
+      - generic "Oct 26, 2026, 11:46 PM GMT+1"
+        - 2d ago
+      - link "1 linked pull request flutter/packages#13446: [batch release] Replace `{{NEXT_VERSION}}` placeholder in batch release, Open" <https://github.com/flutter/packages/pull/13446> [ref=946]
+      - button "Filter by assignee elliette" [ref=950]
+    - listitem "Make setFloat deprecated in dart_ui. More information available below." [level=1]
+      - heading [level=3]
+        - link "Make setFloat deprecated in dart_ui" <https://github.com/flutter/flutter/issues/195360> [ref=1822]
+      - button "Filter by label P1" [ref=1461]
+      - button "Filter by label team-engine" [ref=1462]
+      - Unread
+      - flutter/flutter#195360
+      - button "Filter by author gaaclarke" [ref=966]
+      - opened
+      - generic "Oct 26, 2026, 9:24 PM GMT+1"
+        - 2d ago
+    - listitem "Remove setFloat from fragment shader documentation. More information available below." [level=1]
+      - heading [level=3]
+        - link "Remove setFloat from fragment shader documentation" <https://github.com/flutter/flutter/issues/195359> [ref=1830]
+      - button "Filter by label P1" [ref=1474]
+      - button "Filter by label team-engine" [ref=1475]
+      - Unread
+      - flutter/flutter#195359
+      - button "Filter by author gaaclarke" [ref=990]
+      - opened
+      - generic "Oct 26, 2026, 9:23 PM GMT+1"
+        - 2d ago
+    - listitem "Remove setFloat usage from the framework. More information available below." [level=1]
+      - heading [level=3]
+        - link "Remove setFloat usage from the framework" <https://github.com/flutter/flutter/issues/195358> [ref=1838]
+      - button "Filter by label P1" [ref=1487]
+      - button "Filter by label team-engine" [ref=1488]
+      - Unread
+      - flutter/flutter#195358
+      - button "Filter by author gaaclarke" [ref=1014]
+      - opened
+      - generic "Oct 26, 2026, 9:22 PM GMT+1"
+        - 2d ago
+    - listitem "Deprecate fragment shader setFloat. More information available below." [level=1]
+      - heading [level=3]
+        - link "Deprecate fragment shader setFloat" <https://github.com/flutter/flutter/issues/195357> [ref=1846]
+      - link "0 / 3 sub-issues completed, filter by parent issue flutter/flutter#195357" <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+parent-issue%3Aflutter%2Fflutter%23195357> [ref=1847]
+      - button "Filter by label P1" [ref=1501]
+      - button "Filter by label team-engine" [ref=1502]
+      - Unread
+      - flutter/flutter#195357
+      - button "Filter by author gaaclarke" [ref=1038]
+      - opened
+      - generic "Oct 26, 2026, 9:21 PM GMT+1"
+        - 2d ago
+    - listitem "Cherry-pick -experimental branches fail ci.yaml validation with no tests. More information available below." [level=1]
+      - heading [level=3]
+        - link "Cherry-pick -experimental branches fail ci.yaml validation with no tests" <https://github.com/flutter/flutter/issues/195354> [ref=1855]
+      - button "Filter by label team-infra" [ref=1514]
+      - Unread
+      - flutter/flutter#195354
+      - button "Filter by author jtmcdole" [ref=1062]
+      - opened
+      - generic "Oct 26, 2026, 9:09 PM GMT+1"
+        - 2d ago
+      - 1
+    - listitem "path_provider_foundation 2.6.0 FFI: privacy manifest packaging guidance. More information available below." [level=1]
+      - heading [level=3]
+        - link "path_provider_foundation 2.6.0 FFI: privacy manifest packaging guidance" <https://github.com/flutter/flutter/issues/195353> [ref=1861]
+      - button "Filter by label waiting for response" [ref=1527]
+      - Unread
+      - flutter/flutter#195353
+      - button "Filter by author 44Labs" [ref=1088]
+      - opened
+      - generic "Oct 26, 2026, 9:04 PM GMT+1"
+        - 2d ago
+      - 1
+    - listitem "[ios] Integration test for iPhone Duo screen switching. More information available below." [level=1]
+      - heading [level=3]
+        - link "[ios] Integration test for iPhone Duo screen switching" <https://github.com/flutter/flutter/issues/195350> [ref=1867]
+      - button "Filter by label platform-ios" [ref=1540]
+      - button "Filter by label team-ios" [ref=1541]
+      - Unread
+      - flutter/flutter#195350
+      - button "Filter by author hellohuanlin" [ref=1114]
+      - opened
+      - generic "Oct 26, 2026, 8:53 PM GMT+1"
+        - 2d ago
+  - navigation "Pagination"
+    - Pagination: Previous Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=430], Page 1 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=431], Page 2 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=432], Page 3 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=433], Page 4 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4> [ref=434], Page 5 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5> [ref=435], Page 6 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6> [ref=436], Page 7... <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7> [ref=437], Page 40 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40> [ref=439], Next Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=440]
