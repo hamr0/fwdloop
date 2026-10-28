@@ -1,0 +1,74 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "deciding whether a ticket reports an outage is a judgement on the ticket's prose, not a fixed list of values"
+  },
+  "refused": [
+    {
+      "line": 2,
+      "reason": "the ticket's priority field cannot be reliably extracted or checked by any granted primitive without a declared shape; the ticket text may not state a priority at all, and no typed check verifies the extraction"
+    }
+  ],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "outage_assessment",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what is broken"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "outage_assessment"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "plan_accepted"
+      ],
+      "emits": "written_plan",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

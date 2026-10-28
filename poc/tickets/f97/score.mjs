@@ -10,7 +10,7 @@ let spend = 0.0114; // smoke
 for (const j of jobs) for (const n of [1, 2, 3]) {
   const d = join(work, `draft-${j}${n}`);
   const rec = { exists: existsSync(join(d, 'declaration.json')) };
-  if (existsSync(join(d, 'draft-spend.json'))) { rec.cost = rd(join(d, 'draft-spend.json')).cost; spend += rec.cost ?? 0; }
+  if (existsSync(join(d, 'draft-spend.json'))) { rec.cost = rd(join(d, "draft-spend.json")).costUsd; spend += rec.cost ?? 0; }
   if (existsSync(join(d, 'log.json'))) { const l = rd(join(d, 'log.json')); rec.ok = l.ok; rec.reds = l.reds; rec.rounds = l.rounds; }
   if (rec.exists) {
     const dec = rd(join(d, 'declaration.json'));

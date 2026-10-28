@@ -1,0 +1,88 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "breakage_summary",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what is broken"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_priority",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "breakage_summary",
+        "ticket_priority"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "plan_accepted"
+      ],
+      "emits": "first_response_plan_file",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "1": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "no fixed list of ticket values can express 'network outages only' from the ticket text alone"
+  },
+  "refused": [],
+  "inputFacts": {}
+}
