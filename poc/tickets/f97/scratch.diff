@@ -1,0 +1,119 @@
+diff --git a/src/declaration.js b/src/declaration.js
+index 5e4a263..4805953 100644
+--- a/src/declaration.js
++++ b/src/declaration.js
+@@ -58,6 +58,7 @@ export const DECLARATION_FIELDS = Object.freeze([
+   'unjudgeable',
+   'refused',
+   'inputFacts',
++  'ticketFilter',
+   // step level
+   'goal',
+   'primitives',
+@@ -82,7 +83,7 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
+ // an ask's position, an ask's TTL, the egress allow-list...").
+ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
+ 
+-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
++const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'ticketFilter']);
+ const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
+ const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+ 
+@@ -690,6 +691,39 @@ export function validateDeclaration(declaration, context = {}) {
+     reds.push('declaration: "inputFacts" must be an object keyed by source role');
+   }
+ 
++  // --- ticketFilter (F97 scratch; OPTIONAL) ----------------------------------
++  if (Object.prototype.hasOwnProperty.call(declaration, 'ticketFilter')) {
++    const tf = declaration.ticketFilter;
++    const hasTicket = Array.isArray(safeArbiter.sources) && safeArbiter.sources.some((x) => x?.kind === 'ticket');
++    if (!Array.isArray(tf)) reds.push('declaration: "ticketFilter" must be an array');
++    else if (tf.length > 0 && !hasTicket) reds.push('declaration: "ticketFilter" needs a signed ticket input');
++    else {
++      const linesSeen = new Set();
++      const boxesSeen = new Set();
++      tf.forEach((e, i) => {
++        const at = `ticketFilter[${i}]`;
++        if (!isPlainObject(e)) { reds.push(`declaration: ${at} must be an object`); return; }
++        for (const k of Object.keys(e)) if (!['fromLine', 'box', 'values', 'allowed'].includes(k)) reds.push(`declaration: ${at} has unknown field "${k}"`);
++        const line = Number.isInteger(e.fromLine) ? safeLines.find((l) => l.n === e.fromLine) : undefined;
++        if (!line || !line.guardrail) reds.push(`declaration: ${at}.fromLine must name a signed line with a guardrail`);
++        else if (linesSeen.has(e.fromLine)) reds.push(`declaration: ${at}.fromLine ${e.fromLine} already has a box (one box per guardrail line)`);
++        else linesSeen.add(e.fromLine);
++        if (typeof e.box !== 'string' || !/^[a-z][a-z0-9_]*$/.test(e.box)) reds.push(`declaration: ${at}.box must be a lowercase name (a-z, 0-9, _)`);
++        else if (boxesSeen.has(e.box)) reds.push(`declaration: ${at}.box "${e.box}" is used twice`);
++        else boxesSeen.add(e.box);
++        const okStrs = (a) => Array.isArray(a) && a.every((v) => typeof v === 'string' && v.length > 0) && new Set(a).size === a.length;
++        if (!okStrs(e.values) || e.values.length < 2) reds.push(`declaration: ${at}.values must be 2 or more distinct non-empty strings`);
++        else if (e.values[e.values.length - 1] !== 'unsure' || e.values.filter((v) => v === 'unsure').length !== 1) reds.push(`declaration: ${at}.values must end with "unsure" (once)`);
++        if (!okStrs(e.allowed) || e.allowed.length < 1) reds.push(`declaration: ${at}.allowed must be 1 or more distinct non-empty strings`);
++        else if (Array.isArray(e.values)) {
++          if (e.allowed.includes('unsure')) reds.push(`declaration: ${at}.allowed must not include "unsure"`);
++          const bad = e.allowed.filter((v) => !e.values.includes(v));
++          if (bad.length) reds.push(`declaration: ${at}.allowed ${JSON.stringify(bad)} is not in values`);
++        }
++      });
++    }
++  }
++
+   // --- steps ------------------------------------------------------------------
+   const emitSeen = new Set();
+   const declaredEmits = new Set();
+diff --git a/src/drafter.js b/src/drafter.js
+index dd563b9..a68efc3 100644
+--- a/src/drafter.js
++++ b/src/drafter.js
+@@ -240,7 +240,7 @@ export const QUESTIONS_PROMPT = [
+ 
+ /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
+ /** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined}} [o] */
+-export function buildRoundSchema(menu, { questions = false, sheets = undefined } = {}) {
++export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticketFilter = false } = {}) {
+   const s = buildDeclarationSchema(menu, { sheets });
+   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
+   if (questions) {
+@@ -254,6 +254,24 @@ export function buildRoundSchema(menu, { questions = false, sheets = undefined }
+       description: 'questions the job cannot be drafted without; each names the job line it is about',
+     };
+   }
++  // F97 scratch: only a job with a ticket input may propose filter boxes
++  if (ticketFilter) {
++    extra.ticketFilter = {
++      type: 'array',
++      items: {
++        type: 'object',
++        properties: {
++          fromLine: { type: 'integer', description: 'the job line whose guardrail this box serves' },
++          box: { type: 'string', minLength: 1, description: 'short lowercase name of what is read from the ticket' },
++          values: { type: 'array', minItems: 2, items: { type: 'string', minLength: 1 }, description: 'the complete fixed list of values the box can take; the last is "unsure"' },
++          allowed: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 }, description: 'the values the guardrail accepts; each is in values; never "unsure"' },
++        },
++        required: ['fromLine', 'box', 'values', 'allowed'],
++        additionalProperties: false,
++      },
++      description: 'optional: one box per guardrail line that says which tickets matter and can be put into a fixed list of values; [] or leave out if none',
++    };
++  }
+   return { ...s, properties: { ...s.properties, ...extra } };
+ }
+ 
+@@ -379,6 +397,10 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
+     `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the ask step that comes before it. Its target and position are signed, not yours.`,
+     '- An ask step must read the output of an earlier step, the thing you are asked to check: its FIRST read is what the human sees at the ask (for example reads: ["bucket_assignment"], the nearest earlier step\'s emits). An ask that reads nothing, or reads something no earlier step makes, is refused. Reading is not a grant: the ask still grants no primitive.',
+     '- Nothing hitl may come after the last signed ask except the send step.',
++    ...((arbiter.sources ?? []).some((s) => s.kind === 'ticket') ? [
++      '- ticketFilter (optional; this job has a ticket input): for a job line whose guardrail says WHICH TICKETS MATTER and can be put into a fixed list of values, add {fromLine, box, values, allowed}. box = a short lowercase name for what is read from the ticket; values = the complete fixed list the box can take, ending with "unsure" (and containing "none" where the ticket may not state it); allowed = the values the guardrail accepts (each is in values, never "unsure").',
++      '- One box per guardrail line, only on a line that has such a guardrail. A guardrail that cannot be put into a fixed list of values (a judgement, a taste, a size) gets NO box and stays hitl. Never invent a guardrail or a box for a line that has none. A box does not change any class.',
++    ] : []),
+     '- You never author a trigger, cap, ask position or TTL, allow-list, send target, or what "done" means.',
+     '',
+     'Inputs, mechanically read (facts, not guesses):',
+@@ -689,7 +711,7 @@ export async function draft({
+     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
+     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
+     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
+-    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables });
++    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticketFilter: (arbiter.sources ?? []).some((s) => s.kind === 'ticket') });
+     const tool = {
+       name: TOOL,
+       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
