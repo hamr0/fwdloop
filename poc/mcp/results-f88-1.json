@@ -1,0 +1,312 @@
+{
+  "run": "f88-de7b904e",
+  "bridge": "bare-agent/mcp 0.54",
+  "P": {
+    "P1": {
+      "tools": [
+        {
+          "name": "github_issue_read",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "Get issue details"
+          }
+        },
+        {
+          "name": "github_list_issues",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "List issues"
+          }
+        }
+      ],
+      "discover": [
+        {
+          "name": "github_issue_read",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "Get issue details"
+          }
+        },
+        {
+          "name": "github_list_issues",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "List issues"
+          }
+        }
+      ],
+      "verdict": "PASS"
+    },
+    "P2": {
+      "count": 46,
+      "readOnlyTrue": 27,
+      "readOnlyFalse": 19,
+      "missing": 0,
+      "shape": true,
+      "issue_read": true,
+      "list_issues": true,
+      "issue_write": false,
+      "add_issue_comment": false,
+      "ms": 750,
+      "falseNames": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "assign_copilot_to_issue",
+        "create_branch",
+        "create_or_update_file",
+        "create_pull_request",
+        "create_repository",
+        "delete_file",
+        "fork_repository",
+        "issue_write",
+        "merge_pull_request",
+        "pull_request_review_write",
+        "push_files",
+        "request_copilot_review",
+        "sub_issue_write",
+        "update_issue_comment",
+        "update_pull_request",
+        "update_pull_request_branch"
+      ],
+      "namesHead": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "assign_copilot_to_issue",
+        "create_branch"
+      ],
+      "verdict": "PASS"
+    },
+    "P3": {
+      "bridge": {
+        "github_issue_read": true,
+        "github_list_issues": true
+      },
+      "list": {
+        "github_issue_read": true,
+        "github_list_issues": true
+      },
+      "verdict": "PASS"
+    },
+    "P5": {
+      "unknownServer": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"nope_f88\" not found in discovered MCP configs",
+          "context": {
+            "server": "nope_f88",
+            "notFound": true
+          }
+        },
+        "ms": 1
+      },
+      "badCommand": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"bad\" write failed: write EPIPE. stderr: ",
+          "context": {}
+        },
+        "ms": 6
+      },
+      "stubExits": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"stub\" exited (code 1). stderr: ",
+          "context": {}
+        },
+        "ms": 157
+      },
+      "uncaughtExceptions": [
+        {
+          "name": "Error",
+          "code": "ENOENT",
+          "message": "spawn /tmp/f88-Q76HDK/no-such-cmd-f88 ENOENT"
+        }
+      ],
+      "verdict": "FAIL"
+    },
+    "P6": {
+      "false": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "truthyNonTrue": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "throws": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "trueControl": {
+        "resolved": true,
+        "markerExists": true
+      },
+      "verdict": "PASS"
+    },
+    "P7": {
+      "realTimeout1": {
+        "threw": true,
+        "ms": 337,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"github\" \"initialize\" timed out after 1ms. stderr: ",
+          "context": {}
+        }
+      },
+      "stubSilent500": {
+        "threw": true,
+        "ms": 702,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"stub\" \"tools/list\" timed out after 500ms. stderr: ",
+          "context": {}
+        },
+        "tools_list_requests": 1
+      },
+      "verdict": "PASS",
+      "note": "per-round-trip timeout trips first in both cases; the total 4x deadline is not exercised",
+      "deadlineBoundLabel": {
+        "real": null,
+        "stub": null
+      }
+    },
+    "P9": {
+      "names": [
+        "alpha",
+        "beta",
+        "gamma"
+      ],
+      "alphaAnn": {
+        "readOnlyHint": true
+      },
+      "betaHasKey": false,
+      "gammaHasKey": false,
+      "requests": 3,
+      "verdict": "PASS"
+    },
+    "P10": {
+      "allowGamma": {
+        "names": [
+          "stub_gamma"
+        ],
+        "missing": []
+      },
+      "allowGammaNope": {
+        "names": [
+          "stub_gamma"
+        ],
+        "missing": [
+          {
+            "server": "stub",
+            "tool": "nope"
+          }
+        ]
+      },
+      "noAllow": {
+        "names": [
+          "stub_alpha",
+          "stub_beta",
+          "stub_gamma"
+        ],
+        "betaHasKey": false,
+        "gammaHasKey": false,
+        "alphaAnn": {
+          "readOnlyHint": true
+        }
+      },
+      "verdict": "PASS"
+    },
+    "P11": {
+      "endless": {
+        "threw": true,
+        "err": {
+          "name": "Error",
+          "message": "MCP server \"stub\" exceeded the tools/list page cap (100 pages); refusing to return a truncated catalog",
+          "context": null
+        },
+        "requests": 100,
+        "ms": 195
+      },
+      "loop": {
+        "threw": true,
+        "err": {
+          "name": "Error",
+          "message": "MCP server \"stub\" repeated a tools/list cursor (pagination loop)",
+          "context": null
+        },
+        "requests": 2
+      },
+      "bridgeEndless": {
+        "rejected": false,
+        "tools": 0,
+        "errors": [
+          {
+            "server": "stub",
+            "error": "MCP server \"stub\" exceeded the tools/list page cap (100 pages); refusing to return a truncated catalog"
+          }
+        ],
+        "requests": 100
+      },
+      "verdict": "PASS"
+    },
+    "P4": {
+      "probed": [
+        {
+          "where": "cwd",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "HOME",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "script dir",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        }
+      ],
+      "unexpectedFilesInMkdtemp": [],
+      "note": "the no-allow bridge of P10 ran with cwd=mkdtemp and unwatched; its .mcp-bridge.json cache is excluded here by design",
+      "stdoutBytesDuringListAndBridge": 0,
+      "stdoutBytesDuringRealList": 0,
+      "verdict": "PASS"
+    },
+    "P8": {
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS"
+    },
+    "P12": {
+      "filesScanned": 39,
+      "tokenInFiles": 0,
+      "tokenInStdoutCapture": false,
+      "tokenInStderrCapture": false,
+      "tokenInResultObject": false,
+      "verdict": "PASS"
+    },
+    "P13": {
+      "mkdtempRemoved": true,
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS"
+    }
+  },
+  "stderrBytes": 1541
+}

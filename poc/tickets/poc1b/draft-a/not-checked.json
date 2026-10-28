@@ -1,0 +1,7 @@
+{
+  "notChecked": [
+    "completeness of the ticket body",
+    "whether the body was actually used",
+    "whether the tests are the right ones or pass"
+  ]
+}

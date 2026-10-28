@@ -1,0 +1,7 @@
+{
+  "notChecked": [
+    "correctness of the extracted priority against the ticket",
+    "whether the plan actually addresses what is broken",
+    "tone and usefulness of the first-response plan"
+  ]
+}

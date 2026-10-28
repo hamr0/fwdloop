@@ -1,0 +1,167 @@
+{
+  "run": "f85-c585bd7c",
+  "bridge": "bare-agent/mcp createMCPBridge",
+  "P": {
+    "P1": {
+      "connected": [
+        "github"
+      ],
+      "errors": [],
+      "toolCount": 27,
+      "has_list_issues": true,
+      "has_get_issue": false,
+      "verdict": "FAIL"
+    },
+    "listIssuesSchema": {
+      "props": [
+        "after",
+        "direction",
+        "field_filters",
+        "fields",
+        "labels",
+        "orderBy",
+        "owner",
+        "perPage",
+        "repo",
+        "since",
+        "state"
+      ],
+      "stateEnum": [
+        "OPEN",
+        "CLOSED"
+      ]
+    },
+    "P2": {
+      "rawType": "string",
+      "topKeys": [
+        "issues",
+        "totalCount",
+        "pageInfo"
+      ],
+      "count": 5,
+      "firstKeys": [
+        "number",
+        "title",
+        "body",
+        "state",
+        "user",
+        "assignees",
+        "comments",
+        "created_at",
+        "updated_at"
+      ],
+      "fields": [
+        {
+          "number": 67049,
+          "title": "dns: Resolver#setLocalAddress() applies the first address ev"
+        },
+        {
+          "number": 67048,
+          "title": "sea: --build-sea linux-arm64 output fails on 16 KiB and 64 K"
+        },
+        {
+          "number": 67047,
+          "title": "net: socket.setTimeout() from a nextTick fires the old timeo"
+        },
+        {
+          "number": 67043,
+          "title": "dns: valid replies fail with EFORMERR when ares_dns_write() "
+        },
+        {
+          "number": 67033,
+          "title": "ffi: int32/uint32 arguments reject -0 until the call is opti"
+        }
+      ],
+      "verdict": "FAIL"
+    },
+    "P4_firstRunAllAllow": true,
+    "P3": {
+      "controlAllowedGetMe": {
+        "ok": true,
+        "type": "string",
+        "len": 451
+      },
+      "allowedAfterDistil": [
+        "github_list_issues"
+      ],
+      "mcpInvokeDeniedGetMe": {
+        "refused": true,
+        "name": "ToolError",
+        "message": "mcp_invoke: unknown tool \"github_get_me\". Call mcp_discover for the current catalog.",
+        "contextKeys": [
+          "name",
+          "knownNames"
+        ]
+      },
+      "mcpInvokeNonexistentForComparison": {
+        "refused": true,
+        "name": "ToolError",
+        "message": "mcp_invoke: unknown tool \"github_nonexistent_zzz\". Call mcp_discover for the current catalog.",
+        "contextKeys": [
+          "name",
+          "knownNames"
+        ]
+      },
+      "sameMessageShapeAsUnknownTool": true,
+      "directRefusal": {
+        "inBulkTools": false
+      },
+      "listIssuesStillWorks": true,
+      "mechanism": "bridge omits non-allow tools from bridge.tools; mcp_invoke throws ToolError unknown tool",
+      "verdict": "PASS (by omission; denied reads as unknown)"
+    },
+    "P5": {
+      "metaTools": [
+        "mcp_discover",
+        "mcp_invoke"
+      ],
+      "discoverCount": 1,
+      "discoverNames": [
+        "github_list_issues"
+      ],
+      "deniedHiddenFromDiscover": true,
+      "deniedArray": {
+        "count": 26,
+        "sample": [
+          "github_get_commit",
+          "github_get_file_contents"
+        ]
+      },
+      "systemContextNamesDenied": true,
+      "systemContextHead": "MCP Bridge: 1 tools available from 1 server(s): github. |   github: list_issues | Restricted tools (26, not available to you):",
+      "verdict": "PASS for mcp_discover; GAP if systemContext/denied (names + descriptions) is shown to the model"
+    },
+    "P4": {
+      "warmNoRefresh": {
+        "absentToolsExposed": [],
+        "listedAsDenied": [],
+        "cfgGetMe": null
+      },
+      "afterRefreshTrue": {
+        "cfgGetMe": "allow",
+        "cfgSearchRepositories": "allow",
+        "getMeExposed": true,
+        "exposedCount": 3
+      },
+      "verdict": "GAP: a tool the config did not know is merged as allow on refresh (in a warm config without refresh it is simply absent)"
+    },
+    "P7": {
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS (mkdtemp removal checked after write)",
+      "mkdtempRemoved": true
+    },
+    "P6": {
+      "filesScanned": [
+        "bridge.json",
+        "mcp.json"
+      ],
+      "tokenInFiles": [],
+      "tokenInConsoleCapture": false,
+      "tokenInResultObject": false,
+      "configHasEnvKey": false,
+      "verdict": "PASS"
+    }
+  },
+  "consoleLines": 10
+}

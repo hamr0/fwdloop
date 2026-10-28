@@ -1,0 +1,60 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "hitl"
+  },
+  "unjudgeable": {
+    "2": "Guardrail 'body from ticket used' names no checkable shape or sheet figure",
+    "3": "Guardrail 'typecheck, ci, etc' names tooling outcomes, not a sheet figure or declared output shape"
+  },
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_body",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket body"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue",
+        "ticket_body"
+      ],
+      "emits": "work_from_body",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "use the body for this step"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep",
+        "recent"
+      ],
+      "reads": [
+        "work_from_body"
+      ],
+      "emits": "test_report",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "do your tests"
+    }
+  ],
+  "inputFacts": {}
+}

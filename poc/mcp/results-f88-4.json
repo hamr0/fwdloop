@@ -1,0 +1,774 @@
+{
+  "run": "f88-8b6ac18a",
+  "bridge": "bare-agent/mcp 0.54.0 + 94e08ea",
+  "P": {
+    "P1": {
+      "tools": [
+        {
+          "name": "github_issue_read",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "Get issue details"
+          }
+        },
+        {
+          "name": "github_list_issues",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "List issues"
+          }
+        }
+      ],
+      "discover": [
+        {
+          "name": "github_issue_read",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "Get issue details"
+          }
+        },
+        {
+          "name": "github_list_issues",
+          "annotations": {
+            "idempotentHint": false,
+            "readOnlyHint": true,
+            "title": "List issues"
+          }
+        }
+      ],
+      "verdict": "PASS"
+    },
+    "P2": {
+      "count": 46,
+      "readOnlyTrue": 27,
+      "readOnlyFalse": 19,
+      "missing": 0,
+      "shape": true,
+      "issue_read": true,
+      "list_issues": true,
+      "issue_write": false,
+      "add_issue_comment": false,
+      "ms": 1045,
+      "falseNames": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "assign_copilot_to_issue",
+        "create_branch",
+        "create_or_update_file",
+        "create_pull_request",
+        "create_repository",
+        "delete_file",
+        "fork_repository",
+        "issue_write",
+        "merge_pull_request",
+        "pull_request_review_write",
+        "push_files",
+        "request_copilot_review",
+        "sub_issue_write",
+        "update_issue_comment",
+        "update_pull_request",
+        "update_pull_request_branch"
+      ],
+      "namesHead": [
+        "add_comment_to_pending_review",
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "assign_copilot_to_issue",
+        "create_branch"
+      ],
+      "verdict": "PASS"
+    },
+    "P3": {
+      "bridge": {
+        "github_issue_read": true,
+        "github_list_issues": true
+      },
+      "list": {
+        "github_issue_read": true,
+        "github_list_issues": true
+      },
+      "verdict": "PASS"
+    },
+    "P5": {
+      "unknownServer": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"nope_f88\" not found in discovered MCP configs",
+          "context": {
+            "server": "nope_f88",
+            "notFound": true
+          }
+        },
+        "ms": 2
+      },
+      "badCommand": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"bad\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-f88\" (ENOENT)",
+          "context": {
+            "spawnError": true,
+            "server": "bad",
+            "code": "ENOENT"
+          }
+        },
+        "ms": 13
+      },
+      "stubExits": {
+        "threw": true,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"stub\" exited (code 1). stderr: ",
+          "context": {}
+        },
+        "ms": 382
+      },
+      "uncaughtExceptions": [],
+      "verdict": "PASS"
+    },
+    "P6": {
+      "false": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "truthyNonTrue": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "throws": {
+        "threw": true,
+        "err": "MCP server \"stub\" was not approved by confirmServer",
+        "markerExists": false
+      },
+      "trueControl": {
+        "resolved": true,
+        "markerExists": true
+      },
+      "verdict": "PASS"
+    },
+    "P7": {
+      "realTimeout1": {
+        "threw": true,
+        "ms": 458,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"github\" \"initialize\" timed out after 1ms",
+          "context": {
+            "timeout": true,
+            "server": "github",
+            "method": "initialize",
+            "timeoutMs": 1
+          }
+        }
+      },
+      "stubSilent500": {
+        "threw": true,
+        "ms": 882,
+        "err": {
+          "name": "ToolError",
+          "message": "MCP server \"stub\" \"tools/list\" timed out after 500ms",
+          "context": {
+            "timeout": true,
+            "server": "stub",
+            "method": "tools/list",
+            "timeoutMs": 500
+          }
+        },
+        "tools_list_requests": 1
+      },
+      "verdict": "PASS",
+      "note": "per-round-trip timeout trips first in both cases; the total 4x deadline is not exercised",
+      "deadlineBoundLabel": {
+        "real": null,
+        "stub": null
+      }
+    },
+    "P5a": {
+      "want": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)",
+      "modes": {
+        "list": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "list",
+            "err": {
+              "name": "ToolError",
+              "message": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)",
+              "context": {
+                "spawnError": true,
+                "server": "s",
+                "code": "ENOENT"
+              }
+            }
+          },
+          "stderrHead": "",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": false
+        },
+        "allow": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "allow",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)"
+              }
+            ],
+            "missing": [
+              {
+                "server": "s",
+                "tool": "t1"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /tmp/f88-Lo5Nce/no-such-cmd-zz (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        },
+        "bulk": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "bulk",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /tmp/f88-Lo5Nce/no-such-cmd-zz (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/no-such-cmd-zz\" (ENOENT)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        }
+      },
+      "verdict": "PASS"
+    },
+    "P5b": {
+      "want": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)",
+      "modes": {
+        "list": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "list",
+            "err": {
+              "name": "ToolError",
+              "message": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)",
+              "context": {
+                "spawnError": true,
+                "server": "s",
+                "code": "EACCES"
+              }
+            }
+          },
+          "stderrHead": "",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": false
+        },
+        "allow": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "allow",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)"
+              }
+            ],
+            "missing": [
+              {
+                "server": "s",
+                "tool": "t1"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /tmp/f88-Lo5Nce/not-executable (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        },
+        "bulk": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "bulk",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /tmp/f88-Lo5Nce/not-executable (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/tmp/f88-Lo5Nce/not-executable\" (EACCES)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        }
+      },
+      "verdict": "PASS"
+    },
+    "P5c": {
+      "secretInOutput": 0,
+      "secretInChildStderr": 0,
+      "cases": 6,
+      "noticeWithArgCountSeen": 4,
+      "verdict": "PASS"
+    },
+    "P5d": {
+      "epipeCases": 0,
+      "cases": 6,
+      "verdict": "PASS"
+    },
+    "P5e": {
+      "want": "MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)",
+      "modes": {
+        "list": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "list",
+            "err": {
+              "name": "ToolError",
+              "message": "MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)",
+              "context": {
+                "spawnError": true,
+                "server": "s",
+                "code": "ERR_INVALID_ARG_VALUE"
+              }
+            }
+          },
+          "stderrHead": "",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": false
+        },
+        "allow": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "allow",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)"
+              }
+            ],
+            "missing": [
+              {
+                "server": "s",
+                "tool": "t1"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s →  (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        },
+        "bulk": {
+          "exit": 0,
+          "signal": null,
+          "hostAlive": true,
+          "shapeOk": true,
+          "result": {
+            "mode": "bulk",
+            "errors": [
+              {
+                "server": "s",
+                "error": "MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)"
+              }
+            ],
+            "tools": 0
+          },
+          "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s →  (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+          "secretInOutput": false,
+          "secretInStderr": false,
+          "epipe": false,
+          "rawNulInMessage": false,
+          "noticeCount": true
+        }
+      },
+      "verdict": "PASS"
+    },
+    "P5f": {
+      "NULARG": {
+        "want": "MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)",
+        "modes": {
+          "list": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "list",
+              "err": {
+                "name": "ToolError",
+                "message": "MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)",
+                "context": {
+                  "spawnError": true,
+                  "server": "s",
+                  "code": "ERR_INVALID_ARG_VALUE"
+                }
+              }
+            },
+            "stderrHead": "",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": false
+          },
+          "allow": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "allow",
+              "errors": [
+                {
+                  "server": "s",
+                  "error": "MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)"
+                }
+              ],
+              "missing": [
+                {
+                  "server": "s",
+                  "tool": "t1"
+                }
+              ],
+              "tools": 0
+            },
+            "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /usr/bin/node-22 (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": true
+          },
+          "bulk": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "bulk",
+              "errors": [
+                {
+                  "server": "s",
+                  "error": "MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)"
+                }
+              ],
+              "tools": 0
+            },
+            "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → /usr/bin/node-22 (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"/usr/bin/node-22\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": true
+          }
+        }
+      },
+      "NULCMD": {
+        "want": "MCP server \"s\" failed to start: command \"a\\u0000b\" (ERR_INVALID_ARG_VALUE)",
+        "modes": {
+          "list": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "list",
+              "err": {
+                "name": "ToolError",
+                "message": "MCP server \"s\" failed to start: command \"a\\u0000b\" (ERR_INVALID_ARG_VALUE)",
+                "context": {
+                  "spawnError": true,
+                  "server": "s",
+                  "code": "ERR_INVALID_ARG_VALUE"
+                }
+              }
+            },
+            "stderrHead": "",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": false
+          },
+          "allow": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "allow",
+              "errors": [
+                {
+                  "server": "s",
+                  "error": "MCP server \"s\" failed to start: command \"a\\u0000b\" (ERR_INVALID_ARG_VALUE)"
+                }
+              ],
+              "missing": [
+                {
+                  "server": "s",
+                  "tool": "t1"
+                }
+              ],
+              "tools": 0
+            },
+            "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → a?b (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"a\\\\u0000b\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": true
+          },
+          "bulk": {
+            "exit": 0,
+            "signal": null,
+            "hostAlive": true,
+            "shapeOk": true,
+            "result": {
+              "mode": "bulk",
+              "errors": [
+                {
+                  "server": "s",
+                  "error": "MCP server \"s\" failed to start: command \"a\\u0000b\" (ERR_INVALID_ARG_VALUE)"
+                }
+              ],
+              "tools": 0
+            },
+            "stderrHead": "[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:\n  s → a?b (2 args)\n  Pass { confirmServer } to vet each command before it runs.\n[MCP Bridge] Some servers failed to connect: [\n  {\n    server: 's',\n    error: 'MCP server \"s\" failed to start: command \"a\\\\u0000b\" (ERR_INVALID_ARG_VALUE)'\n  }\n]\n",
+            "secretInOutput": false,
+            "secretInStderr": false,
+            "epipe": false,
+            "rawNulInMessage": false,
+            "noticeCount": true
+          }
+        }
+      },
+      "secretInOutput": 0,
+      "secretInChildStderr": 0,
+      "rawNulInMessage": 0,
+      "epipeCases": 0,
+      "verdict": "PASS"
+    },
+    "P7a": {
+      "initialize": {
+        "threw": true,
+        "ms": 514,
+        "name": "ToolError",
+        "message": "MCP server \"stub\" \"initialize\" timed out after 500ms",
+        "context": {
+          "timeout": true,
+          "server": "stub",
+          "method": "initialize",
+          "timeoutMs": 500
+        },
+        "contextHasStderrKey": true,
+        "stderrInContext": true,
+        "messageOk": true,
+        "ctxOk": true,
+        "stderrInMessage": false
+      },
+      "tools/list": {
+        "threw": true,
+        "ms": 2297,
+        "name": "ToolError",
+        "message": "MCP server \"stub\" \"tools/list\" timed out after 2000ms",
+        "context": {
+          "timeout": true,
+          "server": "stub",
+          "method": "tools/list",
+          "timeoutMs": 2000
+        },
+        "contextHasStderrKey": true,
+        "stderrInContext": true,
+        "messageOk": true,
+        "ctxOk": true,
+        "stderrInMessage": false
+      },
+      "verdict": "PASS"
+    },
+    "P9": {
+      "names": [
+        "alpha",
+        "beta",
+        "gamma"
+      ],
+      "alphaAnn": {
+        "readOnlyHint": true
+      },
+      "betaHasKey": false,
+      "gammaHasKey": false,
+      "requests": 3,
+      "verdict": "PASS"
+    },
+    "P10": {
+      "allowGamma": {
+        "names": [
+          "stub_gamma"
+        ],
+        "missing": []
+      },
+      "allowGammaNope": {
+        "names": [
+          "stub_gamma"
+        ],
+        "missing": [
+          {
+            "server": "stub",
+            "tool": "nope"
+          }
+        ]
+      },
+      "noAllow": {
+        "names": [
+          "stub_alpha",
+          "stub_beta",
+          "stub_gamma"
+        ],
+        "betaHasKey": false,
+        "gammaHasKey": false,
+        "alphaAnn": {
+          "readOnlyHint": true
+        }
+      },
+      "verdict": "PASS"
+    },
+    "P11": {
+      "endless": {
+        "threw": true,
+        "err": {
+          "name": "Error",
+          "message": "MCP server \"stub\" exceeded the tools/list page cap (100 pages); refusing to return a truncated catalog",
+          "context": null
+        },
+        "requests": 100,
+        "ms": 346
+      },
+      "loop": {
+        "threw": true,
+        "err": {
+          "name": "Error",
+          "message": "MCP server \"stub\" repeated a tools/list cursor (pagination loop)",
+          "context": null
+        },
+        "requests": 2
+      },
+      "bridgeEndless": {
+        "rejected": false,
+        "tools": 0,
+        "errors": [
+          {
+            "server": "stub",
+            "error": "MCP server \"stub\" exceeded the tools/list page cap (100 pages); refusing to return a truncated catalog"
+          }
+        ],
+        "requests": 100
+      },
+      "verdict": "PASS"
+    },
+    "P4": {
+      "probed": [
+        {
+          "where": "cwd",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "HOME",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        },
+        {
+          "where": "script dir",
+          "before": false,
+          "after": false,
+          "mtimeChanged": false
+        }
+      ],
+      "unexpectedFilesInMkdtemp": [],
+      "note": "the no-allow bridge of P10 ran with cwd=mkdtemp and unwatched; its .mcp-bridge.json cache is excluded here by design",
+      "stdoutBytesDuringListAndBridge": 0,
+      "stdoutBytesDuringRealList": 0,
+      "verdict": "PASS"
+    },
+    "P8": {
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS"
+    },
+    "P12": {
+      "filesScanned": 50,
+      "tokenInFiles": 0,
+      "tokenInStdoutCapture": false,
+      "tokenInStderrCapture": false,
+      "tokenInResultObject": false,
+      "verdict": "PASS"
+    },
+    "P13": {
+      "mkdtempRemoved": true,
+      "containersLeft": "",
+      "processesLeft": 0,
+      "verdict": "PASS"
+    }
+  },
+  "stderrBytes": 1026
+}

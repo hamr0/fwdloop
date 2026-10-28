@@ -1,0 +1,2 @@
+draft dir: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1/draft-a  cost: $0.0085
+fwdloop: draft RED (validator) — declaration: steps[0] reads artifact "issue" that no earlier step declared

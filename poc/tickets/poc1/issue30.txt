@@ -1,0 +1,24 @@
+Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships)
+
+## Status: BLOCKED / conditional — no action until bareguard 0.13.0 is approved & released
+
+Tracking a cross-repo coordination item flagged by the bareguard maintainer during the v0.36.0 (BA-20 judge) ship, so it isn't lost.
+
+### Context
+- bare-agent **0.36.0** pins the optional peer: `bareguard ">=0.9.0 <0.13.0"`.
+- The bareguard maintainer has **proposed** (not yet approved) a **bareguard 0.13.0** that hardens the `gate.annotate` array fail-open: `surface` must be an explicit boolean, else the row is malformed → buffer nothing, never throw, emit a distinct `annotate_malformed` audit row. That is a gate-behaviour + audit-format change, so pre-1.0 it would cut as **0.13.0** (minor).
+
+### Why it matters
+- With the current `<0.13.0` ceiling, bare-agent 0.36.0 would **refuse to install** alongside bareguard 0.13.x even though our adapter is already compliant.
+- `judgeToAnnotation` satisfies the new rule **by construction**: it returns a single object literal and always sets `surface: v.verdict !== 'honored'` (an explicit boolean). So the fix is a **manifest range bump only — no code change**.
+
+### The action (only when the trigger fires)
+- [ ] bareguard 0.13.0 is approved and published
+- [ ] Bump the peer range in `package.json` (and the header line in `bareagent.context.md`) to admit `0.13.x`, e.g. `">=0.9.0 <0.14.0"`
+- [ ] Confirm the adapter still needs no code change (spot-check: `judgeToAnnotation` returns a single object with an explicit-boolean `surface`)
+- [ ] Ship as a patch/minor per the change at that time
+
+### References
+- Adapter: `src/bareguard-adapter.js` (`judgeToAnnotation`)
+- Guarantee-scope narrowing shipped in v0.36.0 (CHANGELOG / CLAUDE.md / context.md / PRD)
+- Cross-session coordination with the bareguard maintainer, 2026-08-12

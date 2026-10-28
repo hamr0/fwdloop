@@ -57,7 +57,7 @@ test('newer + y: asks "Update now? (y/n) ", runs npm install -g fwdloop@latest, 
     const w = await world({ answers: [a] });
     const io = sink();
     assert.equal(await updateCmd(io, w.d), 0);
-    assert.deepEqual(tail(io), ['fwdloop 9.9.9 is out. You have 1.2.3.', 'Updated to 9.9.9. Then pick 3 restart.']);
+    assert.deepEqual(tail(io), ['fwdloop 9.9.9 is out. You have 1.2.3.', 'Updated to 9.9.9. Then run fwdloop restart.']);
     assert.deepEqual(w.asked, ['Update now? (y/n) ']);
     assert.deepEqual(w.npm, [['install', '-g', 'fwdloop@latest']]);
   }
@@ -84,7 +84,7 @@ test('Enter with nothing typed asks once more; a second empty Enter is n; an emp
   const io2 = sink();
   await updateCmd(io2, yes.d);
   assert.deepEqual(yes.npm, [['install', '-g', 'fwdloop@latest']]);
-  assert.equal(tail(io2).at(-1), 'Updated to 9.9.9. Then pick 3 restart.');
+  assert.equal(tail(io2).at(-1), 'Updated to 9.9.9. Then run fwdloop restart.');
 });
 
 test('npm fails: the "did not finish" line and a non-zero exit', async () => {
@@ -180,4 +180,17 @@ test('runNpm: at the deadline it kills its own child and reports failure; a spaw
   bad.emit('error', new Error('ENOENT'));
   assert.equal(await p, 1);
   assert.equal(await runNpm(['x'], { spawnImpl: () => { throw new Error('boom'); } }), 1);
+});
+
+test('M4b am9: the restart words follow the door - menu says "pick 3 restart", `fwdloop update` says "run fwdloop restart"', async () => {
+  const sub = await world({ answers: ['y'] });
+  const io = sink();
+  assert.equal(await updateCmd(io, sub.d), 0); // no `shown` header = the typed `fwdloop update` door
+  assert.equal(io.lines.at(-1), 'Updated to 9.9.9. Then run fwdloop restart.');
+  const menu = await world({ answers: [] });
+  const chosen = ['6', 'y'];
+  menu.d.ask = async () => chosen.shift() ?? '';
+  const io2 = sink();
+  assert.equal(await menuCmd(io2, menu.d), 0);
+  assert.equal(io2.lines.at(-1), 'Updated to 9.9.9. Then pick 3 restart.');
 });

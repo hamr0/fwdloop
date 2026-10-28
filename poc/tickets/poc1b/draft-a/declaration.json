@@ -1,0 +1,58 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "get",
+        "read"
+      ],
+      "reads": [],
+      "emits": "ticket_body",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket body"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_body"
+      ],
+      "emits": "applied_body",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "use the body for this step"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "applied_body"
+      ],
+      "emits": "test_results",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "do your tests"
+    }
+  ],
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "hitl"
+  },
+  "unjudgeable": {
+    "1": "guardrail points at an external ticket link/mcp not readable here, so no check can be typed",
+    "2": "whether the step truly used the body is prose judgment",
+    "3": "which tests count as typecheck, ci, etc. is not fixed by the line"
+  },
+  "refused": [],
+  "inputFacts": {}
+}

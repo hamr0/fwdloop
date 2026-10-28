@@ -150,6 +150,38 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 3. Its rules: the ledger keeps every row; a row last seen over 56 days ago, or from another signed job version, is not handed to the drafter; levels (this job, this place, all jobs) are worked out at read time; the block is capped at 2,000 characters; rubric lessons count only after a human Accept.
 4. Open before it is built (hamr to rule): (a) this PRD says fwdloop does not learn across runs in v1, and if it ever does it comes in as its own signed module (Guiding principles, "Deliberately not borrowed"), so it needs a signed scope, exit and negative scenario first; (b) bareloop has a mid-run replan and fwdloop redrafts instead, so "At the first replan" needs a fwdloop meaning; (c) phone width is not yet checked on bareloop's side.
 
+**Next, not scheduled: outside tools through MCP, with barebrowse as the fallback** (hamr, 2026-10-27, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Tickets (below) is its first real job. hamr's direction:
+1. A job names an MCP server the person already set up as a source: `guardrail: source gh = mcp:<server name>` (the name in the person's own MCP config, e.g. `~/.mcp.json`). The human names it; the agent never discovers or adds a server, and a repo's own `.mcp.json` is never read (bareagent's default since v0.16.1).
+2. Explored at draft: fwdloop lists the server's tools for the person to see.
+3. Distilled, never open: the drafter proposes only the tools the job needs; the person signs that list (tighten-only). A run sees no other tool; an unsigned tool stays shut by mechanism, not prompt wording (bareagent's bridge allows new tools by default; fwdloop flips it to deny).
+4. Keys: each server's key reaches it through that server's own `env` from the person's environment; fwdloop starts the server and never reads, writes or logs the key.
+5. Read only first. A tool that changes or sends something is a send: a signed destination plus an accept, later.
+6. Order of readers: an MCP server when the person has one; barebrowse for anything without one; fwdloop never calls a vendor API itself (that would grow a primitive).
+7. Later, after the MCP path is clean: rwxmap labels each tool r / w / x and bareguard gates by the letter (r inside a run; w and x need a signed destination plus an accept). bareguard's own agent rwx scoping is the heavier alternative; distilled plus drafter-proposed is tried first because it is leaner.
+8. POC first, the riskiest assumption: bareagent's MCP bridge (`createMCPBridge`, untested by us) starts a real GitHub MCP server, lists its tools and reads issues read-only, and a tool not on the signed list is refused (the test that must be able to fail). A gap is an upstream ask to bareagent, never a patch here.
+
+**Next, not scheduled: tickets as an input and a trigger** (hamr, 2026-10-27, unsigned; chained workflows parked for this, beta first). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. hamr's direction, from the 2026-10-26/27 discussion:
+1. A job names a ticket list as a source, like a page today: `guardrail: source issue = tickets:<list page URL>`. First target GitHub issues; later any ticket system (ServiceNow, Jira) through barebrowse. The human is already logged in in their own browser. A ticket list can also come from an MCP server (see "outside tools through MCP" above), e.g. `tickets:mcp github list_issues`; the trigger and one-ticket-per-run stay the same, only the reader changes.
+2. The job stays signed and fixed; a ticket only brings this run's case. Its top part (title, description, link) is the run's frozen input. A ticket can never change steps, rules, cap, asks or destinations.
+3. A `tickets:` source unlocks a trigger "When a new ticket arrives in <role>"; fwdloop remembers which tickets it has seen. By hand, Run asks which ticket (`#42` or its link).
+4. A step may open the ticket's page and tickets it refers to ("see #41") on the same host as the signed list; anything else needs a signed address.
+5. Writing back on a ticket (a comment) is a send: a signed destination plus an accept. After beta.
+6. Email is the same shape later; until a mail peer exists, a request can arrive as a file in a folder (the new-file trigger today).
+7. Waits on barebrowse (asked 2026-10-27, POC first): (a) link lines carry their absolute URL; (b) after a load, the final URL and HTTP status. fwdloop's own guard: a known list landmark must be present before "0 new" is trusted.
+
+*Update 2026-10-27 (MCP and tickets).* M12 was signed, partly built, then withdrawn and reverted by hamr ("a, revert"): the code was built without a live POC. It restarts on a new branch after this release, with a fresh scope and a POC before every build. What the POCs proved:
+- F85/F86/F88, the bare-agent bridge: allow mode, readOnlyHint marks, listServerTools; spawn errors fixed in bare-agent 0.54.1.
+- F87, barebrowse: links carry their address, and a page reports its load status.
+- F89 and its rerun: a ticket page needs `data` mode, or the body text is lost.
+- F90/F90b/F90c: the drafter must be told the ticket role exists (one facts line); without it plans sign but never read the ticket, and once granted `get`. "priority P2 only" becomes hitl, not a typed check.
+
+hamr's design asks to carry into the fresh scope:
+- The ticket list address goes in the Inputs box (`issue: tickets <list url>`).
+- New tickets queue and run one after another, oldest first.
+- The job's own guardrails filter which tickets matter, no special words; a non-match ends skipped (grey), never red; a real failure stays red.
+- The queue view could go in Result (needs a mockup first).
+- `~/.mcp.json` is the only MCP config read.
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.

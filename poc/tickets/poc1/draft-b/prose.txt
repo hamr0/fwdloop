@@ -1,0 +1,12 @@
+1. read the ticket and pull out its priority and what is broken
+   guardrail: priority P2 only
+2. write a short first-response plan for the on-call engineer
+   guardrail: under 150 words
+3. ask 30m: check it with me,
+   guardrail: nothing goes out before I accept
+4. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: send at line 4 to file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1/out
+guardrail: source issue = file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1/ticket-b.txt

@@ -1,0 +1,13 @@
+--- a/src/input-facts.js
++++ b/src/input-facts.js
+@@ -43,6 +43,10 @@
+       info.push(`- ${s.role}: a web page (${s.path}), saved at drafting, ${page.text.length} characters`);
+       continue;
+     }
++    if (s.kind === 'ticket') {
++      info.push(`- ${s.role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${s.role}" in a step's reads, do not fetch it)`);
++      continue;
++    }
+     if (s.kind !== 'file') continue;
+     if (String(s.path).toLowerCase().endsWith('.docx')) {
+       const r = readDocxText(s.path);

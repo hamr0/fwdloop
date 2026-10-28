@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { lookAtPage } from '../src/pagelook.js';
 import {
-  askableFromLook, isAgree, isDropIt, DROP_IT, readingOfQuestion, tooManyAsksText, MAX_LOOK_ASKS, ruleWords,
+  askableFromLook, isAgree, stripAgreeLead, ruleOfAnswer, isDropIt, DROP_IT, readingOfQuestion, tooManyAsksText, MAX_LOOK_ASKS, ruleWords,
 } from '../src/pageask.js';
 import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
 
@@ -84,4 +84,23 @@ test('a model-written field on a fact or a look (ask, askUser, questions, needsA
   const quiet = { facts: look.facts.map((f) => ({ ...f, reading: undefined })), dropped: [] };
   assert.ok(askableFromLook(quiet, JOB).every((a) => a.ask === 'cant-check' || a.ask === 'reading'));
   assert.equal(askableFromLook(quiet, JOB).filter((a) => a.ask === 'reading').length, 0, 'no reading, no reading ask: the model\'s "should ask" flag is not a trigger');
+});
+
+// borrowed-from: bareloop tests/part5b-reading.test.js@v0.49.0 (F240 stripAgreeLead, d51a367), adapted: ruleOfAnswer is fwdloop's one place
+test('F240 stripAgreeLead: only a comma or colon right after yes/agree drops the lead; hyphen, dash, bare space, bare, mid-sentence stay whole', () => {
+  assert.equal(stripAgreeLead('yes, check it as departure between 05:00 and 21:59'), 'check it as departure between 05:00 and 21:59');
+  assert.equal(stripAgreeLead('Yes, Departs by 7am'), 'Departs by 7am');
+  assert.equal(stripAgreeLead('AGREE: departs by 7am'), 'departs by 7am');
+  assert.equal(stripAgreeLead('Yes,drop it'), 'drop it');
+  for (const a of ['yes', 'Yes', 'agree', 'yes.', 'agree!', 'yes,', 'say yes to a window seat', 'yesterday it left at 7am', 'agreed, departs by 7am', 'yes departs by 7am', 'yes under 300', 'agree with the shown price', 'yes or no questions only', 'yes-no questions only', 'agree-ment on price', 'yes - departs by 7am', 'yes \u2014 the outbound', 'yes\u2013the outbound', 'yesterday, the price']) assert.equal(stripAgreeLead(a), a, a);
+});
+
+test('F240 ruleOfAnswer: a typed "yes, under 300" on a look ask signs "under 300"; a non-look answer is never stripped', () => {
+  const look = { source: 'look', ask: 'cant-check' };
+  assert.equal(ruleOfAnswer(look, 'yes, under 300').rule, 'under 300');
+  assert.equal(ruleOfAnswer(look, 'agree: nonstop').rule, 'nonstop');
+  assert.equal(ruleOfAnswer(look, 'yes-no questions only').rule, 'yes-no questions only');
+  assert.equal(ruleOfAnswer(look, 'yes under 300').rule, 'yes under 300');
+  assert.equal(ruleOfAnswer(look, 'yes,').rule, 'yes,');
+  assert.equal(ruleOfAnswer({ source: 'job' }, 'yes, under 300').rule, 'yes, under 300');
 });

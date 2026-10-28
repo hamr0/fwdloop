@@ -1,0 +1,8 @@
+{
+  "notChecked": [
+    "whether the priority really is P2",
+    "whether the description of what is broken matches the ticket",
+    "whether the plan is sound advice for the on-call engineer",
+    "tone and clarity of the plan"
+  ]
+}

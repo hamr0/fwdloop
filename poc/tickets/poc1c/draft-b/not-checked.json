@@ -1,0 +1,8 @@
+{
+  "notChecked": [
+    "accuracy of the extracted priority",
+    "correctness of the diagnosis of what is broken",
+    "tone and usefulness of the plan for the on-call engineer",
+    "whether the plan covers all that is broken"
+  ]
+}

@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.2] - 2026-10-28
+
+M4b amendment 9 (update wording), M10 amendment 13 (an error page is never a job's input), and a
+borrowed bareloop fix for typed look-ask readings. The MCP and tickets POCs (F85–F90c) are recorded in
+`docs/logs/FINDINGS.md`; they change nothing for users.
+
+### Changed
+- `fwdloop update` now ends `Updated to <version>. Then run fwdloop restart.` The `6 update` menu pick
+  still says `Then pick 3 restart.`
+- barebrowse `^0.26.0` is now the minimum for a web page input (its `goto()` reports the HTTP status). An
+  older barebrowse refuses every page read, by name. bare-agent is now `^0.54.1`.
+
+### Fixed
+- A page input that answers with a non-2xx status, or gives no HTTP status at all, is refused at $0
+  before any reading, naming the page and the status (M10 am13).
+- A typed look-ask reading that starts with `yes,` or `agree:` has that lead dropped before it becomes
+  the signed rule (copied from bareloop F240, v0.49.0).
+
 ## [0.26.1] - 2026-10-26
 
 M4b amendment 8: the launcher can check for a newer fwdloop.

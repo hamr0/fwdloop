@@ -1,0 +1,10 @@
+1. read the ticket body
+   guardrail: from ticket link/mcp below
+2. use the body for this step
+   guardrail: body from ticket used
+3. do your tests
+   guardrail: typecheck, ci, etc
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: source issue = file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1/issue30.txt

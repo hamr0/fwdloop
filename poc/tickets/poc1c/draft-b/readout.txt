@@ -1,0 +1,33 @@
+DRAFT READOUT — NOT SIGNED — flow "tkc-b"
+
+Drafted by: deepseek-flash in 1 round(s), cost $0.0025
+Flows root: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1c/root  (the flow is written to <flows root>/tkc-b when you sign)
+Cap per run (signed by you in the prose): $0.25
+
+INPUTS
+  issue = https://github.com/hamr0/bareagent/issues
+
+STEPS
+  1. (line 1) read the ticket and pull out its priority and what is broken
+     grants: read | reads: issue | emits: ticket_extract | check: hitl
+  2. (line 2) write a short first-response plan for the on-call engineer
+     grants: read | reads: ticket_extract | emits: first_response_plan | check: softgreen
+  3. (line 3) check it with me,
+     grants: none (pure stop) | reads: first_response_plan | emits: plan_accepted | check: hitl
+  4. (line 4) and once I accept, write it out.
+     grants: write | reads: plan_accepted | emits: first_response_plan_file | check: hitl
+
+ASKS (human stops)
+  line 3: "check it with me," (ttl 30m)
+
+SEND TARGET (nothing leaves before an accepted ask)
+  line 4 -> file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/e1791334-ea08-4d0b-bc0b-e85866fe59a9/scratchpad/poc1c/out
+
+JOB LINES
+  1. read the ticket and pull out its priority and what is broken
+  ~ priority P2 only
+  2. write a short first-response plan for the on-call engineer
+  ~ under 150 words
+  3. check it with me,
+  ~ nothing goes out before I accept
+  4. and once I accept, write it out.

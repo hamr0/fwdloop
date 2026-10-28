@@ -1,5 +1,6 @@
 // borrowed-from: bareloop src/pagemap.js@0a34846 (DROP_IT, isDropIt, isAgree, readingQuestion, readingOfQuestion, askableFromLook, ruleBounds, tooManyAsksText)
 // borrowed-from: bareloop src/facts.js@0a34846 (ruleWords, sayBound, moneyAs)
+// borrowed-from: bareloop src/pagemap.js@v0.49.0 (d51a367) (stripAgreeLead, F240; adapted: literal regex, src/ bans new RegExp)
 // M10 piece 3 (docs/wiki/the-module-ladder.md "M10", item 4, am1, am2, am5): the early asks CODE forces before any paid drafting, from the page look's own
 // result. The model never decides whether to ask: this file reads a kept fact's own keys (line, forRule, name, shape, unit, currency, reading) and the job
 // lines, and nothing else (test/m10-pageask.test.js greps for it). The question words are bareloop's, verbatim (am5 item 1); the answer words are
@@ -24,6 +25,20 @@ export const isDropIt = (text) => String(text ?? '').trim().replace(/\.$/, '').t
 const AGREE_WORDS = ['agree', 'yes'];
 /** @param {unknown} text @returns {boolean} */
 export const isAgree = (text) => AGREE_WORDS.includes(String(text ?? '').trim().replace(/[.!]$/, '').toLowerCase());
+
+/**
+ * F240: an answer that opens with an agree word IMMEDIATELY followed by a comma or a colon (spaces allowed only after it) and more text
+ * ("yes, check it as ...", "agree: the outbound flight") is the person's own reading with a courtesy word in front: the word and the
+ * comma/colon go, the rest stays word for word. No hyphen or dash of any kind and no bare space counts, so "yes-no questions only",
+ * "agree-ment on price", "yes - departs", "yes departs" and "yesterday, ..." are kept whole. A bare "yes"/"agree" (isAgree), a bare "yes,"
+ * and a text that only contains the word later are returned untouched.
+ * @param {string} text @returns {string}
+ */
+export const stripAgreeLead = (text) => {
+  // a literal that spells out AGREE_WORDS (src/ bans dynamic RegExp, the ReDoS guard); the two must stay in step
+  const m = String(text ?? '').match(/^(?:agree|yes)[,:]\s*(\S[\s\S]*)$/i);
+  return m ? m[1].trim() : String(text ?? '');
+};
 
 /** @typedef {{line: number, rule: number, source: 'look', question: string, ask: 'reading'|'cant-check', ruleText: string, reading?: string}} LookAsk
  *   `reading` = the plain words an `agree` writes as a `~` rule (a reading ask only) */
@@ -128,8 +143,9 @@ export function tooManyAsksText(asks) {
  * @returns {{rule: string|null, left: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed) {
-  const text = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
-  if (q.source !== 'look') return { rule: text, left: false };
+  const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
+  if (q.source !== 'look') return { rule: typedText, left: false };
+  const text = stripAgreeLead(typedText); // F240: "yes, check it as ..." is the person's own words minus the leading "yes,"
   if (q.ask === 'reading' && typeof q.proposal === 'string' && isAgree(text)) return { rule: q.proposal, left: false };
   if (q.ask === 'cant-check' && isDropIt(text)) return { rule: null, left: true };
   return { rule: text, left: false };
