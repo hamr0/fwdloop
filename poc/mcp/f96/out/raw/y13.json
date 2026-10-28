@@ -1,0 +1,42 @@
+{
+ "number": 13,
+ "title": "[BUG] TC-R2-11: Empty search returns product list instead of empty result",
+ "body": "## 1. Summary\nSearching with an empty query returns the full product list instead of an empty\nresult. On the reference site the same input correctly returns 0 products.\n\n## 2. Environment\n- **Application Under Test (AUT):** https://with-bugs.practicesoftwaretesting.com\n- **Oracle / Reference (No-Bug):** https://practicesoftwaretesting.com\n- **Browser & Version:** Google Chrome v141.0\n- **Operating System / Device:** Windows 11\n- **Viewport Resolution:** Desktop 1920x1080\n\n## 3. Pre-conditions\n- User is on the Catalog (home) page of the AUT.\n- No user is logged in; no filters are applied.\n- The search input field is empty and untouched.\n\n## 4. Steps to Reproduce\n1. Navigate to 'https://with-bugs.practicesoftwaretesting.com/'\n2. Leave the search field empty, then click the 'Search' button (or press Enter).\n3. Observe the product list rendered on the page.\n4. Repeat the search with a query containing only spaces.\n5. Compare the result with 'https://practicesoftwaretesting.com'.\n\n## 5. Expected Result\nAn empty or whitespace-only query should return 0 products (empty result list) or\ndisplay a validation message asking the user to enter a keyword. Behaviour should\nmatch the reference site, where both cases return 0 products and no error occurs.\n\n## 6. Actual Result\nAn empty search still returns a product list instead of an empty result.\n\nComparison with the reference site:\nDifferent. On https://practicesoftwaretesting.com, an empty search as well as a\nwhitespace-only search return 0 products and do not raise any error.\n\nReproducibility: 3/3 attempts.\n\n## 7. Severity & Priority Assessment\n- **Severity:** Minor\n  - *Severity Justification:* The deviation occurs only in the result set produced\n    by an empty query. No crash, data loss, or security impact was observed, and\n    the search feature remains fully functional for normal keywords. The technical\n    impact is limited to incorrect result presentation.\n- **Priority:** P2\n  - *Priority Justification:* Although the technical impact is small, the defect is\n    visible to every user who clicks the Search button without entering a keyword,\n    and the results shown do not match the user's query. It should therefore be\n    scheduled for the current cycle, but it does not block the release.\n\n## 8. Evidence\n- \n\n<img width=\"1917\" height=\"1076\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/43a0ea3c-4902-4265-8d3e-c0c519168b85\" />\n\n## 9. Traceability & Quality Gate\n- **Kiwi TCMS Test Case ID:** https://100.102.60.61/case/54/\n- **Linked Test Run:** https://100.102.60.61/runs/15/\n\n---\n### R5 Defect Management Review\n- [x] Steps to Reproduce are clear and reproducible by other testers\n- [x] Expected Result verified against oracle website (`practicesoftwaretesting.com`)\n- [x] No duplicate found for this root cause\n- [x] Fullscreen evidence provided\n- [x] Severity and Priority justified properly\n- **Triage Decision:** Approved\n- **Triage Notes:** Empty search defect verified on the AUT. Submitting empty search parameters improperly returns the full catalog product list rather than an empty state.\n",
+ "state": "open",
+ "html_url": "https://github.com/YarouAnarkis/UTS-PPL-Kelompok-07-Katalog/issues/13",
+ "user": {
+  "login": "JinXProorgindo",
+  "id": 88123343,
+  "profile_url": "https://github.com/JinXProorgindo",
+  "avatar_url": "https://avatars.githubusercontent.com/u/88123343?v=4"
+ },
+ "author_association": "COLLABORATOR",
+ "labels": [
+  "bug",
+  "severity : major",
+  "priority : P2-High",
+  "area : katalog",
+  "type : functional",
+  "triage : approved"
+ ],
+ "assignees": [],
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-22T04:28:55Z",
+ "updated_at": "2026-10-22T13:47:18Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

@@ -1,0 +1,43 @@
+{
+ "number": 195327,
+ "title": "[cupertino_ui] CupertinoListTile: add `enabled`",
+ "body": "### Use case\n\niOS greys out a disabled list row, in UIKit and SwiftUI. `CupertinoListTile` can only drop `onTap`, which leaves the row looking tappable. A `null` `onTap` can't mean disabled either, since iOS leaves rows with nothing to tap as they are.\n\n### Proposal\n\n`enabled`, like `ListTile.enabled`. When `false`: no tap, `title` in `tertiaryLabel`, `subtitle` and `additionalInfo` in `quaternaryLabel`. Those are the colours UIKit's list cells switch to on iOS 18.5 and 26.2.\n\n<img width=\"1200\" height=\"315\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/06a07927-21ed-45f2-bdc8-802deca1e40b\" />\n\n<img width=\"1200\" height=\"318\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/81afe54d-b574-491f-9f20-39033a68e7f9\" />\n\n\n<details>\n<summary>UIKit</summary>\n\n```swift\nvar content = UIListContentConfiguration.valueCell()\ncontent.text = \"Wi-Fi\"\ncontent.secondaryText = \"On\"\ncell.contentConfiguration = content\ncell.isUserInteractionEnabled = false\n```\n\n</details>\n\nThe slider has the same gap: #106691.\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/195327",
+ "user": {
+  "login": "LahaLuhem",
+  "id": 47954571,
+  "profile_url": "https://github.com/LahaLuhem",
+  "avatar_url": "https://avatars.githubusercontent.com/u/47954571?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "p: cupertino_ui",
+  "package",
+  "c: proposal",
+  "P3",
+  "team-design",
+  "triaged-design"
+ ],
+ "assignees": [],
+ "comments": 1,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-26T15:58:39Z",
+ "updated_at": "2026-10-27T21:18:10Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

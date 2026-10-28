@@ -1,0 +1,42 @@
+{
+ "number": 180865,
+ "title": "iOS App Hang FlutterPlatformPlugin getClipboardData blocks main thread for 2+ seconds",
+ "body": "## Steps to reproduce\n\n1. Enable Universal Clipboard across Apple devices (e.g., iPhone + Mac)\n2. Copy content on one device (e.g., Mac)\n3. Before clipboard sync completes, tap on a `TextField` in the Flutter app on iPhone\n4. App freezes for 2+ seconds\n\n**Note:** This issue is timing-dependent and intermittent, making it difficult to reproduce on demand. However, it occurs regularly in production environments and is captured by crash/ANR monitoring tools (Sentry).\n\n**Affected iOS versions:** iOS 14+ (confirmed on iOS 26.1)\n**Affected devices:** Various iPhones (confirmed on iPhone 18,2)\n\n## Analysis\n\nThe root cause appears to be in `FlutterPlatformPlugin.mm` line 411 where `getClipboardData:` calls `[UIPasteboard string]` synchronously on the main thread.\n\n`UIPasteboard` operations can block when:\n\n1. **Universal Clipboard** - Syncing clipboard content from other devices requires network operations\n2. **Content type coercion** - Converting clipboard formats triggers inter-process communication\n3. **Privacy checks** - iOS 14+ clipboard access permissions\n\nApple's `UIPasteboard` documentation doesn't guarantee these operations complete quickly, and blocking the main thread for 2+ seconds triggers iOS's \"App Hang\" detection.\n\n## Expected results\n\nTapping on a TextField should not freeze the app.\n\n## Actual results\n\nThe main thread blocks on `semaphore_wait_trap` for 2+ seconds while waiting for clipboard data, causing an \"App Hang\" (ANR).\n\n## Minimal reproducible code sample\n\nThis issue is difficult to reproduce with a minimal sample because it depends on:\n\n- Universal Clipboard sync timing between devices\n- iOS system state regarding clipboard data availability/coercion\n\nHowever, any app with a basic `TextField` can trigger this:\n\n```dart\nimport 'package:flutter/material.dart';\n\nvoid main() => runApp(const MyApp());\n\nclass MyApp extends StatelessWidget {\n  const MyApp({super.key});\n\n  @override\n  Widget build(BuildContext context) {\n    return MaterialApp(\n      home: Scaffold(\n        appBar: AppBar(title: const Text('Clipboard Hang Repro')),\n        body: const Padding(\n          padding: EdgeInsets.all(16),\n          child: TextField(\n            decoration: InputDecoration(\n              hintText: 'Tap here while Universal Clipboard is syncing',\n            ),\n          ),\n        ),\n      ),\n    );\n  }\n}\n```\n\nTo reproduce:\n\n1. Run on a physical iOS device with iCloud/Universal Clipboard enabled\n2. Copy large content (e.g., an image or formatted text) on a paired Mac\n3. Immediately tap the TextField before sync completes\n\n### Screenshots or Video\n\n_No response_\n\n## Stack trace / crash report\n\nThis is captured by Sentry as an \"App Hang\" event with mechanism type `AppHang`. The blocking call stack:\n\n```\nsemaphore_wait_trap                                    (libsystem_kernel.dylib)\n_dispatch_sema4_wait                                   (libdispatch.dylib)\n_dispatch_semaphore_wait_slow                          (libdispatch.dylib)\n_coerceItemToClass                                     (UIKitCore)\n-[_UIConcretePasteboard string]                        (UIKitCore)\n-[FlutterPlatformPlugin getClipboardData:]             (Flutter.framework) ← FlutterPlatformPlugin.mm:411\n-[FlutterPlatformPlugin handleMethodCall:result:]      (Flutter.framework) ← FlutterPlatformPlugin.mm:145\n__47-[FlutterEngine maybeSetupPlatformViewChannels]... (Flutter.framework) ← FlutterEngine.mm:674\n__45-[FlutterMethodChannel setMethodCallHandler:]...   (Flutter.framework) ← FlutterChannels.mm:313\nflutter::PlatformMessageHandlerIos::HandlePlatformMessage (Flutter.framework)\n_dispatch_call_block_and_release                       (libdispatch.dylib)\n_dispatch_client_callout                               (libdispatch.dylib)\n_dispatch_main_queue_drain                             (libdispatch.dylib)\n_dispatch_main_queue_callback_4CF                      (libdispatch.dylib)\n__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__     (CoreFoundation)\n__CFRunLoopRun                                         (CoreFoundation)\n_CFRunLoopRunSpecificWithOptions                       (CoreFoundation)\nGSEventRunModal                                        (GraphicsServices)\n-[UIApplication _run]                                  (UIKitCore)\nUIApplicationMain                                      (UIKitCore)\nmain                                                   (Runner)\nstart                                                  (dyld)\n```\n\n## Flutter diagnostics\n\n```\n[✓] Flutter (Channel stable, 3.38.5, on macOS 26.1 25B78 darwin-arm64, locale en-US)\n    • Flutter version 3.38.5 on channel stable at /Users/xavier.hunt/development/flutter\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision f6ff1529fd (5 weeks ago), 2025-12-11 11:50:07 -0500\n    • Engine revision 1527ae0ec5\n    • Dart version 3.10.4\n    • DevTools version 2.51.1\n\n[✓] Xcode - develop for iOS and macOS (Xcode 16.3)\n    • Xcode at /Applications/Xcode.app/Contents/Developer\n    • Build 16E140\n    • CocoaPods version 1.16.2\n```",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/180865",
+ "user": {
+  "login": "xavier-hunt",
+  "id": 179415114,
+  "profile_url": "https://github.com/xavier-hunt",
+  "avatar_url": "https://avatars.githubusercontent.com/u/179415114?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "a: text input",
+  "platform-ios",
+  "P2",
+  "team-text-input",
+  "triaged-text-input"
+ ],
+ "assignees": [],
+ "comments": 11,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-01-12T21:23:01Z",
+ "updated_at": "2026-03-06T22:53:22Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

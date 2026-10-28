@@ -1,0 +1,46 @@
+{
+ "number": 195468,
+ "title": "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture",
+ "body": "**Once an app calls `setFlashMode`, every `takePicture()` sets the same flash mode on\n`ImageCapture` again, which adds roughly 250-300 ms to each capture.** This happens\neven when the mode is `FlashMode.off` and never changes.\n\n### Steps to reproduce\n\n1. Create a camera with `ResolutionPreset.high`.\n2. Call `setFlashMode(FlashMode.off)`.\n3. Call `takePicture()` repeatedly and measure the latency.\n\n### Results\n\n| | ZSL off | ZSL on |\n|---|---|---|\n| `setFlashMode` never called | 517 ms | 360 ms |\n| `setFlashMode(FlashMode.off)` called once | **794 ms** | **656 ms** |\n\nGalaxy S21 (SM-G991N), camera_android_camerax 0.7.6, CameraX 1.6.2. Each value is\nthe median of 12 shots, after 2 warm-up shots, 600 ms apart. \"ZSL on\" means\n`setZeroShutterLagEnabled(true)`.\n\n### Why\n\n`takePicture` calls `ImageCapture.setFlashMode` before every capture whenever a\nflash mode has been set (since flutter/packages#3800). CameraX keeps the flash mode\non the `ImageCapture` instance for subsequent captures, so the repeated call does not\nchange anything. In CameraX 1.6.2, `ImageCapture.setFlashMode` has no check for an\nunchanged mode, so each call still goes through `CameraControl.setFlashMode`. (The\nandroidx-main source has since added that check.)\n\n### Proposed fix\n\nOnly call `ImageCapture.setFlashMode` in `takePicture` when the mode differs from the\none last applied to the current `ImageCapture` instance. The torch behavior from\nflutter/packages#4903 (clearing a previous flash mode when torch is enabled) stays\nthe same.\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/195468",
+ "user": {
+  "login": "toyaji",
+  "id": 23311364,
+  "profile_url": "https://github.com/toyaji",
+  "avatar_url": "https://avatars.githubusercontent.com/u/23311364?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "waiting for response"
+ ],
+ "assignees": [],
+ "comments": 2,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-28T07:47:02Z",
+ "updated_at": "2026-10-28T11:29:50Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 13468,
+    "title": "[camera_android_camerax] Only set the ImageCapture flash mode when it changes",
+    "state": "OPEN",
+    "url": "https://github.com/flutter/packages/pull/13468",
+    "repository": "flutter/packages"
+   }
+  ]
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "number": 124871,
+ "title": "kubelet crash loop panic with SIGSEGV",
+ "body": "### What happened?\n\nI was running some pods on my node as usual.\r\nAt some point (23:41:35.127989 in the log), the kubelet crashed and then went into a crash loop.\r\n\r\nLog showing the first crash and several thereafter: [kubelet-crash.txt](https://github.com/kubernetes/kubernetes/files/15312195/kubelet-crash.txt)\r\n\r\n\r\nThe errors I see shortly before the crash are:\r\n```\r\nprojected.go:292] Couldn't get configMap default/kube-root-ca.crt: object \"default\"/\"kube-root-ca.crt\" not registered\r\nprojected.go:198] Error preparing data for projected volume kube-api-access-lwp5v for pod default/run-fluid-wtw5n-99kwf: object \"default\"/\"kube-root-ca.crt\" not registered\r\nnestedpendingoperations.go:348] Operation for \"{volumeName:kubernetes.io/projected/e6cfc866-a5b2-4e16-9b83-884de8552d45-kube-api-access-lwp5v podName:e6cfc866-a5b2-4e16-9b83-884de8552d45 nodeName:}\" failed. No retries permitted until 2024-05-13 23:41:38.8756138 +0000 UTC m=+9176.959811707 (durationBeforeRet\r\nry 2m2s). Error: MountVolume.SetUp failed for volume \"kube-api-access-lwp5v\" (UniqueName: \"kubernetes.io/projected/e6cfc866-a5b2-4e16-9b83-884de8552d45-kube-api-access-lwp5v\") pod \"run-fluid-wtw5n-99kwf\" (UID: \"e6cfc866-a5b2-4e16-9b83-884de8552d45\") : object \"default\"/\"kube-root-ca.crt\" not registered\r\n```\r\n\r\nStack trace from the first crash (later stack traces are a bit different):\r\n```\r\ngoroutine 401 [running]:\r\nk8s.io/apimachinery/pkg/util/runtime.logPanic({0x3d005c0?, 0x6d89410})\r\n        vendor/k8s.io/apimachinery/pkg/util/runtime/runtime.go:75 +0x99\r\nk8s.io/apimachinery/pkg/util/runtime.HandleCrash({0x0, 0x0, 0x480e338?})\r\n        vendor/k8s.io/apimachinery/pkg/util/runtime/runtime.go:49 +0x75\r\npanic({0x3d005c0, 0x6d89410})\r\n        /usr/local/go/src/runtime/panic.go:884 +0x213\r\nerrors.As({0x12, 0x0}, {0x3eac4c0?, 0xc0014e6590?})\r\n        /usr/local/go/src/errors/wrap.go:109 +0x215\r\nk8s.io/apimachinery/pkg/util/net.IsConnectionReset(...)\r\n        vendor/k8s.io/apimachinery/pkg/util/net/util.go:45\r\nk8s.io/client-go/rest.(*Request).request.func2(0x6d2e8a0?, {0x12, 0x0})\r\n        vendor/k8s.io/client-go/rest/request.go:1007 +0x79\r\nk8s.io/client-go/rest.IsRetryableErrorFunc.IsErrorRetryable(...)\r\n        vendor/k8s.io/client-go/rest/with_retry.go:43\r\nk8s.io/client-go/rest.(*withRetry).IsNextRetry(0xc001587f40, {0x0?, 0x0?}, 0x0?, 0xc001ef5f00, 0xc001bb1560, {0x12, 0x0}, 0x480e328)\r\n        vendor/k8s.io/client-go/rest/with_retry.go:169 +0x170\r\nk8s.io/client-go/rest.(*Request).request.func3(0xc001bb1560, 0xc002913af8, {0x4c44840?, 0xc001587f40?}, 0x0?, 0x0?, 0x39efc40?, {0x12?, 0x0?}, 0x480e328)\r\n        vendor/k8s.io/client-go/rest/request.go:1042 +0xba\r\nk8s.io/client-go/rest.(*Request).request(0xc00199f200, {0x4c42e00, 0xc00227b0e0}, 0x2?)\r\n        vendor/k8s.io/client-go/rest/request.go:1048 +0x4e5\r\nk8s.io/client-go/rest.(*Request).Do(0xc00199f200, {0x4c42dc8, 0xc000196010})\r\n        vendor/k8s.io/client-go/rest/request.go:1063 +0xc9\r\nk8s.io/client-go/kubernetes/typed/core/v1.(*nodes).Get(0xc001db6740, {0x4c42dc8, 0xc000196010}, {0x7ffe6a355c42, 0x1d}, {{{0x0, 0x0}, {0x0, 0x0}}, {0x4c03920, ...}})\r\n        vendor/k8s.io/client-go/kubernetes/typed/core/v1/node.go:77 +0x145\r\nk8s.io/kubernetes/pkg/kubelet.(*Kubelet).tryUpdateNodeStatus(0xc000289400, {0x4c42dc8, 0xc000196010}, 0x44ead4?)\r\n        pkg/kubelet/kubelet_node_status.go:561 +0xf6\r\nk8s.io/kubernetes/pkg/kubelet.(*Kubelet).updateNodeStatus(0xc000289400, {0x4c42dc8, 0xc000196010})\r\n        pkg/kubelet/kubelet_node_status.go:536 +0xfc\r\nk8s.io/kubernetes/pkg/kubelet.(*Kubelet).syncNodeStatus(0xc000289400)\r\n        pkg/kubelet/kubelet_node_status.go:526 +0x105\r\nk8s.io/apimachinery/pkg/util/wait.BackoffUntil.func1(0xc002913f28?)\r\n        vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:226 +0x3e\r\nk8s.io/apimachinery/pkg/util/wait.BackoffUntil(0x0?, {0x4c19ae0, 0xc0008f2000}, 0x1, 0xc000180360)\r\n        vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:227 +0xb6\r\nk8s.io/apimachinery/pkg/util/wait.JitterUntil(0x0?, 0x2540be400, 0x3fa47ae147ae147b, 0x0?, 0x0?)\r\n        vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:204 +0x89\r\ncreated by k8s.io/kubernetes/pkg/kubelet.(*Kubelet).Run\r\n        pkg/kubelet/kubelet.go:1606 +0x58a\r\npanic: runtime error: invalid memory address or nil pointer dereference [recovered]\r\n        panic: runtime error: invalid memory address or nil pointer dereference\r\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x1a pc=0x47a935]\r\n```\n\n### What did you expect to happen?\n\nIdeally no crash, but at least a useful error message.\n\n### How can we reproduce it (as minimally and precisely as possible)?\n\nReally not sure.\n\n### Anything else we need to know?\n\n_No response_\n\n### Kubernetes version\n\nClient Version: v1.28.6\r\nKustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3\r\nServer Version: v1.28.6\n\n### Cloud provider\n\nBare metal.\n\n### OS version\n\n<details>\r\n\r\n```console\r\n# On Linux:\r\n$ cat /etc/os-release\r\n# paste output here\r\n$ uname -a\r\n# paste output here\r\n\r\n# On Windows:\r\nC:\\> wmic os get Caption, Version, BuildNumber, OSArchitecture\r\n# paste output here\r\n```\r\n\r\n</details>\r\n\n\n### Install tools\n\nkubespray\n\n### Container runtime (CRI) and version (if applicable)\n\ncontainerd\r\n\r\ncontainerd github.com/containerd/containerd v1.7.13 7c3aca7a610df76212171d200ca3811ff6096eb8\n\n### Related plugins (CNI, CSI, ...) and versions (if applicable)\n\nCNI = calico v3.26.4\r\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/kubernetes/kubernetes/issues/124871",
+ "user": {
+  "login": "garymm",
+  "id": 421339,
+  "profile_url": "https://github.com/garymm",
+  "avatar_url": "https://avatars.githubusercontent.com/u/421339?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "kind/bug",
+  "priority/important-soon",
+  "sig/node",
+  "lifecycle/rotten",
+  "needs-triage"
+ ],
+ "assignees": [
+  "rphillips"
+ ],
+ "comments": 12,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2024-05-14T18:02:00Z",
+ "updated_at": "2025-03-12T17:31:16Z",
+ "closed_at": "2025-03-12T17:31:14Z",
+ "closed_by": "k8s-ci-robot",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

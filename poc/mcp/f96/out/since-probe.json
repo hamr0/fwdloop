@@ -1,0 +1,29 @@
+{
+ "future": {
+  "since": "2030-01-01T00:00:00Z",
+  "count": 0,
+  "totalCount": 0,
+  "hasNext": false,
+  "ascending": true
+ },
+ "last3h": {
+  "since": "2026-10-28T10:12:38.945Z",
+  "count": 12,
+  "totalCount": 12,
+  "hasNext": false,
+  "firstCreated": "2021-08-12T09:53:59Z",
+  "firstNumber": 88100,
+  "lastNumber": 195480,
+  "ascending": true
+ },
+ "last24h": {
+  "since": "2026-10-27T13:12:38.946Z",
+  "count": 100,
+  "totalCount": 129,
+  "hasNext": true,
+  "firstCreated": "2021-08-09T02:02:58Z",
+  "firstNumber": 87926,
+  "lastNumber": 195409,
+  "ascending": true
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "number": 270,
+ "title": "[BUG][FR-03][API] reset-password returns 500 for text/plain request body",
+ "body": "## Found by Test Case\nTC-FR03-API-SCH-010\n\n## Requirement liên quan\nFR-03, SEC-05\n\n## Severity / Priority\nMajor / P2\n\n## Environment\nBackend API URL: `http://localhost:3000`\n\nTool: Newman `6.2.2`\n\nRun date: 21/08/2026\n\n## Steps to reproduce\n1. Send `POST /api/reset-password`.\n2. Set request header `Content-Type: text/plain`.\n3. Send a JSON-looking plaintext body containing `email`, `resetToken`, and `newPassword`.\n\n## Expected result\nThe API rejects the unsupported content type with a client error such as `400` or `415`, and must not crash or expose an unexpected server error.\n\n## Actual result\nThe API returns `500 Internal Server Error`.\n\n## Evidence\n- Newman HTML report: `reports/newman/hw06-fr03-reset-password.html`\n- Newman JSON report: `reports/newman/hw06-fr03-reset-password.json`\n- Newman CLI log: `reports/newman/hw06-fr03-reset-password-cli.txt`\n- CLI failures:\n  - `TC-FR03-API-SCH-010 status matches expected`: expected `400 or 415`, got `500`.\n  - `TC-FR03-API-SCH-010 no unexpected 5xx`: expected `500` to be below `500`.\n\n\n\n- Screenshot: ![BUG-FR03-API-003](https://github.com/lmchkhi/CS423-CSC15003-Testing-N08/blob/hw06/23127475/reports/screenshots/BUG-FR03-API-003.png?raw=true)\n",
+ "state": "open",
+ "html_url": "https://github.com/lmchkhi/CS423-CSC15003-Testing-N08/issues/270",
+ "user": {
+  "login": "hnaht277",
+  "id": 154041034,
+  "profile_url": "https://github.com/hnaht277",
+  "avatar_url": "https://avatars.githubusercontent.com/u/154041034?v=4"
+ },
+ "author_association": "COLLABORATOR",
+ "labels": [
+  "Type: Bug",
+  "Severity: Major",
+  "Status: New",
+  "Priority: P2",
+  "Module: Forgot password"
+ ],
+ "assignees": [],
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-08-22T09:32:01Z",
+ "updated_at": "2026-08-23T09:26:43Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

@@ -1,0 +1,53 @@
+{
+ "number": 193097,
+ "title": "[macOS] Crash in engineCallbackOnPlatformMessage when dispatching a nil handler",
+ "body": "## Bug Description\n\nIn the macOS embedder, passing `nil` to `-[FlutterEngine setMessageHandlerOnChannel:binaryMessageHandler:]` does not remove the channel entry from `_messengerHandlers`. As a result, when a platform message comes through on that channel, it calls this `nil` handler on MacOS and crashes.\n\nHowever, [`FlutterBinaryMessenger.h`](https://github.com/flutter/flutter/blob/9584c6713b324636289d067944a46fd6b49df14b/engine/src/flutter/shell/platform/darwin/common/framework/Headers/FlutterBinaryMessenger.h#L81-L94) says that assigning `nil` should unregister the handler:\n> *\"Replaces any existing handler. Use a `nil` handler for unregistering the existing handler.\"*\n\nNote that iOS doesn't have this issue;  only macOS does.\n\nThere are bugs in two places:\n\n1.  `setMessageHandlerOnChannel:binaryMessageHandler:` which retains nil handlers\n2. `engineCallbackOnPlatformMessage:` checks that `handlerInfo` is not null, but doesn't check `handlerInfo.handler`.\n\n## Proposed Fix\n\n1. In `setMessageHandlerOnChannel:binaryMessageHandler:`, remove the channel from `_messengerHandlers` if `handler == nil`.\n2. In `engineCallbackOnPlatformMessage:`, verify `handlerInfo.handler` is non-nil before invoking it.\n\n#### Expected results\n\ndon't call null handlers, and maybe call `binaryResponseHandler(nil)` instead?\n\n#### Actual results\n\nThe engine crashes with `SEGV_ACCERR` in `-[FlutterEngine engineCallbackOnPlatformMessage:]`; see stacktrace below\n\n<details open><summary><b>Repro code sample</b></summary>\n\nYou can repro this by unregistering a handler on the platform thread and then sending a message to that channel from Dart:\n\n**Native side:**\n```objc\nid<FlutterBinaryMessenger> messenger = engine.binaryMessenger;\n\n// Register a handler, then unregister it per the API contract:\n[messenger setMessageHandlerOnChannel:@\"repro/nil-handler\"\n                binaryMessageHandler:^(NSData* message, FlutterBinaryReply reply) {\n  reply(nil);\n}];\n\n// Unregister:\n[messenger setMessageHandlerOnChannel:@\"repro/nil-handler\"\n                binaryMessageHandler:nil];\n```\n\n**Dart side:**\n```dart\nconst BasicMessageChannel<String>(\n  'repro/nil-handler',\n  StringCodec(),\n).send('ping');\n```\n\n</details>\n\n<details open><summary>Logs</summary>\n\n### Teardown Stack Trace (showing run loop pumping during view disposal)\n\n```console\nReceived signal 11 SEGV_ACCERR 000000000010\n-[FlutterEngine engineCallbackOnPlatformMessage:] + 396\nflutter::PlatformViewEmbedder::HandlePlatformMessage(...)\nflutter::EmbedderTaskRunner::PostTask(...)\nFlutterEngineRunTask\n-[FlutterEngine postMainThreadTask:targetTimeInNanoseconds:] block\nInternalFlutterSwift.FlutterRunLoop.performExpiredTasks\nInternalFlutterSwift.FlutterRunLoop.pollFlutterMessagesOnce\n-[FlutterEngine deregisterViewControllerForIdentifier:] + 168\n-[FlutterEngine removeViewController:] + 84\n-[FlutterViewController dispose] + 80\nAppHostView::Detach()\n```\n\n### Signal Handler Stack Trace\n\n```console\nReceived signal 11 SEGV_ACCERR 000000000010\n3   libsystem_platform.dylib            0x000000019b6c4144 _sigtramp + 56\n4   FlutterMacOS                        0x00000001040ebb98 -[FlutterEngine engineCallbackOnPlatformMessage:] + 396\n5   FlutterMacOS                        0x0000000104a90910 _ZNSt4__fl10__function6__funcIZ23FlutterEngineInitializeE3$3NS_9allocatorIS2_EEFvNS_10unique_ptrIN7flutter15PlatformMessageENS_14default_deleteIS7_EEEEEEclEOSA + 128\n6   FlutterMacOS                        0x0000000104aa48e4 flutter::PlatformViewEmbedder::HandlePlatformMessage(std::__fl::unique_ptr<flutter::PlatformMessage, std::__fl::default_delete<flutter::PlatformMessage>>) + 76\n7   FlutterMacOS                        0x0000000104aa54d4 std::__fl::__function::__func<...>::operator()() + 84\n8   FlutterMacOS                        0x0000000104aa166c flutter::EmbedderTaskRunner::PostTask(unsigned long long) + 576\n9   FlutterMacOS                        0x0000000104a955dc flutter::EmbedderEngine::RunTask(FlutterTask const*) + 56\n10  FlutterMacOS                        0x0000000104a87e20 FlutterEngineRunTask + 68\n11  FlutterMacOS                        0x00000001040ef7fc __60-[FlutterEngine postMainThreadTask:targetTimeInNanoseconds:]block_invoke + 72\n```\n\n</details>\n\n\n<details open><summary>Flutter Doctor output</summary>\n\n```console\n[!] Flutter (Channel [user-branch], 3.47.4, on macOS 27.0 26A428 darwin-arm64, locale en-CA) [204ms]\n    ! Flutter version 3.47.4 on channel [user-branch] at /Users/vardhan/development/flutter\n      Currently on an unknown channel. Run `flutter channel` to switch to an official channel.\n      If that doesn't fix the issue, try deleting the 'bin/cache/flutter.version.json' file in your Flutter SDK directory and then reinstall Flutter by following instructions at https://flutter.dev/setup.\n    ! The flutter binary is not on your path. Consider adding /Users/vardhan/development/flutter/bin to your path.\n    ! The dart binary is not on your path. Consider adding /Users/vardhan/development/flutter/bin to your path.\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision 9584c6713b (11 days ago), 2026-09-10 15:25:10 -0700\n    • Engine revision 06a2e2a110\n    • Dart version 3.13.3\n    • DevTools version 2.60.0\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration, enable-riscv64\n\n[✗] Android toolchain - develop for Android devices [121ms]\n    ✗ Unable to locate Android SDK.\n\n[!] Xcode - develop for iOS and macOS (Xcode 26.6) [2.1s]\n    • Xcode at /Applications/Xcode.app/Contents/Developer\n    • Build 17F113\n    ✗ Unable to get list of installed Simulator runtimes.\n    ! CocoaPods not installed.\n\n[✓] Chrome - develop for the web [7ms]\n    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n\n[✓] Connected device (2 available) [6.6s]\n    • macOS (desktop) • macos  • darwin-arm64   • macOS 27.0 26A428 darwin-arm64\n    • Chrome (web)    • chrome • web-javascript • Google Chrome 152.0.7977.83\n\n[✓] Network resources [307ms]\n    • All expected network resources are available.\n\n! Doctor found issues in 3 categories.\n```\n\n</details>\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/193097",
+ "user": {
+  "login": "vardhan",
+  "id": 254452,
+  "profile_url": "https://github.com/vardhan",
+  "avatar_url": "https://avatars.githubusercontent.com/u/254452?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "c: crash",
+  "engine",
+  "platform-macos",
+  "a: desktop",
+  "has reproducible steps",
+  "P2",
+  "team-macos",
+  "triaged-macos"
+ ],
+ "assignees": [],
+ "comments": 3,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-09-21T14:08:44Z",
+ "updated_at": "2026-09-24T21:30:24Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 193672,
+    "title": "[macOS] Unregister nil binary message handlers",
+    "state": "OPEN",
+    "url": "https://github.com/flutter/flutter/pull/193672",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}
