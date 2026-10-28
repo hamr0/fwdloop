@@ -56,9 +56,9 @@ test('am35: online on load; a network-failed Inbox read shows offline; the next 
   assert.equal(await dot(c), '● online|on', 'node answered with an error: still online');
 });
 
-test('am35: the dot sits next to Settings and its id is unique', () => {
+test('am35: the dot sits immediately left of Settings and its id is unique', () => {
   assert.equal(PAGE.split(' id="online-dot"').length - 1, 1);
-  assert.match(PAGE, /id="settings-open"[^>]*>&#9881; Settings<\/button>\s*<span id="online-dot"/);
+  assert.match(PAGE, /<span id="online-dot"[^>]*>[^<]*<\/span>\s*<button[^>]*id="settings-open"/);
 });
 
 for (const width of [1280, 390, 320]) {
