@@ -181,6 +181,7 @@ hamr's design asks to carry into the fresh scope:
 - The job's own guardrails filter which tickets matter, no special words; a non-match ends skipped (grey), never red; a real failure stays red.
 - The queue view could go in Result (needs a mockup first).
 - `~/.mcp.json` is the only MCP config read.
+- Ruled 2026-10-28 (after F93): a ticket's priority starts as its label; the goal is several guardrails that filter tickets from any ticket page or MCP source, label or a "Priority:" line in the text. A skipped ticket's read cost (about $0.003-$0.009, F93) is accepted.
 
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
