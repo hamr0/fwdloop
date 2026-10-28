@@ -1,0 +1,984 @@
+{
+ "modelId": "deepseek-flash",
+ "N": 3,
+ "rows": [
+  {
+   "id": "f100047",
+   "call": 1,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.0042804,
+   "rounds": 2,
+   "wallMs": 3294
+  },
+  {
+   "id": "f193097",
+   "call": 1,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.0064128,
+   "rounds": 2,
+   "wallMs": 2964
+  },
+  {
+   "id": "f187579",
+   "call": 1,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.006088799999999999,
+   "rounds": 2,
+   "wallMs": 3476
+  },
+  {
+   "id": "s1",
+   "call": 1,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.004233599999999999,
+   "rounds": 2,
+   "wallMs": 3074
+  },
+  {
+   "id": "f193785",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "f193785",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0055476,
+   "rounds": 2,
+   "wallMs": 3240
+  },
+  {
+   "id": "s2",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "s2",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0054342,
+   "rounds": 2,
+   "wallMs": 3722
+  },
+  {
+   "id": "p2b",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p2b",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0055194,
+   "rounds": 2,
+   "wallMs": 3118
+  },
+  {
+   "id": "p3",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "other",
+    "basis": "P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p3",
+    "boxes": {
+     "priority": "P3",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.003216599999999999,
+   "rounds": 2,
+   "wallMs": 2734
+  },
+  {
+   "id": "none",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "none",
+    "topic": "other",
+    "basis": "Labels: No labels",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "none",
+    "boxes": {
+     "priority": "none",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.003123,
+   "rounds": 2,
+   "wallMs": 2747
+  },
+  {
+   "id": "l270",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Priority: P2 (label on issue #270)",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "l270",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0035993999999999996,
+   "rounds": 2,
+   "wallMs": 3687
+  },
+  {
+   "id": "h11",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "h11",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0026339999999999996,
+   "rounds": 2,
+   "wallMs": 2203
+  },
+  {
+   "id": "y13",
+   "call": 1,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "priority : P2-High High priority to fix before release; required for Quality Gate PASS",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "y13",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0043686,
+   "rounds": 2,
+   "wallMs": 2915
+  },
+  {
+   "id": "f180865",
+   "call": 1,
+   "expected": "HITL",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.008106,
+   "rounds": 2,
+   "wallMs": 3364
+  },
+  {
+   "id": "k124871",
+   "call": 1,
+   "expected": "HITL",
+   "decision": "HITL",
+   "boxes": {
+    "priority": "unsure",
+    "topic": "crash-or-hang",
+    "basis": "priority/important-soon",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.010522799999999999,
+   "rounds": 2,
+   "wallMs": 3904
+  },
+  {
+   "id": "f100047",
+   "call": 2,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.004317,
+   "rounds": 2,
+   "wallMs": 2970
+  },
+  {
+   "id": "f193097",
+   "call": 2,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.0065363999999999995,
+   "rounds": 2,
+   "wallMs": 3482
+  },
+  {
+   "id": "f187579",
+   "call": 2,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Label: \"P2 Important issues not at the top of the work list\"",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.0060006,
+   "rounds": 2,
+   "wallMs": 2867
+  },
+  {
+   "id": "s1",
+   "call": 2,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.004308599999999999,
+   "rounds": 2,
+   "wallMs": 2969
+  },
+  {
+   "id": "f193785",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "f193785",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.005522399999999999,
+   "rounds": 2,
+   "wallMs": 4607
+  },
+  {
+   "id": "s2",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "s2",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0055152,
+   "rounds": 2,
+   "wallMs": 4607
+  },
+  {
+   "id": "p2b",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p2b",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.005487,
+   "rounds": 2,
+   "wallMs": 3276
+  },
+  {
+   "id": "p3",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "other",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p3",
+    "boxes": {
+     "priority": "P3",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.003204,
+   "rounds": 2,
+   "wallMs": 2846
+  },
+  {
+   "id": "none",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "none",
+    "topic": "other",
+    "basis": "Labels: \"No labels\"; Type: \"No type\" — no priority label or priority line in the ticket text",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "none",
+    "boxes": {
+     "priority": "none",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0031481999999999994,
+   "rounds": 2,
+   "wallMs": 3399
+  },
+  {
+   "id": "l270",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Severity / Priority: Major / P2 (label: \"Priority: P2\")",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "l270",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0034373999999999997,
+   "rounds": 2,
+   "wallMs": 3686
+  },
+  {
+   "id": "h11",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "h11",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0027167999999999997,
+   "rounds": 2,
+   "wallMs": 3071
+  },
+  {
+   "id": "y13",
+   "call": 2,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "priority : P2-High High priority to fix before release; required for Quality Gate PASS",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "y13",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0043152,
+   "rounds": 2,
+   "wallMs": 2765
+  },
+  {
+   "id": "f180865",
+   "call": 2,
+   "expected": "HITL",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Label: \"P2 Important issues not at the top of the work list\"",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.008151,
+   "rounds": 2,
+   "wallMs": 3275
+  },
+  {
+   "id": "k124871",
+   "call": 2,
+   "expected": "HITL",
+   "decision": "HITL",
+   "boxes": {
+    "priority": "unsure",
+    "topic": "crash-or-hang",
+    "basis": "priority/important-soon Must be staffed and worked on either currently, or very soon, ideally in time for the next release.",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.010506599999999998,
+   "rounds": 2,
+   "wallMs": 3481
+  },
+  {
+   "id": "f100047",
+   "call": 3,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Label: \"P2 Important issues not at the top of the work list\"",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.0042912,
+   "rounds": 2,
+   "wallMs": 3380
+  },
+  {
+   "id": "f193097",
+   "call": 3,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.006402,
+   "rounds": 2,
+   "wallMs": 2457
+  },
+  {
+   "id": "f187579",
+   "call": 3,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.006004799999999999,
+   "rounds": 2,
+   "wallMs": 3071
+  },
+  {
+   "id": "s1",
+   "call": 3,
+   "expected": "RUN",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.004255799999999999,
+   "rounds": 2,
+   "wallMs": 3142
+  },
+  {
+   "id": "f193785",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "f193785",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0053022,
+   "rounds": 2,
+   "wallMs": 3615
+  },
+  {
+   "id": "s2",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "crash-or-hang",
+    "basis": "Label: \"P3 Issues that are less important to the Flutter project\" (issue body also has a \"Priority: P2\" line, but the label wins)",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "s2",
+    "boxes": {
+     "priority": "P3",
+     "topic": "crash-or-hang"
+    },
+    "failed": [
+     "priority"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.005658,
+   "rounds": 2,
+   "wallMs": 4199
+  },
+  {
+   "id": "p2b",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p2b",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.005506799999999999,
+   "rounds": 2,
+   "wallMs": 2661
+  },
+  {
+   "id": "p3",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P3",
+    "topic": "other",
+    "basis": "Labels: P3 Issues that are less important to the Flutter project",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "p3",
+    "boxes": {
+     "priority": "P3",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0032394,
+   "rounds": 2,
+   "wallMs": 2706
+  },
+  {
+   "id": "none",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "none",
+    "topic": "other",
+    "basis": "Labels: No labels (no priority label or priority line anywhere in the ticket)",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "none",
+    "boxes": {
+     "priority": "none",
+     "topic": "other"
+    },
+    "failed": [
+     "priority",
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0031025999999999996,
+   "rounds": 2,
+   "wallMs": 2309
+  },
+  {
+   "id": "l270",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Label \"Priority: P2\" (also body line \"Severity / Priority: Major / P2\")",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "l270",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0033137999999999996,
+   "rounds": 2,
+   "wallMs": 3276
+  },
+  {
+   "id": "h11",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Priority: P2",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "h11",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.002673,
+   "rounds": 2,
+   "wallMs": 2661
+  },
+  {
+   "id": "y13",
+   "call": 3,
+   "expected": "SKIP",
+   "decision": "SKIP",
+   "boxes": {
+    "priority": "P2",
+    "topic": "other",
+    "basis": "Label: \"priority : P2-High High priority to fix before release; required for Quality Gate PASS\"",
+    "done": true
+   },
+   "skipRow": {
+    "ticket": "y13",
+    "boxes": {
+     "priority": "P2",
+     "topic": "other"
+    },
+    "failed": [
+     "topic"
+    ]
+   },
+   "inSet": true,
+   "err": null,
+   "cost": 0.0044232,
+   "rounds": 2,
+   "wallMs": 2917
+  },
+  {
+   "id": "f180865",
+   "call": 3,
+   "expected": "HITL",
+   "decision": "RUN",
+   "boxes": {
+    "priority": "P2",
+    "topic": "crash-or-hang",
+    "basis": "Labels: P2 Important issues not at the top of the work list",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.008202000000000001,
+   "rounds": 2,
+   "wallMs": 2816
+  },
+  {
+   "id": "k124871",
+   "call": 3,
+   "expected": "HITL",
+   "decision": "HITL",
+   "boxes": {
+    "priority": "unsure",
+    "topic": "crash-or-hang",
+    "basis": "priority/important-soon Must be staffed and worked on either currently, or very soon, ideally in time for the next release.",
+    "done": true
+   },
+   "skipRow": null,
+   "inSet": true,
+   "err": null,
+   "cost": 0.010591799999999998,
+   "rounds": 2,
+   "wallMs": 3686
+  }
+ ]
+}
