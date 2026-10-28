@@ -1,0 +1,172 @@
+url: https://github.com/hamr0/bareagent/issues/30
+23,179 chars → 6,266 chars (73% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "hamr0" [ref=294]
+      - link "bareagent" [ref=296]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - Repository: Code [ref=297], Issues [ref=298], Pull requests [ref=299], Actions [ref=300], Projects [ref=301], Security and quality [ref=302], Insights [ref=303]
+  - region "Header"
+    - heading "Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships) #30" [level=1]
+    - link "New issue" [ref=382]
+    - button "Copy link" [ref=383]
+  - Closed
+  - heading "Description" [level=2]
+  - link "@hamr0's profile" [ref=439]
+  - link "hamr0" [ref=398]
+  - opened
+  - link "on Aug 12" [ref=442]
+  - generic "This user is the owner of the bareagent repository."
+    - Owner
+  - button "Issue body actions" [expanded=false] [ref=406]
+  - heading "Status: BLOCKED / conditional — no action until bareguard 0.13.0 is approved & released" [level=2]
+  - Tracking a cross-repo coordination item flagged by the bareguard maintainer during the v0.36.0 (BA-20 judge) ship, so it isn't lost.
+  - heading "Context" [level=3]
+  - listitem [level=1]
+    - bare-agent
+    - strong
+      - 0.36.0
+    - pins the optional peer:
+    - code
+      - bareguard ">=0.9.0 <0.13.0"
+  - listitem [level=1]
+    - The bareguard maintainer has
+    - strong
+      - proposed
+    - (not yet approved) a
+    - strong
+      - bareguard 0.13.0
+    - that hardens the
+    - code
+      - gate.annotate
+    - array fail-open:
+    - code
+      - surface
+    - must be an explicit boolean, else the row is malformed → buffer nothing, never throw, emit a distinct
+    - code
+      - annotate_malformed
+    - audit row. That is a gate-behaviour + audit-format change, so pre-1.0 it would cut as
+    - strong
+      - 0.13.0
+    - (minor).
+  - heading "Why it matters" [level=3]
+  - listitem [level=1]
+    - With the current
+    - code
+      - <0.13.0
+    - ceiling, bare-agent 0.36.0 would
+    - strong
+      - refuse to install
+    - alongside bareguard 0.13.x even though our adapter is already compliant.
+  - listitem [level=1]
+    - code
+      - judgeToAnnotation
+    - satisfies the new rule
+    - strong
+      - by construction
+    - : it returns a single object literal and always sets
+    - code
+      - surface: v.verdict !== 'honored'
+    - (an explicit boolean). So the fix is a
+    - strong
+      - manifest range bump only — no code change
+  - heading "The action (only when the trigger fires)" [level=3]
+  - listitem [level=1]
+    - checkbox "bareguard 0.13.0 is approved and published checklist item" [checked=false, disabled] [ref=897]
+    - bareguard 0.13.0 is approved and published
+    - checkbox "Bump the peer range in `package.json` (and the header line in `bareagent.context.md`) to admit `0.13.x`, e.g. `">=0.9.0 <0.14.0"` checklist item" [checked=false, disabled] [ref=899]
+    - Bump the peer range in
+    - code
+      - package.json
+    - (and the header line in
+    - code
+      - bareagent.context.md
+    - ) to admit
+    - code
+      - 0.13.x
+    - , e.g.
+    - code
+      - ">=0.9.0 <0.14.0"
+    - checkbox "Confirm the adapter still needs no code change (spot-check: `judgeToAnnotation` returns a single object with an explicit-boolean `surface`) checklist item" [checked=false, disabled] [ref=901]
+    - Confirm the adapter still needs no code change (spot-check:
+    - code
+      - judgeToAnnotation
+    - returns a single object with an explicit-boolean
+    - code
+      - surface
+    - checkbox "Ship as a patch/minor per the change at that time checklist item" [checked=false, disabled] [ref=903]
+    - Ship as a patch/minor per the change at that time
+  - heading "References" [level=3]
+  - listitem [level=1]
+    - Adapter:
+    - code
+      - src/bareguard-adapter.js
+    - code
+      - judgeToAnnotation
+  - Guarantee-scope narrowing shipped in v0.36.0 (CHANGELOG / CLAUDE.md / context.md / PRD)
+  - Cross-session coordination with the bareguard maintainer, 2026-08-12
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "hamr0" [ref=711]
+      - added
+      - link "dependencies Pull requests that update a dependency file" [ref=713]
+      - link "on Aug 12" [ref=605]
+    - listitem [level=1]
+      - heading "hamr0commentedon Aug 13" [level=3]
+      - link "@hamr0's profile" [ref=609]
+      - link "hamr0" [ref=520]
+      - link "on Aug 13" [ref=611]
+      - generic "This user is the owner of the bareagent repository."
+        - Owner
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for hamr0's comment, 1:19 PM on August 13" [expanded=false] [ref=529]
+      - Resolved in v0.36.1 (published to npm, latest). bareguard 0.13.0 went live; peer + dev ranges widened to
+      - code
+        - >=0.9.0 <0.14.0
+      - (conservative <0.14.0 ceiling). No code change —
+      - code
+        - judgeToAnnotation
+      - was already compliant with 0.13.0's malformed-fact rule by construction (single object literal, explicit-boolean
+      - code
+        - surface
+      - , String()-coerced JSON-safe
+      - code
+        - meta
+      - ). Validated against bareguard 0.13.0: bareguard-touching tests 84/84, CI full suite green. PR
+      - link "#31" [ref=623]
+      - , tag v0.36.1.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "hamr0" [ref=742]
+      - closed this
+      - as
+      - link "completed" [ref=628]
+      - link "on Aug 13" [ref=629]
+  - link "Sign up for free" [ref=414]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=417]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - link "dependencies Pull requests that update a dependency file" [ref=633]
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - heading "Participants" [level=3]
+  - link "@hamr0" [ref=581]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=648]

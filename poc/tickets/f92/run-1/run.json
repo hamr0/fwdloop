@@ -1,0 +1,16 @@
+{
+  "model": {
+    "slot": "DEEPSEEK_API_KEY",
+    "model": "deepseek-flash"
+  },
+  "thinking": false,
+  "inputs": [
+    {
+      "id": "issue",
+      "source": "https://github.com/hamr0/bareagent/issues/30",
+      "frozen": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f92-root/f92/runs/run-1/inputs/issue.txt",
+      "sha256": "8e3bd1fde65c46aff560fa9bd8f9b7e97af63b7a8b3b544e917aea60ff09dbfd",
+      "bytes": 6620
+    }
+  ]
+}

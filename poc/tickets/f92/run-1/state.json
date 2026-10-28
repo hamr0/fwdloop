@@ -1,0 +1,34 @@
+{
+  "runId": "run-1",
+  "flow": {
+    "root": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f92-root",
+    "name": "f92"
+  },
+  "signatureHash": "b596def418f16ca1c213bc06b76fb9773979402f7759b5b6568edf1ec531b865",
+  "inputsManifest": [
+    {
+      "id": "issue",
+      "source": "https://github.com/hamr0/bareagent/issues/30",
+      "frozen": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f92-root/f92/runs/run-1/inputs/issue.txt",
+      "sha256": "8e3bd1fde65c46aff560fa9bd8f9b7e97af63b7a8b3b544e917aea60ff09dbfd",
+      "bytes": 6620
+    }
+  ],
+  "stepIndex": 2,
+  "askId": "c72f3cb6-6a39-4714-a3ab-a7ac45b149b8",
+  "expiresAt": "2026-10-28T09:18:24.079Z",
+  "spent": 0.01749,
+  "spendComplete": true,
+  "redone": 0,
+  "evidenceUnjudged": [
+    {
+      "step": "read the ticket and pull out its priority and what is broken",
+      "emits": "ticket_findings",
+      "artifact": {
+        "text": "Issue #30 — \"Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships)\"\n\nPRIORITY: None set. GitHub shows no priority field — no assignees (\"No one assigned\"), no milestone (\"No milestone\"), no projects (\"No projects\"), no relationships (\"None yet\"). The only label is \"dependencies\" (Pull requests that update a dependency file). The issue's own status heading is \"BLOCKED / conditional — no action until bareguard 0.13.0 is approved & released\", i.e. it was a conditional tracking item, not a scheduled priority.\n\nWHAT IS BROKEN:\n- bare-agent 0.36.0 pins the optional peer bareguard to \">=0.9.0 <0.13.0\". With that <0.13.0 ceiling, bare-agent 0.36.0 would refuse to install alongside bareguard 0.13.x — an install-time peer-range conflict, even though the adapter is already compliant.\n- Root cause of the incoming 0.13.0: the bareguard maintainer proposed (not yet approved at filing time) bareguard 0.13.0 hardening the gate.annotate array fail-open — `surface` must be an explicit boolean, else the row is malformed → buffer nothing, never throw, emit a distinct annotate_malformed audit row. That is a gate-behaviour + audit-format change, cut as a minor pre-1.0.\n- No code fault on the bare-agent side: judgeToAnnotation (src/bareguard-adapter.js) returns a single object literal and always sets `surface: v.verdict !== 'honored'` (an explicit boolean), so it satisfies the new rule by construction. The fix is a manifest range bump only — no code change.\n\nRESOLUTION (activity): hamr0 commented Aug 13 — resolved in v0.36.1 (published to npm, latest). bareguard 0.13.0 went live; peer + dev ranges widened to >=0.9.0 <0.14.0 (conservative <0.14.0 ceiling). No code change; judgeToAnnotation already compliant (single object literal, explicit-boolean surface, String()-coerced JSON-safe meta). Validated against bareguard 0.13.0: bareguard-touching tests 84/84, CI full suite green. PR #31, tag v0.36.1. Issue closed as completed on Aug 13."
+      }
+    }
+  ],
+  "unjudgedCount": 1,
+  "startedAt": 1793177275020
+}
