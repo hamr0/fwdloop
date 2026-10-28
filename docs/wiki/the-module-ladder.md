@@ -1622,6 +1622,7 @@ SIGNED by hamr 2026-10-24 ("sign m4d am34"), the text exactly as shown:
 2. The page learns this from the Inbox read it already makes every 10 seconds: an answer means online, a failed read means offline. No new server call. It can take up to 10 seconds to change.
 3. When the panel answers again, the dot goes back to green **● online** by itself.
 **Done when:** a test that fails first (a failed Inbox read shows offline, the next good one shows online); a live check on the real panel: stop the panel, the dot turns red within 10 seconds; start it, the dot turns green; the real panel at 1280, 390 and 320 with no wrap or spill. **Cap:** $0.
+- *Built after signing — not signed text:* "an answer means online" is read as: any HTTP reply from the panel (even a 500) is online; only a read that fails with no HTTP status (the network, a dead panel) is offline. The dot reads the same Inbox poll as the update bar and starts online when the page is served.
 
 #### M4e — Chat: describe, draft, sign and run a job from the panel — SIGNED by hamr 2026-10-05 ("sign m4e"), cap $0.50
 
