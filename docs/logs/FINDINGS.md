@@ -4294,3 +4294,25 @@ Summary of F85-F90c and F92-F99 so nothing is lost. Facts from the entries only;
 - Scratch diffs: poc/tickets/f92/scratch.diff (ticket kind), poc/tickets/f97/scratch.diff (drafter ticketFilter).
 
 **Spend, 2026-10-28:** F92 $0.0200 + F93 $0.1286 + F95 $0.2192 + F97 $0.0488 (incl. $0.0114 smoke) = **$0.4166**. F94, F94b, F96, F98 were $0. (2026-10-27 paid: F90 $0.0171, F90b $0.0147, F90c $0.0049.)
+
+### F99 RESULT (run 2026-10-28, bareguard `feat/carries-any` sha 10b9460, package.json version 0.27.0, $0, no model calls)
+
+**Run.** Extracted with `git archive 10b9460` into a scratch dir; its package.json has one runtime dependency (`proper-lockfile`), without which the import fails (`ERR_MODULE_NOT_FOUND` from `src/primitives/budget.js`), so `npm install --omit=dev --ignore-scripts` was run inside the scratch dir only (4 packages). Then `BAREGUARD_F99_PATH=<scratch> node poc/tickets/f99/f99.mjs`. No harness edits; checks, reference and expected values untouched. Output: `poc/tickets/f99/out/results.json`. Result line: `C1 PASS, C2 PASS, C3 PASS, C4 PASS, C5 PASS, C6 FAIL, C7 PASS`.
+
+**Open assumptions of the pre-registration.** Gaps were found via `res.gaps ?? res.full.gaps` and `full.matched` where #69 says: both worked (C3, C4 ran). Gap shape as built: `{key:"filter:any", checkpoint, check:"carriesAny", id, field:"text", kind:"none-found", phrases:[...]}`. The refusal `e.path` format as built: `spec.checkpoints.filter.checks[0].phrases` (list-level) or `...checks[0].phrases[i]` (item-level). Timing (ms per decision) was not measured: the script as pre-registered does not record it.
+
+| Check | Verdict | Numbers |
+|---|---|---|
+| C1 substring errors gone | PASS | #195397 (p2b), #195468 (none), #195368 (fl195368) all red (3 of 3) |
+| C2 agrees with reference | PASS | 32 of 32, 0 disagreements |
+| C3 gap kind | PASS | 16 reds, 16 with exactly one gap `none-found` and the signed 12 phrases in order; no `body` field gives `missing`; number body gives `wrong-type` |
+| C4 which-word | PASS | 16 green all equal the reference's phrases in order; 16 red all have empty `matched` |
+| C5 multi-word and edges | PASS | 16 of 16 made-up cases as expected; strict never greener than forgiving (0 cases); strict green 16 |
+| C6 refusals | FAIL | 7 refuse of 7, control passes; 6 of 7 paths match; case-fold duplicate fails (below) |
+| C7 mustCarry unchanged | PASS | 32 of 32 identical to F98 `g3Hits` |
+
+**C6 detail (FAIL on the letter).** The check demanded `e.path` containing `phrases[` for item-level cases and `phrases` for list-level. Paths as built: empty list `...checks[0].phrases`; blank phrase `...phrases[1]`; " hang" `...phrases[0]`; "a  b" `...phrases[0]`; 51 phrases `...phrases`; 201-char `...phrases[0]`. The case-fold duplicate ("Hang","hang") was classed item-level by the pre-registration, and bareguard throws with `...checks[0].phrases` (the list, not `phrases[1]`). It throws with a string path containing `phrases`, so the refusal itself works; only the item/list granularity differs from what the pre-registration expected. guard had announced this beforehand; the FAIL stays on the letter and the check is not refit.
+
+**Disagreements with the reference:** none (C2 0 of 32; C4 0 of 32; C5 0 of 16). No case looks wrong in bareguard's matching.
+
+**What this means (recorded, not decided; hamr decides).** (1) On F98's 32 real tickets, `carriesAny` does what #69 says: the three `hang`-in-change errors are gone, the green/red decision equals the independent reference on 32 of 32, and the red gap and green `matched` carry the phrases as specified. `mustCarry` is unchanged (32 of 32). (2) The one FAIL is a path granularity question on duplicates (list vs item), not a matching defect; whether a duplicate should point at the list or at `phrases[1]` is for hamr and guard to rule, and the pre-registered expectation stays FAIL. (3) Not measured: speed. (4) Limits as stated at pre-registration: same 32 tickets and keyword list, one sha, reference and rule share the #69 text (C5 literal examples guard against a shared misreading), and the scratch copy needed `proper-lockfile` installed.
