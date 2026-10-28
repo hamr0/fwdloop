@@ -1,0 +1,17 @@
+{
+ "_note": "Written 2026-10-28 BEFORE any paid call. priority/topic = the box values a correct reader gives; decision = what code must decide. s1, s2 are SYNTHETIC (edited copies of f100047, f193785).",
+ "f100047": {"url":"flutter/flutter#100047","priority":"P2","topic":"crash-or-hang","decision":"RUN","why":"P2 label, c: crash label, title 'crashes'"},
+ "f193097": {"url":"flutter/flutter#193097","priority":"P2","topic":"crash-or-hang","decision":"RUN","why":"P2 label, 'Crash in engineCallbackOnPlatformMessage'"},
+ "f187579": {"url":"flutter/flutter#187579","priority":"P2","topic":"crash-or-hang","decision":"RUN","why":"P2 label, 'Navigator.popUntil can hang'"},
+ "s1": {"url":"SYNTHETIC from f100047","priority":"P2","topic":"crash-or-hang","decision":"RUN","why":"P2 label removed, body line 'Priority: P2' added; still a crash. Text works without a label"},
+ "f193785": {"url":"flutter/flutter#193785","priority":"P3","topic":"crash-or-hang","decision":"SKIP","why":"P3 label; crash topic matches but priority does not"},
+ "s2": {"url":"SYNTHETIC from f193785","priority":"P3","topic":"crash-or-hang","decision":"SKIP","why":"P3 label AND body line 'Priority: P2': label wins (ruling), so P3 -> SKIP"},
+ "p2b": {"url":"flutter/flutter#195397 (F93 page)","priority":"P2","topic":"other","decision":"SKIP","why":"P2, TableBorder.lerp drops borderRadius: a wrong-output bug"},
+ "p3": {"url":"flutter/flutter#195327 (F93 page)","priority":"P3","topic":"other","decision":"SKIP","why":"P3 feature request"},
+ "none": {"url":"flutter/flutter#195468 (F93 page)","priority":"none","topic":"other","decision":"SKIP","why":"No labels at all; takePicture flash-mode inefficiency"},
+ "l270": {"url":"lmchkhi/CS423-CSC15003-Testing-N08#270","priority":"P2","topic":"other","decision":"SKIP","why":"label 'Priority: P2' (odd spelling, names P2); a server returning HTTP 500 for a bad body is an error response, not a crash or hang"},
+ "h11": {"url":"hoangphi117/HW02#11","priority":"P2","topic":"other","decision":"SKIP","why":"REAL text-only priority: no priority label, body line '- Priority: P2'; a UI shows a wrong button: not a crash or hang"},
+ "y13": {"url":"YarouAnarkis/UTS-PPL-Kelompok-07-Katalog#13","priority":"P2","topic":"other","decision":"SKIP","why":"label 'priority : P2-High' (odd spelling, names P2); empty search returns a list: wrong output"},
+ "f180865": {"url":"flutter/flutter#180865","priority":"P2","topic":"unsure","decision":"HITL","why":"P2 label; 'App Hang ... blocks main thread for 2+ seconds' is a long stall, not clearly a hang (the process lives) nor a crash. Judged ambiguous BY ME before the run; if the model reads it plainly as a hang that is a Q1 miss, recorded, not refit"},
+ "k124871": {"url":"kubernetes/kubernetes#124871","priority":"unsure","topic":"crash-or-hang","decision":"HITL","why":"label priority/important-soon is not on the P0..P3 scale -> unsure -> HITL (stated rule); kubelet crash loop"}
+}

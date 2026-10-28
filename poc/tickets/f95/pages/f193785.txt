@@ -1,0 +1,171 @@
+url: https://github.com/flutter/flutter/issues/193785
+42,093 chars → 10,407 chars (75% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=308]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=311]
+      - link "Issues (5k+)" [ref=312]
+      - link "Pull requests (728)" [ref=313]
+      - Repository: Actions [ref=314], Projects [ref=315], Wiki [ref=316]
+      - button "More items" [expanded=false] [ref=253]
+  - region "Header"
+    - heading "Flutter Linux host name parsing crashes on an empty PRETTY_NAME #193785" [level=1]
+    - link "New issue" [ref=418]
+    - button "Copy link" [ref=419]
+  - Open
+  - link "Draft #193790" [ref=334]
+  - heading "Description" [level=2]
+  - link "@kaluli123123's profile" [ref=499]
+  - link "kaluli123123" [ref=437]
+  - opened
+  - link "3w ago" [ref=502]
+  - generic "This user has previously committed to the flutter repository."
+    - Contributor
+  - button "Issue body actions" [expanded=false] [ref=445]
+  - heading "Steps to reproduce" [level=3]
+  - Verified against flutter/flutter master
+  - code
+    - 53d381d9067f16b1d4132f5b8f059a9cc5ddb9ec
+  - listitem [level=1]
+    - In an isolated Linux environment, set
+    - code
+      - /etc/os-release
+    - to contain
+    - code
+      - PRETTY_NAME=
+  - listitem [level=1]
+    - Run
+    - code
+      - flutter doctor -v
+    - , which reads the operating-system name.
+  - listitem [level=1]
+    - Also try
+    - code
+      - PRETTY_NAME="Linux=Example"
+  - heading "Expected results" [level=3]
+  - An empty name uses the existing Linux fallback; a name containing
+  - is preserved.
+  - heading "Actual results" [level=3]
+  - Empty values cause a
+  - code
+    - RangeError
+  - when the parser reads
+  - code
+    - value[0]
+  - . Splitting at all equals signs also truncates nonempty names.
+  - heading "Code sample" [level=3]
+  - code
+    - PRETTY_NAME=
+  - button "Copy code to clipboard" [ref=874]
+  - heading "Screenshots or Video" [level=3]
+  - Not applicable to this tool parsing defect.
+  - heading "Logs" [level=3]
+  - The focused regression on unmodified production code reports 3 passed, 8 failed. The failure was reproduced using the repository's existing unit-test entry with fake processes or a memory filesystem. Unit tests use a memory filesystem and a fake Linux platform; they do not modify the host's system files.
+  - A minimal fix with regression coverage is prepared. A draft PR will follow.
+  - heading "Flutter Doctor output" [level=3]
+  - Collected using the checkout's
+  - code
+    - bin/flutter doctor -v
+  - ; identifiers have been redacted. The branch/PATH, simulator, and proxy warnings are host-environment limitations and are separate from these deterministic tool-unit-test failures.
+  - DisclosureTriangle "Doctor output" [expanded=false]
+    - Doctor output
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - heading "kaluli123123commented3 weeks ago" [level=3]
+      - link "@kaluli123123's profile" [ref=761]
+      - link "kaluli123123" [ref=629]
+      - link "3w ago" [ref=763]
+      - button "Last edited by kaluli123123" [expanded=false] [ref=634]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for kaluli123123's comment, 4:40 AM on October 4" [expanded=false] [ref=640]
+      - Draft PR
+      - link "#193790" [ref=772]
+      - contains the fix (commit
+      - code
+        - ffb5d853c6
+      - ). Split at the first equals sign, safely handle empty values, and remove only matching paired quotes.
+      - The regression failed on unmodified master
+      - code
+        - 53d381d9067
+      - (3 passed, 8 failed). With the fix, 53 tests pass in test/general.shard/base/os_test.dart. Targeted analysis, formatting, and diff checks pass; an independent read-only review found no blocking issues.
+      - Full repository suites, real-device/platform integration, and upstream CI remain unverified. I am maintaining this branch. The PR is a draft pending contributor review of the AI-assisted code, CLA verification, and maintainer review; this issue remains open and nothing has been merged.
+      - Signing update: the current delivery commit is verified by GitHub and has exactly the same Git tree as the original locally tested commit.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "suryaKommana2662" [ref=929]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=931]
+      - link "3w ago" [ref=784]
+    - listitem [level=1]
+      - heading "suryaKommana2662commented3 weeks ago" [level=3]
+      - link "@suryaKommana2662's profile" [ref=788]
+      - link "suryaKommana2662" [ref=658]
+      - link "3w ago" [ref=790]
+      - button "Actions for suryaKommana2662's comment, 10:46 AM on October 5" [expanded=false] [ref=664]
+      - link "@kaluli123123" [ref=791]
+      - Thanks for the report and reproduction steps. I’m using a Chromebook with a Linux container for verification. Since the reported reproduction requires an isolated Linux environment with a modified
+      - code
+        - /etc/os-release
+      - , I was unable to follow those exact steps in my current environment. Routing this to the tool team for further investigation
+      - I ran the following test in my current envinorment:
+      - code
+        - flutter test packages/flutter_tools/test/general.shard/base/os_test.dart
+      - The test suite completed successfully with:
+      - code
+        - +42: All tests passed!
+      - I checked out the reported revision
+      - link "53d381d" [ref=800]
+      - and below is the doctor output
+      - strong
+        - Flutter Doctor Output
+      - Flutter Channel [user branch], 3.49 0 1.0 .pre 303 on Ubuntu 26.04 LTS 6.6 141 09476 g954adab60416, locale C UTF 8 ) [117ms] Flutter version 3.49 0 1.0 .pre 303 on channel [user branch] at home suryak2662 flutter Currently on an unknown channel. Run `flutter channel` to switch to an official channel. If that doesn 't fix the issue, try deleting the bin cache flutter.version.json ' file in your Flutter SDK directory and then reinstall Flutter by following instructions at https://flutter.dev/setup. • Upstream repository https://github.com/flutter/flutter.git • Framework revision 53d381d906 (2 days ago), 2026-10-03 00:43:29 +0000 • Engine revision 0e66e3d62d • Dart version 3.14.0 (build 3.14.0-294.0.dev) • DevTools version 2.61.0 • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-windowing, enable-lldb-debugging, enable-uiscene-migration, enable-riscv64, enable-hcpp • If those were intentional, you can disregard the above warnings; however it is recommended to use "git" directly to perform update checks and upgrades. [✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0) [5.4s] • Android SDK at /home/suryak2662/Android/Sdk • Emulator version 36.6.11.0 (build_id 15507667) (CL:N/A) • Platform android-36, build-tools 36.0.0 ! Multiple adb binaries found. This can cause conflicts and device detection issues: /home/suryak2662/Android/Sdk/platform-tools/a db - /usr/lib/android-sdk/platform-tools/adb • Java binary at: /opt/android-studio/jbr/bin/java This JDK is specified in your Flutter configuration. To change the current JDK, run: `flutter config --jdk-dir="path/to/jdk"`. • Java version OpenJDK Runtime Environment (build 21.0.10+-14961533-b1163.108) • All Android licenses accepted. [✓] Chrome - develop for the web [35ms] • Chrome at google-chrome [✓] Linux toolchain - develop for Linux desktop [2.4s] • Ubuntu clang version 21.1.8 (6ubuntu1) • cmake version 4.2.3 • ninja version 1.13.2 • pkg-config version 2.5.1 • OpenGL core renderer: llvmpipe (LLVM 21.1.8, 256 bits) • OpenGL core version: 4.5 (Core Profile) Mesa 26.0.3-1ubuntu1 • OpenGL core shading language version: 4.50 • OpenGL ES renderer: llvmpipe (LLVM 21.1.8, 256 bits) • OpenGL ES version: OpenGL ES 3.2 Mesa 26.0.3-1ubuntu1 • OpenGL ES shading language version: OpenGL ES GLSL ES 3.20 • GL_EXT_framebuffer_blit: yes • GL_EXT_texture_format_BGRA8888: yes [✓] Connected device (2 available) [1,281ms] • Linux (desktop) • linux • linux-x64 • Ubuntu 26.04 LTS 6.6.141-09476-g954adab60416 • Chrome (web) • chrome • web-javascript • Google Chrome 150.0.7871.128 [✓] Network resources [1,124ms] • All expected network resources are available. ! Doctor found issues in 1 category.
+      - button "Copy code to clipboard" [ref=1196]
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "suryaKommana2662" [ref=1197]
+      - added
+      - link "tool Affects the "flutter" command-line tool. See also t: labels." [ref=1199]
+      - link "team-tool Owned by Flutter Tool team" [ref=1202]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=1207]
+      - link "3w ago" [ref=813]
+    - listitem [level=1]
+      - link "bkonyi" [ref=1211]
+      - added
+      - link "P3 Issues that are less important to the Flutter project" [ref=1213]
+      - link "triaged-tool Triaged by Flutter Tool team" [ref=1216]
+      - link "3w ago" [ref=818]
+  - link "Sign up for free" [ref=455]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=458]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P3 Issues that are less important to the Flutter project [ref=693], team-tool Owned by Flutter Tool team [ref=696], tool Affects the "flutter" command-line tool. See also t: labels. [ref=699], triaged-tool Triaged by Flutter Tool team [ref=702]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - link "Parse complete Linux os-release values safely" [ref=834]
+    - flutter/flutter
+  - Participants: @bkonyi [ref=590], @suryaKommana2662 [ref=591], @kaluli123123 [ref=592]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=721]

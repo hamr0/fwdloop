@@ -1,0 +1,127 @@
+url: https://github.com/flutter/flutter/issues/100047
+51,579 chars → 7,614 chars (85% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=308]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=311]
+      - link "Issues (5k+)" [ref=312]
+      - link "Pull requests (728)" [ref=313]
+      - Repository: Actions [ref=314], Projects [ref=315], Wiki [ref=316]
+      - button "More items" [expanded=false] [ref=253]
+  - region "Header"
+    - heading "Scaffold.of(context).showBottomSheet crashes #100047" [level=1]
+    - link "New issue" [ref=424]
+    - button "Copy link" [ref=425]
+  - Open
+  - heading "Description" [level=2]
+  - link "@xu-baolin's profile" [ref=505]
+  - link "xu-baolin" [ref=440]
+  - opened
+  - link "on Mar 14, 2022" [ref=508]
+  - generic "This user is a member of the flutter organization."
+    - Member
+  - button "Issue body actions" [expanded=false] [ref=448]
+  - heading "Steps" [level=3]
+  - 1, Show the bottom sheet first
+  - 2, Tap the back arrow and the
+  - code
+    - show bottom sheet
+  - button at the same time
+  - 3, Repeat step 2 many times and observe the log output, which can be reproduced with a high probability
+  - heading "Code" [level=3]
+  - import 'package:flutter/material.dart' void main runApp const MyApp class MyApp extends StatelessWidget const MyApp Key key}) super (key key); @override Widget build BuildContext context) { return MaterialApp ( title 'Flutter Demo' , home Scaffold ( appBar AppBar ( title const Text 'Flutter Demo' ), ), body const MyHomePage // home : SizedBox.shrink(), class MyHomePage extends StatefulWidget const MyHomePage Key key}) super (key key); @override State MyHomePage createState _MyHomePageState class _MyHomePageState extends State MyHomePage void bottomSheet Scaffold of (context). showBottomSheet BuildContext context) { return const FractionallySizedBox ( heightFactor 2 , child Center (child Text 'This is a bottom sheet' )), ); }, backgroundColor Colors .amber); } @override Widget build BuildContext context) { return ElevatedButton ( child const Text 'Show bottom sheet' ), onPressed bottomSheet, ); } }
+  - button "Copy code to clipboard" [ref=1034]
+  - heading "Crash Log" [level=3]
+  - E flutter ( 22121 ERROR flutter lib ui ui_dart_state. cc 198 Unhandled Exception 'package:flutter/src/material/scaffold.dart' Failed assertion line 2366 pos 14 'bottomSheetKey.currentState != null' is not true E flutter ( 22121 0 _AssertionError ._doThrowNew (dart core patch errors_patch.dart 51 61 E flutter ( 22121 1 _AssertionError ._throwNew (dart core patch errors_patch.dart 40 5 E flutter ( 22121 2 ScaffoldState ._buildBottomSheet._removeCurrentBottomSheet (package flutter src material scaffold.dart 2366 14 E flutter ( 22121 3 ScaffoldState ._buildBottomSheet. anonymous closure (package flutter src material scaffold.dart 2384 13 E flutter ( 22121 4 LocalHistoryEntry ._notifyRemoved (package flutter src widgets routes.dart 472 15 E flutter ( 22121 5 LocalHistoryRoute .didPop (package flutter src widgets routes.dart 665 13 E flutter ( 22121 6 _RouteEntry .handlePop (package flutter src widgets navigator.dart 2896 16 E flutter ( 22121 7 NavigatorState ._flushHistoryUpdates (package flutter src widgets navigator.dart 3868 22 E flutter ( 22121 8 NavigatorState .pop (package flutter src widgets navigator.dart 4910 7 E flutter ( 22121 9 NavigatorState .maybePop (package flutter src widgets navigator.dart 4860 9 E flutter ( 22121 asynchronous suspension E flutter ( 22121
+  - button "Copy code to clipboard" [ref=1338]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - xu-baolin [ref=1339] · added: framework flutter/packages/flutter repository. See also f: labels. [ref=1341], p: material_ui material_ui package in flutter/packages [ref=1344], c: crash Stack traces logged to the console [ref=1347]
+      - link "on Mar 14, 2022" [ref=769]
+    - listitem [level=1]
+      - heading "xu-baolincommentedon Mar 14, 2022" [level=3]
+      - link "@xu-baolin's profile" [ref=773]
+      - link "xu-baolin" [ref=640]
+      - link "on Mar 14, 2022" [ref=775]
+      - generic "This user is a member of the flutter organization."
+        - Member
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for xu-baolin's comment, 11:58 AM on March 14, 2022" [expanded=false] [ref=649]
+      - The root cause of this issue is that after the
+      - code
+        - Scaffold.of(context).showBottomSheet
+      - link "adds a route entry" [ref=781]
+      - , in the same frame, the
+      - code
+        - onRemove
+      - of the route is triggered, and at this time, the new sheet has not been mounted on the tree.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - flutter-triage-bot [ref=1370] · added: multiteam-retriage-candidate [ref=1372], team-design Owned by Design Languages team [ref=1374], triaged-design Triaged by Design Languages team [ref=1377]
+      - link "on Jul 8, 2023" [ref=790]
+    - listitem [level=1]
+      - link "Hixie" [ref=1381]
+      - removed
+      - link "multiteam-retriage-candidate" [ref=1383]
+      - link "on Mar 6, 2024" [ref=794]
+    - listitem [level=1]
+      - heading "flutter-triage-botcommentedon Dec 29, 2025" [level=3]
+      - link "@flutter-triage-bot's profile" [ref=798]
+      - link "flutter-triage-bot" [ref=670]
+      - Bot
+      - link "on Dec 29, 2025" [ref=801]
+      - button "Actions for flutter-triage-bot's comment, 7:41 PM on December 29, 2025" [expanded=false] [ref=678]
+      - This issue is missing a priority label. Please set a priority label when adding the
+      - code
+        - triaged-design
+      - label.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "flutter-triage-bot" [ref=1399]
+      - removed
+      - link "triaged-design Triaged by Design Languages team" [ref=1401]
+      - link "on Dec 29, 2025" [ref=808]
+    - listitem [level=1]
+      - link "dkwingsmt" [ref=1405]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=1407]
+      - link "triaged-design Triaged by Design Languages team" [ref=1410]
+      - link "on Jan 7" [ref=813]
+    - listitem [level=1]
+      - link "Piinks" [ref=1414]
+      - added
+      - link "package flutter/packages repository. See also p: labels." [ref=1416]
+      - and
+      - removed
+      - link "framework flutter/packages/flutter repository. See also f: labels." [ref=1421]
+      - link "on Aug 17" [ref=820]
+  - link "Sign up for free" [ref=461]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=464]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=707], c: crash Stack traces logged to the console [ref=710], p: material_ui material_ui package in flutter/packages [ref=713], package flutter/packages repository. See also p: labels. [ref=716], team-design Owned by Design Languages team [ref=719], triaged-design Triaged by Design Languages team [ref=722]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @Hixie [ref=604], @dkwingsmt [ref=605], @Piinks [ref=606], @xu-baolin [ref=607], @Atikul-debug [ref=608]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=743]
