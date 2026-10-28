@@ -3970,3 +3970,10 @@ G6 total spend under $0.10.
 ## Note — F89 to F90c fed the M12 restart (2026-10-27)
 
 F89 to F90c fed the M12 restart. The M12 piece 1 and am1 code was reverted 2026-10-27.
+
+## F91 — M4d am35: the page's Inbox read fails when the panel dies, and recovers on restart (2026-10-28)
+
+**Question.** On the real panel, does the page's own 10 s `/api/inbox` read fail when node is killed, and succeed again after a restart (the signal the am35 online dot would use)?
+**POC.** `poc/am35/dot-poc.mjs`: real panel on a scratch root, headless chromium, a wrapper on `window.fetch` logs each Inbox read; `SIGKILL` the panel, wait one poll, restart, wait one poll.
+**Result.** [MEASURED] With the panel killed, the page's Inbox read failed with `TypeError: Failed to fetch` within one 10 s poll; after the restart the next read was HTTP 200; the 2 s page tick kept running throughout.
+**Verdict: PASS.** Run before pre-registration (not pre-registered). Cost $0.
