@@ -1,0 +1,62 @@
+url: https://github.com/hamr0/bareagent/issues?q=is%3Aissue
+12,262 chars → 3,856 chars (69% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls. Links: "name" <url>.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "hamr0" <https://github.com/hamr0> [ref=310]
+      - link "bareagent" <https://github.com/hamr0/bareagent> [ref=312]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - Repository: Code <https://github.com/hamr0/bareagent> [ref=313], Issues <https://github.com/hamr0/bareagent/issues> [ref=314], Pull requests <https://github.com/hamr0/bareagent/pulls> [ref=315], Actions <https://github.com/hamr0/bareagent/actions> [ref=316], Projects <https://github.com/hamr0/bareagent/projects> [ref=317], Security and quality <https://github.com/hamr0/bareagent/security> [ref=318], Insights <https://github.com/hamr0/bareagent/pulse> [ref=319]
+  - complementary "Issues sidebar navigation"
+    - navigation "Issue filters"
+      - Issue filters: Issues <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen> [ref=529], Assigned to me <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me> [ref=530], Created by me <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+author%3A%40me> [ref=531], Mentioned <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me> [ref=532], Recent activity <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc> [ref=533]
+    - navigation "Pages"
+      - Pages: Views <https://github.com/hamr0/bareagent/issues/views> [ref=534], Projects <https://github.com/hamr0/bareagent/projects> [ref=535], Milestones <https://github.com/hamr0/bareagent/milestones> [ref=536], Labels <https://github.com/hamr0/bareagent/labels> [ref=537]
+    - navigation "Feedback"
+      - link "Feedback Preview" <https://gh.io/issues-sidebar-feedback> [ref=538]
+    - button "Collapse sidebar" [expanded=true] [ref=478]
+  - heading "Issues" [level=1]
+  - link "New issue" <https://github.com/login?return_to=https://github.com/hamr0/bareagent/issues?q=is%3Aissue> [ref=323]
+  - search "Issues"
+    - form "Search issues"
+      - LabelText
+        - Search issues
+      - combobox "Search issues" [expanded=false] [ref=543]
+        - is:issue
+      - button "Clear filter" [ref=483]
+      - button "Search" [ref=486]
+  - heading "Issues" [level=2]
+  - heading "2 results" [level=3]
+  - toolbar "Issue list controls"
+    - button "Filter by author" [expanded=false] [ref=409]
+      - Author
+    - button "Filter by labels" [expanded=false] [ref=411]
+      - Labels
+    - button "More Issue list controls" [expanded=false] [ref=412]
+  - list "Issues display density"
+    - button "Comfortable display density" [ref=546]
+    - button "Compact display density" [ref=549]
+  - list "Issues"
+    - listitem "Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships). More information available below." [level=1]
+      - heading [level=4]
+        - link "Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships)" <https://github.com/hamr0/bareagent/issues/30> [ref=552]
+      - button "Filter by label dependencies" [ref=504]
+      - Unread
+      - hamr0/bareagent#30
+      - by
+      - button "Filter by author hamr0" [ref=432]
+      - was closed
+      - generic "Aug 13, 2026, 3:19 PM GMT+2"
+        - on Aug 13
+    - listitem "CircuitBreaker.wrapProvider drops .model → Loop budget cost accounting silently disabled. More information available below." [level=1]
+      - heading [level=4]
+        - link "CircuitBreaker.wrapProvider drops .model → Loop budget cost accounting silently disabled" <https://github.com/hamr0/bareagent/issues/3> [ref=558]
+      - Unread
+      - hamr0/bareagent#3
+      - by
+      - button "Filter by author hamr0" [ref=459]
+      - was closed
+      - generic "Jun 23, 2026, 7:44 AM GMT+2"
+        - on Jun 23

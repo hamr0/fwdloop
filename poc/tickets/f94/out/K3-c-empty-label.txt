@@ -1,0 +1,53 @@
+url: https://github.com/hamr0/bareagent/issues?q=is%3Aissue+label%3Ano-such-label-f94
+10,822 chars → 3,355 chars (69% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls. Links: "name" <url>.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "hamr0" <https://github.com/hamr0> [ref=310]
+      - link "bareagent" <https://github.com/hamr0/bareagent> [ref=312]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - Repository: Code <https://github.com/hamr0/bareagent> [ref=313], Issues <https://github.com/hamr0/bareagent/issues> [ref=314], Pull requests <https://github.com/hamr0/bareagent/pulls> [ref=315], Actions <https://github.com/hamr0/bareagent/actions> [ref=316], Projects <https://github.com/hamr0/bareagent/projects> [ref=317], Security and quality <https://github.com/hamr0/bareagent/security> [ref=318], Insights <https://github.com/hamr0/bareagent/pulse> [ref=319]
+  - complementary "Issues sidebar navigation"
+    - navigation "Issue filters"
+      - Issue filters: Issues <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen> [ref=467], Assigned to me <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me> [ref=468], Created by me <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+author%3A%40me> [ref=469], Mentioned <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me> [ref=470], Recent activity <https://github.com/hamr0/bareagent/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc> [ref=471]
+    - navigation "Pages"
+      - Pages: Views <https://github.com/hamr0/bareagent/issues/views> [ref=472], Projects <https://github.com/hamr0/bareagent/projects> [ref=473], Milestones <https://github.com/hamr0/bareagent/milestones> [ref=474], Labels <https://github.com/hamr0/bareagent/labels> [ref=475]
+    - navigation "Feedback"
+      - link "Feedback Preview" <https://gh.io/issues-sidebar-feedback> [ref=476]
+    - button "Collapse sidebar" [expanded=true] [ref=431]
+  - heading "Issues" [level=1]
+  - link "New issue" <https://github.com/login?return_to=https://github.com/hamr0/bareagent/issues?q=is%3Aissue+label%3Ano-such-label-f94> [ref=323]
+  - search "Issues"
+    - form "Search issues"
+      - LabelText
+        - Search issues
+      - combobox "Search issues" [expanded=false] [ref=481]
+        - is:issue label:no-such-label-f94
+      - button "Clear filter" [ref=436]
+      - button "Search" [ref=439]
+      - region "Filter contains 1 issue:"
+        - heading "Filter contains 1 issue:" [level=2]
+        - listitem [level=1]
+          - Invalid value
+          - code
+            - no-such-label-f94
+          - for
+          - code
+            - label
+  - heading "Issues" [level=2]
+  - heading "0 results" [level=3]
+  - toolbar "Issue list controls"
+    - button "Filter by author" [expanded=false] [ref=409]
+      - Author
+    - button "Filter by labels" [expanded=false] [ref=411]
+      - Labels
+    - button "More Issue list controls" [expanded=false] [ref=412]
+  - list "Issues display density"
+    - button "Comfortable display density" [ref=486]
+    - button "Compact display density" [ref=489]
+  - status
+    - heading "No results matched your search" [level=2]
+    - Try a different search query.
+    - link "Learn more about searching and filtering issues and pull requests." <https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/filtering-and-searching-issues-and-pull-requests> [ref=466]
