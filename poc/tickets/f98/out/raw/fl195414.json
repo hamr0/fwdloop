@@ -1,0 +1,42 @@
+{
+ "number": 195414,
+ "title": "macOS app target app crash",
+ "body": "### Steps to reproduce\n\nResizing app window on MacOS target app cause crash.\n\nDon't have an isolated example to reproduce this. The app screen has two video players (probably native views).\n\n### Expected results\n\nNo crash.\n\n### Actual results\n\nFull Apple crash report is below\n\n### Code sample\n\nN/A\n\n### Screenshots or Video\n\n<details open>\n<summary>Screenshots / Video demonstration</summary>\n\n[Upload media here]\n\n</details>\n\n\n### Logs\n\n<details open><summary>Logs</summary>\n\n```console\nToo large to include uncompressed text\n\n[crash.txt.zip](https://github.com/user-attachments/files/34019677/crash.txt.zip)\n\n```\n\n</details>\n\n\n### Flutter Doctor output\n\n<details open><summary>Doctor output</summary>\n\n```console\n[✓] Flutter (Channel stable, 3.47.8, on macOS 15.7.3 24G419 darwin-arm64, locale en-CA) [2.9s]\n    • Flutter version 3.47.8 on channel stable at /Users/**/fvm/versions/stable\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision 737ba8f885 (4 days ago), 2026-10-22 21:37:31 -0700\n    • Engine revision cf636b1dfb\n    • Dart version 3.13.7\n    • DevTools version 2.60.0\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, no-cli-animations,\n      enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging,\n      enable-uiscene-migration\n\n[✓] Xcode - develop for iOS and macOS (Xcode 26.2) [1,506ms]\n    • Xcode at /Applications/Xcode_26.2.app/Contents/Developer\n    • Build 17C52\n    • CocoaPods version 1.16.2\n\n[✓] Connected device (4 available) [13.7s]\n    • macOS (desktop)                • macos                                • darwin-arm64   • macOS 15.7.3 24G419 darwin-arm64\n\n[✓] Network resources [1,522ms]\n    • All expected network resources are available.\n```\n\n</details>\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/195414",
+ "user": {
+  "login": "ekuleshov",
+  "id": 440954,
+  "profile_url": "https://github.com/ekuleshov",
+  "avatar_url": "https://avatars.githubusercontent.com/u/440954?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "in triage",
+  "needs repro info"
+ ],
+ "assignees": [],
+ "comments": 4,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-27T12:51:44Z",
+ "updated_at": "2026-10-28T14:26:12Z",
+ "closed_at": "2026-10-28T14:22:29Z",
+ "closed_by": "mbcorona",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

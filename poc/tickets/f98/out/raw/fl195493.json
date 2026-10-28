@@ -1,0 +1,45 @@
+{
+ "number": 195493,
+ "title": "linux-8 lost external connection from the phone device.",
+ "body": "### Help us understand the severity of this issue\n\n- [ ] breakage; unable to contribute or trigger builds will no workarounds\n- [ ] inconvenient workarounds exist, but significant effort required\n- [ ] needed for a Flutter team-wide priority (already agreed upon)\n- [ ] nice-to-have; none of the above\n\n### What do you need help with\n\nlinux-8 lost external connection from the phone device.\n\n<img width=\"1383\" height=\"29\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/8a7b7ada-eeee-4bc1-af21-0ca32707980e\" />",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/195493",
+ "user": {
+  "login": "kentnguyen99",
+  "id": 120754754,
+  "profile_url": "https://github.com/kentnguyen99",
+  "avatar_url": "https://avatars.githubusercontent.com/u/120754754?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "team-infra",
+  "infra: device lab"
+ ],
+ "assignees": [
+  "kentnguyen99"
+ ],
+ "comments": 1,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-28T16:28:55Z",
+ "updated_at": "2026-10-28T17:19:21Z",
+ "closed_at": "2026-10-28T17:19:21Z",
+ "closed_by": "kentnguyen99",
+ "issue_type": "Bug",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

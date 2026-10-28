@@ -1,0 +1,46 @@
+{
+ "number": 195368,
+ "title": "[camera_android_camerax] Expose recorded video duration from CameraX `RecordingStats` via `camera_platform_interface`",
+ "body": "_Derived from https://github.com/flutter/packages/pull/13330 and https://github.com/flutter/flutter/issues/148138_\n\nIn https://github.com/flutter/packages/pull/13330, `camera_android_camerax` was updated to listen to CameraX [`VideoRecordEvent.Status`](https://developer.android.com/reference/androidx/camera/video/VideoRecordEvent.Status) events and check [`RecordingStats.getRecordedDurationNanos()`](https://developer.android.com/reference/androidx/camera/video/RecordingStats#getRecordedDurationNanos()) (and `getNumBytesRecorded()`) so that `startVideoCapturing` waits until the first frame is recorded before returning. While this reduces the discrepancy between expected and actual video duration caused by encoder startup latency, it does not completely solve https://github.com/flutter/flutter/issues/148138 because we still do not know the exact duration of a recording from Dart.\n\nBecause of platform channel latency, encoder finalization overhead when calling `stopVideoRecording`, and potential pauses/resumes during recording, measuring wall-clock time between `startVideoCapturing` and `stopVideoRecording` in Dart is only an approximation of the recorded video's actual duration. Currently, callers must load the resulting video file into a video player (e.g., `VideoPlayerController`) after recording finishes just to determine its duration.\n\nSince `camera_android_camerax` now wraps [`RecordingStats`](https://developer.android.com/reference/androidx/camera/video/RecordingStats), we should consider exposing the recorded duration (via `RecordingStats.getRecordedDurationNanos()`) through `camera_platform_interface` (and potentially the app-facing `camera` package) in a non-breaking way.\n\n**Possible approaches**\n1. **Expose final duration on [`VideoRecordedEvent`](https://github.com/flutter/packages/blob/e31dfabbdfb06f05384415715d6730d28d64d08b/packages/camera/camera_platform_interface/lib/src/events/camera_event.dart#L233-L274) or via a new platform interface method:** Since changing the return type of [`stopVideoRecording`](https://github.com/flutter/packages/blob/e31dfabbdfb06f05384415715d6730d28d64d08b/packages/camera/camera_platform_interface/lib/src/platform_interface/camera_platform.dart#L159) (`Future<XFile>`) would be a breaking change, we could include the final recorded `Duration` on `VideoRecordedEvent` (note that `camera_android_camerax` already emits `VideoRecordedEvent` in [`stopVideoRecording`](https://github.com/flutter/packages/blob/e31dfabbdfb06f05384415715d6730d28d64d08b/packages/camera/camera_android_camerax/lib/src/android_camera_camerax.dart#L1234) with `/* duration */ null`) using the `RecordingStats` from `VideoRecordEvent.Finalize`.\n1. **Expose live recording duration updates during active recording:** Introduce a new event stream on `CameraPlatform` (or an optional callback on [`VideoCaptureOptions`](https://github.com/flutter/packages/blob/e31dfabbdfb06f05384415715d6730d28d64d08b/packages/camera/camera_platform_interface/lib/src/types/video_capture_options.dart#L11)) backed by `VideoRecordEvent.Status` events so callers can monitor the exact recorded duration in real time and stop recording once a target duration is reached.",
+ "state": "closed",
+ "state_reason": "not_planned",
+ "html_url": "https://github.com/flutter/flutter/issues/195368",
+ "user": {
+  "login": "camsim99",
+  "id": 43054281,
+  "profile_url": "https://github.com/camsim99",
+  "avatar_url": "https://avatars.githubusercontent.com/u/43054281?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "platform-android",
+  "p: camera",
+  "package",
+  "P2",
+  "team-android",
+  "triaged-android"
+ ],
+ "assignees": [],
+ "comments": 1,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-26T22:04:05Z",
+ "updated_at": "2026-10-26T22:26:22Z",
+ "closed_at": "2026-10-26T22:26:22Z",
+ "closed_by": "camsim99",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

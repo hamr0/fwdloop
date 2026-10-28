@@ -1,0 +1,44 @@
+{
+ "number": 193783,
+ "title": "[Impeller] SIGSEGV in libIMGegl.so (IMGeglMakeCurrent) and libflutter.so (Context::ClearCurrent) on PowerVR/Imagination GPU",
+ "body": "I am seeing native crashes related to the EGL/OpenGL context lifecycle in production. Two distinct but likely related crashes have been observed on Android devices, both occurring within the `libflutter.so` (Impeller) and the underlying PowerVR driver (`libIMGegl.so`).\n\n### Steps to Reproduce\n*   **Target Platform:** Android\n*   **Target OS version:** Android 13 (API 33)\n*   **Devices:** Devices using Imagination Technologies PowerVR GPUs (e.g., MediaTek chipsets like Helio P90 / MT6779).\n*   **Flutter Version:** 3.44.6\n*   **Engine:** Impeller (OpenGLES backend)\n\n### Actual Results\nThe app crashes randomly in production. The two primary crash signatures are:\n\n**1. Crash in `libIMGegl.so`**\n*   **Signal:** SIGSEGV\n*   **Top Frame:** `[libIMGegl.so] IMGeglMakeCurrent`\n*   **Context:** The crash occurs while the driver is attempting to make an EGL context current.\n\n**2. Crash in `libflutter.so` (Impeller)**\n*   **Signal:** SIGSEGV\n*   **Top Frame:** `[split_config.arm64_v8a.apk!libflutter.so] impeller::egl::Context::ClearCurrent() const`\n*   **Context:** This occurs during Impeller's context clearing phase.\n\n### Expected Results\nThe application should render and handle surface/context changes without native crashes, even on devices with PowerVR/Imagination GPUs.\n\n### Environment\n*   **Flutter Doctor Output:**\n    ```\n    flutter doctor -v\n[✓] Flutter (Channel stable, 3.44.6, on Fedora Linux 44 (KDE Plasma Desktop\n    Edition) 7.1.3-200.fc44.x86_64, locale en_US.UTF-8) [246ms]\n    • Flutter version 3.44.6 on channel stable at /home/mudassir/flutter\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision ee80f08bbf (3 months ago), 2026-07-08 15:02:06\n      -0700\n    • Engine revision 83675ed276\n    • Dart version 3.12.2\n    • DevTools version 2.57.0\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop,\n      enable-windows-desktop, enable-android, enable-ios, cli-animations,\n      enable-native-assets, enable-swift-package-manager,\n      omit-legacy-version-file, enable-lldb-debugging,\n      enable-uiscene-migration\n\n[✓] Android toolchain - develop for Android devices (Android SDK version\n    36.1.0) [16.3s]\n    • Android SDK at /home/mudassir/Android/Sdk\n    • Emulator version 36.6.11.0 (build_id 15507667) (CL:N/A)\n    • Platform android-36, build-tools 36.1.0\n    • ANDROID_HOME = /home/mudassir/Android/Sdk\n    • ANDROID_SDK_ROOT = /home/mudassir/Android/Sdk\n    • Java binary at: /opt/android-studio/jbr/bin/java\n      This is the JDK bundled with the latest Android Studio installation on\n      this machine.\n      To manually set the JDK path, use: `flutter config\n      --jdk-dir=\"path/to/jdk\"`.\n    • Java version OpenJDK Runtime Environment (build\n      21.0.10+-14961533-b1163.108)\n    • All Android licenses accepted.\n\n[✗] Chrome - develop for the web (Cannot find Chrome executable at\n    google-chrome) [84ms]\n    ! Cannot find Chrome. Try setting CHROME_EXECUTABLE to a Chrome\n      executable.\n\n[✓] Linux toolchain - develop for Linux desktop [2.3s]\n    • clang version 22.1.8 (Fedora 22.1.8-1.fc44)\n    • cmake version 4.3.0\n    • ninja version 1.13.2\n    • pkg-config version 2.5.1\n    • OpenGL core renderer: Mesa Intel(R) UHD Graphics 620 (WHL GT2)\n    • OpenGL core version: 4.6 (Core Profile) Mesa 26.1.4\n    • OpenGL core shading language version: 4.60\n    • OpenGL ES renderer: Mesa Intel(R) UHD Graphics 620 (WHL GT2)\n    • OpenGL ES version: OpenGL ES 3.2 Mesa 26.1.4\n    • OpenGL ES shading language version: OpenGL ES GLSL ES 3.20\n    • GL_EXT_framebuffer_blit: yes\n    • GL_EXT_texture_format_BGRA8888: yes\n\n[✓] Connected device (1 available) [1,171ms]\n    • Linux (desktop) • linux • linux-x64 • Fedora Linux 44 (KDE Plasma\n      Desktop Edition) 7.1.3-200.fc44.x86_64\n\n[✓] Network resources [2.2s]\n    • All expected network resources are available.\n\n! Doctor found issues in 1 category.\n\n\n    ```\n\n### Additional Context\nDevice Sample attributes:\n\n    Redmi Redmi 9 ,   Android 10     Version: 13 (3.0.8)     Occurred: 22 days ago\n\n\n---",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/193783",
+ "user": {
+  "login": "mudassir-cpp",
+  "id": 209325163,
+  "profile_url": "https://github.com/mudassir-cpp",
+  "avatar_url": "https://avatars.githubusercontent.com/u/209325163?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "c: crash",
+  "e: device-specific",
+  "platform-android",
+  "waiting for response"
+ ],
+ "assignees": [],
+ "comments": 2,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-04T04:33:31Z",
+ "updated_at": "2026-10-26T18:26:31Z",
+ "closed_at": "2026-10-26T18:26:31Z",
+ "closed_by": "github-actions[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

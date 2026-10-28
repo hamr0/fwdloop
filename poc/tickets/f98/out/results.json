@@ -1,0 +1,1443 @@
+{
+ "checks": {
+  "R1": {
+   "verdict": "PASS",
+   "match": 12,
+   "of": 12,
+   "mismatches": []
+  },
+  "R2": {
+   "verdict": "FAIL",
+   "equal": 10,
+   "of": 12,
+   "per": {
+    "f100047": {
+     "eq": true,
+     "mcp": [
+      "c: crash",
+      "p: material_ui",
+      "package",
+      "P2",
+      "team-design",
+      "triaged-design"
+     ],
+     "pagePieces": 6,
+     "missingOnPage": []
+    },
+    "f193097": {
+     "eq": true,
+     "mcp": [
+      "c: crash",
+      "engine",
+      "platform-macos",
+      "a: desktop",
+      "has reproducible steps",
+      "P2",
+      "team-macos",
+      "triaged-macos"
+     ],
+     "pagePieces": 8,
+     "missingOnPage": []
+    },
+    "f187579": {
+     "eq": true,
+     "mcp": [
+      "package",
+      "team-ecosystem",
+      "has reproducible steps",
+      "P2",
+      "p: go_router",
+      "triaged-ecosystem"
+     ],
+     "pagePieces": 6,
+     "missingOnPage": []
+    },
+    "f193785": {
+     "eq": true,
+     "mcp": [
+      "tool",
+      "P3",
+      "team-tool",
+      "triaged-tool"
+     ],
+     "pagePieces": 4,
+     "missingOnPage": []
+    },
+    "f180865": {
+     "eq": true,
+     "mcp": [
+      "a: text input",
+      "platform-ios",
+      "P2",
+      "team-text-input",
+      "triaged-text-input"
+     ],
+     "pagePieces": 5,
+     "missingOnPage": []
+    },
+    "p2b": {
+     "eq": true,
+     "mcp": [
+      "framework",
+      "has reproducible steps",
+      "P2",
+      "team-framework",
+      "triaged-framework"
+     ],
+     "pagePieces": 5,
+     "missingOnPage": []
+    },
+    "p3": {
+     "eq": true,
+     "mcp": [
+      "p: cupertino_ui",
+      "package",
+      "c: proposal",
+      "P3",
+      "team-design",
+      "triaged-design"
+     ],
+     "pagePieces": 6,
+     "missingOnPage": []
+    },
+    "none": {
+     "eq": false,
+     "mcp": [
+      "waiting for response"
+     ],
+     "pagePieces": 0,
+     "missingOnPage": [
+      "waiting for response"
+     ]
+    },
+    "k124871": {
+     "eq": true,
+     "mcp": [
+      "kind/bug",
+      "priority/important-soon",
+      "sig/node",
+      "lifecycle/rotten",
+      "needs-triage"
+     ],
+     "pagePieces": 5,
+     "missingOnPage": []
+    },
+    "l270": {
+     "eq": true,
+     "mcp": [
+      "Type: Bug",
+      "Severity: Major",
+      "Status: New",
+      "Priority: P2",
+      "Module: Forgot password"
+     ],
+     "pagePieces": 5,
+     "missingOnPage": []
+    },
+    "h11": {
+     "eq": false,
+     "mcp": [
+      "bug"
+     ],
+     "pagePieces": 0,
+     "missingOnPage": [
+      "bug"
+     ]
+    },
+    "y13": {
+     "eq": true,
+     "mcp": [
+      "bug",
+      "severity : major",
+      "priority : P2-High",
+      "area : katalog",
+      "type : functional",
+      "triage : approved"
+     ],
+     "pagePieces": 6,
+     "missingOnPage": []
+    }
+   }
+  },
+  "R3": {
+   "verdict": "FAIL",
+   "decided": 30,
+   "of": 32,
+   "unreadable": [
+    "fl195467",
+    "fl195447"
+   ],
+   "nearMisses": [
+    [
+     "fl195056",
+     [
+      "c: fatal crash"
+     ]
+    ],
+    [
+     "fl194570",
+     [
+      "t: top-crasher"
+     ]
+    ],
+    [
+     "fl193517",
+     [
+      "t: top-crasher"
+     ]
+    ]
+   ],
+   "runBy": 12
+  },
+  "R4": {
+   "verdict": "PASS",
+   "crashLabelled": 12,
+   "wrongSkips": [
+    {
+     "id": "fl195308",
+     "title": "[flutter_tools] `flutter run` on iOS kills the debug session with \"Bad UTF-8 encoding (U+FFFD; REPLA",
+     "labels": [
+      "c: crash",
+      "platform-ios",
+      "tool",
+      "has reproducible steps",
+      "team-tool"
+     ]
+    }
+   ],
+   "wrongSkipsWordBounded": [
+    {
+     "id": "fl195308",
+     "title": "[flutter_tools] `flutter run` on iOS kills the debug session with \"Bad UTF-8 encoding (U+FFFD; REPLA",
+     "labels": [
+      "c: crash",
+      "platform-ios",
+      "tool",
+      "has reproducible steps",
+      "team-tool"
+     ]
+    },
+    {
+     "id": "fl193695",
+     "title": "[web] SkSemaphore is a no-op under -sWASM_WORKERS=1, racing FT_Face",
+     "labels": [
+      "c: crash",
+      "engine",
+      "platform-web",
+      "e: wasm",
+      "e: web_skwasm",
+      "team-web"
+     ]
+    },
+    {
+     "id": "fl193639",
+     "title": "[web][Android] View keeps a keyboard-reduced height and reports negative viewInsets after focus move",
+     "labels": [
+      "a: text input",
+      "c: crash",
+      "engine",
+      "platform-web",
+      "P1",
+      "team-web",
+      "triaged-web"
+     ]
+    }
+   ]
+  },
+  "R5": {
+   "verdict": "FAIL",
+   "nonCrashLabelled": 18,
+   "falseRuns": [
+    {
+     "id": "f187579",
+     "title": "Navigator.popUntil can hang when popping a GoRoute with onExit",
+     "hits": [
+      "hang",
+      "hangs",
+      "freeze",
+      "freezes"
+     ],
+     "snippets": [
+      [
+       "hang",
+       "Navigator.popUntil can hang when popping a GoRoute with o"
+      ],
+      [
+       "hangs",
+       " ### Actual results The app hangs after this log: ```text Raw:"
+      ],
+      [
+       "freeze",
+       "is never reached when the app freezes ``` ### Code sample <deta"
+      ]
+     ]
+    },
+    {
+     "id": "f193785",
+     "title": "Flutter Linux host name parsing crashes on an empty PRETTY_NAME",
+     "hits": [
+      "crash",
+      "crashes"
+     ],
+     "snippets": [
+      [
+       "crash",
+       "utter Linux host name parsing crashes on an empty PRETTY_NAME ###"
+      ],
+      [
+       "crashes",
+       "utter Linux host name parsing crashes on an empty PRETTY_NAME ### S"
+      ]
+     ]
+    },
+    {
+     "id": "f180865",
+     "title": "iOS App Hang FlutterPlatformPlugin getClipboardData blocks main thread for 2+ seconds",
+     "hits": [
+      "crash",
+      "hang",
+      "freeze",
+      "freezes",
+      "ANR"
+     ],
+     "snippets": [
+      [
+       "crash",
+       "vironments and is captured by crash/ANR monitoring tools (Sentry)"
+      ],
+      [
+       "hang",
+       "iOS App Hang FlutterPlatformPlugin getClip"
+      ],
+      [
+       "freeze",
+       " Flutter app on iPhone 4. App freezes for 2+ seconds **Note:** Th"
+      ]
+     ]
+    },
+    {
+     "id": "p2b",
+     "title": "TableBorder.lerp and TableBorder.scale drop borderRadius",
+     "hits": [
+      "hang"
+     ],
+     "snippets": [
+      [
+       "hang",
+       "der animates through a theme change. `TableBorder.lerp(null, b, "
+      ]
+     ]
+    },
+    {
+     "id": "none",
+     "title": "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture",
+     "hits": [
+      "hang"
+     ],
+     "snippets": [
+      [
+       "hang",
+       "merax] takePicture sets an unchanged flash mode on every capture"
+      ]
+     ]
+    },
+    {
+     "id": "k124871",
+     "title": "kubelet crash loop panic with SIGSEGV",
+     "hits": [
+      "crash",
+      "crashed"
+     ],
+     "snippets": [
+      [
+       "crash",
+       "kubelet crash loop panic with SIGSEGV ### W"
+      ],
+      [
+       "crashed",
+       "7989 in the log), the kubelet crashed and then went into a crash lo"
+      ]
+     ]
+    },
+    {
+     "id": "l270",
+     "title": "[BUG][FR-03][API] reset-password returns 500 for text/plain request body",
+     "hits": [
+      "crash"
+     ],
+     "snippets": [
+      [
+       "crash",
+       " `400` or `415`, and must not crash or expose an unexpected serve"
+      ]
+     ]
+    },
+    {
+     "id": "y13",
+     "title": "[BUG] TC-R2-11: Empty search returns product list instead of empty result",
+     "hits": [
+      "crash"
+     ],
+     "snippets": [
+      [
+       "crash",
+       "ced by an empty query. No crash, data loss, or security impac"
+      ]
+     ]
+    },
+    {
+     "id": "fl195414",
+     "title": "macOS app target app crash",
+     "hits": [
+      "crash"
+     ],
+     "snippets": [
+      [
+       "crash",
+       "macOS app target app crash ### Steps to reproduce Resiz"
+      ]
+     ]
+    },
+    {
+     "id": "fl195368",
+     "title": "[camera_android_camerax] Expose recorded video duration from CameraX `RecordingStats` via `camera_pl",
+     "hits": [
+      "hang"
+     ],
+     "snippets": [
+      [
+       "hang",
+       "rm interface method:** Since changing the return type of [`stopV"
+      ]
+     ]
+    }
+   ],
+   "falseRunsWordBounded": [
+    {
+     "id": "f187579",
+     "hits": [
+      "hang",
+      "hangs",
+      "freezes"
+     ]
+    },
+    {
+     "id": "f193785",
+     "hits": [
+      "crashes"
+     ]
+    },
+    {
+     "id": "f180865",
+     "hits": [
+      "crash",
+      "hang",
+      "freeze",
+      "freezes",
+      "ANR"
+     ]
+    },
+    {
+     "id": "k124871",
+     "hits": [
+      "crash",
+      "crashed"
+     ]
+    },
+    {
+     "id": "l270",
+     "hits": [
+      "crash"
+     ]
+    },
+    {
+     "id": "y13",
+     "hits": [
+      "crash"
+     ]
+    },
+    {
+     "id": "fl195414",
+     "hits": [
+      "crash"
+     ]
+    }
+   ]
+  },
+  "R6": {
+   "dockerEqual": true,
+   "importsOnlyMcpGuard": true
+  }
+ },
+ "rec": {
+  "mustCarry": {
+   "upperTextLowerPhrase": true,
+   "lowerTextUpperPhrase": true,
+   "hangInsideChange": true,
+   "hangInsideChangeWordLoose": "see above (true = bareguard counts it)",
+   "realHang": true
+  },
+  "msPerDecisionAvg": {
+   "g1": 0.06,
+   "g2": 0.09,
+   "g3": 0.44
+  }
+ },
+ "imports": [
+  "bare-agent/mcp",
+  "node:os",
+  "node:fs",
+  "node:path",
+  "node:url",
+  "node:child_process",
+  "bareguard"
+ ],
+ "dockerBefore": [
+  "39dafb25176a"
+ ],
+ "dockerAfter": [
+  "39dafb25176a"
+ ],
+ "totalMs": 17572,
+ "perTicket": {
+  "f100047": {
+   "set": "12",
+   "title": "`Scaffold.of(context).showBottomSheet` crashes",
+   "labels": [
+    "c: crash",
+    "p: material_ui",
+    "package",
+    "P2",
+    "team-design",
+    "triaged-design"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     ".of(context).showBottomSheet` crashes ### Steps 1, Show the bott"
+    ],
+    [
+     "crashes",
+     ".of(context).showBottomSheet` crashes ### Steps 1, Show the bottom"
+    ]
+   ]
+  },
+  "f193097": {
+   "set": "12",
+   "title": "[macOS] Crash in engineCallbackOnPlatformMessage when dispatching a nil handler",
+   "labels": [
+    "c: crash",
+    "engine",
+    "platform-macos",
+    "a: desktop",
+    "has reproducible steps",
+    "P2",
+    "team-macos",
+    "triaged-macos"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "[macOS] Crash in engineCallbackOnPlatformMe"
+    ],
+    [
+     "crashes",
+     "is `nil` handler on MacOS and crashes. However, [`FlutterBinaryMes"
+    ]
+   ]
+  },
+  "f187579": {
+   "set": "12",
+   "title": "Navigator.popUntil can hang when popping a GoRoute with onExit",
+   "labels": [
+    "package",
+    "team-ecosystem",
+    "has reproducible steps",
+    "P2",
+    "p: go_router",
+    "triaged-ecosystem"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "hang",
+    "hangs",
+    "freeze",
+    "freezes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "hang",
+    "hangs",
+    "freezes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "hang",
+     "Navigator.popUntil can hang when popping a GoRoute with o"
+    ],
+    [
+     "hangs",
+     " ### Actual results The app hangs after this log: ```text Raw:"
+    ],
+    [
+     "freeze",
+     "is never reached when the app freezes ``` ### Code sample <deta"
+    ]
+   ]
+  },
+  "f193785": {
+   "set": "12",
+   "title": "Flutter Linux host name parsing crashes on an empty PRETTY_NAME",
+   "labels": [
+    "tool",
+    "P3",
+    "team-tool",
+    "triaged-tool"
+   ],
+   "priority": "P3",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "utter Linux host name parsing crashes on an empty PRETTY_NAME ###"
+    ],
+    [
+     "crashes",
+     "utter Linux host name parsing crashes on an empty PRETTY_NAME ### S"
+    ]
+   ]
+  },
+  "f180865": {
+   "set": "12",
+   "title": "iOS App Hang FlutterPlatformPlugin getClipboardData blocks main thread for 2+ seconds",
+   "labels": [
+    "a: text input",
+    "platform-ios",
+    "P2",
+    "team-text-input",
+    "triaged-text-input"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "hang",
+    "freeze",
+    "freezes",
+    "ANR"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "hang",
+    "freeze",
+    "freezes",
+    "ANR"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "vironments and is captured by crash/ANR monitoring tools (Sentry)"
+    ],
+    [
+     "hang",
+     "iOS App Hang FlutterPlatformPlugin getClip"
+    ],
+    [
+     "freeze",
+     " Flutter app on iPhone 4. App freezes for 2+ seconds **Note:** Th"
+    ]
+   ]
+  },
+  "p2b": {
+   "set": "12",
+   "title": "TableBorder.lerp and TableBorder.scale drop borderRadius",
+   "labels": [
+    "framework",
+    "has reproducible steps",
+    "P2",
+    "team-framework",
+    "triaged-framework"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "hang",
+     "der animates through a theme change. `TableBorder.lerp(null, b, "
+    ]
+   ]
+  },
+  "p3": {
+   "set": "12",
+   "title": "[cupertino_ui] CupertinoListTile: add `enabled`",
+   "labels": [
+    "p: cupertino_ui",
+    "package",
+    "c: proposal",
+    "P3",
+    "team-design",
+    "triaged-design"
+   ],
+   "priority": "P3",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "none": {
+   "set": "12",
+   "title": "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture",
+   "labels": [
+    "waiting for response"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "hang",
+     "merax] takePicture sets an unchanged flash mode on every capture"
+    ]
+   ]
+  },
+  "k124871": {
+   "set": "12",
+   "title": "kubelet crash loop panic with SIGSEGV",
+   "labels": [
+    "kind/bug",
+    "priority/important-soon",
+    "sig/node",
+    "lifecycle/rotten",
+    "needs-triage"
+   ],
+   "priority": "unsure",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashed"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashed"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "kubelet crash loop panic with SIGSEGV ### W"
+    ],
+    [
+     "crashed",
+     "7989 in the log), the kubelet crashed and then went into a crash lo"
+    ]
+   ]
+  },
+  "l270": {
+   "set": "12",
+   "title": "[BUG][FR-03][API] reset-password returns 500 for text/plain request body",
+   "labels": [
+    "Type: Bug",
+    "Severity: Major",
+    "Status: New",
+    "Priority: P2",
+    "Module: Forgot password"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     " `400` or `415`, and must not crash or expose an unexpected serve"
+    ]
+   ]
+  },
+  "h11": {
+   "set": "12",
+   "title": "[BUG-FR10-04] Admin Web UI renders 'Đánh dấu Đã giao' action button for canceled orders",
+   "labels": [
+    "bug"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "y13": {
+   "set": "12",
+   "title": "[BUG] TC-R2-11: Empty search returns product list instead of empty result",
+   "labels": [
+    "bug",
+    "severity : major",
+    "priority : P2-High",
+    "area : katalog",
+    "type : functional",
+    "triage : approved"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "ced by an empty query. No crash, data loss, or security impac"
+    ]
+   ]
+  },
+  "fl195308": {
+   "set": "A",
+   "title": "[flutter_tools] `flutter run` on iOS kills the debug session with \"Bad UTF-8 encoding (U+FFFD; REPLA",
+   "labels": [
+    "c: crash",
+    "platform-ios",
+    "tool",
+    "has reproducible steps",
+    "team-tool"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195056": {
+   "set": "A",
+   "title": "[video_player_avfoundation] 2.12.2: \"Attempted to read an unowned reference\" crash in VideoPlayerIns",
+   "labels": [
+    "c: regression",
+    "c: crash",
+    "platform-ios",
+    "platform-macos",
+    "p: video_player",
+    "package",
+    "P2",
+    "c: fatal crash",
+    "team-ios",
+    "triaged-ios"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "RUN",
+   "near": [
+    "c: fatal crash"
+   ],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "to read an unowned reference\" crash in VideoPlayerInstanceBridge."
+    ],
+    [
+     "crashes",
+     "on an iOS simulator. The app crashes almost immediately (on the 2n"
+    ]
+   ]
+  },
+  "fl194649": {
+   "set": "A",
+   "title": "[shared_preferences] shared_preferences_android 2.5.0 crashes release builds at start: NoSuchMethodE",
+   "labels": [
+    "c: regression",
+    "c: crash",
+    "platform-android",
+    "p: shared_preferences",
+    "package",
+    "has reproducible steps",
+    "team-android",
+    "fyi-ecosystem"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "red_preferences_android 2.5.0 crashes release builds at start: No"
+    ],
+    [
+     "crashes",
+     "red_preferences_android 2.5.0 crashes release builds at start: NoSu"
+    ]
+   ]
+  },
+  "fl194570": {
+   "set": "A",
+   "title": "[tool_crash] Unhandled ProcessPackageException (OS Error 206: The filename or extension is too long)",
+   "labels": [
+    "c: crash",
+    "tool",
+    "P1",
+    "team-tool",
+    "triaged-tool",
+    "found in release: 3.47",
+    "t: top-crasher"
+   ],
+   "priority": "P1",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [
+    "t: top-crasher"
+   ],
+   "g3Hits": [
+    "crash",
+    "crashes"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "[tool_crash] Unhandled ProcessPackageExce"
+    ],
+    [
+     "crashes",
+     " ## Summary `flutter pub get` crashes on Windows with an unhandled "
+    ]
+   ]
+  },
+  "fl193783": {
+   "set": "A",
+   "title": "[Impeller] SIGSEGV in libIMGegl.so (IMGeglMakeCurrent) and libflutter.so (Context::ClearCurrent) on ",
+   "labels": [
+    "c: crash",
+    "e: device-specific",
+    "platform-android",
+    "waiting for response"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes",
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "nation GPU I am seeing native crashes related to the EGL/OpenGL c"
+    ],
+    [
+     "crashes",
+     "nation GPU I am seeing native crashes related to the EGL/OpenGL con"
+    ],
+    [
+     "hang",
+     "r and handle surface/context changes without native crashes, eve"
+    ]
+   ]
+  },
+  "fl193742": {
+   "set": "A",
+   "title": "[Linux] Use-after-free of FlTaskRunner on app shutdown: timeout source outlives the task runner",
+   "labels": [
+    "c: crash",
+    "engine",
+    "platform-linux",
+    "has reproducible steps",
+    "P2",
+    "team-linux",
+    "triaged-linux"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes",
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "ose the main window. The app crashes with SIGSEGV very often (no"
+    ],
+    [
+     "crashes",
+     "ose the main window. The app crashes with SIGSEGV very often (not "
+    ],
+    [
+     "hang",
+     ". `fl_task_runner_tasks_did_change_locked()` schedules `g_timeo"
+    ]
+   ]
+  },
+  "fl193721": {
+   "set": "A",
+   "title": "[Impeller] Metal: PipelineLibraryMTL pipeline map is accessed from two threads without a lock (crash",
+   "labels": [
+    "c: crash",
+    "engine",
+    "e: impeller",
+    "team-fluttergpu",
+    "found in release: 3.47"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "crashes",
+    "crashed",
+    "hang",
+    "hangs"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes",
+    "crashed",
+    "hangs"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "m two threads without a lock (crash with Flutter GPU) ### Steps t"
+    ],
+    [
+     "crashes",
+     "ng blend mode). A normal run crashes only rarely. With a ThreadSan"
+    ],
+    [
+     "crashed",
+     "00000`): ```console Thread 0 Crashed (main / UI thread): std::un"
+    ]
+   ]
+  },
+  "fl193695": {
+   "set": "A",
+   "title": "[web] SkSemaphore is a no-op under -sWASM_WORKERS=1, racing FT_Face",
+   "labels": [
+    "c: crash",
+    "engine",
+    "platform-web",
+    "e: wasm",
+    "e: web_skwasm",
+    "team-web"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "hang",
+     "s indefinitely in `dlmalloc`, hanging the tab. Disassembling `w"
+    ]
+   ]
+  },
+  "fl193639": {
+   "set": "A",
+   "title": "[web][Android] View keeps a keyboard-reduced height and reports negative viewInsets after focus move",
+   "labels": [
+    "a: text input",
+    "c: crash",
+    "engine",
+    "platform-web",
+    "P1",
+    "team-web",
+    "triaged-web"
+   ],
+   "priority": "P1",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [],
+   "g3Hits": [
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "hang",
+     "ize` keeps `_physicalSize` unchanged and reports the difference "
+    ]
+   ]
+  },
+  "fl193517": {
+   "set": "A",
+   "title": "[tool_crash] Unhandled SessionNotCreatedException in WebDriverService.startTest during flutter drive",
+   "labels": [
+    "c: crash",
+    "tool",
+    "P1",
+    "team-tool",
+    "triaged-tool",
+    "found in release: 3.47",
+    "t: top-crasher"
+   ],
+   "priority": "P1",
+   "g1": "SKIP",
+   "g2": "RUN",
+   "near": [
+    "t: top-crasher"
+   ],
+   "g3Hits": [
+    "crash",
+    "crashes",
+    "crashing"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash",
+    "crashes",
+    "crashing"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "[tool_crash] Unhandled SessionNotCreatedE"
+    ],
+    [
+     "crashes",
+     "crasher, accounting for **112 crashes (7.3% of Top 10 crashes, 3.7%"
+    ],
+    [
+     "crashing",
+     "ver error message rather than crashing `flutter_tools`. ### Related"
+    ]
+   ]
+  },
+  "fl195493": {
+   "set": "B",
+   "title": "linux-8 lost external connection from the phone device.",
+   "labels": [
+    "team-infra",
+    "infra: device lab"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195492": {
+   "set": "B",
+   "title": "linux-6 lost external connection from the phone device.",
+   "labels": [
+    "team-infra",
+    "infra: device lab"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195467": {
+   "set": "B",
+   "title": "Following plugins that apply Kotlin Gradle Plugin (KGP): firebase_analytics, firebase_core, firebase",
+   "labels": null,
+   "priority": null,
+   "g1": "UNREADABLE",
+   "g2": "UNREADABLE",
+   "near": [],
+   "g3Hits": [
+    "crash",
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "crash",
+     "tics, firebase_core, firebase_crashlytics ### Steps to reproduce "
+    ],
+    [
+     "hang",
+     "apply KGP. Please check the changelogs of these plugins and upg"
+    ]
+   ]
+  },
+  "fl195447": {
+   "set": "B",
+   "title": "[google_sign_in] needs updating to support eMudhra",
+   "labels": null,
+   "priority": null,
+   "g1": "UNREADABLE",
+   "g2": "UNREADABLE",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195430": {
+   "set": "B",
+   "title": "linux-38 and linux-43 lost external connection from the phone device.",
+   "labels": [
+    "team-infra",
+    "infra: device lab"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195414": {
+   "set": "B",
+   "title": "macOS app target app crash",
+   "labels": [
+    "in triage",
+    "needs repro info"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "crash"
+   ],
+   "g3": "RUN",
+   "g3wHits": [
+    "crash"
+   ],
+   "g3w": "RUN",
+   "snippets": [
+    [
+     "crash",
+     "macOS app target app crash ### Steps to reproduce Resiz"
+    ]
+   ]
+  },
+  "fl195381": {
+   "set": "B",
+   "title": "Allow branch creation in the Flutter repo for CP branches",
+   "labels": [
+    "team-infra",
+    "P1"
+   ],
+   "priority": "P1",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195371": {
+   "set": "B",
+   "title": "linux-8 lost external connection from the phone device.",
+   "labels": [
+    "team-infra",
+    "infra: device lab"
+   ],
+   "priority": "none",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  },
+  "fl195368": {
+   "set": "B",
+   "title": "[camera_android_camerax] Expose recorded video duration from CameraX `RecordingStats` via `camera_pl",
+   "labels": [
+    "platform-android",
+    "p: camera",
+    "package",
+    "P2",
+    "team-android",
+    "triaged-android"
+   ],
+   "priority": "P2",
+   "g1": "RUN",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [
+    "hang"
+   ],
+   "g3": "RUN",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": [
+    [
+     "hang",
+     "rm interface method:** Since changing the return type of [`stopV"
+    ]
+   ]
+  },
+  "fl195348": {
+   "set": "B",
+   "title": "linux-8 and linux-23 lost external connection from the phone device.",
+   "labels": [
+    "team-infra",
+    "P1",
+    "infra: device lab",
+    "triaged-infra"
+   ],
+   "priority": "P1",
+   "g1": "SKIP",
+   "g2": "SKIP",
+   "near": [],
+   "g3Hits": [],
+   "g3": "SKIP",
+   "g3wHits": [],
+   "g3w": "SKIP",
+   "snippets": []
+  }
+ }
+}
