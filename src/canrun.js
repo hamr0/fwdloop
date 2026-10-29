@@ -24,6 +24,24 @@ export function unwiredRed(found) {
   return `preflight: step "${found.step.emits}" (line ${found.step.fromLine}) grants verb "${found.verb}", which has no wired implementation`;
 }
 
+/**
+ * M12 piece 1a (F105): the first tool the job lists (`declaration.mcp.tools`) that no step grants (`steps[].mcpTools`), or null. A job lists only the tools its
+ * steps use (PRD, hamr 2026-10-29); the ticket schedule's own tool lives in `schedule.json`, not here. A declaration without `mcp` has nothing to check.
+ * @param {Record<string, any>} declaration `readFlow`'s declaration @returns {{tool: string, server: string}|null}
+ */
+export function findUnusedMcpTool(declaration) {
+  const tools = declaration.mcp?.tools;
+  if (!Array.isArray(tools)) return null;
+  const granted = new Set(declaration.steps.flatMap((s) => s.mcpTools ?? []));
+  const tool = tools.find((t) => !granted.has(t));
+  return tool === undefined ? null : { tool, server: String(declaration.mcp.server) };
+}
+
+/** The preflight refusal sentence for a job tool no step grants. @param {{tool: string, server: string}} found */
+export function unusedMcpToolRed(found) {
+  return `preflight: job tool "${found.tool}" (server "${found.server}") is granted to no step`;
+}
+
 /** bareguard refuses a signed name or phrase past this many characters (rubric MAX_SIGNED_LEN). */
 const MAX_ENTRY_CHARS = 1000;
 const SIGN_AGAIN = 'and sign the job again';
@@ -99,6 +117,8 @@ export function canFlowRun(read) {
   if (!read || read.ok !== true) return { ok: false, red: String(read?.reds?.[0] ?? 'the flow does not read') };
   const unwired = findUnwiredVerbStep(read.declaration);
   if (unwired) return { ok: false, red: unwiredRed(unwired) };
+  const unusedTool = findUnusedMcpTool(read.declaration);
+  if (unusedTool) return { ok: false, red: unusedMcpToolRed(unusedTool) };
   const unbuildable = findUnbuildableCheckStep(read.declaration);
   if (unbuildable) return { ok: false, red: unbuildableRed(unbuildable), detail: unbuildable.why };
   return { ok: true };

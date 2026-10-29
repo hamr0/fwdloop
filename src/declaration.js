@@ -58,6 +58,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'unjudgeable',
   'refused',
   'inputFacts',
+  'mcp',
   // step level
   'goal',
   'primitives',
@@ -66,6 +67,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'fromLine',
   'close',
   'picks',
+  'mcpTools',
   // close level
   'class',
   'shape',
@@ -82,9 +84,39 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
-const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp']);
+const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
 const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+
+/** M12 piece 1a: the ONE shape of an MCP server or tool name in a job (the bridge names a tool `<server>_<tool>`). */
+const MCP_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** M12 piece 1a: the job's typed MCP tools, `mcp: {server, tools}`, optional (a job without it is unchanged). Returns the tool list when valid, else null.
+ *  @param {Record<string, any>} declaration @param {string[]} reds @returns {string[]|null} */
+function checkMcp(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'mcp')) return null;
+  const m = declaration.mcp;
+  if (!isPlainObject(m)) {
+    reds.push('declaration: "mcp" must be an object {server, tools}');
+    return null;
+  }
+  const before = reds.length;
+  for (const key of Object.keys(m)) {
+    if (key !== 'server' && key !== 'tools') reds.push(`declaration: unknown key "${key}" at declaration.mcp.${key}`);
+  }
+  if (typeof m.server !== 'string' || !MCP_NAME.test(m.server)) reds.push('declaration: mcp.server must be a plain server name (letters, digits, _ or -)');
+  if (!Array.isArray(m.tools) || m.tools.length === 0) {
+    reds.push('declaration: mcp.tools must be a non-empty list of tool names');
+  } else {
+    const seen = new Set();
+    for (const t of m.tools) {
+      if (typeof t !== 'string' || !MCP_NAME.test(t)) reds.push(`declaration: mcp.tools names ${JSON.stringify(t)}, which is not a plain tool name`);
+      else if (seen.has(t)) reds.push(`declaration: mcp.tools names "${t}" twice`);
+      else seen.add(t);
+    }
+  }
+  return reds.length === before ? m.tools : null;
+}
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -690,6 +722,9 @@ export function validateDeclaration(declaration, context = {}) {
     reds.push('declaration: "inputFacts" must be an object keyed by source role');
   }
 
+  // --- M12 piece 1a: the job's MCP tools (optional) -------------------------------
+  const mcpTools = checkMcp(declaration, reds);
+
   // --- steps ------------------------------------------------------------------
   const emitSeen = new Set();
   const declaredEmits = new Set();
@@ -716,6 +751,19 @@ export function validateDeclaration(declaration, context = {}) {
       const own = safeLines.find((l) => l.n === step.fromLine);
       if (own && step.goal !== own.text) {
         reds.push(`declaration: ${label}.goal is not its signed line ${own.n} verbatim (expected ${JSON.stringify(own.text)}, got ${JSON.stringify(step.goal)}) — the goal is the human's line, never reworded`);
+      }
+    }
+
+    // M12 piece 1a: the MCP tools this step uses (optional); each must be one the job lists
+    if (Object.hasOwn(step, 'mcpTools')) {
+      if (!Array.isArray(step.mcpTools)) {
+        reds.push(`declaration: ${label}.mcpTools must be a list of the job's MCP tool names`);
+      } else if (!Object.hasOwn(declaration, 'mcp')) {
+        reds.push(`declaration: ${label}.mcpTools names tools, but the job lists no "mcp" server`);
+      } else if (mcpTools) {
+        for (const t of step.mcpTools) {
+          if (!mcpTools.includes(t)) reds.push(`declaration: ${label}.mcpTools names "${t}", which the job's mcp.tools does not list`);
+        }
       }
     }
 

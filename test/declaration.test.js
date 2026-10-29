@@ -175,6 +175,13 @@ const FIELD_META = {
   picks: {
     level: 'step', required: false, needle: 'picks', retype: () => [], invalid: () => ({ data: ['NotARealColumn'] }),
   },
+  // M12 piece 1a: the job's MCP tools (top) and the tools a step uses (step); both optional
+  mcp: {
+    level: 'top', required: false, needle: 'mcp', retype: () => 'github', invalid: () => ({ server: 'github', tools: [] }),
+  },
+  mcpTools: {
+    level: 'step', required: false, needle: 'mcpTools', retype: () => 'issue_read', invalid: () => ['issue_read'],
+  },
   class: {
     level: 'close', required: false, needle: 'class', retype: () => 42, invalid: () => 'nonsense',
   },
@@ -283,6 +290,8 @@ describe('mutation suite', () => {
 const OPTIONAL_FIELDS = Object.freeze([
   { field: 'close', level: 'step' },
   { field: 'picks', level: 'step' },
+  { field: 'mcp', level: 'top' },
+  { field: 'mcpTools', level: 'step' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
   { field: 'cited', level: 'close' },
