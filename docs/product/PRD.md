@@ -218,6 +218,14 @@ hamr's rulings 2026-10-28:
 - `Run it anyway` on a skipped ticket asks for a short reason first, like a rerun; without a reason nothing starts. The ticket then queues as a new arrival with the job's normal cap.
 - Later slices, same shape, different reader (each needs its own signed slice; not scheduled): page tickets through barebrowse (F92, F94 proven; labels on a page and the flood still open), and chats through beeperbox (a chat message is one item with an id: seen list, queue, guardrail filter, one run per item, the same Result list).
 
+**Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:
+1. Each part keeps its header and tools line. Under it, a check grid: rows are the part's checks in run order with their plain question; columns are try 1..N (with thinking on/off); cells ✓ ✗ · (not run) ? (no verdict). The grid scrolls inside its own box; no page side-scroll at 390px.
+2. Under the grid, an errors list: one row per try that failed or has no verdict: try N, the first failing check ("+J more checks"), the first error line, "(+M more)". A part with no failure shows no list.
+3. Opening a row (or its ✗ cell) shows the first 8 error lines, then "+M more lines"; several failing checks get a sub-heading each.
+4. A "?" row (provider dropped) is faint and not clickable: "provider dropped (socket hang up), no check ran".
+5. On load, only the last failed try's row is open per part; per-try rounds tables stay, folded under the list.
+It replaces the stacked try blocks per step. fwdloop has no command-exit check, so bareloop's wording fix for that check does not apply here.
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.
