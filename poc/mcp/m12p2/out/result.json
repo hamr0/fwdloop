@@ -1,0 +1,42 @@
+{
+  "repo": "microsoft/vscode",
+  "waitSec": 420,
+  "looks": [
+    {
+      "at": "2026-10-29T20:26:23.702Z",
+      "ms": 10895,
+      "ok": true,
+      "error": null,
+      "first": true,
+      "pages": 1,
+      "found": [
+        345066,
+        345065,
+        345043,
+        345040,
+        345037,
+        345036,
+        345032,
+        345026,
+        345015,
+        345012
+      ],
+      "arrived": []
+    },
+    {
+      "at": "2026-10-29T20:33:26.001Z",
+      "ms": 2194,
+      "ok": true,
+      "error": null,
+      "first": false,
+      "pages": 1,
+      "found": [],
+      "arrived": []
+    }
+  ],
+  "maxBaseline": 345066,
+  "ghNewOpenIssues": [],
+  "ours": [],
+  "match": true,
+  "note": "zero new arrivals in the window: agreement is trivial, not a proof of detection"
+}
