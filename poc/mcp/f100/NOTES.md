@@ -6,3 +6,4 @@ $0 checks (2026-10-29): issue flutter#100047 state=open, updated 2026-08-17, bod
 Body sentence for C2: "Tap the back arrow and the `show bottom sheet` button at the same time".
 Scratch tests (declaration, input-facts, m10-am3 page/run-door, m10-am11, signed-text): 279 pass, 0 fail.
 Note: first bridge start showed a one-off GitHub device-login text instead of data; the immediate retry worked (no change made).
+Draft (1 call, deepseek-flash, thinking off, 1 round, no retry): ok, reds [], cost $0.0025128 (spend.jsonl row = draft-spend.json). Step 1 reads `issue`, grants read only; plan reads the ticket; asks line 3 ttl 30m; hash abfeb5c2162acc1c558813f71304424fe9a46a0380fc28dd008dd08d5a14df92. No token pattern in draft folder.
