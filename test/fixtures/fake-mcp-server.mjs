@@ -1,10 +1,14 @@
 // A tiny fake MCP server for the M12 piece 1 tests (stdio, newline JSON-RPC). No network. Behaviour comes from the env its .mcp.json entry sets:
+//   FAKE_MCP_SERVER  must be '1' (else it exits 0 at once, so `node --test` does not hang on it)
 //   FAKE_TOOLS  JSON list of {name, annotations?}   (default: issue_read + list_issues, both readOnlyHint true)
 //   FAKE_REPLY  'ok' (default) | 'device' (GitHub's device-login text) | 'empty' | 'error'
 //   FAKE_CALLS  a file path; each tools/call appends one JSON line {name, arguments}
 //   FAKE_LIST   a file path holding JSON [{number, state, labels, ...}], newest first (M12 piece 2); list_issues pages it like GitHub's (perPage, after = offset, state filter),
 //               re-read on every call so a test changes it between looks
 import { appendFileSync, readFileSync } from 'node:fs';
+
+// `node --test` runs every .mjs under test/ as a test file; without this, that run would sit on stdin forever. A spawner's .mcp.json env sets FAKE_MCP_SERVER=1.
+if (process.env.FAKE_MCP_SERVER !== '1') process.exit(0);
 import { createInterface } from 'node:readline';
 
 const tools = JSON.parse(process.env.FAKE_TOOLS ?? JSON.stringify([

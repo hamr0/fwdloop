@@ -23,7 +23,7 @@ function world(t, { env = {}, server = 'github', command = process.execPath, arg
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const calls = path.join(dir, 'calls.jsonl');
   const configPath = path.join(dir, 'mcp.json');
-  writeFileSync(configPath, JSON.stringify({ mcpServers: noServers ? {} : { [server]: { command, args, env: { FAKE_CALLS: calls, ...env } } } }));
+  writeFileSync(configPath, JSON.stringify({ mcpServers: noServers ? {} : { [server]: { command, args, env: { FAKE_MCP_SERVER: '1', FAKE_CALLS: calls, ...env } } } }));
   const read = (over = {}) => readTicketMcp({ listUrl: LIST, number: 100047, mcp: MCP, configPath, ...over });
   const callsMade = () => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
   return { dir, configPath, read, callsMade };

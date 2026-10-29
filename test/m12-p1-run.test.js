@@ -52,7 +52,7 @@ test('1c: a refusal of the ticket read (device-login text) is the run\'s red at 
   t.after(() => { process.env.HOME = oldHome; rmSync(root, { recursive: true, force: true }); rmSync(home, { recursive: true, force: true }); });
   mcpFlow(root, 'tick', ['issue_read'], ['issue_read']);
   // the user's own ~/.mcp.json (HOME is a scratch dir): the github server is the fake, which answers with GitHub's device-login text
-  writeFileSync(path.join(home, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [path.join(HERE, 'fixtures', 'fake-mcp-server.mjs')], env: { FAKE_REPLY: 'device' } } } }));
+  writeFileSync(path.join(home, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [path.join(HERE, 'fixtures', 'fake-mcp-server.mjs')], env: { FAKE_MCP_SERVER: '1', FAKE_REPLY: 'device' } } } }));
   process.env.HOME = home;
   const r = await runFlow({
     root, name: 'tick', runId: 'run-1', catalogue: cat.primitives, primitives: {}, businessDate: '2026-06-01',

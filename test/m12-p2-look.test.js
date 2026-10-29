@@ -25,7 +25,7 @@ function world(t, { env = {}, issues = newestFirst(25) } = {}) {
   const listFile = path.join(dir, 'list.json');
   const configPath = path.join(dir, 'mcp.json');
   writeFileSync(listFile, JSON.stringify(issues));
-  writeFileSync(configPath, JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [FAKE], env: { FAKE_CALLS: calls, FAKE_LIST: listFile, ...env } } } }));
+  writeFileSync(configPath, JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [FAKE], env: { FAKE_MCP_SERVER: '1', FAKE_CALLS: calls, FAKE_LIST: listFile, ...env } } } }));
   return {
     configPath,
     setList: (l) => writeFileSync(listFile, JSON.stringify(l)),
