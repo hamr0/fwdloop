@@ -54,7 +54,7 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
-import { ticketListsOf } from '../src/trigger-tickets.js';
+import { ticketListsOf } from '../src/ticket-shape.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).

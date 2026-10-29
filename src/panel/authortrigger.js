@@ -32,7 +32,7 @@ import {
 import { scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
-import { WATCHABLE, ticketListsOf } from '../trigger-tickets.js';
+import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { readModelRecord } from '../flowmodel.js';
 import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import {
@@ -180,7 +180,7 @@ export function createTriggerDoor(opts) {
     if (trigger !== null && trigger.kind === 'new-ticket') {
       // M12 piece 2 (items 8; PRD ruling "a tool counts as used if a step or the signed schedule uses it"): the look's tool is `list_issues` on the server the job names
       const list = ticketListsOf(read.arbiter)[trigger.role];
-      if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues address such as https://github.com/owner/repo/issues), so no new ticket can start a run from it. Nothing was changed.` });
+      if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.` });
       const server = read.declaration?.mcp?.server;
       if (typeof server !== 'string') return reply(400, { refused: 'bad-trigger', say: 'This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.' });
       // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing

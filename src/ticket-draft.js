@@ -3,7 +3,8 @@
 // per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read) and a `ticketFilter` (priority / label names); a human
 // signs it and code decides at run. The first facts line is F90c's, the line that made the drafter read a ticket role at all (FINDINGS F90c, F92).
 import { discoverServers } from 'bare-agent/mcp';
-import { LIST_URL, USER_MCP_CONFIG } from './ticket-mcp.js';
+import { USER_MCP_CONFIG } from './ticket-mcp.js';
+import { LIST_URL } from './ticket-shape.js';
 
 /** the one tool the first slice reads a ticket with */
 export const TICKET_TOOL = 'issue_read';

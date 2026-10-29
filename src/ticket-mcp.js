@@ -7,11 +7,10 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { redactSecrets } from './redact.js';
+import { parseTicketList } from './ticket-shape.js';
 
 /** the user's own MCP config, the only source of a tool */
 export const USER_MCP_CONFIG = () => join(homedir(), '.mcp.json');
-
-export const LIST_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/?$/;
 
 /** the first line of a message, secrets redacted, clipped: all a refusal ever shows of a server's own error */
 export const firstLine = (e) => redactSecrets(String(e?.message ?? e ?? '')).split('\n').find((l) => l.trim() !== '')?.trim().slice(0, 200) ?? 'no message';
@@ -20,16 +19,16 @@ export const firstLine = (e) => redactSecrets(String(e?.message ?? e ?? '')).spl
 export const isDeviceLogin = (text) => text.includes('github.com/login/device');
 
 /**
- * Read ticket `number` of the list at `listUrl` (`https://github.com/<owner>/<repo>/issues`) with the job's `issue_read`.
+ * Read ticket `number` of the list at `listUrl` with the job's `issue_read`.
  * @param {{listUrl: string, number: number, mcp: {server: string, tools: string[]}, configPath?: string, timeoutMs?: number}} o
  * @returns {Promise<{ok: true, text: string, url: string, record: {server: string, exposed: string[], missing: Array<{server: string, tool: string}>, calls: Array<{tool: string, owner: string, repo: string, issue_number: number}>}} | {ok: false, error: string}>}
  *   `record` is what the run keeps (in its `run.json` input entry): what the server exposed and lacked, and each call made.
  */
 export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MCP_CONFIG(), timeoutMs = 90000 }) {
-  const m = LIST_URL.exec(String(listUrl).trim());
-  if (!m) return { ok: false, error: `${listUrl} is not a GitHub issues address (https://github.com/<owner>/<repo>/issues)` };
+  const list = parseTicketList(listUrl);
+  if (!list.ok) return list;
   if (!Number.isInteger(number) || number < 1) return { ok: false, error: `ticket number ${JSON.stringify(number)} is not a whole number from 1` };
-  const [, owner, repo] = m;
+  const { owner, repo } = list;
   const { server, tools } = mcp;
   if (!tools.includes('issue_read')) return { ok: false, error: `the job does not list issue_read, the tool that reads a ticket` };
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
@@ -48,7 +47,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
     if (!tool) return { ok: false, error: `${server} does not offer issue_read` };
     const call = { tool: 'issue_read', owner, repo, issue_number: number };
     const record = { server, exposed: bridge.tools.map((t) => t.name), missing: bridge.missing ?? [], calls: [call] };
-    const url = `https://github.com/${owner}/${repo}/issues/${number}`;
+    const url = list.ticketUrl(number);
     let reply;
     try {
       reply = await tool.execute({ method: 'get', owner, repo, issue_number: number });

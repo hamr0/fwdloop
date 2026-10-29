@@ -7,22 +7,14 @@
 // and `name: #<number>`, so `queueOf`, `recordRan` and `recordDropped` work on it unchanged.
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 
-import {
-  LIST_URL, USER_MCP_CONFIG, firstLine, isDeviceLogin,
-} from './ticket-mcp.js';
+import { USER_MCP_CONFIG, firstLine, isDeviceLogin } from './ticket-mcp.js';
+import { parseTicketList } from './ticket-shape.js';
 import { appendSeen, readSeen, queueOf } from './trigger-files.js';
 
 /** A look every 15 minutes, fixed (item 8). */
 export const TICKET_LOOK_MS = 15 * 60_000;
-/** The fields a signed schedule may watch (item 7): typed values the list already carries. */
-export const WATCHABLE = Object.freeze(['state', 'labels']);
 /** The most pages one look follows (a flood bigger than this is `unreadable`, never silently cut). */
 const MAX_PAGES = 20;
-
-/** The ticket lists a signed job names: role -> address, for every page input whose address is `https://github.com/<owner>/<repo>/issues`. @param {{sources?: Array<{role: string, kind?: string, path: string}>}} arbiter @returns {Record<string, string>} */
-export function ticketListsOf(arbiter) {
-  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page' && LIST_URL.test(String(s.path).trim())).map((s) => [s.role, String(s.path).trim()]));
-}
 
 /** @param {unknown} reply */
 const textOf = (reply) => (typeof reply === 'string' ? reply : (Array.isArray(reply) ? reply : /** @type {any} */ (reply)?.content ?? []).map((/** @type {any} */ c) => c?.text ?? '').join(''));
@@ -54,9 +46,9 @@ export function reasonFor(prev, cur, watch) {
 export async function lookTickets({
   listUrl, mcp, configPath = USER_MCP_CONFIG(), seen, last, watch, perPage = 10, timeoutMs = 90000,
 }) {
-  const m = LIST_URL.exec(String(listUrl).trim());
-  if (!m) return { ok: false, error: `${listUrl} is not a GitHub issues address (https://github.com/<owner>/<repo>/issues)` };
-  const [, owner, repo] = m;
+  const parsed = parseTicketList(listUrl);
+  if (!parsed.ok) return parsed;
+  const { owner, repo } = parsed;
   const { server, tool } = mcp;
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
   const first = seen === null;

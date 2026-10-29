@@ -18,7 +18,7 @@ import { appendRow } from './jsonl-append.js';
 import { queueOf, readSeen, recordDropped } from './trigger-files.js';
 import { readRows, validateSchedule } from './trigger-clock.js';
 import { triggerHash } from './trigger-line.js';
-import { WATCHABLE } from './trigger-tickets.js';
+import { WATCHABLE } from './ticket-shape.js';
 
 /** @typedef {import('./trigger-line.js').Trigger} Trigger */
 /**

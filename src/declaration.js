@@ -36,7 +36,7 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
-import { WATCHABLE } from './trigger-tickets.js';
+import { WATCHABLE } from './ticket-shape.js';
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
