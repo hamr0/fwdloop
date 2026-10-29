@@ -1,0 +1,5 @@
+{"runId":"run-3","at":"2026-10-29T10:02:21.703Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":20,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}
+{"runId":"run-4","at":"2026-10-29T10:02:33.443Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":10919,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}
+{"runId":"run-5","at":"2026-10-29T10:02:45.212Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":10985,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}
+{"runId":"run-6","at":"2026-10-29T10:03:42.113Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":2092,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}
+{"runId":"run-7","at":"2026-10-29T10:03:44.965Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":1474,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}

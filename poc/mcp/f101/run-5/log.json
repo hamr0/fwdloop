@@ -1,0 +1,7 @@
+{
+  "runId": "run-5",
+  "outcome": "preflight-red",
+  "red": "freeze: input \"issue\": signed tool issue_read is not exposed alone (exposed: none)",
+  "attempts": [],
+  "artifacts": {}
+}

@@ -1,0 +1,14 @@
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'github',
+    error: 'MCP server "github" exited (code 125). stderr: atabase_open 134217901 waiting for lock (held by 357514) ...\n' +
+      'gpg: keydb_search failed: Connection timed out\n' +
+      'gpg: public key decryption failed: No secret key\n' +
+      'gpg: decryption failed: No secret key\n' +
+      "Unable to find image 'ghcr.io/github/github-mcp-server:f101-no-such-tag' locally\n" +
+      'docker: Error response from daemon: failed to resolve reference "ghcr.io/github/github-mcp-server:f101-no-such-tag": ghcr.io/github/github-mcp-server:f101-no-such-tag: not found\n' +
+      '\n' +
+      "Run 'docker run --help' for more information\n"
+  }
+]
+fwdloop: preflight-red — freeze: input "issue": signed tool issue_read is not exposed alone (exposed: none)

@@ -1,0 +1,7 @@
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'github',
+    error: 'server not found in discovered MCP configs'
+  }
+]
+fwdloop: preflight-red — freeze: input "issue": signed tool issue_read is not exposed alone (exposed: none)
