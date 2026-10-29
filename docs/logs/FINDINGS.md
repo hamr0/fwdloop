@@ -4472,6 +4472,7 @@ Evidence: `poc/mcp/f103/` (`look.mjs`, `flood.mjs`, `wait-looks.sh`, `wait-retry
 - `list_issues` returned no PR in any read (the numbers between issues, e.g. 195578 and 195579, are PRs and were absent); `gh` needed the `pull_request` filter, `list_issues` did not.
 - The look 1 baseline is the first page only (10 numbers); a baseline ticket later closed is harmless because the stop is at the first seen number still open.
 - Flutter opened no new issue in ~33 minutes at midday UTC; a real T2 needs a busier repo or a longer window.
+- Recorded, not judged: the device-login text came from a cold `pass` gpg cache (verified 2026-10-29 by `gpg-connect-agent` keyinfo `cached=-`; hamr unlocked it afterwards). A 15-minute schedule will meet a locked `pass`; the build must name it ("GitHub token unavailable: pass is locked") instead of a generic `unreadable`. Design point for hamr; nothing is fixed here.
 
 ### F103b pre-registration (2026-10-29): T2 and T3 again on a busier repo — $0
 
