@@ -57,13 +57,23 @@
   .rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
   .chg{font-size:12px;color:var(--amber)}
   .day{margin:0}
+  /* from the panel: .filterbar, .search-input, .chips, .chip.fchip */
+  .filterbar{margin-bottom:8px}
+  .search-input{display:block;width:100%;padding:6px 8px;min-height:32px;margin-bottom:6px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font:inherit}
+  .search-input::placeholder{color:var(--text-faint)}
+  .chips{display:flex;gap:4px;margin-bottom:4px;flex-wrap:wrap}
+  .chip{padding:3px 7px;min-height:28px;min-width:28px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);text-align:center;cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700}
+  .chip:focus-visible,.search-input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (max-width:520px){.chip{min-height:40px;min-width:40px}}
+  .when{color:var(--text-faint);font-size:12px;flex:none}
 </style>
 </head>
 <body>
 <h1>M12 — ticket list in the Result tab <span class="new">UNSIGNED</span></h1>
 <p class="lead">Unsigned mockup for M12 (tickets). The list sits in the Result tab of the run the schedule was set from, as a folded group like the Audit's <b>▸ schedule (k)</b>; one list, all days, newest first, today open.</p>
 <p class="lead">Each row = one ticket = one run: <span class="badge green">[✓] passed</span> done · <span class="badge amber">[·] waiting</span> at its ask · <span class="badge red">[✗] stopped</span> · <span class="badge grey">skipped</span> grey, $0, with a reason and a button · a "status changed" line when it arrived again.</p>
-<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work. Four variants (A-D) of the same 14 tickets, for choosing.</p>
+<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work. Five variants (E, A-D) of the same 14 tickets, for choosing.</p>
 <div class="grid" id="variants"></div>
 <script>
 var NEWT='<span class="new">NEW</span>';
@@ -87,6 +97,12 @@ var DAYS=[
   {n:"195139",t:"Typo in README",k:"skip",why:"closed"}]}
 ];
 var state={};
+/* E: short date/time per ticket (fake), days are no longer headers */
+var TIMES={"195342":"10/29 09:12","195338":"10/29 08:40","195331":"10/29 08:05","195308":"10/29 07:31","195290":"10/29 07:02","195272":"10/29 06:48",
+ "195241":"10/28 16:20","195233":"10/28 14:55","195220":"10/28 11:09","195214":"10/28 09:30","195201":"10/28 08:14",
+ "195150":"10/27 15:42","195144":"10/27 12:03","195139":"10/27 09:51"};
+var EGROUPS=[["wait","Needs you",true,false],["stop","Stopped",true,true],["done","Passed",false,true],["skip","Skipped",false,true]];
+var chipOn={},q={};
 function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 var ST={done:["green","[✓]","passed"],wait:["amber","[·]","waiting"],stop:["red","[✗]","stopped"],skip:["grey","[–]","skipped"]};
 function runBtn(r){return '<button class="btn small" type="button">Run it anyway</button>'+NEWT}
@@ -120,7 +136,25 @@ function dayBody(x,id,V){
      h+=fold(key,false,o,'skipped ('+sk.length+')')+NEWT+(o?sk.map(row).join(""):"")}
    return h}
  return x.rows.map(row).join("")}
+function rowE(r){return row(r).replace('<span class="tt">','<span class="when">'+TIMES[r.n]+'</span><span class="tt">')}
+function viewE(id){
+ var all=[];DAYS.forEach(function(x){all=all.concat(x.rows)});
+ var on=chipOn[id]||{},any=EGROUPS.some(function(g){return on[g[0]]}),qq=(q[id]||"").toLowerCase();
+ var h='<div id="result-body"><div class="audit-group"><h4><span class="badge grey">tickets'+NEWT+'</span></h4>';
+ h+='<div class="filterbar"><input type="text" class="search-input" data-q="'+id+'" placeholder="ticket number or title" autocomplete="off" value="'+e(q[id]||"")+'">';
+ h+='<div class="chips" role="group" aria-label="Filter">';
+ EGROUPS.forEach(function(g){h+='<button class="chip fchip" type="button" aria-pressed="'+(on[g[0]]?"true":"false")+'" data-chip="'+g[0]+'" data-id="'+id+'">'+g[1]+'</button>'});
+ h+='</div></div>';
+ EGROUPS.forEach(function(g){
+  if(any&&!on[g[0]])return;
+  var rows=all.filter(function(r){return r.k===g[0]&&(!qq||(r.n+" "+r.t).toLowerCase().indexOf(qq)>=0)});
+  var key=id+"|g|"+g[0],o=isOpen(key,g[2]);
+  h+=fold(key,g[2],o,g[1]+' ('+rows.length+')')+(g[3]?NEWT:"");
+  if(o)h+=rows.map(rowE).join("")});
+ h+='<div class="hint">newest first inside each group · each ticket opens its own run</div></div></div>';
+ return h}
 function view(id,V){
+ if(V==="E")return viewE(id);
  var h='<div id="result-body"><div class="field"><label>Schedule</label><div class="ro-value">When a new ticket arrives in issues'+NEWT+' · looks every 15 min'+NEWT+'</div></div>';
  h+='<div class="audit-group"><h4><span class="badge grey">tickets'+NEWT+'</span></h4>';
  var total=0;DAYS.forEach(function(x){total+=x.rows.length});
@@ -134,6 +168,7 @@ function view(id,V){
  h+='<div class="hint">newest first · one list, all days · each ticket opens its own run</div></div></div>';
  return h}
 var VARS=[
+ ["E","by status, not by day: Needs you and Stopped open, Passed and Skipped folded; newest first inside each group, date/time on each row; the filter bar's chips (and search) pick groups."],
  ["A","as drawn: number and title on one line (title wraps), status and run link on the line below."],
  ["B","compact: one line per ticket, status sign first, title cut with an ellipsis; skipped rows show reason and Run it anyway at the line end."],
  ["C","needs-you first: inside each day, waiting then stopped then passed then skipped, with a thin label before each group."],
@@ -145,6 +180,10 @@ function build(){var h="";VARS.forEach(function(v){
 function render(){VARS.forEach(function(v){document.getElementById("d"+v[0]).innerHTML=view("d"+v[0],v[0]);document.getElementById("p"+v[0]).innerHTML=view("p"+v[0],v[0])})}
 document.addEventListener("click",function(ev){var b=ev.target.closest(".fold");if(!b)return;
  var k=b.getAttribute("data-k");state[k]=!isOpen(k,b.getAttribute("data-def")==="1");render()});
+document.addEventListener("click",function(ev){var c=ev.target.closest(".fchip");if(!c)return;
+ var id=c.getAttribute("data-id"),k=c.getAttribute("data-chip");chipOn[id]=chipOn[id]||{};chipOn[id][k]=!chipOn[id][k];render()});
+document.addEventListener("input",function(ev){var t=ev.target;if(!t.getAttribute||!t.getAttribute("data-q"))return;
+ var id=t.getAttribute("data-q");q[id]=t.value;render();var n=document.querySelector('[data-q="'+id+'"]');n.focus();n.setSelectionRange(n.value.length,n.value.length)});
 build();render();
 </script>
 </body>
