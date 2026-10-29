@@ -1,0 +1,35 @@
+{
+  "askId": "f823a3fa-0bdd-48e4-a6ca-9c75daab3191",
+  "question": "check it with me,",
+  "askedAt": "2026-10-29T09:52:55.132Z",
+  "expiresAt": "2026-10-29T10:22:55.132Z",
+  "evidence": {
+    "artifact": {
+      "text": "First-response plan — flutter/flutter #100047 (P2, c: crash / p: material_ui)\n\n1. Confirm signature: Scaffold.of(context).showBottomSheet asserts 'bottomSheetKey.currentState != null' (scaffold.dart:2366, ScaffoldState._buildBottomSheet._removeCurrentBottomSheet).\n2. Reproduce: sample app, rapid show-bottom-sheet taps interleaved with back-arrow pops; capture full stack (LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop).\n3. Scope: search for duplicates/recent regression window; P2 stands (no data loss, no security impact) unless field crash volume is high.\n4. Lead: sheet entry removed twice — _removeCurrentBottomSheet runs on a LocalHistoryEntry already gone when show/pop interleave.\n5. Comms: post stack + interim workaround on the issue (await sheet open/close transitions; don't call showBottomSheet on a route being popped); loop in team-design.\n6. Re-triage at next check; escalate to P1 if duplicates surge.\n\nUpdate due: 24h."
+    },
+    "unjudged": [
+      {
+        "step": "read the ticket and pull out its priority and what is broken",
+        "emits": "ticket_digest",
+        "artifact": {
+          "cells": {
+            "priority": "P2",
+            "what_is_broken": "Scaffold.of(context).showBottomSheet crashes with a failed assertion: 'bottomSheetKey.currentState != null': is not true (scaffold.dart line 2366, in ScaffoldState._buildBottomSheet._removeCurrentBottomSheet). Reproduces with high probability when tapping the back arrow at the same time as the 'show bottom sheet' button repeatedly (rapid show/pop interleaving); the failure surfaces via LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop. Labels include 'c: crash' and 'p: material_ui'.",
+            "ticket_number": 100047,
+            "title": "`Scaffold.of(context).showBottomSheet` crashes",
+            "labels": [
+              "c: crash",
+              "p: material_ui",
+              "package",
+              "P2",
+              "team-design",
+              "triaged-design"
+            ],
+            "state": "open",
+            "source": "https://github.com/flutter/flutter/issues/100047"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "softgreen",
+    "3": "hitl"
+  },
+  "unjudgeable": {
+    "1": "P2-only is a claim about the ticket's content that no typed check can recompute (no sheet, no page)"
+  },
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_digest",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority and what is broken"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_digest"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 2,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_acceptance",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "read",
+        "write"
+      ],
+      "reads": [
+        "plan_acceptance",
+        "first_response_plan"
+      ],
+      "emits": "plan_file",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

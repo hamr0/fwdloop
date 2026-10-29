@@ -1,0 +1,2 @@
+{"runId":"run-1","at":"2026-10-29T09:51:22.976Z","outcome":"preflight-red","spentUsd":0,"spendComplete":true,"capUsd":0.25,"wallMs":2097,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}
+{"runId":"run-2","at":"2026-10-29T09:55:50.050Z","outcome":"complete","spentUsd":0.015115799999999999,"spendComplete":true,"capUsd":0.25,"wallMs":203081,"signatureHash":"d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5"}

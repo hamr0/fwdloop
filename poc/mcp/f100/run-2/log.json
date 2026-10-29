@@ -1,0 +1,86 @@
+{
+  "runId": "run-2",
+  "outcome": "complete",
+  "attempts": [
+    {
+      "step": "ticket_digest",
+      "attempt": 1,
+      "class": "hitl",
+      "verdict": "hitl",
+      "gap": null,
+      "refused": [],
+      "modelOutput": {
+        "cells": {
+          "priority": "P2",
+          "what_is_broken": "Scaffold.of(context).showBottomSheet crashes with a failed assertion: 'bottomSheetKey.currentState != null': is not true (scaffold.dart line 2366, in ScaffoldState._buildBottomSheet._removeCurrentBottomSheet). Reproduces with high probability when tapping the back arrow at the same time as the 'show bottom sheet' button repeatedly (rapid show/pop interleaving); the failure surfaces via LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop. Labels include 'c: crash' and 'p: material_ui'.",
+          "ticket_number": 100047,
+          "title": "`Scaffold.of(context).showBottomSheet` crashes",
+          "labels": [
+            "c: crash",
+            "p: material_ui",
+            "package",
+            "P2",
+            "team-design",
+            "triaged-design"
+          ],
+          "state": "open",
+          "source": "https://github.com/flutter/flutter/issues/100047"
+        },
+        "done": true
+      }
+    },
+    {
+      "step": "first_response_plan",
+      "attempt": 1,
+      "class": "softgreen",
+      "verdict": "red",
+      "gap": "505 words, limit 150",
+      "refused": [],
+      "modelOutput": {
+        "text": "# First-Response Plan — Flutter #100047 (`Scaffold.of(context).showBottomSheet` crashes)\n\n**Priority:** P2 · **Labels:** c: crash, p: material_ui, package, team-design, triaged-design · **State:** open · **Assignee:** none · **Comments:** 2 · **No linked/closed-by PRs**\n\n## 1. What's broken (one line)\n`ScaffoldState._buildBottomSheet._removeCurrentBottomSheet` throws the assertion `bottomSheetKey.currentState != null` (scaffold.dart:2366) when a bottom sheet is popped while the show/pop path re-enters; surfaced from `LocalHistoryEntry._notifyRemoved` → `LocalHistoryRoute.didPop` → `NavigatorState.maybePop/pop`.\n\n## 2. Triage read (what the stack says)\n- Failing assertion is inside a closure registered as a `LocalHistoryEntry` removal callback (frame #2–#3 at scaffold.dart:2366 and :2384), invoked synchronously from Navigator's history flush (#6–#8).\n- So the sheet's local-history entry is being removed at a point where `bottomSheetKey.currentState` has already gone null — i.e. the `_removeCurrentBottomSheet` closure captured/assumes a mounted current state that the interleaved pop has already torn down. This looks like a lifecycle/re-entrancy ordering bug in `Scaffold`, not a user-code misuse.\n- Trigger is a race: back-arrow pop concurrent with the \"show bottom sheet\" tap, repeatable with high probability (reporter is a Flutter MEMBER, `xu-baolin`, so the repro is credible).\n- Blast radius: any app using `Scaffold.of(context).showBottomSheet` with route-level pops → user-visible crash (unhandled exception), hence `c: crash`.\n\n## 3. First-response actions (ordered, ~first hour)\n1. **Acknowledge on the issue** (within 1 business day): thank reporter, confirm it's a real `Scaffold`/`LocalHistoryEntry` ordering issue, state P2/team-design ownership, note no fix scheduled yet.\n2. **Reproduce locally** on current `master` using the exact repro in the issue (Steps 1–2: show sheet, then simultaneously tap back arrow + show-sheet button, repeat). Record whether it still asserts at scaffold.dart:2366 and note the current line numbers if they've drifted.\n3. **Read the 2 existing comments before writing anything** — they may already contain a workaround or a narrower repro; do not duplicate what's there.\n4. **Narrow the window:** determine whether the assertion fires only when the sheet's local history entry is removed during the same frame as the Navigator pop (i.e. re-entrant `_removeCurrentBottomSheet`), vs. any double-removal. A minimal unit/widget test in `scaffold_test.dart` reproducing the interleaving is the deliverable that turns this into an actionable bug.\n5. **Search for a duplicate** in flutter/flutter issues for the same assertion text / `_removeCurrentBottomSheet`; if a dupe exists, cross-link rather than leaving two open P2 crashes.\n6. **Post a status update** with: repro confirmed (yes/no), the narrowed condition, and either a candidate fix direction or an explicit \"needs owner\" ask to `team-design`.\n\n## 4. Notes / guardrails\n- Do **not** claim a root cause or a fix in the first response — the stack shows the *where*, not yet the *why*.\n- Priority P2 and `triaged-design` are already set; no re-triage label changes needed.\n- Unassigned with zero linked PRs: the main first-response risk is the issue stalling silently, so the acknowledgement + status update matter as much as the repro.\n\n## 5. Open questions for the owner\n- Does the crash require the sheet to be mid-animation, or does any show-then-immediate-pop do it?\n- Is `bottomSheetKey.currentState` null because the sheet widget was disposed, or because the key was reassigned by a second `showBottomSheet` call?\n",
+        "done": true
+      }
+    },
+    {
+      "step": "first_response_plan",
+      "attempt": 2,
+      "class": "softgreen",
+      "verdict": "green",
+      "gap": null,
+      "refused": [],
+      "modelOutput": {
+        "text": "First-response plan — flutter/flutter #100047 (P2, c: crash / p: material_ui)\n\n1. Confirm signature: Scaffold.of(context).showBottomSheet asserts 'bottomSheetKey.currentState != null' (scaffold.dart:2366, ScaffoldState._buildBottomSheet._removeCurrentBottomSheet).\n2. Reproduce: sample app, rapid show-bottom-sheet taps interleaved with back-arrow pops; capture full stack (LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop).\n3. Scope: search for duplicates/recent regression window; P2 stands (no data loss, no security impact) unless field crash volume is high.\n4. Lead: sheet entry removed twice — _removeCurrentBottomSheet runs on a LocalHistoryEntry already gone when show/pop interleave.\n5. Comms: post stack + interim workaround on the issue (await sheet open/close transitions; don't call showBottomSheet on a route being popped); loop in team-design.\n6. Re-triage at next check; escalate to P1 if duplicates surge.\n\nUpdate due: 24h.",
+        "done": true
+      }
+    }
+  ],
+  "artifacts": {
+    "ticket_digest": {
+      "cells": {
+        "priority": "P2",
+        "what_is_broken": "Scaffold.of(context).showBottomSheet crashes with a failed assertion: 'bottomSheetKey.currentState != null': is not true (scaffold.dart line 2366, in ScaffoldState._buildBottomSheet._removeCurrentBottomSheet). Reproduces with high probability when tapping the back arrow at the same time as the 'show bottom sheet' button repeatedly (rapid show/pop interleaving); the failure surfaces via LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop. Labels include 'c: crash' and 'p: material_ui'.",
+        "ticket_number": 100047,
+        "title": "`Scaffold.of(context).showBottomSheet` crashes",
+        "labels": [
+          "c: crash",
+          "p: material_ui",
+          "package",
+          "P2",
+          "team-design",
+          "triaged-design"
+        ],
+        "state": "open",
+        "source": "https://github.com/flutter/flutter/issues/100047"
+      }
+    },
+    "first_response_plan": {
+      "text": "First-response plan — flutter/flutter #100047 (P2, c: crash / p: material_ui)\n\n1. Confirm signature: Scaffold.of(context).showBottomSheet asserts 'bottomSheetKey.currentState != null' (scaffold.dart:2366, ScaffoldState._buildBottomSheet._removeCurrentBottomSheet).\n2. Reproduce: sample app, rapid show-bottom-sheet taps interleaved with back-arrow pops; capture full stack (LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop).\n3. Scope: search for duplicates/recent regression window; P2 stands (no data loss, no security impact) unless field crash volume is high.\n4. Lead: sheet entry removed twice — _removeCurrentBottomSheet runs on a LocalHistoryEntry already gone when show/pop interleave.\n5. Comms: post stack + interim workaround on the issue (await sheet open/close transitions; don't call showBottomSheet on a route being popped); loop in team-design.\n6. Re-triage at next check; escalate to P1 if duplicates surge.\n\nUpdate due: 24h."
+    },
+    "plan_acceptance": {
+      "text": "First-response plan — flutter/flutter #100047 (P2, c: crash / p: material_ui)\n\n1. Confirm signature: Scaffold.of(context).showBottomSheet asserts 'bottomSheetKey.currentState != null' (scaffold.dart:2366, ScaffoldState._buildBottomSheet._removeCurrentBottomSheet).\n2. Reproduce: sample app, rapid show-bottom-sheet taps interleaved with back-arrow pops; capture full stack (LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop).\n3. Scope: search for duplicates/recent regression window; P2 stands (no data loss, no security impact) unless field crash volume is high.\n4. Lead: sheet entry removed twice — _removeCurrentBottomSheet runs on a LocalHistoryEntry already gone when show/pop interleave.\n5. Comms: post stack + interim workaround on the issue (await sheet open/close transitions; don't call showBottomSheet on a route being popped); loop in team-design.\n6. Re-triage at next check; escalate to P1 if duplicates surge.\n\nUpdate due: 24h."
+    },
+    "plan_file": {
+      "text": "First-response plan — flutter/flutter #100047 (P2, c: crash / p: material_ui)\n\n1. Confirm signature: Scaffold.of(context).showBottomSheet asserts 'bottomSheetKey.currentState != null' (scaffold.dart:2366, ScaffoldState._buildBottomSheet._removeCurrentBottomSheet).\n2. Reproduce: sample app, rapid show-bottom-sheet taps interleaved with back-arrow pops; capture full stack (LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop).\n3. Scope: search for duplicates/recent regression window; P2 stands (no data loss, no security impact) unless field crash volume is high.\n4. Lead: sheet entry removed twice — _removeCurrentBottomSheet runs on a LocalHistoryEntry already gone when show/pop interleave.\n5. Comms: post stack + interim workaround on the issue (await sheet open/close transitions; don't call showBottomSheet on a route being popped); loop in team-design.\n6. Re-triage at next check; escalate to P1 if duplicates surge.\n\nUpdate due: 24h."
+    }
+  }
+}
