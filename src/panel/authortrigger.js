@@ -183,7 +183,10 @@ export function createTriggerDoor(opts) {
       if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues address such as https://github.com/owner/repo/issues), so no new ticket can start a run from it. Nothing was changed.` });
       const server = read.declaration?.mcp?.server;
       if (typeof server !== 'string') return reply(400, { refused: 'bad-trigger', say: 'This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.' });
-      trigger = { ...trigger, list, server, tool: TICKET_LOOK_TOOL };
+      // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
+      const jobWatch = read.declaration?.ticketWatch;
+      const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);
+      trigger = { kind: trigger.kind, role: trigger.role, list, server, tool: TICKET_LOOK_TOOL, ...(watch ? { watch } : {}) };
     }
     const flowDir = join(realRoot, flow);
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });

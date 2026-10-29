@@ -63,3 +63,34 @@ describe('refused, naming the field', () => {
     assert.ok(redsOf(r).some((x) => x.includes('ticketFilter') && x.includes('mcp')));
   });
 });
+
+// ---- signed M12 item 7: the fields to watch, `ticketWatch: ['state'|'labels']`, valid only with mcp ----
+describe('ticketWatch', () => {
+  const withWatch = (w) => { const d = withFilter(); d.ticketWatch = w; return d; };
+  test('DECLARATION_FIELDS names it; state, labels, or both are accepted', () => {
+    assert.ok(DECLARATION_FIELDS.includes('ticketWatch'));
+    for (const w of [['state'], ['labels'], ['state', 'labels']]) { const r = validate(withWatch(w)); assert.equal(r.ok, true, redsOf(r).join('\n')); }
+  });
+  const bad = [
+    ['not a list', 'state', 'ticketWatch'],
+    ['empty', [], 'ticketWatch'],
+    ['a field that is not typed', ['assignee'], 'assignee'],
+    ['title is not watchable', ['title'], 'title'],
+    ['twice', ['state', 'state'], 'state'],
+    ['not a string', [3], 'ticketWatch'],
+  ];
+  for (const [name, w, needle] of bad) {
+    test(`refused: ${name}`, () => {
+      const r = validate(withWatch(w));
+      assert.equal(r.ok, false);
+      assert.ok(redsOf(r).some((x) => x.includes(needle)), redsOf(r).join('\n'));
+    });
+  }
+  test('refused on a job with no MCP tools', () => {
+    const d = JSON.parse(fixture('job2.m1.declaration.json'));
+    d.ticketWatch = ['state'];
+    const r = validate(d);
+    assert.equal(r.ok, false);
+    assert.ok(redsOf(r).some((x) => x.includes('ticketWatch') && x.includes('mcp')));
+  });
+});

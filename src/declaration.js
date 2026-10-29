@@ -36,6 +36,7 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
+import { WATCHABLE } from './trigger-tickets.js';
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
@@ -60,6 +61,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'inputFacts',
   'mcp',
   'ticketFilter',
+  'ticketWatch',
   // step level
   'goal',
   'primitives',
@@ -85,7 +87,7 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'ticketFilter']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'ticketFilter', 'ticketWatch']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
 const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
 
@@ -144,6 +146,21 @@ function checkTicketFilter(declaration, reds) {
       else if (seen.has(v.toLowerCase())) reds.push(`declaration: ticketFilter.${key} names "${v}" twice`);
       else seen.add(v.toLowerCase());
     }
+  }
+}
+
+/** M12 piece 3 (signed item 7): the ticket fields a schedule may watch, `ticketWatch: ['state'|'labels']`; optional, only on a job that lists MCP tools, typed values only.
+ *  The scheduler compares (src/trigger-tickets.js); the drafter may suggest, a human signs. @param {Record<string, any>} declaration @param {string[]} reds */
+function checkTicketWatch(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'ticketWatch')) return;
+  const w = declaration.ticketWatch;
+  if (!Array.isArray(w) || w.length === 0) { reds.push(`declaration: "ticketWatch" must be a non-empty list of fields (${WATCHABLE.join(' and ')})`); return; }
+  if (!Object.hasOwn(declaration, 'mcp')) reds.push('declaration: "ticketWatch" watches tickets read through the job\'s "mcp" tools, but the job lists no "mcp" server');
+  const seen = new Set();
+  for (const f of w) {
+    if (typeof f !== 'string' || !WATCHABLE.includes(f)) reds.push(`declaration: ticketWatch names ${JSON.stringify(f)}, which is not a field that can be watched (${WATCHABLE.join(' and ')})`);
+    else if (seen.has(f)) reds.push(`declaration: ticketWatch names "${f}" twice`);
+    else seen.add(f);
   }
 }
 
@@ -754,6 +771,7 @@ export function validateDeclaration(declaration, context = {}) {
   // --- M12 piece 1a: the job's MCP tools (optional) -------------------------------
   const mcpTools = checkMcp(declaration, reds);
   checkTicketFilter(declaration, reds);
+  checkTicketWatch(declaration, reds);
 
   // --- steps ------------------------------------------------------------------
   const emitSeen = new Set();

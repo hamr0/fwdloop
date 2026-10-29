@@ -91,3 +91,12 @@ test('isTicketListUrl: only a GitHub issues list; any other page stays a page', 
   assert.equal(isTicketListUrl('https://github.com/flutter/flutter/issues/5'), false);
   assert.equal(isTicketListUrl('https://example.com/issues'), false);
 });
+
+test('ticketWatch: the drafter is told it exists, the tool offers only state and labels, and a suggestion comes through', async () => {
+  const p = fakeProvider([toolReply(args({ ticketWatch: ['state'] }))]);
+  const r = await run(p);
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.declaration.ticketWatch, ['state']);
+  assert.deepEqual(p.calls[0].schemas[0].properties.ticketWatch.items.enum, ['state', 'labels']);
+  assert.match(p.calls[0].messages[0].content, /"ticketWatch"/);
+});

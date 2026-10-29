@@ -186,6 +186,9 @@ const FIELD_META = {
   ticketFilter: {
     level: 'top', required: false, needle: 'ticketFilter', retype: () => 'P2', invalid: () => ({ priority: [] }),
   },
+  ticketWatch: {
+    level: 'top', required: false, needle: 'ticketWatch', retype: () => 'state', invalid: () => [],
+  },
   class: {
     level: 'close', required: false, needle: 'class', retype: () => 42, invalid: () => 'nonsense',
   },
@@ -297,6 +300,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'mcp', level: 'top' },
   { field: 'mcpTools', level: 'step' },
   { field: 'ticketFilter', level: 'top' },
+  { field: 'ticketWatch', level: 'top' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
   { field: 'cited', level: 'close' },

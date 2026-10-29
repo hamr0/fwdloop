@@ -73,3 +73,42 @@ test('a ticket number on a job with no ticket list is refused, naming the box', 
   assert.equal(r.status, 400, r.text);
   assert.deepEqual(r.json().refusals.map((x) => x.field), ['ticket']);
 });
+
+// ---- the door fills trigger.watch from the signed job (signed M12 item 7); a job with no ticketWatch watches nothing ----
+import { writeFlow } from '../src/flow.js';
+import { writeModelRecord } from '../src/flowmodel.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { readSchedule } from '../src/schedule.js';
+import { sandboxSend } from './send-sandbox.js';
+
+async function watchWorld(watch) {
+  const w = await world({ limit: 5 });
+  const declaration = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'job2.m1.declaration.json'), 'utf8'));
+  declaration.mcp = { server: 'github', tools: ['issue_read'] };
+  declaration.steps[0].mcpTools = ['issue_read'];
+  if (watch) declaration.ticketWatch = watch;
+  const prose = sandboxSend(readFileSync(path.join(HERE, 'fixtures', 'job2-with-sources.signed.txt'), 'utf8')).replace(/guardrail: source jd = file:.*/, `guardrail: source jd = page:${LIST}`);
+  const r = writeFlow({ root: w.root, name: 'tk', proseText: prose, declaration, signedBy: 'hamr', signedAt: '2026-10-29T12:00:00Z', catalogue: loadCatalogue().primitives });
+  assert.equal(r.ok, true, r.ok ? '' : r.reds.join('\n'));
+  writeModelRecord(path.join(w.root, 'tk'), { slot: 'DEEPSEEK_API_KEY', model: 'fake-ticked' });
+  seedGreen(w, 'tk');
+  return w;
+}
+const sign = async (w) => {
+  const trigger = { kind: 'new-ticket', role: 'jd' };
+  const p = await w.post('/api/author/trigger-prepare', { flow: 'tk', trigger });
+  assert.equal(p.status, 200, p.text);
+  const s = await w.post('/api/author/trigger', { flow: 'tk', trigger, hash: p.json().hash });
+  assert.equal(s.status, 200, s.text);
+  return readSchedule(path.join(w.root, 'tk')).trigger;
+};
+
+test('the signed job\'s ticketWatch becomes the schedule\'s trigger.watch (signed with the two clicks)', async () => {
+  const t = await sign(await watchWorld(['state', 'labels']));
+  assert.deepEqual(t.watch, ['state', 'labels']);
+});
+
+test('a job with no ticketWatch signs a schedule that watches nothing', async () => {
+  const t = await sign(await watchWorld(null));
+  assert.equal(t.watch, undefined);
+});

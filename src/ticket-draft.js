@@ -28,6 +28,7 @@ export function ticketFactsLines(role, servers) {
     `- ${role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${role}" in a step's reads, do not fetch it)`,
     `  The ticket is read through the job's MCP tool "${TICKET_TOOL}" (read-only). Declare the top-level "mcp": {"server": one of ${servers.join(', ')}, "tools": ["${TICKET_TOOL}"]} and put "${TICKET_TOOL}" in "mcpTools" of the step that reads "${role}"; no other step gets it.`,
     '  You may SUGGEST a top-level "ticketFilter": {"priority": [P0 to P3 values], "labels": [label names]} ONLY for a guardrail that names a priority or a label (for example "priority P2 only", "only issues labelled bug"); leave it out for any other guardrail, which stays hitl. A human signs it and code decides at run; never invent a label.',
+    '  You may SUGGEST a top-level "ticketWatch": ["state", "labels"] (one or both) ONLY for a guardrail that says to run a ticket again when its state or its labels change. Any other thing to watch cannot be put there: leave it out and it stays hitl.',
   ];
 }
 
@@ -51,6 +52,7 @@ export function ticketSchemaParts(servers) {
         additionalProperties: false,
         description: 'optional: suggest only for a guardrail that names a priority or a label',
       },
+      ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'optional: suggest only for a guardrail that says to run a ticket again when its state or its labels change' },
     },
     step: { mcpTools: { type: 'array', items: { type: 'string', enum: [TICKET_TOOL] }, description: `["${TICKET_TOOL}"] on the step that reads the ticket; omit on every other step` } },
   };
