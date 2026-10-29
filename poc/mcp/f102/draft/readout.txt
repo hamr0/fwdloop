@@ -1,0 +1,32 @@
+DRAFT READOUT — NOT SIGNED — flow "f102"
+
+Drafted by: deepseek-flash in 1 round(s), cost $0.0025
+Flows root: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/flows  (the flow is written to <flows root>/f102 when you sign)
+Cap per run (signed by you in the prose): $0.25
+
+INPUTS
+  issue = https://github.com/ColinLeeo/tsfile/issues/5
+
+STEPS
+  1. (line 1) read the ticket and say what it is about
+     grants: read | reads: issue | emits: ticket_summary | check: hitl
+  2. (line 2) write a short first-response note for the maintainer
+     grants: none (pure stop) | reads: ticket_summary | emits: first_response_note | check: softgreen
+  3. (line 3) check it with me,
+     grants: none (pure stop) | reads: first_response_note | emits: accepted_note | check: hitl
+  4. (line 4) and once I accept, write it out.
+     grants: write | reads: accepted_note | emits: first_response_note_file | check: hitl
+
+ASKS (human stops)
+  line 3: "check it with me," (ttl 30m)
+
+SEND TARGET (nothing leaves before an accepted ask)
+  line 4 -> file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/f102/out
+
+JOB LINES
+  1. read the ticket and say what it is about
+  2. write a short first-response note for the maintainer
+  ~ under 150 words
+  3. check it with me,
+  ~ nothing goes out before I accept
+  4. and once I accept, write it out.
