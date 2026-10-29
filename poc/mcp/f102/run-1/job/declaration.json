@@ -1,0 +1,68 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_summary",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what it is about"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "ticket_summary"
+      ],
+      "emits": "first_response_note",
+      "fromLine": 2,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response note for the maintainer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_note"
+      ],
+      "emits": "accepted_note",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "accepted_note"
+      ],
+      "emits": "first_response_note_file",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "2": "softgreen",
+    "3": "hitl"
+  },
+  "unjudgeable": {
+    "3": "acceptance wording is a human gate, no checkable figure or declared shape"
+  },
+  "refused": [],
+  "inputFacts": {}
+}
