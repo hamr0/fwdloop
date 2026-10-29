@@ -28,7 +28,7 @@ test('the Result JSON of the run the schedule was set from carries the ticket li
   assert.equal(b.tickets, undefined);
 });
 
-test('Run it anyway over HTTP: no reason refuses; a reason queues through the seam exactly once; without the seam it says so', async (t) => {
+test('Run it anyway over HTTP: no reason refuses; a reason queues through the seam exactly once', async (t) => {
   const w = await skippedWorld(t);
   const calls = [];
   const h = await open(w, { ticketQueue: { arriveAnyway: (a) => { calls.push(a); return { ok: true }; } } });
@@ -38,8 +38,4 @@ test('Run it anyway over HTTP: no reason refuses; a reason queues through the se
   assert.equal(ok.status, 202);
   assert.deepEqual(calls, [{ flow: 'tick', runId: 'run-1', number: 102, reason: 'the label is wrong' }]);
   assert.equal((await post(h, { flow: 'tick', runId: 'run-1', number: 555, reason: 'x' })).status, 409);
-  const h2 = await open(w);
-  const un = await post(h2, { flow: 'tick', runId: 'run-1', number: 102, reason: 'x' });
-  assert.equal(un.status, 501);
-  assert.equal((await un.json()).refused, 'not-wired');
 });

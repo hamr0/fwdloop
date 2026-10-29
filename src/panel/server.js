@@ -62,7 +62,7 @@ import { removeFromNeedsYou } from './needsyou.js';
 import {
   listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
-import { ticketAnyway } from './tickets.js';
+import { ticketAnyway, arriveAnywayOf } from './tickets.js';
 import { createResumer } from './resume.js';
 import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
@@ -373,7 +373,7 @@ function authorPost(res, url, body, author) {
 
 /**
  * M12 piece 3: `POST /api/author/ticket-anyway` — queue a skipped ticket as a new arrival after a short reason (src/panel/tickets.js decides every refusal).
- * The queue is the schedule builder's seam: `createPanelServer({ticketQueue: {arriveAnyway}})`; absent = a plain "not connected" refusal.
+ * The queue is the schedule builder's seam: `createPanelServer({ticketQueue: {arriveAnyway}})`; production wires `arriveAnywayOf` (one `arrived` row in the schedule ledger).
  * @param {any} res @param {any} body @param {any} opts
  */
 function ticketAnywayRoute(res, body, opts) {
@@ -391,7 +391,7 @@ function ticketAnywayRoute(res, body, opts) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue?: {arriveAnyway?: Function} }} opts
+ * @param {{ root: string, port: number, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue: {arriveAnyway: Function} }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -736,7 +736,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: opts.ticketQueue,
+          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: opts.ticketQueue ?? arriveAnywayOf({ scan: () => author.trigger.scan(), now: opts.author?.now ?? Date.now }),
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

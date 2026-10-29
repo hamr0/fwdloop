@@ -10,7 +10,7 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import {
   LIST_URL, USER_MCP_CONFIG, firstLine, isDeviceLogin,
 } from './ticket-mcp.js';
-import { appendSeen, readSeen } from './trigger-files.js';
+import { appendSeen, readSeen, queueOf } from './trigger-files.js';
 
 /** A look every 15 minutes, fixed (item 8). */
 export const TICKET_LOOK_MS = 15 * 60_000;
@@ -187,4 +187,21 @@ export function recordLook(ledger, sig, look, at) {
     arrived.push(c.number);
   }
   return { arrived, unreadable: null };
+}
+
+/**
+ * M12 piece 3 (item 9): "Run it anyway" — ONE `arrived` row for a skipped ticket, carrying the person's reason, so the queue starts it as a new arrival on a later tick.
+ * Same row shape and id series as a watched change (the count of this number's arrived rows). Nothing is written while this number is still queued (a second click
+ * is refused, never a second run). @param {string} ledger @param {string} sig @param {{number: number, reason: string}} a @param {number} at
+ * @returns {{ok: true} | {ok: false, say: string}}
+ */
+export function recordAnyway(ledger, sig, a, at) {
+  const rows = readSeen(ledger, sig);
+  if (queueOf(rows).some((q) => /** @type {any} */ (q).number === a.number)) return { ok: false, say: `Ticket #${a.number} is already queued. Nothing more was queued.` };
+  const n = rows.filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === a.number).length;
+  const watch = lastSeen(ledger, sig).get(a.number);
+  appendSeen(ledger, /** @type {any} */ ({
+    id: `arrived:ticket:${a.number}:${n}`, kind: 'arrived', sha: `ticket:${a.number}:${n}`, name: `#${a.number}`, path: `#${a.number}`, size: 0, at, number: a.number, ...(watch ? { watch } : {}), reason: a.reason,
+  }), sig);
+  return { ok: true };
 }

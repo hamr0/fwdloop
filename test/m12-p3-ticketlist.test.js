@@ -119,7 +119,7 @@ test('Run it anyway: with a reason a skipped ticket is queued once through the s
   assert.deepEqual(calls, [{ flow: 'tick', runId: 'run-1', number: 102, reason: 'the label is wrong' }]);
 });
 
-test('Run it anyway: a ticket that is not skipped, or an unwired queue, refuses with nothing queued', (t) => {
+test('Run it anyway: a ticket that is not skipped refuses with nothing queued', (t) => {
   const w = world(t);
   addRun(w.flowDir, 'run-1', 101, 'Passed', 1000);
   addRun(w.flowDir, 'run-2', 102, 'Odd', 2000);
@@ -128,7 +128,4 @@ test('Run it anyway: a ticket that is not skipped, or an unwired queue, refuses 
   assert.equal(ticketAnyway({ body: { flow: 'tick', runId: 'run-1', number: 101, reason: 'x' }, listOf: listOf(w), queue }).status, 409);
   assert.equal(ticketAnyway({ body: { flow: 'tick', runId: 'run-1', number: 999, reason: 'x' }, listOf: listOf(w), queue }).status, 409);
   assert.deepEqual(calls, []);
-  const un = ticketAnyway({ body: { flow: 'tick', runId: 'run-1', number: 102, reason: 'x' }, listOf: listOf(w), queue: undefined });
-  assert.equal(un.status, 501);
-  assert.equal(un.body.refused, 'not-wired');
 });
