@@ -20,7 +20,7 @@ export function reasonFor(prev, cur) {
   return r.join('; ');
 }
 
-export async function watch({ repo = 'microsoft/vscode', ledger = join(here, 'out/ledger.jsonl'), n = 30, tag = '' } = {}) {
+export async function watch({ repo = 'microsoft/vscode', ledger = join(here, 'out/ledger.jsonl'), n = 30, tag = '', order = 'CREATED_AT' } = {}) {
   const t0 = Date.now(); const [owner, name] = repo.split('/');
   mkdirSync(dirname(ledger), { recursive: true });
   const rows = existsSync(ledger) ? readFileSync(ledger, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
@@ -35,7 +35,7 @@ export async function watch({ repo = 'microsoft/vscode', ledger = join(here, 'ou
     const got = new Map(); let after; let done = false;
     const need = first ? null : new Set(last.keys());
     while (!done) {
-      const args = { owner, repo: name, orderBy: 'CREATED_AT', direction: 'DESC', perPage: first ? n : 100, fields: ['number', 'state', 'labels', 'updated_at', 'title', 'comments'] };
+      const args = { owner, repo: name, orderBy: order, direction: 'DESC', perPage: first ? n : 100, fields: ['number', 'state', 'labels', 'updated_at', 'title', 'comments'] };
       if (after) args.after = after;
       let r; out.calls++;
       try { r = parse(await li.execute(args)); } catch (e) { r = { _text: 'throw: ' + String(e?.message).slice(0, 200) }; }
@@ -72,6 +72,6 @@ export async function watch({ repo = 'microsoft/vscode', ledger = join(here, 'ou
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2); const g = (k, d) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : d; };
-  const o = await watch({ repo: g('--repo'), ledger: g('--ledger'), n: Number(g('--n', 30)), tag: g('--tag', '') });
+  const o = await watch({ repo: g('--repo'), ledger: g('--ledger'), n: Number(g('--n', 30)), tag: g('--tag', ''), order: g('--order', 'CREATED_AT') });
   console.log(JSON.stringify(o)); process.exit(0);
 }
