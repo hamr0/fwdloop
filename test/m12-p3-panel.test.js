@@ -61,6 +61,14 @@ test('groups, fold, chips and search work; skipped rows show reason and $0', { s
   assert.equal(await c.ev('document.getElementById("tickets-filter-search") === document.activeElement || true'), true);
 });
 
+test('the Result head wears [–] for a skipped run, the sign the ticket list uses', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(t, 1280);
+  if (!o) { t.skip('no chromium installed'); return; }
+  const sign = await o.chrome.ev('getComputedStyle(document.querySelector("[data-testid=result-status] .dot"), "::before").content');
+  assert.equal(sign, '"[–]"');
+  assert.equal(await o.chrome.ev('document.querySelector("[data-testid=result-status] .st-word").textContent'), 'skipped');
+});
+
 test('Run it anyway asks for a reason first: the button stays off without one, and the queue gets the ticket with it', { skip: SKIP && 'no browser' }, async (t) => {
   const calls = [];
   const o = await open(t, 1280, { ticketQueue: { arriveAnyway: (a) => { calls.push(a); return { ok: true }; } } });

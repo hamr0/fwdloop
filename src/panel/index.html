@@ -169,6 +169,8 @@
   .dot.stuck::before{content:"[II]";color:var(--amber);}
   /* M4e amendment 4: stopped — by you, or at the money cap; Resume goes on. Grey like the other quiet end, never the red [✗]. */
   .dot.stopped::before{content:"[■]";color:var(--grey-dot);}
+  /* M12 p3: a skipped run (a ticket the signed labels do not match) wears [–], the sign the ticket list draws, grey like the other quiet end. */
+  .dot.skipped::before{content:"[–]";color:var(--grey-dot);}
   /* the Run tab's top action row (Stop, Resume) */
   .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
   .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
@@ -317,7 +319,7 @@
   .ended-block.red{border-color:var(--red);}
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
-  .ended-block.grey,.ended-block.stopped{border-color:var(--grey-dot);}
+  .ended-block.grey,.ended-block.stopped,.ended-block.skipped{border-color:var(--grey-dot);}
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
@@ -334,7 +336,7 @@
   .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
   .summary-box.red{border-color:var(--red);}
   .summary-box.green{border-color:var(--green);}
-  .summary-box.grey,.summary-box.stopped{border-color:var(--grey-dot);}
+  .summary-box.grey,.summary-box.stopped,.summary-box.skipped{border-color:var(--grey-dot);}
   .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
   .summary-box.magenta{border-color:var(--magenta);}
   .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
@@ -1739,6 +1741,7 @@
     if(g === "[!]") return "expired";
     if(g === "[II]") return "stuck";
     if(g === "[■]") return "stopped";
+    if(g === "[–]") return "skipped";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 
