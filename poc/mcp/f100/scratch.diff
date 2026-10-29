@@ -1,0 +1,141 @@
+diff --git a/bin/fwdloop b/bin/fwdloop
+index f867956..b36a7bb 100755
+--- a/bin/fwdloop
++++ b/bin/fwdloop
+@@ -368,7 +368,8 @@ async function cmdRun(rest) {
+       fail(`run: --source role "${role}" is not declared by flow "${flowName}" (known roles: ${declaredRoles.join(', ') || '(none)'})`);
+     }
+   }
+-  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
++  const ticketRoles = new Set((read.arbiter.sources ?? []).filter((s) => s.kind === 'ticket').map((s) => s.role));
++  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles.has(role) ? { ticket: true } : {}) }));
+   for (const src of sources) {
+     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
+   }
+diff --git a/src/declaration.js b/src/declaration.js
+index a28e61a..5e4a263 100644
+--- a/src/declaration.js
++++ b/src/declaration.js
+@@ -567,7 +567,7 @@ export function validateDeclaration(declaration, context = {}) {
+   const cellsRoles = Array.isArray(safeArbiter.sources)
+     ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
+   // M10 am7 item 3: a web page is an input too, frozen at run start; a step reads it by its role (its quotes are checked against the run's own copy)
+-  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page').map((s) => s.role) : [];
++  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page' || s?.kind === 'ticket').map((s) => s.role) : [];
+   // M10 piece 5 (item 2): a document (.docx / .md / .txt) may be READ by a step that quotes it (its close.cited.source), and by no other step
+   const docRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'file' && ['.docx', '.md', '.txt'].some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role) : [];
+   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];
+diff --git a/src/input-facts.js b/src/input-facts.js
+index 7c8a60b..7ad11ac 100644
+--- a/src/input-facts.js
++++ b/src/input-facts.js
+@@ -43,6 +43,10 @@ export function readInputFacts(sources, { pages = {} } = {}) {
+       info.push(`- ${s.role}: a web page (${s.path}), saved at drafting, ${page.text.length} characters`);
+       continue;
+     }
++    if (s.kind === 'ticket') {
++      info.push(`- ${s.role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${s.role}" in a step's reads, do not fetch it)`);
++      continue;
++    }
+     if (s.kind !== 'file') continue;
+     if (String(s.path).toLowerCase().endsWith('.docx')) {
+       const r = readDocxText(s.path);
+diff --git a/src/pagefetch.js b/src/pagefetch.js
+index f27768b..e165c7a 100644
+--- a/src/pagefetch.js
++++ b/src/pagefetch.js
+@@ -50,7 +50,7 @@ export function isWebUrl(v) {
+ /** M10 am3: the web pages a signed job names, role -> address (`source <role> = page:<address>`). The ONE reader of which roles are pages and what their signed address is.
+  *  @param {{sources?: Array<{role: string, kind?: string, path: string}>}} arbiter @returns {Record<string, string>} */
+ export function pageAddressesOf(arbiter) {
+-  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page').map((s) => [s.role, s.path]));
++  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page' || s.kind === 'ticket').map((s) => [s.role, s.path]));
+ }
+ 
+ /** M10 am3: why a run may not name another address for a page input (the signed address is the job's; a different one is a changed job). @param {string} role @param {string} signed */
+diff --git a/src/runner.js b/src/runner.js
+index cc8b8b6..3994ade 100644
+--- a/src/runner.js
++++ b/src/runner.js
+@@ -77,6 +77,7 @@ import {
+ import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
+ import { readRunInputs, writeRunStart } from './runfile.js';
+ import { fetchPageText, isWebUrl } from './pagefetch.js';
++import { fetchTicketMcp } from './ticket-mcp.js';
+ import {
+   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
+ } from './liveness.js';
+@@ -406,8 +407,8 @@ export function checkFreshRunDir(runDir) {
+  *  @param {string} dir @param {string} id @param {string} url
+  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o]
+  *  @returns {Promise<{ok: true, text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} `text` = the frozen text itself, for the caller that reads it (drafting) */
+-export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {}) {
+-  const got = await fetchPage(url);
++export async function freezePage(dir, id, url, { fetchPage = fetchPageText, ticket = false } = {}) {
++  const got = ticket ? await fetchTicketMcp(url, { log: (o) => appendFileSync(join(dir, '..', 'mcp-calls.jsonl'), JSON.stringify(o) + '\n') }) : await fetchPage(url);
+   if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+   mkdirSync(dir, { recursive: true });
+   const frozen = join(dir, `${id}.txt`);
+@@ -428,9 +429,9 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
+   const inputsDir = join(runDir, 'inputs');
+   mkdirSync(inputsDir, { recursive: true });
+   const manifest = [];
+-  for (const { id, path: sourcePath } of sources ?? []) {
++  for (const { id, path: sourcePath, ticket } of sources ?? []) {
+     if (isWebUrl(sourcePath)) {
+-      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
++      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage, ticket: ticket === true });
+       if (!page.ok) return page;
+       manifest.push(page.entry);
+       continue;
+diff --git a/src/signed-text.js b/src/signed-text.js
+index 5d45812..68deee8 100644
+--- a/src/signed-text.js
++++ b/src/signed-text.js
+@@ -388,6 +388,16 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
+         sources.push({ role, kind: 'page', path });
+         continue;
+       }
++      if (kind.toLowerCase() === 'ticket') {
++        // F92 scratch: one issue's address is signed with the job, like a page
++        if (!/^https?:\/\/[^\s/?#]+/i.test(path)) {
++          reds.push(`arbiter: line ${fileLine} field "sources" ticket address must be a full http:// or https:// address: "${text}"`);
++          continue;
++        }
++        sourceRolesSeen.add(role);
++        sources.push({ role, kind: 'ticket', path });
++        continue;
++      }
+       if (kind.toLowerCase() !== 'file') {
+         reds.push(`arbiter: line ${fileLine} field "sources" source kind "${kind}" is not available until M9`);
+         continue;
+diff --git a/src/ticket-mcp.js b/src/ticket-mcp.js
+new file mode 100644
+index 0000000..e45145a
+--- /dev/null
++++ b/src/ticket-mcp.js
+@@ -0,0 +1,24 @@
++// F100 scratch: read ONE GitHub issue through the signed MCP server (allow = exactly the signed tools), never any other tool.
++import { createMCPBridge } from 'bare-agent/mcp';
++import { homedir } from 'node:os';
++import { join } from 'node:path';
++
++export const SIGNED_TOOLS = ['issue_read'];
++export async function fetchTicketMcp(url, { log } = {}) {
++  const m = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/.exec(String(url).trim());
++  if (!m) return { ok: false, error: `${url} is not a GitHub issue address` };
++  let bridge;
++  try {
++    bridge = await createMCPBridge({ configPaths: [join(homedir(), '.mcp.json')], timeout: 90000, callTimeout: 90000, confirmServer: () => true, allow: { github: SIGNED_TOOLS } });
++    const tools = bridge.tools.map((t) => t.name);
++    log?.({ exposed: tools, missing: bridge.missing });
++    const tool = bridge.tools.find((t) => t.name === 'github_issue_read');
++    if (!tool || tools.length !== 1) return { ok: false, error: `signed tool issue_read is not exposed alone (exposed: ${tools.join(', ') || 'none'})` };
++    log?.({ call: 'issue_read', owner: m[1], repo: m[2], issue_number: Number(m[3]) });
++    const r = await tool.execute({ method: 'get', owner: m[1], repo: m[2], issue_number: Number(m[3]) });
++    const text = typeof r === 'string' ? r : (r?.content ?? []).map((c) => c.text ?? '').join('');
++    if (!text) return { ok: false, error: `issue_read returned nothing for ${url}` };
++    return { ok: true, text, url };
++  } catch (e) { return { ok: false, error: `MCP read of ${url} failed: ${String(e?.message).slice(0, 200)}` }; }
++  finally { try { await bridge?.close(); } catch { /* closed */ } }
++}
