@@ -21,6 +21,7 @@ import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
+import { ticketSourcesOf, ticketFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
 import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
@@ -129,10 +130,12 @@ const SHAPE_PROPS = Object.freeze({
 /**
  * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
  * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
- * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>}} [o]
+ * M12 piece 3: `ticket` = `{servers}` when the job signs a ticket list; then the tool may also carry `mcp`, `ticketFilter` and a step's `mcpTools` (src/ticket-draft.js).
+ * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {servers: string[]}}} [o]
  */
-export function buildDeclarationSchema(menu, { sheets } = {}) {
+export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
   const sheetProp = sheets ? sheetChecksProp(sheets) : null;
+  const ticketParts = ticket ? ticketSchemaParts(ticket.servers) : null;
   const shapeProps = {};
   for (const key of SHAPE_KEYS) {
     if (!SHAPE_PROPS[key]) throw new Error(`schema: SHAPE_KEYS gained "${key}" — add its type to SHAPE_PROPS`);
@@ -152,6 +155,7 @@ export function buildDeclarationSchema(menu, { sheets } = {}) {
               items: { type: 'string', enum: menu.map((e) => e.verb) },
               description: 'verbs this step is granted, from the menu only; [] for a pure stop',
             },
+            ...(ticketParts ? ticketParts.step : {}),
             reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only (an ask step lists the earlier output to be checked FIRST), or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
             emits: { type: 'string', minLength: 1, description: 'the ONE new artifact id this step declares (unique)' },
             fromLine: { type: ['integer', 'null'], description: 'the ONE numbered job line this step serves' },
@@ -182,6 +186,7 @@ export function buildDeclarationSchema(menu, { sheets } = {}) {
           additionalProperties: false,
         },
       },
+      ...(ticketParts ? ticketParts.top : {}),
       guardrailClasses: {
         type: 'object',
         additionalProperties: { type: 'string', enum: [...CLASSES] },
@@ -239,9 +244,9 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined}} [o] */
-export function buildRoundSchema(menu, { questions = false, sheets = undefined } = {}) {
-  const s = buildDeclarationSchema(menu, { sheets });
+/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {servers: string[]}}} [o] */
+export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticket = undefined } = {}) {
+  const s = buildDeclarationSchema(menu, { sheets, ticket });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
   if (questions) {
     extra.questions = {
@@ -429,6 +434,7 @@ export async function draft({
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
   draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
   learnHints = /** @type {{text: string, ids: string[]}|null} */ (null),
+  mcpServers = /** @type {string[]|undefined} */ (undefined),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -454,6 +460,10 @@ export async function draft({
   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
   const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
   if (!fileFacts.ok) return fail(fileFacts.reds);
+  // M12 piece 3: a GitHub issues list is a ticket role, not a page: never fetched at draft; the drafter is told it exists and may suggest the job's MCP tools and label filter
+  const ticketSources = ticketSourcesOf(arbiter.sources);
+  const servers = ticketSources.length ? (mcpServers ?? userMcpServers()) : [];
+  if (ticketSources.length && servers.length === 0) return fail([`input "${ticketSources[0].role}": a ticket list is read through an MCP server, and ~/.mcp.json names none`]);
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
@@ -496,7 +506,7 @@ export async function draft({
 
   // M10 item 1: a web page input is fetched once and frozen into the DRAFT folder (the drafting copy). A run freezes its own copy at its own start
   // (`freezeInputs`), so a run is never checked against this one. Only now, after the $0 price and cap gates: a draft refused for money fetches nothing.
-  const pageSources = (arbiter.sources ?? []).filter((s) => s.kind === 'page');
+  const pageSources = (arbiter.sources ?? []).filter((s) => s.kind === 'page' && !ticketSources.includes(s));
   /** @type {Record<string, {text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}>} */
   const pages = {};
   if (pageSources.length) {
@@ -507,7 +517,7 @@ export async function draft({
       pages[s.role] = { text: fr.text, entry: fr.entry };
     }
   }
-  const facts = readInputFacts(arbiter.sources, { pages });
+  const facts = readInputFacts((arbiter.sources ?? []).filter((s) => !ticketSources.includes(s)), { pages });
   if (!facts.ok) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((pg) => pg.entry.frozen)); return fail(facts.reds); }
 
   // M10 item 3: ONE map call per page input names the page's own words; code keeps what the saved page proves. Every round goes through the
@@ -656,7 +666,8 @@ export async function draft({
     }
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
-  const factsInfo = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
+  const factsBase = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
+  const factsInfo = [...factsBase, ...ticketSources.flatMap((s) => ticketFactsLines(s.role, servers))];
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
   // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
@@ -689,7 +700,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables });
+    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: ticketSources.length ? { servers } : undefined });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -780,12 +791,14 @@ export async function draft({
       });
     }
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
-    const verdict = validateDeclaration(declaration, {
+    const verdict0 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
+    const ticketRed = ticketSources.length ? ticketReds(declaration, ticketSources, servers) : [];
+    const verdict = ticketRed.length ? { ok: false, reds: [...(verdict0.ok ? [] : verdict0.reds), ...ticketRed] } : verdict0;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
