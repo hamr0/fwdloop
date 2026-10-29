@@ -182,6 +182,10 @@ const FIELD_META = {
   mcpTools: {
     level: 'step', required: false, needle: 'mcpTools', retype: () => 'issue_read', invalid: () => ['issue_read'],
   },
+  // M12 piece 3: the signed label filter (top), optional
+  ticketFilter: {
+    level: 'top', required: false, needle: 'ticketFilter', retype: () => 'P2', invalid: () => ({ priority: [] }),
+  },
   class: {
     level: 'close', required: false, needle: 'class', retype: () => 42, invalid: () => 'nonsense',
   },
@@ -292,6 +296,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'picks', level: 'step' },
   { field: 'mcp', level: 'top' },
   { field: 'mcpTools', level: 'step' },
+  { field: 'ticketFilter', level: 'top' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
   { field: 'cited', level: 'close' },

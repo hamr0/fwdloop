@@ -59,6 +59,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'refused',
   'inputFacts',
   'mcp',
+  'ticketFilter',
   // step level
   'goal',
   'primitives',
@@ -84,7 +85,7 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'ticketFilter']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
 const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
 
@@ -116,6 +117,32 @@ function checkMcp(declaration, reds) {
     }
   }
   return reds.length === before ? m.tools : null;
+}
+
+/** M12 piece 3 (item 4): the signed label filter, `ticketFilter: {priority?: ['P0'..'P3'], labels?: [names]}`; optional, and only on a job that lists MCP tools.
+ *  Pure data: code decides at run (src/ticket-labels.js); the drafter may only suggest it and a human signs it.
+ *  @param {Record<string, any>} declaration @param {string[]} reds */
+function checkTicketFilter(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'ticketFilter')) return;
+  const f = declaration.ticketFilter;
+  if (!isPlainObject(f) || Object.keys(f).length === 0) {
+    reds.push('declaration: "ticketFilter" must be an object with "priority" and/or "labels"');
+    return;
+  }
+  if (!Object.hasOwn(declaration, 'mcp')) reds.push('declaration: "ticketFilter" filters tickets read through the job\'s "mcp" tools, but the job lists no "mcp" server');
+  for (const key of Object.keys(f)) {
+    if (key !== 'priority' && key !== 'labels') reds.push(`declaration: unknown key "${key}" at declaration.ticketFilter.${key}`);
+  }
+  for (const [key, ok] of [['priority', (v) => /^P[0-3]$/.test(v)], ['labels', (v) => v.trim() !== '' && v.length <= 100]]) {
+    if (!Object.hasOwn(f, key)) continue;
+    if (!Array.isArray(f[key]) || f[key].length === 0) { reds.push(`declaration: ticketFilter.${key} must be a non-empty list`); continue; }
+    const seen = new Set();
+    for (const v of f[key]) {
+      if (typeof v !== 'string' || !ok(v)) reds.push(`declaration: ticketFilter.${key} names ${JSON.stringify(v)}, which is not ${key === 'priority' ? 'a priority from P0 to P3' : 'a label name (1 to 100 characters)'}`);
+      else if (seen.has(v.toLowerCase())) reds.push(`declaration: ticketFilter.${key} names "${v}" twice`);
+      else seen.add(v.toLowerCase());
+    }
+  }
 }
 
 /** @returns {value is Record<string, any>} */
@@ -724,6 +751,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // --- M12 piece 1a: the job's MCP tools (optional) -------------------------------
   const mcpTools = checkMcp(declaration, reds);
+  checkTicketFilter(declaration, reds);
 
   // --- steps ------------------------------------------------------------------
   const emitSeen = new Set();
