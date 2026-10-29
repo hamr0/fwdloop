@@ -85,7 +85,7 @@ export const ANYWAY_REASON_MAX = 500;
 export function ticketAnyway({ body, listOf, queue }) {
   const b = body !== null && typeof body === 'object' ? body : {};
   const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
-  if (reason === '') return { status: 400, body: { ok: false, refused: 'reason-required', say: 'Write why you want it to run, then press Run it anyway. Nothing started.' } };
+  if (reason === '') return { status: 400, body: { ok: false, refused: 'reason-required', say: 'Please write a reason to run it anyway.' } };
   if (reason.length > ANYWAY_REASON_MAX) return { status: 400, body: { ok: false, refused: 'reason-too-long', say: `Keep the reason under ${ANYWAY_REASON_MAX} characters. Nothing started.` } };
   if (typeof b.flow !== 'string' || typeof b.runId !== 'string' || !Number.isInteger(b.number)) return { status: 400, body: { ok: false, refused: 'bad-request', say: 'Name the job, the run and the ticket number. Nothing started.' } };
   const list = listOf(b.flow, b.runId);

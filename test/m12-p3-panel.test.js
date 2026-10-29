@@ -76,7 +76,13 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   const c = o.chrome;
   await c.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
   await c.ev('document.querySelector("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").click()');
-  assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").disabled'), true, 'no reason, no Queue it');
+  assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").disabled'), true, 'no reason, no Run it anyway');
+  assert.deepEqual(calls, []);
+  assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").placeholder'), 'reason (needed to run it anyway)');
+  assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").getAttribute("aria-label")'), 'reason (needed to run it anyway)');
+  assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").textContent'), 'Run it anyway');
+  await c.ev('var g0 = document.querySelector("[data-testid=ticket-anyway-go]"); g0.disabled = false; g0.click()');
+  assert.equal(await c.ev('document.getElementById("ticket-msg").textContent'), 'Please write a reason to run it anyway.');
   assert.deepEqual(calls, []);
   await c.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.value = "   "; ta.dispatchEvent(new Event("input", {bubbles: true}))');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").disabled'), true, 'spaces are no reason');

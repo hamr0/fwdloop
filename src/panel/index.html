@@ -2593,8 +2593,8 @@
     }
     h += '</div>';
     if(r.group === "skip" && ticketUi.anyway && ticketUi.anyway.number === r.number){
-      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="why this ticket should run anyway" placeholder="why run it anyway? (required)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
-        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Queue it</button></div>';
+      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
+        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
     }
     return h + '</div>';
   }
@@ -2641,7 +2641,7 @@
         ta.addEventListener("input", function(){ ticketUi.anyway.text = ta.value; go.disabled = ta.value.trim() === ""; });
         go.addEventListener("click", function(){
           var a = ticketUi.anyway;
-          if(!a || a.text.trim() === ""){ ticketUi.msg = "Write why you want it to run, then press Queue it. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
+          if(!a || a.text.trim() === ""){ ticketUi.msg = "Please write a reason to run it anyway."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
           go.disabled = true;
           postJSON("/api/author/ticket-anyway", { flow: data.flow, runId: data.runId, number: a.number, reason: a.text.trim() }).then(function(r){
             var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
