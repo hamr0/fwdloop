@@ -4520,3 +4520,22 @@ P2 the refusal names the tool: the red text contains `list_issues` (case-sensiti
 P3 no MCP server started: no `mcp-calls.jsonl` row (and no `github` bridge process, read from the run's own record) for H1-H4; `canrun.js` imports no MCP code.
 **INCONCLUSIVE rule.** If the field cannot be expressed in a declaration at all (the scratch ignores it), P1 and P2 are FAIL on the letter, and the RESULT records what the build needs.
 **Not tested here.** Signing a job with signed MCP tools (the real signed-text form is not built), a tool signed but unused by steps because the scheduler uses it (the signed Done-when has `list_issues` for the trigger and `issue_read` for the step), the panel's page for a refusal.
+
+### F105 RESULT (run 2026-10-29, F100 scratch copy of 44573b1 + scratch.diff, code unchanged, $0, no model call, no MCP server started)
+
+[MEASURED] Evidence in `poc/mcp/f105/` (`h105.mjs`, `h105.out`, `cli.out`). Flow `f105` = a copy of the signed f100 files with `"mcpTools": ["issue_read","list_issues"]` added to `declaration.json`; NOT signed (the hash then mismatches). `flows/f100` and `flows/f102` untouched. The preflight function was called directly (as F92 h6 / F100 h100 did).
+
+| Case | Result |
+|---|---|
+| H3 control, f100 declaration | `canFlowRun` = `{ok:true}` |
+| H1 declaration with `mcpTools` incl. unused `list_issues` | `canFlowRun` = `{ok:true}` (accepted, nothing read the field) |
+| H2 control, a step granting verb `notWired` | `{ok:false, red:'preflight: step "ticket_digest" (line 1) grants verb "notWired", which has no wired implementation'}` |
+| H4 `readFlow` / CLI `run f105` on the edited copy | refused: `signature: declaration.json does not match its signed hash ...; changed since signing: the plan changed` (exit 1; this is the tamper door, not the tested refusal; no history row, no run folder content, no `mcp-calls.jsonl`, no spend/audit file) |
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| P1 refused at preflight at $0 | FAIL on the letter | H1 returns ok:true: a declared MCP tool no step uses is silently accepted. The only refusal in H4 is the signature mismatch caused by my edit, not the unwired tool. |
+| P2 names the tool | FAIL | No refusal for H1; the H4 text does not contain `list_issues`. |
+| P3 no MCP server started | PASS | No `mcp-calls.jsonl` anywhere in the scratch for H1-H4; `canrun.js` imports no MCP code (it imports only `primitives.js` and `closers.js`); the freeze step that starts the bridge is never reached. |
+
+**What the build needs.** (1) The declaration needs a typed place for the signed MCP tools (today the list is the constant `SIGNED_TOOLS` in the scratch `ticket-mcp.js`; `declaration.js` has no such field). (2) `canFlowRun` needs one more finder beside `findUnwiredVerbStep`, same shape and same sentence style: a signed tool that no step grants and the scheduler does not use is refused with `preflight: signed tool "list_issues" is granted to no step`, and a signed tool the server does not mark read-only is refused by name too. (3) Open ruling for hamr, not mine: the signed Done-when signs both `issue_read` (the step) and `list_issues` (the trigger), so "used" must count the scheduler as a user, or `list_issues` would always refuse; item 12's "declared tool the job never wired" needs that definition. The verb refusal (H2) already works and is the model to copy.

@@ -1,0 +1,4 @@
+H3 control f100 declaration {"ok":true}
+H1 mcpTools [issue_read,list_issues] {"ok":true}
+H2 control unwired verb {"ok":false,"red":"preflight: step \"ticket_digest\" (line 1) grants verb \"notWired\", which has no wired implementation"}
+H4 readFlow edited copy {"ok":false,"reds":["signature: declaration.json does not match its signed hash (signed 5c973a1233b0…, found 39eefdc2e785…)","changed since signing: the plan changed (declaration.json)"]}
