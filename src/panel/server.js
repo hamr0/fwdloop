@@ -60,8 +60,9 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
+import { ticketAnyway } from './tickets.js';
 import { createResumer } from './resume.js';
 import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
@@ -371,6 +372,20 @@ function authorPost(res, url, body, author) {
 }
 
 /**
+ * M12 piece 3: `POST /api/author/ticket-anyway` — queue a skipped ticket as a new arrival after a short reason (src/panel/tickets.js decides every refusal).
+ * The queue is the schedule builder's seam: `createPanelServer({ticketQueue: {arriveAnyway}})`; absent = a plain "not connected" refusal.
+ * @param {any} res @param {any} body @param {any} opts
+ */
+function ticketAnywayRoute(res, body, opts) {
+  const loaded = loadCatalogue();
+  if (!loaded.ok) { refuse(res, 500, 'catalogue', 'the catalogue failed to load'); return; }
+  const r = ticketAnyway({
+    body, listOf: (flow, runId) => getTicketList({ root: opts.root, flow, runId, catalogue: loaded.primitives }), queue: opts.ticketQueue,
+  });
+  sendJson(res, r.status, r.body);
+}
+
+/**
  * Handle one request against the API + the page. Exported
  * separately from {@link createPanelServer} so tests can drive it without a
  * real listening socket where that is simpler.
@@ -433,6 +448,7 @@ export function handleRequest(req, res, opts) {
         if (tooBig) return;
         let body;
         try { body = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { refuse(res, 400, 'body-not-json'); return; }
+        if (isAuthorPost && req.url === '/api/author/ticket-anyway') { ticketAnywayRoute(res, body, opts); return; }
         if (isAuthorPost) { authorPost(res, String(req.url), body, opts.author); return; }
         if (isSettingsPost) { settingsReply(res, opts.settings.handle({ method, pathname: String(req.url), query: new URLSearchParams(), body })); return; }
         if (isResume) resumeRoute(res, body, opts.root, opts.resumer);
@@ -639,7 +655,7 @@ export function handleRequest(req, res, opts) {
 /**
  * `GET /api/whoami` body (borrowed-from: bareloop src/panel/server.js@cb2e8a7 whoamiPayload, commit 98cbb1c version read at start).
  * Adapted: app 'fwdloop'; `drafts` = `author.openDrafts()` (the open drafting card), `schedules` = the live schedules `author.trigger.scan()` finds.
- * @param {{ port: number, version?: string|null, startedAt?: string, packagePath?: string, author?: ReturnType<typeof createAuthor> }} opts
+ * @param {{ port: number, version?: string|null, startedAt?: string, packagePath?: string, author?: ReturnType<typeof createAuthor>, ticketQueue?: {arriveAnyway?: Function} }} opts
  */
 function whoamiPayload(opts) {
   const drafts = opts.author ? opts.author.openDrafts() : 0;
@@ -679,7 +695,7 @@ export function panelUrl(boundPort) {
  * header). Resolves once actually listening; rejects on a bind error
  * (including `EADDRINUSE`) with a `.port` field on the error for the
  * caller's message.
- * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number } }} opts
+ * @param {{ port?: number, root: string, packagePath?: string, settings?: { home?: string, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }, resume?: { env?: Record<string,string|undefined>, bin?: string, logDir?: string, maxTries?: number, windowMs?: number, slotMs?: number }, author?: { env?: Record<string,string|undefined>, loadEnv?: () => any, bin?: string, now?: () => number }, scheduler?: { intervalMs?: number, mcpConfig?: string } }} opts
  *   `resume` and `author` are for tests only (a fake env/bin, a short retry window); the CLI passes none.
  * @returns {Promise<{ server: import('node:http').Server, port: number, tick: () => void, close: () => Promise<void> }>}
  */
@@ -704,7 +720,7 @@ export function createPanelServer(opts) {
   });
   // M9: the scheduler runs the clock and the file watch while this server is up (item 3). The clock is the author's `now` (tests inject one);
   // `scheduler.intervalMs` 0 = no timer, a test calls `tick`. Stopped on close.
-  const scheduler = createScheduler({ door: author.trigger, now: opts.author?.now, intervalMs: opts.scheduler?.intervalMs });
+  const scheduler = createScheduler({ door: author.trigger, now: opts.author?.now, intervalMs: opts.scheduler?.intervalMs, mcpConfig: opts.scheduler?.mcpConfig });
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
@@ -720,7 +736,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now,
+          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: opts.ticketQueue,
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

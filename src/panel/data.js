@@ -47,6 +47,7 @@ import {
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
+import { ticketListOf } from './tickets.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readLearningsRecord } from '../flowmodel.js';
 import { readRunThinking } from '../runfile.js';
@@ -2224,12 +2225,31 @@ export function getRunResult({
   const { run, ctx } = got;
   const sig = ctx.flowRead.signature;
   const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null, ctx.flowRead.lines, csvRolesOf(ctx.arbiter));
-  return buildResult({
+  const result = buildResult({
     flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items, readNotes: plan.notChecked.readNotes,
     setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
     door: resultDoorOf(getRunAsks({
       root, flow, runId, catalogue, resumeAttempt, now,
     })),
+  });
+  // M12 piece 3 (item 9): the run a ticket schedule was set from also carries the ticket list (null for every other run)
+  const tickets = getTicketList({
+    root, flow, runId, catalogue,
+  });
+  return tickets === null ? result : { ...result, tickets };
+}
+
+/**
+ * M12 piece 3: the ticket list of the run a ticket schedule was set from (the Result tab's, and `Run it anyway`'s check), or null.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ */
+export function getTicketList({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  return ticketListOf({
+    flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }),
   });
 }
 
