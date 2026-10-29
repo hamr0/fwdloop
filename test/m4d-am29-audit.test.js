@@ -170,22 +170,26 @@ for (const width of [1280, 390, 320]) {
     const G = 'document.querySelector("[data-testid=audit-grid-resume-summary]")';
     // the grid: rows are the step's checks by number, columns the tries, each column head the try, its glyph and its thinking words
     assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("thead th")).map(function(e){ return e.textContent.replace(/\\s+/g, " "); })`), ['check', 'try 1 ✗thinking off', 'try 2 ✓thinking on', 'try 3 ✓thinking on']);
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody td.q")).map(function(e){ return e.textContent.slice(0, 20); })`), ['1 the output exists ', '2 the model said don', '3 the answer has onl', '4 at most 600 words', '5 the sections are t']);
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr")).map(function(tr){ return Array.from(tr.querySelectorAll("td.c")).map(function(c){ return c.textContent; }).join(""); })`), ['✓✓✓', '✓✓✓', '✓✓✓', '✗✓✓', '✗✓✓']);
-    assert.equal(await chrome.ev(`${G}.querySelector("td.q[title]").getAttribute("title")`), 'every step', 'a check says which job line it serves on hover');
-    // the errors list: try 1 is the only red try, so it is the open one; its text is the try's gap
-    assert.match(await chrome.ev(`${G}.querySelector(".fx-errors").innerText`), /^ERRORS\s+▾\s+try 1\s+#4 ✗ \+1 more check\s+705 words, limit 600; no line is exactly/);
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody td.q")).map(function(e){ return e.textContent.slice(0, 20); })`), ['every step: exists, ', '3 the answer has onl', '4 at most 600 words', '5 the sections are t']);
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.step-sub)")).map(function(tr){ return Array.from(tr.querySelectorAll("td.c")).map(function(c){ return c.textContent; }).join(""); })`), ['✓✓✓', '✓✓✓', '✗✓✓', '✗✓✓']);
+    assert.equal(await chrome.ev(`${G}.querySelector("td.q[title]").getAttribute("title")`), 'line 3 ~', 'a check says which job line it serves on hover (the every-step row names itself, it has no line)');
+    // the errors list (M4d am36 item 4): try 1 is the only red try, so it is the open one; one line `try 1 ✗ <first line>`, then the try's gap
+    assert.match(await chrome.ev(`${G}.querySelector(".fx-errors").innerText`), /^ERRORS\s+▾\s+try 1\s+✗\s+705 words, limit 600; no line is exactly/);
     assert.equal(await chrome.ev(`${G}.querySelectorAll("button.fx-rowhead[aria-expanded=true]").length`), 1);
     await chrome.ev(`${G}.querySelector("button.fx-rowhead").click()`);
     assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-body").length`), 0, 'a click on the row folds it');
     await chrome.ev(`${G}.querySelector("button.cell.fail").click()`);
     assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-body").length`), 1, 'a click on a ✗ cell opens the try\'s row');
-    assert.match(await chrome.ev(`${G}.innerText`), /try 1 · output judged: artifacts\/resume-summary\.json · .+ · sha256 [0-9a-f]{4}…[0-9a-f]{2}/);
+    // M4d am36 item 5: `output judged` shows ONCE, for the last try; the `all tries` fold lists every try's
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=audit-judged]")).filter(function(e){ return !e.closest("details"); }).map(function(e){ return e.textContent.slice(0, 6); })`), ['try 3 ']);
+    assert.match(await chrome.ev(`${G}.querySelector("[data-testid=audit-judged]").textContent`), /^try 3 · output judged: artifacts\/resume-summary\.json · .+ · sha256 [0-9a-f]{4}…[0-9a-f]{2}$/);
+    assert.equal(await chrome.ev(`${G}.querySelector("[data-testid=judged-all] > summary").textContent`), 'all tries');
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=judged-all] .audit-judged")).map(function(e){ return e.textContent.slice(0, 6); })`), ['try 1 ', 'try 2 ', 'try 3 ']);
     // the rounds, one fold per try, built on its first open, 20 rows a page
     assert.match(await chrome.ev(`${G}.querySelector(".audit-fold-label").textContent`), /^rounds per try$/);
     assert.equal(await chrome.ev(`${G}.querySelectorAll("table.rounds-table").length`), 0, 'nothing built until a fold opens');
-    assert.match(await chrome.ev(`${G}.querySelectorAll("details.rounds-fold > summary")[1].textContent`), /^try 2 rounds \(\d+ calls?\)$/);
-    await chrome.ev(`${G}.querySelectorAll("details.rounds-fold > summary")[1].click()`);
+    assert.match(await chrome.ev(`${G}.querySelectorAll("details[data-fxrounds] > summary")[1].textContent`), /^try 2 rounds \(\d+ calls?\)$/);
+    await chrome.ev(`${G}.querySelectorAll("details[data-fxrounds] > summary")[1].click()`);
     assert.ok(await chrome.waitFor(`${G}.querySelector("[data-testid=rounds-table-resume-summary-try-2]")`, 5000));
     assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=rounds-table-resume-summary-try-2] th")).map(function(e){ return e.textContent; })`), ['Round', 'Try', 'Action', 'Path', 'Decision', 'Time']);
     const pager = `${G}.querySelector("[data-testid=rounds-pager]").textContent`;

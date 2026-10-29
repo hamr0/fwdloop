@@ -523,6 +523,21 @@
   .fx-lines div{margin:1px 0;overflow-wrap:anywhere;}
   .fx-judged{overflow-wrap:anywhere;}
   .fx-more{margin-top:4px;min-height:28px;padding:2px 8px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);font-size:12px;}
+  /* M4d am36: the hints row and its text, the folded every-step row (mock: fwd-audit-grid-mock.html, variant A) */
+  .btn.hints[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn.hints:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .cell.none{color:var(--text-faint);cursor:default;font-weight:400;}
+  tr.hint-row td{color:var(--text-faint);}
+  .fx-row.hintrow.open>.fx-rowhead{background:var(--panel2);}
+  .fx-row.hintrow .fx-body{border-left-color:var(--accent);background:var(--panel2);}
+  .fx-row.hintrow .fx-try{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+  .fx-lines div.ind{margin-left:16px;}
+  button.q-fold{border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;padding:0;min-height:32px;width:100%;overflow-wrap:anywhere;cursor:pointer;}
+  button.q-fold::before{content:"\25B8  ";color:var(--text-faint);white-space:pre;}
+  button.q-fold[aria-expanded="true"]::before{content:"\25BE  ";}
+  tr.step-sub td{background:var(--panel2);font-size:12px;color:var(--text-dim);padding:4px 8px;}
+  .sub-line{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+  .sub-line .marks{margin-left:auto;white-space:nowrap;}
   .step-card .step-head .who{font-weight:700;font-size:11px;}
   .step-card .step-head .who.model{color:var(--cyan);} .step-card .step-head .who.human{color:var(--magenta,#9854f1);}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
@@ -3390,22 +3405,6 @@
     if(testId) e.setAttribute("data-testid", testId);
     return e;
   }
-  // M8 am7 item 4: this try was handed the earlier runs' block - one line, a click opens the exact text (the learnings box's own fold classes); null when nothing was handed
-  function foldHintsEl(t, stepKey){
-    if(!t.hints || !t.hints.text) return null;
-    var hk = "\u0000hints:" + stepKey + ":" + t.n;
-    var hpart = foldEl("div", "audit-part", null, "audit-try-hints");
-    var hhead = foldEl("button", "btn audit-part-toggle", "told from earlier runs \u00B7 " + t.hints.n + (t.hints.n === 1 ? " hint" : " hints"), "audit-try-hints-head");
-    hhead.type = "button";
-    var hbody = foldEl("div", "audit-part-body", null, "audit-try-hints-text");
-    hbody.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0";
-    hbody.textContent = t.hints.text;
-    var paintHints = function(open){ hbody.hidden = !open; hhead.setAttribute("aria-expanded", open ? "true" : "false"); };
-    paintHints(auditExpanded[hk] === true);
-    hhead.addEventListener("click", function(ev){ ev.stopPropagation(); var open = hbody.hidden; auditExpanded[hk] = open; paintHints(open); });
-    hpart.appendChild(hhead); hpart.appendChild(hbody);
-    return hpart;
-  }
   // an ask step's try: the answer and the file it was about (a model step's tries are the grid's columns)
   function foldTryEl(t){
     var wrap = document.createElement("div");
@@ -3461,8 +3460,7 @@
     more();
     return wrap;
   }
-  // The Audit check grid: one grid per model step (rows = the step's checks by their number, columns = tries), under it an "errors" list (one row per try
-  // that failed or has no verdict), then the rounds folded per try. Every word comes from the server's `fold` (src/audit-fold.js: `tries`, `rows`); the page
+  // The Audit check grid: one grid per model step (rows = the step's checks by their number, columns = tries), under it an "errors" area (one line per red try, plus any hints text opened), then the rounds folded per try. Every word comes from the server's `fold` (src/audit-fold.js: `tries`, `rows`); the page
   // types none of them. A check is the same row in every try by its NUMBER (#1 output exists, #2 done, #3 and up the close's checks, src/try-checks.js).
   // borrowed-from: bareloop src/panel/index.html@c79d396 (gridGlyph, gridPlural, gridCellOf, gridFailsOf, gridDefaultOpen, gridTableHtml, gridErrorsHtml, gridRoundsHtml, renderGridErrors, the
   // click wiring), adapted: fwdloop's try/check shape (`fold.tries[].checks`), its `.mark` glyph colours, the failing lines are the try's gap, rounds come from the fold's own rows.
@@ -3479,31 +3477,37 @@
     return typeof gap === "string" ? gap.split("\n").filter(function(l){ return l.trim() !== ""; }) : [];
   }
   // a graded try (`fold.tries[i]`) as one grid column. The lines of its gap belong to its first failing check (all of the close's lines are one text; none is guessed per check).
+  // `red` = that first failing check with the try's error lines (the errors list's one line per red try); null when no check failed.
   function gridTryOf(t){
     var out = {
-      n: t.n, glyph: t.mark, hint: t.thinking || "", noVerdict: null, known: Array.isArray(t.checks) && t.checks.length > 0, inflight: t.mark === "\u00b7",
-      cells: {}, order: [], output: t.output || null, hints: t.hints || null
+      n: t.n, glyph: t.mark, hint: t.thinking || "", noVerdict: null, known: Array.isArray(t.checks) && t.checks.length > 0, inflight: t.mark === "·",
+      cells: {}, order: [], output: t.output || null, hints: t.hints && t.hints.text ? t.hints : null, red: null
     };
     if(out.known){
-      var failSeen = false;
       t.checks.forEach(function(c){
-        var cell = { name: String(c.n), n: c.n, question: c.text, source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null, reasons: [] };
-        if(!c.ok && !failSeen){ failSeen = true; cell.reasons = gridGapLines(t.gap); }
+        var cell = { name: String(c.n), n: c.n, question: c.text, source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
+        if(!c.ok && !out.red){
+          var lines = gridGapLines(t.gap);
+          out.red = { lines: lines.length ? lines : [c.text] };
+        }
         out.cells[cell.name] = cell;
         out.order.push(cell.name);
       });
-    } else if(t.mark === "\u2717"){
+    } else if(t.mark === "✗"){
       // red with no check record: no check ran, so no verdict; its own gap words stay
       out.glyph = "?";
       out.noVerdict = gridGapLines(t.gap)[0] || "no verdict";
     }
     return out;
   }
+  // rows: checks #1 and #2 are ONE row `every step: exists, done` (`parts` = the two checks, for its fold); #3 and up are one row each, by number
   function gridModelOf(f){
     var tries = (f.tries || []).map(gridTryOf);
     var byN = {};
     tries.forEach(function(t){ t.order.forEach(function(nm){ if(!byN[nm]) byN[nm] = t.cells[nm]; }); });
-    var rows = Object.keys(byN).map(function(nm){ return { n: byN[nm].n, name: nm, question: byN[nm].question, source: byN[nm].source }; }).sort(function(a, b){ return a.n - b.n; });
+    var rows = Object.keys(byN).filter(function(nm){ return byN[nm].n > 2; }).map(function(nm){ return { n: byN[nm].n, name: nm, question: byN[nm].question, source: byN[nm].source }; }).sort(function(a, b){ return a.n - b.n; });
+    var parts = [byN["1"], byN["2"]].filter(Boolean);
+    if(parts.length) rows.unshift({ n: 1, every: true, parts: parts });
     var rounds = {};
     (f.rows || []).forEach(function(r){ (rounds[r.try] = rounds[r.try] || []).push(r); });
     tries.forEach(function(t){
@@ -3512,75 +3516,99 @@
     });
     return { tries: tries, rows: rows };
   }
-  // one cell: pass, fail, not run (the done check halted before the rest) or no verdict
+  // one cell: pass, fail, not run (the done check halted before the rest) or no verdict. The every-step row fails when either of its two checks failed.
   function gridCellOf(t, row){
     if(t.noVerdict) return { s: "unk" };
+    if(row.every){
+      var cs = ["1", "2"].map(function(nm){ return t.cells[nm]; }).filter(Boolean);
+      if(cs.some(function(c){ return c.status === "fail"; })) return { s: "fail" };
+      if(cs.length === 2) return { s: "pass", number: cs.map(function(c){ return c.number; }).filter(Boolean).join(" · ") };
+      if(cs.length === 0 && !t.known) return { s: t.inflight ? "notrun" : "unk" };
+      return { s: "notrun" };
+    }
     var c = t.cells[row.name];
     if(c) return { s: c.status, number: c.number };
     if(!t.known) return { s: t.inflight ? "notrun" : "unk" };
     return { s: "notrun" };
   }
-  // a try's failing checks with their output lines, in row order (none for a try with no verdict)
-  function gridFailsOf(model, t){
-    if(t.noVerdict) return [];
-    return model.rows.filter(function(r){ var c = t.cells[r.name]; return !!c && c.status === "fail"; }).map(function(r){
-      return { row: r, reasons: t.cells[r.name].reasons || [] };
-    });
-  }
-  // default on load: only the LAST failed try's row is open
+  // default on load: only the LAST red try's row is open; no hints are
   function gridDefaultOpen(model){
     var open = {};
     var last = null;
-    model.tries.forEach(function(t){ if(gridFailsOf(model, t).length > 0) last = t.n; });
+    model.tries.forEach(function(t){ if(t.red) last = t.n; });
     if(last !== null) open[last] = true;
     return open;
   }
+  function gridHintsWord(h){ return h.n + (h.n === 1 ? " hint" : " hints"); }
   function gridTableHtml(pid, model){
     if(model.rows.length === 0) return "";
     var head = '<tr><th class="q">check</th>' + model.tries.map(function(t){
       return '<th class="t">try ' + t.n + " " + gridGlyph(t.glyph) + (t.hint ? '<span class="hint">' + escapeXml(t.hint) + "</span>" : "") + "</th>";
     }).join("") + "</tr>";
+    var hrow = "";
+    if(model.tries.some(function(t){ return !!t.hints; })){
+      hrow = '<tr class="hint-row"><td class="q">told from earlier runs</td>' + model.tries.map(function(t){
+        return '<td class="c">' + (t.hints ? '<button type="button" class="btn small hints" data-hint="' + t.n + '" aria-expanded="false" aria-controls="fxerr-' + pid + '" title="try ' + t.n + ' · told from earlier runs">' + gridHintsWord(t.hints) + "</button>" : '<span class="cell none">—</span>') + "</td>";
+      }).join("") + "</tr>";
+    }
+    var sub = "";
     var body = model.rows.map(function(r){
       var tds = model.tries.map(function(t){
         var c = gridCellOf(t, r);
         if(c.s === "unk") return '<td class="c"><span class="cell unk" title="try ' + t.n + ': no verdict">' + gridGlyph("?") + "</span></td>";
-        if(c.s === "notrun") return '<td class="c"><span class="cell notrun" title="not run (first-red-wins stopped the close)">' + gridGlyph("\u00b7") + "</span></td>";
-        if(c.s === "pass") return '<td class="c"><span class="cell pass" title="passed' + (c.number ? ": " + escapeXml(c.number) : "") + '">' + gridGlyph("\u2713") + "</span></td>";
-        return '<td class="c"><button type="button" class="cell fail" aria-expanded="false" aria-controls="fxerr-' + pid + '" data-fx="' + t.n + ":" + r.n + '" title="try ' + t.n + ", check #" + r.n + ': failed - click to read its errors">' + gridGlyph("\u2717") + "</button></td>";
+        if(c.s === "notrun") return '<td class="c"><span class="cell notrun" title="not run (first-red-wins stopped the close)">' + gridGlyph("·") + "</span></td>";
+        if(c.s === "pass") return '<td class="c"><span class="cell pass" title="passed' + (c.number ? ": " + escapeXml(c.number) : "") + '">' + gridGlyph("✓") + "</span></td>";
+        return '<td class="c"><button type="button" class="cell fail" aria-expanded="false" aria-controls="fxerr-' + pid + '" data-fx="' + t.n + ":" + r.n + '" title="try ' + t.n + ", " + (r.every ? "every step" : "check #" + r.n) + ': failed - click to read its errors">' + gridGlyph("✗") + "</button></td>";
       }).join("");
+      if(r.every){
+        sub = '<tr class="step-sub" id="fxev-' + pid + '" hidden><td colspan="' + (model.tries.length + 1) + '">' + r.parts.map(function(p){
+          return '<div class="sub-line"><span>' + p.n + " " + escapeXml(p.question) + '</span><span class="marks">' + model.tries.map(function(t){
+            var pc = t.noVerdict ? { s: "unk" } : t.cells[String(p.n)] ? { s: t.cells[String(p.n)].status } : { s: t.known ? "notrun" : "unk" };
+            return gridGlyph(pc.s === "pass" ? "✓" : pc.s === "fail" ? "✗" : pc.s === "notrun" ? "·" : "?");
+          }).join("") + "</span></div>";
+        }).join("") + "</td></tr>";
+        return '<tr><td class="q"><button type="button" class="q-fold" data-every aria-expanded="false" aria-controls="fxev-' + pid + '">every step: exists, done</button></td>' + tds + "</tr>" + sub;
+      }
       return '<tr><td class="q"' + (r.source ? ' title="' + escapeXml(r.source) + '"' : "") + ">" + r.n + " " + escapeXml(r.question) + "</td>" + tds + "</tr>";
     }).join("");
-    return '<div class="grid-wrap audit-table-scroll"><table class="grid fgrid" data-testid="audit-grid-table"><thead>' + head + "</thead><tbody>" + body + "</tbody></table></div>";
+    return '<div class="grid-wrap audit-table-scroll"><table class="grid fgrid" data-testid="audit-grid-table"><thead>' + head + "</thead><tbody>" + hrow + body + "</tbody></table></div>";
   }
-  // the errors list: one row per try that failed or has no verdict; `st` = {open: {tryN: true}, more: {"tryN:checkN": true}}
+  // up to 8 lines of a text, then a button for the rest; `key` names the button's data attribute
+  var GRID_CAP = 8;
+  function gridLinesHtml(lines, more, attr, key){
+    var shown = more ? lines : lines.slice(0, GRID_CAP);
+    return '<div class="fx-lines">' + shown.map(function(l){ return /^\s/.test(l) ? '<div class="ind">' + escapeXml(l.replace(/^\s+/, "")) + "</div>" : "<div>" + escapeXml(l) + "</div>"; }).join("") + "</div>" +
+      (lines.length > GRID_CAP ? '<button type="button" class="fx-more" ' + attr + '="' + key + '">' + (more ? "show first " + GRID_CAP + " only" : "+" + (lines.length - GRID_CAP) + " more lines") + "</button>" : "");
+  }
+  // the exact hints text a try was handed, one div per line (trailing blank lines dropped)
+  function gridHintLines(h){
+    var lines = String(h.text).split("\n");
+    while(lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+    return lines;
+  }
+  // the errors area: the hints texts opened by their buttons, then one line per red try (`try N ✗ <first error line>`).
+  // `st` = {open: {tryN: true}, more: {tryN: true}, hint: {tryN: true}, hmore: {tryN: true}}
   function gridErrorsHtml(pid, model, st){
+    var hrows = model.tries.filter(function(t){ return t.hints && st.hint[t.n]; }).map(function(t){
+      return '<div class="fx-row hintrow open"><button type="button" class="fx-rowhead" id="fxhint-' + pid + "-" + t.n + '" data-hrow="' + t.n + '" aria-expanded="true"><span class="fx-caret">▾</span><span class="fx-try">try ' + t.n + " · told from earlier runs · " + gridHintsWord(t.hints) + '</span></button><div class="fx-body">' +
+        gridLinesHtml(gridHintLines(t.hints), !!st.hmore[t.n], "data-hmore", t.n) + "</div></div>";
+    }).join("");
     var rows = model.tries.map(function(t){
       if(t.noVerdict){
         return '<div class="fx-row fx-row-q"><span class="fx-rowhead"><span class="fx-caret"></span><span class="fx-try">try ' + t.n + '</span><span class="fx-chk">' + gridGlyph("?") + '</span><span class="fx-first fx-faint" title="' + escapeXml(t.noVerdict) + '">' + escapeXml(t.noVerdict) + "</span></span></div>";
       }
-      var fails = gridFailsOf(model, t);
-      if(fails.length === 0) return "";
-      var total = fails[0].reasons.length;
-      var firstLine = fails[0].reasons[0] || fails[0].row.question;
-      var rest = Math.max(0, total - 1);
+      if(!t.red) return "";
+      var lines = t.red.lines;
+      var rest = lines.length - 1;
       var open = !!st.open[t.n];
-      var head = '<button type="button" class="fx-rowhead" id="fxrow-' + pid + "-" + t.n + '" data-fxrow="' + t.n + '" aria-expanded="' + (open ? "true" : "false") + '"><span class="fx-caret">' + (open ? "\u25be" : "\u25b8") +
-        '</span><span class="fx-try">try ' + t.n + '</span><span class="fx-chk">#' + fails[0].row.n + " " + gridGlyph("\u2717") +
-        (fails.length > 1 ? ' <span class="fx-faint">+' + (fails.length - 1) + " more check" + (fails.length > 2 ? "s" : "") + "</span>" : "") +
-        '</span><span class="fx-first" title="' + escapeXml(firstLine) + '">' + escapeXml(firstLine) + "</span>" + (rest ? '<span class="fx-count">(+' + rest + " more)</span>" : "") + "</button>";
-      var body = "";
-      if(open){
-        // fwdloop's close reports ONE text for the try (its gap), not one per check: it is shown once, under no check's name, however many checks failed
-        var f = fails[0];
-        var cap = 8;
-        var ex = !!st.more[t.n + ":" + f.row.n];
-        var shown = ex ? f.reasons : f.reasons.slice(0, cap);
-        body = '<div class="fx-body"><div class="fx-lines">' + shown.map(function(r){ return "<div>" + escapeXml(r) + "</div>"; }).join("") + "</div>" +
-          (f.reasons.length > cap ? '<button type="button" class="fx-more" data-fxmore="' + t.n + ":" + f.row.n + '">' + (ex ? "show first " + cap + " only" : "+" + (f.reasons.length - cap) + " more lines") + "</button>" : "") + "</div>";
-      }
+      var head = '<button type="button" class="fx-rowhead" id="fxrow-' + pid + "-" + t.n + '" data-fxrow="' + t.n + '" aria-expanded="' + (open ? "true" : "false") + '"><span class="fx-caret">' + (open ? "▾" : "▸") +
+        '</span><span class="fx-try">try ' + t.n + '</span><span class="fx-chk">' + gridGlyph("✗") +
+        '</span><span class="fx-first" title="' + escapeXml(lines[0]) + '">' + escapeXml(lines[0]) + "</span>" + (rest ? '<span class="fx-count">(+' + rest + " more)</span>" : "") + "</button>";
+      // fwdloop's close reports ONE text for the try (its gap), not one per check: it is shown once, however many checks failed
+      var body = open ? '<div class="fx-body">' + gridLinesHtml(lines, !!st.more[t.n], "data-fxmore", t.n) + "</div>" : "";
       return '<div class="fx-row' + (open ? " open" : "") + '">' + head + body + "</div>";
     }).join("");
-    return rows ? '<div class="fx-label">errors</div>' + rows : "";
+    return hrows + rows ? '<div class="fx-label">errors</div>' + hrows + rows : "";
   }
   // the rounds, folded per try: each fold builds its own try's rows (20 a page) the first time it opens
   function gridRoundsHtml(model){
@@ -3591,13 +3619,17 @@
         '</summary><div class="rf-body"></div></details>';
     }).join("") + "</div>";
   }
-  // the file a try's checks read (its own `output judged` words): one faint line per try that has one
+  // the file a try's checks read (its own `output judged` words): shown once, for the last try that has one; an `all tries` fold lists every try's
+  function gridJudgedLine(t){
+    var sha = String(t.output.sha256);
+    return '<div class="hint fx-judged audit-judged" data-testid="audit-judged">try ' + t.n + " &middot; output judged: " + escapeXml(t.output.file) + " &middot; " + foldSize(t.output.bytes) + " &middot; sha256 " + escapeXml(sha.slice(0, 4)) + "…" + escapeXml(sha.slice(-2)) + "</div>";
+  }
   function gridJudgedHtml(model){
-    return model.tries.map(function(t){
-      if(!t.output) return "";
-      var sha = String(t.output.sha256);
-      return '<div class="hint fx-judged audit-judged" data-testid="audit-judged">try ' + t.n + " &middot; output judged: " + escapeXml(t.output.file) + " &middot; " + foldSize(t.output.bytes) + " &middot; sha256 " + escapeXml(sha.slice(0, 4)) + "\u2026" + escapeXml(sha.slice(-2)) + "</div>";
-    }).join("");
+    var withOut = model.tries.filter(function(t){ return !!t.output; });
+    if(withOut.length === 0) return "";
+    var html = gridJudgedLine(withOut[withOut.length - 1]);
+    if(withOut.length > 1) html += '<details class="rounds-fold" style="margin-left:0" data-testid="judged-all"><summary>all tries</summary><div class="rf-body">' + withOut.map(gridJudgedLine).join("") + "</div></details>";
+    return html;
   }
   function renderGridErrors(wrap, pid, model, st){
     var host = wrap.querySelector(".fx-errors");
@@ -3607,24 +3639,19 @@
     Array.prototype.forEach.call(wrap.querySelectorAll("[data-fx]"), function(b){
       b.setAttribute("aria-expanded", st.open[b.getAttribute("data-fx").split(":")[0]] ? "true" : "false");
     });
+    Array.prototype.forEach.call(wrap.querySelectorAll("[data-hint]"), function(b){
+      b.setAttribute("aria-expanded", st.hint[b.getAttribute("data-hint")] ? "true" : "false");
+    });
   }
-  // a model step's body below its tally: the grid, the errors list, the judged lines, each try's hints box, then the rounds folds
+  // a model step's body below its tally: the grid (hints row, every-step row, the close's checks), the errors area, the judged line, then the rounds folds
   function buildGridEl(g){
     var pid = String(g.step).replace(/[^A-Za-z0-9_-]/g, "_");
     var model = gridModelOf(g.fold);
-    var st = { open: gridDefaultOpen(model), more: {} };
+    var st = { open: gridDefaultOpen(model), more: {}, hint: {}, hmore: {} };
     var wrap = document.createElement("div");
     wrap.setAttribute("data-fxpart", pid);
     wrap.setAttribute("data-testid", "audit-grid-" + g.step);
     wrap.innerHTML = gridTableHtml(pid, model) + '<div class="fx-errors" id="fxerr-' + pid + '" hidden></div>' + gridJudgedHtml(model);
-    model.tries.forEach(function(t){
-      var hb = foldHintsEl(t, g.step);
-      if(!hb) return;
-      var hw = foldEl("div", null, null, "audit-try-hints-wrap");
-      hw.appendChild(foldEl("div", "hint", "try " + t.n));
-      hw.appendChild(hb);
-      wrap.appendChild(hw);
-    });
     wrap.insertAdjacentHTML("beforeend", gridRoundsHtml(model));
     renderGridErrors(wrap, pid, model, st);
     var toggle = function(tn, force, focusRow){
@@ -3634,6 +3661,33 @@
       if(el && focusRow){ el.scrollIntoView({ block: "nearest" }); el.focus(); } else if(el){ el.focus(); }
     };
     wrap.addEventListener("click", function(e){
+      var hmore = e.target.closest("[data-hmore]");
+      if(hmore){
+        var hk = hmore.getAttribute("data-hmore");
+        st.hmore[hk] = !st.hmore[hk];
+        renderGridErrors(wrap, pid, model, st);
+        var hagain = wrap.querySelector('[data-hmore="' + hk + '"]');
+        if(hagain) hagain.focus();
+        return;
+      }
+      var hrow = e.target.closest("[data-hrow]");
+      if(hrow){
+        var hn = hrow.getAttribute("data-hrow");
+        st.hint[hn] = false;
+        renderGridErrors(wrap, pid, model, st);
+        var hb = wrap.querySelector('[data-hint="' + hn + '"]');
+        if(hb) hb.focus();
+        return;
+      }
+      var hint = e.target.closest("[data-hint]");
+      if(hint){
+        var tn2 = hint.getAttribute("data-hint");
+        st.hint[tn2] = !st.hint[tn2];
+        renderGridErrors(wrap, pid, model, st);
+        var he = document.getElementById("fxhint-" + pid + "-" + tn2);
+        if(he) he.scrollIntoView({ block: "nearest" });
+        return;
+      }
       var more = e.target.closest("[data-fxmore]");
       if(more){
         var key = more.getAttribute("data-fxmore");
@@ -3641,6 +3695,13 @@
         renderGridErrors(wrap, pid, model, st);
         var again = wrap.querySelector('[data-fxmore="' + key + '"]');
         if(again) again.focus();
+        return;
+      }
+      var ev = e.target.closest("[data-every]");
+      if(ev){
+        var sub = document.getElementById("fxev-" + pid);
+        sub.hidden = !sub.hidden;
+        ev.setAttribute("aria-expanded", sub.hidden ? "false" : "true");
         return;
       }
       var row = e.target.closest("[data-fxrow]");
@@ -3651,7 +3712,7 @@
         toggle(tn, st.open[tn] ? false : true, true);
       }
     });
-    Array.prototype.forEach.call(wrap.querySelectorAll("details.rounds-fold"), function(d){
+    Array.prototype.forEach.call(wrap.querySelectorAll("details[data-fxrounds]"), function(d){
       var t = model.tries.filter(function(x){ return x.n === parseInt(d.getAttribute("data-fxrounds"), 10); })[0];
       var built = false;
       d.addEventListener("toggle", function(){

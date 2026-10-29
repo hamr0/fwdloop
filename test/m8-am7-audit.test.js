@@ -1,4 +1,4 @@
-// M8 am7 item 4: on a step's try in Audit, one line `told from earlier runs · N hints`; a click opens the exact text handed; hidden when nothing was handed.
+// M8 am7 item 4 (placed by M4d am36 item 3): a try handed hints has an `N hints` button in the Audit grid's `told from earlier runs` row; a click opens the exact text handed under the grid; no row when nothing was handed.
 // The run is the REAL one (test/m4d-am29-world.mjs: real runner, real model step, a fake provider) with learningHints ON and one real ledger row for job2, so the record,
 // the audit row and the page all come from what the product writes. Server payload first, then the real page in headless chromium at 1280, 390 and 320 (skips when none). $0.
 import assert from 'node:assert/strict';
@@ -76,20 +76,32 @@ async function open(width) {
 }
 
 for (const width of [1280, 390, 320]) {
-  test(`page ${width}px: the line on the tries that were handed hints, a click opens the exact text, nothing spills`, { skip: SKIP && 'no browser' }, async (t) => {
+  test(`page ${width}px: a button on the tries that were handed hints, a click opens the exact text, nothing spills`, { skip: SKIP && 'no browser' }, async (t) => {
     const o = await open(width);
     if (!o) { t.skip('no chromium installed'); return; }
     const { chrome, w } = o;
     const recs = readStepLearnings(w.runDir).filter((r) => r.step === STEP);
     const body = `document.querySelector("[data-testid=audit-fold-body-${STEP}]")`;
-    const lines = await chrome.ev(`Array.from(${body}.querySelectorAll("[data-testid=audit-try-hints-head]")).map(function(e){ return e.textContent; })`);
-    assert.deepEqual(lines, recs.sort((a, b) => a.try - b.try).map((r) => `told from earlier runs · ${r.ids.length} ${r.ids.length === 1 ? 'hint' : 'hints'}`));
-    const handed = await chrome.ev(`Array.from(${body}.querySelectorAll("[data-testid=audit-try-hints-wrap] > .hint")).map(function(e){ return e.textContent; })`);
-    assert.deepEqual(handed, recs.map((r) => `try ${r.try}`), 'only the tries handed a block carry the line; try 1 has none');
-    assert.equal(await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-text]").hidden`), true, 'folded until clicked');
-    await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-head]").click()`);
-    assert.equal(await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-text]").hidden`), false, 'a click opens it');
-    assert.equal(await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-text]").textContent`), recs[0].text, 'the exact text handed');
+    // M4d am36 item 3 replaces the old per-try box: each handed try has its own `N hints` button in the grid's first row, any other try `—`; a click opens the text in the errors area
+    const G = `${body}.querySelector("[data-testid=audit-grid-${STEP}]")`;
+    const want = recs.sort((a, b) => a.try - b.try);
+    const hintWord = (r) => `${r.ids.length} ${r.ids.length === 1 ? 'hint' : 'hints'}`;
+    assert.equal(await chrome.ev(`${body}.querySelectorAll("[data-testid^=audit-try-hints]").length`), 0, 'the separate hints box is gone');
+    assert.equal(await chrome.ev(`${G}.querySelector("tr.hint-row td.q").textContent`), 'told from earlier runs');
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr.hint-row td.c")).map(function(c){ var b = c.querySelector("button.btn.small"); return b ? b.getAttribute("data-hint") + ":" + b.textContent : c.textContent; })`),
+      await chrome.ev(`Array.from(${G}.querySelectorAll("thead th.t")).map(function(h, i){ return ${JSON.stringify(Object.fromEntries(want.map((r) => [r.try, hintWord(r)])))}[i + 1] ? (i + 1) + ":" + ${JSON.stringify(Object.fromEntries(want.map((r) => [r.try, hintWord(r)])))}[i + 1] : "\u2014"; })`),
+      'a try handed hints has its own button, any other try a dash');
+    assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-row.hintrow").length`), 0, 'nothing about hints is open on load');
+    for (const r of want) {
+      await chrome.ev(`${G}.querySelector("button[data-hint='${r.try}']").click()`);
+      assert.equal(await chrome.ev(`${G}.querySelector("button[data-hint='${r.try}']").getAttribute("aria-expanded")`), 'true');
+      assert.equal(await chrome.ev(`${G}.querySelector(".fx-row.hintrow .fx-try").textContent`), `try ${r.try} \u00b7 told from earlier runs \u00b7 ${hintWord(r)}`);
+      const all = r.text.replace(/\n+$/, '').split('\n').map((l) => l.replace(/^\s+/, ''));
+      assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll(".fx-row.hintrow .fx-lines div")).map(function(e){ return e.textContent; })`), all.slice(0, 8), `try ${r.try}: the exact text handed, 8 lines`);
+      assert.equal(await chrome.ev(`(${G}.querySelector(".fx-row.hintrow .fx-more") || { textContent: null }).textContent`), all.length > 8 ? `+${all.length - 8} more lines` : null);
+      await chrome.ev(`${G}.querySelector(".fx-row.hintrow .fx-rowhead").click()`);
+      assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-row.hintrow").length`), 0, 'a click on its title closes it');
+    }
     const r = await chrome.ev(`(function(){
       var vw = document.documentElement.clientWidth, bad = [];
       document.querySelectorAll("#audit-groups .audit-group *").forEach(function(e){
