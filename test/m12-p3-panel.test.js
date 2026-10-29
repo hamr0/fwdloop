@@ -93,3 +93,66 @@ for (const width of [1280, 390, 320]) {
     assert.deepEqual(m.over, [], `a box spills: ${JSON.stringify(m)}`);
   });
 }
+
+// ---- the Run card of a ticket job: a "ticket #" box; Run stays off until it is filled (hamr 2026-10-29) ----
+import { rmSync } from 'node:fs';
+import { killChildrenAfter, world } from './m4e-world.mjs';
+import { seedGreen } from './m9-trigger-world.mjs';
+import { ticketJob } from './m12-p2-world.mjs';
+
+killChildrenAfter();
+async function openRunCard(width, { fileJd = false } = {}) {
+  const chrome = await launchChrome();
+  if (!chrome) return null;
+  CLOSERS.push(async () => chrome.close());
+  const w = await world({ limit: 5 });
+  ticketJob(w.root, 'tk', { fileJd });
+  seedGreen(w, 'tk');
+  rmSync(path.join(w.root, '.drafts'), { recursive: true, force: true });
+  await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+  assert.ok(await chrome.waitFor('!document.querySelector(\'input[name="jf-mode"][value="run"]\').disabled'));
+  await chrome.ev('document.querySelector(\'input[name="jf-mode"][value="run"]\').click()');
+  assert.ok(await chrome.waitFor('document.getElementById("jf-run-flow") && !document.getElementById("jf-run").hidden'));
+  await chrome.ev('var i = document.getElementById("jf-run-flow"); i.focus(); i.value = "tk"; i.dispatchEvent(new Event("input", {bubbles: true}))');
+  assert.ok(await chrome.waitFor('document.querySelectorAll("[data-testid=rw-item]").length > 0'));
+  await chrome.ev('document.querySelector("[data-testid=rw-item]").click()');
+  assert.ok(await chrome.waitFor('!!document.querySelector("#jf-run-inputs .jf-inrow")'));
+  return { chrome, w };
+}
+
+test('a ticket job\'s Run card has a ticket # box: Run is off until a whole number is in it; a job without a ticket list has no box', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await openRunCard(1280);
+  if (!o) { t.skip('no chromium installed'); return; }
+  const c = o.chrome;
+  // the file input is filled so only the ticket box stands between the card and Run
+  await c.ev('var p = document.querySelector("#jf-run-inputs .jf-inrow .jf-path:not([data-page])"); p.value = "/tmp/resume.md"; p.dispatchEvent(new Event("input", {bubbles: true}))');
+  await c.ev('var cap = document.getElementById("jf-run-cap"); cap.value = "0.25"; cap.dispatchEvent(new Event("input", {bubbles: true}))');
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 1);
+  assert.equal(await c.ev('document.querySelector("[data-testid=jf-run-ticket]").placeholder'), 'ticket #');
+  const btn = 'document.getElementById("chat-main-btn")';
+  assert.equal(await c.ev(`${btn}.disabled`), true, 'no number, no Run');
+  for (const bad of ['abc', '0', '-2', '1.5']) {
+    // eslint-disable-next-line no-await-in-loop
+    await c.ev(`var tk = document.querySelector("[data-testid=jf-run-ticket]"); tk.value = ${JSON.stringify(bad)}; tk.dispatchEvent(new Event("input", {bubbles: true}))`);
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 700));   // the server's reuse check answers after the edit (200 ms debounce); Run must still be off after it
+    // eslint-disable-next-line no-await-in-loop
+    assert.equal(await c.ev(`${btn}.disabled`), true, `"${bad}" is no ticket number`);
+  }
+  await c.ev('var tk2 = document.querySelector("[data-testid=jf-run-ticket]"); tk2.value = "195342"; tk2.dispatchEvent(new Event("input", {bubbles: true}))');
+  assert.ok(await c.waitFor(`${btn}.disabled === false`), 'a number turns Run on');
+  const o2 = await openRunCard(1280, { fileJd: true });
+  assert.equal(await o2.chrome.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 0);
+});
+
+for (const width of [390, 320]) {
+  test(`browser ${width}: the Run card's ticket # row does not spill`, { skip: SKIP && 'no browser' }, async (t) => {
+    const o = await openRunCard(width);
+    if (!o) { t.skip('no chromium installed'); return; }
+    const m = await o.chrome.ev(`(function(){ var vw = document.documentElement.clientWidth, over = []; document.querySelectorAll("#jf-run *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right)); }); return { vw: vw, scrollW: document.documentElement.scrollWidth, over: over.slice(0, 5) }; })()`);
+    console.log(`# run card ${width}: ${JSON.stringify(m)}`);
+    if (OUT) await o.chrome.screenshot(path.join(OUT, `m12-p3-runcard-${width}.png`));
+    assert.ok(m.scrollW <= m.vw, JSON.stringify(m));
+    assert.deepEqual(m.over, [], JSON.stringify(m));
+  });
+}

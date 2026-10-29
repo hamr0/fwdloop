@@ -675,6 +675,7 @@
   #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
   .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
+  .jf-inrow .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
   /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
@@ -5316,6 +5317,13 @@
         var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
         if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
         row.appendChild(pathEl);
+        // M12 piece 3 (hamr 2026-10-29): a ticket-list input takes ONE ticket per hand run, picked by number; Run stays off until it is filled
+        if(f && f.tickets && f.tickets.indexOf(role) !== -1){
+          var tk = makeInput("jf-ticket", "ticket #", "");
+          tk.inputMode = "numeric"; tk.setAttribute("data-testid", "jf-run-ticket"); tk.setAttribute("aria-label", "Ticket number to run");
+          tk.addEventListener("input", function(){ clearFieldErrors(); refreshStartEnabled(); });
+          row.appendChild(tk);
+        }
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
       });
@@ -5347,8 +5355,14 @@
       runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
       return waits;
     }
+    // M12 piece 3: the ticket number box of a ticket-list input; one function reads it, "" = none given (and no box = null)
+    function ticketBoxValue(){
+      var el = runInputsEl.querySelector(".jf-ticket");
+      return el ? el.value.trim() : null;
+    }
     function currentRun(){
       return {
+        ...(ticketBoxValue() === null ? {} : { ticket: ticketBoxValue() }),
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
         destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
         // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
@@ -5382,7 +5396,7 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && (ticketBoxValue() === null || /^[1-9][0-9]{0,8}$/.test(ticketBoxValue())) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
       }
       if(mode === "resume"){
         return !!resumeCtx && capValid(resumeCapEl.value.trim());
