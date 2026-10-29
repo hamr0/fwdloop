@@ -1,0 +1,838 @@
+{
+ "bareguard": {
+  "path": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/bg-22a059a",
+  "version": "0.27.0"
+ },
+ "checks": {
+  "C1": {
+   "verdict": "PASS",
+   "per": [
+    {
+     "number": 195397,
+     "id": "p2b",
+     "green": false
+    },
+    {
+     "number": 195468,
+     "id": "none",
+     "green": false
+    },
+    {
+     "number": 195368,
+     "id": "fl195368",
+     "green": false
+    }
+   ]
+  },
+  "C2": {
+   "verdict": "PASS",
+   "agree": 32,
+   "of": 32,
+   "disagree": []
+  },
+  "C3": {
+   "verdict": "PASS",
+   "reds": 16,
+   "redBad": [],
+   "noBodyKinds": [
+    "missing"
+   ],
+   "numberBodyKinds": [
+    "wrong-type"
+   ]
+  },
+  "C4": {
+   "verdict": "PASS",
+   "greens": 16,
+   "c4bad": [],
+   "redMatchedBad": []
+  },
+  "C5": {
+   "verdict": "PASS",
+   "failed": [],
+   "strictGreener": [],
+   "strictGreen": 16
+  },
+  "C6": {
+   "verdict": "FAIL",
+   "per": [
+    {
+     "label": "control (valid)",
+     "ok": true
+    },
+    {
+     "label": "empty list",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases"
+    },
+    {
+     "label": "blank phrase",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases[1]"
+    },
+    {
+     "label": "leading space",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases[0]"
+    },
+    {
+     "label": "double space",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases[0]"
+    },
+    {
+     "label": "51 phrases",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases"
+    },
+    {
+     "label": "201-char phrase",
+     "ok": true,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases[0]"
+    },
+    {
+     "label": "case-fold duplicate",
+     "ok": false,
+     "thrown": true,
+     "path": "spec.checkpoints.filter.checks[0].phrases"
+    }
+   ]
+  },
+  "C7": {
+   "verdict": "PASS",
+   "identical": 32,
+   "of": 32,
+   "differ": []
+  }
+ },
+ "perTicket": {
+  "f100047": {
+   "number": 100047,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "f193097": {
+   "number": 193097,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "f187579": {
+   "number": 187579,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "hang",
+      "hangs",
+      "freezes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "f193785": {
+   "number": 193785,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "f180865": {
+   "number": 180865,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "hang",
+      "freeze",
+      "freezes",
+      "ANR"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "p2b": {
+   "number": 195397,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "p3": {
+   "number": 195327,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "none": {
+   "number": 195468,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "k124871": {
+   "number": 124871,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashed"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "l270": {
+   "number": 270,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "h11": {
+   "number": 11,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "y13": {
+   "number": 13,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl195308": {
+   "number": 195308,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195056": {
+   "number": 195056,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl194649": {
+   "number": 194649,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl194570": {
+   "number": 194570,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl193783": {
+   "number": 193783,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl193742": {
+   "number": 193742,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl193721": {
+   "number": 193721,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "hangs"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl193695": {
+   "number": 193695,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl193639": {
+   "number": 193639,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl193517": {
+   "number": 193517,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashing"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl195493": {
+   "number": 195493,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195492": {
+   "number": 195492,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195467": {
+   "number": 195467,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195447": {
+   "number": 195447,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195430": {
+   "number": 195430,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195414": {
+   "number": 195414,
+   "green": true,
+   "gaps": [],
+   "matched": [
+    {
+     "check": "any",
+     "phrases": [
+      "crash"
+     ]
+    }
+   ],
+   "strictGreen": true
+  },
+  "fl195381": {
+   "number": 195381,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195371": {
+   "number": 195371,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195368": {
+   "number": 195368,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  },
+  "fl195348": {
+   "number": 195348,
+   "green": false,
+   "gaps": [
+    {
+     "key": "filter:any",
+     "checkpoint": "filter",
+     "check": "carriesAny",
+     "id": "any",
+     "field": "text",
+     "kind": "none-found",
+     "phrases": [
+      "crash",
+      "crashes",
+      "crashed",
+      "crashing",
+      "hang",
+      "hangs",
+      "hung",
+      "freeze",
+      "freezes",
+      "frozen",
+      "ANR",
+      "not responding"
+     ]
+    }
+   ],
+   "matched": [],
+   "strictGreen": false
+  }
+ }
+}
