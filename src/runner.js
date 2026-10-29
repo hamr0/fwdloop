@@ -77,6 +77,7 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
+import { readTicketMcp } from './ticket-mcp.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -423,12 +424,23 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  M10b amendment 1: a CSV input named in `tableRoles` (the sheets a step's `close.sheet` reads) also gets its `tableSha` (bareguard's fingerprint of the table made
  *  from the FROZEN copy) in its manifest entry - the ONE place it is written, once, with the run's inputs; every sheet check of the run uses this recorded value.
  *  A sheet bareguard cannot read as a table refuses the run here, naming the input.
- *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[]}} [o] */
-export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [] } = {}) {
+ *  M12 piece 1b: a source with `ticket: {number}` is one ticket of the list at its `path`, read through the job's MCP tools (`mcp`, the declaration's `{server, tools}`) by
+ *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp}} [o] */
+export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
-  for (const { id, path: sourcePath } of sources ?? []) {
+  for (const { id, path: sourcePath, ticket } of sources ?? []) {
+    if (ticket) {
+      if (!mcp) return { ok: false, red: `freeze: input "${id}": the job lists no MCP tools` };
+      const got = await ticketRead({ listUrl: sourcePath, number: ticket.number, mcp });
+      if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+      const page = await freezePage(inputsDir, id, got.url, { fetchPage: async () => got });
+      if (!page.ok) return page;
+      manifest.push({ ...page.entry, mcp: got.record });
+      continue;
+    }
     if (isWebUrl(sourcePath)) {
       const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
       if (!page.ok) return page;
@@ -1281,7 +1293,7 @@ export async function runFlow({
     }
   }
 
-  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps) });
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
