@@ -209,6 +209,14 @@ hamr's rulings 2026-10-28:
 - Ruled by hamr 2026-10-28: the fresh scope is named M12. The first slice delivers what MCP proved; skipped tickets show in the Results tab (placement detail still needs a mockup before build).
 - Asked of bareguard 2026-10-28: carriesAny (ruling #69, any-of phrases on word edges, which phrase hit in full.matched); F99 pre-registered to validate it (see UPSTREAM-ASKS.md).
 
+*Update 2026-10-29 (M12 design, hamr's rulings, unsigned).* M12 is still unsigned; these go into its draft scope.
+- One run per ticket, like M9's files. Tickets queue in the job's `schedule-ledger.jsonl`: an `arrived` row, a `ran` row, oldest first. A run waiting at its ask does not block the next (M9 am8); waiting runs line up in the Inbox, answered one at a time.
+- A ticket is known by its number. An edit does not run it again, unless a signed guardrail names a field to watch (e.g. "run again if the status changes"); then a changed value makes it arrive again. Unclear = hitl. fwdloop compares old and new itself; bareguard has no such rule and guard agreed (2026-10-29).
+- The address is an ordinary Inputs line (`issues: <list url>`); the Run card's When dropdown gets `When a new ticket arrives in <input name>`. It looks every 15 minutes, fixed, at $0. This replaces the earlier `issue: tickets <list url>` form.
+- A closed ticket is skipped at $0. The cap has no special rule: each ticket's run has the job's normal cap and asks the human when it runs out; the monthly limit stops a flood.
+- Results: one cumulative ticket list in the Result tab of the run the schedule was set from: grouped Needs you / Stopped / Passed / Skipped, newest first in each group, with filter chips and search. Mockup: docs/product/m12-ticket-results-mock.html (variant E).
+- Later slices, same shape, different reader (each needs its own signed slice; not scheduled): page tickets through barebrowse (F92, F94 proven; labels on a page and the flood still open), and chats through beeperbox (a chat message is one item with an id: seen list, queue, guardrail filter, one run per item, the same Result list).
+
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.
 2. Every workflow put in a chain must have passed at least once (green or accepted), or the run-N the chain uses must be green.
