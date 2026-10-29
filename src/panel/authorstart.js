@@ -171,7 +171,7 @@ export function createStarter(opts) {
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
      * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
-     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string, ticket?: number}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
@@ -230,7 +230,8 @@ export function createStarter(opts) {
       writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
         kind, flow, runId, sources, startedAt: new Date().toISOString(),
       }, null, 2)}\n`, { mode: 0o600 });
-      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
+      // M12: `--ticket N` (the one ticket of the list this run reads) follows the sources
+      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), ...sources.flatMap((s) => (s.ticket === undefined ? [] : ['--ticket', String(s.ticket)])), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
       let child;
       try {
         child = spawnDetached({

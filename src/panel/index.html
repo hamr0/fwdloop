@@ -1090,6 +1090,7 @@
                   <option value="weekly">Every &lt;day&gt; at HH:MM</option>
                   <option value="file-updated">When &lt;file&gt; is updated</option>
                   <option value="new-file">When a new file arrives in &lt;folder&gt;</option>
+                  <option value="new-ticket">When a new ticket arrives in &lt;input name&gt;</option>
                 </select>
                 <div class="when-sub" id="jf-when-clock" hidden>
                   <select id="jf-when-day" data-testid="jf-when-day" aria-label="Day of the week">
@@ -5541,7 +5542,10 @@
     var whenConfirmText = ""; // the words the button shows after click 1 ("every day at 13:15", "cancel schedule"); read only while whenHash is set
     var whenLocked = false;   // ~1.5 s after a successful sign the main button is disabled, so a fast extra click cannot start a run
     var whenReady = false;   // the lock sync can run before this block has
-    function whenCanon(t){ return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; })); }
+    function whenCanon(t){
+      if(t !== null && t.kind === "new-ticket") t = {kind: t.kind, role: t.role};   // M12: the list, server and tool are filled by the server from the signed job
+      return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; }));
+    }
     function whenTriggerFromBoxes(){
       var kind = byId("jf-when").value;
       if(kind === "hand") return null;
@@ -5551,6 +5555,7 @@
         if(kind === "weekly") o.day = byId("jf-when-day").value;
         return o;
       }
+      if(kind === "new-ticket") return {kind: kind, role: byId("jf-when-role").value};   // M12: the person picks the input; the server fills the rest
       var q = {kind: kind, role: byId("jf-when-role").value};
       q[kind === "new-file" ? "folder" : "path"] = byId("jf-when-path").value.trim();
       return q;
@@ -5559,7 +5564,8 @@
       var kind = byId("jf-when").value;
       byId("jf-when-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
       byId("jf-when-day").hidden = kind !== "weekly";
-      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
+      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file" || kind === "new-ticket");
+      byId("jf-when-path").hidden = kind === "new-ticket";
       byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
     }
     // M9 am4: is When changed from the signed value? The ONE reader; the main button turns into Sign schedule while it is.
@@ -5573,6 +5579,17 @@
       if(!whenReady) return;
       renderMain();
     }
+    // M10: a file trigger watches a FILE; a web-page input is never offered. M12: a ticket trigger offers the page inputs that are a GitHub issues list.
+    var TICKET_LIST = /^https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/?$/;
+    function whenFileRoles(f){ return ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); }); }
+    function whenTicketRoles(f){ return ((f && f.roles) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }
+    function whenFillRoles(){
+      var f = selectedFlow(), roleSel = byId("jf-when-role"), keep = roleSel.value;
+      var roles = byId("jf-when").value === "new-ticket" ? whenTicketRoles(f) : whenFileRoles(f);
+      roleSel.innerHTML = "";
+      roles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      if(roles.indexOf(keep) >= 0) roleSel.value = keep;
+    }
     function paintWhen(){
       var f = selectedFlow();
       var c = f ? f.trigger : null;
@@ -5580,14 +5597,13 @@
       whenHash = null; whenBusy = false;
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
-      roleSel.innerHTML = "";
-      // M10: a file trigger watches a FILE; a web-page input is never offered (a job with only page inputs gets the clock options only)
-      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); });
-      fileRoles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
       ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
+      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
+      whenFillRoles();
       if(t && t.hour !== undefined){ byId("jf-when-time").value = ("0" + t.hour).slice(-2) + ":" + ("0" + t.minute).slice(-2); }
       if(t && t.day) byId("jf-when-day").value = t.day;
       if(t && t.role) roleSel.value = t.role;
@@ -5598,7 +5614,7 @@
       byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
       whenShowSubs(); whenSyncButton();
     }
-    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
+    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; if(this && this.id === "jf-when") whenFillRoles(); whenShowSubs(); whenSyncButton(); }
     ["jf-when", "jf-when-day", "jf-when-time", "jf-when-role"].forEach(function(id){ document.getElementById(id).addEventListener("change", whenEdited); });
     document.getElementById("jf-when-path").addEventListener("input", whenEdited);
     function doWhenSign(){

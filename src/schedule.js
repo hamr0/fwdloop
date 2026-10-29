@@ -93,7 +93,7 @@ export function removeSchedule(flowDir) {
 
 /** Does a re-sign keep the same kind and the same folder/file (so the queue and the baseline stand)? @param {Trigger|null|undefined} cur @param {Trigger|null} next */
 export function sameTarget(cur, next) {
-  if (isTicket(cur) && isTicket(next)) return cur.role === next.role && cur.list === next.list;   // M12: the same list keeps its queue and its starting point
+  if (isTicket(cur) && isTicket(next)) return /** @type {any} */ (cur).role === /** @type {any} */ (next).role && /** @type {any} */ (cur).list === /** @type {any} */ (next).list;   // M12: the same list keeps its queue and its starting point
   if (!cur || !next || !isFile(cur) || !isFile(next) || cur.kind !== next.kind) return false;
   return cur.kind === 'new-file' ? cur.folder === /** @type {any} */ (next).folder : /** @type {any} */ (cur).path === /** @type {any} */ (next).path;
 }

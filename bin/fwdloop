@@ -54,6 +54,7 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
+import { ticketListsOf } from '../src/trigger-tickets.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
@@ -319,6 +320,7 @@ async function cmdRun(rest) {
     options: {
       root: { type: 'string' },
       source: { type: 'string', multiple: true, default: [] },
+      ticket: { type: 'string' },   // M12: the one ticket of the job's ticket list this run reads, by number
       'run-id': { type: 'string' },
       // a job drafted before its model was recorded: the model it runs with (a ticked line); --provider only if two keys tick the same id
       model: { type: 'string' }, provider: { type: 'string' },
@@ -368,7 +370,14 @@ async function cmdRun(rest) {
       fail(`run: --source role "${role}" is not declared by flow "${flowName}" (known roles: ${declaredRoles.join(', ') || '(none)'})`);
     }
   }
-  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
+  // M12 piece 2 (PRD ruling 2026-10-29): a job with a ticket-list input reads ONE ticket per run, picked by number. Refused at $0, by name, before anything is claimed.
+  const ticketLists = ticketListsOf(read.arbiter);
+  const ticketRoles = Object.keys(ticketLists);
+  if (ticketRoles.length > 1) fail(`run: flow "${flowName}" has more than one ticket list (${ticketRoles.join(', ')}); a run reads one. Nothing started.`);
+  if (values.ticket !== undefined && ticketRoles.length === 0) fail(`run: --ticket ${values.ticket}, but flow "${flowName}" has no ticket-list input. Nothing started.`);
+  if (ticketRoles.length === 1 && values.ticket === undefined) fail(`run: flow "${flowName}" reads tickets from "${ticketRoles[0]}" (${ticketLists[ticketRoles[0]]}); pick the ticket with --ticket <number>. Nothing started.`);
+  if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
+  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles[0] === role ? { ticket: { number: Number(values.ticket) } } : {}) }));
   for (const src of sources) {
     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
   }
