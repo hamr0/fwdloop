@@ -84,8 +84,8 @@ for (const width of [1280, 390, 320]) {
     const body = `document.querySelector("[data-testid=audit-fold-body-${STEP}]")`;
     const lines = await chrome.ev(`Array.from(${body}.querySelectorAll("[data-testid=audit-try-hints-head]")).map(function(e){ return e.textContent; })`);
     assert.deepEqual(lines, recs.sort((a, b) => a.try - b.try).map((r) => `told from earlier runs · ${r.ids.length} ${r.ids.length === 1 ? 'hint' : 'hints'}`));
-    const tryLines = await chrome.ev(`Array.from(${body}.querySelectorAll("[data-testid=audit-try-line]")).map(function(e){ return e.parentNode.querySelectorAll("[data-testid=audit-try-hints]").length; })`);
-    assert.equal(tryLines[0], 0, 'try 1 has no line');
+    const handed = await chrome.ev(`Array.from(${body}.querySelectorAll("[data-testid=audit-try-hints-wrap] > .hint")).map(function(e){ return e.textContent; })`);
+    assert.deepEqual(handed, recs.map((r) => `try ${r.try}`), 'only the tries handed a block carry the line; try 1 has none');
     assert.equal(await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-text]").hidden`), true, 'folded until clicked');
     await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-head]").click()`);
     assert.equal(await chrome.ev(`${body}.querySelector("[data-testid=audit-try-hints-text]").hidden`), false, 'a click opens it');
