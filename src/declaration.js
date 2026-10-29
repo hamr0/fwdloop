@@ -133,7 +133,9 @@ function checkTicketFilter(declaration, reds) {
   for (const key of Object.keys(f)) {
     if (key !== 'priority' && key !== 'labels') reds.push(`declaration: unknown key "${key}" at declaration.ticketFilter.${key}`);
   }
-  for (const [key, ok] of [['priority', (v) => /^P[0-3]$/.test(v)], ['labels', (v) => v.trim() !== '' && v.length <= 100]]) {
+  /** @type {Array<['priority'|'labels', (v: string) => boolean]>} */
+  const lists = [['priority', (v) => /^P[0-3]$/.test(v)], ['labels', (v) => v.trim() !== '' && v.length <= 100]];
+  for (const [key, ok] of lists) {
     if (!Object.hasOwn(f, key)) continue;
     if (!Array.isArray(f[key]) || f[key].length === 0) { reds.push(`declaration: ticketFilter.${key} must be a non-empty list`); continue; }
     const seen = new Set();

@@ -427,7 +427,7 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  A sheet bareguard cannot read as a table refuses the run here, naming the input.
  *  M12 piece 1b: a source with `ticket: {number}` is one ticket of the list at its `path`, read through the job's MCP tools (`mcp`, the declaration's `{server, tools}`) by
  *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
- *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp}} [o] */
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp, ticketFilter?: {priority?: string[], labels?: string[]}}} [o] */
 export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp, ticketFilter } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
@@ -2998,6 +2998,7 @@ export function readAsk(runDir) {
  * @param {{ value: number }} opts.spent
  * @param {any[]} [opts.attempts]
  * @param {Record<string, any>} [opts.artifacts]
+ * @param {string|null} [opts.skip] - M12 p3: the reason a ticket run ends `skipped` (history row `skipReason`, log.json `skipReason`)
  * @param {string|null} [opts.signatureHash] - the flow's `signature.json` `flow`
  *   hash, when this halt happened AFTER `readFlow` succeeded (item 9: every
  *   history row carries it, halts included). A halt before the signature was

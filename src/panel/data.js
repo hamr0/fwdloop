@@ -379,7 +379,7 @@ export function glyphPulses(g) {
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
  * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null, jobEdited?: boolean, starting?: boolean}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]'|'[–]', label: string}}
  */
 export function computeGlyph({
   historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk, jobEdited, starting,
