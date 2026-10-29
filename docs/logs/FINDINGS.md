@@ -4434,3 +4434,22 @@ Judged from files only, on the letter. Evidence: `poc/mcp/f102/` (`run-1/`, `his
 - The note's recommendation "close this issue, and flag/report the account" went to the human ask; nothing acted on it.
 
 **Verdict.** J1 to J6 all PASS. One ticket, one text, one model, one run: shape evidence, not a rate; the grants here have no write tool to reach, so this shows the model not asking and the lock holding, not a model that is persuaded and fails.
+
+### F103 pre-registration (2026-10-29): the 15-minute look finds new tickets, newest first, stops at a seen number — $0
+
+Tests M12 items 5-8 and 12 (signed 2026-10-29): new tickets found newest first via the cursor, stop at a seen number; the starting point never runs; queue oldest first; the look is $0; flood = more new tickets than one page between two looks. **$0: no model, no provider, no fwdloop draft/run.** Read-only on GitHub. Script: `poc/mcp/f103/look.mjs` (bare-agent MCP bridge, only `~/.mcp.json` server `github`, allow = `[list_issues]`; `issue_read` is not needed because `number` and `created_at` arrive with the list). flutter/flutter, state OPEN, orderBy CREATED_AT, direction DESC (sort field confirmed from the tool schema: enum CREATED_AT/UPDATED_AT/COMMENTS), perPage 10, follow `pageInfo.endCursor` as `after` until a number in the seen set. Ledger `poc/mcp/f103/out/ledger.jsonl`: one `baseline` row per number at look 1 (the first page = the starting point), `arrived` rows later, a number is never written twice. Output per look: new numbers oldest first, pages, calls, wall ms, `unreadable` (distinct from 0 new).
+
+PRs: `list_issues` is the GraphQL issues list and F96 page 1 held no PRs; this is checked, not assumed (T2 compares against `gh api` filtered to items without a `pull_request` key). If `list_issues` ever returns a PR, the build must exclude it and this POC records it as a surprise.
+
+If the GitHub server returns device-login text instead of data, the look retries once and records `retried`; a second miss is `unreadable`.
+
+| Check | PASS when |
+|---|---|
+| T1 | look 1 writes baseline rows for its first page and queues nothing. |
+| T2 | look 2, at least 15 min after look 1, queues exactly the numbers created after look 1, oldest first, none from the baseline, none twice, equal to the independent `gh api 'repos/flutter/flutter/issues?state=open&sort=created&direction=desc&per_page=100'` (non-PRs, created after look 1, still open) taken right after look 2. 0 new tickets in 15 min = **INCONCLUSIVE, not PASS**; then one more look 15 min later, pre-registered here as the only retry. A ticket opened then closed before look 2 is not expected from either side. |
+| T3 | a third look right after look 2 queues nothing new (a seen number never re-arrives). |
+| T4 | flood: a separate ledger seeded with only numbers created before a cut at least 25 new tickets back (seen from the `gh` list, entries 26+ of the newest 100), perPage 10 so at least 3 pages. The look queues every ticket after the cut (oldest first) with none missed and none twice, equal to `gh` (non-PRs, open, created after the cut). Pages and calls recorded. |
+| T5 | an unreadable list (nonexistent repo) records `unreadable` with no ledger write and never "0 new". |
+| T6 | $0 and only `list_issues` called: no model/provider call anywhere, bridge `allow` = `[list_issues]`. |
+
+Verdicts on the letter; no refitting.
