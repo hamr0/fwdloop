@@ -11,13 +11,13 @@ import { redactSecrets } from './redact.js';
 /** the user's own MCP config, the only source of a tool */
 export const USER_MCP_CONFIG = () => join(homedir(), '.mcp.json');
 
-const LIST_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/?$/;
+export const LIST_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/?$/;
 
 /** the first line of a message, secrets redacted, clipped: all a refusal ever shows of a server's own error */
-const firstLine = (e) => redactSecrets(String(e?.message ?? e ?? '')).split('\n').find((l) => l.trim() !== '')?.trim().slice(0, 200) ?? 'no message';
+export const firstLine = (e) => redactSecrets(String(e?.message ?? e ?? '')).split('\n').find((l) => l.trim() !== '')?.trim().slice(0, 200) ?? 'no message';
 
 /** GitHub's MCP server answers a request with this text, not data, when it has no usable login (F100, F103: seen with a cold `pass` cache) */
-const isDeviceLogin = (text) => text.includes('github.com/login/device');
+export const isDeviceLogin = (text) => text.includes('github.com/login/device');
 
 /**
  * Read ticket `number` of the list at `listUrl` (`https://github.com/<owner>/<repo>/issues`) with the job's `issue_read`.
