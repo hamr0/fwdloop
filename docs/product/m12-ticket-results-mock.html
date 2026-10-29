@@ -46,9 +46,13 @@
   .fold:hover{color:var(--accent)} .fold:focus-visible,.btn:focus-visible,.rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0}
   .tk:last-child{border-bottom:0}
-  .t1{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;min-width:0}
-  .tn{color:var(--accent);font-weight:700}
-  .tt{color:var(--text);min-width:0;overflow-wrap:anywhere}
+  .t1{display:flex;gap:6px;align-items:baseline;min-width:0}
+  .tn{color:var(--accent);font-weight:700;flex:none}
+  .tt{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere}
+  .cline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+  .ctt{flex:1 1 7em;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cwhy{font-size:12px;color:var(--text-dim);flex:none;max-width:100%;overflow-wrap:anywhere}
+  .glabel{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;margin-top:6px;border-bottom:1px solid var(--border)}
   .t2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
   .chg{font-size:12px;color:var(--amber)}
@@ -59,11 +63,8 @@
 <h1>M12 — ticket list in the Result tab <span class="new">UNSIGNED</span></h1>
 <p class="lead">Unsigned mockup for M12 (tickets). The list sits in the Result tab of the run the schedule was set from, as a folded group like the Audit's <b>▸ schedule (k)</b>; one list, all days, newest first, today open.</p>
 <p class="lead">Each row = one ticket = one run: <span class="badge green">[✓] passed</span> done · <span class="badge amber">[·] waiting</span> at its ask · <span class="badge red">[✗] stopped</span> · <span class="badge grey">skipped</span> grey, $0, with a reason and a button · a "status changed" line when it arrived again.</p>
-<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work.</p>
-<div class="grid">
-<section class="vbox"><div class="vtag">desktop</div><div class="side" id="d"></div></section>
-<section class="vbox"><div class="vtag">phone (390px)</div><div class="why">same markup; the frame is narrow, so rows wrap</div><div class="phone" id="p"></div></section>
-</div>
+<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work. Four variants (A-D) of the same 14 tickets, for choosing.</p>
+<div class="grid" id="variants"></div>
 <script>
 var NEWT='<span class="new">NEW</span>';
 var DAYS=[
@@ -87,35 +88,64 @@ var DAYS=[
 ];
 var state={};
 function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var ST={done:["green","[✓]","passed"],wait:["amber","[·]","waiting"],stop:["red","[✗]","stopped"],skip:["grey","[–]","skipped"]};
+function runBtn(r){return '<button class="btn small" type="button">Run it anyway</button>'+NEWT}
+/* A, C, D rows: number + title on one line (title wraps), status line below */
 function row(r){
- var o={done:'<span class="badge green"><span class="sign">[✓]</span>passed</span> · ',
-        wait:'<span class="badge amber"><span class="sign">[·]</span>waiting</span> · ',
-        stop:'<span class="badge red"><span class="sign">[✗]</span>stopped</span> · ',
-        skip:'<span class="badge grey"><span class="sign">skipped</span></span>'+NEWT+' · '}[r.k];
+ var s=ST[r.k];
  var h='<div class="tk"><div class="t1"><span class="tn">#'+r.n+'</span><span class="tt">'+e(r.t)+'</span></div><div class="t2">';
  if(r.chg)h+='<span class="chg">'+e(r.chg)+'</span>'+NEWT+'<br>';
- h+=o;
- if(r.k==="skip")h+='<span>'+e(r.why)+' · $0</span><button class="btn small" type="button">Run it anyway</button>'+NEWT;
- else h+='<button class="rl" type="button">run-'+r.run+'</button>';
+ if(r.k==="skip")h+='<span class="badge grey"><span class="sign">skipped</span></span>'+NEWT+' · <span>'+e(r.why)+' · $0</span>'+runBtn(r);
+ else h+='<span class="badge '+s[0]+'"><span class="sign">'+s[1]+'</span>'+s[2]+'</span> · <button class="rl" type="button">run-'+r.run+'</button>';
  return h+'</div></div>'}
-function view(id){
+/* B: one line per ticket, status sign first, title cut with an ellipsis */
+function rowB(r){
+ var s=ST[r.k];
+ var h='<div class="tk cl"><div class="cline"><span class="badge '+s[0]+'"><span class="sign">'+s[1]+'</span></span><span class="tn">#'+r.n+'</span><span class="ctt">'+e(r.t)+'</span>';
+ if(r.k==="skip")h+='<span class="cwhy">'+e(r.why)+' · $0</span>'+runBtn(r);
+ else h+='<button class="rl" type="button">run-'+r.run+'</button>';
+ h+='</div>';
+ if(r.chg)h+='<div class="t2"><span class="chg">'+e(r.chg)+'</span>'+NEWT+'</div>';
+ return h+'</div>'}
+var ORDER=["wait","stop","done","skip"];
+function fold(key,def,open,label){return '<button class="fold" data-k="'+key+'" data-def="'+(def?1:0)+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' '+label+'</button>'}
+function isOpen(key,def){return state[key]===undefined?def:state[key]}
+function dayBody(x,id,V){
+ if(V==="B")return x.rows.map(rowB).join("");
+ if(V==="C"){var h="";ORDER.forEach(function(k){var g=x.rows.filter(function(r){return r.k===k});
+   if(g.length)h+='<div class="glabel">'+ST[k][2]+' ('+g.length+')'+NEWT+'</div>'+g.map(row).join("")});return h}
+ if(V==="D"){var run=x.rows.filter(function(r){return r.k!=="skip"}),sk=x.rows.filter(function(r){return r.k==="skip"});
+   var h=run.map(row).join("");
+   if(sk.length){var key=id+"|"+x.d+"|skip",o=isOpen(key,false);
+     h+=fold(key,false,o,'skipped ('+sk.length+')')+NEWT+(o?sk.map(row).join(""):"")}
+   return h}
+ return x.rows.map(row).join("")}
+function view(id,V){
  var h='<div id="result-body"><div class="field"><label>Schedule</label><div class="ro-value">When a new ticket arrives in issues'+NEWT+' · looks every 15 min'+NEWT+'</div></div>';
  h+='<div class="audit-group"><h4><span class="badge grey">tickets'+NEWT+'</span></h4>';
  var total=0;DAYS.forEach(function(x){total+=x.rows.length});
- h+='<button class="fold" data-k="__all" aria-expanded="'+(state[id+"__all"]!==false)+'">'+(state[id+"__all"]!==false?"▾":"▸")+' tickets ('+total+')</button>';
- if(state[id+"__all"]!==false){
-  DAYS.forEach(function(x){var open=state[id+x.d]===undefined?x.open:state[id+x.d];
-   h+='<div class="day"><button class="fold" data-k="'+x.d+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' '+x.d+' ('+x.rows.length+')</button>';
-   if(open)h+=x.rows.map(row).join("");
+ var ka=id+"|__all",oa=isOpen(ka,true);
+ h+=fold(ka,true,oa,'tickets ('+total+')');
+ if(oa){
+  DAYS.forEach(function(x){var kd=id+"|"+x.d,open=isOpen(kd,x.open);
+   h+='<div class="day">'+fold(kd,x.open,open,x.d+' ('+x.rows.length+')');
+   if(open)h+=dayBody(x,id,V);
    h+='</div>'})}
  h+='<div class="hint">newest first · one list, all days · each ticket opens its own run</div></div></div>';
  return h}
-function render(){document.getElementById("d").innerHTML=view("d");document.getElementById("p").innerHTML=view("p")}
+var VARS=[
+ ["A","as drawn: number and title on one line (title wraps), status and run link on the line below."],
+ ["B","compact: one line per ticket, status sign first, title cut with an ellipsis; skipped rows show reason and Run it anyway at the line end."],
+ ["C","needs-you first: inside each day, waiting then stopped then passed then skipped, with a thin label before each group."],
+ ["D","skipped folded: run tickets as in A; each day's skipped tickets sit under one ▸ skipped (n) line."]];
+function build(){var h="";VARS.forEach(function(v){
+ h+='<section class="vbox"><div><span class="vtag">Variant '+v[0]+'</span></div><div class="why">'+v[1]+'</div>'+
+  '<div class="side" id="d'+v[0]+'"></div><div class="phone-cap">phone (390px)</div><div class="phone" id="p'+v[0]+'"></div></section>'});
+ document.getElementById("variants").innerHTML=h}
+function render(){VARS.forEach(function(v){document.getElementById("d"+v[0]).innerHTML=view("d"+v[0],v[0]);document.getElementById("p"+v[0]).innerHTML=view("p"+v[0],v[0])})}
 document.addEventListener("click",function(ev){var b=ev.target.closest(".fold");if(!b)return;
- var id=b.closest("#p")?"p":"d",k=b.getAttribute("data-k"),cur;
- if(k==="__all")cur=state[id+k]!==false;else{var x=DAYS.filter(function(y){return y.d===k})[0];cur=state[id+k]===undefined?x.open:state[id+k]}
- state[id+k]=!cur;render()});
-render();
+ var k=b.getAttribute("data-k");state[k]=!isOpen(k,b.getAttribute("data-def")==="1");render()});
+build();render();
 </script>
 </body>
 </html>
