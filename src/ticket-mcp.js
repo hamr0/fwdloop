@@ -38,7 +38,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
     bridge = await createMCPBridge({ configPaths: [configPath], timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
     const failed = bridge.errors.find((e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
-    const lacking = bridge.missing[0];
+    const lacking = bridge.missing?.[0];
     if (lacking) return { ok: false, error: `${server} does not offer ${lacking.tool}` };
     const prefix = `${server}_`;
     for (const t of bridge.tools) {
@@ -47,7 +47,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
     const tool = bridge.tools.find((t) => t.name === `${prefix}issue_read`);
     if (!tool) return { ok: false, error: `${server} does not offer issue_read` };
     const call = { tool: 'issue_read', owner, repo, issue_number: number };
-    const record = { server, exposed: bridge.tools.map((t) => t.name), missing: bridge.missing, calls: [call] };
+    const record = { server, exposed: bridge.tools.map((t) => t.name), missing: bridge.missing ?? [], calls: [call] };
     const url = `https://github.com/${owner}/${repo}/issues/${number}`;
     let reply;
     try {

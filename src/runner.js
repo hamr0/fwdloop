@@ -420,7 +420,7 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  (never the original again after this) and return the manifest, which `runFlow` records as the `inputs` of `run.json` (M8b). An
  *  unreadable source refuses by name. A source that is a web address
  *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
- *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
+ *  @param {string} runDir @param {Array<{id: string, path: string, ticket?: {number: number}}>} sources
  *  M10b amendment 1: a CSV input named in `tableRoles` (the sheets a step's `close.sheet` reads) also gets its `tableSha` (bareguard's fingerprint of the table made
  *  from the FROZEN copy) in its manifest entry - the ONE place it is written, once, with the run's inputs; every sheet check of the run uses this recorded value.
  *  A sheet bareguard cannot read as a table refuses the run here, naming the input.
