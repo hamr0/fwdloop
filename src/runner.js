@@ -78,6 +78,7 @@ import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmod
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp } from './ticket-mcp.js';
+import { decideTicket, readTicketFields } from './ticket-labels.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -427,10 +428,12 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  M12 piece 1b: a source with `ticket: {number}` is one ticket of the list at its `path`, read through the job's MCP tools (`mcp`, the declaration's `{server, tools}`) by
  *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp}} [o] */
-export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp } = {}) {
+export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp, ticketFilter } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
+  /** M12 piece 3: the first ticket the signed labels (or its state) skip: its reason; the run ends `skipped` after its start record is written */
+  let skip = null;
   for (const { id, path: sourcePath, ticket } of sources ?? []) {
     if (ticket) {
       if (!mcp) return { ok: false, red: `freeze: input "${id}": the job lists no MCP tools` };
@@ -438,7 +441,12 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
       if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
       const page = await freezePage(inputsDir, id, got.url, { fetchPage: async () => got });
       if (!page.ok) return page;
-      manifest.push({ ...page.entry, mcp: got.record });
+      const verdict = decideTicket({ text: got.text, filter: ticketFilter });
+      const fields = readTicketFields(got.text);
+      manifest.push({
+        ...page.entry, mcp: got.record, ticket: { number: ticket.number, title: fields.ok ? fields.title : null }, filter: verdict,
+      });
+      if (verdict.outcome === 'skip' && skip === null) skip = verdict.reason;
       continue;
     }
     if (isWebUrl(sourcePath)) {
@@ -465,7 +473,7 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
     }
     manifest.push(entry);
   }
-  return { ok: true, manifest };
+  return { ok: true, manifest, skip };
 }
 
 /** realpath of a path that may not exist (falls back to the lexical resolve). */
@@ -1293,7 +1301,7 @@ export async function runFlow({
     }
   }
 
-  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp });
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp, ticketFilter: declaration.ticketFilter });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
@@ -1301,6 +1309,12 @@ export async function runFlow({
   }
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
   writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest) });
+  // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
+  if (frozen.skip) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'skipped', red: '', skip: frozen.skip, spent: { value: 0 },
+    });
+  }
   // M4c: every guard above has passed — this process records itself (pid row) before its first step.
   recordPid(runDir, 'run', now());
 
@@ -3001,7 +3015,7 @@ export function readAsk(runDir) {
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true, resumeAt = null, stop = null, detail = null,
+  priorSpendComplete = true, resumeAt = null, stop = null, detail = null, skip = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -3014,7 +3028,7 @@ function haltRun({
     if (existsSync(runDir)) {
       recordLateAnswerIfAny(runDir, now);
       writeLog(runDir, {
-        runId, outcome, red, ...(detail ? { detail } : {}), attempts, artifacts,
+        runId, outcome, red, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), attempts, artifacts,
       });
       // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
       if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
@@ -3034,7 +3048,7 @@ function haltRun({
     const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !readHaltRecord(runDir).ok;
     if (!stoppedWithoutHaltRecord) {
       appendHistory(flowDir, {
-        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), // amendment 23: bareguard's raw reason, never the sentence
+        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), // amendment 23: bareguard's raw reason, never the sentence
       });
     }
   }

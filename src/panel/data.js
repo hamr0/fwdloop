@@ -243,7 +243,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped', '[–]': 'skipped',
 };
 
 /**
@@ -385,6 +385,8 @@ export function computeGlyph({
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one: grey, never failed
+    if (historyRow.outcome === 'skipped') return { glyph: '[–]', label: typeof historyRow.skipReason === 'string' && historyRow.skipReason !== '' ? `skipped — ${historyRow.skipReason}` : 'skipped' };
     // M6 amendment 4: a stopped (or cap-halted) run whose job was edited and signed since cannot be resumed; the words say so.
     if (jobEdited === true && (historyRow.outcome === 'stopped' || historyRow.outcome === 'cap-halt')) return { glyph: '[■]', label: JOB_EDITED_LINE };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
@@ -1518,7 +1520,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   }
   const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
   const endedPlain = endedWords({
-    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home,
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason,
   });
   // M9 am7 item 1: ENDED opens with the run's local end date and time, then its outcome word, then today's reason (NEXT stays as it was)
   const ended = endedPlain === null ? null : {

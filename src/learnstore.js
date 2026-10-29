@@ -276,7 +276,7 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = n
 }
 
 /** M8 am4 item 2: a run waiting at an ask has not ended ('paused', or a Stop whose set-aside failed). ONE decider: the runner's run-end tally and the seed both read it. */
-export const NOT_A_RUN_END = new Set(['paused', 'stop-failed']);
+export const NOT_A_RUN_END = new Set(['paused', 'stop-failed', 'skipped']); // M12 p3: a skipped ticket is not a job run with anything to learn from
 
 /**
  * M8 am6: seed the ledger from every run already recorded under `root` (every job, every ended run), oldest first by the run's own end time

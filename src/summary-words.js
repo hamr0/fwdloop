@@ -121,12 +121,12 @@ const splitNext = (rows) => ({ next: rows.map(([l, t]) => `${l} ${t}`).join('\n'
 /**
  * ENDED / NEXT of a finished run. Every outcome the history row can hold has a fixed sentence; an unknown one gets an honest fixed fallback
  * that names the code and guesses nothing. `null` when there is no ending (still running, waiting, or no history row and not died).
- * @param {{outcome: string|null, died?: boolean, line: number|null, destination: string|null, canResume: boolean, home?: string}} f
+ * @param {{outcome: string|null, died?: boolean, line: number|null, destination: string|null, canResume: boolean, home?: string, skipReason?: string}} f
  * @returns {{reason: string, next: string, rows?: Array<[string, string]>}|null}
  */
 export function endedWords(f) {
   const {
-    outcome, died = false, line, destination, canResume, home,
+    outcome, died = false, line, destination, canResume, home, skipReason,
   } = f;
   const resumeOrAgain = canResume ? 'Resume from the Chat card.' : RERUN_NEXT;
   if (died) return { reason: 'It stopped with no ending recorded.', next: 'See the Audit / logs tab for the last thing it did.' };
@@ -134,6 +134,8 @@ export function endedWords(f) {
   switch (outcome) {
     case 'complete':
       return { reason: 'Goal met.', next: destination ? `The result is in ${tilde(destination, home)}.` : 'The result is in the step cards below.' };
+    case 'skipped':
+      return { reason: `Skipped: ${typeof skipReason === 'string' && skipReason !== '' ? skipReason : 'the ticket did not match'}. Nothing was spent.`, next: 'Nothing to do. Run it anyway from the ticket list in the Result tab.' };
     case 'stopped':
       return { reason: 'Stopped by you.', next: resumeOrAgain };
     case 'cap-halt':
