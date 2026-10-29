@@ -4472,3 +4472,14 @@ Evidence: `poc/mcp/f103/` (`look.mjs`, `flood.mjs`, `wait-looks.sh`, `wait-retry
 - `list_issues` returned no PR in any read (the numbers between issues, e.g. 195578 and 195579, are PRs and were absent); `gh` needed the `pull_request` filter, `list_issues` did not.
 - The look 1 baseline is the first page only (10 numbers); a baseline ticket later closed is harmless because the stop is at the first seen number still open.
 - Flutter opened no new issue in ~33 minutes at midday UTC; a real T2 needs a busier repo or a longer window.
+
+### F103b pre-registration (2026-10-29): T2 and T3 again on a busier repo — $0
+
+F103 T2 was INCONCLUSIVE (flutter opened no new issue in ~33 min; later looks hit device-login text). Same script (`poc/mcp/f103/look.mjs`, allow = `[list_issues]`), repo **microsoft/vscode**, OPEN, created order newest first, perPage 10, separate ledger `poc/mcp/f103/out/ledger-vscode.jsonl`, tags `v-look1/2/3`. Look 1 = starting point (baseline, queues nothing). Look 2 at least 15 min later, run detached (`setsid nohup`, PID recorded). Look 3 right after look 2. Independent check: `gh api 'repos/microsoft/vscode/issues?state=open&sort=created&direction=desc&per_page=100'` filtered to items without `pull_request`, taken right after look 2.
+
+| Check | PASS when |
+|---|---|
+| T2 | look 2 queues at least 1 ticket, exactly the `gh` set of non-PR open issues created after look 1, oldest first, none from the baseline, none twice. 0 new = INCONCLUSIVE; no third retry. |
+| T3 | look 3 queues nothing and no number is written twice (meaningful only if look 2 queued something; else INCONCLUSIVE). |
+
+Device-login text = `unreadable`, recorded, retried once by the script; if it happens, note the time and stop. Verdicts on the letter.
