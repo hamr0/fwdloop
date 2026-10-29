@@ -4561,3 +4561,21 @@ P3 no MCP server started: no `mcp-calls.jsonl` row (and no `github` bridge proce
 
 F104 saw 0 watched changes in 33 min over the 30 newest-by-creation (W2/W3 INCONCLUSIVE). F104b changes ONE thing: the watched set. `list_issues` offers `orderBy` (`CREATED_AT`/`UPDATED_AT`), so look 1 takes `orderBy UPDATED_AT DESC`, 30 issues, state omitted (open and closed), and later looks page with the same `orderBy UPDATED_AT DESC` until all 30 baseline numbers are found again (an updated issue moves up, so they stay near the top). Script change: `poc/mcp/f104/watch.mjs` gains a `--order` flag (default `CREATED_AT`, so F104 behaves as before); nothing else. Separate ledger `poc/mcp/f104/out/b/ledger-b.jsonl`; detached look 2/3 + gh check script `waitb.sh`. No model call, no key, allow `{github:['list_issues']}`.
 Checks W1-W5 verbatim from the F104 pre-registration (W1 baseline queues nothing; W2 arrivals = exactly the numbers whose state/label set differ per `gh`, each once, right reason; W3 an unwatched-field change (title/updated_at/comments) with state+labels equal has no `arrived` row; W4 look 3 writes nothing new; W5 $0 and only allowed tools). Look 1, look 2 at least 15 min later (setsid nohup, PID recorded), look 3 right after, `gh api` of all 30 after look 2. Note: with an updated-sorted set, `updated_at`/`comments` changes are expected often, so W3 is likely testable; a state/label change is the uncertain part. 0 watched changes = W2 INCONCLUSIVE again; ONE more look at +15 min, pre-registered, same check, then stop. Unreadable rule as F104.
+
+### F104b RESULT (run 2026-10-29, $0, no model call, microsoft/vscode, 30 MOST RECENTLY UPDATED, `orderBy UPDATED_AT DESC`, state omitted)
+
+[MEASURED] Evidence in `poc/mcp/f104/out/b/` (`ledger-b.jsonl`, `look1-5.json`, `gh-after-look2.jsonl`, `gh-after-look4.jsonl`), scripts `watch.mjs` (one change: `--order` flag, default unchanged), `waitb.sh`, `waitb2.sh`. Look 1 19:24:08Z (baseline #228782..#341791, 30 rows). Look 2 19:40:24Z (+16 min, detached PID 2522505), look 3 19:41:02Z. Pre-registered extension: look 4 19:56:37Z (+16 min after look 2, detached PID 2570923), look 5 19:58:09Z. Every look: 1 call, 1 page, `exposed` = `[github_list_issues]`, no retry, not unreadable.
+
+**Watched changes seen: 0.** `gh api` for all 30 after look 2 and after look 4: state and label set equal to look 1 for 30/30. Ledger stayed at 30 `baseline` rows, 0 `arrived`. Unwatched changes did occur: #239862 comments 14→16 (updated_at unchanged in the gh record, 19:23:54Z) and #339479 updated_at 19:24:06Z→19:24:20Z (title, state, labels equal).
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| W1 baseline queues nothing | PASS | Look 1 wrote 30 `baseline`, 0 `arrived`. |
+| W2 arrivals = exactly the changed numbers, right reason | INCONCLUSIVE | 0 watched changes in two 16-minute windows (the one pre-registered extension is used up); the `arrived` and `reasonFor` path has not fired on live data. |
+| W3 an unwatched change writes nothing | PASS | #239862 (comments) and #339479 (updated_at) differ per `gh` with state and labels equal; neither has an `arrived` row (ledger 30 rows, all baseline). |
+| W4 look 3 writes nothing | PASS (trivial) | Looks 3 and 5 wrote nothing; with no arrival before them, a double arrival was not testable. |
+| W5 $0, only allowed tools | PASS | `allow` = `{github:['list_issues']}`, `exposed` = `[github_list_issues]` every look, no model call, no spend file. |
+
+**Recorded, not judged.** `orderBy UPDATED_AT` works on `list_issues`; the 30 most recently updated were found again on page 1 every look. Even this set changed no state or label in 34 min: state/label changes are rare relative to updates.
+**For the build.** The arrival path has never fired on live data (F104 and F104b both W2 INCONCLUSIVE), so the build proves it with a fake-server test that can fail (state change, label added, label removed, unwatched change, repeat look), plus the M12 exit walk.
+**Verdict.** W1, W3, W5 pass; W4 trivial; W2 not shown to work or fail. Not one rate.
