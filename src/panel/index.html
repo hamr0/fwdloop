@@ -518,6 +518,23 @@
   #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
   /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
+  /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
+  .tk-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
+  .tk-fold:hover{color:var(--accent);}
+  .tk-fold:focus-visible,.tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0;}
+  .tk:last-child{border-bottom:0;}
+  .tk-1{display:flex;gap:6px;align-items:baseline;min-width:0;}
+  .tk-n{color:var(--accent);font-weight:700;flex:none;}
+  .tk-t{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere;}
+  .tk-when{color:var(--text-faint);font-size:12px;flex:none;}
+  .tk-2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;}
+  .tk-state.green{color:var(--green);} .tk-state.red{color:var(--red);} .tk-state.amber{color:var(--amber);} .tk-state.grey{color:var(--text-faint);}
+  .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
+  .tk-chg{font-size:12px;color:var(--amber);}
+  .tk-anyway{margin-top:6px;}
+  .tk-anyway textarea{width:100%;min-height:52px;margin:4px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;font-size:16px;padding:6px;box-sizing:border-box;}
+  .tk-msg{font-size:12px;overflow-wrap:anywhere;}
   #result-door-card{border-color:var(--amber);}
   #result-door-card .st-word{color:var(--amber);}
   #result-door-card textarea{width:100%;min-height:60px;margin:6px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;padding:6px;box-sizing:border-box;}
@@ -2555,6 +2572,89 @@
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
+  // ---- M12 piece 3: the ticket list (item 9, mockup E). The server decides every group, row, reason and sentence (src/panel/tickets.js); this only draws,
+  // filters by the chips and the search, and posts "Run it anyway" with its reason. The filter bar is the panel's own markup (.filterbar, .search-input, .chips, .chip.fchip).
+  var ticketUi = { chips: {}, q: "", open: {}, anyway: null, msg: "" };
+  var TICKET_STATE = { "[✓]": ["green", "passed"], "[–]": ["grey", "skipped"], "[✗]": ["red", "stopped"], "[■]": ["red", "stopped"], "[?]": ["red", "stopped"], "[·]": ["amber", "waiting"], "[▶]": ["amber", "running"], "[II]": ["amber", "stuck"], "[!]": ["amber", "expired"] };
+  function ticketWhen(ms){ return rlShortDate(new Date(ms).toISOString()); }
+  function ticketRowHTML(r, flow){
+    var st = TICKET_STATE[r.glyph] || ["grey", ""];
+    var h = '<div class="tk" data-testid="ticket-row" data-number="' + r.number + '"><div class="tk-1"><span class="tk-when">' + escapeXml(ticketWhen(r.at)) + '</span><span class="tk-n">#' + r.number + '</span><span class="tk-t">' + escapeXml(r.title || "") + '</span></div><div class="tk-2">';
+    if(r.changed) h += '<span class="tk-chg" data-testid="ticket-changed">' + escapeXml(r.changed) + '</span><br>';
+    h += '<span class="tk-state ' + st[0] + '"><b>' + escapeXml(r.glyph) + '</b> ' + escapeXml(st[1]) + '</span>';
+    if(r.group === "skip"){
+      h += ' \u00b7 <span data-testid="ticket-reason">' + escapeXml(r.reason || "") + ' \u00b7 $0</span> <button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>';
+    } else {
+      h += ' \u00b7 <button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button>';
+    }
+    h += '</div>';
+    if(r.group === "skip" && ticketUi.anyway && ticketUi.anyway.number === r.number){
+      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="why this ticket should run anyway" placeholder="why run it anyway? (required)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
+        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Queue it</button></div>';
+    }
+    return h + '</div>';
+  }
+  function ticketGroupsHTML(t, flow){
+    var any = t.groups.some(function(g){ return ticketUi.chips[g.key]; });
+    var q = ticketUi.q.trim().toLowerCase();
+    return t.groups.map(function(g){
+      if(any && !ticketUi.chips[g.key]) return "";
+      var rows = g.rows.filter(function(r){ return !q || ("#" + r.number + " " + r.number + " " + (r.title || "")).toLowerCase().indexOf(q) !== -1; });
+      var open = ticketUi.open[g.key] === undefined ? g.open : ticketUi.open[g.key];
+      return '<button class="tk-fold" type="button" data-testid="ticket-fold-' + g.key + '" data-group="' + g.key + '" aria-expanded="' + open + '">' + (open ? "\u25be" : "\u25b8") + " " + escapeXml(g.label) + " (" + rows.length + ")</button>" +
+        (open ? rows.map(function(r){ return ticketRowHTML(r, flow); }).join("") : "");
+    }).join("");
+  }
+  function ticketCardHTML(t, flow){
+    return '<div class="field"><label>Schedule</label><div class="ro-value" data-testid="ticket-schedule">' + escapeXml(t.line) + '</div></div>' +
+      '<div class="audit-group" data-testid="result-tickets"><h4><span class="badge grey">tickets</span></h4>' +
+      '<div class="filterbar" data-scope="tickets" data-testid="tickets-filters"><input type="text" class="search-input" id="tickets-filter-search" data-testid="tickets-filter-search" placeholder="ticket number or title" autocomplete="off" value="' + escapeXml(ticketUi.q) + '">' +
+      '<div class="chips" role="group" aria-label="Filter">' + t.groups.map(function(g){
+        return '<button class="chip fchip" type="button" aria-pressed="' + (ticketUi.chips[g.key] ? "true" : "false") + '" data-ticket-chip="' + g.key + '" data-testid="chip-tickets-' + g.key + '">' + escapeXml(g.label) + '</button>';
+      }).join("") + '</div></div>' +
+      '<div id="ticket-groups" data-testid="ticket-groups">' + ticketGroupsHTML(t, flow) + '</div>' +
+      '<div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(ticketUi.msg) + '</div>' +
+      '<div class="hint">newest first inside each group \u00b7 each ticket opens its own run</div></div>';
+  }
+  function wireTickets(body, data){
+    var t = data.tickets;
+    var host = body.querySelector("#ticket-groups");
+    if(!t || !host) return;
+    function repaint(){ host.innerHTML = ticketGroupsHTML(t, data.flow); wireRows(); }
+    function wireRows(){
+      host.querySelectorAll(".tk-fold").forEach(function(b){
+        b.addEventListener("click", function(){ var k = b.getAttribute("data-group"); var g = t.groups.filter(function(x){ return x.key === k; })[0]; var cur = ticketUi.open[k] === undefined ? g.open : ticketUi.open[k]; ticketUi.open[k] = !cur; repaint(); });
+      });
+      host.querySelectorAll("[data-testid=ticket-run]").forEach(function(b){
+        b.addEventListener("click", function(){ var id = b.getAttribute("data-run"); selectRun(data.flow, id, null, ".hist-row"); document.getElementById("tab-run").click(); });
+      });
+      host.querySelectorAll("[data-testid=ticket-anyway-open]").forEach(function(b){
+        b.addEventListener("click", function(){ var n = Number(b.getAttribute("data-number")); ticketUi.anyway = (ticketUi.anyway && ticketUi.anyway.number === n) ? null : { number: n, text: "" }; ticketUi.msg = ""; repaint(); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta) ta.focus(); });
+      });
+      var ta = host.querySelector("[data-testid=ticket-anyway-text]");
+      var go = host.querySelector("[data-testid=ticket-anyway-go]");
+      if(ta && go){
+        ta.addEventListener("input", function(){ ticketUi.anyway.text = ta.value; go.disabled = ta.value.trim() === ""; });
+        go.addEventListener("click", function(){
+          var a = ticketUi.anyway;
+          if(!a || a.text.trim() === ""){ ticketUi.msg = "Write why you want it to run, then press Queue it. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
+          go.disabled = true;
+          postJSON("/api/author/ticket-anyway", { flow: data.flow, runId: data.runId, number: a.number, reason: a.text.trim() }).then(function(r){
+            var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
+            ticketUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
+            if(ok) ticketUi.anyway = null;
+            repaint(); document.getElementById("ticket-msg").textContent = ticketUi.msg;
+          }).catch(function(){ ticketUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; go.disabled = false; });
+        });
+      }
+    }
+    wireRows();
+    body.querySelectorAll("[data-ticket-chip]").forEach(function(c){
+      c.addEventListener("click", function(){ var k = c.getAttribute("data-ticket-chip"); ticketUi.chips[k] = !ticketUi.chips[k]; c.setAttribute("aria-pressed", ticketUi.chips[k] ? "true" : "false"); repaint(); });
+    });
+    var search = body.querySelector("#tickets-filter-search");
+    if(search) search.addEventListener("input", function(){ ticketUi.q = search.value; repaint(); });
+  }
   function renderResult(){
     var detail = resultDetail, data = resultData;
     var body = document.getElementById("result-body");
@@ -2572,6 +2672,7 @@
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
       ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+    if(data.tickets) h += ticketCardHTML(data.tickets, data.flow);
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){
@@ -2592,6 +2693,7 @@
       }).join("") + '</div>';
     }
     body.innerHTML = h;
+    wireTickets(body, data);
     var ta = body.querySelector("#result-rerun-text");
     if(ta){
       ta.value = typed;
