@@ -4484,3 +4484,14 @@ F103 T2 was INCONCLUSIVE (flutter opened no new issue in ~33 min; later looks hi
 | T3 | look 3 queues nothing and no number is written twice (meaningful only if look 2 queued something; else INCONCLUSIVE). |
 
 Device-login text = `unreadable`, recorded, retried once by the script; if it happens, note the time and stop. Verdicts on the letter.
+
+### F103b RESULT (run 2026-10-29, $0, no model call, microsoft/vscode)
+
+Evidence: `poc/mcp/f103/out/` (`v-look1/2/3.json`, `ledger-vscode.jsonl`, `gh-vscode-after-look2.json`, `poc/mcp/f103/wait-vscode.sh`, waiter PID 2055792). Look 1 12:34:13Z (10 baseline rows, 344928 ... 344950, nothing queued); look 2 12:50:22Z (16 min later, 1 page, 1 call, 1.9 s); look 3 12:50:25Z. No device-login text this time (`pass` unlocked), no retry.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| T2 | PASS | look 2 queued exactly `[344962]`; the independent `gh api` (non-PR, open, created after look 1) taken right after is exactly `[344962]`; none from the baseline; ledger 11 rows, no number twice. One ticket: oldest-first order is not exercised beyond a single item here (T4 in F103 exercised order over 30). |
+| T3 | PASS | look 3, 3 s after look 2, queued nothing (`seenBefore` 11, includes 344962); ledger still 11 rows, 344962 once. |
+
+**Verdict.** With F103: T1 to T6 all PASS on the letter, T2 on a single new ticket. The build needs: stop at the first seen number, first look records the starting point only, unreadable never rendered as 0 new, and the locked-`pass` case named.
