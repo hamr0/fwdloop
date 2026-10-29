@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M12 ticket Results</title>
+<style>
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --red:#f7768e; --amber:#e0af68; --grey-dot:#878eac; --magenta:#bb9af7;
+    --accent:#7aa2f7; --accent-bg:rgba(122,162,247,.12);
+    font:14px/1.5 "Courier Prime","Courier New",Courier,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text)}
+  body{padding:16px;overflow-x:hidden}
+  button{font:inherit;color:inherit}
+  h1{font-size:18px;margin:0 0 4px}
+  .lead{color:var(--text-dim);font-size:13px;margin:0 0 4px;max-width:900px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:20px;align-items:start;margin-top:12px}
+  .vbox{border:1px solid var(--border-strong);background:var(--panel);padding:12px;min-width:0}
+  .vtag{color:var(--accent);font-weight:700}
+  .why{font-size:12px;color:var(--text-dim)}
+  .side{background:var(--bg);border:1px solid var(--border);padding:8px;max-width:520px;margin-top:8px}
+  .phone{width:min(390px,100%);border:2px solid var(--border-strong);border-radius:14px;padding:10px;background:var(--bg);margin-top:12px}
+  .phone-cap{font-size:11px;color:var(--text-faint);margin:12px 0 4px}
+  .new{display:inline-block;font-size:10px;font-weight:700;color:var(--bg);background:var(--amber);padding:0 4px;margin-left:4px;vertical-align:middle;letter-spacing:.04em}
+
+  /* from the panel: .audit-group, .btn, .badge, .hint, #result-body */
+  #result-body{min-width:0;overflow-wrap:anywhere}
+  .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px}
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none}
+  .audit-group h4::before{content:"┤ ";color:var(--text-faint)}
+  .audit-group h4::after{content:" ├";color:var(--text-faint)}
+  .badge.green{color:var(--green)} .badge.red{color:var(--red)} .badge.amber{color:var(--amber)} .badge.grey{color:var(--grey-dot)}
+  .sign{font-weight:700;margin-right:4px}
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px}
+  .ro-value{font-size:13px;color:var(--text);overflow-wrap:anywhere}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);position:relative;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  .btn::before{content:"[ ";color:var(--text-faint)} .btn::after{content:" ]";color:var(--text-faint)}
+  .btn.small{padding:0 9px;min-height:32px;font-size:12px}
+  @media (max-width:520px){.btn.small{min-height:44px}}
+  .fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font-size:12px;padding:4px 0;cursor:pointer;min-height:32px}
+  .fold:hover{color:var(--accent)} .fold:focus-visible,.btn:focus-visible,.rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0}
+  .tk:last-child{border-bottom:0}
+  .t1{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;min-width:0}
+  .tn{color:var(--accent);font-weight:700}
+  .tt{color:var(--text);min-width:0;overflow-wrap:anywhere}
+  .t2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
+  .chg{font-size:12px;color:var(--amber)}
+  .day{margin:0}
+</style>
+</head>
+<body>
+<h1>M12 — ticket list in the Result tab <span class="new">UNSIGNED</span></h1>
+<p class="lead">Unsigned mockup for M12 (tickets). The list sits in the Result tab of the run the schedule was set from, as a folded group like the Audit's <b>▸ schedule (k)</b>; one list, all days, newest first, today open.</p>
+<p class="lead">Each row = one ticket = one run: <span class="badge green">[✓] passed</span> done · <span class="badge amber">[·] waiting</span> at its ask · <span class="badge red">[✗] stopped</span> · <span class="badge grey">skipped</span> grey, $0, with a reason and a button · a "status changed" line when it arrived again.</p>
+<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work.</p>
+<div class="grid">
+<section class="vbox"><div class="vtag">desktop</div><div class="side" id="d"></div></section>
+<section class="vbox"><div class="vtag">phone (390px)</div><div class="why">same markup; the frame is narrow, so rows wrap</div><div class="phone" id="p"></div></section>
+</div>
+<script>
+var NEWT='<span class="new">NEW</span>';
+var DAYS=[
+ {d:"10/29",open:true,rows:[
+  {n:"195342",t:"Crash when rotating the map on tablets",k:"done",run:12},
+  {n:"195338",t:"Docs: typo in Navigator.pushNamed example",k:"skip",why:"no P1 or P2 label"},
+  {n:"195331",t:"Scroll jank in nested ListView on Android",k:"wait",run:13},
+  {n:"195308",t:"Build fails on arm64 with Xcode 17",k:"stop",run:14},
+  {n:"195290",t:"Feature request: dark mode for DevTools",k:"skip",why:"closed"},
+  {n:"195272",t:"Keyboard focus lost after dialog closes",k:"done",run:15,chg:"status changed: open → closed"}]},
+ {d:"10/28",open:false,n:5,rows:[
+  {n:"195241",t:"Text field cursor drifts on iOS 19",k:"done",run:9},
+  {n:"195233",t:"Plugin template fails analyzer",k:"stop",run:8},
+  {n:"195220",t:"Slow cold start on low-end devices",k:"done",run:7},
+  {n:"195214",t:"Question: how to mock a platform channel",k:"skip",why:"no P1 or P2 label"},
+  {n:"195201",t:"Hot reload ignores const constructor change",k:"done",run:6}]},
+ {d:"10/27",open:false,n:3,rows:[
+  {n:"195150",t:"Semantics label missing on Switch",k:"done",run:5},
+  {n:"195144",t:"Impeller artifacts on rounded clip",k:"stop",run:4},
+  {n:"195139",t:"Typo in README",k:"skip",why:"closed"}]}
+];
+var state={};
+function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function row(r){
+ var o={done:'<span class="badge green"><span class="sign">[✓]</span>passed</span> · ',
+        wait:'<span class="badge amber"><span class="sign">[·]</span>waiting</span> · ',
+        stop:'<span class="badge red"><span class="sign">[✗]</span>stopped</span> · ',
+        skip:'<span class="badge grey"><span class="sign">skipped</span></span>'+NEWT+' · '}[r.k];
+ var h='<div class="tk"><div class="t1"><span class="tn">#'+r.n+'</span><span class="tt">'+e(r.t)+'</span></div><div class="t2">';
+ if(r.chg)h+='<span class="chg">'+e(r.chg)+'</span>'+NEWT+'<br>';
+ h+=o;
+ if(r.k==="skip")h+='<span>'+e(r.why)+' · $0</span><button class="btn small" type="button">Run it anyway</button>'+NEWT;
+ else h+='<button class="rl" type="button">run-'+r.run+'</button>';
+ return h+'</div></div>'}
+function view(id){
+ var h='<div id="result-body"><div class="field"><label>Schedule</label><div class="ro-value">When a new ticket arrives in issues'+NEWT+' · looks every 15 min'+NEWT+'</div></div>';
+ h+='<div class="audit-group"><h4><span class="badge grey">tickets'+NEWT+'</span></h4>';
+ var total=0;DAYS.forEach(function(x){total+=x.rows.length});
+ h+='<button class="fold" data-k="__all" aria-expanded="'+(state[id+"__all"]!==false)+'">'+(state[id+"__all"]!==false?"▾":"▸")+' tickets ('+total+')</button>';
+ if(state[id+"__all"]!==false){
+  DAYS.forEach(function(x){var open=state[id+x.d]===undefined?x.open:state[id+x.d];
+   h+='<div class="day"><button class="fold" data-k="'+x.d+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' '+x.d+' ('+x.rows.length+')</button>';
+   if(open)h+=x.rows.map(row).join("");
+   h+='</div>'})}
+ h+='<div class="hint">newest first · one list, all days · each ticket opens its own run</div></div></div>';
+ return h}
+function render(){document.getElementById("d").innerHTML=view("d");document.getElementById("p").innerHTML=view("p")}
+document.addEventListener("click",function(ev){var b=ev.target.closest(".fold");if(!b)return;
+ var id=b.closest("#p")?"p":"d",k=b.getAttribute("data-k"),cur;
+ if(k==="__all")cur=state[id+k]!==false;else{var x=DAYS.filter(function(y){return y.d===k})[0];cur=state[id+k]===undefined?x.open:state[id+k]}
+ state[id+k]=!cur;render()});
+render();
+</script>
+</body>
+</html>
