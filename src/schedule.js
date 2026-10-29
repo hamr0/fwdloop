@@ -18,6 +18,7 @@ import { appendRow } from './jsonl-append.js';
 import { queueOf, readSeen, recordDropped } from './trigger-files.js';
 import { readRows, validateSchedule } from './trigger-clock.js';
 import { triggerHash } from './trigger-line.js';
+import { WATCHABLE } from './trigger-tickets.js';
 
 /** @typedef {import('./trigger-line.js').Trigger} Trigger */
 /**
@@ -42,11 +43,14 @@ export const ledgerOf = (flowDir) => join(flowDir, LEDGER_FILE);
 export const sigOf = (bound, signedAt) => createHash('sha256').update(`${bound}\n${signedAt}`).digest('hex');
 
 const isFile = (/** @type {any} */ t) => t?.kind === 'new-file' || t?.kind === 'file-updated';
+const isTicket = (/** @type {any} */ t) => t?.kind === 'new-ticket';
 const str = (/** @type {unknown} */ v) => typeof v === 'string' && v !== '';
 
 /** Is this a typed trigger of the five shapes? (the same shapes `trigger-line.js` parses; the schedule file never carries a line) @param {any} t */
 function triggerOk(t) {
   if (!t || typeof t !== 'object') return false;
+  // M12 piece 2: a ticket trigger carries the list address, the job's server and the look's one tool (signed with the two clicks), and optionally the watched fields
+  if (t.kind === 'new-ticket') return str(t.role) && str(t.list) && str(t.server) && str(t.tool) && (t.watch === undefined || (Array.isArray(t.watch) && t.watch.every((/** @type {unknown} */ w) => WATCHABLE.includes(/** @type {string} */ (w)))));
   if (isFile(t)) return str(t.role) && isAbsolute(String(t.kind === 'new-file' ? t.folder : t.path));
   try { validateSchedule(t); return true; } catch { return false; }
 }
@@ -89,6 +93,7 @@ export function removeSchedule(flowDir) {
 
 /** Does a re-sign keep the same kind and the same folder/file (so the queue and the baseline stand)? @param {Trigger|null|undefined} cur @param {Trigger|null} next */
 export function sameTarget(cur, next) {
+  if (isTicket(cur) && isTicket(next)) return cur.role === next.role && cur.list === next.list;   // M12: the same list keeps its queue and its starting point
   if (!cur || !next || !isFile(cur) || !isFile(next) || cur.kind !== next.kind) return false;
   return cur.kind === 'new-file' ? cur.folder === /** @type {any} */ (next).folder : /** @type {any} */ (cur).path === /** @type {any} */ (next).path;
 }

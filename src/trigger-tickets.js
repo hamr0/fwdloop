@@ -168,21 +168,21 @@ export function recordLook(ledger, sig, look, at) {
   if (look.first) {
     for (const i of [...look.found].reverse()) {
       appendSeen(ledger, /** @type {any} */ ({
-        id: `baseline:ticket:${i.number}`, kind: 'baseline', sha: `ticket:${i.number}`, name: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
+        id: `baseline:ticket:${i.number}`, kind: 'baseline', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
       }), sig);
     }
     return { arrived, unreadable: null };
   }
   for (const i of [...look.found].reverse()) {
     appendSeen(ledger, /** @type {any} */ ({
-      id: `arrived:ticket:${i.number}`, kind: 'arrived', sha: `ticket:${i.number}`, name: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
+      id: `arrived:ticket:${i.number}`, kind: 'arrived', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
     }), sig);
     arrived.push(i.number);
   }
   for (const c of look.changed) {
     const n = readSeen(ledger, sig).filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === c.number).length;
     appendSeen(ledger, /** @type {any} */ ({
-      id: `arrived:ticket:${c.number}:${n}`, kind: 'arrived', sha: `ticket:${c.number}:${n}`, name: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c), reason: c.reason,
+      id: `arrived:ticket:${c.number}:${n}`, kind: 'arrived', sha: `ticket:${c.number}:${n}`, name: `#${c.number}`, path: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c), reason: c.reason,
     }), sig);
     arrived.push(c.number);
   }

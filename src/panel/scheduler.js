@@ -19,14 +19,21 @@ import {
   createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
 } from '../trigger-files.js';
 import { ledgerOf } from '../schedule.js';
+import {
+  TICKET_LOOK_MS, hasBaseline, lastSeen, lookTickets, recordLook, seenNumbers,
+} from '../trigger-tickets.js';
 import { readOutcomes } from './authortrigger.js';
 
 /**
- * @param {{ door: ReturnType<typeof import('./authortrigger.js').createTriggerDoor>, now?: () => number, intervalMs?: number }} opts
- *   `intervalMs` 0 = no timer (a test drives `tick`).
+ * @param {{ door: ReturnType<typeof import('./authortrigger.js').createTriggerDoor>, now?: () => number, intervalMs?: number, look?: typeof lookTickets, mcpConfig?: string }} opts
+ *   `intervalMs` 0 = no timer (a test drives `tick`). `look`/`mcpConfig`: M12 piece 2, the ticket look and the MCP config it reads (default: the person's own ~/.mcp.json).
  */
 export function createScheduler(opts) {
-  const { door, now = Date.now, intervalMs = 500 } = opts;
+  const {
+    door, now = Date.now, intervalMs = 500, look = lookTickets, mcpConfig,
+  } = opts;
+  /** M12 piece 2: per ticket schedule, when it last looked and whether a look is out (a look is async; `tick` never waits for one). @type {Map<string, {at: number|null, out: Promise<void>|null}>} */
+  const lookers = new Map();
   /** @type {Map<string, ReturnType<typeof createFileTrigger>>} */
   const watchers = new Map();
   /** @type {Set<string>} refusals already written, so a folder that stays gone is told once, not every tick */
@@ -46,7 +53,8 @@ export function createScheduler(opts) {
     if (queue.length === 0) return;
     const key = (/** @type {string} */ sha, /** @type {Record<string, any>} */ r) => `${sha}|${r.outcome}|${r.why ?? ''}`;   // a refusal is told once PER REASON; busy / monthly carry no `why`
     const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string' && r.sig === sig).map((r) => key(r.sha, r)));
-    const cause = (/** @type {any} */ q) => ({ kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
+    const ticketJob = job.trigger.kind === 'new-ticket';   // M12 piece 2: a ticket has no file to look at again; it is its number
+    const cause = (/** @type {any} */ q) => (ticketJob ? { kind: /** @type {'ticket'} */ ('ticket'), number: q.number, sha: q.sha, role: job.trigger.role, list: job.trigger.list, ...(q.reason ? { why: q.reason } : {}) } : { kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
     const told = (/** @type {any} */ q) => (/** @type {Record<string, any>} */ row) => { const k = key(q.sha, row); const had = spoken.has(k); spoken.add(k); return had; };
     if (door.busy(job)) {
       for (const q of queue) door.fire(job, cause(q), { told: told(q) });
@@ -54,7 +62,7 @@ export function createScheduler(opts) {
     }
     while (queue.length > 0) {
       const q = queue[0];
-      const seen = recheck(q);
+      const seen = ticketJob ? { state: /** @type {'ok'} */ ('ok'), path: q.path, sha: q.sha, size: 0 } : recheck(q);
       if (seen.state !== 'ok') {
         const why = seen.state === 'deleted' ? 'deleted' : 'changed';
         recordDropped(ledger, q, why, nowMs, sig);
@@ -69,6 +77,28 @@ export function createScheduler(opts) {
     }
   }
 
+  /**
+   * M12 piece 2 (items 5, 6, 7): when a ticket schedule's look is due (never looked, or 15 minutes since the last START of one) and none is out, start it. THE writer of the
+   * ticket rows is `recordLook`, called once the look settles: first look = baseline rows (nothing runs); later = one `arrived` row per new ticket or watched change;
+   * an unreadable list = one `unreadable` row with its cause, and the next look is a first look again while there is no baseline.
+   * @param {any} job @param {string} key @param {string} ledger @param {number} nowMs
+   */
+  function startLook(job, key, ledger, nowMs) {
+    let st = lookers.get(key);
+    if (!st) { st = { at: null, out: null }; lookers.set(key, st); }
+    if (st.out !== null || (st.at !== null && nowMs - st.at < TICKET_LOOK_MS)) return;
+    st.at = nowMs;
+    const { sig, trigger } = job;
+    const first = !hasBaseline(ledger, sig);
+    const watch = Array.isArray(trigger.watch) ? trigger.watch : [];
+    const out = Promise.resolve(look({
+      listUrl: trigger.list, mcp: { server: trigger.server, tool: trigger.tool }, ...(mcpConfig ? { configPath: mcpConfig } : {}),
+      seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch,
+    })).then((r) => { recordLook(ledger, sig, r, now()); }, (e) => { recordLook(ledger, sig, { ok: false, error: String(e?.message ?? e) }, now()); })
+      .finally(() => { /** @type {any} */ (st).out = null; });
+    st.out = out;
+  }
+
   function tick() {
     const nowMs = now();
     const live = new Set();
@@ -80,7 +110,10 @@ export function createScheduler(opts) {
       try {
         const ledger = ledgerOf(job.flowDir);
         const { trigger } = job;
-        if (trigger.kind === 'file-updated' || trigger.kind === 'new-file') {
+        if (trigger.kind === 'new-ticket') {
+          startLook(job, key, ledger, nowMs);
+          runQueue(job, ledger, nowMs);
+        } else if (trigger.kind === 'file-updated' || trigger.kind === 'new-file') {
           let w = watchers.get(key);
           if (!w) {
             w = createFileTrigger({
@@ -107,10 +140,13 @@ export function createScheduler(opts) {
       }
     }
     for (const k of [...watchers.keys()]) if (!live.has(k)) watchers.delete(k);
+    for (const k of [...lookers.keys()]) if (!live.has(k)) lookers.delete(k);
   }
 
   return {
     tick,
+    /** M12 piece 2: resolves when every ticket look now out has been written to its ledger (a test awaits it; the timer never does). */
+    async settled() { await Promise.all([...lookers.values()].map((l) => l.out)); },
     /** Start the real timer (idempotent). */
     start() {
       if (intervalMs <= 0 || timer !== null) return;
