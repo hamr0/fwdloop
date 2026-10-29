@@ -4453,3 +4453,22 @@ If the GitHub server returns device-login text instead of data, the look retries
 | T6 | $0 and only `list_issues` called: no model/provider call anywhere, bridge `allow` = `[list_issues]`. |
 
 Verdicts on the letter; no refitting.
+
+### F103 RESULT (run 2026-10-29, $0, no model call; PARTIAL — blocked at the retry by GitHub MCP device-login text)
+
+Evidence: `poc/mcp/f103/` (`look.mjs`, `flood.mjs`, `wait-looks.sh`, `wait-retry.sh`, `out/`). Judged on the letter.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| T1 | PASS | look 1 (11:44:20Z): 1 page, 1 call, 10 `baseline` rows (195515 ... 195577), `newOldestFirst` empty. |
+| T2 | **INCONCLUSIVE** | look 2 (12:00:31Z, 16 min later) found 0 new; independent `gh api` (non-PR, open, created after look 1) also 0. The one pre-registered retry (look 2b, 12:16Z) and a later look 2c (12:18Z) both returned the GitHub server's device-login text twice in a row (retry once each), so recorded `unreadable`, not "0 new". By `gh` at 12:17Z still 0 new open issues since look 1 (the only new numbers, 195578 and 195579, are PRs). T2 never saw a non-empty result; it is not PASS. |
+| T3 | PASS (weak) | look 3 right after look 2 (12:00:41Z): 0 new, ledger 10 rows, no number twice. Weak because look 2 queued nothing to re-arrive. |
+| T4 | PASS | flood.mjs: separate ledger seeded with 10 numbers older than the 30 newest (from `gh`); look read 4 pages / 4 calls / 3.8 s, queued 30 tickets oldest first (195465 ... 195577) equal to the `gh` list, none missed, none extra, no duplicate; `gh` unchanged between its two reads. Green on arrival; no temporary break done. |
+| T5 | PASS | nonexistent repo: `unreadable` = "Could not resolve to a Repository ...", `newOldestFirst` empty, no ledger written (retried once, 2 calls). |
+| T6 | PASS | `allow: { github: ['list_issues'] }` in the bridge; `issue_read` not needed; no model/provider call anywhere. |
+
+**Surprises / what the build needs.**
+- The GitHub MCP server can answer with device-login text instead of data (F100 saw it once; here it held for ~3 minutes across three looks, each retry-once). The look must treat it as `unreadable`, never as 0 new, and the next 15-minute look just tries again; the ledger was untouched by every unreadable look. Whether the token is no longer loaded (login needed) or this is transient is unchecked.
+- `list_issues` returned no PR in any read (the numbers between issues, e.g. 195578 and 195579, are PRs and were absent); `gh` needed the `pull_request` filter, `list_issues` did not.
+- The look 1 baseline is the first page only (10 numbers); a baseline ticket later closed is harmless because the stop is at the first seen number still open.
+- Flutter opened no new issue in ~33 minutes at midday UTC; a real T2 needs a busier repo or a longer window.
