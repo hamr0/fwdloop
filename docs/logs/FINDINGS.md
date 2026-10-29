@@ -4539,3 +4539,20 @@ P3 no MCP server started: no `mcp-calls.jsonl` row (and no `github` bridge proce
 | P3 no MCP server started | PASS | No `mcp-calls.jsonl` anywhere in the scratch for H1-H4; `canrun.js` imports no MCP code (it imports only `primitives.js` and `closers.js`); the freeze step that starts the bridge is never reached. |
 
 **What the build needs.** (1) The declaration needs a typed place for the signed MCP tools (today the list is the constant `SIGNED_TOOLS` in the scratch `ticket-mcp.js`; `declaration.js` has no such field). (2) `canFlowRun` needs one more finder beside `findUnwiredVerbStep`, same shape and same sentence style: a signed tool that no step grants and the scheduler does not use is refused with `preflight: signed tool "list_issues" is granted to no step`, and a signed tool the server does not mark read-only is refused by name too. (3) Open ruling for hamr, not mine: the signed Done-when signs both `issue_read` (the step) and `list_issues` (the trigger), so "used" must count the scheduler as a user, or `list_issues` would always refuse; item 12's "declared tool the job never wired" needs that definition. The verb refusal (H2) already works and is the model to copy.
+
+### F104 RESULT (run 2026-10-29, $0, no model call, microsoft/vscode, 30 newest by creation, state omitted = open and closed)
+
+[MEASURED] Evidence in `poc/mcp/f104/` (`watch.mjs`, `wait.sh`, `wait2.sh`, `out/ledger.jsonl`, `out/look1-3.json`, `out/gh-after-look2.jsonl`, `out/r2/`). Look 1 13:00:12Z (baseline 344903..344962, 30 rows). Look 2 13:16:21Z (+16 min), look 3 13:16:56Z. Pre-registered extension: look 4 13:33:13Z (+17 min after look 2), look 5 13:33:41Z. `gh api` for all 30 after look 2 and after look 4. Every look: 1 call, `exposed` = `[github_list_issues]`, no retry, no unreadable.
+
+**Watched changes seen: 0.** Over 33 minutes none of the 30 changed state or labels per `gh` (30/30 equal to look 1 after look 2, and again after look 4). Also no unwatched field changed (title, updated_at, comments equal for all 30 per `gh`): the 30 newest issues were quiet for the whole window. The ledger stayed at 30 `baseline` rows, 0 `arrived`.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| W1 baseline queues nothing | PASS | Look 1 wrote 30 `baseline`, 0 `arrived`. |
+| W2 arrivals = exactly the changed numbers, right reason | INCONCLUSIVE | 0 watched changes in two 15-minute windows (the one pre-registered extension is used up); the `arrived` and reason path (`reasonFor`) is therefore unexercised on live data. |
+| W3 an unwatched change writes nothing | INCONCLUSIVE | No number among the 30 had any title/updated_at/comments change per `gh`. |
+| W4 look 3 writes nothing | PASS (trivial) | Looks 3 and 5 wrote nothing; with no arrival in the previous look, double arrival was not testable. |
+| W5 $0, only allowed tools | PASS | `allow` = `{github:['list_issues']}`, exposed tools listed per look, no model call, no spend file. |
+
+**Recorded, not judged.** `state` omitted returns both open and closed (`ALL` is refused by the enum); a no-label issue returns no `labels` key (read as empty). Paging by number: the look finds the same 30 even if newer issues push them down (not exercised: no new page was needed, `pages` 1 every look). The newest vscode issues are slow to change; a better candidate for the next try is a run over older, busier issues, or `orderBy UPDATED_AT`, which is a different signed shape (unsigned idea, not tested).
+**Verdict.** The mechanism was not shown to work or fail: W1/W4/W5 pass trivially, the part that matters (W2, W3) needs a window with a real change. Not one rate.
