@@ -3,7 +3,6 @@
 // from the runs themselves (`run.json` keeps `ticket: {number, title}` for every ticket run, M12 p3) and the schedule ledger's `arrived` rows (arrival time, and
 // the reason a watched change made a ticket arrive again). No file of its own; nothing written. Pure of the panel: the run lookups are injected.
 import { join } from 'node:path';
-import { statSync } from 'node:fs';
 
 import { readSchedule, ledgerOf } from '../schedule.js';
 import { readSeen } from '../trigger-files.js';
@@ -33,10 +32,10 @@ export function ticketScheduleOf(flowDir, runId, readSched = readSchedule) {
 }
 
 /**
- * @param {{flowDir: string, runId: string, runIdsOf: (flowDir: string) => string[], glyphOf: (runId: string) => {glyph: string, label: string}|null, readSched?: (dir: string) => any}} a
+ * @param {{flowDir: string, runId: string, runIdsOf: (flowDir: string) => string[], glyphOf: (runId: string) => {glyph: string, label: string}|null, atOf?: (runId: string) => number|null, readSched?: (dir: string) => any}} a
  * @returns {null | {line: string, list: string, groups: Array<{key: string, label: string, open: boolean, rows: any[]}>}}
  */
-export function ticketListOf({ flowDir, runId, runIdsOf, glyphOf, readSched }) {
+export function ticketListOf({ flowDir, runId, runIdsOf, glyphOf, atOf = () => null, readSched }) {
   const sched = ticketScheduleOf(flowDir, runId, readSched);
   if (!sched) return null;
   const arrivals = new Map();
@@ -54,8 +53,7 @@ export function ticketListOf({ flowDir, runId, runIdsOf, glyphOf, readSched }) {
     if (!entry) continue;
     const g = glyphOf(id);
     if (!g) continue;
-    let at = Date.now();
-    try { at = statSync(runDir).mtimeMs; } catch { /* keep now */ }
+    const at = atOf(id) ?? Date.now();
     const n = entry.ticket.number;
     const arr = arrivals.get(n);
     const row = {

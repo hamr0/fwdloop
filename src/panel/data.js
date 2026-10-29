@@ -1094,6 +1094,19 @@ export function getRunGlyph({
 }
 
 /**
+ * The time (ms) the run's history row was written, or null when it has none. @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+function getRunEndedAt({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  const at = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).historyRow?.at;
+  const ms = typeof at === 'string' ? Date.parse(at) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
  * `GET /api/runs` — every flow under `root`, every run under each flow
  * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
  * null`, an explicit `why`) — no flow is silently missing from the list.
@@ -2249,7 +2262,7 @@ export function getTicketList({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   return ticketListOf({
-    flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }),
+    flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }), atOf: (id) => getRunEndedAt({ root, flow, runId: id, catalogue }),
   });
 }
 
