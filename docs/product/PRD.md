@@ -225,17 +225,34 @@ hamr's rulings 2026-10-28:
 
 1. Inputs stay as today: a free name and a path or address (`report: /path/to/file.csv`, `airbnb: <url>`).
 2. MCP is chosen from a dropdown, not typed. A new Settings tab (next to Providers) lists the servers from `~/.mcp.json`. hamr adds a path there and sees what each server can read (tools and read-only marks). The job card picks a server from a dropdown, in the style of "Run a signed flow". With the dropdown, `mcp:` and `chat:` input keywords are not needed. For now it is vanilla MCP (read-only). Later: from a job's chat, spin off a scoped copy of a server with w/x rights, guided by hints, then carry the same model to chat rwx.
-3. barebrowse is one entry in the same dropdown (it already runs as an MCP server). A site with its own MCP server uses that; a site without one uses barebrowse; search later is barebrowse too. barebrowse tickets are tried only if the POC (F106, pre-registered in FINDINGS) passes; otherwise barebrowse stays for search and tickets use MCP servers only.
+3. barebrowse is one entry in the same dropdown (it already runs as an MCP server). A site with its own MCP server uses that; a site without one uses barebrowse; search later is barebrowse too. What was found:
+   - F106 (2026-10-30, $0) FAILED on the letter: barebrowse 0.26.0 marked no tool read-only, so M12's rule refuses every barebrowse tool.
+   - At hamr's ask, barebrowse is building 0.27.0 (branch `feat/mcp-tiers-site-lock`). It adds:
+     - hints (annotations) on every tool;
+     - tiers set at start, `BAREBROWSE_TIER=r|rw|rwx`; tools above the tier are not listed and are refused;
+     - a site lock, `BAREBROWSE_ALLOW=host,*.host`, enforced in the browser on every page load, including redirects, clicks, JS jumps and popups;
+     - a bad tier or allow value means the server refuses to start.
+   - F107 (pre-release, $0) passed (a), (b), (d), (e) and (f). (c), the Codeberg body read, failed on the letter: a Chromium page-load timeout that also happens on 0.26.0 and that barebrowse could not reproduce. Firefox read the body with the lock on.
+   - Owed: re-run the checks on the installed 0.27.0 once it is published.
+   - fwdloop would start barebrowse at tier `r`, locked to the job's signed site.
 4. Schedule can be set from day 1, on the job card. It stays off until the job's first green run, then turns itself on. A red run reused redrafts with the same schedule. "Schedule run" stays for a job that had none. No separate When box (that would be scope creep; the trigger is part of Schedule).
 5. One run per ticket. The Result tab stays as for any job. Runs are named by the ticket number.
 6. The by-hand `ticket #` box becomes a backend reach check: a $0 "can I reach it?" read at draft, the same for every source (MCP, browse, chat).
 7. What this would change of signed M12 text: the Inputs form (item 8), the ticket-number ruling (PRD 2026-10-29), the Result ticket list (item 9). The engine stays.
+8. rwx scoping is bound by the server's MCP hints (mcphints). With no hints, w/x can't be decided, so the server stays read-only. Building MCP servers for sites that have none is not pursued: sites rarely publish OpenAPI (rwxmap's experience). barebrowse grading its own tools is the gateway for any site. The w/x split of a hinted server (e.g. GitHub's 19 write tools) waits for the scoped spin-off, and starts as its own POC.
 
 Open points (unsettled):
 
 - Where do a skipped ticket and "Run it anyway" live if the Result list goes?
 - Is a run name the number alone, or number plus title?
 - What does the first run read when there is no ticket box (the newest ticket?)?
+- Loose ends from the M12 walk (unsigned):
+  - `list_issues` is signed only in `schedule.json` (`trigger.tool`), not in the declaration's `mcp.tools`. The M12 Done-when said both are signed. Settle where a trigger's tool is signed.
+  - "Reuse workflow" from a preflight-red run showed **Start drafting** (a paid redraft) instead of **Run now**. Cause not found.
+  - An `unreadable` look (for example pass locked) is recorded only in the schedule ledger. Nothing on screen shows it.
+  - A watched change that arrives while the same ticket is still queued queues a second run.
+  - The drafter emitted the ticket filter only for some wordings (`priority P1 only` worked; `only tickets with priority P1 count` did not).
+  - The Audit grid (M4d am36) was copied from bareloop's unreleased branch. It must be re-checked against bareloop's release tag.
 
 **Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:
 1. Each part keeps its header and tools line. Under it, a check grid: rows are the part's checks in run order with their plain question; columns are try 1..N (with thinking on/off); cells ✓ ✗ · (not run) ? (no verdict). The grid scrolls inside its own box; no page side-scroll at 390px.
