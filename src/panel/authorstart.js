@@ -77,7 +77,8 @@ export function createStarter(opts) {
     const st = readJsonFile(dir, 'start.json');
     if (!st || typeof st.flow !== 'string' || typeof st.runId !== 'string') return null;
     const base = { startId: id, kind: st.kind, flow: st.flow, runId: st.runId };
-    const resolved = resolveRunDir(join(realpathSync(root), st.flow), st.runId);
+    const flowDir = join(realpathSync(root), st.flow);
+    const resolved = resolveRunDir(flowDir, st.runId);
     if (!resolved.ok) return null;
     // alive FIRST, then the book row: a child that writes its row and exits between the two reads as started, never refused
     const alive = childRunning(dir);
@@ -98,7 +99,7 @@ export function createStarter(opts) {
       return { ...base, phase: 'started', state: carriedOn() };
     } else if (alive) return { ...base, phase: 'starting' };
     // a SKIPPED run (hamr 2026-10-30) ends before its first pid row, but its history row is a real ending: a grey one, never a refusal
-    if (readHistory(join(realpathSync(root), st.flow)).some((h) => h.runId === st.runId && h.outcome === 'skipped')) return { ...base, phase: 'started', state: 'ended' };
+    if (readHistory(flowDir).some((h) => h.runId === st.runId && h.outcome === 'skipped')) return { ...base, phase: 'started', state: 'ended' };
     const log = readFileInside(dir, 'child.log');
     const tail = log.ok ? scrub(log.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
     const say = tail === '' ? ENDED_SAY : (tail.includes(NOTHING_SPENT) ? tail : `${tail}\n${NOTHING_SPENT}`);
