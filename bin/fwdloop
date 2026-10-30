@@ -306,6 +306,10 @@ function reportRunResult(result, { rootArg }) {
     process.exitCode = 1;
     return;
   }
+  if (result.outcome === 'skipped') {   // hamr 2026-10-30: a skip is a normal grey ending, not a failure
+    process.stdout.write(`skipped: spentUsd=${result.spentUsd}\n`);
+    return;
+  }
   process.stderr.write(`fwdloop: ${result.outcome}${result.red ? ` — ${result.red}` : ''}\n`);
   process.exitCode = 1;
 }
