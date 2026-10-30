@@ -4773,3 +4773,32 @@ Question: bare-agent branch `feat/mcp-pass-env` (HEAD 4a50481, unreleased, check
 **Method.** Scratch install `npm i ../bareagent` (file install of the checkout). Scripts in `poc/mcp/f111/`, run against the scratch install. Names and booleans only; no key value, no server command printed; `pass` never read; no model call. Browsers a server might start are killed by PID, `/tmp/barebrowse-*` dirs removed.
 
 **Win rule.** a-g all true. (h) is reported, not pass/fail.
+
+### F111 RESULT (run 2026-10-30, $0, no model call, `src/` unchanged, bare-agent checkout 4a50481 untouched)
+
+[MEASURED] Evidence in `poc/mcp/f111/` (`f111.mjs`, `server.mjs`, `marker.mjs`, `out.txt`). Scratch `npm i ../bareagent` (npm made a symlink to the checkout). Names and booleans only. Bare command `node f111.mjs` exit code: **0**. The first run's (h) rows were all "failed": a harness bug (listed server name `s`, config named it `f111`), fixed and rerun; a-g were identical both runs.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) unset | PASS | both canaries reach the child; `F111_SECRET` and own env too (unchanged behaviour) |
+| (b) `['PATH','HOME']` | PASS | canaries absent; child names exactly `F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED HOME PATH` |
+| (c) `${F111_SECRET}` in own env | PASS | `F111_RESOLVED` present, value equals expected: true; `F111_SECRET` itself absent from the child |
+| (d) own wins | PASS | with `F111_CLASH` in passEnv: child value equals own: true, equals parent: false |
+| (e) `[]` | PASS | child names exactly the four own names; no PATH, no HOME, no canary |
+| (f) bad values | PASS | `'PATH'`, `['']`, `[1]`, `{}`: both `createMCPBridge` and `listServerTools` throw `ValidationError`; marker file never created |
+| (g) `listServerTools` | PASS | canaries absent; PATH and own present; 1 tool |
+
+The test could fail: (a) is the control (canaries do arrive without passEnv) and (f)'s marker server would have written its file on a spawn.
+
+**(h) measurement, passEnv `['PATH','HOME']`, `tools/list` only.**
+
+| Server | Started | Tools | Extra names needed |
+|---|---|---|---|
+| barebrowse (npx) | yes | 22 | none |
+| litectx (node) | yes | 8 | none |
+| baremobile (npx) | yes | 17 | none |
+| sh-wrapped test server (`sh -c 'exec node "$F111_SERVER"'`) | yes | 1 | none (child saw `F111_OUT_FILE F111_OWN F111_SERVER HOME PATH PWD SHLVL`; `PWD`, `SHLVL` are added by `sh`) |
+
+The retry list (`TMPDIR, LANG, USER, XDG_RUNTIME_DIR, NODE_OPTIONS, npm_config_cache`) was never needed. Not tested: the `github` server (by instruction); only `tools/list`, not a tool call (a barebrowse call that launches a browser may need more, for example `XDG_RUNTIME_DIR` or `DISPLAY`); `beeper` (no command in config). No process of mine was left running and no `/tmp/barebrowse-*` dir exists.
+
+**Verdict.** The branch does what was agreed, a-g all pass. fwdloop can pass `['PATH','HOME']` and cut provider keys from MCP children; whether tool calls (not just listing) work under the cut is untested.
