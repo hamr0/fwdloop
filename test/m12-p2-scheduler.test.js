@@ -156,3 +156,35 @@ test('Must fail: with NO watched field, a ticket closing arrives nothing (the si
   assert.deepEqual(f.rows('arrived'), []);
   assert.deepEqual(f.fires, []);
 });
+
+test('watched change on a ticket still queued behind a busy run: ONE queued run, not two; a later change after it started arrives once', async (t) => {
+  const f = setup(t, { watch: ['state'], busy: true });
+  const flip = (st) => f.setList(newestFirst(5).map((i) => (i.number === 3 ? { ...i, state: st } : i)));
+  await f.step();
+  flip('CLOSED');
+  await f.step(15 * MIN);
+  assert.equal(queueOf(readSeen(f.ledger, SIG)).length, 1, 'ticket 3 is queued behind the busy run');
+  flip('OPEN');
+  await f.step(15 * MIN);
+  assert.equal(f.rows('arrived').length, 1, 'a second change on a queued ticket queues nothing');
+  f.state.busy = false;
+  await f.step(1000);
+  assert.deepEqual(f.fires.filter((x) => !x.busy).map((x) => x.number), [3], 'exactly one run');
+  await f.step(15 * MIN);
+  await f.step(1000);
+  assert.equal(f.rows('arrived').length, 1, 'the skipped change does not re-fire once the run started');
+  assert.equal(f.fires.filter((x) => !x.busy).length, 1);
+  flip('CLOSED');
+  await f.step(15 * MIN);
+  await f.step(1000);
+  assert.equal(f.rows('arrived').length, 2, 'a later change arrives once');
+  assert.deepEqual(f.fires.filter((x) => !x.busy).map((x) => x.number), [3, 3]);
+});
+
+test('watched change on a ticket NOT in the queue still arrives once (busy run, other ticket queued)', async (t) => {
+  const f = setup(t, { watch: ['state'], busy: true });
+  await f.step();
+  f.setList(newestFirst(5).map((i) => (i.number === 3 ? { ...i, state: 'CLOSED' } : i.number === 4 ? { ...i, state: 'CLOSED' } : i)));
+  await f.step(15 * MIN);
+  assert.deepEqual(f.rows('arrived').map((r) => r.number), [3, 4]);
+});

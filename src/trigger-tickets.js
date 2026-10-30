@@ -172,7 +172,17 @@ export function recordLook(ledger, sig, look, at) {
     arrived.push(i.number);
   }
   for (const c of look.changed) {
-    const n = readSeen(ledger, sig).filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === c.number).length;
+    const rows = readSeen(ledger, sig);
+    if (queueOf(rows).some((q) => /** @type {any} */ (q).number === c.number)) {
+      // already waiting: the queued run reads the ticket as it is when it starts, so no second run. Advance the last-seen value (a `baseline` row, same writer) so the
+      // next look does not re-fire this same change once that run has started; a LATER change still differs from it and arrives once.
+      const b = rows.filter((r) => r.kind === 'baseline' && /** @type {any} */ (r).number === c.number).length;
+      appendSeen(ledger, /** @type {any} */ ({
+        id: `baseline:ticket:${c.number}:${b}`, kind: 'baseline', sha: `ticket:${c.number}`, name: `#${c.number}`, path: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c),
+      }), sig);
+      continue;
+    }
+    const n = rows.filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === c.number).length;
     appendSeen(ledger, /** @type {any} */ ({
       id: `arrived:ticket:${c.number}:${n}`, kind: 'arrived', sha: `ticket:${c.number}:${n}`, name: `#${c.number}`, path: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c), reason: c.reason,
     }), sig);
