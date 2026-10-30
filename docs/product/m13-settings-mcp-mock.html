@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fwdloop panel - Settings MCP (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* Reused verbatim from design/panel-mockup.html (the visual contract, PANEL-BUILD.md §6) —
+     Tokyo Night box-drawing TUI look, same tokens, same responsive breakpoint. Fake-data rows
+     and the Settings/Chat-authoring styling are kept (Settings/Chat are out of P1's scope but
+     the CSS is harmless dead weight rather than a second stylesheet to maintain). */
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89; --plan:#7aa2f7;
+    --green:#9ece6a; --green-bg:#1c2b23;
+    --red:#f7768e; --red-bg:#2b1822;
+    --amber:#e0af68; --amber-bg:#2b2416;
+    --grey-dot:#878eac; --grey-bg:#20242f;
+    --cyan:#7dcfff; --cyan-bg:#182634;
+    --magenta:#bb9af7;
+    --accent:#7aa2f7;
+    --btn-bg:#1f2335; --btn-text:#c0caf5;
+    --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
+    --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
+    font: 14px/1.5 "Courier Prime", "Courier New", Courier, ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+  body{overflow-x:hidden;}
+  button{font:inherit;cursor:pointer;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px dotted var(--border-strong);font-size:12px;}
+  th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:0.04em;font-size:11px;border-bottom:1px solid var(--border-strong);}
+  /* item: Audit tab header stays visible while the row list scrolls. On
+     desktop >=900px .pane-body itself is height-bound and scrolls (see the
+     @media(min-width:900px) block above); on mobile #FwdloopPanel/.main
+     are unbound and the PAGE scrolls instead, so .pane-body never actually
+     develops its own scroll offset there and a sticky th anchored to it
+     would scroll away with the page. Giving the table its own bounded,
+     always-scrolling wrapper makes the header genuinely sticky on both
+     breakpoints, and also owns the horizontal scroll for the Path column
+     on narrow (390px) screens instead of leaving it to .pane-body. */
+  .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);max-width:100%;}
+  [data-testid="audit-table"] td.am, .audit-group table td.am{display:none;}
+  /* z-index keeps rows from showing through the solid th background as
+     they scroll under it. */
+  [data-testid="audit-table"] th{position:sticky;top:0;z-index:1;}
+  td{border-right:1px dotted var(--border);}
+  td:last-child{border-right:none;}
+  a{color:var(--accent);text-decoration:underline;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+      --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
+      --green:#567238; --green-bg:#dfe7d4;
+      --red:#c92353; --red-bg:#fbe0e8;
+      --amber:#82643a; --amber-bg:#f0e6d3;
+      --grey-dot:#626887; --grey-bg:#e2e2e8;
+      --cyan:#007197; --cyan-bg:#d6ecf1;
+      --magenta:#9854f1;
+      --accent:#2668c2;
+      --btn-bg:#e9e9ed; --btn-text:#3760bf;
+      --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
+      --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
+    --green:#567238; --green-bg:#dfe7d4;
+    --red:#c92353; --red-bg:#fbe0e8;
+    --amber:#82643a; --amber-bg:#f0e6d3;
+    --grey-dot:#626887; --grey-bg:#e2e2e8;
+    --cyan:#007197; --cyan-bg:#d6ecf1;
+    --magenta:#9854f1;
+    --accent:#2668c2;
+    --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
+    --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+  }
+  .theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg);color:var(--text);}
+
+  h2,h4{text-transform:uppercase;letter-spacing:0.06em;font-weight:700;}
+
+  #FwdloopPanel{display:flex;flex-direction:column;min-height:100vh;}
+  /* item 4 (2026-09-25): on desktop the left list scrolls inside its own
+     pane and the right pane stays in view — the PAGE itself never scrolls
+     the list away. Bounding #FwdloopPanel/.main to the viewport height
+     (desktop only — phone keeps its natural stacked-page scroll, see the
+     max-width:899px block below) is what lets each .pane-body's own
+     `overflow:auto` actually take effect instead of the whole document
+     growing taller than 100vh and dragging everything, list included, up
+     off screen together. */
+  @media (min-width: 900px){
+    html, body{height:100%;}
+    #FwdloopPanel{height:100vh;min-height:0;overflow:hidden;}
+    .main{overflow:hidden;}
+  }
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;border-bottom:2px solid var(--border-strong);
+    background:var(--panel);flex-wrap:wrap;gap:8px;
+  }
+  .topbar > div:first-child{display:flex;align-items:baseline;gap:0;white-space:nowrap;overflow:hidden;}
+  .topbar .brand{font-weight:700;font-size:17px;letter-spacing:0.06em;flex:none;}
+  .topbar .brand::before{content:"■ ";}
+  .update-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 16px;background:var(--amber);color:#000;font-size:13px;}
+  .update-bar[hidden]{display:none;}
+  .update-bar .btn{color:#000;border-color:#000;}
+  .topbar .version{font-size:12px;color:var(--text-dim);margin-left:8px;flex:none;white-space:nowrap;}
+  .topbar .version::before{content:"· ";color:var(--text-faint);}
+  .topbar .tagline{font-size:12px;color:var(--text-dim);margin-left:8px;overflow:hidden;text-overflow:ellipsis;}
+  .topbar .tagline::before{content:"· ";color:var(--text-faint);}
+  @media (max-width: 600px){ .topbar .tagline{display:none;} }
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #online-dot{font-size:12px;white-space:nowrap;flex:none;}
+  #online-dot.on{color:var(--green);} #online-dot.off{color:var(--red);}
+
+  [hidden]{display:none !important;}
+  .main{display:flex;flex:1;min-height:0;}
+  .left-pane{width:630px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
+  .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
+  .tabrow button{
+    flex:1;padding:10px 6px;min-height:44px;background:transparent;border:none;
+    border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);
+    counter-increment:tabnum;
+  }
+  .tabrow button::before{content:"[" counter(tabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button:last-child{border-right:none;}
+
+  .pane-body{padding:12px;overflow:auto;flex:1;min-height:0;}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  .dot{display:inline-flex;align-items:center;justify-content:center;margin-right:6px;vertical-align:middle;font-weight:700;font-size:12px;}
+  .dot::before{content:"[·]";color:var(--grey-dot);}
+  .dot.green::before{content:"[✓]";color:var(--green);}
+  .dot.red::before{content:"[✗]";color:var(--red);}
+  .dot.amber::before{content:"[▶]";color:var(--amber);}
+  .dot.grey::before{content:"[·]";color:var(--grey-dot);}
+  /* died (hamr's ruling B, 2026-09-25): no ending was ever recorded — a
+     DIFFERENT fact from a real [✗] close/arbiter "no", so it gets its own
+     glyph and its own color (magenta), never red or amber. */
+  .dot.magenta::before{content:"[?]";color:var(--magenta);}
+  /* expired, unresumed ask (hamr's ruling, 2026-09-27): same "needs
+     attention" amber as running, but a DIFFERENT glyph — never the running
+     arrow [▶], which this reserves for "running" alone. Its own class so
+     the two states never share a ::before rule. */
+  .dot.expired::before{content:"[!]";color:var(--amber);}
+  /* M4c amendment 2: stuck — answer saved, nobody carrying the run on. Its own glyph,
+     amber like the other "needs you" signs; it pulses (server-decided, glyphPulses). */
+  .dot.stuck::before{content:"[II]";color:var(--amber);}
+  /* M4e amendment 4: stopped — by you, or at the money cap; Resume goes on. Grey like the other quiet end, never the red [✗]. */
+  .dot.stopped::before{content:"[■]";color:var(--grey-dot);}
+  /* M12 p3: a skipped run (a ticket the signed labels do not match) wears [–], the sign the ticket list draws, grey like the other quiet end. */
+  .dot.skipped::before{content:"[–]";color:var(--grey-dot);}
+  /* the Run tab's top action row (Stop, Resume) */
+  .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
+  .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
+  .run-actions .hint{margin-top:0;flex:1 1 100%;overflow-wrap:anywhere;}
+  /* M4c: only the two "alive" signs pulse — [▶] running and [·] waiting on
+     you — keyed to `.pulse`, which the server decides (glyphPulses), never to
+     a colour class (.grey is also the placeholder dot). A gentle opacity wave on the existing colors;
+     reduced-motion keeps the sign and drops only the animation. */
+  @keyframes signPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .dot.pulse::before{animation:signPulse 1.6s ease-in-out infinite;}
+  @media (prefers-reduced-motion: reduce){
+    .dot.pulse::before{animation:none;}
+  }
+
+  /* M4c inbox: section 1 (waiting on you) carries the page's amber accent
+     treatment; section 3 (answered/expired) is dimmed. Tokens only. */
+  .rl-sect,.inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
+  .rl-sect:first-child,.inbox-h:first-child{margin-top:0;}
+  .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
+  .inbox-row.s3{opacity:.6;}
+  .inbox-row .wf-line1{min-width:0;}
+
+  .badge{display:inline-block;font-size:11px;padding:1px 4px;color:var(--text-dim);background:none;font-weight:700;}
+  .badge::before{content:"[";color:var(--text-faint);}
+  .badge::after{content:"]";color:var(--text-faint);}
+  .badge.green{color:var(--green);}
+  .badge.red{color:var(--red);}
+  .badge.amber{color:var(--amber);}
+  .badge.grey{color:var(--grey-dot);}
+  .badge.magenta{color:var(--magenta);}
+  .badge.cyan{color:var(--cyan);}
+
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .hint.money-red{color:var(--red);}
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;position:relative;}
+  .btn::before{content:"[ ";color:var(--text-faint);}
+  .btn::after{content:" ]";color:var(--text-faint);}
+  .btn:disabled{color:var(--text-faint);border-color:var(--border);cursor:not-allowed;}
+  .btn:disabled::before,.btn:disabled::after{color:var(--text-faint);opacity:0.4;}
+  .btn.small{padding:0 9px;height:32px;min-height:0;font-size:12px;}
+  /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
+     action bar (a row of `.btn`s with a hint line under it), redo is ours. */
+  .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
+  .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
+  .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
+  .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .answer-doors .btn{min-width:44px;}
+  .working-line{margin-top:4px;font-size:13px;color:var(--text);overflow-wrap:anywhere;}
+  .answer-line{font-size:13px;color:var(--text-dim);margin:2px 0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;}
+  .answer-msg{margin-top:8px;padding:6px 8px;border:1px solid var(--border-strong);font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;}
+  .answer-msg.refused{border-color:var(--red);}
+  .answer-msg.refused::before{content:"refused: ";color:var(--red);font-weight:700;}
+  .answer-msg.stuck{border-color:var(--amber);}
+  .answer-msg.info::before{content:"[·] ";color:var(--amber);font-weight:700;}
+
+  .hist-row{
+    display:flex;flex-direction:column;row-gap:4px;min-width:0;
+    padding:8px 8px 8px 18px;position:relative;border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);cursor:pointer;
+  }
+  .hist-row:hover{border-color:var(--border-strong);}
+  /* line 1: glyph + name, kept on ONE line — truncated with an ellipsis
+     (never wrapped) when the job/runid text is longer than the row; the
+     full text is still reachable via the span's own title attribute. */
+  .wf-line1{display:flex;align-items:center;column-gap:6px;min-width:0;}
+  .wf-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  /* line 2: the meta bits. hamr's 2026-09-27 browser-walk bug #2: the old
+     one-line ellipsis silently truncated real content ("waiting on you
+     (parked, unanswered) · at least $0…") at DESKTOP width too, not just
+     phone width — the project rule ("no list is truncated silently")
+     applies everywhere, so this wraps onto more lines instead of clipping,
+     the same behavior fix #7 already gave phone width alone. */
+  .wf-meta-line{white-space:normal;overflow:visible;text-overflow:clip;min-width:0;}
+  /* M4c-fix amendment 2 (g), line 2 of a run row: **word** — plain why. Wraps, never clips. */
+  .wf-sign-line{font-size:12px;color:var(--text-dim);white-space:normal;overflow-wrap:anywhere;}
+  .wf-sign-line .sign-word,.hdr-verdict .sign-word{color:var(--text);}
+  .hdr-verdict{font-size:12px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
+  .wf-meta{font-size:12px;color:var(--text-dim);}
+  .wf-sep{font-size:12px;color:var(--text-faint);}
+  .hist-row.selected{border:2px solid var(--accent);border-radius:4px;}
+  /* M11 am10: the selected Inbox card wears the same blue overlay as a selected Jobs run card (.rl-sel); after .inbox-row.s1 so it wins over the amber fill */
+  .inbox-row.selected,.inbox-row.s1.selected{background:var(--rl-accent-bg-strong);}
+  /* M11: the one runs list. Copied from docs/product/m11-runs-list-mock.html (the right box, "F - fwdloop"); only the class names carry the rl- prefix
+     (the page already has .chip, .hint, .live ...), a card's lines clip with an ellipsis exactly as the mockup does (the full text is on the run page). */
+  :root{--rl-accent-bg:rgba(122,162,247,.12);--rl-accent-bg-strong:rgba(122,162,247,.2);}
+  .rl-card{display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--border);padding:6px 8px;margin:0 0 6px;cursor:pointer;min-height:44px;color:inherit;font:inherit;}
+  div.rl-card{cursor:default;}
+  .rl-card:hover{border-color:var(--accent);background:var(--rl-accent-bg);}
+  div.rl-card:hover{border-color:var(--border);background:var(--panel2);}
+  .rl-card.rl-sel,div.rl-card.rl-sel:hover{border:2px solid var(--accent);border-radius:4px;background:var(--rl-accent-bg-strong);}
+  .rl-card:focus-visible,.rl-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  /* M11 am13: a run card a search matched (in a job where an older run matched); not the selected look (no fill, a dashed accent frame) */
+  .rl-card.rl-hit{outline:2px dashed var(--accent);outline-offset:-2px;}
+  .rl-card.rl-live{border-color:var(--amber);}
+  .rl-card.rl-need{border-color:var(--accent);}
+  .rl-l1{display:flex;gap:6px;align-items:center;min-width:0;overflow:hidden;}
+  .rl-nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .rl-rn{color:var(--accent);flex:none;}
+  .rl-l2{display:block;font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rl-l2 .sign-word{color:var(--text);}
+  .rl-dim{color:var(--text-dim);font-size:12px;flex:none;}
+  .rl-faint{color:var(--text-faint);font-size:12px;}
+  .rl-rest{color:var(--text-faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rl-cnt{color:var(--text-faint);font-size:inherit;flex:none;}
+  .rl-runs{margin:6px 0 0 6px;padding-left:8px;border-left:2px solid var(--border);}
+  .rl-runs .rl-card{background:var(--bg);}
+  .rl-runs .rl-card.rl-sel{background:var(--rl-accent-bg-strong);}
+  .rl-fold{background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
+  .rl-fold:hover{color:var(--accent);}
+  .rl-hint{font-size:12px;color:var(--text-faint);padding:2px 0 6px;}
+  .rl-pill{font-size:11px;border:1px solid var(--amber);color:var(--amber);padding:0 5px;margin-left:auto;flex:none;}
+  .rl-pill-need{border-color:var(--accent);color:var(--accent);}
+  .rl-dash{border-top:1px dashed var(--border-strong);margin:10px 0 6px;}
+  #panel-runs .rl-faint{margin-bottom:4px;}
+  @media (max-width:899px){ .rl-fold{min-height:44px;} }
+
+  .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
+  .rp-header h2{margin:0;font-size:15px;min-width:0;overflow-wrap:anywhere;text-transform:none;letter-spacing:normal;}
+  /* M4c-fix amendment 2 (k): the header reads like its Runs row — sign + name │ word — why · time; no frame, no capitals. */
+  .hdr-name-line{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%;}
+  .hdr-sep{color:var(--text-faint);}
+  .hdr-time{font-size:11px;color:var(--text-dim);min-width:0;overflow-wrap:anywhere;}
+  .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:" \00B7";}
+  .rp-header-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%;}
+  @media (max-width: 640px){
+    /* (k) a phone: the same three parts on three lines — sign + name / word — why / time */
+    .rp-header-title{flex-direction:column;align-items:flex-start;gap:2px;}
+    .rp-header-title .hdr-sep{display:none;}
+    .hdr-verdict:has(+ .hdr-time:not(:empty))::after{content:none;}
+  }
+  /* item 4: phone-only jump-back link — hidden on desktop (the two panes
+     are already both on screen there, nothing to jump back to). */
+  .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
+  @media (max-width: 899px){ .back-to-list-link{display:inline-block;} }
+  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:rtabnum;}
+  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);counter-increment:rtabnum;}
+  .rp-tabrow button::before{content:"[" counter(rtabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .tabrow button[aria-selected="true"],.rp-tabrow button[aria-selected="true"]{background:var(--panel);color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent);}
+  .tabrow button[aria-selected="true"]::before,.rp-tabrow button[aria-selected="true"]::before{color:var(--accent);}
+
+  .counters{display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;font-size:12px;font-weight:700;white-space:normal;overflow-wrap:break-word;}
+  .counters b,.counters span{color:var(--accent);}
+
+  /* borrowed-from: bareloop src/panel/index.html@f845ee7 (the ENDED block, P5); amber added for stopped/expired, a SCHEDULED twin */
+  .ended-block{position:relative;border:1px solid var(--border-strong);padding:12px;margin-bottom:12px;background:var(--panel2);font-size:13px;}
+  .ended-block.magenta{border-color:var(--magenta);}
+  .ended-block.red{border-color:var(--red);}
+  .ended-text.is-red,.ended-label.is-red{color:var(--red);}
+  .ended-block.green{border-color:var(--green);}
+  .ended-block.grey,.ended-block.stopped,.ended-block.skipped{border-color:var(--grey-dot);}
+  .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
+  .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
+  .ended-row:last-child{margin-bottom:0;}
+  .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
+  .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+  /* M9 am24: a NEXT with several instructions is one per line, label muted, instructions in a second column (shape: bareloop 8cad363, with labels in the muted colour) */
+  .next-rows{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;row-gap:2px;}
+  .next-label{color:var(--text-faint);}
+  .next-text{min-width:0;overflow-wrap:anywhere;}
+  .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
+  .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .when-sub > *{flex:1 1 120px;min-width:0;}
+  .when-sub[hidden]{display:none;}
+  .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
+  .summary-box.red{border-color:var(--red);}
+  .summary-box.green{border-color:var(--green);}
+  .summary-box.grey,.summary-box.stopped,.summary-box.skipped{border-color:var(--grey-dot);}
+  .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
+  .summary-box.magenta{border-color:var(--magenta);}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
+  .summary-row{display:flex;gap:0;padding:2px 0;}
+  .sum-label{flex:none;width:66px;color:var(--text-faint);}
+  .sum-val{color:var(--text);}
+  .summary-box .num{color:var(--accent);font-weight:700;}
+
+  /* borrowed-from: bareloop src/panel/index.html@9edb3e1 (on d25e52a) — boxes as wide as their own text, side by side,
+     wrapping; a name is never cut. A box + its trailing arrow are ONE unit (the arrow never wraps alone); the lead arrow
+     of a wrapped line hangs in the container's left padding (absolute, zero layout impact — toggling it moves nothing). */
+  .map-box{border:1px solid var(--border-strong);padding:10px;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  .map-chips{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start;padding-left:1.4em;}
+  .map-item{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;}
+  .map-arrow{color:var(--text-dim);font-size:13px;flex:none;}
+  .map-lead{display:none;position:absolute;left:-1.3em;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:13px;}
+  .map-item.line-start .map-lead{display:block;}
+  .map-chip{display:flex;flex-direction:column;align-items:flex-start;width:auto;max-width:100%;min-width:0;box-sizing:border-box;font:inherit;font-size:12px;line-height:1.4;text-align:left;padding:4px 8px;border:2px solid var(--border-strong);border-radius:0;background:var(--panel2);color:var(--text);white-space:normal;overflow-wrap:anywhere;cursor:pointer;}
+  .map-chip .chip-state{font-size:10px;color:var(--text-faint);}
+  .map-chip.s-done{border-color:var(--green);} .map-chip.s-done .chip-state{color:#2e7d32;}
+  .map-chip.s-stopped{border-color:var(--red);} .map-chip.s-stopped .chip-state{color:var(--red);}
+  .map-chip.s-waiting{border-color:var(--amber);} .map-chip.s-waiting .chip-state{color:#b8860b;}
+  .map-chip.s-user-stopped{border-color:var(--grey-dot);} .map-chip.s-user-stopped .chip-state{color:var(--grey-dot);}
+  .map-chip .chip-retry{font-size:10px;color:var(--text-faint);}
+  .map-chip.retry{border-style:dashed;}   /* borrowed-from: bareloop src/panel/index.html@9edb3e1 */
+
+  .step-card{position:relative;border:1px solid var(--border);padding:10px;margin-bottom:8px;background:var(--panel2);}
+  .step-card.running{border:1px double var(--amber);}
+  /* hamr's 2026-09-27 ruling made the card header bold; his 2026-10-04 ruling (amendment 4) put it in its
+     real case — `1 · resume-text   [✓] passed   [human check]`. The global `h2,h4` uppercase is turned off
+     for the card's h4. The chips keep their color from `.badge`. A signed state chip already carries its own
+     `[✓]`, so it draws no second pair of brackets (`.sign-badge`). */
+  .step-card .step-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;text-transform:none;font-weight:700;}
+  .step-card h4{margin:0;font-size:13px;text-transform:none;letter-spacing:normal;}
+  .sign-badge::before,.sign-badge::after{content:none;}
+  /* Every OTHER line on the card (goal, actions, granted, stopped reason) —
+     lower case exactly as the data reads, normal weight; never inherits the
+     header's uppercase/bold (same ruling, the non-header half of it). */
+  .step-card .step-line{text-transform:none;font-weight:400;}
+  .step-meta{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  /* `.attempts-list` stays — no longer used by the Run tab's own step cards
+     (hamr's 2026-09-27 review: per-attempt rows dropped, summarized cards
+     only; that detail stays in the Audit tab), but the Job tab's
+     unjudged-artifacts list still uses it for its own, unrelated rows.
+     `.attempt-row` (the Run tab's own OLD per-attempt row, now nowhere on
+     the page) is dropped — dead weight, not carried forward. */
+  .attempts-list{margin-top:8px;border-top:1px dotted var(--border-strong);padding-top:8px;}
+
+  .chips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .chip{padding:5px 10px;min-height:32px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);}
+  .chip::before{content:"[ ";color:var(--text-faint);}
+  .chip::after{content:" ]";color:var(--text-faint);}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700;}
+  /* Compact filter-bar chips (the runs list's filter bar): single
+     letters/bare glyphs, no "[ ]" brackets — hamr's 2026-09-25 feedback on
+     the live panel ("icons are taking too much space", "one letter without
+     brackets"). */
+  .filterbar{margin-bottom:8px;}
+  .search-input{
+    display:block;width:100%;box-sizing:border-box;padding:6px 8px;min-height:32px;margin-bottom:6px;
+    border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font:inherit;
+  }
+  .search-input::placeholder{color:var(--text-faint);}
+  .filterbar .chips{gap:4px;margin-bottom:4px;}
+  .chip.fchip{padding:3px 7px;min-height:28px;min-width:28px;font-size:12px;text-align:center;}
+  .chip.fchip::before,.chip.fchip::after{content:"";}
+  .row-blocked{background:var(--red-bg);}
+
+  /* hamr review #5/#6: Audit tab grouped-by-step sections. */
+  .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  /* hamr's 2026-09-27 final tweak #3: the global `h2,h4{text-transform:
+     uppercase}` rule (above) would otherwise shout every collapsible audit
+     header ("[done] · resume-text · 7.9s · $0.0026 · try 1 [checkmark]") —
+     these headers render the book's own text as-is, lower case, so this
+     overrides it back to none for this ONE h4 class. Checked: no other CSS
+     rule in this file re-uppercases `.audit-group h4` after this. */
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none;}
+  .audit-group h4::before{content:"┤ ";color:var(--text-faint);}
+  .audit-group h4::after{content:" ├";color:var(--text-faint);}
+  /* hamr's 2026-09-27 review: the Audit-group's own state header ("[done] ·
+     step · ...", built by buildAuditGroupHeaderEl): M4e amendment 10 made its STATUS bold (the `> .badge`,
+     weight 700); the rest of the line stays normal — a plain h4
+     is bold by default, so its own class (`.audit-status-header`, NOT the
+     shared `.audit-group h4`, which the Ask tab's `.ask-question-heading`
+     h4 also matches and must stay bold per review #3) overrides it back to
+     normal. Specificity: two classes + type (0,2,1) beats both
+     `.audit-group h4` (0,1,1) and `.ask-question-heading` (0,1,0) alone, so
+     this never un-bolds the ask question heading. */
+  .audit-group h4.audit-status-header{font-weight:400;}
+  .audit-group h4.audit-status-header > .badge{font-weight:700;}
+  /* M4c-fix amendment 2 (f): a foldable step group. The header sits IN the box (not pinned over its top edge),
+     so a long header wraps inside its own box and never lands on the next group; a closed group is that one
+     header line with a caret and no empty table under it. */
+  .audit-group.audit-fold{padding:6px 10px;margin-top:6px;margin-bottom:6px;min-width:0;max-width:100%;box-sizing:border-box;}
+  .audit-group.audit-fold h4.audit-status-header{position:static;margin:0;padding:0;background:none;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word;}
+  .audit-group.audit-fold h4.audit-status-header{display:flex;align-items:baseline;gap:6px;overflow:hidden;}
+  .audit-group.audit-fold h4.audit-status-header > .badge,.audit-group.audit-fold h4.audit-status-header::before{flex:none;white-space:pre;}
+  .audit-fold-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .audit-fold-tail{flex:none;white-space:nowrap;}
+  .audit-fold-dot{flex:none;}
+  /* the schedule head: the title word always shows in full; its long head words wrap instead */
+  .audit-group.audit-fold h4.audit-status-header > .audit-fold-name.keep{flex:none;overflow:visible;}
+  .audit-group.audit-fold h4.audit-status-header > .audit-fold-tail.wrap{flex:0 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;}
+  .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6  ";color:var(--text-faint);}
+  .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC  ";}
+  .audit-group.audit-fold h4.audit-status-header::after{content:none;}
+  /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.47.1 417e80c, the learnings arrow only): a framed row, the header a full-width button with the arrow, chip and words inline; the arrow is the same ▶ / ▼ the other Audit folds draw (h4.audit-status-header::before), faint, a smaller gap on a phone */
+  .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
+  .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
+  .audit-part-toggle.audit-learn-fold::before{content:"\25B6  ";color:var(--text-faint);}
+  .audit-part-toggle.audit-learn-fold[aria-expanded="true"]::before{content:"\25BC  ";}
+  .audit-part-body{padding:8px 10px 10px;border-top:1px dotted var(--border-strong);}
+  @media (max-width: 640px){
+    /* (l) a phone: the name is the only thing that shrinks — drop the dots and the word "try", tighten the gaps */
+    .audit-group.audit-fold{padding-left:8px;padding-right:8px;}
+    .audit-group.audit-fold h4.audit-status-header{gap:3px;font-size:12px;}
+    .audit-group.audit-fold h4.audit-status-header > .badge{padding-left:0;padding-right:0;font-size:10px;}
+    .audit-group.audit-fold h4.audit-status-header::before{content:"\25B6";}
+    .audit-group.audit-fold h4.audit-status-header[aria-expanded="true"]::before{content:"\25BC";}
+    .audit-part-toggle.audit-learn-fold::before{content:"\25B6 ";}
+    .audit-part-toggle.audit-learn-fold[aria-expanded="true"]::before{content:"\25BC ";}
+    .audit-fold-sep{display:none;}
+    .audit-fold-try{margin-left:.4em;}   /* the cost and the try count never touch: "$0.0010" + "1" must not read $0.00101 */
+    /* the tail wraps inside the header (never spills or is cut): it may break at its spaces and shrink */
+    .audit-fold-tail{flex:0 1 auto;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;}
+    /* a narrow header WRAPS (amendment 7 walk): the name keeps a readable line of its own and the tail drops under it, never a one-letter name */
+    .audit-group.audit-fold h4.audit-status-header{flex-wrap:wrap;row-gap:2px;}
+    .audit-fold-name{flex:0 1 auto;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+  }
+  .audit-group.audit-fold table{margin-top:8px;}
+  .audit-group.audit-fold table[hidden]{display:none !important;}
+  /* M4d am29 (design lab C): the step fold's body - tally, a line per try with its checks, then the Round table. The marker ends the header. */
+  .audit-fold-body[hidden]{display:none !important;}
+  .audit-fold-body{margin-top:8px;font-size:12px;min-width:0;max-width:100%;}
+  .audit-fold-who{flex:none;margin-left:auto;font-weight:700;font-size:11px;white-space:nowrap;}
+  .audit-fold-who.model{color:var(--cyan);} .audit-fold-who.human{color:var(--magenta,#9854f1);}
+  .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
+  .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
+  .audit-judged{color:var(--text-faint);}
+  .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
+  .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
+  .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
+  .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
+  .rounds-pager{color:var(--text-faint);font-size:11px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  /* the Audit check grid (PRD: bareloop variant F), its errors list and the rounds folded per try.
+     borrowed-from: bareloop src/panel/index.html@c79d396 (the .grid/.cell/.fx-*/.rounds-fold rules); the pass/fail glyph colours are fwdloop's own `.mark` */
+  .glyph-q{color:var(--magenta);} .glyph-nr{color:var(--text-faint);}
+  .rounds-fold{margin:4px 0 6px 12px;font-size:12px;}
+  .rounds-fold>summary{cursor:pointer;color:var(--text-dim);min-height:28px;overflow-wrap:anywhere;}
+  .rounds-fold .rf-body{margin-top:4px;padding-left:8px;border-left:2px solid var(--border-strong);}
+  .grid-wrap{overflow:auto;max-width:100%;}
+  table.grid{width:100%;min-width:0;}
+  table.grid th.q,table.grid td.q{min-width:170px;max-width:340px;white-space:normal;overflow-wrap:anywhere;font-size:12px;}
+  table.grid th.t,table.grid td.c{text-align:center;width:64px;min-width:56px;white-space:nowrap;}
+  table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0;}
+  table.grid td.c{padding:2px;}
+  .cell{border:1px solid transparent;background:none;min-width:44px;min-height:32px;color:var(--text-faint);font-size:14px;font-weight:700;}
+  .cell.fail{color:var(--red);border-color:var(--border-strong);background:var(--red-bg);}
+  .cell.pass{color:var(--green);cursor:default;}
+  .cell.notrun{color:var(--text-faint);cursor:default;}
+  .cell.unk{color:var(--magenta);cursor:default;}
+  .fold-list{margin-top:10px;}
+  .fgrid .cell.fail[aria-expanded="true"]{outline:2px solid var(--red);outline-offset:1px;}
+  .fx-errors{margin:8px 0 4px;min-width:0;}
+  .fx-label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
+  .fx-row{min-width:0;}
+  .fx-rowhead{display:flex;align-items:baseline;gap:8px;width:100%;min-width:0;min-height:32px;padding:3px 4px;border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;}
+  button.fx-rowhead{cursor:pointer;}
+  button.fx-rowhead:hover{background:var(--panel2);}
+  button.fx-rowhead:focus-visible,.fx-more:focus-visible,.cell.fail:focus-visible{outline:2px solid var(--red);outline-offset:1px;}
+  .fx-caret{flex:none;width:12px;color:var(--text-faint);}
+  .fx-try{flex:none;font-weight:700;}
+  .fx-chk{flex:none;white-space:nowrap;}
+  .fx-first{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);}
+  .fx-faint,.fx-count{color:var(--text-faint);}
+  .fx-count{flex:none;white-space:nowrap;}
+  .fx-row.open>.fx-rowhead{background:var(--red-bg);}
+  .fx-body{margin:0 0 6px 20px;border-left:2px solid var(--red);padding:4px 10px;background:var(--red-bg);min-width:0;}
+  .fx-sub{font-size:12px;color:var(--text);font-weight:700;margin:6px 0 2px;overflow-wrap:anywhere;}
+  .fx-lines{font-size:12px;color:var(--text-dim);}
+  .fx-lines div{margin:1px 0;overflow-wrap:anywhere;}
+  .fx-judged{overflow-wrap:anywhere;}
+  .fx-more{margin-top:4px;min-height:28px;padding:2px 8px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);font-size:12px;}
+  /* M4d am36: the hints row and its text, the folded every-step row (mock: fwd-audit-grid-mock.html, variant A) */
+  .btn.hints[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn.hints:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .cell.none{color:var(--text-faint);cursor:default;font-weight:400;}
+  tr.hint-row td{color:var(--text-faint);}
+  .fx-row.hintrow.open>.fx-rowhead{background:var(--panel2);}
+  .fx-row.hintrow .fx-body{border-left-color:var(--accent);background:var(--panel2);}
+  .fx-row.hintrow .fx-try{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+  .fx-lines div.ind{margin-left:16px;}
+  button.q-fold{border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;padding:0;min-height:32px;width:100%;overflow-wrap:anywhere;cursor:pointer;}
+  button.q-fold::before{content:"\25B8  ";color:var(--text-faint);white-space:pre;}
+  button.q-fold[aria-expanded="true"]::before{content:"\25BE  ";}
+  tr.step-sub td{background:var(--panel2);font-size:12px;color:var(--text-dim);padding:4px 8px;}
+  .sub-line{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+  .sub-line .marks{margin-left:auto;white-space:nowrap;}
+  .step-card .step-head .who{font-weight:700;font-size:11px;}
+  .step-card .step-head .who.model{color:var(--cyan);} .step-card .step-head .who.human{color:var(--magenta,#9854f1);}
+  /* hamr's 2026-09-27 review: the group header's own state word (g.state,
+     rendered as a <span class="badge STATE">) and its per-try marks
+     (<span class="mark STATE">) reuse the SAME color vocabulary the runs
+     list already uses (glyphClass/.badge) — one color vocabulary, not a
+     second one invented for the Audit tab. `.badge` already draws the
+     "[" "]" brackets and the color; `.mark` is the bare-text equivalent for
+     a try mark, which never carries brackets. */
+  .mark.green{color:var(--green);}
+  .mark.red{color:var(--red);}
+  .mark.grey{color:var(--grey-dot);}
+  /* review #4: a momentary highlight on the group a map/step-card click just
+     jumped to — never a permanent style change. */
+  .audit-group.audit-group-highlight{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+  .map-step{cursor:pointer;}
+  .step-card{cursor:pointer;}
+
+  .job-card{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px;}
+  .job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;}
+  .job-card h4::before{content:"┤ ";color:var(--text-faint);}
+  .job-card h4::after{content:" ├";color:var(--text-faint);}
+  /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules are below, am5 item 2) */
+  .st-word{font-weight:700;color:var(--text);}
+  .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
+  /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
+  #result-body{min-width:0;overflow-wrap:anywhere;}
+  .rs-ok{color:var(--green);font-weight:700;}
+  .rs-bad{color:var(--red);font-weight:700;}
+  #result-body mark{background:var(--rl-accent-bg-strong);color:var(--text);border-radius:2px;padding:0 1px;}
+  #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
+  .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
+  /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
+  /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
+  .tk-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
+  .tk-fold:hover{color:var(--accent);}
+  .tk-fold:focus-visible,.tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0;}
+  .tk:last-child{border-bottom:0;}
+  .tk-1{display:flex;gap:6px;align-items:baseline;min-width:0;}
+  .tk-n{color:var(--accent);font-weight:700;flex:none;}
+  .tk-t{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere;}
+  .tk-when{color:var(--text-faint);font-size:12px;flex:none;}
+  .tk-2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;}
+  .tk-state.green{color:var(--green);} .tk-state.red{color:var(--red);} .tk-state.amber{color:var(--amber);} .tk-state.grey{color:var(--text-faint);}
+  .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
+  .tk-chg{font-size:12px;color:var(--amber);}
+  .tk-anyway{margin-top:6px;}
+  .tk-anyway textarea{width:100%;min-height:52px;margin:4px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;font-size:16px;padding:6px;box-sizing:border-box;}
+  .tk-msg{font-size:12px;overflow-wrap:anywhere;}
+  #result-door-card{border-color:var(--amber);}
+  #result-door-card .st-word{color:var(--amber);}
+  #result-door-card textarea{width:100%;min-height:60px;margin:6px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;padding:6px;box-sizing:border-box;}
+  #result-door-card .stopping{color:var(--amber);font-size:13px;overflow-wrap:anywhere;}
+  /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
+  #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
+  .field{margin-bottom:10px;}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
+     bold/uppercase weight `label` already gives the Job tab's own fields,
+     applied to "draft under review" and each unjudged input's own label
+     ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
+  .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
+  .evidence-heading:first-child{margin-top:0;}
+  /* review #3: the ask's own question, a real heading under the "step ·
+     draft N · asked · status" meta line — reuses the box-drawing h4 look
+     the Audit/Job group headers already use, but inline (no absolute
+     ┤ ├ pips — those are reserved for a whole-box title, not an in-flow
+     line) so it reads as a clear, bold heading without a second border. */
+  .ask-question-heading{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--text);}
+  .ro-value{padding:6px 8px;min-height:32px;box-sizing:border-box;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);overflow-wrap:anywhere;}
+  .art-head{color:var(--accent);}
+  .ro-value.sub{margin-left:20px;min-height:0;padding-top:2px;padding-bottom:2px;border-top-width:0;overflow-wrap:anywhere;}
+  /* M4e amendment 37 (changes 34's layout): the Job tab is ONE column at every width. Each signed line, its ~ rows, then its step(s) folded under it:
+     a native <details> whose <summary> is one short line in the text colour with a › / ⌄ marker in the plan colour; open, it shows reads / makes / may do / check. */
+  .job-line{margin-bottom:6px;}
+  .plan-fold{margin:0 0 0 20px;min-width:0;overflow-wrap:anywhere;}
+  .plan-sum{color:var(--text);cursor:pointer;list-style:none;padding:3px 0;font-size:12px;}
+  .plan-sum::-webkit-details-marker{display:none;}
+  .plan-sum::before{content:"› ";color:var(--plan);font-weight:700;}
+  .plan-fold[open] > .plan-sum::before{content:"⌄ ";}
+  .plan-legend{color:var(--text-dim);font-size:12px;margin-top:12px;overflow-wrap:anywhere;}
+  .plan-legend .plan-mark{color:var(--plan);font-weight:700;}
+  .plan-fold .plan-head,.plan-fold .plan-row{color:var(--text-dim);}
+  .plan-fold .plan-head{font-weight:400;}
+  .plan-fold .plan-row{padding-left:12px;}
+  #details-plan-tail{margin-bottom:16px;}
+  .ro-value.scroll{max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;}
+  .field-row{display:flex;flex-wrap:wrap;gap:10px;}
+  .field-row .field{flex:1 1 140px;margin-bottom:10px;}
+
+  /* borrowed-from: bareloop src/panel/index.html@ca7195e — the Chat card's CSS (job card, radio row, cap row, the one progress
+     list, the ask box, the one wide button, field colours, .locked, the one focus rule). fwdloop's own tokens win where both define
+     one; the global `input,select` rule is scoped to #panel-chat so no other panel box is restyled. */
+  #panel-chat input,#panel-chat select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
+  #panel-chat input::placeholder,#panel-chat textarea::placeholder{color:var(--text-faint);}
+  .job-card .card-clear{position:absolute;top:-13px;right:10px;padding:1px 8px;font-size:11px;line-height:1.4;background:var(--panel2);}
+  .job-card .locked{opacity:.55;cursor:not-allowed;}
+  .field input,.field select{width:100%;}
+  .job-card.compact{padding:14px 8px 8px;}
+  .job-card.compact .field{margin-bottom:6px;}
+  .job-card.compact label{margin-bottom:1px;font-size:11px;}
+  .job-card.compact input,
+  .job-card.compact select{padding:5px 7px;}
+  .radio-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:10px;}
+  .radio-row label{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);margin:0;text-transform:none;}
+  .radio-row input{width:auto;}
+  @media (max-width:400px){.job-card .radio-row{padding-right:76px;}}
+  .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
+  .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
+  .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
+  .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
+  .btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:0.6;}
+  #panel-chat .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn.primary:disabled{background:var(--btn-bg);color:var(--text-faint);border-color:var(--border);}
+  .btn.primary:disabled::before,.btn.primary:disabled::after{color:var(--text-faint);opacity:0.4;}
+  #chat-action-error:empty{display:none;}
+  #chat-action-error{font-size:12px;color:var(--red);margin:4px 0;overflow-wrap:anywhere;white-space:pre-wrap;}
+  #chat-card-error:empty{display:none;}
+  #chat-card-error{overflow-wrap:anywhere;white-space:pre-wrap;}
+
+  /* the ONE progress list: a step per line — label, then dots while running / check / cross, then its reason */
+  .chat-steps{list-style:none;margin:2px 0 10px;padding:0;font-size:12px;}
+  .chat-steps .step{padding:1px 0;}
+  .chat-steps .step-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;}
+  .chat-steps .step-label{color:var(--text);min-width:11em;overflow-wrap:anywhere;}
+  .chat-steps .step-sign{font-weight:700;}
+  .chat-steps .step.run .step-sign{color:var(--amber);}
+  .chat-steps .step.ok .step-sign{color:var(--green);}
+  .chat-steps .step.bad .step-sign{color:var(--red);}
+  .chat-steps .step.wait .step-label{color:var(--amber);}
+  .chat-steps .step-detail{display:block;flex-basis:100%;min-width:0;padding-left:1.2em;color:var(--text-faint);word-break:break-word;white-space:pre-wrap;}
+  .chat-steps .step.bad .step-detail{color:var(--red);}
+  .chat-steps .step.note .step-label{color:var(--text);padding-left:1.2em;}
+  .chat-steps .step[data-step="thinking"].bad .step-label{color:var(--red);font-weight:600;}
+  .audit-raw{color:var(--text-faint);font-size:11px;word-break:break-word;white-space:pre-wrap;margin-top:2px;}
+  .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
+  .chat-steps .step-raw summary{cursor:pointer;}
+  .chat-steps .step.run .step-sign::after{content:"\2026";}
+  @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
+  @media (prefers-reduced-motion: no-preference){
+    .chat-steps .step.run .step-sign::after{content:"";animation:step-dots 1.2s steps(1,end) infinite;}
+  }
+
+  .chat-thread{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .chat-thread:empty{display:none;}
+  .msg{padding:8px 10px;border:1px solid var(--border);max-width:100%;background:var(--panel2);font-size:13px;word-break:break-word;white-space:pre-wrap;}
+  .msg.bot{border-left:3px solid var(--border-strong);}
+  /* M4e amendments 24/25: the question the plan raised (one at a time), then Your answers / Checked / Not checked beside the plan */
+  .chat-question{border:1px solid var(--border);border-left:3px solid var(--amber);background:var(--panel2);padding:8px 10px;margin-bottom:10px;max-width:100%;box-sizing:border-box;}
+  .chat-question .q-head{font-size:11px;color:var(--text-faint);}
+  .chat-question .q-line{font-size:12px;color:var(--text-faint);margin-top:4px;overflow-wrap:anywhere;}
+  .chat-question .q-text{font-size:13px;margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .chat-question textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;margin-top:8px;min-height:3.4em;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;}
+  .chat-question .q-err{color:var(--red);}
+  .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
+  .chat-extras:empty{display:none;}
+  .msg.bot .who::before{content:"$ ";}
+  .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
+  /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
+  .job-card textarea.jf-wrap{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;overflow-y:auto;}
+  /* M6 am2: every job box (the textarea and the read-only lines) grows with its text up to 8 lines, then scrolls inside:
+     8 x 1.5em + 6px padding x2 + 1px border x2; ONE rule, fitBox reads this cap */
+  .job-card textarea.jf-wrap, .job-card .ro-lines{line-height:1.5;max-height:calc(12em + 14px);}
+  /* the focused/selected Chat-card field gets a blue border (the accent), no outline ring */
+  #panel-chat :is(input,select,textarea):focus{border-color:var(--accent);outline:none;}
+  /* amendment 2: the job and inputs boxes have a gutter OUTSIDE them on the left (`N >` per step, `~` per guardrail; a number per input
+     line), one entry per logical line, as tall as that line wraps (measured from a hidden mirror, see paintGutter) */
+  .jf-gutbox{position:relative;display:flex;align-items:stretch;gap:4px;}
+  .jf-gutbox textarea.jf-wrap{flex:1 1 auto;min-width:0;width:auto;overflow-wrap:break-word;word-wrap:break-word;white-space:pre-wrap;}
+  .jf-gut{flex:0 0 1.8em;overflow:hidden;position:relative;color:var(--text-faint);text-align:left;user-select:none;-webkit-user-select:none;font:inherit;}
+  .jf-gut-in{position:absolute;left:0;right:0;top:0;}
+  .jf-gut-in div{white-space:nowrap;overflow:hidden;}
+  .jf-mirror{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;box-sizing:content-box;padding:0;border:0;margin:0;}
+  .jf-mirror div{margin:0;padding:0;}
+  /* editable Chat-card fields get the standard soft white (a step below the ask box); disabled/readonly keep the base colour */
+  #panel-chat input:not(:disabled):not([readonly]):not([type="radio"]):not([type="checkbox"]),
+  #panel-chat select:not(:disabled),
+  #panel-chat textarea:not(:disabled):not([readonly]){background:var(--field-soft-bg);}
+  /* ONE wide button below the message box; its wording comes from mainButtonFor */
+  .btn.wide{width:100%;margin-top:10px;white-space:normal;}
+  /* amendment 2 item 7: the main button's label ("Sign <hash8> & run · $<cap>") stays on ONE line inside the card */
+  #chat-main-btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;}
+  /* fwdloop's own additions (not bareloop): input rows, per-box refusal lines, the read-only Run-mode cap */
+  .jf-inrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:6px;margin-bottom:4px;align-items:start;}
+  .jf-inrow .btn.small{height:32px;padding:0 8px;}
+  .jf-inrow .jf-role-ro{padding:5px 7px;min-height:32px;overflow-wrap:anywhere;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);}
+  #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
+  .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
+  .jf-inrow .jf-err{grid-column:1 / -1;}
+  .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
+  /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
+  .field.dimmed{opacity:.6;}
+  /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
+  .rw-box{position:relative;margin-top:6px;}
+  .rw-box input{width:100%;box-sizing:border-box;}
+  .rw-list{list-style:none;margin:0;padding:0;border:1px solid var(--border-strong);border-top:none;background:var(--bg);max-height:220px;overflow:auto;}
+  .rw-list li{padding:7px 8px;border-bottom:1px dotted var(--border);cursor:pointer;}
+  .rw-list li:hover,.rw-list li.hl{background:var(--panel2);}
+  .rw-name{font-weight:700;overflow-wrap:anywhere;} .rw-name mark{background:none;color:var(--accent);text-decoration:underline;}
+  .rw-meta{font-size:11px;color:var(--text-dim);margin-top:2px;overflow-wrap:anywhere;}
+  .rw-empty{padding:7px 8px;font-size:12px;color:var(--text-dim);}
+  .rw-picked{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid var(--accent);}
+  .rw-picked span{overflow-wrap:anywhere;}
+  .rw-picked a{font-size:12px;cursor:pointer;flex:none;}
+  .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;overflow-y:auto;}
+  .ro-lines .ro-line{display:flex;gap:8px;}
+  .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
+  .jf-waitrow{margin-bottom:4px;}
+  .jf-err{font-size:11px;color:var(--red);margin-top:2px;overflow-wrap:anywhere;}
+  .jf-err:empty{display:none;}
+  .dest-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px;}
+  @media (max-width: 899px){
+    .jf-inrow{grid-template-columns:minmax(0,1fr) auto;}
+    .jf-inrow .jf-path{grid-column:1 / -1;order:3;}
+    .jf-inrow .jf-err{order:4;}
+  }
+
+  @media (max-width: 899px){
+    .main{flex-direction:column;}
+    .left-pane{width:100%;border-right:none;border-bottom:1px solid var(--border-strong);}
+    .right-pane{width:100%;}
+    .topbar{flex-direction:column;align-items:flex-start;}
+    .topbar-right{width:100%;justify-content:space-between;}
+    .btn.small{height:44px;min-height:44px;padding:0 12px;}
+    .chip{min-height:44px;}
+    .chip.fchip{min-height:40px;min-width:40px;}
+    .rp-header{margin:8px 8px 0;}
+    .rp-tabrow{margin:0 8px;}
+  }
+
+  /* hamr's 2026-09-27 exit-check review #4: at 390px the Audit page scrolls
+     sideways and the Time column overflows the table's own border — a wide
+     multi-column table (Attempt/Action/Gap/Cost/Verdict/Close/Time) simply
+     cannot fit a 390px viewport no matter how each cell wraps. Both audit
+     tables (the flat one and every per-step grouped one) switch to a
+     stacked "mini-card" layout instead: the header row hides, each `<tr>`
+     becomes its own bordered block, and each `<td>` becomes a `label:
+     value` line, the label read from the SAME `data-label` attribute
+     `buildAuditRowEl` already sets on every cell (never a second, separate
+     label list to keep in sync). No horizontal scroll is possible once
+     every cell is a full-width block. */
+  /* hamr's exit walk: ONE ROW PER LINE on a phone. Each audit entry is a single flex line — glyph, #attempt,
+     step (flat view only), verdict word, short cost, HH:MM — built from the `.am-*` cells `buildAuditRowEl`
+     adds (hidden on desktop, where the table is unchanged). Everything the line cut short hides behind a tap: the
+     row toggles `.open` and its full step, verdict, gap, refused list and tools show as wrapped lines under it. Every other cell hides. Nothing is wider
+     than the viewport: the step cell shrinks and ellipsizes, the rest are nowrap and short. The line never wraps
+     (flex-wrap:nowrap, overflow hidden), so a larger system font or a long verdict word shrinks the step and
+     ellipsizes rather than pushing cost and time onto a second line. It applies up to 640px — the whole
+     phone/narrow-window range, not only 480 (a 500 px window showed the wide table, rows 49-607 px tall). */
+  @media (max-width: 640px){
+    /* display:block: a table would size itself to its nowrap cells' content and run wider than the screen */
+    [data-testid="audit-table"], .audit-group table{display:block;width:100%;max-width:100%;}
+    [data-testid="audit-table"] thead, .audit-group table thead{
+      position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+    }
+    [data-testid="audit-table"] tbody, .audit-group table tbody{display:block;}
+    [data-testid="audit-table"] tr, .audit-group table tr{
+      display:flex;flex-wrap:nowrap;align-items:center;column-gap:8px;border-bottom:1px solid var(--border);padding:4px 6px;box-sizing:border-box;max-width:100%;overflow:hidden;
+    }
+    [data-testid="audit-table"] td, .audit-group table td{
+      display:none;border:none;padding:0;min-width:0;box-sizing:border-box;white-space:nowrap;
+    }
+    [data-testid="audit-table"] td.am, .audit-group table td.am,
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"],
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"],
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{display:block;}
+    [data-testid="audit-table"] td[data-label="Attempt"]::before, .audit-group table td[data-label="Attempt"]::before{content:"#";}
+    [data-testid="audit-table"] td[data-label="Attempt"]:empty::before, .audit-group table td[data-label="Attempt"]:empty::before{content:none;}
+    [data-testid="audit-table"] td.am-glyph, .audit-group table td.am-glyph{order:1;flex:0 0 auto;}
+    [data-testid="audit-table"] td[data-label="Attempt"], .audit-group table td[data-label="Attempt"]{order:2;flex:0 0 auto;color:var(--text-dim);}
+    [data-testid="audit-table"] td[data-label="Step"], .audit-group table td[data-label="Step"]{order:3;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;}
+    [data-testid="audit-table"] td[data-label="Verdict"], .audit-group table td[data-label="Verdict"]{order:4;flex:0 1 auto;max-width:9em;white-space:normal;overflow-wrap:anywhere;}
+    [data-testid="audit-table"] td.am-cost, .audit-group table td.am-cost{order:5;flex:0 0 auto;}
+    [data-testid="audit-table"] td.am-time, .audit-group table td.am-time{order:6;flex:0 0 auto;color:var(--text-dim);}
+    /* no step cell (grouped view): the verdict takes the slack so cost and time sit at the right */
+    .audit-group table td[data-label="Verdict"]{flex:1 1 0;}
+    /* EVERY entry opens on a tap (not only one with a gap): the line above shortens the step and verdict with an
+       ellipsis, so the tap is the one way to read all of it. The open block is wrapped lines under the one line. */
+    tr.audit-tap{cursor:pointer;}
+    tr.audit-tap td.am-glyph::after{content:"\25B8";margin-left:2px;color:var(--text-faint);}
+    tr.audit-tap.open td.am-glyph::after{content:"\25BE";}
+    [data-testid="audit-table"] td.am.am-detail, .audit-group table td.am.am-detail{display:none;}
+    [data-testid="audit-table"] tr.open, .audit-group table tr.open{flex-wrap:wrap;}
+    [data-testid="audit-table"] tr.open td.am-detail, .audit-group table tr.open td.am-detail{
+      display:block;order:7;flex:0 0 100%;min-width:0;white-space:normal;overflow-wrap:anywhere;padding:4px 0 2px;color:var(--text-dim);
+    }
+    td.am-detail .am-d{margin:0 0 3px;}
+    td.am-detail .am-d b{color:var(--text);font-weight:600;}
+    /* the Round table keeps its real table layout on a phone and scrolls inside its own box (.audit-table-scroll), never the page */
+    .audit-group table.rounds-table{display:table;width:max-content;min-width:100%;max-width:none;}
+    .audit-group table.rounds-table thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;}
+    .audit-group table.rounds-table tbody{display:table-row-group;}
+    .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
+    .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
+    /* the check grid keeps its real table layout on a phone and scrolls inside its own box (.grid-wrap), never the page */
+    .audit-group table.grid{display:table;width:100%;max-width:none;}
+    .audit-group table.grid thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;}
+    .audit-group table.grid tbody{display:table-row-group;}
+    .audit-group table.grid tr{display:table-row;padding:0;overflow:visible;}
+    .audit-group table.grid td{display:table-cell;white-space:normal;border-right:1px dotted var(--border);}
+    .audit-group table.grid td.c{white-space:nowrap;padding:2px;}
+    /* M8 item 6: a hint's table fits the box and wraps (as bareloop's does at 320), it does not scroll sideways */
+    .audit-part table.learn-hint{display:table;width:100%;min-width:0;max-width:100%;}
+    .audit-part table.learn-hint tbody{display:table-row-group;}
+    .audit-part table.learn-hint tr{display:table-row;padding:0;}
+    .audit-part table.learn-hint td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;}
+  }
+
+  /* M4d piece 4: the Settings view (a sibling of #main-view, opened from the header). Layout borrowed from bareloop:
+     one provider table inside a scrolling .table-wrap, a KEYS strip, a money strip. Inputs are 16px so a phone does not zoom. */
+  /* borrowed-from: bareloop src/panel/index.html@5a5a811 */
+  .settings-view{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;min-width:0;}
+  .settings-view .pane-body{flex:none;overflow:visible;}
+  .settings-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);}
+  .settings-header h2{margin:0;font-size:15px;display:inline;}
+  .settings-header h2::before{content:"┤ ";color:var(--text-faint);}
+  .settings-header h2::after{content:" ├";color:var(--text-faint);}
+  .money-strip{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;align-items:end;padding:10px;border:1px solid var(--border-strong);background:var(--panel2);}
+  .money-item{min-width:0;}
+  .money-item label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;}
+  .money-value{font-size:16px;font-weight:700;padding:6px 0;overflow-wrap:anywhere;}
+  .money-item input{width:100%;height:44px;box-sizing:border-box;}
+  .keyfile-strip{position:relative;border:1px solid var(--border-strong);padding:12px 12px 8px;background:var(--panel2);margin:14px 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .keyfile-strip::before{content:"┤ KEYS ├";position:absolute;top:-9px;left:10px;background:var(--panel2);padding:0 4px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .keyfile-strip-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;overflow-wrap:anywhere;}
+  .keyfile-strip-actions{display:flex;flex-wrap:wrap;gap:6px;flex:none;max-width:100%;}
+  .keyfile-strip code{background:var(--bg);border:1px solid var(--border-strong);padding:1px 5px;font-size:11px;color:var(--amber);overflow-wrap:anywhere;}
+  .settings-view input,.settings-view select{font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);}
+  /* M4d Providers layout F (hamr approved 2026-10-11, the design lab's Variant F): ONE shared grid, so a key row, the model sub-head and
+     every model row sit on the same column edges. Key band: KEY | API SHAPE | BASE URL (two columns) | OLD MAX_TOKENS | TOKENS | refresh.
+     Model row: [USE 44px][MODEL] under KEY, IN + OUT side by side under BASE URL, TOKENS on the key band's TOKENS edge. A key row has a
+     solid 1px line, a model row a dotted 1px hairline. Below 1280px every row collapses to stacked label : value lines. */
+  .pv-grid{--pv-cols:minmax(0,2.8fr) minmax(0,1.5fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.9fr) minmax(0,.6fr) 272px;font-size:13px;}
+  .pv-head,.pv-krow,.pv-mhead,.pv-mrow{display:grid;grid-template-columns:var(--pv-cols);column-gap:8px;align-items:center;padding:0 8px;min-width:0;}
+  .pv-head > *,.pv-krow > *,.pv-mhead > *,.pv-mrow > *{min-width:0;}
+  .pv-head,.pv-mhead{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:0.04em;min-height:26px;}
+  .pv-head{background:var(--panel2);border-bottom:1px solid var(--border-strong);}
+  .pv-mhead{background:var(--bg);border-bottom:1px dotted var(--border-strong);}
+  .pv-key{border-top:1px solid var(--border-strong);}
+  .pv-krow{min-height:40px;padding-top:4px;padding-bottom:4px;}
+  .pv-c-url{grid-column:3 / span 2;}
+  .pv-lbl{display:none;}
+  .pv-name{display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0;overflow-wrap:anywhere;}
+  .pv-name code{font-weight:700;}
+  .pv-ok{color:var(--green);font-weight:700;}
+  .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:0 4px 0 0;min-width:22px;min-height:24px;cursor:pointer;text-align:left;}
+  .pv-krow select,.pv-krow input[type=text]{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;}
+  .pv-grid select,.pv-grid input[type=text]{font-size:12px;height:28px;padding:2px 6px;}
+  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+  .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
+  .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
+  .pv-refcell{display:flex;justify-content:flex-end;}
+  .pv-refbox{display:flex;flex-direction:column;align-items:flex-start;max-width:100%;}
+  .pv-refbtns{display:flex;gap:6px;}
+  .pv-refbox .pv-msg{width:0;min-width:100%;overflow-wrap:anywhere;margin:2px 0 0;}
+  .pv-refbox .pv-msg:empty{display:none;}
+  .pv-refbtn{white-space:nowrap;flex:0 0 auto;}
+  .pv-refbtn:disabled{opacity:.5;cursor:not-allowed;}
+  .pv-sum{color:var(--text-faint);font-size:11px;font-weight:400;}
+  .pv-key[data-open="1"] .pv-sum{display:none;}
+  .pv-knote{padding:0 8px 4px 34px;margin:0;}
+  .pv-knote:empty{display:none;}
+  .pv-knote > .hint:empty{display:none;}
+  .pv-key[data-open="0"] .pv-models{display:none;}
+  .pv-mrow{border-top:1px dotted var(--border-strong);min-height:32px;}
+  /* borrowed-from: bareloop src/panel/index.html@357a482 (hamr: same exact change) — a clicked model row turns blue; tabindex -1 on the row makes a click on its name focusable */
+  .pv-mrow:hover{background:var(--panel2);}
+  .pv-mrow:focus-within,.pv-mrow:focus-within:hover{background:var(--rl-accent-bg-strong);box-shadow:inset 0 0 0 2px var(--accent);}
+  .pv-mrow:focus{outline:none;}
+  .pv-um{grid-column:1;display:flex;align-items:center;gap:0;min-width:0;}
+  .pv-uh,.pv-m-use{flex:0 0 44px;width:44px;display:flex;align-items:center;justify-content:center;}
+  .pv-m-use{min-height:32px;}
+  .pv-m-name{min-width:0;overflow-wrap:anywhere;font-size:12px;}
+  .pv-pair{grid-column:3 / span 2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:8px;align-items:center;min-width:0;}
+  .pv-pair > *{min-width:0;}
+  .pv-pair input[type=text]{width:100%;text-align:right;}
+  .pv-mhead .pv-tok{text-align:right;}
+  .pv-mhead .pv-tok,.pv-m-tok{grid-column:6;}
+  .pv-m-msg{grid-column:1 / -1;padding:2px 8px 2px 52px;margin:0;}
+  .pv-m-msg:empty{display:none;}
+  .pv-more{padding:3px 8px 3px 34px;border-top:1px dotted var(--border-strong);}
+  .pv-more:empty{display:none;}
+  .pv-more .pv-add{border:0;background:none;color:var(--accent);font:inherit;font-size:12px;padding:2px 0;min-height:24px;cursor:pointer;text-decoration:underline;}
+  .pv-more.pv-failed{color:var(--amber);background:var(--amber-bg);font-size:12px;}
+  .pv-typed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;}
+  .pv-typed input{flex:1 1 160px;min-width:0;max-width:260px;min-height:28px;box-sizing:border-box;}
+  .pv-typed .hint{flex:1 1 100%;margin:0;}
+  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
+  .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
+  .hint.bad{color:var(--red);}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
+  @media (max-width: 899px){
+    .money-strip{grid-template-columns:1fr 1fr;}
+    .keyfile-strip-main{flex:1 1 100%;}
+  }
+  @media (max-width: 1279px){
+    .pv-head,.pv-mhead{display:none;}
+    .pv-krow,.pv-mrow{display:block;padding:2px 8px;}
+    .pv-cell{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;min-height:44px;border-top:1px dotted var(--border);}
+    .pv-cell:first-child{border-top:none;}
+    .pv-lbl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-cell.nolbl{display:flex;}
+    .pv-tok{text-align:left;}
+    .pv-grid select,.pv-grid input[type=text]{height:44px;font-size:14px;}
+    .pv-krow select,.pv-krow input[type=text]{min-height:44px;}
+    .pv-legacy{min-height:44px;gap:10px;}
+    .pv-legacy input,.pv-m-use input{width:24px;height:24px;}
+    .pv-um{min-height:44px;}
+    .pv-uh,.pv-m-use{min-height:44px;}
+    .pv-cell.pv-pair{display:grid;grid-template-columns:104px minmax(0,1fr) minmax(0,1fr);}
+    .pv-cell.pv-pair::before{content:"In / Out $/1M";font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:700;}
+    .pv-fold,.pv-refbtn,.pv-more .pv-add{min-height:44px;min-width:44px;}
+    .pv-knote,.pv-more{padding-left:8px;}
+    .pv-m-msg{padding-left:8px;}
+  }
+</style>
+<style>
+  /* mockup-only additions: reuse of .pv-key/.pv-krow/.pv-mrow with other columns */
+  .mc-sect{font-size:12px;color:var(--text-dim);font-weight:700;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.06em;}
+  .mc-sect:first-child{margin-top:0;}
+  .mc-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:6px 10px;border-top:1px solid var(--border-strong);min-height:40px;overflow-wrap:anywhere;}
+  .mc-row:first-child{border-top:none;}
+  .mc-row.faint{color:var(--text-faint);}
+  .mc-row .mc-grow{flex:1 1 220px;min-width:0;}
+  .mc-row .btn{margin-left:auto;}
+  .mc-add{padding:6px 10px;}
+  .pv-head.mc-k,.pv-krow.mc-k{--pv-cols:minmax(0,1.6fr) minmax(0,1.5fr) minmax(0,.8fr) 150px;}
+  .mc-grp{border-top:1px solid var(--border-strong);}
+  .mc-grp:first-of-type{border-top:none;}
+  .mc-prow{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:4px 8px;min-height:40px;background:var(--panel2);overflow-wrap:anywhere;}
+  .mc-prow .mc-grow{flex:1 1 100px;min-width:0;}
+  .mc-prow .btn{margin-left:auto;}
+  .mc-prow.faint{color:var(--text-faint);}
+  .mc-grp[data-open="0"] .mc-kids{display:none;}
+  .mc-grp .pv-key:first-child{border-top:1px solid var(--border-strong);}
+  .mc-k .pv-name{padding-left:26px;}
+  .mc-grp .pv-more{padding-left:60px;}
+  .mc-grp .mc-use{padding-left:60px;}
+  .mc-use{padding:0 8px 6px 34px;margin:0;}
+  .mc-use .bad{color:var(--red);}
+  .pv-mrow.mc-t{--pv-cols:minmax(0,2fr) minmax(0,1fr) minmax(0,.6fr);display:grid;padding:0 8px;}
+  .pv-mhead.mc-t{--pv-cols:minmax(0,2fr) minmax(0,1fr) minmax(0,.6fr);}
+  .mc-t .n{text-align:right;font-variant-numeric:tabular-nums;}
+  .mc-tools{overflow-x:auto;}
+  .mc-tools .mc-tin{min-width:300px;}
+  @media (max-width:1279px){
+    .pv-mhead.mc-t{display:grid;}
+    .pv-mrow.mc-t{display:grid;padding:0 8px;}
+    .mc-use{padding-left:8px;}
+    .mc-kids{margin-left:14px;border-left:2px solid var(--border-strong);}
+    .mc-k .pv-name{padding-left:0;}
+    .mc-grp .pv-more,.mc-grp .mc-use{padding-left:8px;}
+  }
+  .mc-spin{color:var(--amber);}
+</style>
+</head><body>
+<div id="FwdloopPanel">
+  <header class="topbar">
+    <div><span class="brand">fwdloop</span><span class="version">v0.27.0</span><span class="tagline">automate a job — it has humans in it</span></div>
+    <div class="topbar-right"><span id="online-dot" class="on">&#9679; online</span>
+      <button class="btn small" type="button">&#9881; Settings</button>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button></div>
+  </header>
+  <div class="settings-view" id="settings-view">
+    <div class="settings-header"><button class="btn small" type="button">&larr; Back</button><h2>Settings</h2></div>
+    <div class="tabrow" role="tablist" aria-label="Settings views">
+      <button role="tab" aria-selected="false">Providers</button>
+      <button role="tab" aria-selected="true">MCP</button>
+      <button role="tab" aria-selected="false">Money &amp; limits</button>
+    </div>
+    <div class="pane-body">
+      <section class="tabpanel active">
+        <div class="mc-sect">Path and MCP</div>
+        <div class="table-wrap">
+          <div id="paths"></div>
+          <div class="pv-more" style="padding-left:10px;border-top:1px solid var(--border-strong)">
+            <button class="btn small" type="button" id="add-open">+ add a path</button>
+            <div class="pv-typed" id="add-box" hidden><input type="text" id="add-in" autocomplete="off" spellcheck="false" aria-label="path" placeholder="type a path to an MCP config file"> <button class="btn small" type="button" id="add-go">Add</button><div class="hint pv-msg" id="add-msg"></div></div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px;">Read only. fwdloop never edits these files and never shows keys. A project folder's .mcp.json is never read.</div>
+        <div class="hint">check tools starts the server once, only when pressed.</div>
+        <div class="hint">— = no hint; shown, not blocked. Hints are info only.</div>
+      </section>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var P=[
+   {p:"~/.mcp.json",open:true,srv:[{n:"github",tools:46,at:"10:42",open:false,use:"used 38 times in 12 runs · last used today 09:33",denied:0,
+    list:[["issue_read","read-only",26],["list_issues","read-only",12],["get_file_contents","read-only",0],["create_issue","—",0],["add_issue_comment","—",0]],more:41}]},
+   {p:"~/.claude/mcp_servers.json",open:true,srv:[{n:"aurora",never:true,fake:23}]},
+   {p:"~/.claude.json",added:true,open:true,srv:[
+    {n:"barebrowse",tools:14,at:"11:05",use:"used 0 times",denied:0,list:[["browse","read-only",0],["snapshot","read-only",0],["click","—",0]],more:11},
+    {n:"litectx",never:true,fake:9},{n:"baremobile",never:true,fake:18},{n:"beeper",remote:true}]},
+   {p:"~/.config/Claude/claude_desktop_config.json",open:true,srv:null},
+   {p:"~/.cursor/mcp.json",open:true,srv:null}
+  ];
+  var root=document.getElementById("paths");
+  function esc(s){var d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+  function srvHtml(s,pi,si){
+    var open=!!s.open, id=pi+"-"+si;
+    var tools=s.remote?'<span class="hint">remote server, not supported yet</span>':(s.tools?s.tools+" tools":"never checked");
+    var btn=s.remote?"":(s.busy?'<button class="btn small pv-refbtn" disabled>checking…</button>':'<button class="btn small pv-refbtn" data-chk="'+id+'">check tools</button>');
+    var use=s.remote?"":(s.never&&!s.tools?"never used":'<span>'+s.use+' · <span style="'+(s.denied>0?'color:var(--red)':'')+'">'+s.denied+' denied</span></span>');
+    if(s.never&&s.tools)use="never used";
+    return '<div class="pv-key" data-open="'+(open?1:0)+'">'+
+     '<div class="pv-krow mc-k">'+
+      '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-fold="'+id+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+'</button><code>'+esc(s.n)+'</code></div>'+
+      '<div class="pv-cell"><span class="pv-lbl">Tools</span><span>'+tools+(s.busy?' <span class="mc-spin">…</span>':'')+'</span></div>'+
+      '<div class="pv-cell"><span class="pv-lbl">Checked</span><span>'+(s.remote?"—":(s.at?"checked "+s.at:"never checked"))+'</span></div>'+
+      '<div class="pv-cell pv-refcell nolbl">'+btn+'</div>'+
+     '</div>'+
+     (use?'<div class="hint mc-use">'+use+'</div>':'')+
+     '<div class="pv-models">'+(s.list?
+       '<div class="pv-mhead mc-t" aria-hidden="true"><span>TOOL</span><span>HINT</span><span class="n">USED</span></div>'+
+       s.list.map(function(t){return '<div class="pv-mrow mc-t" tabindex="-1"><span class="pv-m-name"><code>'+t[0]+'</code></span><span>'+t[1]+'</span><span class="n">'+t[2]+'</span></div>';}).join("")+
+       '<div class="pv-more"><button class="pv-add" type="button" data-more="'+id+'">+'+s.more+' more</button></div>'
+       :'<div class="pv-more"><span class="hint">'+(s.remote?'':'Press check tools to list its tools.')+'</span></div>')+'</div>'+
+    '</div>';
+  }
+  function render(){
+    var h='<div class="pv-head mc-k" aria-hidden="true"><span>PATH / MCP</span><span>TOOLS</span><span>CHECKED</span><span></span></div>';
+    P.forEach(function(g,pi){
+      var found=!!g.srv, n=found?g.srv.length:0;
+      var note=found?' — '+(g.added?'(added) — ':'')+n+' server'+(n==1?'':'s'):' — '+(g.added?'(added) — ':'')+'not found';
+      h+='<div class="mc-grp" data-open="'+(g.open?1:0)+'"><div class="mc-prow'+(found?'':' faint')+'">'+
+        (found?'<button class="pv-fold" type="button" data-pfold="'+pi+'" aria-expanded="'+!!g.open+'">'+(g.open?"▾":"▸")+'</button><span class="pv-ok">✓</span>':'<span class="pv-fold" style="display:inline-block">&nbsp;</span><span>–</span>')+
+        '<span class="mc-grow"><code>'+esc(g.p)+'</code>'+esc(note)+'</span>'+
+        (g.added?'<button class="btn small" type="button" data-rm="'+pi+'">remove</button>':'')+'</div>'+
+        (found?'<div class="mc-kids">'+g.srv.map(function(s,si){return srvHtml(s,pi,si);}).join("")+'</div>':'')+'</div>';
+    });
+    root.innerHTML=h;
+  }
+  function get(id){var a=id.split("-");return P[+a[0]].srv[+a[1]];}
+  root.addEventListener("click",function(e){
+    var pf=e.target.closest("[data-pfold]");
+    if(pf){var g=P[+pf.getAttribute("data-pfold")];g.open=!g.open;render();return;}
+    var r=e.target.closest("[data-rm]");
+    if(r){P.splice(+r.getAttribute("data-rm"),1);render();return;}
+    var f=e.target.closest("[data-fold]");
+    if(f){var s=get(f.getAttribute("data-fold"));s.open=!s.open;render();return;}
+    var c=e.target.closest("[data-chk]");
+    if(c){var s2=get(c.getAttribute("data-chk"));s2.busy=true;render();
+      setTimeout(function(){s2.busy=false;var n=s2.tools||s2.fake||12;s2.tools=n;var d=new Date();s2.at=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);s2.open=true;
+        if(!s2.list){s2.list=[["tool_one","—",0],["tool_two","—",0]];s2.more=n-2;} render();},1400);return;}
+    var m=e.target.closest("[data-more]");
+    if(m){var s3=get(m.getAttribute("data-more"));s3.more=0;m.closest(".pv-more").innerHTML='<span class="hint">(mock: the rest of the tools would list here)</span>';}
+  });
+  render();
+  document.getElementById("add-open").onclick=function(){var b=document.getElementById("add-box");b.hidden=!b.hidden;if(!b.hidden)document.getElementById("add-in").focus();};
+  document.getElementById("add-go").onclick=function(){var v=document.getElementById("add-in").value.trim();var m=document.getElementById("add-msg");
+    if(!v){m.textContent="Type a path first.";m.className="hint bad pv-msg";return;}
+    P.push({p:v,added:true,open:true,srv:null});render();
+    document.getElementById("add-in").value="";m.textContent="added";m.className="hint pv-msg";};
+  document.getElementById("theme-toggle").onclick=function(){var r=document.documentElement;var dark=r.getAttribute("data-theme")?r.getAttribute("data-theme")==="dark":matchMedia("(prefers-color-scheme: dark)").matches;r.setAttribute("data-theme",dark?"light":"dark");};
+})();
+</script></body></html>
