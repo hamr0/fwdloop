@@ -4693,3 +4693,36 @@ Question: M13 item 9.5 says an MCP gets only its own settings plus what it needs
 (e) Where fwdloop starts the bridge (`src/ticket-mcp.js`) and whether fwdloop could cut the env before spawn without changing bare-agent (file:line). No `src` change.
 
 **Win rule.** (a) and (b) PASS; (c)-(e) are recordings. **Not tested.** Real servers, any model.
+
+### F108 RESULT (run 2026-10-30, $0, no model call, bare-agent 0.54.1 `discoverServers` from `bare-agent/mcp`, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/mcp/f108/` (`f108.mjs`, `out.txt`; names and field names only, no value printed or saved).
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| (a) per-file names; missing file does not stop the rest | PASS (with a caveat) | `~/.mcp.json` 1 [github]; `~/.claude/mcp_servers.json` 1 [aurora]; Desktop and Cursor files missing; `~/.claude.json` 4 [beeper, baremobile, barebrowse, litectx]; all 5 in order = 6 servers, no throw. Caveat: bare-agent skips a missing OR unparseable file silently (`mcp-bridge.js:115,117`, `catch { continue; }`) and returns one merged Map with no file of origin; the per-file list and the "missing" line come from fwdloop calling it once per path and checking `existsSync` itself. |
+| (b) remote vs startable | PASS | `beeper` fields = [type, url], no `command`; the other five have `command`. The field that shows it: no `command` string (plus `url`). |
+| (c) project `.mcp.json` never read | PASS | planted `f108-canary` in a temp cwd: not listed by `discoverServers()` without paths, nor with explicit paths. bare-agent also prints a `console.warn` about the skipped file in the default case. |
+| (d) same name in two files | PASS (first kept) | Map keeps the FIRST (`if (!servers.has(name))`, `mcp-bridge.js:121`). bare-agent gives NO warning (`console.warn` not called). |
+| (e) nothing starts | PASS | planted startable canary server: its marker file was never written; `ps --ppid` shows no child (first run showed "yes" only because the `ps` call itself is a child; script fixed to exclude `ps`, rerun clean). |
+| (f) no command/env value printed | PASS | script prints names, field names, yes/no only. |
+
+**Win rule: (a) through (f) all PASS.**
+
+**What M13 must therefore do.** Call `discoverServers([path])` once per path, check `existsSync` itself for "missing", and merge in fwdloop to keep the file of origin; build the "same name in two paths: first wins" warning itself (bare-agent keeps first but says nothing). Tell remote by "no `command`". Pass explicit paths always; never default discovery. Unparseable files are silent in bare-agent, so fwdloop should parse-check each path to say "unreadable" rather than "empty".
+
+### F109 RESULT (run 2026-10-30, $0, no model call, bare-agent 0.54.1 `createMCPBridge`, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/mcp/f109/` (`server.mjs`, `f109.mjs`, `out.txt`; canary values only, names only recorded). The `out.txt` name list is the names of the shell's env variables, no values.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| (a) provider key names do not reach the child | FAIL (leak, expected) | `DEEPSEEK_API_KEY` yes, `FIREWORKS_API_KEY` yes, `F109_PLAIN` yes. The child got 110 names: the whole parent env. M13 item 9.5 fix IS needed. |
+| (b) the server's own `F109_OWN` reaches the child | PASS | yes. |
+| (c) PATH and HOME | recorded | both present. |
+| (d) minimal env | recorded | with the parent env cut to PATH and HOME in-process before `createMCPBridge`, the server started, the bridge exposed `f109_env_names`, and the child got exactly 4 names: `F109_OUT_FILE F109_OWN HOME PATH`; both key names absent. Same 4 names, same start, with a config `command: env`, `args: [-i, PATH=.., HOME=.., own=.., node, server]` and no in-process cut. bare-agent offers no option to not pass the parent env: the spawn env is `{ ...process.env, ...resolveEnv(env) }` at `node_modules/bare-agent/src/mcp-bridge.js:258`, used at `:263-266`; `createMCPBridge` options (`:925-945`) have no env setting. |
+| (e) where fwdloop could cut | recorded | fwdloop starts the bridge at `src/ticket-mcp.js:37` (`createMCPBridge({ configPaths: [configPath], ... })`). Two ways without changing bare-agent: (1) fwdloop writes its own temp config whose `command` is `env` with `-i PATH HOME <server's own env> <real command> <args>` (proven above); (2) delete the other `process.env` names around the `createMCPBridge` call and restore them (proven above, but the whole panel process loses its env while the await runs, so a concurrent provider call could fail; not recommended). |
+
+**Win rule: (a) FAIL on the letter**, as expected: today every MCP child receives all of the parent's env, provider keys included.
+
+**What M13 must therefore do.** Item 9.5 needs a code fix in fwdloop, no bare-agent change: build a per-start temp config that wraps the signed server's command in `env -i PATH=.. HOME=.. <its own env> <command> <args>`. The wrapper must resolve the server's own `${VAR}` env references itself first (bare-agent resolves those from `process.env` at `:220-228`, and `env -i` hides them), and must keep a launcher that is not on a cut PATH working (not tested). The must-fail test: plant canary key names in the parent and assert a child never lists them. Untested here: servers needing more than PATH and HOME to start (for example a `node` version manager), and `${VAR}` own-env references.

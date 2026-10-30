@@ -1,0 +1,19 @@
+(a) per file
+  ~/.mcp.json: 1 [github]
+  ~/.claude/mcp_servers.json: 1 [aurora]
+  ~/.config/Claude/claude_desktop_config.json: MISSING
+  ~/.cursor/mcp.json: MISSING
+  ~/.claude.json: 4 [beeper, baremobile, barebrowse, litectx]
+  all 5 in order: 6 [github, aurora, beeper, baremobile, barebrowse, litectx]
+(b) per server: field NAMES, startable?
+  github: fields=[command,args] hasCommand=true
+  aurora: fields=[type,command,args] hasCommand=true
+  beeper: fields=[type,url] hasCommand=false
+  baremobile: fields=[type,command,args,env] hasCommand=true
+  barebrowse: fields=[type,command,args,env] hasCommand=true
+  litectx: fields=[type,command,args,env] hasCommand=true
+(c) default discovery lists f108-canary: false (bare-agent skip warning emitted: true); explicit paths lists it: false
+(d) duplicate kept: FIRST; warning emitted by bare-agent: false
+(e) canary file written: false; child processes: none
+(f) this script prints names, field names and yes/no only
+SUMMARY {"a":true,"c":true,"d":true,"e":true}
