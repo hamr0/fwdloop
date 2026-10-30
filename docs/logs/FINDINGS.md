@@ -4755,3 +4755,21 @@ Both runs: update exit 0, fake npm ran, nothing installed. The test could fail: 
 **Where keys enter the launcher env.** Only from the user's shell. `bin/fwdloop:1039` calls `launcherMain` with no env; `launcherMain` uses `deps.processEnv ?? process.env` (`launcher.js:605`) for colour only; the launcher never calls `keysForDoor`/`loadKeysEnv` (it uses only `keysHome`, `keysFilePath`, `createKeysFile`, and the chmod at `launcher.js:279`). `runNpm` (`launcher.js:~310`) passes `{ shell: false, stdio: 'inherit' }` with no `env`, so Node gives npm the whole `process.env`; `startCmd` passes `d.env ?? process.env` to the panel (`launcher.js:459`).
 
 **Consequence.** A user with provider keys exported in their shell (case A) hands them to `npm install -g fwdloop@latest` and to whatever npm runs (lifecycle scripts of fwdloop and its dependencies). Keys only in the keys file do not. Smallest fix, described not applied: in `runNpm` pass `env` built from `process.env` minus every name `isKeyName` (`keysfile.js:38`) accepts, e.g. `spawnImpl('npm', args, { shell: false, stdio: 'inherit', env: withoutKeys(process.env) })`. Must-fail test: canary `*_KEY` name in the parent, fake npm lists names, assert absent while PATH/HOME stay. The panel spawn (`launcher.js:459`) needs no cut: the panel is the key user.
+
+## F111 pre-registration (2026-10-30): does bare-agent's unreleased `passEnv` cut the MCP child env — $0
+
+Question: bare-agent branch `feat/mcp-pass-env` (HEAD 4a50481, unreleased, checkout `../bareagent`, not modified) adds `createMCPBridge({ passEnv })` and `listServerTools({ passEnv })`. Agreed shape: child env = the named parent vars that exist + the server's own env (`${VAR}` resolved from the full parent) on top, own env wins; unset = byte-identical to today; `[]` = own env only; a bad value = `ValidationError` before any spawn. F109 showed the bridge hands the whole parent env to a server.
+
+**Criteria (each a letter; the script exits 0 only if a-g pass; h is measurement).**
+- (a) passEnv unset: canaries `DEEPSEEK_API_KEY` / `FIREWORKS_API_KEY` reach the child (unchanged behaviour).
+- (b) passEnv `['PATH','HOME']`: no canary reaches the child; PATH, HOME and the server's own env names do.
+- (c) own env `${F111_SECRET}` (set in the parent, NOT in passEnv) reaches the child resolved: name present and a boolean "value equals expected"; value never printed; `F111_SECRET` itself absent.
+- (d) own env wins over a passEnv var of the same name (boolean).
+- (e) passEnv `[]`: only the server's own env names.
+- (f) bad values `'PATH'`, `['']`, `[1]`, `{}` each throw `ValidationError` and spawn nothing (marker-file canary server).
+- (g) `listServerTools` honours passEnv too (canary absent).
+- (h) real servers from hamr's `~/.claude.json` started with passEnv `['PATH','HOME']`, asked `tools/list` only: barebrowse (npx), litectx (node), baremobile (npx). Record per server: started yes/no, tools count. On failure retry adding names one at a time from `TMPDIR, LANG, USER, XDG_RUNTIME_DIR, NODE_OPTIONS, npm_config_cache`, record the minimum needed. The `github` server is NOT started (its wrapper reads `pass`); a self-written `sh -c`-wrapped node server stands in and its needs are recorded.
+
+**Method.** Scratch install `npm i ../bareagent` (file install of the checkout). Scripts in `poc/mcp/f111/`, run against the scratch install. Names and booleans only; no key value, no server command printed; `pass` never read; no model call. Browsers a server might start are killed by PID, `/tmp/barebrowse-*` dirs removed.
+
+**Win rule.** a-g all true. (h) is reported, not pass/fail.
