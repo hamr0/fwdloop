@@ -221,6 +221,22 @@ hamr's rulings 2026-10-28:
 - `Run it anyway` on a skipped ticket asks for a short reason first, like a rerun; without a reason nothing starts. The ticket then queues as a new arrival with the job's normal cap.
 - Later slices, same shape, different reader (each needs its own signed slice; not scheduled): page tickets through barebrowse (F92, F94 proven; labels on a page and the flood still open), and chats through beeperbox (a chat message is one item with an id: seen list, queue, guardrail filter, one run per item, the same Result list).
 
+**Next, not scheduled: one setup for outside sources (MCP dropdown, Schedule from day 1)** (hamr, 2026-10-30, unsigned). Not drafted; it needs its own amendment or module signed by hamr before it is built. Why: the M12 walk proved the engine (reading tickets, skip, queue, watched field, books), but the ticket setup feels like a carve-out from the normal job. hamr wants the experience to match across file, page, MCP and (later) chat and search. hamr's direction, from the 2026-10-30 tickets walk:
+
+1. Inputs stay as today: a free name and a path or address (`report: /path/to/file.csv`, `airbnb: <url>`).
+2. MCP is chosen from a dropdown, not typed. A new Settings tab (next to Providers) lists the servers from `~/.mcp.json`. hamr adds a path there and sees what each server can read (tools and read-only marks). The job card picks a server from a dropdown, in the style of "Run a signed flow". With the dropdown, `mcp:` and `chat:` input keywords are not needed. For now it is vanilla MCP (read-only). Later: from a job's chat, spin off a scoped copy of a server with w/x rights, guided by hints, then carry the same model to chat rwx.
+3. barebrowse is one entry in the same dropdown (it already runs as an MCP server). A site with its own MCP server uses that; a site without one uses barebrowse; search later is barebrowse too. barebrowse tickets are tried only if the POC (F106, pre-registered in FINDINGS) passes; otherwise barebrowse stays for search and tickets use MCP servers only.
+4. Schedule can be set from day 1, on the job card. It stays off until the job's first green run, then turns itself on. A red run reused redrafts with the same schedule. "Schedule run" stays for a job that had none. No separate When box (that would be scope creep; the trigger is part of Schedule).
+5. One run per ticket. The Result tab stays as for any job. Runs are named by the ticket number.
+6. The by-hand `ticket #` box becomes a backend reach check: a $0 "can I reach it?" read at draft, the same for every source (MCP, browse, chat).
+7. What this would change of signed M12 text: the Inputs form (item 8), the ticket-number ruling (PRD 2026-10-29), the Result ticket list (item 9). The engine stays.
+
+Open points (unsettled):
+
+- Where do a skipped ticket and "Run it anyway" live if the Result list goes?
+- Is a run name the number alone, or number plus title?
+- What does the first run read when there is no ticket box (the newest ticket?)?
+
 **Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:
 1. Each part keeps its header and tools line. Under it, a check grid: rows are the part's checks in run order with their plain question; columns are try 1..N (with thinking on/off); cells ✓ ✗ · (not run) ? (no verdict). The grid scrolls inside its own box; no page side-scroll at 390px.
 2. Under the grid, an errors list: one row per try that failed or has no verdict: try N, the first failing check ("+J more checks"), the first error line, "(+M more)". A part with no failure shows no list.
