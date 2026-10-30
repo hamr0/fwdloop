@@ -1,0 +1,122 @@
+{
+  "errors": [],
+  "missing": [
+    {
+      "server": "barebrowse",
+      "tool": "eval"
+    }
+  ],
+  "listed": 22,
+  "tools": [
+    {
+      "name": "barebrowse_browse",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_goto",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_snapshot",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_readable",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_click",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_type",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_press",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_scroll",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_back",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_forward",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_drag",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_upload",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_pdf",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_reload",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_screenshot",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_wait_for",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_tabs",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_select",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_hover",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_switch_engine",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_capabilities",
+      "readOnlyHint": "absent",
+      "annotations": null
+    },
+    {
+      "name": "barebrowse_assess",
+      "readOnlyHint": "absent",
+      "annotations": null
+    }
+  ]
+}

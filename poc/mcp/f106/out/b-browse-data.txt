@@ -1,0 +1,390 @@
+url: https://codeberg.org/forgejo/forgejo/issues/1
+42,848 chars → 15,863 chars (63% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main "#1 - Configure Woodpecker"
+  - link "forgejo" [ref=34]
+  - link "RSS feed" [ref=39]
+  - generic "Sign in to watch this repository."
+    - Watch
+    - link "363 watchers" [ref=94]
+  - form
+    - generic "Sign in to star this repository."
+      - button "Star" [disabled] [ref=244]
+      - link "5745 stars" [ref=245]
+        - 5.7k
+  - generic "Sign in to fork this repository."
+    - Fork
+    - link "1015 forks" [ref=99]
+      - 1.0k
+  - navigation
+    - link "Code" [ref=101]
+    - link "Issues 1.6k" [ref=102]
+    - link "Pull requests 164" [ref=103]
+    - link "Projects" [ref=104]
+    - link "Releases 125" [ref=105]
+    - button "More items" [expanded=false] [ref=106]
+  - heading "Configure Woodpecker #1" [level=1]
+  - button "New issue" [ref=109]
+  - Closed
+  - opened
+  - generic "Nov 6, 2022, 07:52 AM GMT+1"
+    - 3 years ago
+  - by Ghost · 0 comments
+  - heading "This user has been deleted, or cannot be matched. commented Nov 6, 2022, 07:52 AM GMT+1 Comment menu" [level=3]
+    - generic "This user has been deleted, or cannot be matched."
+      - Ghost
+    - link "Nov 6, 2022, 07:52 AM GMT+1" [ref=778]
+      - generic "Nov 6, 2022, 07:52 AM GMT+1"
+        - 3 years ago
+    - menu
+      - • edited
+  - article
+    - link "https://ci.codeberg.org/codename/codename/settings" [ref=1490]
+    - listitem [level=1]
+      - checkbox [checked=true, disabled] [ref=1618]
+      - enable codename/codename
+    - listitem [level=1]
+      - checkbox [checked=true, disabled] [ref=1620]
+      - set the timeout to 2h (because
+      - link "one hour is not enough" [ref=1622]
+    - listitem [level=1]
+      - checkbox [checked=true, disabled] [ref=1624]
+      - disable pull requests because it could be too hard on the Codeberg CI
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - closed this issue
+  - link "Nov 6, 2022, 07:54 AM GMT+1" [ref=284]
+    - generic "Nov 6, 2022, 07:54 AM GMT+1"
+      - 3 years ago
+  - deletion
+    - generic "This user has been deleted, or cannot be matched."
+      - Ghost
+    - link "referenced this issue" [ref=788]
+    - link "Aug 3, 2023, 06:35 PM GMT+2" [ref=789]
+      - generic "Aug 3, 2023, 06:35 PM GMT+2"
+        - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0 #1194" [ref=290]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 06:58 PM GMT+2" [ref=295]
+    - generic "Aug 3, 2023, 06:58 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=298]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 06:59 PM GMT+2" [ref=303]
+    - generic "Aug 3, 2023, 06:59 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=306]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 06:59 PM GMT+2" [ref=311]
+    - generic "Aug 3, 2023, 06:59 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=314]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 07:01 PM GMT+2" [ref=319]
+    - generic "Aug 3, 2023, 07:01 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=322]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 07:01 PM GMT+2" [ref=327]
+    - generic "Aug 3, 2023, 07:01 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=330]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 07:02 PM GMT+2" [ref=335]
+    - generic "Aug 3, 2023, 07:02 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=338]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 07:02 PM GMT+2" [ref=343]
+    - generic "Aug 3, 2023, 07:02 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=346]
+  - generic "This user has been deleted, or cannot be matched."
+    - Ghost
+  - referenced this issue from a commit
+  - link "Aug 3, 2023, 07:03 PM GMT+2" [ref=351]
+    - generic "Aug 3, 2023, 07:03 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=354]
+  - link "Gusted" [ref=357]
+  - link "referenced this issue" [ref=359]
+  - link "Aug 4, 2023, 11:28 PM GMT+2" [ref=360]
+    - generic "Aug 4, 2023, 11:28 PM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0 #1198" [ref=363]
+  - link "earl-warren" [ref=366]
+  - referenced this issue from a commit
+  - link "Aug 5, 2023, 07:21 AM GMT+2" [ref=368]
+    - generic "Aug 5, 2023, 07:21 AM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=371]
+  - link "earl-warren" [ref=374]
+  - referenced this issue from a commit
+  - link "Aug 7, 2023, 09:12 AM GMT+2" [ref=376]
+    - generic "Aug 7, 2023, 09:12 AM GMT+2"
+      - 3 years ago
+  - link "[GITEA] golang.org/x/net v0.13.0" [ref=379]
+  - link "houkime" [ref=382]
+  - link "referenced this issue" [ref=384]
+  - link "Jan 13, 2024, 10:51 AM GMT+1" [ref=385]
+    - generic "Jan 13, 2024, 10:51 AM GMT+1"
+      - 2 years ago
+  - link "[BUG] TestWebhookProxy fails when http_proxy and https_proxy are set #2132" [ref=388]
+  - link "fractalf" [ref=391]
+  - link "referenced this issue" [ref=393]
+  - link "Feb 8, 2024, 12:37 AM GMT+1" [ref=394]
+    - generic "Feb 8, 2024, 12:37 AM GMT+1"
+      - 2 years ago
+  - link "[BUG] Custom config (app.ini) to disable registration doesn't work in docker setup #2313" [ref=397]
+  - link "SinTan1729" [ref=400]
+  - link "referenced this issue" [ref=402]
+  - link "Mar 25, 2024, 10:28 PM GMT+1" [ref=403]
+    - generic "Mar 25, 2024, 10:28 PM GMT+1"
+      - 2 years ago
+  - link "bug: git push fails the first time with git-credential-manager #2809" [ref=406]
+  - deletion
+    - link "Cyborus" [ref=867]
+    - link "referenced this issue" [ref=869]
+    - link "Jun 19, 2024, 08:31 PM GMT+2" [ref=870]
+      - generic "Jun 19, 2024, 08:31 PM GMT+2"
+        - 2 years ago
+  - link "[BUG] API GET /repos/{owner}/{repo}/commits/{sha}/pull always returning the same PR #4190" [ref=412]
+  - deletion
+    - link "earl-warren" [ref=876]
+    - link "referenced this issue" [ref=878]
+    - link "Jun 26, 2024, 07:37 AM GMT+2" [ref=879]
+      - generic "Jun 26, 2024, 07:37 AM GMT+2"
+        - 2 years ago
+  - link "fix(security): GO-2024-2947 #4245" [ref=418]
+  - link "earl-warren" [ref=421]
+  - referenced this issue from a commit
+  - link "Jun 26, 2024, 08:14 AM GMT+2" [ref=423]
+    - generic "Jun 26, 2024, 08:14 AM GMT+2"
+      - 2 years ago
+  - link "fix(security): GO-2024-2947" [ref=426]
+  - deletion
+    - link "mahlzahn" [ref=889]
+    - link "referenced this issue" [ref=891]
+    - link "Jul 24, 2024, 12:13 PM GMT+2" [ref=892]
+      - generic "Jul 24, 2024, 12:13 PM GMT+2"
+        - 2 years ago
+  - link "bug(tests): Tests fail when running locally (make test) #4659" [ref=432]
+  - link "fnetX" [ref=435]
+  - referenced this issue from a commit
+  - link "Aug 21, 2024, 02:55 PM GMT+2" [ref=437]
+    - generic "Aug 21, 2024, 02:55 PM GMT+2"
+      - 2 years ago
+  - link "validate the title length when updating an issue and add integration test for issue title update" [ref=440]
+  - deletion
+    - link "Squel" [ref=903]
+    - link "referenced this issue" [ref=905]
+    - link "Nov 7, 2024, 03:22 PM GMT+1" [ref=906]
+      - generic "Nov 7, 2024, 03:22 PM GMT+1"
+        - last year
+  - link "bug: migration fails to transfer fork information on aGit PRs #5848" [ref=446]
+  - deletion
+    - link "DanielGibson" [ref=910]
+    - link "referenced this issue" [ref=912]
+    - link "Nov 13, 2024, 12:55 AM GMT+1" [ref=913]
+      - generic "Nov 13, 2024, 12:55 AM GMT+1"
+        - last year
+  - link "Feat: Add colorblind theme variants #1746" [ref=452]
+  - link "Chealer" [ref=455]
+  - link "referenced this issue" [ref=457]
+  - link "Jan 24, 2025, 05:34 PM GMT+1" [ref=458]
+    - generic "Jan 24, 2025, 05:34 PM GMT+1"
+      - last year
+  - link "bug: "New issue" button (ticket creation poorly discoverable) #6682" [ref=461]
+  - link "Chealer" [ref=464]
+  - link "referenced this issue" [ref=466]
+  - link "Jan 27, 2025, 02:37 AM GMT+1" [ref=467]
+    - generic "Jan 27, 2025, 02:37 AM GMT+1"
+      - last year
+  - link "bug: "New issue" button (ticket creation poorly discoverable) #6682" [ref=470]
+  - link "Chealer" [ref=473]
+  - link "referenced this issue" [ref=475]
+  - link "Jan 27, 2025, 05:33 PM GMT+1" [ref=476]
+    - generic "Jan 27, 2025, 05:33 PM GMT+1"
+      - last year
+  - link "bug: "New issue" button (ticket creation poorly discoverable) #6682" [ref=479]
+  - link "Beowulf" [ref=482]
+  - link "referenced this issue" [ref=484]
+  - link "Jun 13, 2025, 01:09 PM GMT+2" [ref=485]
+    - generic "Jun 13, 2025, 01:09 PM GMT+2"
+      - last year
+  - link "feat: recognize 'Closes' clause in PR with multiple references #7717" [ref=488]
+  - deletion
+    - link "mfenniak" [ref=945]
+    - link "referenced this issue" [ref=947]
+    - link "Aug 29, 2025, 04:28 AM GMT+2" [ref=948]
+      - generic "Aug 29, 2025, 04:28 AM GMT+2"
+        - last year
+  - link "fix: don't allow comment boxes to stretch outside diff boundries on small device UI #9052" [ref=494]
+  - link "earl-warren" [ref=497]
+  - referenced this issue from a commit
+  - link "Oct 15, 2025, 09:51 AM GMT+2" [ref=499]
+    - generic "Oct 15, 2025, 09:51 AM GMT+2"
+      - last year
+  - link "chore(e2e): address another flakey failure in webauthn.test.e2e.ts (#9688)" [ref=502]
+  - link "mfenniak" [ref=505]
+  - referenced this issue from a commit
+  - link "Nov 10, 2025, 05:30 PM GMT+1" [ref=507]
+    - generic "Nov 10, 2025, 05:30 PM GMT+1"
+      - 11 months ago
+  - link "[v11.0/forgejo] feat: Replace mholt/archiver/v3 with mholt/archives (#7025) (#10043)" [ref=510]
+  - deletion
+    - link "AdamWill" [ref=964]
+    - link "referenced this issue" [ref=966]
+    - link "Dec 11, 2025, 01:14 AM GMT+1" [ref=967]
+      - generic "Dec 11, 2025, 01:14 AM GMT+1"
+        - 10 months ago
+  - link "feat: API endpoint for getting non-review comments on a pull request #10401" [ref=516]
+  - link "lmtr0" [ref=519]
+  - link "referenced this issue" [ref=521]
+  - link "Dec 30, 2025, 07:28 PM GMT+1" [ref=522]
+    - generic "Dec 30, 2025, 07:28 PM GMT+1"
+      - 9 months ago
+  - link "enh: Stacked Pull Requests #10641" [ref=525]
+  - link "henrycatalinismith" [ref=528]
+  - link "referenced this issue" [ref=530]
+  - link "Mar 10, 2026, 07:11 AM GMT+1" [ref=531]
+    - generic "Mar 10, 2026, 07:11 AM GMT+1"
+      - 7 months ago
+  - link "fix(ui): allow label descriptions to wrap in dropdown #11607" [ref=534]
+  - link "nano339" [ref=537]
+  - link "referenced this issue" [ref=539]
+  - link "Mar 12, 2026, 03:16 PM GMT+1" [ref=540]
+    - generic "Mar 12, 2026, 03:16 PM GMT+1"
+      - 7 months ago
+  - link "need: cleanup of maven repository "below" GAV level (artifacts) #11651" [ref=543]
+  - link "0ko" [ref=546]
+  - referenced this issue from a commit
+  - link "Mar 20, 2026, 06:55 PM GMT+1" [ref=548]
+    - generic "Mar 20, 2026, 06:55 PM GMT+1"
+      - 7 months ago
+  - link "fix(ui): allow label descriptions to wrap in dropdown (#11607)" [ref=551]
+  - link "raphaelbarreiros" [ref=554]
+  - link "referenced this issue" [ref=556]
+  - link "May 6, 2026, 04:32 PM GMT+2" [ref=557]
+    - generic "May 6, 2026, 04:32 PM GMT+2"
+      - 5 months ago
+  - link "bug: labels filter on /repos/{owner}/{repo}/issues returns 0 on 15.0.0+gitea-1.22.0 (works on 16-dev) #12438" [ref=560]
+  - link "Gusted" [ref=563]
+  - link "referenced this issue" [ref=565]
+  - link "May 6, 2026, 05:14 PM GMT+2" [ref=566]
+    - generic "May 6, 2026, 05:14 PM GMT+2"
+      - 5 months ago
+  - link "bug: labels filter on /repos/{owner}/{repo}/issues returns 0 on 15.0.0+gitea-1.22.0 (works on 16-dev) #12438" [ref=569]
+  - link "raphaelbarreiros" [ref=572]
+  - link "referenced this issue" [ref=574]
+  - link "May 6, 2026, 05:34 PM GMT+2" [ref=575]
+    - generic "May 6, 2026, 05:34 PM GMT+2"
+      - 5 months ago
+  - link "bug: labels filter on /repos/{owner}/{repo}/issues returns 0 on 15.0.0+gitea-1.22.0 (works on 16-dev) #12438" [ref=578]
+  - link "mlncn" [ref=581]
+  - link "referenced this issue" [ref=583]
+  - link "May 6, 2026, 06:36 PM GMT+2" [ref=584]
+    - generic "May 6, 2026, 06:36 PM GMT+2"
+      - 5 months ago
+  - link "problem: Unable to import a GitLab project that does not have a repository #12440" [ref=587]
+  - link "Gusted" [ref=590]
+  - referenced this issue from a commit
+  - link "May 11, 2026, 04:31 AM GMT+2" [ref=592]
+    - generic "May 11, 2026, 04:31 AM GMT+2"
+      - 5 months ago
+  - link "fix(e2e): Flaky tests on Toggle WIP + Dependency dropdown (#12473)" [ref=595]
+  - link "lajawi" [ref=598]
+  - link "referenced this issue" [ref=600]
+  - link "Jun 10, 2026, 10:50 PM GMT+2" [ref=601]
+    - generic "Jun 10, 2026, 10:50 PM GMT+2"
+      - 4 months ago
+  - link "bug: Markdown links starting with / aren't resolved as expected #6360" [ref=604]
+  - link "kirrus" [ref=607]
+  - link "referenced this issue" [ref=609]
+  - link "Jul 17, 2026, 08:01 PM GMT+2" [ref=610]
+    - generic "Jul 17, 2026, 08:01 PM GMT+2"
+      - 3 months ago
+  - link "bug: Slack Webhook to slack linking to API URL instead of PR #13501" [ref=613]
+  - link "wrightsonm" [ref=616]
+  - link "referenced this issue" [ref=618]
+  - link "Aug 21, 2026, 07:39 PM GMT+2" [ref=619]
+    - generic "Aug 21, 2026, 07:39 PM GMT+2"
+      - 2 months ago
+  - link "feat(api): Add endpoint to reply to a comment thread #12259" [ref=622]
+  - link "lenikadali" [ref=625]
+  - link "referenced this issue" [ref=627]
+  - link "Aug 24, 2026, 06:55 PM GMT+2" [ref=628]
+    - generic "Aug 24, 2026, 06:55 PM GMT+2"
+      - 2 months ago
+  - link "WIP: fix: Server 500 error when squash commit a pull request that is already manually merged #13974" [ref=631]
+  - deletion
+    - link "lenikadali" [ref=1058]
+    - link "referenced this issue" [ref=1060]
+    - link "Aug 24, 2026, 07:46 PM GMT+2" [ref=1061]
+      - generic "Aug 24, 2026, 07:46 PM GMT+2"
+        - 2 months ago
+  - link "feat: improve signup flow with wrong email addresses #14063" [ref=637]
+  - deletion
+    - link "Synergy4084" [ref=1065]
+    - link "referenced this issue" [ref=1067]
+    - link "Sep 22, 2026, 04:35 PM GMT+2" [ref=1068]
+      - generic "Sep 22, 2026, 04:35 PM GMT+2"
+        - last month
+  - link "bug: PANIC: interface conversion: interface {} is nil on openid connect (Microsoft) #14526" [ref=643]
+  - link "sailing_fisherman" [ref=646]
+  - link "referenced this issue" [ref=648]
+  - link "Oct 29, 2026, 02:14 PM GMT+1" [ref=649]
+    - generic "Oct 29, 2026, 02:14 PM GMT+1"
+      - 19 hours ago
+  - link "bug: inline review comments are shown several times after a pending review is created and submitted through the API #15076" [ref=652]
+  - link "Sign in" [ref=653]
+  - to join this conversation.
+  - combobox [expanded=false] [ref=166]
+    - No Branch/Tag specified
+  - combobox [expanded=false] [ref=168]
+    - strong
+      - Labels
+  - No labels
+  - menu
+    - strong
+      - Milestone
+  - No milestone
+  - menu
+    - strong
+      - Projects
+  - No project
+  - combobox [expanded=false] [ref=178]
+    - strong
+      - Assignees
+  - No assignees
+  - strong
+    - 1 participant
+  - Ghost
+  - strong
+    - Notifications
+  - form "Sign in to subscribe to this issue."
+    - button "Subscribe" [ref=677]
+  - strong
+    - Due date
+  - No due date set.
+  - strong
+    - Dependencies
+  - No dependencies set
+  - strong
+    - Reference
+  - generic "forgejo/forgejo#1"
+    - button "Copy" [ref=1101]

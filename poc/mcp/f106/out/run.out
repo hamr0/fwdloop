@@ -1,0 +1,6 @@
+A tools barebrowse_browse=absent barebrowse_goto=absent barebrowse_snapshot=absent barebrowse_readable=absent barebrowse_click=absent barebrowse_type=absent barebrowse_press=absent barebrowse_scroll=absent barebrowse_back=absent barebrowse_forward=absent barebrowse_drag=absent barebrowse_upload=absent barebrowse_pdf=absent barebrowse_reload=absent barebrowse_screenshot=absent barebrowse_wait_for=absent barebrowse_tabs=absent barebrowse_select=absent barebrowse_hover=absent barebrowse_switch_engine=absent barebrowse_capabilities=absent barebrowse_assess=absent errors 0 missing [{"server":"barebrowse","tool":"eval"}]
+file: -> {"refused":false,"reply":"no article content found on this page; use snapshot() instead"}
+C {"tool":"readable","ms":866,"err":null,"len":61,"hasBody1":false,"hasBody2":false,"hasTitle":false}
+D {"names":["barebrowse_readable"],"absent":true,"missing":[],"tries":{"click":{"refused":true,"denied":true,"msg":"mcp_invoke: \"barebrowse_click\" is not on this run's allowed list"},"type":{"refused":true,"denied":true,"msg":"mcp_invoke: \"barebrowse_type\" is not on this run's allowed list"},"eval":{"refused":true,"denied":false,"msg":"mcp_invoke: unknown tool \"barebrowse_eval\". Call mcp_discover for the current catalog."}}}
+C {"tool":"browse","ms":2761,"err":null,"len":26486,"hasBody1":false,"hasBody2":false,"hasTitle":true}
+done

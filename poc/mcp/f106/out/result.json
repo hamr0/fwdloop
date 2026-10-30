@@ -1,0 +1,181 @@
+{
+  "a": {
+    "errors": [],
+    "missing": [
+      {
+        "server": "barebrowse",
+        "tool": "eval"
+      }
+    ],
+    "listed": 22,
+    "tools": [
+      {
+        "name": "barebrowse_browse",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_goto",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_snapshot",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_readable",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_click",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_type",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_press",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_scroll",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_back",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_forward",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_drag",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_upload",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_pdf",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_reload",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_screenshot",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_wait_for",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_tabs",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_select",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_hover",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_switch_engine",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_capabilities",
+        "readOnlyHint": "absent",
+        "annotations": null
+      },
+      {
+        "name": "barebrowse_assess",
+        "readOnlyHint": "absent",
+        "annotations": null
+      }
+    ]
+  },
+  "b": {
+    "readOnlyTrue": [],
+    "m12RuleRefusesAll": true
+  },
+  "e_file": {
+    "refused": false,
+    "reply": "no article content found on this page; use snapshot() instead"
+  },
+  "d_control": {
+    "listsClick": true,
+    "names": [
+      "barebrowse_readable",
+      "barebrowse_click"
+    ]
+  },
+  "c_readable": {
+    "tool": "readable",
+    "ms": 866,
+    "err": null,
+    "len": 61,
+    "hasBody1": false,
+    "hasBody2": false,
+    "hasTitle": false
+  },
+  "d": {
+    "names": [
+      "barebrowse_readable"
+    ],
+    "absent": true,
+    "missing": [],
+    "tries": {
+      "click": {
+        "refused": true,
+        "denied": true,
+        "msg": "mcp_invoke: \"barebrowse_click\" is not on this run's allowed list"
+      },
+      "type": {
+        "refused": true,
+        "denied": true,
+        "msg": "mcp_invoke: \"barebrowse_type\" is not on this run's allowed list"
+      },
+      "eval": {
+        "refused": true,
+        "denied": false,
+        "msg": "mcp_invoke: unknown tool \"barebrowse_eval\". Call mcp_discover for the current catalog."
+      }
+    }
+  },
+  "c_browse": {
+    "tool": "browse",
+    "ms": 2761,
+    "err": null,
+    "len": 26486,
+    "hasBody1": false,
+    "hasBody2": false,
+    "hasTitle": true
+  }
+}

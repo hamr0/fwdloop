@@ -1,0 +1,1 @@
+ERROR: Error: Refusing to navigate to "file:" URL — local-resource and browser-internal schemes are blocked (reads local files / browser state). Pass { allowLocalUrls: true } to override.

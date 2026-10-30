@@ -1,0 +1,63 @@
+title: Configure Woodpecker
+byline: forgejo
+confidence: low (low article confidence — this may not be an article; consider snapshot())
+
+forgejo
+			
+				v17.0/forgejo
+			
+				v16.0/forgejo
+			
+				v15.0/forgejo
+			
+				bp-v17.0/forgejo-b00a6fc
+			
+				viceice-patch-1
+			
+				renovate/forgejo-github.com-redis-go-redis-v9-9.x
+			
+				renovate/forgejo-github.com-protonmail-go-crypto-1.x
+			
+				renovate/forgejo-github.com-prometheus-client_golang-1.x
+			
+				renovate/forgejo-github.com-minio-minio-go-v7-7.x
+			
+				renovate/forgejo-github.com-go-webauthn-webauthn-0.x
+			
+				renovate/forgejo-swagger-ui-dist-5.x
+			
+				renovate/forgejo-github.com-go-chi-chi-v5-5.x
+			
+				renovate/forgejo-chart.js-4.x
+			
+				renovate/forgejo-github.com-gobwas-glob-1.x
+			
+				bp-v15.0/forgejo-ef7af9e
+			
+				renovate/forgejo-github.com-sourcegraph-zoekt-digest
+			
+				v11.0/forgejo
+			
+				v14.0/forgejo
+			
+				v13.0/forgejo
+			
+				v12.0/forgejo
+			
+				v7.0/forgejo
+			
+				v10.0/forgejo
+			
+				v9.0/forgejo
+			
+				v8.0/forgejo
+			
+				v1.21/forgejo
+			
+				v1.20/forgejo
+			
+				v1.19/forgejo
+			
+				v1.18/forgejo
+			
+				v1.17/forgejo
