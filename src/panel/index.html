@@ -904,7 +904,10 @@
   .pv-knote > .hint:empty{display:none;}
   .pv-key[data-open="0"] .pv-models{display:none;}
   .pv-mrow{border-top:1px dotted var(--border-strong);min-height:32px;}
-  .pv-mrow:hover,.pv-mrow:focus-within{background:var(--panel2);}
+  /* borrowed-from: bareloop src/panel/index.html@357a482 (hamr: same exact change) — a clicked model row turns blue; tabindex -1 on the row makes a click on its name focusable */
+  .pv-mrow:hover{background:var(--panel2);}
+  .pv-mrow:focus-within,.pv-mrow:focus-within:hover{background:var(--rl-accent-bg-strong);box-shadow:inset 0 0 0 2px var(--accent);}
+  .pv-mrow:focus{outline:none;}
   .pv-um{grid-column:1;display:flex;align-items:center;gap:0;min-width:0;}
   .pv-uh,.pv-m-use{flex:0 0 44px;width:44px;display:flex;align-items:center;justify-content:center;}
   .pv-m-use{min-height:32px;}
@@ -6859,7 +6862,7 @@
   // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,
   // the Refresh button), a folded summary, and its model lines as child rows (.pv-mrow). The key row owns shape, Base URL and the legacy
   // tick, so a model line can never drift from them. Shape and Base URL are always editable; a change of either saves both (judged together).
-  var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (a key with a ticked model starts unfolded), then only the person changes it
+  var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (every key starts folded; borrowed-from: bareloop src/panel/index.html@357a482), then only the person changes it
   var typedOpen = {};  // slot -> true while "+ type a model name" is open
   function buildProviderRow(row){
     var key = document.createElement("div");
@@ -6894,6 +6897,7 @@
   function buildModelLine(slot, m){
     var d = document.createElement("div");
     d.className = "pv-mrow";
+    d.tabIndex = -1;
     d.setAttribute("data-model", m.model);
     d.setAttribute("data-testid", "model-line");
     d.innerHTML =
@@ -7005,7 +7009,7 @@
     data.rows.forEach(function(row){
       var key = pvRows.querySelector('.pv-key[data-slot="' + row.slot + '"]');
       if(!key){ key = buildProviderRow(row); pvRows.appendChild(key); }
-      if(folds[row.slot] === undefined) folds[row.slot] = row.models.some(function(m){ return m.use === true; });
+      if(folds[row.slot] === undefined) folds[row.slot] = false;
       key.setAttribute("data-open", folds[row.slot] ? "1" : "0");
       var fold = key.querySelector("[data-act=fold]");
       fold.textContent = folds[row.slot] ? "▾" : "▸";
