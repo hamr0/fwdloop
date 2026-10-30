@@ -6862,7 +6862,8 @@
   // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,
   // the Refresh button), a folded summary, and its model lines as child rows (.pv-mrow). The key row owns shape, Base URL and the legacy
   // tick, so a model line can never drift from them. Shape and Base URL are always editable; a change of either saves both (judged together).
-  var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (every key starts folded; borrowed-from: bareloop src/panel/index.html@357a482), then only the person changes it
+  // slot -> true (unfolded) / false (folded): set once, on first paint (every key starts folded; borrowed-from: bareloop src/panel/index.html@357a482), then only the person changes it
+  var folds = {};
   var typedOpen = {};  // slot -> true while "+ type a model name" is open
   function buildProviderRow(row){
     var key = document.createElement("div");
