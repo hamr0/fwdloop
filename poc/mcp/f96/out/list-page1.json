@@ -1,0 +1,350 @@
+{
+ "issues": [
+  {
+   "created_at": "2026-10-28T10:46:27Z",
+   "labels": [
+    "package",
+    "c: proposal",
+    "team-ecosystem",
+    "p: pigeon"
+   ],
+   "number": 195480,
+   "state": "OPEN",
+   "title": "[pigeon] Support parameters on `@EventChannelApi` methods"
+  },
+  {
+   "created_at": "2026-10-28T10:01:23Z",
+   "labels": [
+    "P0",
+    "c: flake",
+    "team-engine"
+   ],
+   "number": 195479,
+   "state": "OPEN",
+   "title": "Mac_arm64_mokey integration_ui_frame_number is 3.06% flaky"
+  },
+  {
+   "created_at": "2026-10-28T10:01:21Z",
+   "labels": [
+    "P0",
+    "c: flake"
+   ],
+   "number": 195478,
+   "state": "OPEN",
+   "title": "Linux_android_emu_vulkan_stable android_engine_hcpp_tests is 2.02% flaky"
+  },
+  {
+   "created_at": "2026-10-28T09:31:21Z",
+   "labels": [
+    "P0",
+    "c: flake",
+    "team-engine"
+   ],
+   "number": 195476,
+   "state": "OPEN",
+   "title": "Mac_ios platform_views_scroll_perf_ad_banners__timeline_summary is 2.04% flaky"
+  },
+  {
+   "created_at": "2026-10-28T09:31:19Z",
+   "labels": [
+    "P0",
+    "c: flake",
+    "team-engine"
+   ],
+   "number": 195475,
+   "state": "OPEN",
+   "title": "Mac_ios draw_points_perf_ios__timeline_summary is 2.04% flaky"
+  },
+  {
+   "created_at": "2026-10-28T09:01:16Z",
+   "labels": [
+    "P0",
+    "c: flake",
+    "team-engine"
+   ],
+   "number": 195474,
+   "state": "OPEN",
+   "title": "Mac_ios static_path_stroke_tessellation_perf_ios__timeline_summary is 2.04% flaky"
+  },
+  {
+   "created_at": "2026-10-28T09:01:14Z",
+   "labels": [
+    "P0",
+    "c: flake"
+   ],
+   "number": 195473,
+   "state": "OPEN",
+   "title": "Mac_ios native_assets_ios is 2.06% flaky"
+  },
+  {
+   "created_at": "2026-10-28T08:37:25Z",
+   "labels": [
+    "framework",
+    "a: animation",
+    "c: rendering",
+    "team-framework"
+   ],
+   "number": 195470,
+   "state": "OPEN",
+   "title": "SweepGradient.lerp clamps valid negative angles during interpolation"
+  },
+  {
+   "created_at": "2026-10-28T08:04:32Z",
+   "labels": [
+    "a: accessibility",
+    "platform-macos",
+    "platform-linux",
+    "has reproducible steps",
+    "fyi-web",
+    "team-accessibility"
+   ],
+   "number": 195469,
+   "state": "OPEN",
+   "title": "[web] SemanticScrollable keeps its scroll adjustment after the list stops scrolling, so taps land on the wrong row"
+  },
+  {
+   "created_at": "2026-10-28T07:47:02Z",
+   "labels": [
+    "waiting for response"
+   ],
+   "number": 195468,
+   "state": "OPEN",
+   "title": "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture"
+  },
+  {
+   "created_at": "2026-10-28T07:03:51Z",
+   "number": 195466,
+   "state": "OPEN",
+   "title": "[camera_android_camerax] Zero-shutter-lag has no effect with ResolutionPreset.max"
+  },
+  {
+   "created_at": "2026-10-28T06:58:16Z",
+   "labels": [
+    "platform-ios",
+    "p: webview",
+    "package",
+    "has reproducible steps",
+    "fyi-ecosystem",
+    "team-ios"
+   ],
+   "number": 195465,
+   "state": "OPEN",
+   "title": "[webview_flutter_wkwebview] `onHttpError` doesn't say which URL failed"
+  },
+  {
+   "created_at": "2026-10-28T06:23:55Z",
+   "labels": [
+    "platform-android",
+    "team-android",
+    "from: manual-qa"
+   ],
+   "number": 195464,
+   "state": "OPEN",
+   "title": "[Device lab test ] hybrid_android_views_integration_test fails on Moto G 2025 (v15)"
+  },
+  {
+   "created_at": "2026-10-28T06:00:17Z",
+   "labels": [
+    "waiting for response"
+   ],
+   "number": 195463,
+   "state": "OPEN",
+   "title": "123456"
+  },
+  {
+   "created_at": "2026-10-28T03:47:21Z",
+   "labels": [
+    "waiting for response"
+   ],
+   "number": 195456,
+   "state": "OPEN",
+   "title": "[web] Safari 27 + minimum font size &gt; 16: typography sentinel line-height factor still mismatches after #186474"
+  },
+  {
+   "created_at": "2026-10-28T02:28:58Z",
+   "labels": [
+    "waiting for response"
+   ],
+   "number": 195455,
+   "state": "OPEN",
+   "title": "[iOS][UIScene] Plugins receive application:didFinishLaunchingWithOptions: twice on a cold launch with connection options (background_fetch crashes)"
+  },
+  {
+   "created_at": "2026-10-27T21:03:48Z",
+   "labels": [
+    "a: text input",
+    "platform-web",
+    "has reproducible steps",
+    "fyi-web",
+    "team-text-input"
+   ],
+   "number": 195443,
+   "state": "OPEN",
+   "title": "[web] iOS Safari: Japanese IME duplicates composed text in a TextField with enableInteractiveSelection: false"
+  },
+  {
+   "created_at": "2026-10-27T19:43:28Z",
+   "labels": [
+    "a: accessibility",
+    "platform-windows",
+    "a: desktop",
+    "fyi-text-input",
+    "fyi-windows",
+    "team-accessibility"
+   ],
+   "number": 195441,
+   "state": "OPEN",
+   "title": "[Windows accessibility] Obscured TextField missing MSAA STATE_SYSTEM_PROTECTED"
+  },
+  {
+   "created_at": "2026-10-27T19:24:04Z",
+   "labels": [
+    "platform-android",
+    "framework",
+    "a: accessibility",
+    "f: scrolling",
+    "customer: google",
+    "has reproducible steps",
+    "fyi-android",
+    "team-accessibility"
+   ],
+   "number": 195439,
+   "state": "OPEN",
+   "title": "[Google3 Bug]: [Android] Talkback backwards scroll skips to top of scroll view"
+  },
+  {
+   "created_at": "2026-10-27T17:41:11Z",
+   "labels": [
+    "waiting for response",
+    "needs repro info"
+   ],
+   "number": 195435,
+   "state": "OPEN",
+   "title": "[tool_crash] RPCError"
+  },
+  {
+   "created_at": "2026-10-27T16:32:56Z",
+   "labels": [
+    "framework",
+    "f: gestures",
+    "a: platform-views",
+    "has reproducible steps",
+    "team-android",
+    "found in release: 3.47"
+   ],
+   "number": 195431,
+   "state": "OPEN",
+   "title": "Android platform views receive inconsistent pointer ids when a pointer lifts and another lands in the same frame"
+  },
+  {
+   "created_at": "2026-10-27T16:15:52Z",
+   "labels": [
+    "release-tracker"
+   ],
+   "number": 195428,
+   "state": "OPEN",
+   "title": "[beta] [hotfix] Flutter Release Version 3.50.0-0.3.pre"
+  },
+  {
+   "created_at": "2026-10-27T16:15:50Z",
+   "labels": [
+    "release-tracker"
+   ],
+   "number": 195427,
+   "state": "OPEN",
+   "title": "[stable] [hotfix] Flutter Release Version 3.47.9"
+  },
+  {
+   "created_at": "2026-10-27T15:39:16Z",
+   "labels": [
+    "platform-android",
+    "engine",
+    "c: rendering",
+    "has reproducible steps",
+    "e: impeller",
+    "workaround available",
+    "team-engine",
+    "e: opengl"
+   ],
+   "number": 195424,
+   "state": "OPEN",
+   "title": "[Impeller] EGL_BAD_ACCESS after returning to the foreground, then no frames at all (Mali-G57, OpenGLES)"
+  },
+  {
+   "created_at": "2026-10-27T15:03:28Z",
+   "labels": [
+    "P0",
+    "c: flake",
+    "team-engine"
+   ],
+   "number": 195423,
+   "state": "OPEN",
+   "title": "`Mac framework_tests_impeller` is flakey"
+  },
+  {
+   "created_at": "2026-10-27T13:01:01Z",
+   "labels": [
+    "framework",
+    "f: gestures",
+    "has reproducible steps",
+    "P2",
+    "team-framework",
+    "triaged-framework"
+   ],
+   "number": 195415,
+   "state": "OPEN",
+   "title": "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag"
+  },
+  {
+   "created_at": "2026-10-27T12:51:44Z",
+   "labels": [
+    "needs repro info"
+   ],
+   "number": 195414,
+   "state": "OPEN",
+   "title": "macOS app target app crash"
+  },
+  {
+   "created_at": "2026-10-27T12:37:03Z",
+   "labels": [
+    "tool",
+    "c: proposal",
+    "team-tool"
+   ],
+   "number": 195412,
+   "state": "OPEN",
+   "title": "Update counter example to contain Dark theme option and start with `ThemeMode.system`"
+  },
+  {
+   "created_at": "2026-10-27T10:25:26Z",
+   "labels": [
+    "p: cupertino_ui",
+    "package",
+    "c: proposal",
+    "team-design"
+   ],
+   "number": 195410,
+   "state": "OPEN",
+   "title": "[cupertino_ui] OverlayVisibilityMode.editing and .notEditing ignore focus"
+  },
+  {
+   "created_at": "2026-10-27T09:56:09Z",
+   "labels": [
+    "a: tests",
+    "package",
+    "team-engine",
+    "from: manual-qa"
+   ],
+   "number": 195409,
+   "state": "OPEN",
+   "title": "[Packages] [flutter_shaders] InkWell shader golden test fails on Flutter stable and Master channels"
+  }
+ ],
+ "pageInfo": {
+  "hasNextPage": true,
+  "hasPreviousPage": false,
+  "startCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yOFQxMDo0NjoyN1rPAAAAAWo9bdE=",
+  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yN1QwOTo1NjowOVrPAAAAAWkEwfQ="
+ },
+ "totalCount": 12774
+}

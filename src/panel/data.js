@@ -47,6 +47,7 @@ import {
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
+import { ticketListOf } from './tickets.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readLearningsRecord } from '../flowmodel.js';
 import { readRunThinking } from '../runfile.js';
@@ -243,7 +244,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped', '[–]': 'skipped',
 };
 
 /**
@@ -378,13 +379,15 @@ export function glyphPulses(g) {
  *  - `[?]` crashed after taking your answer (amendment 2 (f)) — the answer was
  *    consumed, the process is gone, no end row: cannot be carried on.
  * @param {{historyRow: any, askJson: any, consumedAnswerExists: boolean, hasStateJson: boolean, resume?: any, liveness?: 'running'|'gone'|'unknown', booksFresh?: boolean, lock?: string, resumable?: boolean, stoppedAtAsk?: string|null, jobEdited?: boolean, starting?: boolean}} ctx
- * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]', label: string}}
+ * @returns {{glyph: '[✓]'|'[✗]'|'[·]'|'[!]'|'[▶]'|'[?]'|'[II]'|'[■]'|'[–]', label: string}}
  */
 export function computeGlyph({
   historyRow, askJson, consumedAnswerExists, hasStateJson, resume, liveness, booksFresh, lock, resumable, stoppedAtAsk, jobEdited, starting,
 }) {
   if (historyRow) {
     if (historyRow.outcome === 'complete') return { glyph: '[✓]', label: 'passed' };
+    // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one: grey, never failed
+    if (historyRow.outcome === 'skipped') return { glyph: '[–]', label: typeof historyRow.skipReason === 'string' && historyRow.skipReason !== '' ? `skipped — ${historyRow.skipReason}` : 'skipped' };
     // M6 amendment 4: a stopped (or cap-halted) run whose job was edited and signed since cannot be resumed; the words say so.
     if (jobEdited === true && (historyRow.outcome === 'stopped' || historyRow.outcome === 'cap-halt')) return { glyph: '[■]', label: JOB_EDITED_LINE };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
@@ -1091,6 +1094,19 @@ export function getRunGlyph({
 }
 
 /**
+ * The time (ms) the run's history row was written, or null when it has none. @param {{root: string, flow: string, runId: string, catalogue: any}} opts
+ */
+function getRunEndedAt({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  const at = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).historyRow?.at;
+  const ms = typeof at === 'string' ? Date.parse(at) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
  * `GET /api/runs` — every flow under `root`, every run under each flow
  * (M4a scope item 2). A flow with zero runs still gets one row (`runId:
  * null`, an explicit `why`) — no flow is silently missing from the list.
@@ -1518,7 +1534,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   }
   const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
   const endedPlain = endedWords({
-    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home,
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason,
   });
   // M9 am7 item 1: ENDED opens with the run's local end date and time, then its outcome word, then today's reason (NEXT stays as it was)
   const ended = endedPlain === null ? null : {
@@ -2222,12 +2238,31 @@ export function getRunResult({
   const { run, ctx } = got;
   const sig = ctx.flowRead.signature;
   const plan = buildJobPlan(ctx.flowRead.declaration, ctx.arbiter.asks ?? [], run.flowDir, typeof sig?.flow === 'string' ? sig.flow : null, ctx.flowRead.lines, csvRolesOf(ctx.arbiter));
-  return buildResult({
+  const result = buildResult({
     flow, runId, runDir: run.runDir, root, flowRead: ctx.flowRead, arbiter: ctx.arbiter, historyRow: ctx.historyRow, auditRows: ctx.auditRows, logJson: ctx.logJson, notChecked: plan.notChecked.items, readNotes: plan.notChecked.readNotes,
     setupRows: (() => { const st = readSetup(run.flowDir); return st.present ? st.rows : []; })(),
     door: resultDoorOf(getRunAsks({
       root, flow, runId, catalogue, resumeAttempt, now,
     })),
+  });
+  // M12 piece 3 (item 9): the run a ticket schedule was set from also carries the ticket list (null for every other run)
+  const tickets = getTicketList({
+    root, flow, runId, catalogue,
+  });
+  return tickets === null ? result : { ...result, tickets };
+}
+
+/**
+ * M12 piece 3: the ticket list of the run a ticket schedule was set from (the Result tab's, and `Run it anyway`'s check), or null.
+ * @param {{root: string, flow: string, runId: string, catalogue: any}} a
+ */
+export function getTicketList({
+  root, flow, runId, catalogue,
+}) {
+  const run = resolveRunPath(root, flow, runId);
+  if (!run.ok) return null;
+  return ticketListOf({
+    flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }), atOf: (id) => getRunEndedAt({ root, flow, runId: id, catalogue }),
   });
 }
 

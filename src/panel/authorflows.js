@@ -14,6 +14,7 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
+import { ticketNumberOf, ticketRefusals, ticketSourcesOf } from '../ticket-draft.js';
 import { endRow, readHistory } from '../books.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
@@ -44,7 +45,7 @@ export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
-const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf'];
+const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf', 'ticket'];
 
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
@@ -229,6 +230,10 @@ export function createFlowsDoor(opts) {
     if (Object.hasOwn(pages, r.role) && r.path !== pages[r.role]) refusals.push({ field: `inputs.${n}`, say: pageAddressRefusal(r.role, pages[r.role]) });
     });
     const declared = (read.arbiter.sources ?? []).map((s) => s.role);
+    // M12 piece 3 (hamr 2026-10-29): a by-hand Run on a job with a ticket list picks ONE ticket by number; any other job takes none
+    const ticketRole = ticketSourcesOf(read.arbiter.sources)[0]?.role ?? null;
+    const ticket = ticketNumberOf(body?.ticket);
+    refusals.push(...ticketRefusals(ticketRole, body));
     for (const role of declared) {
     if (!Object.hasOwn(pages, role) && !rows.some((r) => r.role === role)) refusals.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
     }
@@ -246,7 +251,7 @@ export function createFlowsDoor(opts) {
     flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows: declared.map((role) => rows.find((r) => r.role === role) ?? { role, path: pages[role] }), runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
+    ok: /** @type {true} */ (true), flow, read, declared, rows: declared.map((role) => rows.find((r) => r.role === role) ?? { role, path: pages[role] }), ticketRole, ticket, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
     };
   }
 
@@ -298,7 +303,7 @@ export function createFlowsDoor(opts) {
     const last = lastSources(flowDir, roles, pageAddressesOf(read.arbiter));
     const { passed, stats } = runsOf(flowDir, name, read, roles);
     return {
-      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), tickets: ticketSourcesOf(read.arbiter.sources).map((x) => x.role), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
@@ -462,7 +467,7 @@ export function createFlowsDoor(opts) {
         };
       }
       const started = starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick, planOf: s.planFrom,
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path, ...(role === s.ticketRole ? { ticket: /** @type {number} */ (s.ticket) } : {}) })), values, pick: s.newPick, planOf: s.planFrom,
       }, loaded);
       // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
       if (started.status === 202 && s.newPick !== null) {

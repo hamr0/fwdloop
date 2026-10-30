@@ -1,0 +1,213 @@
+url: https://github.com/flutter/flutter/issues/195397
+68,402 chars → 10,975 chars (84% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=308]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=311]
+      - link "Issues (5k+)" [ref=312]
+      - link "Pull requests (730)" [ref=313]
+      - Repository: Actions [ref=314], Projects [ref=315], Wiki [ref=316]
+      - button "More items" [expanded=false] [ref=253]
+  - region "Header"
+    - heading "TableBorder.lerp and TableBorder.scale drop borderRadius #195397" [level=1]
+    - link "New issue" [ref=422]
+    - button "Copy link" [ref=423]
+  - Open
+  - link "Open #195398" [ref=334]
+  - heading "Description" [level=2]
+  - link "@ChandraChaan's profile" [ref=504]
+  - link "ChandraChaan" [ref=441]
+  - opened
+  - link "1d ago" [ref=507]
+  - button "Issue body actions" [expanded=false] [ref=447]
+  - heading "Steps to reproduce" [level=3]
+  - final a TableBorder all (borderRadius const BorderRadius all Radius circular 4 final b TableBorder all (borderRadius const BorderRadius all Radius circular 12 print TableBorder lerp (a, b, 0.5 .borderRadius); // BorderRadius.zero print (b. scale 0.5 ).borderRadius); // BorderRadius.zero
+  - button "Copy code to clipboard" [ref=1015]
+  - heading "Expected results" [level=3]
+  - code
+    - lerp
+  - interpolates the radius (8 here), and
+  - code
+    - scale
+  - scales it (6 here), the same way
+  - code
+    - BoxDecoration
+  - handles
+  - code
+    - borderRadius
+  - heading "Actual results" [level=3]
+  - Both return
+  - code
+    - BorderRadius.zero
+  - code
+    - TableBorder.lerp
+  - and
+  - code
+    - TableBorder.scale
+  - build a new
+  - code
+    - TableBorder
+  - from the six sides only, so a table with rounded corners loses them for the whole of an animation, for example when the table's border animates through a theme change.
+  - code
+    - TableBorder.lerp(null, b, t)
+  - goes through
+  - code
+    - scale
+  - , so animating a rounded border in from nothing is affected too.
+  - heading "Flutter version" [level=3]
+  - code
+    - master
+  - and stable 3.47.8.
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "suryaKommana2662" [ref=1048]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=1050]
+      - link "1d ago" [ref=819]
+    - listitem [level=1]
+      - heading "suryaKommana2662commentedyesterday" [level=3]
+      - link "@suryaKommana2662's profile" [ref=823]
+      - link "suryaKommana2662" [ref=657]
+      - link "1d ago" [ref=825]
+      - button "Last edited by suryaKommana2662" [expanded=false] [ref=662]
+      - button "Actions for suryaKommana2662's comment, 10:11 AM yesterday" [expanded=false] [ref=665]
+      - link "@ChandraChaan" [ref=831]
+      - Thanks for the report. I was able to reproduce the issue locally. Both
+      - code
+        - TableBorder.lerp(a, b, 0.5)
+      - and
+      - code
+        - b.scale(0.5)
+      - return
+      - code
+        - BorderRadius.zero
+      - instead of preserving the expected border radius. Routing to the
+      - code
+        - team-framework
+      - for further investigation.
+      - strong
+        - Sample Code
+      - import 'package:material_ui/material_ui.dart' void main final a TableBorder all ( borderRadius const BorderRadius all Radius circular 4 final b TableBorder all ( borderRadius const BorderRadius all Radius circular 12 final lerped TableBorder lerp (a, b, 0.5 final scaled b. scale 0.5 debugPrint 'lerp: ${ lerped borderRadius debugPrint 'scale: ${ scaled borderRadius debugPrint 'lerp from null: ${ TableBorder lerp null b 0.5 borderRadius runApp MaterialApp ( home Scaffold ( appBar AppBar (title const Text 'TableBorder Reproduction' )), body Padding ( padding const EdgeInsets all 16 ), child Column ( crossAxisAlignment CrossAxisAlignment .start, children Text 'lerp radius: ${ lerped borderRadius Text 'Expected: BorderRadius.circular(8)' const SizedBox (height 16 Text 'scale radius: ${ scaled borderRadius Text 'Expected: BorderRadius.circular(6)' const SizedBox (height 16 Text 'lerp from null: ' TableBorder lerp null b 0.5 borderRadius const Text 'Expected: BorderRadius.circular(6)'
+      - button "Copy code to clipboard" [ref=1289]
+      - link "Image" [ref=671]
+      - strong
+        - Flutter Doctor Output
+      - Flutter Channel master, 3.50 0 1.0 .pre 209 on macOS 27.0 26A428 darwin arm64, locale en IN 2. 0s] • Flutter version 3.50 0 1.0 .pre 209 on channel master at Users suryakommana develop flutter • Upstream repository https //github.com/flutter/flutter.git Framework revision 7b0a985e54 ( 4 days ago), 2026 10 23 00 20 16 0000 Engine revision 7b0a985e54 • Dart version 3.15 0 (build 3.15 0 67.0 .dev) • DevTools version 2.61 0 Feature flags enable web, enable linux desktop, enable macos desktop, enable windows desktop, enable android, enable ios, cli animations, enable native assets, enable record use, enable swift package manager, omit legacy version file, enable lldb debugging, enable uiscene migration, enable riscv64, enable hcpp [✓] Android toolchain develop for Android devices ( Android SDK version 36.0 0 1 ,436ms] • Android SDK at Users suryakommana Library Android sdk • Emulator version 37.1 11.0 (build_id 15917651 CL N A Platform android 37.0 , build tools 36.0 0 Java binary at Applications Android Studio .app Contents jbr Contents Home bin java This is the JDK bundled with the latest Android Studio installation on this machine. To manually set the JDK path, use `flutter config jdk dir "path/to/jdk" Java version OpenJDK Runtime Environment (build 25.0 2 15348964 b329. 117 All Android licenses accepted. [✓] Xcode develop for iOS and macOS ( Xcode 27.1 ) [611ms] • Xcode at Applications Xcode .app Contents Developer Build 27A9275 • CocoaPods version 1.17 0 Chrome develop for the web [3ms] • Chrome at Applications Google Chrome .app Contents MacOS Google Chrome Connected device ( 3 available) [ 8. 6s] • iPhone 18 Pro (mobile) • D80F2104 E911 4251 BEDD E67D9B7EBF58 • ios • com.apple. CoreSimulator SimRuntime .iOS 27 0 (simulator) • macOS (desktop) • macos • darwin arm64 • macOS 27.0 26A428 darwin arm64 • Chrome (web) • chrome • web javascript • Google Chrome 156.0 8078.48 Network resources [459ms] • All expected network resources are available. • No issues found
+      - button "Copy code to clipboard" [ref=1677]
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - suryaKommana2662 [ref=1678] · added: framework flutter/packages/flutter repository. See also f: labels. [ref=1680], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=1683], team-framework Owned by Framework team [ref=1686]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=1691]
+      - link "1d ago" [ref=856]
+    - listitem [level=1]
+      - heading "ChandraChaancommented19 hours ago" [level=3]
+      - link "@ChandraChaan's profile" [ref=860]
+      - link "ChandraChaan" [ref=685]
+      - link "19h ago" [ref=862]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for ChandraChaan's comment, 1:58 PM yesterday" [expanded=false] [ref=693]
+      - Thanks for confirming! The fix is in
+      - link "#195398" [ref=865]
+      - , which is already approved. Its tests cover all three cases from your sample:
+      - code
+        - lerp(a, b)
+      - code
+        - scale
+      - , and lerp from/to
+      - code
+        - null
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "justinmc" [ref=1713]
+      - assigned
+      - link "ChandraChaan" [ref=1715]
+      - link "12h ago" [ref=876]
+    - listitem [level=1]
+      - link "justinmc" [ref=1717]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=1719]
+      - link "triaged-framework Triaged by Framework team" [ref=1722]
+      - link "10h ago" [ref=881]
+    - listitem [level=1]
+      - heading "justinmccommented10 hours ago" [level=3]
+      - link "@justinmc's profile" [ref=885]
+      - link "justinmc" [ref=714]
+      - link "10h ago" [ref=887]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for justinmc's comment, 10:39 PM yesterday" [expanded=false] [ref=722]
+      - link "@ChandraChaan" [ref=889]
+      - Heads up that TableBorder is about to be deprecated in favor of TableBorderPainter, see
+      - link "#177102" [ref=891]
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "ChandraChaancommented9 hours ago" [level=3]
+      - link "@ChandraChaan's profile" [ref=896]
+      - link "ChandraChaan" [ref=731]
+      - link "9h ago" [ref=898]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for ChandraChaan's comment, 11:12 PM yesterday" [expanded=false] [ref=739]
+      - Thanks for the heads-up,
+      - link "@justinmc" [ref=901]
+      - . I checked
+      - link "#177102" [ref=903]
+      - code
+        - TableBorderPainter.lerp
+      - and
+      - code
+        - TableBorderPainter.scale
+      - also rebuild the border from the six sides only, so they drop
+      - code
+        - borderRadius
+      - the same way.
+      - link "#195398" [ref=911]
+      - fixes
+      - code
+        - TableBorder
+      - itself (it's approved), and since
+      - code
+        - TableBorder
+      - stays usable through the deprecation period, I think it's still worth landing. Once
+      - link "#177102" [ref=917]
+      - is in, I'll send a follow-up that applies the same fix and tests to
+      - code
+        - TableBorderPainter
+      - , unless
+      - link "@hm21" [ref=921]
+      - would rather include it in
+      - link "#177102" [ref=923]
+      - toolbar "Reactions"
+  - link "Sign up for free" [ref=460]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=463]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - link "ChandraChaan" [ref=926]
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=751], framework flutter/packages/flutter repository. See also f: labels. [ref=754], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=757], team-framework Owned by Framework team [ref=760], triaged-framework Triaged by Framework team [ref=763]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - link "Fix TableBorder.lerp and scale dropping borderRadius" [ref=943]
+    - flutter/flutter
+  - Participants: @justinmc [ref=622], @ChandraChaan [ref=623], @suryaKommana2662 [ref=624]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=782]

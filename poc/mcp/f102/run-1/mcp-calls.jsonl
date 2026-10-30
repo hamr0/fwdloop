@@ -1,0 +1,2 @@
+{"exposed":["github_issue_read"],"missing":[]}
+{"call":"issue_read","owner":"ColinLeeo","repo":"tsfile","issue_number":5}

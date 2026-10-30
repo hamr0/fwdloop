@@ -1,0 +1,10 @@
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'github',
+    error: `MCP server "github" exited (code 125). stderr: Unable to find image 'ghcr.io/github/github-mcp-server:f101-no-such-tag' locally\n` +
+      'docker: Error response from daemon: failed to resolve reference "ghcr.io/github/github-mcp-server:f101-no-such-tag": ghcr.io/github/github-mcp-server:f101-no-such-tag: not found\n' +
+      '\n' +
+      "Run 'docker run --help' for more information\n"
+  }
+]
+fwdloop: preflight-red — freeze: input "issue": signed tool issue_read is not exposed alone (exposed: none)

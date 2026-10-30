@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "algorithm": "sha256",
+  "files": {
+    "prose.txt": "dc91e59ba2e82a5d2246e9185e6f6ae7f6b598e93ce1f38c1d2022b6572f8715",
+    "declaration.json": "ee35a69550caa0d4eba23208d53760e885d182d927c4e5bb767be72e78aa37b2"
+  },
+  "flow": "b596def418f16ca1c213bc06b76fb9773979402f7759b5b6568edf1ec531b865",
+  "signedBy": "hamr",
+  "signedAt": "2026-10-28T08:47:47.008Z"
+}

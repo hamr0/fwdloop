@@ -1,0 +1,56 @@
+{
+ "number": 193695,
+ "title": "[web] SkSemaphore is a no-op under -sWASM_WORKERS=1, racing FT_Face",
+ "body": "### Summary\n\nIn https://github.com/flutter/flutter/pull/190048 (fixing https://github.com/flutter/flutter/issues/190039) and https://github.com/flutter/flutter/pull/191014, `skwasm` enabled `SK_ENABLE_THREADLOCAL_STRIKECACHE` because multithreaded `skwasm` and `wimp` are compiled with `-sWASM_WORKERS=1` (`engine/src/build/config/compiler/BUILD.gn:312`) without `-pthread`, which links single-threaded Emscripten system libraries where POSIX synchronization primitives (`sem_wait`, `pthread_cond_wait`) are no-op stubs.\n\nMaking `SkStrikeCache` thread-local did not eliminate shared mutable state between main-thread `$paragraph_layout` and `DedicatedWorker` `_surface_renderPicturesOnWorker`:\n- Both threads share the same `SkFontMgr`, `FlutterFontCollection`, and `SkTypeface_FreeType` (`FT_Face` / `FT_Library`) instances in shared `WebAssembly.Memory` (`engine/src/flutter/skwasm/fonts.cc:38-42`).\n- Whenever the main thread's thread-local `SkStrike` (during `$paragraph_layout`) and the worker thread's thread-local `SkStrike` (during `_surface_renderPicturesOnWorker`) miss at the same time on the same typeface (for example, when animating layout or `FittedBox` scales), both threads concurrently enter `SkScalerContext_FreeType::generateMetrics` / `generateImage` -> `FT_Load_Glyph` -> `TT_Load_Glyph` on the same non-thread-safe FreeType `FT_Face`.\n- In Skia (`SkFontHost_FreeType.cpp`), concurrent `SkScalerContext_FreeType` instances across threads rely on `f_t_mutex()` (`SkMutex`) and `fFaceRec->fFTMutex` (`SkMutex`) — backed by `SkSemaphore` (`third_party/skia/src/base/SkSemaphore.cpp`) — to serialize access to `FT_Library` and `FT_Face`.\n- Because `SkSemaphore::osWait()` (`sem_wait`) compiles to a no-op stub (`0` blocking or spinning instructions) in both `skwasm.wasm` (`wasm-function[268]`) and `wimp.wasm` (`wasm-function[302]`), `f_t_mutex().acquire()` returns immediately when contended (`fCount.fetch_sub(1) <= 0`), allowing both threads to mutate `FT_Face` simultaneously.\n\n### Steps to Reproduce\n\n1. Build `kevmoo/flutter-wasm-compare` at commit `5c4e80e` with `flutter build web --wasm` (`3.49.0-1.0.pre-171`, engine `1a3d11d5ab1`).\n2. Serve `build/web` with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` so `skwasm_isMultiThreaded() == true`.\n3. Navigate to `?workload=grid&nodes=100&renderer=skwasm` (or `renderer=wimp`, or `nodes=1000`), which animates 100 `GridCell` cards containing `FittedBox` + `Text` paragraphs every frame while the `DedicatedWorker` rasterizes the previous frame.\n\n### Observed Behavior\n\nAcross repeated runs on both macOS (Apple M4 Pro, Chrome 146) and Linux (x86_64, Headless Chrome 154), multi-threaded `grid@100` and `grid@1000` intermittently fail in one of two ways (`0` failures in single-threaded `skwasm` or `wimp` across 100+ runs):\n\n1. **Uncaught `RuntimeError: memory access out of bounds` in `$paragraph_layout` -> `FT_Load_Glyph` -> `TT_Load_Simple_Glyph`**:\n   Instrumenting worker `postMessage` (`cbId`) and `Runtime.exceptionThrown` via CDP shows that while the `DedicatedWorker` is mid-flight executing `_surface_renderPicturesOnWorker` (`cbId = 23`, dispatched at `t = 1721.6 ms`, completed at `t = 1753.1 ms`), the main UI thread throws at `t = 1731.0 ms`:\n\n```text\nRuntimeError: memory access out of bounds\n    at skwasm.wasm:wasm-function[2107]:0x63e5b   // TT_Load_Simple_Glyph (FreeType ttgload.c)\n    at skwasm.wasm:wasm-function[10931]:0x2863fd // load_truetype_glyph (FreeType ttgload.c)\n    at skwasm.wasm:wasm-function[10942]:0x28832c // TT_Load_Glyph (FreeType ttgload.c)\n    at skwasm.wasm:wasm-function[721]:0x1f3c1    // FT_Load_Glyph (FreeType ftobjs.c)\n    at skwasm.wasm:wasm-function[11471]:0x2a7ee9 // SkScalerContext_FreeType::generateMetrics (calls f_t_mutex() func 452 -> func 268)\n    at skwasm.wasm:wasm-function[6734]:0x185fda  // SkScalerContext::makeGlyph\n    at skwasm.wasm:wasm-function[1776]:0x51f44   // SkStrike::digestFor\n    at skwasm.wasm:wasm-function[2783]:0x8e456   // SkBulkGlyphMetrics::glyph\n    at skwasm.wasm:wasm-function[6681]:0x182bb3  // SkBulkGlyphMetrics::glyphs\n    at skwasm.wasm:wasm-function[2246]:0x6b813   // SkStrike::lock / glyph metrics\n    ...\n    at skwasm.wasm:wasm-function[9227]:0x227493  // skia::textlayout::ParagraphImpl::layout\n    at $paragraph_layout (skwasm.wasm:0x26ee84)  // engine/src/flutter/skwasm/text/paragraph.cc:55\n```\n\n   This uncaught trap aborts `PipelineOwner.flushLayout()` mid-frame and stops all subsequent scene production while `requestAnimationFrame` continues firing.\n\n2. **Main-thread infinite busy-spin in `dlmalloc`**:\n   If a thread traps while holding Emscripten's `dlmalloc` spinlock (`wasm-function[276]` / `wasm-function[222]`, spinning on `i32.atomic.rmw.xchg offset=603928`) or concurrent FreeType `FT_Memory` allocations corrupt allocator state, the next main-thread allocation spins indefinitely in `dlmalloc`, hanging the tab.\n\nDisassembling `wasm-function[268]` in `skwasm.wasm` (and identical `wasm-function[302]` in `wimp.wasm`) confirms that `SkSemaphore::wait()` returns immediately without waiting when `fCount.fetch_sub(1) <= 0`:\n\n```wat\n(func (;268;) (type 2) (param i32)\n  block ;; label = @1\n    block ;; label = @2\n      local.get 0\n      i32.const 1\n      i32.atomic.rmw.sub\n      i32.const 0\n      i32.gt_s\n      br_if 0 (;@2;) ;; Uncontended (old fCount > 0): lock acquired, return.\n      block ;; label = @3\n        block ;; label = @4\n          local.get 0\n          i32.atomic.load8_u offset=4 ;; SkOnce state (0=NotStarted, 1=Claimed, 2=Done)\n          br_table 0 (;@4;) 1 (;@3;) 2 (;@2;) 1 (;@3;)\n          ;; When SkOnce == 2 (Done), jumps directly to @2 (return) with zero wait instructions.\n        end\n        local.get 0\n        i32.const 0\n        i32.const 1\n        i32.atomic.rmw8.cmpxchg_u offset=4\n        i32.eqz\n        br_if 2 (;@1;)\n      end\n      loop ;; label = @3\n        local.get 0\n        i32.atomic.load8_u offset=4\n        i32.const 2\n        i32.ne\n        br_if 0 (;@3;)\n      end\n    end\n    return\n  end\n  local.get 0\n  i32.const 16\n  call 224 ;; operator new(16) for OSSemaphore (sem_t)\n  i32.store offset=8\n  local.get 0\n  i32.const 2\n  i32.atomic.store8 offset=4\n)\n```\n\n### Expected Behavior\n\n`SkMutex` / `SkSemaphore` (`third_party/skia/src/base/SkSemaphore.cpp`) must enforce mutual exclusion when compiled with `-sWASM_WORKERS=1` (e.g., via Wasm atomics / spin-wait on the main browser thread and `emscripten_futex_wait` on workers), or `SkTypeface_FreeType` (`FT_Face`) must not be shared across threads without synchronization.\n\n### Environment / Target\n\n- Target Commit / Version: Flutter `3.49.0-1.0.pre-171` (engine `1a3d11d5ab1`, after #190048 and #191014)\n- Runtime / Platform: WebAssembly (`skwasm` and `wimp` multi-threaded under COOP/COEP), Chrome 146 (macOS arm64) and Chrome 154 (Linux x86_64)\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/193695",
+ "user": {
+  "login": "kevmoo",
+  "id": 17034,
+  "profile_url": "https://github.com/kevmoo",
+  "avatar_url": "https://avatars.githubusercontent.com/u/17034?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "c: crash",
+  "engine",
+  "platform-web",
+  "e: wasm",
+  "e: web_skwasm",
+  "team-web"
+ ],
+ "assignees": [
+  "harryterkelsen"
+ ],
+ "comments": 1,
+ "reactions": {
+  "total_count": 1,
+  "+1": 1,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-02T03:22:46Z",
+ "updated_at": "2026-10-17T01:25:02Z",
+ "closed_at": "2026-10-17T01:25:02Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 194139,
+    "title": "[skwasm] Implement Wasm worker futex semaphores",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/194139",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

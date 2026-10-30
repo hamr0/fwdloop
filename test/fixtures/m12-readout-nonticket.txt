@@ -1,0 +1,25 @@
+DRAFT READOUT — NOT SIGNED — flow "f"
+
+Drafted by: m in 1 round(s), cost $0.0100
+Flows root: /r  (the flow is written to <flows root>/f when you sign)
+Cap per run (signed by you in the prose): $0.5
+
+INPUTS
+  a = /x  [headings: Intro]
+
+STEPS
+  1. (line 1) read it
+     grants: read | reads: a | emits: x | check: hitl
+  2. (line 2) check
+     grants: none (pure stop) | reads: x | emits: y | check: hitl
+
+ASKS (human stops)
+  line 2: "ok?" (ttl 1h)
+
+SEND TARGET (nothing leaves before an accepted ask)
+  line 3 -> file:/out
+
+JOB LINES
+  1. read it,
+  ~ 3 sections
+  2. check with me

@@ -1,0 +1,51 @@
+{
+ "number": 187579,
+ "title": "Navigator.popUntil can hang when popping a GoRoute with onExit",
+ "body": "### Steps to reproduce\n\n1. Tap `Go to guarded route`.\n2. Tap `Push raw route`.\n3. Tap `Pop until first`.\n\n### Expected results\n\n`Navigator.popUntil((route) => route.isFirst)` should complete, or at minimum fail with an error message without locking up the UI thread.\n\n### Actual results\n\nThe app hangs after this log:\n\n```text\nRaw: calling Navigator.popUntil(route.isFirst)\n```\n\nThis log is never printed:\n\n```text\nRaw: this line is never reached when the app freezes\n```\n\n\n### Code sample\n\n<details open><summary>Code sample</summary>\n\n```dart\nimport 'package:flutter/material.dart';\nimport 'package:go_router/go_router.dart';\n\nvoid main() {\n  runApp(const ReproApp());\n}\n\nfinal GoRouter router = GoRouter(\n  initialLocation: '/parent',\n  debugLogDiagnostics: true,\n  routes: [\n    GoRoute(\n      path: '/parent',\n      builder: (context, state) => const ParentPage(),\n      routes: [\n        GoRoute(\n          path: 'guarded',\n          onExit: (context, state) {\n            debugPrint('guarded onExit: returning true');\n            return true;\n          },\n          builder: (context, state) => const GuardedPage(),\n        ),\n      ],\n    ),\n  ],\n);\n\nclass ReproApp extends StatelessWidget {\n  const ReproApp({super.key});\n\n  @override\n  Widget build(BuildContext context) {\n    return MaterialApp.router(\n      title: 'go_router popUntil onExit repro',\n      debugShowCheckedModeBanner: false,\n      routerConfig: router,\n      theme: ThemeData(\n        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),\n        useMaterial3: true,\n      ),\n    );\n  }\n}\n\nclass ParentPage extends StatelessWidget {\n  const ParentPage({super.key});\n\n  @override\n  Widget build(BuildContext context) {\n    return ReproScaffold(\n      title: 'Parent',\n      path: '/parent',\n      color: const Color(0xffeef7ff),\n      body: FilledButton(\n        onPressed: () {\n          debugPrint('Parent: context.go(\"/parent/guarded\")');\n          context.go('/parent/guarded');\n        },\n        child: const Text('Go to guarded route'),\n      ),\n    );\n  }\n}\n\nclass GuardedPage extends StatelessWidget {\n  const GuardedPage({super.key});\n\n  @override\n  Widget build(BuildContext context) {\n    return ReproScaffold(\n      title: 'Guarded',\n      path: '/parent/guarded',\n      color: const Color(0xfffff8d8),\n      body: FilledButton(\n        onPressed: () {\n          debugPrint('Guarded: Navigator.push(RawPushedPage)');\n          Navigator.of(context).push(\n            MaterialPageRoute<void>(\n              builder: (context) => const RawPushedPage(),\n            ),\n          );\n        },\n        child: const Text('Push raw route'),\n      ),\n    );\n  }\n}\n\nclass RawPushedPage extends StatelessWidget {\n  const RawPushedPage({super.key});\n\n  @override\n  Widget build(BuildContext context) {\n    return ReproScaffold(\n      title: 'Raw route',\n      path: 'MaterialPageRoute above /parent/guarded',\n      color: const Color(0xffe8fff4),\n      body: FilledButton(\n        onPressed: () {\n          debugPrint('Raw: calling Navigator.popUntil(route.isFirst)');\n          Navigator.of(context).popUntil((route) => route.isFirst);\n          debugPrint('Raw: this line is never reached when the app freezes');\n        },\n        child: const Text('Pop until first'),\n      ),\n    );\n  }\n}\n\nclass ReproScaffold extends StatelessWidget {\n  const ReproScaffold({\n    required this.title,\n    required this.path,\n    required this.color,\n    required this.body,\n    super.key,\n  });\n\n  final String title;\n  final String path;\n  final Color color;\n  final Widget body;\n\n  @override\n  Widget build(BuildContext context) {\n    return Scaffold(\n      backgroundColor: color,\n      appBar: AppBar(title: Text(title)),\n      body: SafeArea(\n        child: Center(\n          child: ConstrainedBox(\n            constraints: const BoxConstraints(maxWidth: 560),\n            child: Padding(\n              padding: const EdgeInsets.all(24),\n              child: Column(\n                mainAxisSize: MainAxisSize.min,\n                crossAxisAlignment: CrossAxisAlignment.stretch,\n                children: [\n                  Text(path, style: Theme.of(context).textTheme.headlineSmall),\n                  const SizedBox(height: 16),\n                  body,\n                  const SizedBox(height: 24),\n                  Text(\n                    'Current go_router URI: ${router.state.uri}',\n                    style: Theme.of(context).textTheme.bodySmall,\n                  ),\n                ],\n              ),\n            ),\n          ),\n        ),\n      ),\n    );\n  }\n}\n\n```\n\n</details>\n\n\n### Screenshots or Video\n\n_No response_\n\n### Logs\n\n<details open><summary>Logs</summary>\n\n```console\nParent: context.go(\"/parent/guarded\")\nGuarded: Navigator.push(RawPushedPage)\nRaw: calling Navigator.popUntil(route.isFirst)\n```\n\n</details>\n\n\n### Flutter Doctor output\n\n<details open><summary>Doctor output</summary>\n\n```console\n[!] Flutter (Channel stable, 3.44.0, on macOS 26.3.1 25D771280a darwin-arm64, locale en-VN) [299ms]\n    • Flutter version 3.44.0 on channel stable at /Users/khoa.nguyen/fvm/versions/3.44.0\n    ! Warning: `flutter` on your path resolves to /Users/khoa.nguyen/fvm/versions/3.32.8/bin/flutter, which is not inside your current Flutter SDK checkout at /Users/khoa.nguyen/fvm/versions/3.44.0. Consider adding /Users/khoa.nguyen/fvm/versions/3.44.0/bin to the front of your path.\n    ! Warning: `dart` on your path resolves to /opt/homebrew/Cellar/dart/3.12.0-303.0.dev/libexec/bin/dart, which is not inside your current Flutter SDK checkout at /Users/khoa.nguyen/fvm/versions/3.44.0. Consider adding /Users/khoa.nguyen/fvm/versions/3.44.0/bin to the front of your path.\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision 559ffa3f75 (3 weeks ago), 2026-05-15 14:13:13 -0700\n    • Engine revision 4c525dac5e\n    • Dart version 3.12.0\n    • DevTools version 2.57.0\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration\n    • If those were intentional, you can disregard the above warnings; however it is recommended to use \"git\" directly to perform update checks and upgrades.\n\n[✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0) [1,246ms]\n    • Android SDK at /Users/khoa.nguyen/Library/Android/sdk\n    • Emulator version 35.5.10.0 (build_id 13402964) (CL:N/A)\n    • Platform android-36, build-tools 36.0.0\n    • Java binary at: /opt/homebrew/opt/openjdk@17/bin/java\n      This JDK is specified in your Flutter configuration.\n      To change the current JDK, run: `flutter config --jdk-dir=\"path/to/jdk\"`.\n    • Java version OpenJDK Runtime Environment Homebrew (build 17.0.15+0)\n    • All Android licenses accepted.\n\n[✓] Xcode - develop for iOS and macOS (Xcode 26.3) [715ms]\n    • Xcode at /Applications/Xcode.app/Contents/Developer\n    • Build 17C529\n    • CocoaPods version 1.16.2\n\n[✓] Chrome - develop for the web [5ms]\n    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n\n[✓] Connected device (3 available) [6.3s]\n    • iPhone 15 Pro Max (mobile) • DB484DB3-4D03-41F9-92A6-6EE1D1910482 • ios            • com.apple.CoreSimulator.SimRuntime.iOS-17-5 (simulator)\n    • macOS (desktop)            • macos                                • darwin-arm64   • macOS 26.3.1 25D771280a darwin-arm64\n    • Chrome (web)               • chrome                               • web-javascript • Google Chrome 148.0.7778.216\n    ! Error: Browsing on the local area network for iPhone SE 3. Ensure the device is unlocked and attached with a cable or associated with the same local area network as this Mac.\n      The device must be opted into Developer Mode to connect wirelessly. (code -27)\n    ! Error: Browsing on the local area network for iPhone của Son (2). Ensure the device is unlocked and attached with a cable or associated with the same local area network as this Mac.\n      The device must be opted into Developer Mode to connect wirelessly. (code -27)\n\n[✓] Network resources [344ms]\n    • All expected network resources are available.\n\n! Doctor found issues in 1 category.\n\n```\n\n</details>\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/187579",
+ "user": {
+  "login": "khoadng",
+  "id": 19619099,
+  "profile_url": "https://github.com/khoadng",
+  "avatar_url": "https://avatars.githubusercontent.com/u/19619099?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "package",
+  "team-ecosystem",
+  "has reproducible steps",
+  "P2",
+  "p: go_router",
+  "triaged-ecosystem"
+ ],
+ "assignees": [],
+ "comments": 3,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-06-04T17:38:24Z",
+ "updated_at": "2026-08-26T15:53:45Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 187919,
+    "title": "Handle deferred page-based pops in Navigator.popUntil",
+    "state": "CLOSED",
+    "url": "https://github.com/flutter/flutter/pull/187919",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

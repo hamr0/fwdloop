@@ -1,0 +1,45 @@
+{
+ "number": 195308,
+ "title": "[flutter_tools] `flutter run` on iOS kills the debug session with \"Bad UTF-8 encoding (U+FFFD; REPLACEMENT CHARACTER)\" when the app logs a legitimate U+FFFD character",
+ "body": "### Steps to reproduce\n\n1.flutter create fffd_repro && cd fffd_repro\n2.In lib/main.dart, print a string that contains a single U+FFFD (this is what a server can legitimately return in user generated content):\n\n\n``` dart\n\nimport 'package:flutter/material.dart';\n\nvoid main() {\n  // U+FFFD is valid UTF-8 (EF BF BD). It is not evidence of malformed input.\n  debugPrint('server says: \\uFFFD');\n  runApp(const MaterialApp(home: Scaffold(body: Center(child: Text('ok')))));\n}\n3.flutter run -d <physical iPhone> (debug, as usual)\n4.The tool exits immediately:\nBad UTF-8 encoding (U+FFFD; REPLACEMENT CHARACTER) found while decoding string: flutter: server says: <U+FFFD>\nThe Flutter team would greatly appreciate if you could file a bug explaining\nexactly what you were doing when this happened:\nhttps://github.com/flutter/flutter/issues/new/choose\nThe source bytes were:\n[239, 191, 189, ...]\n5.Repeat on an Android device: the log line is printed normally, no error.\n\n### Expected results\n\nThe log line is forwarded to the console as-is. A U+FFFD character in the payload is not the same thing as malformed bytes and must not terminate the tool.\n\n### Actual results\n\nthrowToolExit(...) is raised from the UTF-8 decoding layer, which propagates out of the device log stream transformer and terminates flutter run (debug session lost, app on device killed).\n\n### Code sample\n\nimport 'dart:convert';\n\n/// Mirrors flutter_tools' ToolExit (`final class ToolExit implements Exception`).\nclass ToolExit implements Exception {\n  ToolExit(this.message);\n  final String message;\n  @override\n  String toString() => 'ToolExit: $message';\n}\n\n/// Mirrors flutter_tools/lib/src/convert.dart Utf8Decoder (reportErrors: true).\nclass ToolsUtf8Decoder {\n  const ToolsUtf8Decoder({this.reportErrors = true});\n  static const Utf8Decoder _systemDecoder = Utf8Decoder(allowMalformed: true);\n  final bool reportErrors;\n\n  String convert(List<int> input) {\n    final String result = _systemDecoder.convert(input);\n    if (reportErrors && result.contains('\\u{FFFD}')) {\n      throw ToolExit(\n        'Bad UTF-8 encoding (U+FFFD; REPLACEMENT CHARACTER) found while '\n        'decoding string: $result. ...  The source bytes were:\\n$input',\n      );\n    }\n    return result;\n  }\n}\n\nvoid main() {\n  // 1) Data that legitimately contains U+FFFD (e.g. text received from a server).\n  const String text = 'server says: \\u{FFFD}';\n  final List<int> bytes = utf8.encode(text);\n  print('bytes = $bytes'); // [..., 239, 191, 189] — VALID UTF-8\n\n  // Strict decoding succeeds: the bytes are not malformed.\n  print(const Utf8Decoder(allowMalformed: false).convert(bytes));\n\n  // 2) Genuinely malformed bytes: a truncated 3-byte sequence.\n  const List<int> broken = <int>[0xEF, 0xBF];\n\n  // 3) flutter_tools cannot tell these two apart — both throw.\n  for (final MapEntry<String, List<int>> c\n      in <String, List<int>>{'valid U+FFFD': bytes, 'truncated': broken}.entries) {\n    try {\n      print('${c.key}: ${const ToolsUtf8Decoder().convert(c.value)}');\n    } on ToolExit catch (e) {\n      print('${c.key}: $e');\n    }\n  }\n}\n\n```\n\n### Screenshots or Video\n\n<details open>\n<summary>Screenshots / Video demonstration</summary>\n\n[Upload media here]\n\n</details>\n\n\n### Logs\n\n<details open><summary>Logs</summary>\n\n```console\n[Paste your logs here]\n```\n\n</details>\n\n\n### Flutter Doctor output\n\n[✓] Flutter (Channel stable, 3.41.6, on Microsoft Windows [Version 10.0.26200.9106], locale en-US) [288ms]\n    • Flutter version 3.41.6 on channel stable at C:\\flutter_dev\\flutter_3.41.6\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision db50e20168 (7 months ago), 2026-03-25 16:21:00 -0700\n    • Engine revision 425cfb54d0\n    • Dart version 3.11.4\n    • DevTools version 2.54.2\n    • Pub download mirror https://pub.flutter-io.cn\n    • Flutter download mirror https://storage.flutter-io.cn\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android,\n      enable-ios, cli-animations, enable-native-assets, omit-legacy-version-file, enable-lldb-debugging,\n      enable-uiscene-migration\n\n[✓] Windows Version (Windows 11 or higher, 25H2, 2009) [1,182ms]\n\n[!] Android toolchain - develop for Android devices (Android SDK version 37.0.0) [5.1s]\n    • Android SDK at C://Users//FelixLuo//AppData//Local//Android//Sdk\n    • Emulator version 37.1.11.0 (build_id 15917651) (CL:N/A)\n    • Platform android-36, build-tools 37.0.0\n    • ANDROID_HOME = C:\\Users\\FelixLuo\\AppData\\Local\\Android\\Sdk\n    • ANDROID_SDK_ROOT = C:\\Users\\FelixLuo\\AppData\\Local\\Android\\Sdk\n    • Java binary at: C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java\n      This is the JDK bundled with the latest Android Studio installation on this machine.\n      To manually set the JDK path, use: `flutter config --jdk-dir=\"path/to/jdk\"`.\n    • Java version OpenJDK Runtime Environment (build 17.0.11+0--11852314)\n    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses\n\n[✓] Chrome - develop for the web [9ms]\n    • Chrome at C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\n\n[✗] Visual Studio - develop Windows apps [9ms]\n    ✗ Visual Studio not installed; this is necessary to develop Windows apps.\n      Download at https://visualstudio.microsoft.com/downloads/.\n      Please install the \"Desktop development with C++\" workload, including all of its default components\n\n[✓] Connected device (4 available) [1,022ms]\n    • sdk gphone64 x86 64 (mobile) • emulator-5556 • android-x64    • Android 13 (API 33) (emulator)\n    • Windows (desktop)            • windows       • windows-x64    • Microsoft Windows [Version 10.0.26200.9106]\n    • Chrome (web)                 • chrome        • web-javascript • Google Chrome 155.0.8059.85\n    • Edge (web)                   • edge          • web-javascript • Microsoft Edge 153.0.4234.32\n\n[✓] Network resources [1,070ms]\n    • All expected network resources are available.\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/195308",
+ "user": {
+  "login": "coolluo",
+  "id": 15813889,
+  "profile_url": "https://github.com/coolluo",
+  "avatar_url": "https://avatars.githubusercontent.com/u/15813889?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "c: crash",
+  "platform-ios",
+  "tool",
+  "has reproducible steps",
+  "team-tool"
+ ],
+ "assignees": [],
+ "comments": 3,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-26T02:48:40Z",
+ "updated_at": "2026-10-27T14:25:42Z",
+ "closed_at": "2026-10-27T14:25:42Z",
+ "closed_by": "bkonyi",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

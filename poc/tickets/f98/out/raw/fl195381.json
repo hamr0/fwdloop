@@ -1,0 +1,44 @@
+{
+ "number": 195381,
+ "title": "Allow branch creation in the Flutter repo for CP branches",
+ "body": "We use the naming convention branch `cp-*-experimental` for creating 1p cherrypick branches. Currently only Admins can create branches.\n\nWe should allow the infra team to create these branches to help serving 1p CP requests.\n\n\nFor reference, here are the error I'm seeing:\n\n```\n$ git push origin cp-577926344-experimental\nEnumerating objects: 17, done.\nCounting objects: 100% (17/17), done.\nDelta compression using up to 24 threads\nCompressing objects: 100% (10/10), done.\nWriting objects: 100% (10/10), 2.74 KiB | 701.00 KiB/s, done.\nTotal 10 (delta 8), reused 0 (delta 0), pack-reused 0 (from 0)\nremote: Resolving deltas: 100% (8/8), completed with 6 local objects.\nremote: error: GH013: Repository rule violations found for refs/heads/cp-577926344-experimental.\nremote: Review all repository rules at https://github.com/flutter/flutter/rules?ref=refs%2Fheads%2Fcp-577926344-experimental\nremote:\nremote: - This branch must not contain merge commits.\nremote:   Found 1 violation:\nremote:\nremote:   721b47e7e61b60a8b8b6b8d0f2b0f3f932b139c3\nremote:\nremote: - Required status check \"ci.yaml validation\" is expected.\nremote:\nTo github.com:flutter/flutter.git\n ! [remote rejected]         cp-577926344-experimental -> cp-577926344-experimental (push declined due to repository rule violations)\nerror: failed to push some refs to 'github.com:flutter/flutter.git'\n```",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/195381",
+ "user": {
+  "login": "chingjun",
+  "id": 1267593,
+  "profile_url": "https://github.com/chingjun",
+  "avatar_url": "https://avatars.githubusercontent.com/u/1267593?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "team-infra",
+  "P1"
+ ],
+ "assignees": [
+  "jtmcdole"
+ ],
+ "comments": 4,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-26T23:41:22Z",
+ "updated_at": "2026-10-27T23:11:23Z",
+ "closed_at": "2026-10-27T23:11:23Z",
+ "closed_by": "chingjun",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

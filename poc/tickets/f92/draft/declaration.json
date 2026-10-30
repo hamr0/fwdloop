@@ -1,0 +1,71 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "softgreen",
+    "3": "hitl"
+  },
+  "unjudgeable": {
+    "1": "\"priority P2 only\" must be checked against the ticket's own text; no CSV sheet backs it, so it cannot be green here"
+  },
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_findings",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority and what is broken"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_findings"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 2,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "plan_accepted"
+      ],
+      "emits": "first_response_written",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

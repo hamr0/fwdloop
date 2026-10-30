@@ -1,0 +1,144 @@
+diff --git a/bin/fwdloop b/bin/fwdloop
+index f867956..b36a7bb 100755
+--- a/bin/fwdloop
++++ b/bin/fwdloop
+@@ -368,7 +368,8 @@ async function cmdRun(rest) {
+       fail(`run: --source role "${role}" is not declared by flow "${flowName}" (known roles: ${declaredRoles.join(', ') || '(none)'})`);
+     }
+   }
+-  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
++  const ticketRoles = new Set((read.arbiter.sources ?? []).filter((s) => s.kind === 'ticket').map((s) => s.role));
++  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles.has(role) ? { ticket: true } : {}) }));
+   for (const src of sources) {
+     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
+   }
+diff --git a/poc/tickets/f92/h6.mjs b/poc/tickets/f92/h6.mjs
+new file mode 100644
+index 0000000..73ac71b
+--- /dev/null
++++ b/poc/tickets/f92/h6.mjs
+@@ -0,0 +1,17 @@
++// F92 H6 (+ timing note): freezeInputs, the function a run start calls, on a 404 issue and on issue 30. $0, no provider, no model.
++// Runs against the F92 SCRATCH copy (needs the ticket change in scratch.diff). Run: node poc/tickets/f92/h6.mjs
++import { mkdtempSync, readdirSync, existsSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { freezeInputs } from '../../../src/runner.js';
++const dir = mkdtempSync(join(tmpdir(), 'f92-h6-'));
++const t0 = Date.now();
++const bad = await freezeInputs(join(dir, 'bad'), [{ id: 'issue', path: 'https://github.com/hamr0/bareagent/issues/999999', ticket: true }]);
++const badMs = Date.now() - t0;
++const files = existsSync(join(dir, 'bad', 'inputs')) ? readdirSync(join(dir, 'bad', 'inputs')) : [];
++const R = { badMs, bad, framesFrozen: files, H6: !bad.ok && /input "issue"/.test(bad.red) && /HTTP 404/.test(bad.red) && files.length === 0 ? 'PASS' : 'FAIL' };
++const t1 = Date.now();
++const good = await freezeInputs(join(dir, 'good'), [{ id: 'issue', path: 'https://github.com/hamr0/bareagent/issues/30', ticket: true }]);
++R.goodMs = Date.now() - t1;
++R.good = good.ok ? { entry: good.manifest ?? good.entries ?? Object.keys(good) } : good;
++console.log(JSON.stringify(R, null, 2));
+diff --git a/src/declaration.js b/src/declaration.js
+index a28e61a..5e4a263 100644
+--- a/src/declaration.js
++++ b/src/declaration.js
+@@ -567,7 +567,7 @@ export function validateDeclaration(declaration, context = {}) {
+   const cellsRoles = Array.isArray(safeArbiter.sources)
+     ? safeArbiter.sources.filter((s) => s?.kind === 'file' && isCellsPath(s.path)).map((s) => s.role) : [];
+   // M10 am7 item 3: a web page is an input too, frozen at run start; a step reads it by its role (its quotes are checked against the run's own copy)
+-  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page').map((s) => s.role) : [];
++  const pageRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'page' || s?.kind === 'ticket').map((s) => s.role) : [];
+   // M10 piece 5 (item 2): a document (.docx / .md / .txt) may be READ by a step that quotes it (its close.cited.source), and by no other step
+   const docRoles = Array.isArray(safeArbiter.sources) ? safeArbiter.sources.filter((s) => s?.kind === 'file' && ['.docx', '.md', '.txt'].some((x) => String(s.path).toLowerCase().endsWith(x))).map((s) => s.role) : [];
+   const asks = Array.isArray(safeArbiter.asks) ? safeArbiter.asks : [];
+diff --git a/src/input-facts.js b/src/input-facts.js
+index 7c8a60b..7ad11ac 100644
+--- a/src/input-facts.js
++++ b/src/input-facts.js
+@@ -43,6 +43,10 @@ export function readInputFacts(sources, { pages = {} } = {}) {
+       info.push(`- ${s.role}: a web page (${s.path}), saved at drafting, ${page.text.length} characters`);
+       continue;
+     }
++    if (s.kind === 'ticket') {
++      info.push(`- ${s.role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${s.role}" in a step's reads, do not fetch it)`);
++      continue;
++    }
+     if (s.kind !== 'file') continue;
+     if (String(s.path).toLowerCase().endsWith('.docx')) {
+       const r = readDocxText(s.path);
+diff --git a/src/pagefetch.js b/src/pagefetch.js
+index f27768b..a92e76b 100644
+--- a/src/pagefetch.js
++++ b/src/pagefetch.js
+@@ -50,7 +50,7 @@ export function isWebUrl(v) {
+ /** M10 am3: the web pages a signed job names, role -> address (`source <role> = page:<address>`). The ONE reader of which roles are pages and what their signed address is.
+  *  @param {{sources?: Array<{role: string, kind?: string, path: string}>}} arbiter @returns {Record<string, string>} */
+ export function pageAddressesOf(arbiter) {
+-  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page').map((s) => [s.role, s.path]));
++  return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page' || s.kind === 'ticket').map((s) => [s.role, s.path]));
+ }
+ 
+ /** M10 am3: why a run may not name another address for a page input (the signed address is the job's; a different one is a changed job). @param {string} role @param {string} signed */
+@@ -119,7 +119,7 @@ async function loadConnect() {
+  * @param {{connect?: (opts: Record<string, any>) => Promise<FetchPage>, timeoutMs?: number, idleMs?: number, idleTimeoutMs?: number, closeWaitMs?: number}} [o]
+  * @returns {Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>} `error` is plain words, without a spend line
+  */
+-export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEOUT_MS, idleMs = NETWORK_IDLE_MS, idleTimeoutMs = NETWORK_IDLE_TIMEOUT_MS, closeWaitMs = 3000 } = {}) {
++export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEOUT_MS, idleMs = NETWORK_IDLE_MS, idleTimeoutMs = NETWORK_IDLE_TIMEOUT_MS, closeWaitMs = 3000, ticket = false } = {}) {
+   let u;
+   try { u = new URL(url.trim()); } catch { return { ok: false, error: `${url} is not a web address fwdloop can read` }; }
+   if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, error: `${url} is not an http or https address` };
+@@ -150,7 +150,7 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
+         if (st < 200 || st > 299) return { refused: `${u.href} came back as an error page (HTTP ${st}), so there is nothing to read` };
+         // bounded: a page that never goes quiet (polling, streaming) is read as it stands (bareloop); the size and chrome floors below then decide
+         try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { /* read what is there */ }
+-        return p.snapshot({ ...SNAPSHOT_OPTIONS });
++        return p.snapshot(ticket ? { mode: 'data' } : { ...SNAPSHOT_OPTIONS });
+       })(),
+       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer inside ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs); }),
+     ]);
+diff --git a/src/runner.js b/src/runner.js
+index cc8b8b6..5939c14 100644
+--- a/src/runner.js
++++ b/src/runner.js
+@@ -406,8 +406,8 @@ export function checkFreshRunDir(runDir) {
+  *  @param {string} dir @param {string} id @param {string} url
+  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>}} [o]
+  *  @returns {Promise<{ok: true, text: string, entry: {id: string, source: string, frozen: string, sha256: string, bytes: number}}|{ok: false, red: string}>} `text` = the frozen text itself, for the caller that reads it (drafting) */
+-export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {}) {
+-  const got = await fetchPage(url);
++export async function freezePage(dir, id, url, { fetchPage = fetchPageText, ticket = false } = {}) {
++  const got = await fetchPage(url, ticket ? { ticket: true } : undefined);
+   if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+   mkdirSync(dir, { recursive: true });
+   const frozen = join(dir, `${id}.txt`);
+@@ -428,9 +428,9 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
+   const inputsDir = join(runDir, 'inputs');
+   mkdirSync(inputsDir, { recursive: true });
+   const manifest = [];
+-  for (const { id, path: sourcePath } of sources ?? []) {
++  for (const { id, path: sourcePath, ticket } of sources ?? []) {
+     if (isWebUrl(sourcePath)) {
+-      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
++      const page = await freezePage(inputsDir, id, sourcePath, { fetchPage, ticket: ticket === true });
+       if (!page.ok) return page;
+       manifest.push(page.entry);
+       continue;
+diff --git a/src/signed-text.js b/src/signed-text.js
+index 5d45812..68deee8 100644
+--- a/src/signed-text.js
++++ b/src/signed-text.js
+@@ -388,6 +388,16 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
+         sources.push({ role, kind: 'page', path });
+         continue;
+       }
++      if (kind.toLowerCase() === 'ticket') {
++        // F92 scratch: one issue's address is signed with the job, like a page
++        if (!/^https?:\/\/[^\s/?#]+/i.test(path)) {
++          reds.push(`arbiter: line ${fileLine} field "sources" ticket address must be a full http:// or https:// address: "${text}"`);
++          continue;
++        }
++        sourceRolesSeen.add(role);
++        sources.push({ role, kind: 'ticket', path });
++        continue;
++      }
+       if (kind.toLowerCase() !== 'file') {
+         reds.push(`arbiter: line ${fileLine} field "sources" source kind "${kind}" is not available until M9`);
+         continue;

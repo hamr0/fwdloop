@@ -167,20 +167,40 @@ for (const width of [1280, 390, 320]) {
     assert.match(await chrome.ev('document.querySelector("#audit-group-resume-summary-approved h4").textContent'), /\[human · ask\]$/);
     const body = await chrome.ev('document.querySelector("[data-testid=audit-fold-body-resume-summary]").innerText');
     assert.match(body, /read 31/, 'the tally');
-    assert.match(body, /try 1 ✗ · thinking off · 705 words, limit 600/);
-    assert.match(body, /✓\s*#1 the output exists and isn't empty \(\d+(\.\d)? (B|KB)\)\s*· from every step/);
-    assert.match(body, /✗\s*#4 at most 600 words \(705 words\)\s*· from line 3 ~/);
-    assert.match(body, /output judged: artifacts\/resume-summary\.json · .+ · sha256 [0-9a-f]{4}…[0-9a-f]{2}/);
-    assert.deepEqual(await chrome.ev('Array.from(document.querySelectorAll("[data-testid=rounds-table-resume-summary] th")).map(function(e){ return e.textContent; })'), ['Round', 'Try', 'Action', 'Path', 'Decision', 'Time']);
-    assert.match(await chrome.ev('document.querySelector("#audit-group-resume-summary [data-testid=rounds-pager]").textContent'), /^showing 1–20 of \d+load more$/);
-    const pager = 'document.querySelector("#audit-group-resume-summary [data-testid=rounds-pager]").textContent';
-    await chrome.ev('document.querySelector("#audit-group-resume-summary [data-testid=rounds-load-more]").click()');
-    assert.match(await chrome.ev(pager), /^showing 1–40 of 43load more$/);
-    await chrome.ev('document.querySelector("#audit-group-resume-summary [data-testid=rounds-load-more]").click()');
-    assert.equal(await chrome.ev(pager), 'showing 1–43 of 43');
+    const G = 'document.querySelector("[data-testid=audit-grid-resume-summary]")';
+    // the grid: rows are the step's checks by number, columns the tries, each column head the try, its glyph and its thinking words
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("thead th")).map(function(e){ return e.textContent.replace(/\\s+/g, " "); })`), ['check', 'try 1 ✗thinking off', 'try 2 ✓thinking on', 'try 3 ✓thinking on']);
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody td.q")).map(function(e){ return e.textContent.slice(0, 20); })`), ['every step: exists, ', '3 the answer has onl', '4 at most 600 words', '5 the sections are t']);
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.step-sub)")).map(function(tr){ return Array.from(tr.querySelectorAll("td.c")).map(function(c){ return c.textContent; }).join(""); })`), ['✓✓✓', '✓✓✓', '✗✓✓', '✗✓✓']);
+    assert.equal(await chrome.ev(`${G}.querySelector("td.q[title]").getAttribute("title")`), 'line 3 ~', 'a check says which job line it serves on hover (the every-step row names itself, it has no line)');
+    // the errors list (M4d am36 item 4): try 1 is the only red try, so it is the open one; one line `try 1 ✗ <first line>`, then the try's gap
+    assert.match(await chrome.ev(`${G}.querySelector(".fx-errors").innerText`), /^ERRORS\s+▾\s+try 1\s+✗\s+705 words, limit 600; no line is exactly/);
+    assert.equal(await chrome.ev(`${G}.querySelectorAll("button.fx-rowhead[aria-expanded=true]").length`), 1);
+    await chrome.ev(`${G}.querySelector("button.fx-rowhead").click()`);
+    assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-body").length`), 0, 'a click on the row folds it');
+    await chrome.ev(`${G}.querySelector("button.cell.fail").click()`);
+    assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-body").length`), 1, 'a click on a ✗ cell opens the try\'s row');
+    // M4d am36 item 5: `output judged` shows ONCE, for the last try; the `all tries` fold lists every try's
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=audit-judged]")).filter(function(e){ return !e.closest("details"); }).map(function(e){ return e.textContent.slice(0, 6); })`), ['try 3 ']);
+    assert.match(await chrome.ev(`${G}.querySelector("[data-testid=audit-judged]").textContent`), /^try 3 · output judged: artifacts\/resume-summary\.json · .+ · sha256 [0-9a-f]{4}…[0-9a-f]{2}$/);
+    assert.equal(await chrome.ev(`${G}.querySelector("[data-testid=judged-all] > summary").textContent`), 'all tries');
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=judged-all] .audit-judged")).map(function(e){ return e.textContent.slice(0, 6); })`), ['try 1 ', 'try 2 ', 'try 3 ']);
+    // the rounds, one fold per try, built on its first open, 20 rows a page
+    assert.match(await chrome.ev(`${G}.querySelector(".audit-fold-label").textContent`), /^rounds per try$/);
+    assert.equal(await chrome.ev(`${G}.querySelectorAll("table.rounds-table").length`), 0, 'nothing built until a fold opens');
+    assert.match(await chrome.ev(`${G}.querySelectorAll("details[data-fxrounds] > summary")[1].textContent`), /^try 2 rounds \(\d+ calls?\)$/);
+    await chrome.ev(`${G}.querySelectorAll("details[data-fxrounds] > summary")[1].click()`);
+    assert.ok(await chrome.waitFor(`${G}.querySelector("[data-testid=rounds-table-resume-summary-try-2]")`, 5000));
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("[data-testid=rounds-table-resume-summary-try-2] th")).map(function(e){ return e.textContent; })`), ['Round', 'Try', 'Action', 'Path', 'Decision', 'Time']);
+    const pager = `${G}.querySelector("[data-testid=rounds-pager]").textContent`;
+    assert.match(await chrome.ev(pager), /^showing 1–20 of \d+load more$/);
+    await chrome.ev(`${G}.querySelector("[data-testid=rounds-load-more]").click()`);
+    assert.match(await chrome.ev(pager), /^showing 1–(40 of \d+load more|\d+ of \d+)$/);
     // the Round table keeps its table layout and every cell is drawn (the phone card layout of the old tables must not reach it)
-    const cells = await chrome.ev('(function(){ var t = document.querySelector("[data-testid=rounds-table-resume-summary]"); var rows = Array.from(t.tBodies[0].rows); return { display: getComputedStyle(t).display, rows: rows.length, allDrawn: rows.every(function(tr){ return tr.cells.length === 6 && Array.from(tr.cells).every(function(c){ return c.offsetWidth > 0; }); }) }; })()');
-    assert.deepEqual(cells, { display: 'table', rows: 43, allDrawn: true });
+    const cells = await chrome.ev('(function(){ var t = document.querySelector("[data-testid=rounds-table-resume-summary-try-2]"); var rows = Array.from(t.tBodies[0].rows); return { display: getComputedStyle(t).display, allDrawn: rows.every(function(tr){ return tr.cells.length === 6 && Array.from(tr.cells).every(function(c){ return c.offsetWidth > 0; }); }) }; })()');
+    assert.deepEqual(cells, { display: 'table', allDrawn: true });
+    // the check grid keeps its table layout on a phone too
+    assert.equal(await chrome.ev(`getComputedStyle(${G}.querySelector("table.grid")).display`), 'table');
     // a human step: its tries and rows in the signed words
     await chrome.ev('document.querySelector("#audit-group-resume-summary-approved h4").click()');
     const hb = await chrome.ev('document.querySelector("[data-testid=audit-fold-body-resume-summary-approved]").innerText');

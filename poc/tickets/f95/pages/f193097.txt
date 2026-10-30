@@ -1,0 +1,235 @@
+url: https://github.com/flutter/flutter/issues/193097
+49,100 chars → 13,612 chars (72% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=308]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=311]
+      - link "Issues (5k+)" [ref=312]
+      - link "Pull requests (728)" [ref=313]
+      - Repository: Actions [ref=314], Projects [ref=315], Wiki [ref=316]
+      - button "More items" [expanded=false] [ref=253]
+  - region "Header"
+    - heading "[macOS] Crash in engineCallbackOnPlatformMessage when dispatching a nil handler #193097" [level=1]
+    - link "New issue" [ref=434]
+    - button "Copy link" [ref=435]
+  - Open
+  - link "Open #193672" [ref=334]
+  - heading "Description" [level=2]
+  - link "@vardhan's profile" [ref=519]
+  - link "vardhan" [ref=453]
+  - opened
+  - link "on Sep 21" [ref=522]
+  - button "Last edited by vardhan" [expanded=false] [ref=458]
+  - button "Issue body actions" [expanded=false] [ref=461]
+  - heading "Bug Description" [level=2]
+  - In the macOS embedder, passing
+  - code
+    - nil
+  - to
+  - code
+    - -[FlutterEngine setMessageHandlerOnChannel:binaryMessageHandler:]
+  - does not remove the channel entry from
+  - code
+    - _messengerHandlers
+  - . As a result, when a platform message comes through on that channel, it calls this
+  - code
+    - nil
+  - handler on MacOS and crashes.
+  - However,
+  - link "FlutterBinaryMessenger.h" [ref=822]
+  - says that assigning
+  - code
+    - nil
+  - should unregister the handler:
+  - blockquote
+    - emphasis
+      - "Replaces any existing handler. Use a
+      - code
+        - nil
+      - handler for unregistering the existing handler."
+  - Note that iOS doesn't have this issue; only macOS does.
+  - There are bugs in two places:
+  - listitem [level=1]
+    - code
+      - setMessageHandlerOnChannel:binaryMessageHandler:
+    - which retains nil handlers
+  - listitem [level=1]
+    - code
+      - engineCallbackOnPlatformMessage:
+    - checks that
+    - code
+      - handlerInfo
+    - is not null, but doesn't check
+    - code
+      - handlerInfo.handler
+  - heading "Proposed Fix" [level=2]
+  - listitem [level=1]
+    - In
+    - code
+      - setMessageHandlerOnChannel:binaryMessageHandler:
+    - , remove the channel from
+    - code
+      - _messengerHandlers
+    - if
+    - code
+      - handler == nil
+  - listitem [level=1]
+    - In
+    - code
+      - engineCallbackOnPlatformMessage:
+    - , verify
+    - code
+      - handlerInfo.handler
+    - is non-nil before invoking it.
+  - heading "Expected results" [level=4]
+  - don't call null handlers, and maybe call
+  - code
+    - binaryResponseHandler(nil)
+  - instead?
+  - heading "Actual results" [level=4]
+  - The engine crashes with
+  - code
+    - SEGV_ACCERR
+  - in
+  - code
+    - -[FlutterEngine engineCallbackOnPlatformMessage:]
+  - ; see stacktrace below
+  - DisclosureTriangle "Repro code sample" [expanded=true]
+    - Repro code sample
+  - You can repro this by unregistering a handler on the platform thread and then sending a message to that channel from Dart:
+  - strong
+    - Native side:
+  - id <FlutterBinaryMessenger> messenger = engine.binaryMessenger; Register a handler, then unregister it per the API contract: [messenger setMessageHandlerOnChannel: repro/nil-handler binaryMessageHandler: NSData * message, FlutterBinaryReply reply) { reply nil Unregister: [messenger setMessageHandlerOnChannel: repro/nil-handler binaryMessageHandler: nil
+  - button "Copy code to clipboard" [ref=1272]
+  - strong
+    - Dart side:
+  - const BasicMessageChannel String 'repro/nil-handler' StringCodec send 'ping'
+  - button "Copy code to clipboard" [ref=1288]
+  - DisclosureTriangle "Logs" [expanded=true]
+    - Logs
+  - heading "Teardown Stack Trace (showing run loop pumping during view disposal)" [level=3]
+  - Received signal 11 SEGV_ACCERR 000000000010 -[FlutterEngine engineCallbackOnPlatformMessage:] + 396 flutter::PlatformViewEmbedder::HandlePlatformMessage(...) flutter::EmbedderTaskRunner::PostTask(...) FlutterEngineRunTask -[FlutterEngine postMainThreadTask:targetTimeInNanoseconds:] block InternalFlutterSwift.FlutterRunLoop.performExpiredTasks InternalFlutterSwift.FlutterRunLoop.pollFlutterMessagesOnce -[FlutterEngine deregisterViewControllerForIdentifier:] + 168 -[FlutterEngine removeViewController:] + 84 -[FlutterViewController dispose] + 80 AppHostView::Detach()
+  - button "Copy code to clipboard" [ref=1315]
+  - heading "Signal Handler Stack Trace" [level=3]
+  - Received signal 11 SEGV_ACCERR 000000000010 3 libsystem_platform.dylib 0x000000019b6c4144 _sigtramp + 56 4 FlutterMacOS 0x00000001040ebb98 -[FlutterEngine engineCallbackOnPlatformMessage:] + 396 5 FlutterMacOS 0x0000000104a90910 _ZNSt4__fl10__function6__funcIZ23FlutterEngineInitializeE3$3NS_9allocatorIS2_EEFvNS_10unique_ptrIN7flutter15PlatformMessageENS_14default_deleteIS7_EEEEEEclEOSA + 128 6 FlutterMacOS 0x0000000104aa48e4 flutter::PlatformViewEmbedder::HandlePlatformMessage(std::__fl::unique_ptr<flutter::PlatformMessage, std::__fl::default_delete<flutter::PlatformMessage>>) + 76 7 FlutterMacOS 0x0000000104aa54d4 std::__fl::__function::__func<...>::operator()() + 84 8 FlutterMacOS 0x0000000104aa166c flutter::EmbedderTaskRunner::PostTask(unsigned long long) + 576 9 FlutterMacOS 0x0000000104a955dc flutter::EmbedderEngine::RunTask(FlutterTask const*) + 56 10 FlutterMacOS 0x0000000104a87e20 FlutterEngineRunTask + 68 11 FlutterMacOS 0x00000001040ef7fc __60-[FlutterEngine postMainThreadTask:targetTimeInNanoseconds:]block_invoke + 72
+  - button "Copy code to clipboard" [ref=1336]
+  - DisclosureTriangle "Flutter Doctor output" [expanded=true]
+    - Flutter Doctor output
+  - [!] Flutter (Channel [user-branch], 3.47.4, on macOS 27.0 26A428 darwin-arm64, locale en-CA) [204ms] ! Flutter version 3.47.4 on channel [user-branch] at /Users/vardhan/development/flutter Currently on an unknown channel. Run `flutter channel` to switch to an official channel. If that doesn't fix the issue, try deleting the 'bin/cache/flutter.version.json' file in your Flutter SDK directory and then reinstall Flutter by following instructions at https://flutter.dev/setup. ! The flutter binary is not on your path. Consider adding /Users/vardhan/development/flutter/bin to your path. ! The dart binary is not on your path. Consider adding /Users/vardhan/development/flutter/bin to your path. • Upstream repository https://github.com/flutter/flutter.git • Framework revision 9584c6713b (11 days ago), 2026-09-10 15:25:10 -0700 • Engine revision 06a2e2a110 • Dart version 3.13.3 • DevTools version 2.60.0 • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration, enable-riscv64 [✗] Android toolchain - develop for Android devices [121ms] ✗ Unable to locate Android SDK. [!] Xcode - develop for iOS and macOS (Xcode 26.6) [2.1s] • Xcode at /Applications/Xcode.app/Contents/Developer • Build 17F113 ✗ Unable to get list of installed Simulator runtimes. ! CocoaPods not installed. [✓] Chrome - develop for the web [7ms] • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome [✓] Connected device (2 available) [6.6s] • macOS (desktop) • macos • darwin-arm64 • macOS 27.0 26A428 darwin-arm64 • Chrome (web) • chrome • web-javascript • Google Chrome 152.0.7977.83 [✓] Network resources [307ms] • All expected network resources are available. ! Doctor found issues in 3 categories.
+  - button "Copy code to clipboard" [ref=1391]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "saurabh-mirajkar" [ref=1048]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=1050]
+      - link "on Sep 22" [ref=866]
+    - listitem [level=1]
+      - heading "saurabh-mirajkarcommentedon Sep 22" [level=3]
+      - link "@saurabh-mirajkar's profile" [ref=870]
+      - link "saurabh-mirajkar" [ref=680]
+      - link "on Sep 22" [ref=872]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for saurabh-mirajkar's comment, 6:45 AM on September 22" [expanded=false] [ref=688]
+      - link "@vardhan" [ref=874]
+      - Thanks for the detailed report. Could you please provide a complete runnable macOS reproduction, including the native host-side code, so we can reproduce this without having to infer how the Objective-C snippet is integrated into the Swift macOS runner?
+      - Also, could you verify whether the issue reproduces on the latest stable Flutter 3.47.5 rather than the
+      - code
+        - [user-branch]
+      - 3.47.4 setup?
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "saurabh-mirajkar" [ref=1073]
+      - added
+      - link "waiting for response The Flutter team cannot make further progress on this issue until the original reporter responds" [ref=1075]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=1080]
+      - link "on Sep 22" [ref=885]
+    - listitem [level=1]
+      - heading "vardhancommentedon Sep 22" [level=3]
+      - link "@vardhan's profile" [ref=889]
+      - link "vardhan" [ref=704]
+      - link "on Sep 22" [ref=891]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for vardhan's comment, 1:57 PM on September 22" [expanded=false] [ref=712]
+      - thanks
+      - link "@saurabh-mirajkar" [ref=894]
+      - , here's a minimal repro:
+      - link "https://github.com/vardhan/nil_handler_repro" [ref=896]
+      - for stable 3.47.5
+      - when you run it (
+      - code
+        - flutter run -d macos
+      - ), it will automatically crash.
+      - listitem [level=2]
+        - the macos runner which embeds flutter & registers a native method:
+        - link "https://github.com/vardhan/nil_handler_repro/blob/main/macos/Runner/MainFlutterWindow.swift" [ref=1103]
+      - listitem [level=2]
+        - the flutter side which invokes it, unregisters it, and calls it again (which crashes):
+        - link "https://github.com/vardhan/nil_handler_repro/blob/main/lib/main.dart#L14" [ref=1106]
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "github-actions" [ref=1107]
+      - removed
+      - link "waiting for response The Flutter team cannot make further progress on this issue until the original reporter responds" [ref=1109]
+      - link "on Sep 22" [ref=906]
+    - listitem [level=1]
+      - link "saurabh-mirajkar" [ref=1113]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=1115]
+      - link "on Sep 23" [ref=910]
+    - listitem [level=1]
+      - heading "saurabh-mirajkarcommentedon Sep 23" [level=3]
+      - link "@saurabh-mirajkar's profile" [ref=914]
+      - link "saurabh-mirajkar" [ref=735]
+      - link "on Sep 23" [ref=916]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for saurabh-mirajkar's comment, 5:02 AM on September 23" [expanded=false] [ref=743]
+      - link "@vardhan" [ref=918]
+      - Thanks for providing the complete reproduction. I was able to reproduce this on Flutter (3.47.5) stable and on current master (3.49.0-1.0.pre-92). Routing this to the team for further investigation.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - saurabh-mirajkar [ref=1133] · added: c: crash Stack traces logged to the console [ref=1135], engine flutter/engine related. See also e: labels. [ref=1138], platform-macos Building on or for macOS specifically [ref=1141], a: desktop Running on desktop [ref=1144], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=1147], team-macos Owned by the macOS platform team [ref=1150]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=1155]
+      - link "on Sep 23" [ref=931]
+    - listitem [level=1]
+      - link "hellohuanlin" [ref=1159]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=1161]
+      - link "triaged-macos Triaged by the macOS platform team" [ref=1164]
+      - link "on Sep 24" [ref=936]
+  - link "Sign up for free" [ref=475]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=478]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=766], a: desktop Running on desktop [ref=769], c: crash Stack traces logged to the console [ref=772], engine flutter/engine related. See also e: labels. [ref=775], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=778], platform-macos Building on or for macOS specifically [ref=781], team-macos Owned by the macOS platform team [ref=784], triaged-macos Triaged by the macOS platform team [ref=787]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - link "[macOS] Unregister nil binary message handlers" [ref=960]
+    - flutter/flutter
+  - Participants: @vardhan [ref=633], @hellohuanlin [ref=634], @saurabh-mirajkar [ref=635]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=806]

@@ -38,6 +38,7 @@ export function scheduledWords(t, home) {
   if (t.kind === 'weekdays') return `Weekdays at ${hhmm(t)}`;
   if (t.kind === 'weekly') return `${DAY_PLURAL[/** @type {keyof typeof DAY_PLURAL} */ (t.day)] ?? t.day} at ${hhmm(t)}`;
   if (t.kind === 'file-updated') return `When ${basename(t.path)} is updated`;
+  if (t.kind === 'new-ticket') return `When a new ticket arrives in ${t.role}`;
   const folder = tilde(/** @type {{folder: string}} */ (t).folder, home);
   return `When a new file arrives in ${folder.endsWith('/') ? folder : `${folder}/`}`;
 }
@@ -96,6 +97,7 @@ export function scheduledNextFor(f) {
   if (!armed) return say(`${lead}Not armed yet: the panel arms it on its next check.`, red);
   if (trigger.kind === 'file-updated') return say(`${lead}Watching for it. A run starts when its contents change.`, red);
   if (trigger.kind === 'new-file') return say(`${lead}Watching for it. A run starts for each new file.`, red);
+  if (trigger.kind === 'new-ticket') return say(`${lead}Watching for it. A run starts for each new ticket.`, red);
   if (nextSlotMs === null) return say(`${lead}Not armed yet: the panel arms it on its next check.`, red);
   return say(`${lead}Next run ${slotWords(nextSlotMs)}.`, red);
 }
@@ -121,12 +123,12 @@ const splitNext = (rows) => ({ next: rows.map(([l, t]) => `${l} ${t}`).join('\n'
 /**
  * ENDED / NEXT of a finished run. Every outcome the history row can hold has a fixed sentence; an unknown one gets an honest fixed fallback
  * that names the code and guesses nothing. `null` when there is no ending (still running, waiting, or no history row and not died).
- * @param {{outcome: string|null, died?: boolean, line: number|null, destination: string|null, canResume: boolean, home?: string}} f
+ * @param {{outcome: string|null, died?: boolean, line: number|null, destination: string|null, canResume: boolean, home?: string, skipReason?: string}} f
  * @returns {{reason: string, next: string, rows?: Array<[string, string]>}|null}
  */
 export function endedWords(f) {
   const {
-    outcome, died = false, line, destination, canResume, home,
+    outcome, died = false, line, destination, canResume, home, skipReason,
   } = f;
   const resumeOrAgain = canResume ? 'Resume from the Chat card.' : RERUN_NEXT;
   if (died) return { reason: 'It stopped with no ending recorded.', next: 'See the Audit / logs tab for the last thing it did.' };
@@ -134,6 +136,8 @@ export function endedWords(f) {
   switch (outcome) {
     case 'complete':
       return { reason: 'Goal met.', next: destination ? `The result is in ${tilde(destination, home)}.` : 'The result is in the step cards below.' };
+    case 'skipped':
+      return { reason: `Skipped: ${typeof skipReason === 'string' && skipReason !== '' ? skipReason : 'the ticket did not match'}. Nothing was spent.`, next: 'Nothing to do. Run it anyway from the ticket list in the Result tab.' };
     case 'stopped':
       return { reason: 'Stopped by you.', next: resumeOrAgain };
     case 'cap-halt':
@@ -212,7 +216,7 @@ export function scheduleFieldWords(f) {
 /** A run's `trigger.json` record -> the typed pieces of "how it began", or `null` for a hand run. @param {any} rec */
 function startedKind(rec) {
   if (!rec || typeof rec !== 'object') return null;
-  return rec.kind === 'file' || rec.kind === 'clock' ? rec.kind : null;
+  return rec.kind === 'file' || rec.kind === 'clock' || rec.kind === 'ticket' ? rec.kind : null;
 }
 
 /**
@@ -231,6 +235,8 @@ export function startedWords(rec, startMs, home) {
     const name = typeof rec.file === 'string' ? basename(rec.file) : '';
     const updated = rec.triggerKind === 'file-updated';
     head = `${updated ? 'By a file update' : 'By a new file'}${name ? `: ${name}` : ''}`;
+  } else if (kind === 'ticket') {
+    head = `By a new ticket${Number.isInteger(rec.ticket) ? `: #${rec.ticket}` : ''}${typeof rec.why === 'string' && rec.why !== '' ? ` (${rec.why})` : ''}`;
   }
   return stamp ? `${head} · ${stamp}` : head;
 }
@@ -261,7 +267,7 @@ export function scheduleBlockWords(f) {
   const tr = f.trigger;
   if (head === null || tr === null) return { line1: 'By hand', line2: null, red: false };
   const file = tr.kind === 'new-file' || tr.kind === 'file-updated';
-  const next = file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
+  const next = tr.kind === 'new-ticket' ? 'next: waiting for a new ticket' : file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
   const p = f.problem;
   if (p) {
     const stamp = `last ${shortStamp(p.at)}`;
@@ -323,6 +329,8 @@ export function scheduleAuditWords(f) {
   else if (kind === 'file') {
     const name = typeof f.rec.file === 'string' ? basename(f.rec.file) : '';
     what = `started by the schedule \u00b7 ${f.rec.triggerKind === 'file-updated' ? 'file update' : 'new file'}${name ? ` ${name}` : ''}`;
+  } else if (kind === 'ticket') {
+    what = `started by the schedule \u00b7 new ticket${Number.isInteger(f.rec.ticket) ? ` #${f.rec.ticket}` : ''}`;
   }
   if (f.from !== null && f.from === f.runId) what += kind === null ? ' The schedule was set from this run.' : '. The schedule was set from this run.';
   /** @type {Array<{label: string, stamp: string, text: string}>} */

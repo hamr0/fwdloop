@@ -36,6 +36,7 @@
 // No `new RegExp` anywhere in this file — a test in test/signed-text.test.js
 // greps all of src/ for that, and it must keep passing with this file added.
 
+import { WATCHABLE } from './ticket-shape.js';
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
@@ -58,6 +59,9 @@ export const DECLARATION_FIELDS = Object.freeze([
   'unjudgeable',
   'refused',
   'inputFacts',
+  'mcp',
+  'ticketFilter',
+  'ticketWatch',
   // step level
   'goal',
   'primitives',
@@ -66,6 +70,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'fromLine',
   'close',
   'picks',
+  'mcpTools',
   // close level
   'class',
   'shape',
@@ -82,9 +87,82 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts']);
-const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'ticketFilter', 'ticketWatch']);
+const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
 const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+
+/** M12 piece 1a: the ONE shape of an MCP server or tool name in a job (the bridge names a tool `<server>_<tool>`). */
+const MCP_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+/** M12 piece 1a: the job's typed MCP tools, `mcp: {server, tools}`, optional (a job without it is unchanged). Returns the tool list when valid, else null.
+ *  @param {Record<string, any>} declaration @param {string[]} reds @returns {string[]|null} */
+function checkMcp(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'mcp')) return null;
+  const m = declaration.mcp;
+  if (!isPlainObject(m)) {
+    reds.push('declaration: "mcp" must be an object {server, tools}');
+    return null;
+  }
+  const before = reds.length;
+  for (const key of Object.keys(m)) {
+    if (key !== 'server' && key !== 'tools') reds.push(`declaration: unknown key "${key}" at declaration.mcp.${key}`);
+  }
+  if (typeof m.server !== 'string' || !MCP_NAME.test(m.server)) reds.push('declaration: mcp.server must be a plain server name (letters, digits, _ or -)');
+  if (!Array.isArray(m.tools) || m.tools.length === 0) {
+    reds.push('declaration: mcp.tools must be a non-empty list of tool names');
+  } else {
+    const seen = new Set();
+    for (const t of m.tools) {
+      if (typeof t !== 'string' || !MCP_NAME.test(t)) reds.push(`declaration: mcp.tools names ${JSON.stringify(t)}, which is not a plain tool name`);
+      else if (seen.has(t)) reds.push(`declaration: mcp.tools names "${t}" twice`);
+      else seen.add(t);
+    }
+  }
+  return reds.length === before ? m.tools : null;
+}
+
+/** M12 piece 3 (item 4): the signed label filter, `ticketFilter: {priority?: ['P0'..'P3'], labels?: [names]}`; optional, and only on a job that lists MCP tools.
+ *  Pure data: code decides at run (src/ticket-labels.js); the drafter may only suggest it and a human signs it.
+ *  @param {Record<string, any>} declaration @param {string[]} reds */
+function checkTicketFilter(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'ticketFilter')) return;
+  const f = declaration.ticketFilter;
+  if (!isPlainObject(f) || Object.keys(f).length === 0) {
+    reds.push('declaration: "ticketFilter" must be an object with "priority" and/or "labels"');
+    return;
+  }
+  if (!Object.hasOwn(declaration, 'mcp')) reds.push('declaration: "ticketFilter" filters tickets read through the job\'s "mcp" tools, but the job lists no "mcp" server');
+  for (const key of Object.keys(f)) {
+    if (key !== 'priority' && key !== 'labels') reds.push(`declaration: unknown key "${key}" at declaration.ticketFilter.${key}`);
+  }
+  /** @type {Array<['priority'|'labels', (v: string) => boolean]>} */
+  const lists = [['priority', (v) => /^P[0-3]$/.test(v)], ['labels', (v) => v.trim() !== '' && v.length <= 100]];
+  for (const [key, ok] of lists) {
+    if (!Object.hasOwn(f, key)) continue;
+    if (!Array.isArray(f[key]) || f[key].length === 0) { reds.push(`declaration: ticketFilter.${key} must be a non-empty list`); continue; }
+    const seen = new Set();
+    for (const v of f[key]) {
+      if (typeof v !== 'string' || !ok(v)) reds.push(`declaration: ticketFilter.${key} names ${JSON.stringify(v)}, which is not ${key === 'priority' ? 'a priority from P0 to P3' : 'a label name (1 to 100 characters)'}`);
+      else if (seen.has(v.toLowerCase())) reds.push(`declaration: ticketFilter.${key} names "${v}" twice`);
+      else seen.add(v.toLowerCase());
+    }
+  }
+}
+
+/** M12 piece 3 (signed item 7): the ticket fields a schedule may watch, `ticketWatch: ['state'|'labels']`; optional, only on a job that lists MCP tools, typed values only.
+ *  The scheduler compares (src/trigger-tickets.js); the drafter may suggest, a human signs. @param {Record<string, any>} declaration @param {string[]} reds */
+function checkTicketWatch(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'ticketWatch')) return;
+  const w = declaration.ticketWatch;
+  if (!Array.isArray(w) || w.length === 0) { reds.push(`declaration: "ticketWatch" must be a non-empty list of fields (${WATCHABLE.join(' and ')})`); return; }
+  if (!Object.hasOwn(declaration, 'mcp')) reds.push('declaration: "ticketWatch" watches tickets read through the job\'s "mcp" tools, but the job lists no "mcp" server');
+  const seen = new Set();
+  for (const f of w) {
+    if (typeof f !== 'string' || !WATCHABLE.includes(f)) reds.push(`declaration: ticketWatch names ${JSON.stringify(f)}, which is not a field that can be watched (${WATCHABLE.join(' and ')})`);
+    else if (seen.has(f)) reds.push(`declaration: ticketWatch names "${f}" twice`);
+    else seen.add(f);
+  }
+}
 
 /** @returns {value is Record<string, any>} */
 function isPlainObject(value) {
@@ -690,6 +768,11 @@ export function validateDeclaration(declaration, context = {}) {
     reds.push('declaration: "inputFacts" must be an object keyed by source role');
   }
 
+  // --- M12 piece 1a: the job's MCP tools (optional) -------------------------------
+  const mcpTools = checkMcp(declaration, reds);
+  checkTicketFilter(declaration, reds);
+  checkTicketWatch(declaration, reds);
+
   // --- steps ------------------------------------------------------------------
   const emitSeen = new Set();
   const declaredEmits = new Set();
@@ -716,6 +799,19 @@ export function validateDeclaration(declaration, context = {}) {
       const own = safeLines.find((l) => l.n === step.fromLine);
       if (own && step.goal !== own.text) {
         reds.push(`declaration: ${label}.goal is not its signed line ${own.n} verbatim (expected ${JSON.stringify(own.text)}, got ${JSON.stringify(step.goal)}) — the goal is the human's line, never reworded`);
+      }
+    }
+
+    // M12 piece 1a: the MCP tools this step uses (optional); each must be one the job lists
+    if (Object.hasOwn(step, 'mcpTools')) {
+      if (!Array.isArray(step.mcpTools)) {
+        reds.push(`declaration: ${label}.mcpTools must be a list of the job's MCP tool names`);
+      } else if (!Object.hasOwn(declaration, 'mcp')) {
+        reds.push(`declaration: ${label}.mcpTools names tools, but the job lists no "mcp" server`);
+      } else if (mcpTools) {
+        for (const t of step.mcpTools) {
+          if (!mcpTools.includes(t)) reds.push(`declaration: ${label}.mcpTools names "${t}", which the job's mcp.tools does not list`);
+        }
       }
     }
 

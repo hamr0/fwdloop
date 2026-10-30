@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "barebrowse": {
+      "command": "node",
+      "args": ["/home/hamr/PycharmProjects/fwdloop/node_modules/.bin/barebrowse", "mcp"],
+      "env": { "BAREBROWSE_MODE": "headless", "BAREBROWSE_IDLE_MINUTES": "3" }
+    }
+  }
+}

@@ -1,0 +1,1186 @@
+{
+  "drafts": {
+    "a1": {
+      "exists": true,
+      "cost": 0.0029333999999999996,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket really is P2 is a judgement on prose, not a checkable figure or fixed shape",
+        "2": "whether the described fault is a crash or hang is a judgement on prose"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [],
+          "reads": [
+            "ticket_priority",
+            "broken_summary"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "a2": {
+      "exists": true,
+      "cost": 0.002955,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "priority P2 only is a ticket attribute that no typed check verifies",
+        "2": "only crashes or hangs is a judgement about what is broken, not a fixed value list",
+        "4": "human acceptance gate"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "ticket_priority",
+            "broken_summary"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "a3": {
+      "exists": true,
+      "cost": 0.0029454,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "priority must be pulled from ticket text; no sheet check applies (no CSV input)",
+        "2": "whether a defect is only a crash or hang is a judgement of prose",
+        "4": "human acceptance gate on wording, not machine-checkable"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "ticket_priority",
+            "defect_summary"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "plan_accepted"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "b1": {
+      "exists": true,
+      "cost": 0.0028175999999999995,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "deciding whether a ticket reports an outage is a judgement on the ticket's prose, not a fixed list of values"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [],
+          "reads": [
+            "outage_assessment"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "plan_accepted"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "b2": {
+      "exists": true,
+      "cost": 0.0028415999999999997,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "no fixed list of ticket values can express 'network outages only' from the ticket text alone"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "breakage_summary",
+            "ticket_priority"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "plan_accepted"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "b3": {
+      "exists": true,
+      "cost": 0.0028091999999999995,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket is a network outage is a judgement on prose, not a fixed list of values"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "broken_summary",
+            "ticket_priority"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "plan_acceptance",
+            "response_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "c1": {
+      "exists": true,
+      "cost": 0.0029327999999999997,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "label",
+          "values": [
+            "bug",
+            "feature",
+            "question",
+            "documentation",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "bug"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "requires matching ticket labels against a category, not a fixed per-ticket value list here",
+        "2": "relative date window depends on labels/opened date parsing; judged as hitl"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [],
+          "reads": [
+            "ticket_labels",
+            "ticket_opened"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "c2": {
+      "exists": true,
+      "cost": 0.0029484,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "labels",
+          "values": [
+            "bug",
+            "enhancement",
+            "question",
+            "documentation",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "bug"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "label check must be evaluated against the ticket's actual labels, not a recomputable sheet figure",
+        "2": "date arithmetic on the ticket's opened date cannot be checked by a typed check here"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue",
+            "ticket_labels",
+            "ticket_opened_at"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "plan_accepted",
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "c3": {
+      "exists": true,
+      "cost": 0.0028715999999999998,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "label match against the ticket cannot be checked without the sheet; no fixed ticket box can be confirmed",
+        "2": "open date within 7 days cannot be verified from this job's signed inputs"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read",
+            "recall"
+          ],
+          "reads": [
+            "issue",
+            "ticket_labels",
+            "ticket_opened"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "d1": {
+      "exists": true,
+      "cost": 0.0057209999999999995,
+      "ok": true,
+      "reds": [],
+      "rounds": 2,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "only if it looks important to me is the human's taste; not a fixed list"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue",
+            "broken_assessment",
+            "ticket_priority"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "read",
+            "write"
+          ],
+          "reads": [
+            "plan_accepted",
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "d2": {
+      "exists": true,
+      "cost": 0.0028175999999999995,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "guardrail is a human judgement of importance, not a fixed list of values"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read",
+            "grep"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "breakage_diagnosis",
+            "ticket_priority"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    },
+    "d3": {
+      "exists": true,
+      "cost": 0.0028187999999999993,
+      "ok": true,
+      "reds": [],
+      "rounds": 1,
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket looks important to the requester is a taste call that cannot be put into a fixed list of values"
+      },
+      "steps": [
+        {
+          "line": 1,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 2,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "issue"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 3,
+          "prim": [
+            "read"
+          ],
+          "reads": [
+            "breakage_summary",
+            "ticket_priority"
+          ],
+          "cls": "softgreen"
+        },
+        {
+          "line": 4,
+          "prim": [],
+          "reads": [
+            "first_response_plan"
+          ],
+          "cls": "hitl"
+        },
+        {
+          "line": 5,
+          "prim": [
+            "write"
+          ],
+          "reads": [
+            "accepted_plan"
+          ],
+          "cls": "hitl"
+        }
+      ]
+    }
+  },
+  "D": {
+    "D1": {
+      "counts": {
+        "a.priority(line1: allowed==[P2], values cover P0..P3)": 0,
+        "a.topic(line2: allowed names crash and hang)": 0,
+        "b.topic(line1: allowed names network outage)": 0
+      },
+      "verdict": "FAIL"
+    },
+    "D2": {
+      "draftsWithBox": 5,
+      "bad": [],
+      "verdict": "PASS"
+    },
+    "D3": {
+      "perDraft": [
+        true,
+        true,
+        true
+      ],
+      "verdict": "PASS"
+    },
+    "D4": {
+      "bad": [],
+      "verdict": "PASS"
+    },
+    "D5": {
+      "bad": [],
+      "verdict": "PASS"
+    },
+    "D6": {
+      "spendIncludingSmoke": 0.048812,
+      "verdict": "PASS"
+    }
+  },
+  "recorded": {
+    "a1": {
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket really is P2 is a judgement on prose, not a checkable figure or fixed shape",
+        "2": "whether the described fault is a crash or hang is a judgement on prose"
+      },
+      "rounds": 1,
+      "cost": 0.0029333999999999996
+    },
+    "a2": {
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "priority P2 only is a ticket attribute that no typed check verifies",
+        "2": "only crashes or hangs is a judgement about what is broken, not a fixed value list",
+        "4": "human acceptance gate"
+      },
+      "rounds": 1,
+      "cost": 0.002955
+    },
+    "a3": {
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "priority",
+          "values": [
+            "P1",
+            "P2",
+            "P3",
+            "P4",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "P2"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "priority must be pulled from ticket text; no sheet check applies (no CSV input)",
+        "2": "whether a defect is only a crash or hang is a judgement of prose",
+        "4": "human acceptance gate on wording, not machine-checkable"
+      },
+      "rounds": 1,
+      "cost": 0.0029454
+    },
+    "b1": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "deciding whether a ticket reports an outage is a judgement on the ticket's prose, not a fixed list of values"
+      },
+      "rounds": 1,
+      "cost": 0.0028175999999999995
+    },
+    "b2": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "no fixed list of ticket values can express 'network outages only' from the ticket text alone"
+      },
+      "rounds": 1,
+      "cost": 0.0028415999999999997
+    },
+    "b3": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket is a network outage is a judgement on prose, not a fixed list of values"
+      },
+      "rounds": 1,
+      "cost": 0.0028091999999999995
+    },
+    "c1": {
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "label",
+          "values": [
+            "bug",
+            "feature",
+            "question",
+            "documentation",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "bug"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "requires matching ticket labels against a category, not a fixed per-ticket value list here",
+        "2": "relative date window depends on labels/opened date parsing; judged as hitl"
+      },
+      "rounds": 1,
+      "cost": 0.0029327999999999997
+    },
+    "c2": {
+      "boxes": [
+        {
+          "fromLine": 1,
+          "box": "labels",
+          "values": [
+            "bug",
+            "enhancement",
+            "question",
+            "documentation",
+            "none",
+            "unsure"
+          ],
+          "allowed": [
+            "bug"
+          ]
+        }
+      ],
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "label check must be evaluated against the ticket's actual labels, not a recomputable sheet figure",
+        "2": "date arithmetic on the ticket's opened date cannot be checked by a typed check here"
+      },
+      "rounds": 1,
+      "cost": 0.0029484
+    },
+    "c3": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "2": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "label match against the ticket cannot be checked without the sheet; no fixed ticket box can be confirmed",
+        "2": "open date within 7 days cannot be verified from this job's signed inputs"
+      },
+      "rounds": 1,
+      "cost": 0.0028715999999999998
+    },
+    "d1": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "only if it looks important to me is the human's taste; not a fixed list"
+      },
+      "rounds": 2,
+      "cost": 0.0057209999999999995
+    },
+    "d2": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "guardrail is a human judgement of importance, not a fixed list of values"
+      },
+      "rounds": 1,
+      "cost": 0.0028175999999999995
+    },
+    "d3": {
+      "boxes": null,
+      "classes": {
+        "1": "hitl",
+        "3": "softgreen",
+        "4": "hitl"
+      },
+      "unjudgeable": {
+        "1": "whether the ticket looks important to the requester is a taste call that cannot be put into a fixed list of values"
+      },
+      "rounds": 1,
+      "cost": 0.0028187999999999993
+    }
+  }
+}

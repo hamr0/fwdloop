@@ -1,0 +1,378 @@
+url: https://github.com/flutter/flutter/issues
+56,094 chars → 21,845 chars (61% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls. Links: "name" <url>.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" <https://github.com/flutter> [ref=328]
+      - link "flutter" <https://github.com/flutter/flutter> [ref=330]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" <https://github.com/flutter/flutter> [ref=331]
+      - link "Issues (5k+)" [ref=332]
+      - link "Pull requests (728)" <https://github.com/flutter/flutter/pulls> [ref=333]
+      - Repository: Actions <https://github.com/flutter/flutter/actions> [ref=334], Projects <https://github.com/flutter/flutter/projects> [ref=335], Wiki <https://github.com/flutter/flutter/wiki> [ref=336]
+      - button "More items" [expanded=false] [ref=248]
+  - complementary "Issues sidebar navigation"
+    - navigation "Issue filters"
+      - Issue filters: Issues <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=1570], Assigned to me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me> [ref=1571], Created by me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+author%3A%40me> [ref=1572], Mentioned <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me> [ref=1573], Recent activity <https://github.com/flutter/flutter/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc> [ref=1574]
+    - navigation "Pages"
+      - Pages: Views <https://github.com/flutter/flutter/issues/views> [ref=1575], Projects <https://github.com/flutter/flutter/projects> [ref=1576], Milestones <https://github.com/flutter/flutter/milestones> [ref=1577], Labels <https://github.com/flutter/flutter/labels> [ref=1578]
+    - navigation "Feedback"
+      - link "Feedback Preview" <https://gh.io/issues-sidebar-feedback> [ref=1579]
+    - button "Collapse sidebar" [expanded=true] [ref=1159]
+  - heading "Issues" [level=1]
+  - link "New issue" <https://github.com/login?return_to=https://github.com/flutter/flutter/issues> [ref=342]
+  - list "Drag and drop pinned issues list."
+    - listitem [level=1]
+      - link "View [Decoupling] Port over open PRs from flutter/flutter to material_ui or cupertino_ui" <https://github.com/flutter/flutter/issues/188444> [ref=474]
+      - 188444
+      - link "justinmc" <https://github.com/justinmc> [ref=481]
+      - opened
+      - generic "Jun 23, 2026, 11:24 PM GMT+2"
+        - on Jun 23
+      - 4
+  - search "Issues"
+    - form "Search issues"
+      - LabelText
+        - Search issues
+      - combobox "Search issues" [expanded=false] [ref=1590]
+        - is:issue state:open
+      - button "Clear filter" [ref=1176]
+      - button "Search" [ref=1179]
+  - heading "Issues" [level=2]
+  - list "Filter issues by state"
+    - link "Open (12,757)" [ref=1182]
+    - link "Closed (103,741)" [ref=1183]
+  - toolbar "Issue list controls"
+    - button "Filter by author" [expanded=false] [ref=497]
+      - Author
+    - button "More Issue list controls" [expanded=false] [ref=498]
+  - list "Issues display density"
+    - button "Comfortable display density" [ref=1602]
+    - button "Compact display density" [ref=1605]
+  - list "Issues"
+    - listitem "[pigeon] Support parameters on @EventChannelApi methods. More information available below." [level=1]
+      - heading [level=3]
+        - link "[pigeon] Support parameters on @EventChannelApi methods" <https://github.com/flutter/flutter/issues/195480> [ref=1608]
+      - button "Filter by label c: proposal" [ref=1192]
+      - button "Filter by label p: pigeon" [ref=1193]
+      - button "Filter by label package" [ref=1194]
+      - button "Filter by label team-ecosystem" [ref=1195]
+      - Unread
+      - flutter/flutter#195480
+      - button "Filter by author alisher-pdk" [ref=517]
+      - opened
+      - generic "Oct 28, 2026, 11:46 AM GMT+1"
+        - 53m ago
+    - listitem "Mac_arm64_mokey integration_ui_frame_number is 3.06% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac_arm64_mokey integration_ui_frame_number is 3.06% flaky" <https://github.com/flutter/flutter/issues/195479> [ref=1620]
+      - button "Filter by label c: flake" [ref=1207]
+      - button "Filter by label P0" [ref=1208]
+      - button "Filter by label team-engine" [ref=1209]
+      - Unread
+      - flutter/flutter#195479
+      - button "Filter by author fluttergithubbot" [ref=541]
+      - opened
+      - generic "Oct 28, 2026, 11:01 AM GMT+1"
+        - 1h ago
+      - button "Filter by assignee jtmcdole" [ref=550]
+    - listitem "Linux_android_emu_vulkan_stable android_engine_hcpp_tests is 2.02% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Linux_android_emu_vulkan_stable android_engine_hcpp_tests is 2.02% flaky" <https://github.com/flutter/flutter/issues/195478> [ref=1630]
+      - button "Filter by label c: flake" [ref=1222]
+      - button "Filter by label P0" [ref=1223]
+      - Unread
+      - flutter/flutter#195478
+      - button "Filter by author fluttergithubbot" [ref=566]
+      - opened
+      - generic "Oct 28, 2026, 11:01 AM GMT+1"
+        - 1h ago
+      - button "Filter by assignee gmackall" [ref=575]
+    - listitem "Mac_ios platform_views_scroll_perf_ad_banners__timeline_summary is 2.04% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac_ios platform_views_scroll_perf_ad_banners__timeline_summary is 2.04% flaky" <https://github.com/flutter/flutter/issues/195476> [ref=1638]
+      - button "Filter by label c: flake" [ref=1236]
+      - button "Filter by label P0" [ref=1237]
+      - button "Filter by label team-engine" [ref=1238]
+      - Unread
+      - flutter/flutter#195476
+      - button "Filter by author fluttergithubbot" [ref=591]
+      - opened
+      - generic "Oct 28, 2026, 10:31 AM GMT+1"
+        - 2h ago
+      - button "Filter by assignee hellohuanlin" [ref=600]
+    - listitem "Mac_ios draw_points_perf_ios__timeline_summary is 2.04% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac_ios draw_points_perf_ios__timeline_summary is 2.04% flaky" <https://github.com/flutter/flutter/issues/195475> [ref=1648]
+      - button "Filter by label c: flake" [ref=1251]
+      - button "Filter by label P0" [ref=1252]
+      - button "Filter by label team-engine" [ref=1253]
+      - Unread
+      - flutter/flutter#195475
+      - button "Filter by author fluttergithubbot" [ref=616]
+      - opened
+      - generic "Oct 28, 2026, 10:31 AM GMT+1"
+        - 2h ago
+      - button "Filter by assignee cbracken" [ref=625]
+    - listitem "Mac_ios static_path_stroke_tessellation_perf_ios__timeline_summary is 2.04% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac_ios static_path_stroke_tessellation_perf_ios__timeline_summary is 2.04% flaky" <https://github.com/flutter/flutter/issues/195474> [ref=1658]
+      - button "Filter by label c: flake" [ref=1266]
+      - button "Filter by label P0" [ref=1267]
+      - button "Filter by label team-engine" [ref=1268]
+      - Unread
+      - flutter/flutter#195474
+      - button "Filter by author fluttergithubbot" [ref=641]
+      - opened
+      - generic "Oct 28, 2026, 10:01 AM GMT+1"
+        - 2h ago
+      - button "Filter by assignee flar" [ref=650]
+    - listitem "Mac_ios native_assets_ios is 2.06% flaky. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac_ios native_assets_ios is 2.06% flaky" <https://github.com/flutter/flutter/issues/195473> [ref=1668]
+      - button "Filter by label c: flake" [ref=1281]
+      - button "Filter by label P0" [ref=1282]
+      - Unread
+      - flutter/flutter#195473
+      - button "Filter by author fluttergithubbot" [ref=666]
+      - opened
+      - generic "Oct 28, 2026, 10:01 AM GMT+1"
+        - 2h ago
+      - button "Filter by assignee dcharkes" [ref=675]
+    - listitem "SweepGradient.lerp clamps valid negative angles during interpolation. More information available below." [level=1]
+      - heading [level=3]
+        - link "SweepGradient.lerp clamps valid negative angles during interpolation" <https://github.com/flutter/flutter/issues/195470> [ref=1676]
+      - button "Filter by label in triage" [ref=1295]
+      - Unread
+      - flutter/flutter#195470
+      - button "Filter by author hangy233" [ref=691]
+      - opened
+      - generic "Oct 28, 2026, 9:37 AM GMT+1"
+        - 3h ago
+    - listitem "[web] SemanticScrollable keeps its scroll adjustment after the list stops scrolling, so taps land on the wrong row. More information available below." [level=1]
+      - heading [level=3]
+        - link "[web] SemanticScrollable keeps its scroll adjustment after the list stops scrolling, so taps land on the wrong row" <https://github.com/flutter/flutter/issues/195469> [ref=1682]
+      - button "Filter by label in triage" [ref=1307]
+      - Unread
+      - flutter/flutter#195469
+      - button "Filter by author aerotech-vadb" [ref=715]
+      - opened
+      - generic "Oct 28, 2026, 9:04 AM GMT+1"
+        - 3h ago
+    - listitem "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture. More information available below." [level=1]
+      - heading [level=3]
+        - link "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture" <https://github.com/flutter/flutter/issues/195468> [ref=1688]
+      - button "Filter by label waiting for response" [ref=1319]
+      - Unread
+      - flutter/flutter#195468
+      - button "Filter by author toyaji" [ref=739]
+      - opened
+      - generic "Oct 28, 2026, 8:47 AM GMT+1"
+        - 3h ago
+      - link "1 linked pull request flutter/packages#13468: [camera_android_camerax] Only set the ImageCapture flash mode when it changes, Open" <https://github.com/flutter/packages/pull/13468> [ref=745]
+      - 2
+    - listitem "[camera_android_camerax] Zero-shutter-lag has no effect with ResolutionPreset.max. More information available below." [level=1]
+      - heading [level=3]
+        - link "[camera_android_camerax] Zero-shutter-lag has no effect with ResolutionPreset.max" <https://github.com/flutter/flutter/issues/195466> [ref=1694]
+      - button "Filter by label waiting for response" [ref=1332]
+      - Unread
+      - flutter/flutter#195466
+      - button "Filter by author toyaji" [ref=766]
+      - opened
+      - generic "Oct 28, 2026, 8:03 AM GMT+1"
+        - 4h ago
+      - link "1 linked pull request flutter/packages#13467: [camera_android_camerax] Fix zero-shutter-lag having no effect with ResolutionPreset.max, Open" <https://github.com/flutter/packages/pull/13467> [ref=772]
+      - 2
+    - listitem "[webview_flutter_wkwebview] onHttpError doesn't say which URL failed. More information available below." [level=1]
+      - heading [level=3]
+        - link "[webview_flutter_wkwebview] onHttpError doesn't say which URL failed" <https://github.com/flutter/flutter/issues/195465> [ref=1700]
+      - button "Filter by label fyi-ecosystem" [ref=1345]
+      - button "Filter by label has reproducible steps" [ref=1346]
+      - button "Filter by label p: webview" [ref=1347]
+      - button "Filter by label package" [ref=1348]
+      - button "Filter by label platform-ios" [ref=1349]
+      - button "Filter by label team-ios" [ref=1350]
+      - Unread
+      - flutter/flutter#195465
+      - button "Filter by author brodienguyen" [ref=793]
+      - opened
+      - generic "Oct 28, 2026, 7:58 AM GMT+1"
+        - 4h ago
+      - 2
+    - listitem "[Device lab test ] hybrid_android_views_integration_test fails on Moto G 2025 (v15). More information available below." [level=1]
+      - heading [level=3]
+        - link "[Device lab test ] hybrid_android_views_integration_test fails on Moto G 2025 (v15)" <https://github.com/flutter/flutter/issues/195464> [ref=1716]
+      - button "Filter by label from: manual-qa" [ref=1363]
+      - button "Filter by label platform-android" [ref=1364]
+      - button "Filter by label team-android" [ref=1365]
+      - Unread
+      - flutter/flutter#195464
+      - button "Filter by author preethi0228-git" [ref=819]
+      - opened
+      - generic "Oct 28, 2026, 7:23 AM GMT+1"
+        - 5h ago
+    - listitem "123456. More information available below." [level=1]
+      - heading [level=3]
+        - link "123456" <https://github.com/flutter/flutter/issues/195463> [ref=1726]
+      - button "Filter by label waiting for response" [ref=1377]
+      - Unread
+      - flutter/flutter#195463
+      - button "Filter by author sangadakailesh67-byte" [ref=843]
+      - opened
+      - generic "Oct 28, 2026, 7:00 AM GMT+1"
+        - 5h ago
+    - listitem "[web] Safari 27 + minimum font size > 16: typography sentinel line-height factor still mismatches after #186474. More information available below." [level=1]
+      - heading [level=3]
+        - link "[web] Safari 27 + minimum font size > 16: typography sentinel line-height factor still mismatches after #186474" <https://github.com/flutter/flutter/issues/195456> [ref=1732]
+      - button "Filter by label waiting for response" [ref=1389]
+      - Unread
+      - flutter/flutter#195456
+      - button "Filter by author alancook" [ref=869]
+      - opened
+      - generic "Oct 28, 2026, 4:47 AM GMT+1"
+        - 7h ago
+    - listitem "[iOS][UIScene] Plugins receive application:didFinishLaunchingWithOptions: twice on a cold launch with connection options (background_fetch crashes). More information available below." [level=1]
+      - heading [level=3]
+        - link "[iOS][UIScene] Plugins receive application:didFinishLaunchingWithOptions: twice on a cold launch with connection options (background_fetch crashes)" <https://github.com/flutter/flutter/issues/195455> [ref=1738]
+      - button "Filter by label waiting for response" [ref=1402]
+      - Unread
+      - flutter/flutter#195455
+      - button "Filter by author acewd1" [ref=895]
+      - opened
+      - generic "Oct 28, 2026, 3:28 AM GMT+1"
+        - 9h ago
+      - 1
+    - listitem "[web] iOS Safari: Japanese IME duplicates composed text in a TextField with enableInteractiveSelection: false. More information available below." [level=1]
+      - heading [level=3]
+        - link "[web] iOS Safari: Japanese IME duplicates composed text in a TextField with enableInteractiveSelection: false" <https://github.com/flutter/flutter/issues/195443> [ref=1744]
+      - button "Filter by label a: text input" [ref=1415]
+      - button "Filter by label fyi-web" [ref=1416]
+      - button "Filter by label has reproducible steps" [ref=1417]
+      - button "Filter by label team-text-input" [ref=1418]
+      - Unread
+      - flutter/flutter#195443
+      - button "Filter by author ARAtlas" [ref=921]
+      - opened
+      - generic "Oct 27, 2026, 10:03 PM GMT+1"
+        - 14h ago
+      - 1
+    - listitem "[Windows accessibility] Obscured TextField missing MSAA STATE_SYSTEM_PROTECTED. More information available below." [level=1]
+      - heading [level=3]
+        - link "[Windows accessibility] Obscured TextField missing MSAA STATE_SYSTEM_PROTECTED" <https://github.com/flutter/flutter/issues/195441> [ref=1756]
+      - button "Filter by label a: accessibility" [ref=1431]
+      - button "Filter by label a: desktop" [ref=1432]
+      - button "Filter by label fyi-text-input" [ref=1433]
+      - button "Filter by label fyi-windows" [ref=1434]
+      - button "Filter by label platform-windows" [ref=1435]
+      - button "Filter by label team-accessibility" [ref=1436]
+      - Unread
+      - flutter/flutter#195441
+      - button "Filter by author amrezp" [ref=947]
+      - opened
+      - generic "Oct 27, 2026, 8:43 PM GMT+1"
+        - 16h ago
+      - 1
+    - listitem "[Google3 Bug]: [Android] Talkback backwards scroll skips to top of scroll view. More information available below." [level=1]
+      - heading [level=3]
+        - link "[Google3 Bug]: [Android] Talkback backwards scroll skips to top of scroll view" <https://github.com/flutter/flutter/issues/195439> [ref=1772]
+      - button "Filter by label a: accessibility" [ref=1449]
+      - button "Filter by label customer: google" [ref=1450]
+      - button "Filter by label f: scrolling" [ref=1451]
+      - button "Filter by label framework" [ref=1452]
+      - button "Filter by label fyi-android" [ref=1453]
+      - button "Filter by label has reproducible steps" [ref=1454]
+      - button "Filter by label platform-android" [ref=1455]
+      - button "Filter by label team-accessibility" [ref=1456]
+      - Unread
+      - flutter/flutter#195439
+      - button "Filter by author britnicanalegoogle" [ref=973]
+      - opened
+      - generic "Oct 27, 2026, 8:24 PM GMT+1"
+        - 16h ago
+      - 1
+    - listitem "[tool_crash] RPCError. More information available below." [level=1]
+      - heading [level=3]
+        - link "[tool_crash] RPCError" <https://github.com/flutter/flutter/issues/195435> [ref=1792]
+      - button "Filter by label needs repro info" [ref=1468]
+      - button "Filter by label waiting for response" [ref=1469]
+      - Unread
+      - flutter/flutter#195435
+      - button "Filter by author Epaphras168" [ref=999]
+      - opened
+      - generic "Oct 27, 2026, 6:41 PM GMT+1"
+        - 18h ago
+      - 1
+    - listitem "Android platform views receive inconsistent pointer ids when a pointer lifts and another lands in the same frame. More information available below." [level=1]
+      - heading [level=3]
+        - link "Android platform views receive inconsistent pointer ids when a pointer lifts and another lands in the same frame" <https://github.com/flutter/flutter/issues/195431> [ref=1800]
+      - button "Filter by label a: platform-views" [ref=1482]
+      - button "Filter by label f: gestures" [ref=1483]
+      - button "Filter by label found in release: 3.47" [ref=1484]
+      - button "Filter by label framework" [ref=1485]
+      - button "Filter by label has reproducible steps" [ref=1486]
+      - button "Filter by label team-android" [ref=1487]
+      - Unread
+      - flutter/flutter#195431
+      - button "Filter by author evil159" [ref=1025]
+      - opened
+      - generic "Oct 27, 2026, 5:32 PM GMT+1"
+        - 19h ago
+      - 1
+    - listitem "[beta] [hotfix] Flutter Release Version 3.50.0-0.3.pre. More information available below." [level=1]
+      - heading [level=3]
+        - link "[beta] [hotfix] Flutter Release Version 3.50.0-0.3.pre" <https://github.com/flutter/flutter/issues/195428> [ref=1816]
+      - button "Filter by label release-tracker" [ref=1500]
+      - Unread
+      - flutter/flutter#195428
+      - button "Filter by author github-actions" [ref=1051]
+      - opened
+      - generic "Oct 27, 2026, 5:15 PM GMT+1"
+        - 19h ago
+      - button "Filter by assignee reidbaker" [ref=1060]
+    - listitem "[stable] [hotfix] Flutter Release Version 3.47.9. More information available below." [level=1]
+      - heading [level=3]
+        - link "[stable] [hotfix] Flutter Release Version 3.47.9" <https://github.com/flutter/flutter/issues/195427> [ref=1822]
+      - button "Filter by label release-tracker" [ref=1513]
+      - Unread
+      - flutter/flutter#195427
+      - button "Filter by author github-actions" [ref=1076]
+      - opened
+      - generic "Oct 27, 2026, 5:15 PM GMT+1"
+        - 19h ago
+      - button "Filter by assignee reidbaker" [ref=1085]
+    - listitem "[Impeller] EGL_BAD_ACCESS after returning to the foreground, then no frames at all (Mali-G57, OpenGLES). More information available below." [level=1]
+      - heading [level=3]
+        - link "[Impeller] EGL_BAD_ACCESS after returning to the foreground, then no frames at all (Mali-G57, OpenGLES)" <https://github.com/flutter/flutter/issues/195424> [ref=1828]
+      - button "Filter by label c: rendering" [ref=1526]
+      - button "Filter by label e: impeller" [ref=1527]
+      - button "Filter by label e: opengl" [ref=1528]
+      - button "Filter by label engine" [ref=1529]
+      - button "Filter by label has reproducible steps" [ref=1530]
+      - button "Filter by label platform-android" [ref=1531]
+      - button "Filter by label team-engine" [ref=1532]
+      - button "Filter by label workaround available" [ref=1533]
+      - Unread
+      - flutter/flutter#195424
+      - button "Filter by author yx-wh" [ref=1101]
+      - opened
+      - generic "Oct 27, 2026, 4:39 PM GMT+1"
+        - 20h ago
+      - 4
+    - listitem "Mac framework_tests_impeller is flakey. More information available below." [level=1]
+      - heading [level=3]
+        - link "Mac framework_tests_impeller is flakey" <https://github.com/flutter/flutter/issues/195423> [ref=1848]
+      - button "Filter by label c: flake" [ref=1546]
+      - button "Filter by label P0" [ref=1547]
+      - button "Filter by label team-engine" [ref=1548]
+      - Unread
+      - flutter/flutter#195423
+      - button "Filter by author jtmcdole" [ref=1127]
+      - opened
+      - generic "Oct 27, 2026, 4:03 PM GMT+1"
+        - 20h ago
+      - 4
+      - button "Filter by assignee andywolff" [ref=1138]
+  - navigation "Pagination"
+    - Pagination: Page 1 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=439], Page 2 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=440], Page 3 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=441], Page 4 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4> [ref=442], Page 5 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5> [ref=443], Page 6 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6> [ref=444], Page 7... <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7> [ref=445], Page 40 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40> [ref=447], Next Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=448]

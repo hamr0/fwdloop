@@ -1,0 +1,18 @@
+{
+  "cells": {
+    "priority": "P2",
+    "what_is_broken": "Scaffold.of(context).showBottomSheet crashes with a failed assertion: 'bottomSheetKey.currentState != null': is not true (scaffold.dart line 2366, in ScaffoldState._buildBottomSheet._removeCurrentBottomSheet). Reproduces with high probability when tapping the back arrow at the same time as the 'show bottom sheet' button repeatedly (rapid show/pop interleaving); the failure surfaces via LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop. Labels include 'c: crash' and 'p: material_ui'.",
+    "ticket_number": 100047,
+    "title": "`Scaffold.of(context).showBottomSheet` crashes",
+    "labels": [
+      "c: crash",
+      "p: material_ui",
+      "package",
+      "P2",
+      "team-design",
+      "triaged-design"
+    ],
+    "state": "open",
+    "source": "https://github.com/flutter/flutter/issues/100047"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "label match against the ticket cannot be checked without the sheet; no fixed ticket box can be confirmed",
+    "2": "open date within 7 days cannot be verified from this job's signed inputs"
+  },
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_labels",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and note its labels"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_opened",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and note when it was opened"
+    },
+    {
+      "primitives": [
+        "read",
+        "recall"
+      ],
+      "reads": [
+        "issue",
+        "ticket_labels",
+        "ticket_opened"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "accepted_plan",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "accepted_plan"
+      ],
+      "emits": "written_plan",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

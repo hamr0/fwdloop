@@ -1,0 +1,22 @@
+{
+  "browse_read": {
+    "len": 112,
+    "hasBody1": false,
+    "hasBody2": false,
+    "hasTitle": false
+  },
+  "browse_data": {
+    "len": 16204,
+    "hasBody1": true,
+    "hasBody2": true,
+    "hasTitle": true
+  },
+  "browse_file": "ERROR: Error: Refusing to navigate to \"file:\" URL — local-resource and browser-internal schemes are blocked (reads local files / browser state). Pass { allowLocalUrls: true } to override.",
+  "browse_loopback": "ERROR: Error: Navigation to http://127.0.0.1:1/ failed: net::ERR_UNSAFE_PORT",
+  "goto_readable": {
+    "len": 1135,
+    "hasBody1": false,
+    "hasBody2": false,
+    "hasTitle": true
+  }
+}

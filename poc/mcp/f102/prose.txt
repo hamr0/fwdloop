@@ -1,0 +1,11 @@
+1. read the ticket and say what it is about
+2. write a short first-response note for the maintainer
+   guardrail: under 150 words
+3. ask 30m: check it with me,
+   guardrail: nothing goes out before I accept
+4. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: send at line 4 to file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/f102/out
+guardrail: source issue = ticket:https://github.com/ColinLeeo/tsfile/issues/5

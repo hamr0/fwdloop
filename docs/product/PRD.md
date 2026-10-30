@@ -181,6 +181,100 @@ hamr's design asks to carry into the fresh scope:
 - The job's own guardrails filter which tickets matter, no special words; a non-match ends skipped (grey), never red; a real failure stays red.
 - The queue view could go in Result (needs a mockup first).
 - `~/.mcp.json` is the only MCP config read.
+- Ruled 2026-10-28 (after F93): a ticket's priority starts as its label; the goal is several guardrails that filter tickets from any ticket page or MCP source, label or a "Priority:" line in the text. A skipped ticket's read cost (about $0.003-$0.009, F93) is accepted.
+
+*Update 2026-10-28 (MCP and tickets POCs).* Five more POCs ran on the restart branch; none changes the signed text (M12 is still withdrawn, nothing is signed). What they showed:
+- F92: one ticket address runs end to end on the real path (data-mode read, frozen input, signed, ask, accept, send), 6/6 PASS, $0.02 total.
+- F93: the model reads a ticket's priority label into a typed box (15/15 exact, none = null 5/5, label beats a body line 5/5). Its cost and round-count numbers failed my own registered bars (about $0.003-$0.009 a read).
+- F94: new tickets on a real list page are found by code alone, oldest first, with no false hits and no model ($0). F94b: the flood case (more new tickets than page 1 holds) did not happen, so page-through is INCONCLUSIVE; the "too many new" path was never run.
+- F95: plain-language guardrails read into boxes with an explicit `unsure`, and code decides RUN / SKIP / HITL with bareguard `in`: no wrong skip in 18 calls (Q2), label beats body (Q4), boxes always typed (Q5). Q1 and Q3 FAIL on one ticket (#180865, a fuzzy topic the model called crash-or-hang every time), $0.2192 for 42 calls.
+- F96: the same tickets through the real GitHub MCP server, no model, $0: tools are all read-only, allow mode holds, labels/state/created_at are typed fields, code alone got 12 of 12 priorities, and the list pages by cursor (`after`). `since` filters on last update, so it cannot find new tickets. The flood was not run on MCP either.
+- Ruled by hamr 2026-10-28 (after F97/F98): ticket filters are pure matching, no AI per ticket. Priority and ticket type are labels, found or not; body keywords are words found or not. The drafter may suggest the labels and keyword list at draft time; hamr signs them; code decides at run time.
+- Ruled by hamr 2026-10-28 (option A, F98): a keyword miss is SKIPPED but listed, with the reason and a "Run it anyway" button; never a silent drop. F98 measured a 12-word list missing 1-3 of 12 real crash-labelled tickets.
+- F98 also found: GitHub omits `labels` when a ticket has none (read as "no labels"); flutter has no hang label; bareguard `mustCarry` matches inside words ("hang" in "change") and needs all phrases, not any (upstream ask pending hamr's word).
+
+Research done 2026-10-28 (web, some items unverified):
+- Usual practice is poll + seen-id dedupe, existing items baselined at switch-on, and a non-match is no action and no cost (Zapier filter, n8n drop). Zapier polls page 1 only, so a flood can lose items; page-until-seen or a cursor fixes that.
+- Structured fields come first (Jira recommends field conditions before JQL/regex; gitlab-triage conditions are structured). AI triage products mostly suggest and a human accepts (Linear, GitHub), so AI-into-enum-boxes with code checks is less common.
+- Two patterns adopted for the design: an explicit `unsure` value in every box (unsure goes to a human, never skipped), and skipped tickets kept visible (a skip row).
+
+hamr's rulings 2026-10-28:
+1. A ticket's priority starts as its label, else a "Priority:" line in the text; the label wins (recorded above).
+2. The goal is several plain-language guardrails that filter tickets from any ticket page or MCP source. No new bareguard shapes unless proven.
+3. The cost of reading a skipped ticket is accepted.
+4. Two readers: MCP typed fields when the source has them; barebrowse page plus AI boxes otherwise. Same guardrail, same check.
+5. What cannot be boxed goes to hitl.
+
+- Tried / proven / pending: see docs/logs/FINDINGS.md "Note — MCP + tickets (barebrowse and MCP) — tried, proven, pending (2026-10-28)".
+- Ruled by hamr 2026-10-28: the fresh scope is named M12. The first slice delivers what MCP proved; skipped tickets show in the Results tab (placement detail still needs a mockup before build).
+- Asked of bareguard 2026-10-28: carriesAny (ruling #69, any-of phrases on word edges, which phrase hit in full.matched); F99 pre-registered to validate it (see UPSTREAM-ASKS.md).
+
+*Update 2026-10-29 (M12 design, hamr's rulings, unsigned).* M12 is still unsigned; these go into its draft scope.
+- One run per ticket, like M9's files. Tickets queue in the job's `schedule-ledger.jsonl`: an `arrived` row, a `ran` row, oldest first. A run waiting at its ask does not block the next (M9 am8); waiting runs line up in the Inbox, answered one at a time.
+- A ticket is known by its number. An edit does not run it again, unless a signed guardrail names a field to watch (e.g. "run again if the status changes"); then a changed value makes it arrive again. Unclear = hitl. fwdloop compares old and new itself; bareguard has no such rule and guard agreed (2026-10-29).
+- The address is an ordinary Inputs line (`issues: <list url>`); the Run card's When dropdown gets `When a new ticket arrives in <input name>`. It looks every 15 minutes, fixed, at $0. This replaces the earlier `issue: tickets <list url>` form.
+- Ruled by hamr 2026-10-29: a tool counts as used if a step or the signed schedule uses it. The job lists only the tools its steps use (e.g. `issue_read`); the ticket schedule carries the tool its look uses (`list_issues` on the named server) in `schedule.json`, signed with the schedule's two clicks. A job tool no step uses is refused by name. The run's server starts with only the job's tools; the look's with only the schedule's.
+- Ruled by hamr 2026-10-29: a by-hand Run on a ticket job uses a ticket you pick by number.
+- Ruled by hamr 2026-10-29 (A): the `Run it anyway` reason box copies the rerun box: placeholder "reason (needed to run it anyway)", its button says "Run it anyway", and an empty box says "Please write a reason to run it anyway."; nothing starts.
+- A closed ticket is skipped at $0. The cap has no special rule: each ticket's run has the job's normal cap and asks the human when it runs out; the monthly limit stops a flood.
+- Results: one cumulative ticket list in the Result tab of the run the schedule was set from: grouped Needs you / Stopped / Passed / Skipped, newest first in each group, with filter chips and search. Mockup: docs/product/m12-ticket-results-mock.html (variant E).
+- `Run it anyway` on a skipped ticket asks for a short reason first, like a rerun; without a reason nothing starts. The ticket then queues as a new arrival with the job's normal cap.
+- Later slices, same shape, different reader (each needs its own signed slice; not scheduled): page tickets through barebrowse (F92, F94 proven; labels on a page and the flood still open), and chats through beeperbox (a chat message is one item with an id: seen list, queue, guardrail filter, one run per item, the same Result list).
+
+**Next, not scheduled: one setup for outside sources (MCP dropdown, Schedule from day 1)** (hamr, 2026-10-30, unsigned). Not drafted; it needs its own amendment or module signed by hamr before it is built. Why: the M12 walk proved the engine (reading tickets, skip, queue, watched field, books), but the ticket setup feels like a carve-out from the normal job. hamr wants the experience to match across file, page, MCP and (later) chat and search. hamr's direction, from the 2026-10-30 tickets walk:
+
+1. Inputs stay as today: a free name and a path or address (`report: /path/to/file.csv`, `airbnb: <url>`).
+2. MCP is chosen from a dropdown, not typed. A new Settings tab (next to Providers) lists the servers from `~/.mcp.json`. hamr adds a path there and sees what each server can read (tools and read-only marks). The job card picks a server from a dropdown, in the style of "Run a signed flow". With the dropdown, `mcp:` and `chat:` input keywords are not needed. For now it is vanilla MCP (read-only). Later: from a job's chat, spin off a scoped copy of a server with w/x rights, guided by hints, then carry the same model to chat rwx.
+3. barebrowse is one entry in the same dropdown (it already runs as an MCP server). A site with its own MCP server uses that; a site without one uses barebrowse; search later is barebrowse too. What was found:
+   - F106 (2026-10-30, $0) FAILED on the letter: barebrowse 0.26.0 marked no tool read-only, so M12's rule refuses every barebrowse tool.
+   - At hamr's ask, barebrowse is building 0.27.0 (branch `feat/mcp-tiers-site-lock`). It adds:
+     - hints (annotations) on every tool;
+     - tiers set at start, `BAREBROWSE_TIER=r|rw|rwx`; tools above the tier are not listed and are refused;
+     - a site lock, `BAREBROWSE_ALLOW=host,*.host`, enforced in the browser on every page load, including redirects, clicks, JS jumps and popups;
+     - a bad tier or allow value means the server refuses to start.
+   - F107 (pre-release, $0) passed (a), (b), (d), (e) and (f). (c), the Codeberg body read, failed on the letter: a Chromium page-load timeout that also happens on 0.26.0 and that barebrowse could not reproduce. Firefox read the body with the lock on.
+   - Owed: re-run the checks on the installed 0.27.0 once it is published.
+   - fwdloop would start barebrowse at tier `r`, locked to the job's signed site.
+4. Schedule can be set from day 1, on the job card. It stays off until the job's first green run, then turns itself on. A red run reused redrafts with the same schedule. "Schedule run" stays for a job that had none. No separate When box (that would be scope creep; the trigger is part of Schedule).
+5. One run per ticket. The Result tab stays as for any job. Runs are named by the ticket number.
+6. The by-hand `ticket #` box becomes a backend reach check: a $0 "can I reach it?" read at draft, the same for every source (MCP, browse, chat).
+7. What this would change of signed M12 text: the Inputs form (item 8), the ticket-number ruling (PRD 2026-10-29), the Result ticket list (item 9). The engine stays.
+8. rwx scoping is bound by the server's MCP hints (mcphints). With no hints, w/x can't be decided, so the server stays read-only. Building MCP servers for sites that have none is not pursued: sites rarely publish OpenAPI (rwxmap's experience). barebrowse grading its own tools is the gateway for any site. The w/x split of a hinted server (e.g. GitHub's 19 write tools) waits for the scoped spin-off, and starts as its own POC.
+
+Open points (unsettled):
+
+- Where do a skipped ticket and "Run it anyway" live if the Result list goes?
+- Is a run name the number alone, or number plus title?
+- What does the first run read when there is no ticket box (the newest ticket?)?
+- Loose ends from the M12 walk (unsigned):
+  - `list_issues` is signed only in `schedule.json` (`trigger.tool`), not in the declaration's `mcp.tools`. The M12 Done-when said both are signed. Settle where a trigger's tool is signed.
+  - "Reuse workflow" from a preflight-red run showed **Start drafting** (a paid redraft) instead of **Run now**. Cause not found.
+  - An `unreadable` look (for example pass locked) is recorded only in the schedule ledger. Nothing on screen shows it.
+  - A watched change that arrives while the same ticket is still queued queues a second run. Fixed on this branch (8063c49): a watched change on a ticket still queued queues no second run.
+  - The drafter emitted the ticket filter only for some wordings (`priority P1 only` worked; `only tickets with priority P1 count` did not).
+  - The Audit grid (M4d am36) was copied from bareloop's unreleased branch. It must be re-checked against bareloop's release tag.
+
+**Missing requirements found by /branch-review, to discuss before any fix (hamr, 2026-10-30, unsigned).** These fold into this redesign. None is fixed yet; each is discussed first, then fixed. All are in the fix ledger.
+
+1. Rerun of a ticket run reads the issue as a web page, not through MCP (`src/runner.js`): no label or closed check, and the rerun drops off the Result list. Only the read step was reproduced, not a whole rerun.
+2. Flood: when every seen ticket is closed, older open tickets read as new (`src/trigger-tickets.js`). 100 open, the 10 newest closed, 1 new = 91 queued runs; this clashes with signed M12 item 6.
+3. A failed ledger write after a look exits the whole panel (`src/panel/scheduler.js`).
+4. `unsure` from a label is written to run.json and read nowhere (`src/ticket-labels.js`); signed item 4 says an off-scale label goes to a human.
+5. The MCP server is spawned with the full process env, so provider keys can reach a third-party server (`src/ticket-mcp.js`). UNVERIFIED which servers read them.
+6. Digit-join run-id comparison (`src/panel/tickets.js`): `run-3-rerun-1` reads as 31 and beats `run-25`. UNVERIFIED; masked today because a rerun carries no ticket entry.
+7. No upper bound on a numeric ticket value in the body (`src/ticket-draft.js`). UNVERIFIED; ends as a refused start (the page only sends strings).
+
+Items 1-3 are the ones hamr asked about by name; the item numbers match the review report.
+
+*Update 2026-10-30: this ask was signed by hamr as M4d amendment 36 (2026-10-29) and is built on branch `mcp-tickets` (80676fe, 869a52b); the text below is the original unsigned ask, kept as written. The signed text is in docs/wiki/the-module-ladder.md.*
+
+**Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:
+1. Each part keeps its header and tools line. Under it, a check grid: rows are the part's checks in run order with their plain question; columns are try 1..N (with thinking on/off); cells ✓ ✗ · (not run) ? (no verdict). The grid scrolls inside its own box; no page side-scroll at 390px.
+2. Under the grid, an errors list: one row per try that failed or has no verdict: try N, the first failing check ("+J more checks"), the first error line, "(+M more)". A part with no failure shows no list.
+3. Opening a row (or its ✗ cell) shows the first 8 error lines, then "+M more lines"; several failing checks get a sub-heading each.
+4. A "?" row (provider dropped) is faint and not clickable: "provider dropped (socket hang up), no check ran".
+5. On load, only the last failed try's row is open per part; per-try rounds tables stay, folded under the list.
+It replaces the stacked try blocks per step. fwdloop has no command-exit check, so bareloop's wording fix for that check does not apply here.
 
 **Next after M10, not scheduled: chained workflows** (hamr, 2026-10-20, unsigned). Not drafted; it needs its own module with a signed scope, exit and negative scenario before it is built. Details are settled later. hamr's goal: automate a job as small pieces, like Lego. Each piece is its own workflow with its own asks; when one ends well it starts the next, so small proven pieces join into the whole job. hamr's answers so far (2026-10-20, unsigned):
 1. Two ways to link: a trigger joins two workflows; a chain tab joins several, picking one workflow's output as the next one's input.

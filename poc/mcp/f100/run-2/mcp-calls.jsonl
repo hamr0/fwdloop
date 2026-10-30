@@ -1,0 +1,2 @@
+{"exposed":["github_issue_read"],"missing":[]}
+{"call":"issue_read","owner":"flutter","repo":"flutter","issue_number":100047}

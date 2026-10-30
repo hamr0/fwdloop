@@ -1,0 +1,164 @@
+url: https://github.com/flutter/flutter/issues/195415
+93,534 chars → 19,321 chars (79% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=304]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=307]
+      - link "Issues (5k+)" [ref=308]
+      - link "Pull requests (730)" [ref=309]
+      - Repository: Actions [ref=310], Projects [ref=311], Wiki [ref=312]
+      - button "More items" [expanded=false] [ref=249]
+  - region "Header"
+    - heading "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag #195415" [level=1]
+    - link "New issue" [ref=420]
+    - button "Copy link" [ref=421]
+  - Open
+  - heading "Description" [level=2]
+  - link "@Pancf's profile" [ref=481]
+  - link "Pancf" [ref=436]
+  - opened
+  - link "20h ago" [ref=484]
+  - button "Issue body actions" [expanded=false] [ref=442]
+  - heading "Steps to reproduce" [level=3]
+  - Run the code sample on a device that supports two simultaneous touch contacts.
+  - Put finger 1 down inside the blue area and keep it pressed.
+  - Put finger 2 down inside the same area before moving either finger. Keep finger 2 stationary.
+  - listitem [level=1]
+    - Move finger 1 horizontally until the drag threshold is exceeded and
+    - code
+      - drag START
+    - is emitted.
+  - Continue moving finger 1 while keeping finger 2 stationary.
+  - Move finger 2, then lift finger 2 and move finger 1 again.
+  - The sample explicitly configures
+  - code
+    - MultitouchDragStrategy.latestPointer
+  - . A competing tap recognizer keeps the gesture arena contested so that the drag is accepted after movement exceeds the threshold, rather than immediately after pointer down.
+  - heading "Expected results" [level=3]
+  - The finger whose movement starts the drag should continue to produce drag updates while it remains down, without requiring the user to move a different, stationary finger.
+  - This is a proposed interaction expectation, rather than a claim that the implementation contradicts the existing API documentation. Please clarify whether this pre-acceptance multi-pointer handoff is intentional. If it is intentional, documenting this specific case would help explain the otherwise surprising loss of updates.
+  - heading "Actual results" [level=3]
+  - Finger 1 starts the drag, but its subsequent movement does not produce
+  - code
+    - onUpdate
+  - callbacks while finger 2 remains down. Moving finger 2 produces updates. After finger 2 is lifted, finger 1 can drive updates again.
+  - As a result, the drag appears to stop responding immediately after it starts, even though the finger that initiated the drag is still moving.
+  - The
+  - link "API documentation" [ref=694]
+  - defines
+  - code
+    - latestPointer
+  - in terms of the latest active pointer accepted by the recognizer. The current implementation explains the handoff:
+  - listitem [level=1]
+    - Crossing the threshold calls
+    - code
+      - resolve(GestureDisposition.accepted)
+    - for the recognizer's pending pointers.
+  - listitem [level=1]
+    - code
+      - acceptGesture(pointer)
+    - assigns
+    - code
+      - _activePointer = pointer
+    - on each acceptance.
+  - When pointer 1 and then pointer 2 are accepted, pointer 2 becomes active even though it has not moved.
+  - listitem [level=1]
+    - Subsequent move events from pointer 1 are excluded from drag updates by
+    - code
+      - _shouldTrackMoveEvent
+  - Relevant source at the local checkout revision:
+  - link "Threshold acceptance and active pointer selection" [ref=873]
+  - link "Move event filtering" [ref=875]
+  - heading "Code sample" [level=3]
+  - DisclosureTriangle "Code sample" [expanded=true]
+    - Code sample
+  - import 'package:flutter/gestures.dart' import 'package:flutter/material.dart' void main runApp const MaterialApp (home DragDemo class DragDemo extends StatefulWidget const DragDemo super .key}); @override State DragDemo createState _DragDemoState class _DragDemoState extends State DragDemo final List String > _logs String int _sequence 0 double _distance 0 void _log String message) { final line _sequence message debugPrint (line); setState (() { _logs. insert 0 , line); if (_logs.length 60 ) { _logs. removeLast @override Widget build BuildContext context) { return Scaffold ( appBar AppBar (title const Text 'latestPointer reproduction' )), body SafeArea ( child Column ( crossAxisAlignment CrossAxisAlignment .stretch, children Widget const Padding ( padding EdgeInsets all 16 ), child Text 'Use two fingers on a touch screen. \n '1. Hold finger 1, then hold finger 2. \n '2. Keep finger 2 still; drag finger 1 horizontally. \n '3. After START, keep moving finger 1: no UPDATE. \n '4. Move finger 2: UPDATE resumes. \n '5. Lift finger 2; finger 1 can drive UPDATE again.' RawGestureDetector ( behavior HitTestBehavior .opaque, gestures Type GestureRecognizerFactory LoggingDragRecognizer GestureRecognizerFactoryWithHandlers LoggingDragRecognizer LoggingDragRecognizer (_log), ( LoggingDragRecognizer instance) { instance ..multitouchDragStrategy MultitouchDragStrategy .latestPointer ..onDown DragDownDetails details) { _log 'drag DOWN' ); } ..onStart DragStartDetails details) { _log 'drag START' ); } ..onUpdate DragUpdateDetails details) { _distance details.delta.dx; _log 'drag UPDATE from p${ instance eventPointer 'dx=${ details delta dx toStringAsFixed 1 , ); } ..onEnd DragEndDetails details) { _log 'drag END' ); } ..onCancel _log 'drag CANCEL' // Keep the arena contested until movement exceeds drag slop. // A lone drag recognizer can win immediately after pointer down. TapGestureRecognizer GestureRecognizerFactoryWithHandlers TapGestureRecognizer TapGestureRecognizer new TapGestureRecognizer instance) { instance.onTap _log 'TAP' ); }, ), }, child Listener ( behavior HitTestBehavior .opaque, onPointerDown PointerDownEvent event) _log 'raw DOWN p${ event pointer ), onPointerMove PointerMoveEvent event) _log 'raw MOVE p${ event pointer }: dx=${ event delta dx toStringAsFixed 1 , ), onPointerUp PointerUpEvent event) _log 'raw UP p${ event pointer ), onPointerCancel PointerCancelEvent event) _log 'raw CANCEL p${ event pointer ), child Container ( height 180 , color Colors .lightBlue.shade100, alignment Alignment .center, child Text 'Drag here \n Total dx: ${ _distance toStringAsFixed 1 const Padding ( padding EdgeInsets all 8 ), child Text 'Logs (newest first; also printed to console)' Expanded ( child ListView builder ( padding const EdgeInsets symmetric (horizontal 12 ), itemCount _logs.length, itemBuilder BuildContext context, int index) Text (_logs[index]), ), ), ], ), ), ); } } class LoggingDragRecognizer extends HorizontalDragGestureRecognizer LoggingDragRecognizer this .log); final ValueChanged String > log; int eventPointer; @override void handleEvent PointerEvent event) { eventPointer event.pointer; super handleEvent (event); eventPointer null @override void acceptGesture int pointer) { log 'acceptGesture(p$ pointer ) ENTER' super acceptGesture (pointer); log 'acceptGesture(p$ pointer ) EXIT'
+  - button "Copy code to clipboard" [ref=1557]
+  - heading "Screenshots or Video" [level=3]
+  - DisclosureTriangle "Screenshots / Video demonstration" [expanded=true]
+    - Screenshots / Video demonstration
+  - [Upload media here]
+  - heading "Logs" [level=3]
+  - DisclosureTriangle "Logs" [expanded=true]
+    - Logs
+  - flutter: 156: raw DOWN p5 flutter: 157: drag DOWN flutter: 158: raw DOWN p6 flutter: 159: raw MOVE p5: dx=0.0 flutter: 160: raw MOVE p5: dx=0.7 flutter: 161: raw MOVE p5: dx=-0.3 flutter: 162: raw MOVE p5: dx=-0.3 flutter: 163: raw MOVE p5: dx=0.0 flutter: 164: raw MOVE p5: dx=-0.7 flutter: 165: raw MOVE p5: dx=-1.0 flutter: 166: raw MOVE p5: dx=-1.7 flutter: 167: raw MOVE p5: dx=-1.0 flutter: 168: raw MOVE p5: dx=-1.0 flutter: 169: raw MOVE p5: dx=-1.3 flutter: 170: raw MOVE p5: dx=-1.0 flutter: 171: raw MOVE p5: dx=-1.0 flutter: 172: raw MOVE p5: dx=-1.3 flutter: 173: raw MOVE p5: dx=-1.3 flutter: 174: raw MOVE p5: dx=-1.3 flutter: 175: raw MOVE p5: dx=-1.3 flutter: 176: raw MOVE p5: dx=-1.3 flutter: 177: raw MOVE p5: dx=-1.0 flutter: 178: raw MOVE p5: dx=-1.3 flutter: 179: acceptGesture(p5) ENTER flutter: 180: drag START flutter: 181: acceptGesture(p6) ENTER flutter: 182: acceptGesture(p6) EXIT flutter: 183: acceptGesture(p5) EXIT flutter: 184: raw MOVE p5: dx=-1.3 flutter: 185: raw MOVE p5: dx=-34.3 flutter: 186: raw MOVE p5: dx=0.0 flutter: 187: raw MOVE p5: dx=0.3 flutter: 188: raw MOVE p5: dx=0.3 flutter: 189: raw MOVE p5: dx=0.3 flutter: 190: raw MOVE p5: dx=0.3 flutter: 191: raw MOVE p6: dx=-1.3 flutter: 192: drag UPDATE from p6: dx=-1.3 flutter: 193: raw MOVE p6: dx=-4.3 flutter: 194: drag UPDATE from p6: dx=-4.3 flutter: 195: raw MOVE p6: dx=-1.7 flutter: 196: drag UPDATE from p6: dx=-1.7 flutter: 197: raw MOVE p6: dx=-2.3 flutter: 198: drag UPDATE from p6: dx=-2.3 flutter: 199: raw MOVE p6: dx=-2.3 flutter: 200: drag UPDATE from p6: dx=-2.3 flutter: 201: raw MOVE p5: dx=0.0 flutter: 202: raw MOVE p6: dx=-1.0 flutter: 203: drag UPDATE from p6: dx=-1.0 flutter: 204: raw MOVE p6: dx=-0.7 flutter: 205: drag UPDATE from p6: dx=-0.7 flutter: 206: raw MOVE p6: dx=-1.0 flutter: 207: drag UPDATE from p6: dx=-1.0 flutter: 208: raw MOVE p6: dx=-1.0 flutter: 209: drag UPDATE from p6: dx=-1.0 flutter: 210: raw MOVE p6: dx=-0.3 flutter: 211: drag UPDATE from p6: dx=-0.3 flutter: 212: raw MOVE p6: dx=-1.0 flutter: 213: drag UPDATE from p6: dx=-1.0 flutter: 214: raw MOVE p6: dx=-0.7 flutter: 215: drag UPDATE from p6: dx=-0.7 flutter: 216: raw MOVE p6: dx=-0.7 flutter: 217: drag UPDATE from p6: dx=-0.7 flutter: 218: raw MOVE p5: dx=0.3 flutter: 219: raw MOVE p6: dx=-0.7 flutter: 220: drag UPDATE from p6: dx=-0.7 flutter: 221: raw MOVE p6: dx=-0.7 flutter: 222: drag UPDATE from p6: dx=-0.7 flutter: 223: raw MOVE p6: dx=-0.3 flutter: 224: drag UPDATE from p6: dx=-0.3 flutter: 225: raw MOVE p6: dx=-0.7 flutter: 226: drag UPDATE from p6: dx=-0.7 flutter: 227: raw MOVE p6: dx=-0.3 flutter: 228: drag UPDATE from p6: dx=-0.3 flutter: 229: raw MOVE p6: dx=-0.3 flutter: 230: drag UPDATE from p6: dx=-0.3 flutter: 231: raw MOVE p6: dx=-0.3 flutter: 232: drag UPDATE from p6: dx=-0.3 flutter: 233: raw MOVE p6: dx=-0.3 flutter: 234: drag UPDATE from p6: dx=-0.3 flutter: 235: raw MOVE p6: dx=-0.3 flutter: 236: drag UPDATE from p6: dx=-0.3 flutter: 237: raw MOVE p6: dx=-0.3 flutter: 238: drag UPDATE from p6: dx=-0.3 flutter: 239: raw MOVE p6: dx=-0.3 flutter: 240: drag UPDATE from p6: dx=-0.3 flutter: 241: raw MOVE p6: dx=0.0 flutter: 242: drag UPDATE from p6: dx=0.0 flutter: 243: raw MOVE p6: dx=0.0 flutter: 244: drag UPDATE from p6: dx=0.0 flutter: 245: raw MOVE p5: dx=0.3 flutter: 246: raw MOVE p6: dx=1.7 flutter: 247: drag UPDATE from p6: dx=1.7 flutter: 248: raw UP p6 flutter: 249: raw MOVE p5: dx=0.3 flutter: 250: drag UPDATE from p5: dx=0.3 flutter: 251: raw MOVE p5: dx=0.0 flutter: 252: drag UPDATE from p5: dx=0.0 flutter: 253: raw MOVE p5: dx=0.3 flutter: 254: drag UPDATE from p5: dx=0.3 flutter: 255: raw MOVE p5: dx=0.3 flutter: 256: drag UPDATE from p5: dx=0.3 flutter: 257: raw MOVE p5: dx=0.3 flutter: 258: drag UPDATE from p5: dx=0.3 flutter: 259: raw MOVE p5: dx=1.0 flutter: 260: drag UPDATE from p5: dx=1.0 flutter: 261: raw MOVE p5: dx=2.7 flutter: 262: drag UPDATE from p5: dx=2.7 flutter: 263: raw MOVE p5: dx=3.7 flutter: 264: drag UPDATE from p5: dx=3.7 flutter: 265: raw MOVE p5: dx=3.7 flutter: 266: drag UPDATE from p5: dx=3.7 flutter: 267: raw MOVE p5: dx=1.0 flutter: 268: drag UPDATE from p5: dx=1.0 flutter: 269: raw MOVE p5: dx=1.7 flutter: 270: drag UPDATE from p5: dx=1.7 flutter: 271: raw MOVE p5: dx=1.3 flutter: 272: drag UPDATE from p5: dx=1.3 flutter: 273: raw MOVE p5: dx=1.3 flutter: 274: drag UPDATE from p5: dx=1.3 flutter: 275: raw MOVE p5: dx=1.7 flutter: 276: drag UPDATE from p5: dx=1.7 flutter: 277: raw MOVE p5: dx=1.3 flutter: 278: drag UPDATE from p5: dx=1.3 flutter: 279: raw MOVE p5: dx=1.0 flutter: 280: drag UPDATE from p5: dx=1.0 flutter: 281: raw MOVE p5: dx=1.7 flutter: 282: drag UPDATE from p5: dx=1.7 flutter: 283: raw MOVE p5: dx=1.3 flutter: 284: drag UPDATE from p5: dx=1.3 flutter: 285: raw MOVE p5: dx=1.0 flutter: 286: drag UPDATE from p5: dx=1.0 flutter: 287: raw MOVE p5: dx=1.3 flutter: 288: drag UPDATE from p5: dx=1.3 flutter: 289: raw MOVE p5: dx=0.7 flutter: 290: drag UPDATE from p5: dx=0.7 flutter: 291: raw MOVE p5: dx=0.7 flutter: 292: drag UPDATE from p5: dx=0.7 flutter: 293: raw MOVE p5: dx=0.3 flutter: 294: drag UPDATE from p5: dx=0.3 flutter: 295: raw MOVE p5: dx=0.7 flutter: 296: drag UPDATE from p5: dx=0.7 flutter: 297: raw MOVE p5: dx=0.3 flutter: 298: drag UPDATE from p5: dx=0.3 flutter: 299: raw MOVE p5: dx=-0.7 flutter: 300: drag UPDATE from p5: dx=-0.7 flutter: 301: raw MOVE p5: dx=-1.0 flutter: 302: drag UPDATE from p5: dx=-1.0 flutter: 303: raw MOVE p5: dx=-1.3 flutter: 304: drag UPDATE from p5: dx=-1.3 flutter: 305: raw MOVE p5: dx=-0.7 flutter: 306: drag UPDATE from p5: dx=-0.7 flutter: 307: raw MOVE p5: dx=-2.0 flutter: 308: drag UPDATE from p5: dx=-2.0 flutter: 309: raw UP p5 flutter: 310: drag END
+  - button "Copy code to clipboard" [ref=1870]
+  - heading "Flutter Doctor output" [level=3]
+  - DisclosureTriangle "Doctor output" [expanded=true]
+    - Doctor output
+  - [✓] Flutter (Channel master, 3.50.0-0.2.pre, on macOS 27.2 26B5091g darwin-arm64, locale en-US) [1,795ms] • Flutter version 3.50.0-0.2.pre on channel master at /Users/focus/opensource/flutter • Upstream repository https://github.com/flutter/flutter.git • Framework revision 6be76865c4 (4 months ago), 2026-07-01 07:19:28 -0700 • Engine revision 880b9c5a77 • Dart version 3.13.0 (build 3.13.0-259.0.dev) • DevTools version 2.59.0 • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration, enable-riscv64 [✗] Android toolchain - develop for Android devices [68ms] ✗ Unable to locate Android SDK. Install Android Studio from: https://developer.android.com/studio/index.html On first launch it will assist you in installing the Android SDK components. (or visit https://flutter.dev/to/macos-android-setup for detailed instructions). If the Android SDK has been installed to a custom location, please use `flutter config --android-sdk` to update to that location. [!] Xcode - develop for iOS and macOS (Xcode 27.0) [178ms] • Xcode at /Applications/Xcode-beta.app/Contents/Developer • Build 27A5228h ! CocoaPods not installed. CocoaPods is a package manager for iOS or macOS platform code. Without CocoaPods, plugins will not work on iOS or macOS. For more info, see https://flutter.dev/to/platform-plugins For installation instructions, see https://guides.cocoapods.org/using/getting-started.html#installation [✓] Chrome - develop for the web [3ms] • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome [!] Proxy Configuration [2ms] • HTTP_PROXY is set ! NO_PROXY is not set [✓] Connected device (5 available) [5.7s] • focus-iPhone17 (mobile) • 00008150-00164D601E20401C • ios • iOS 26.6.2 23G90 • focus-iPad-mini (wireless) (mobile) • 00008130-001E588C3E20001C • ios • iOS 26.5 23F77 • iPhone 17 Pro (mobile) • E5004D6B-0B8B-4DC3-80B1-B1F01C20CD0C • ios • com.apple.CoreSimulator.SimRuntime.iOS-27-0 (simulator) • macOS (desktop) • macos • darwin-arm64 • macOS 27.2 26B5091g darwin-arm64 • Chrome (web) • chrome • web-javascript • Google Chrome 156.0.8078.48 [✓] Network resources [1,325ms] • All expected network resources are available. ! Doctor found issues in 3 categories.
+  - button "Copy code to clipboard" [ref=1946]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - heading "mbcoronacommented14 hours ago" [level=3]
+      - link "@mbcorona's profile" [ref=728]
+      - link "mbcorona" [ref=569]
+      - link "14h ago" [ref=730]
+      - generic "This user is a member of the flutter organization."
+        - Member
+      - button "Actions for mbcorona's comment, 6:18 PM yesterday" [expanded=false] [ref=577]
+      - Hi
+      - link "@Pancf" [ref=733]
+      - , thanks for the report.
+      - AcceptGesture makes each accepted pointer active, and the latestPointer move filter then tracks only that pointer, so the later stationary finger takes over.
+      - link "flutter/packages/flutter/lib/src/gestures/monodrag.dart" [ref=736]
+      - Lines 738 to 741 in
+      - link "e599747" [ref=738]
+      - table
+        - row: 738 · void acceptGesture(int pointer) {
+        - row: 739 · assert(!_acceptedActivePointers.contains(pointer));
+        - row: 740 · _acceptedActivePointers.add(pointer);
+        - row: 741 · _activePointer = pointer;
+      - link "flutter/packages/flutter/lib/src/gestures/monodrag.dart" [ref=744]
+      - Lines 456 to 457 in
+      - link "e599747" [ref=746]
+      - LayoutTableCell "456"
+      - LayoutTableCell "case MultitouchDragStrategy.latestPointer:"
+      - LayoutTableCell "457"
+      - LayoutTableCell "result = _activePointer == null || pointer == _activePointer;"
+      - The open question is whether latestPointer should hand control to a pointer that never moved.
+      - Routing to team-framework.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - mbcorona [ref=934] · added: framework flutter/packages/flutter repository. See also f: labels. [ref=936], f: gestures flutter/packages/flutter/gestures repository. [ref=939], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=942], team-framework Owned by Framework team [ref=945]
+      - link "14h ago" [ref=758]
+    - listitem [level=1]
+      - link "justinmc" [ref=949]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=951]
+      - link "triaged-framework Triaged by Framework team" [ref=954]
+      - link "10h ago" [ref=763]
+    - listitem [level=1]
+      - link "justinmc" [ref=958]
+      - assigned
+      - link "Renzo-Olivares" [ref=960]
+      - link "10h ago" [ref=767]
+  - link "Sign up for free" [ref=451]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=454]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - link "Renzo-Olivares" [ref=963]
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=771], f: gestures flutter/packages/flutter/gestures repository. [ref=774], framework flutter/packages/flutter repository. See also f: labels. [ref=777], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=780], team-framework Owned by Framework team [ref=783], triaged-framework Triaged by Framework team [ref=786]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @justinmc [ref=665], @Renzo-Olivares [ref=666], @Pancf [ref=667], @mbcorona [ref=668]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=806]

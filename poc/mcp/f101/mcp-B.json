@@ -1,0 +1,1 @@
+{"mcpServers":{"github":{"command":"sh","args":["-c","export HOME=/home/hamr; GITHUB_PERSONAL_ACCESS_TOKEN=\"$(pass fwdloop/gh_token | head -n1 | tr -d '\\r\\n')\" exec docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN -e GITHUB_READ_ONLY=1 -e GITHUB_TOOLSETS=repos ghcr.io/github/github-mcp-server"]}}}

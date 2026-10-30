@@ -53,7 +53,7 @@
      always-scrolling wrapper makes the header genuinely sticky on both
      breakpoints, and also owns the horizontal scroll for the Path column
      on narrow (390px) screens instead of leaving it to .pane-body. */
-  .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);}
+  .audit-table-scroll{overflow:auto;max-height:min(60vh,520px);max-width:100%;}
   [data-testid="audit-table"] td.am, .audit-group table td.am{display:none;}
   /* z-index keeps rows from showing through the solid th background as
      they scroll under it. */
@@ -128,6 +128,8 @@
   .topbar .tagline::before{content:"· ";color:var(--text-faint);}
   @media (max-width: 600px){ .topbar .tagline{display:none;} }
   .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #online-dot{font-size:12px;white-space:nowrap;flex:none;}
+  #online-dot.on{color:var(--green);} #online-dot.off{color:var(--red);}
 
   [hidden]{display:none !important;}
   .main{display:flex;flex:1;min-height:0;}
@@ -167,6 +169,8 @@
   .dot.stuck::before{content:"[II]";color:var(--amber);}
   /* M4e amendment 4: stopped — by you, or at the money cap; Resume goes on. Grey like the other quiet end, never the red [✗]. */
   .dot.stopped::before{content:"[■]";color:var(--grey-dot);}
+  /* M12 p3: a skipped run (a ticket the signed labels do not match) wears [–], the sign the ticket list draws, grey like the other quiet end. */
+  .dot.skipped::before{content:"[–]";color:var(--grey-dot);}
   /* the Run tab's top action row (Stop, Resume) */
   .run-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;}
   .run-actions .answer-msg{margin-top:0;flex:1 1 100%;}
@@ -315,7 +319,7 @@
   .ended-block.red{border-color:var(--red);}
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
   .ended-block.green{border-color:var(--green);}
-  .ended-block.grey,.ended-block.stopped{border-color:var(--grey-dot);}
+  .ended-block.grey,.ended-block.stopped,.ended-block.skipped{border-color:var(--grey-dot);}
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
@@ -332,7 +336,7 @@
   .summary-box{position:relative;border:1px solid var(--border-strong);padding:16px 12px 12px;margin-top:16px;background:var(--panel2);font-size:12px;}
   .summary-box.red{border-color:var(--red);}
   .summary-box.green{border-color:var(--green);}
-  .summary-box.grey,.summary-box.stopped{border-color:var(--grey-dot);}
+  .summary-box.grey,.summary-box.stopped,.summary-box.skipped{border-color:var(--grey-dot);}
   .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
   .summary-box.magenta{border-color:var(--magenta);}
   .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
@@ -474,15 +478,66 @@
   .audit-fold-who.model{color:var(--cyan);} .audit-fold-who.human{color:var(--magenta,#9854f1);}
   .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
   .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
-  .audit-checks{margin:2px 0 6px 14px;}
-  .audit-chk{overflow-wrap:anywhere;}
-  .audit-chk > span{margin-right:6px;}
-  .audit-chk .src,.audit-judged{color:var(--text-faint);}
+  .audit-judged{color:var(--text-faint);}
   .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
   .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
   .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
   .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
   .rounds-pager{color:var(--text-faint);font-size:11px;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  /* the Audit check grid (PRD: bareloop variant F), its errors list and the rounds folded per try.
+     borrowed-from: bareloop src/panel/index.html@c79d396 (the .grid/.cell/.fx-*/.rounds-fold rules); the pass/fail glyph colours are fwdloop's own `.mark` */
+  .glyph-q{color:var(--magenta);} .glyph-nr{color:var(--text-faint);}
+  .rounds-fold{margin:4px 0 6px 12px;font-size:12px;}
+  .rounds-fold>summary{cursor:pointer;color:var(--text-dim);min-height:28px;overflow-wrap:anywhere;}
+  .rounds-fold .rf-body{margin-top:4px;padding-left:8px;border-left:2px solid var(--border-strong);}
+  .grid-wrap{overflow:auto;max-width:100%;}
+  table.grid{width:100%;min-width:0;}
+  table.grid th.q,table.grid td.q{min-width:170px;max-width:340px;white-space:normal;overflow-wrap:anywhere;font-size:12px;}
+  table.grid th.t,table.grid td.c{text-align:center;width:64px;min-width:56px;white-space:nowrap;}
+  table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0;}
+  table.grid td.c{padding:2px;}
+  .cell{border:1px solid transparent;background:none;min-width:44px;min-height:32px;color:var(--text-faint);font-size:14px;font-weight:700;}
+  .cell.fail{color:var(--red);border-color:var(--border-strong);background:var(--red-bg);}
+  .cell.pass{color:var(--green);cursor:default;}
+  .cell.notrun{color:var(--text-faint);cursor:default;}
+  .cell.unk{color:var(--magenta);cursor:default;}
+  .fold-list{margin-top:10px;}
+  .fgrid .cell.fail[aria-expanded="true"]{outline:2px solid var(--red);outline-offset:1px;}
+  .fx-errors{margin:8px 0 4px;min-width:0;}
+  .fx-label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
+  .fx-row{min-width:0;}
+  .fx-rowhead{display:flex;align-items:baseline;gap:8px;width:100%;min-width:0;min-height:32px;padding:3px 4px;border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;}
+  button.fx-rowhead{cursor:pointer;}
+  button.fx-rowhead:hover{background:var(--panel2);}
+  button.fx-rowhead:focus-visible,.fx-more:focus-visible,.cell.fail:focus-visible{outline:2px solid var(--red);outline-offset:1px;}
+  .fx-caret{flex:none;width:12px;color:var(--text-faint);}
+  .fx-try{flex:none;font-weight:700;}
+  .fx-chk{flex:none;white-space:nowrap;}
+  .fx-first{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);}
+  .fx-faint,.fx-count{color:var(--text-faint);}
+  .fx-count{flex:none;white-space:nowrap;}
+  .fx-row.open>.fx-rowhead{background:var(--red-bg);}
+  .fx-body{margin:0 0 6px 20px;border-left:2px solid var(--red);padding:4px 10px;background:var(--red-bg);min-width:0;}
+  .fx-sub{font-size:12px;color:var(--text);font-weight:700;margin:6px 0 2px;overflow-wrap:anywhere;}
+  .fx-lines{font-size:12px;color:var(--text-dim);}
+  .fx-lines div{margin:1px 0;overflow-wrap:anywhere;}
+  .fx-judged{overflow-wrap:anywhere;}
+  .fx-more{margin-top:4px;min-height:28px;padding:2px 8px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);font-size:12px;}
+  /* M4d am36: the hints row and its text, the folded every-step row (mock: fwd-audit-grid-mock.html, variant A) */
+  .btn.hints[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn.hints:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .cell.none{color:var(--text-faint);cursor:default;font-weight:400;}
+  tr.hint-row td{color:var(--text-faint);}
+  .fx-row.hintrow.open>.fx-rowhead{background:var(--panel2);}
+  .fx-row.hintrow .fx-body{border-left-color:var(--accent);background:var(--panel2);}
+  .fx-row.hintrow .fx-try{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+  .fx-lines div.ind{margin-left:16px;}
+  button.q-fold{border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;padding:0;min-height:32px;width:100%;overflow-wrap:anywhere;cursor:pointer;}
+  button.q-fold::before{content:"\25B8  ";color:var(--text-faint);white-space:pre;}
+  button.q-fold[aria-expanded="true"]::before{content:"\25BE  ";}
+  tr.step-sub td{background:var(--panel2);font-size:12px;color:var(--text-dim);padding:4px 8px;}
+  .sub-line{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+  .sub-line .marks{margin-left:auto;white-space:nowrap;}
   .step-card .step-head .who{font-weight:700;font-size:11px;}
   .step-card .step-head .who.model{color:var(--cyan);} .step-card .step-head .who.human{color:var(--magenta,#9854f1);}
   /* hamr's 2026-09-27 review: the group header's own state word (g.state,
@@ -516,6 +571,23 @@
   #result-body details>summary{cursor:pointer;color:var(--text-dim);min-height:28px;}
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
   /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
+  /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
+  .tk-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
+  .tk-fold:hover{color:var(--accent);}
+  .tk-fold:focus-visible,.tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0;}
+  .tk:last-child{border-bottom:0;}
+  .tk-1{display:flex;gap:6px;align-items:baseline;min-width:0;}
+  .tk-n{color:var(--accent);font-weight:700;flex:none;}
+  .tk-t{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere;}
+  .tk-when{color:var(--text-faint);font-size:12px;flex:none;}
+  .tk-2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;}
+  .tk-state.green{color:var(--green);} .tk-state.red{color:var(--red);} .tk-state.amber{color:var(--amber);} .tk-state.grey{color:var(--text-faint);}
+  .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
+  .tk-chg{font-size:12px;color:var(--amber);}
+  .tk-anyway{margin-top:6px;}
+  .tk-anyway textarea{width:100%;min-height:52px;margin:4px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;font-size:16px;padding:6px;box-sizing:border-box;}
+  .tk-msg{font-size:12px;overflow-wrap:anywhere;}
   #result-door-card{border-color:var(--amber);}
   #result-door-card .st-word{color:var(--amber);}
   #result-door-card textarea{width:100%;min-height:60px;margin:6px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;padding:6px;box-sizing:border-box;}
@@ -656,6 +728,7 @@
   #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
   .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
+  .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
   /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
@@ -760,6 +833,13 @@
     .audit-group table.rounds-table tbody{display:table-row-group;}
     .audit-group table.rounds-table tr{display:table-row;padding:0;overflow:visible;}
     .audit-group table.rounds-table td{display:table-cell;padding:4px 6px;white-space:normal;overflow-wrap:anywhere;border-right:1px dotted var(--border);}
+    /* the check grid keeps its real table layout on a phone and scrolls inside its own box (.grid-wrap), never the page */
+    .audit-group table.grid{display:table;width:100%;max-width:none;}
+    .audit-group table.grid thead{position:static;width:auto;height:auto;overflow:visible;clip:auto;white-space:normal;}
+    .audit-group table.grid tbody{display:table-row-group;}
+    .audit-group table.grid tr{display:table-row;padding:0;overflow:visible;}
+    .audit-group table.grid td{display:table-cell;white-space:normal;border-right:1px dotted var(--border);}
+    .audit-group table.grid td.c{white-space:nowrap;padding:2px;}
     /* M8 item 6: a hint's table fits the box and wraps (as bareloop's does at 320), it does not scroll sideways */
     .audit-part table.learn-hint{display:table;width:100%;min-width:0;max-width:100%;}
     .audit-part table.learn-hint tbody{display:table-row-group;}
@@ -824,7 +904,10 @@
   .pv-knote > .hint:empty{display:none;}
   .pv-key[data-open="0"] .pv-models{display:none;}
   .pv-mrow{border-top:1px dotted var(--border-strong);min-height:32px;}
-  .pv-mrow:hover,.pv-mrow:focus-within{background:var(--panel2);}
+  /* borrowed-from: bareloop src/panel/index.html@357a482 (hamr: same exact change) — a clicked model row turns blue; tabindex -1 on the row makes a click on its name focusable */
+  .pv-mrow:hover{background:var(--panel2);}
+  .pv-mrow:focus-within,.pv-mrow:focus-within:hover{background:var(--rl-accent-bg-strong);box-shadow:inset 0 0 0 2px var(--accent);}
+  .pv-mrow:focus{outline:none;}
   .pv-um{grid-column:1;display:flex;align-items:center;gap:0;min-width:0;}
   .pv-uh,.pv-m-use{flex:0 0 44px;width:44px;display:flex;align-items:center;justify-content:center;}
   .pv-m-use{min-height:32px;}
@@ -890,6 +973,7 @@
     </div>
     <div class="topbar-right">
       <span class="hint" id="host-line"></span>
+      <span id="online-dot" class="on" data-testid="online-dot" role="status">&#9679; online</span>
       <button class="btn small" id="settings-open" type="button" data-testid="settings-open">&#9881; Settings</button>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light/dark theme">&#9789;</button>
     </div>
@@ -1087,6 +1171,7 @@
                   <option value="weekly">Every &lt;day&gt; at HH:MM</option>
                   <option value="file-updated">When &lt;file&gt; is updated</option>
                   <option value="new-file">When a new file arrives in &lt;folder&gt;</option>
+                  <option value="new-ticket">When a new ticket arrives in &lt;input name&gt;</option>
                 </select>
                 <div class="when-sub" id="jf-when-clock" hidden>
                   <select id="jf-when-day" data-testid="jf-when-day" aria-label="Day of the week">
@@ -1175,6 +1260,8 @@
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
+          <!-- M12 piece 3: a green ticket job takes its ticket number here, beside Sign & run (the Run card's ticket # box, same class) -->
+          <input type="text" class="jf-ticket" id="chat-sign-ticket" data-testid="jf-sign-ticket" inputmode="numeric" placeholder="ticket #" aria-label="Ticket number to run" autocomplete="off" spellcheck="false" hidden>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
           <!-- M4e amendment 14 item 2: on a green plan, Revise opens every card field (the main button then reads Draft) -->
@@ -1717,6 +1804,7 @@
     if(g === "[!]") return "expired";
     if(g === "[II]") return "stuck";
     if(g === "[■]") return "stopped";
+    if(g === "[–]") return "skipped";
     return "grey"; // "[·]" — waiting on a human, or answered-not-resumed
   }
 
@@ -2551,6 +2639,89 @@
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
+  // ---- M12 piece 3: the ticket list (item 9, mockup E). The server decides every group, row, reason and sentence (src/panel/tickets.js); this only draws,
+  // filters by the chips and the search, and posts "Run it anyway" with its reason. The filter bar is the panel's own markup (.filterbar, .search-input, .chips, .chip.fchip).
+  var ticketUi = { chips: {}, q: "", open: {}, anyway: null, msg: "" };
+  var TICKET_STATE = { "[✓]": ["green", "passed"], "[–]": ["grey", "skipped"], "[✗]": ["red", "stopped"], "[■]": ["red", "stopped"], "[?]": ["red", "stopped"], "[·]": ["amber", "waiting"], "[▶]": ["amber", "running"], "[II]": ["amber", "stuck"], "[!]": ["amber", "expired"] };
+  function ticketWhen(ms){ return rlShortDate(new Date(ms).toISOString()); }
+  function ticketRowHTML(r, flow){
+    var st = TICKET_STATE[r.glyph] || ["grey", ""];
+    var h = '<div class="tk" data-testid="ticket-row" data-number="' + r.number + '"><div class="tk-1"><span class="tk-when">' + escapeXml(ticketWhen(r.at)) + '</span><span class="tk-n">#' + r.number + '</span><span class="tk-t">' + escapeXml(r.title || "") + '</span></div><div class="tk-2">';
+    if(r.changed) h += '<span class="tk-chg" data-testid="ticket-changed">' + escapeXml(r.changed) + '</span><br>';
+    h += '<span class="tk-state ' + st[0] + '"><b>' + escapeXml(r.glyph) + '</b> ' + escapeXml(st[1]) + '</span>';
+    if(r.group === "skip"){
+      h += ' \u00b7 <span data-testid="ticket-reason">' + escapeXml(r.reason || "") + ' \u00b7 $0</span> <button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>';
+    } else {
+      h += ' \u00b7 <button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button>';
+    }
+    h += '</div>';
+    if(r.group === "skip" && ticketUi.anyway && ticketUi.anyway.number === r.number){
+      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
+        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
+    }
+    return h + '</div>';
+  }
+  function ticketGroupsHTML(t, flow){
+    var any = t.groups.some(function(g){ return ticketUi.chips[g.key]; });
+    var q = ticketUi.q.trim().toLowerCase();
+    return t.groups.map(function(g){
+      if(any && !ticketUi.chips[g.key]) return "";
+      var rows = g.rows.filter(function(r){ return !q || ("#" + r.number + " " + r.number + " " + (r.title || "")).toLowerCase().indexOf(q) !== -1; });
+      var open = ticketUi.open[g.key] === undefined ? g.open : ticketUi.open[g.key];
+      return '<button class="tk-fold" type="button" data-testid="ticket-fold-' + g.key + '" data-group="' + g.key + '" aria-expanded="' + open + '">' + (open ? "\u25be" : "\u25b8") + " " + escapeXml(g.label) + " (" + rows.length + ")</button>" +
+        (open ? rows.map(function(r){ return ticketRowHTML(r, flow); }).join("") : "");
+    }).join("");
+  }
+  function ticketCardHTML(t, flow){
+    return '<div class="field"><label>Schedule</label><div class="ro-value" data-testid="ticket-schedule">' + escapeXml(t.line) + '</div></div>' +
+      '<div class="audit-group" data-testid="result-tickets"><h4><span class="badge grey">tickets</span></h4>' +
+      '<div class="filterbar" data-scope="tickets" data-testid="tickets-filters"><input type="text" class="search-input" id="tickets-filter-search" data-testid="tickets-filter-search" placeholder="ticket number or title" autocomplete="off" value="' + escapeXml(ticketUi.q) + '">' +
+      '<div class="chips" role="group" aria-label="Filter">' + t.groups.map(function(g){
+        return '<button class="chip fchip" type="button" aria-pressed="' + (ticketUi.chips[g.key] ? "true" : "false") + '" data-ticket-chip="' + g.key + '" data-testid="chip-tickets-' + g.key + '">' + escapeXml(g.label) + '</button>';
+      }).join("") + '</div></div>' +
+      '<div id="ticket-groups" data-testid="ticket-groups">' + ticketGroupsHTML(t, flow) + '</div>' +
+      '<div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(ticketUi.msg) + '</div>' +
+      '<div class="hint">newest first inside each group \u00b7 each ticket opens its own run</div></div>';
+  }
+  function wireTickets(body, data){
+    var t = data.tickets;
+    var host = body.querySelector("#ticket-groups");
+    if(!t || !host) return;
+    function repaint(){ host.innerHTML = ticketGroupsHTML(t, data.flow); wireRows(); }
+    function wireRows(){
+      host.querySelectorAll(".tk-fold").forEach(function(b){
+        b.addEventListener("click", function(){ var k = b.getAttribute("data-group"); var g = t.groups.filter(function(x){ return x.key === k; })[0]; var cur = ticketUi.open[k] === undefined ? g.open : ticketUi.open[k]; ticketUi.open[k] = !cur; repaint(); });
+      });
+      host.querySelectorAll("[data-testid=ticket-run]").forEach(function(b){
+        b.addEventListener("click", function(){ var id = b.getAttribute("data-run"); selectRun(data.flow, id, null, ".hist-row"); document.getElementById("tab-run").click(); });
+      });
+      host.querySelectorAll("[data-testid=ticket-anyway-open]").forEach(function(b){
+        b.addEventListener("click", function(){ var n = Number(b.getAttribute("data-number")); ticketUi.anyway = (ticketUi.anyway && ticketUi.anyway.number === n) ? null : { number: n, text: "" }; ticketUi.msg = ""; repaint(); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta) ta.focus(); });
+      });
+      var ta = host.querySelector("[data-testid=ticket-anyway-text]");
+      var go = host.querySelector("[data-testid=ticket-anyway-go]");
+      if(ta && go){
+        ta.addEventListener("input", function(){ ticketUi.anyway.text = ta.value; go.disabled = ta.value.trim() === ""; });
+        go.addEventListener("click", function(){
+          var a = ticketUi.anyway;
+          if(!a || a.text.trim() === ""){ ticketUi.msg = "Please write a reason to run it anyway."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
+          go.disabled = true;
+          postJSON("/api/author/ticket-anyway", { flow: data.flow, runId: data.runId, number: a.number, reason: a.text.trim() }).then(function(r){
+            var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
+            ticketUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
+            if(ok) ticketUi.anyway = null;
+            repaint(); document.getElementById("ticket-msg").textContent = ticketUi.msg;
+          }).catch(function(){ ticketUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; go.disabled = false; });
+        });
+      }
+    }
+    wireRows();
+    body.querySelectorAll("[data-ticket-chip]").forEach(function(c){
+      c.addEventListener("click", function(){ var k = c.getAttribute("data-ticket-chip"); ticketUi.chips[k] = !ticketUi.chips[k]; c.setAttribute("aria-pressed", ticketUi.chips[k] ? "true" : "false"); repaint(); });
+    });
+    var search = body.querySelector("#tickets-filter-search");
+    if(search) search.addEventListener("input", function(){ ticketUi.q = search.value; repaint(); });
+  }
   function renderResult(){
     var detail = resultDetail, data = resultData;
     var body = document.getElementById("result-body");
@@ -2568,6 +2739,7 @@
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
       ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+    if(data.tickets) h += ticketCardHTML(data.tickets, data.flow);
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){
@@ -2588,6 +2760,7 @@
       }).join("") + '</div>';
     }
     body.innerHTML = h;
+    wireTickets(body, data);
     var ta = body.querySelector("#result-rerun-text");
     if(ta){
       ta.value = typed;
@@ -3237,46 +3410,14 @@
     if(testId) e.setAttribute("data-testid", testId);
     return e;
   }
-  function foldTryEl(t, human, stepKey){
+  // an ask step's try: the answer and the file it was about (a model step's tries are the grid's columns)
+  function foldTryEl(t){
     var wrap = document.createElement("div");
     var line = foldEl("div", "audit-try", null, "audit-try-line");
     line.appendChild(document.createTextNode("try " + t.n + " "));
     line.appendChild(foldEl("span", "mark " + auditMarkClass(t.mark), t.mark));
-    var rest = human
-      ? [t.answer, t.about ? "about " + t.about : null]
-      : [t.thinking, t.gap];
-    rest.forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
+    [t.answer, t.about ? "about " + t.about : null].forEach(function(x){ if(x) line.appendChild(document.createTextNode(" \u00b7 " + x)); });
     wrap.appendChild(line);
-    // M8 am7 item 4: this try was handed the earlier runs' block - one line, a click opens the exact text (the learnings box's own fold classes); hidden when nothing was handed
-    if(!human && t.hints && t.hints.text){
-      var hk = "\u0000hints:" + stepKey + ":" + t.n;
-      var hpart = foldEl("div", "audit-part", null, "audit-try-hints");
-      var hhead = foldEl("button", "btn audit-part-toggle", "told from earlier runs \u00B7 " + t.hints.n + (t.hints.n === 1 ? " hint" : " hints"), "audit-try-hints-head");
-      hhead.type = "button";
-      var hbody = foldEl("div", "audit-part-body", null, "audit-try-hints-text");
-      hbody.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0";
-      hbody.textContent = t.hints.text;
-      var paintHints = function(open){ hbody.hidden = !open; hhead.setAttribute("aria-expanded", open ? "true" : "false"); };
-      paintHints(auditExpanded[hk] === true);
-      hhead.addEventListener("click", function(ev){ ev.stopPropagation(); var open = hbody.hidden; auditExpanded[hk] = open; paintHints(open); });
-      hpart.appendChild(hhead); hpart.appendChild(hbody);
-      wrap.appendChild(hpart);
-    }
-    if(!human && t.checks && t.checks.length){
-      var box = foldEl("div", "audit-checks", null, "audit-checks");
-      t.checks.forEach(function(c){
-        var row = foldEl("div", "audit-chk", null, "audit-check");
-        row.appendChild(foldEl("span", "mark " + (c.ok ? "green" : "red"), c.ok ? "\u2713" : "\u2717"));
-        row.appendChild(foldEl("span", null, "#" + c.n + " " + c.text + (c.result ? " (" + c.result + ")" : "")));
-        row.appendChild(foldEl("span", "src", "\u00b7 from " + c.source));
-        box.appendChild(row);
-      });
-      if(t.output){
-        var sha = String(t.output.sha256);
-        box.appendChild(foldEl("div", "audit-judged", "output judged: " + t.output.file + " \u00b7 " + foldSize(t.output.bytes) + " \u00b7 sha256 " + sha.slice(0, 4) + "\u2026" + sha.slice(-2), "audit-judged"));
-      }
-      wrap.appendChild(box);
-    }
     return wrap;
   }
   var ROUNDS_PAGE = 20;
@@ -3290,13 +3431,17 @@
   }
   // the Round table, 20 rows at a time (bareloop's "showing A\u2013B of N" + load more), table scrolling inside its own box
   function foldRoundsEl(g){
-    var rows = g.fold.rows || [];
     var wrap = document.createElement("div");
     wrap.appendChild(foldEl("div", "audit-fold-label", "rounds"));
+    wrap.appendChild(foldRoundsTableEl(g.step, g.fold.rows || []));
+    return wrap;
+  }
+  function foldRoundsTableEl(stepKey, rows){
+    var wrap = document.createElement("div");
     var scroll = foldEl("div", "audit-table-scroll");
     var table = document.createElement("table");
     table.className = "rounds-table";
-    table.setAttribute("data-testid", "rounds-table-" + g.step);
+    table.setAttribute("data-testid", "rounds-table-" + stepKey);
     table.innerHTML = "<thead><tr><th>Round</th><th>Try</th><th>Action</th><th>Path</th><th>Decision</th><th>Time</th></tr></thead><tbody></tbody>";
     var tbody = table.querySelector("tbody");
     scroll.appendChild(table);
@@ -3320,12 +3465,279 @@
     more();
     return wrap;
   }
+  // The Audit check grid: one grid per model step (rows = the step's checks by their number, columns = tries), under it an "errors" area (one line per red try, plus any hints text opened), then the rounds folded per try. Every word comes from the server's `fold` (src/audit-fold.js: `tries`, `rows`); the page
+  // types none of them. A check is the same row in every try by its NUMBER (#1 output exists, #2 done, #3 and up the close's checks, src/try-checks.js).
+  // borrowed-from: bareloop src/panel/index.html@c79d396 (gridGlyph, gridPlural, gridCellOf, gridFailsOf, gridDefaultOpen, gridTableHtml, gridErrorsHtml, gridRoundsHtml, renderGridErrors, the
+  // click wiring), adapted: fwdloop's try/check shape (`fold.tries[].checks`), its `.mark` glyph colours, the failing lines are the try's gap, rounds come from the fold's own rows.
+  function gridGlyph(g){
+    if(g === "\u2713") return '<span class="mark green">' + g + '</span>';
+    if(g === "\u2717") return '<span class="mark red">' + g + '</span>';
+    if(g === "?") return '<span class="glyph-q">' + g + '</span>';
+    if(g === "\u00b7") return '<span class="glyph-nr">' + g + '</span>';
+    return escapeXml(g);
+  }
+  function gridPlural(n, w){ return n + " " + w + (n === 1 ? "" : "s"); }
+  // the try's gap as error lines: one per non-blank line, as the audit row holds it
+  function gridGapLines(gap){
+    return typeof gap === "string" ? gap.split("\n").filter(function(l){ return l.trim() !== ""; }) : [];
+  }
+  // a graded try (`fold.tries[i]`) as one grid column. The lines of its gap belong to its first failing check (all of the close's lines are one text; none is guessed per check).
+  // `red` = that first failing check with the try's error lines (the errors list's one line per red try); null when no check failed.
+  function gridTryOf(t){
+    var out = {
+      n: t.n, glyph: t.mark, hint: t.thinking || "", noVerdict: null, known: Array.isArray(t.checks) && t.checks.length > 0, inflight: t.mark === "·",
+      cells: {}, order: [], output: t.output || null, hints: t.hints && t.hints.text ? t.hints : null, red: null
+    };
+    if(out.known){
+      t.checks.forEach(function(c){
+        var cell = { name: String(c.n), n: c.n, question: c.text, source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
+        if(!c.ok && !out.red){
+          var lines = gridGapLines(t.gap);
+          out.red = { lines: lines.length ? lines : [c.text] };
+        }
+        out.cells[cell.name] = cell;
+        out.order.push(cell.name);
+      });
+    } else if(t.mark === "✗"){
+      // red with no check record: no check ran, so no verdict; its own gap words stay
+      out.glyph = "?";
+      out.noVerdict = gridGapLines(t.gap)[0] || "no verdict";
+    }
+    return out;
+  }
+  // rows: checks #1 and #2 are ONE row `every step: exists, done` (`parts` = the two checks, for its fold); #3 and up are one row each, by number
+  function gridModelOf(f){
+    var tries = (f.tries || []).map(gridTryOf);
+    var byN = {};
+    tries.forEach(function(t){ t.order.forEach(function(nm){ if(!byN[nm]) byN[nm] = t.cells[nm]; }); });
+    var rows = Object.keys(byN).filter(function(nm){ return byN[nm].n > 2; }).map(function(nm){ return { n: byN[nm].n, name: nm, question: byN[nm].question, source: byN[nm].source }; }).sort(function(a, b){ return a.n - b.n; });
+    var parts = [byN["1"], byN["2"]].filter(Boolean);
+    if(parts.length) rows.unshift({ n: 1, every: true, parts: parts });
+    var rounds = {};
+    (f.rows || []).forEach(function(r){ (rounds[r.try] = rounds[r.try] || []).push(r); });
+    tries.forEach(function(t){
+      t.rows = rounds[t.n] || [];
+      t.calls = t.rows.filter(function(r){ return r.action === "model call"; }).length;
+    });
+    return { tries: tries, rows: rows };
+  }
+  // one cell: pass, fail, not run (the done check halted before the rest) or no verdict. The every-step row fails when either of its two checks failed.
+  function gridCellOf(t, row){
+    if(t.noVerdict) return { s: "unk" };
+    if(row.every){
+      var cs = ["1", "2"].map(function(nm){ return t.cells[nm]; }).filter(Boolean);
+      if(cs.some(function(c){ return c.status === "fail"; })) return { s: "fail" };
+      if(cs.length === 2) return { s: "pass", number: cs.map(function(c){ return c.number; }).filter(Boolean).join(" · ") };
+      if(cs.length === 0 && !t.known) return { s: t.inflight ? "notrun" : "unk" };
+      return { s: "notrun" };
+    }
+    var c = t.cells[row.name];
+    if(c) return { s: c.status, number: c.number };
+    if(!t.known) return { s: t.inflight ? "notrun" : "unk" };
+    return { s: "notrun" };
+  }
+  // default on load: only the LAST red try's row is open; no hints are
+  function gridDefaultOpen(model){
+    var open = {};
+    var last = null;
+    model.tries.forEach(function(t){ if(t.red) last = t.n; });
+    if(last !== null) open[last] = true;
+    return open;
+  }
+  function gridHintsWord(h){ return h.n + (h.n === 1 ? " hint" : " hints"); }
+  function gridTableHtml(pid, model){
+    if(model.rows.length === 0) return "";
+    var head = '<tr><th class="q">check</th>' + model.tries.map(function(t){
+      return '<th class="t">try ' + t.n + " " + gridGlyph(t.glyph) + (t.hint ? '<span class="hint">' + escapeXml(t.hint) + "</span>" : "") + "</th>";
+    }).join("") + "</tr>";
+    var hrow = "";
+    if(model.tries.some(function(t){ return !!t.hints; })){
+      hrow = '<tr class="hint-row"><td class="q">told from earlier runs</td>' + model.tries.map(function(t){
+        return '<td class="c">' + (t.hints ? '<button type="button" class="btn small hints" data-hint="' + t.n + '" aria-expanded="false" aria-controls="fxerr-' + pid + '" title="try ' + t.n + ' · told from earlier runs">' + gridHintsWord(t.hints) + "</button>" : '<span class="cell none">—</span>') + "</td>";
+      }).join("") + "</tr>";
+    }
+    var sub = "";
+    var body = model.rows.map(function(r){
+      var tds = model.tries.map(function(t){
+        var c = gridCellOf(t, r);
+        if(c.s === "unk") return '<td class="c"><span class="cell unk" title="try ' + t.n + ': no verdict">' + gridGlyph("?") + "</span></td>";
+        if(c.s === "notrun") return '<td class="c"><span class="cell notrun" title="not run (first-red-wins stopped the close)">' + gridGlyph("·") + "</span></td>";
+        if(c.s === "pass") return '<td class="c"><span class="cell pass" title="passed' + (c.number ? ": " + escapeXml(c.number) : "") + '">' + gridGlyph("✓") + "</span></td>";
+        return '<td class="c"><button type="button" class="cell fail" aria-expanded="false" aria-controls="fxerr-' + pid + '" data-fx="' + t.n + ":" + r.n + '" title="try ' + t.n + ", " + (r.every ? "every step" : "check #" + r.n) + ': failed - click to read its errors">' + gridGlyph("✗") + "</button></td>";
+      }).join("");
+      if(r.every){
+        sub = '<tr class="step-sub" id="fxev-' + pid + '" hidden><td colspan="' + (model.tries.length + 1) + '">' + r.parts.map(function(p){
+          return '<div class="sub-line"><span>' + p.n + " " + escapeXml(p.question) + '</span><span class="marks">' + model.tries.map(function(t){
+            var pc = t.noVerdict ? { s: "unk" } : t.cells[String(p.n)] ? { s: t.cells[String(p.n)].status } : { s: t.known ? "notrun" : "unk" };
+            return gridGlyph(pc.s === "pass" ? "✓" : pc.s === "fail" ? "✗" : pc.s === "notrun" ? "·" : "?");
+          }).join("") + "</span></div>";
+        }).join("") + "</td></tr>";
+        return '<tr><td class="q"><button type="button" class="q-fold" data-every aria-expanded="false" aria-controls="fxev-' + pid + '">every step: exists, done</button></td>' + tds + "</tr>" + sub;
+      }
+      return '<tr><td class="q"' + (r.source ? ' title="' + escapeXml(r.source) + '"' : "") + ">" + r.n + " " + escapeXml(r.question) + "</td>" + tds + "</tr>";
+    }).join("");
+    return '<div class="grid-wrap audit-table-scroll"><table class="grid fgrid" data-testid="audit-grid-table"><thead>' + head + "</thead><tbody>" + hrow + body + "</tbody></table></div>";
+  }
+  // up to 8 lines of a text, then a button for the rest; `key` names the button's data attribute
+  var GRID_CAP = 8;
+  function gridLinesHtml(lines, more, attr, key){
+    var shown = more ? lines : lines.slice(0, GRID_CAP);
+    return '<div class="fx-lines">' + shown.map(function(l){ return /^\s/.test(l) ? '<div class="ind">' + escapeXml(l.replace(/^\s+/, "")) + "</div>" : "<div>" + escapeXml(l) + "</div>"; }).join("") + "</div>" +
+      (lines.length > GRID_CAP ? '<button type="button" class="fx-more" ' + attr + '="' + key + '">' + (more ? "show first " + GRID_CAP + " only" : "+" + (lines.length - GRID_CAP) + " more lines") + "</button>" : "");
+  }
+  // the exact hints text a try was handed, one div per line (trailing blank lines dropped)
+  function gridHintLines(h){
+    var lines = String(h.text).split("\n");
+    while(lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+    return lines;
+  }
+  // the errors area: the hints texts opened by their buttons, then one line per red try (`try N ✗ <first error line>`).
+  // `st` = {open: {tryN: true}, more: {tryN: true}, hint: {tryN: true}, hmore: {tryN: true}}
+  function gridErrorsHtml(pid, model, st){
+    var hrows = model.tries.filter(function(t){ return t.hints && st.hint[t.n]; }).map(function(t){
+      return '<div class="fx-row hintrow open"><button type="button" class="fx-rowhead" id="fxhint-' + pid + "-" + t.n + '" data-hrow="' + t.n + '" aria-expanded="true"><span class="fx-caret">▾</span><span class="fx-try">try ' + t.n + " · told from earlier runs · " + gridHintsWord(t.hints) + '</span></button><div class="fx-body">' +
+        gridLinesHtml(gridHintLines(t.hints), !!st.hmore[t.n], "data-hmore", t.n) + "</div></div>";
+    }).join("");
+    var rows = model.tries.map(function(t){
+      if(t.noVerdict){
+        return '<div class="fx-row fx-row-q"><span class="fx-rowhead"><span class="fx-caret"></span><span class="fx-try">try ' + t.n + '</span><span class="fx-chk">' + gridGlyph("?") + '</span><span class="fx-first fx-faint" title="' + escapeXml(t.noVerdict) + '">' + escapeXml(t.noVerdict) + "</span></span></div>";
+      }
+      if(!t.red) return "";
+      var lines = t.red.lines;
+      var rest = lines.length - 1;
+      var open = !!st.open[t.n];
+      var head = '<button type="button" class="fx-rowhead" id="fxrow-' + pid + "-" + t.n + '" data-fxrow="' + t.n + '" aria-expanded="' + (open ? "true" : "false") + '"><span class="fx-caret">' + (open ? "▾" : "▸") +
+        '</span><span class="fx-try">try ' + t.n + '</span><span class="fx-chk">' + gridGlyph("✗") +
+        '</span><span class="fx-first" title="' + escapeXml(lines[0]) + '">' + escapeXml(lines[0]) + "</span>" + (rest ? '<span class="fx-count">(+' + rest + " more)</span>" : "") + "</button>";
+      // fwdloop's close reports ONE text for the try (its gap), not one per check: it is shown once, however many checks failed
+      var body = open ? '<div class="fx-body">' + gridLinesHtml(lines, !!st.more[t.n], "data-fxmore", t.n) + "</div>" : "";
+      return '<div class="fx-row' + (open ? " open" : "") + '">' + head + body + "</div>";
+    }).join("");
+    return hrows + rows ? '<div class="fx-label">errors</div>' + hrows + rows : "";
+  }
+  // the rounds, folded per try: each fold builds its own try's rows (20 a page) the first time it opens
+  function gridRoundsHtml(model){
+    return '<div class="audit-fold-label">rounds per try</div><div class="fold-list">' + model.tries.map(function(t){
+      var line = '<div class="audit-try">try ' + t.n + " " + gridGlyph(t.glyph) + "</div>";
+      if(t.rows.length === 0) return line + '<div class="hint">no rounds recorded</div>';
+      return line + '<details class="rounds-fold" data-fxrounds="' + t.n + '"><summary>try ' + t.n + " rounds (" + gridPlural(t.calls, "call") + ")" +
+        '</summary><div class="rf-body"></div></details>';
+    }).join("") + "</div>";
+  }
+  // the file a try's checks read (its own `output judged` words): shown once, for the last try that has one; an `all tries` fold lists every try's
+  function gridJudgedLine(t){
+    var sha = String(t.output.sha256);
+    return '<div class="hint fx-judged audit-judged" data-testid="audit-judged">try ' + t.n + " &middot; output judged: " + escapeXml(t.output.file) + " &middot; " + foldSize(t.output.bytes) + " &middot; sha256 " + escapeXml(sha.slice(0, 4)) + "…" + escapeXml(sha.slice(-2)) + "</div>";
+  }
+  function gridJudgedHtml(model){
+    var withOut = model.tries.filter(function(t){ return !!t.output; });
+    if(withOut.length === 0) return "";
+    var html = gridJudgedLine(withOut[withOut.length - 1]);
+    if(withOut.length > 1) html += '<details class="rounds-fold" style="margin-left:0" data-testid="judged-all"><summary>all tries</summary><div class="rf-body">' + withOut.map(gridJudgedLine).join("") + "</div></details>";
+    return html;
+  }
+  function renderGridErrors(wrap, pid, model, st){
+    var host = wrap.querySelector(".fx-errors");
+    var html = gridErrorsHtml(pid, model, st);
+    host.hidden = html === "";
+    host.innerHTML = html;
+    Array.prototype.forEach.call(wrap.querySelectorAll("[data-fx]"), function(b){
+      b.setAttribute("aria-expanded", st.open[b.getAttribute("data-fx").split(":")[0]] ? "true" : "false");
+    });
+    Array.prototype.forEach.call(wrap.querySelectorAll("[data-hint]"), function(b){
+      b.setAttribute("aria-expanded", st.hint[b.getAttribute("data-hint")] ? "true" : "false");
+    });
+  }
+  // a model step's body below its tally: the grid (hints row, every-step row, the close's checks), the errors area, the judged line, then the rounds folds
+  function buildGridEl(g){
+    var pid = String(g.step).replace(/[^A-Za-z0-9_-]/g, "_");
+    var model = gridModelOf(g.fold);
+    var st = { open: gridDefaultOpen(model), more: {}, hint: {}, hmore: {} };
+    var wrap = document.createElement("div");
+    wrap.setAttribute("data-fxpart", pid);
+    wrap.setAttribute("data-testid", "audit-grid-" + g.step);
+    wrap.innerHTML = gridTableHtml(pid, model) + '<div class="fx-errors" id="fxerr-' + pid + '" hidden></div>' + gridJudgedHtml(model);
+    wrap.insertAdjacentHTML("beforeend", gridRoundsHtml(model));
+    renderGridErrors(wrap, pid, model, st);
+    var toggle = function(tn, force, focusRow){
+      st.open[tn] = force === undefined ? !st.open[tn] : force;
+      renderGridErrors(wrap, pid, model, st);
+      var el = document.getElementById("fxrow-" + pid + "-" + tn);
+      if(el && focusRow){ el.scrollIntoView({ block: "nearest" }); el.focus(); } else if(el){ el.focus(); }
+    };
+    wrap.addEventListener("click", function(e){
+      var hmore = e.target.closest("[data-hmore]");
+      if(hmore){
+        var hk = hmore.getAttribute("data-hmore");
+        st.hmore[hk] = !st.hmore[hk];
+        renderGridErrors(wrap, pid, model, st);
+        var hagain = wrap.querySelector('[data-hmore="' + hk + '"]');
+        if(hagain) hagain.focus();
+        return;
+      }
+      var hrow = e.target.closest("[data-hrow]");
+      if(hrow){
+        var hn = hrow.getAttribute("data-hrow");
+        st.hint[hn] = false;
+        renderGridErrors(wrap, pid, model, st);
+        var hb = wrap.querySelector('[data-hint="' + hn + '"]');
+        if(hb) hb.focus();
+        return;
+      }
+      var hint = e.target.closest("[data-hint]");
+      if(hint){
+        var tn2 = hint.getAttribute("data-hint");
+        st.hint[tn2] = !st.hint[tn2];
+        renderGridErrors(wrap, pid, model, st);
+        var he = document.getElementById("fxhint-" + pid + "-" + tn2);
+        if(he) he.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      var more = e.target.closest("[data-fxmore]");
+      if(more){
+        var key = more.getAttribute("data-fxmore");
+        st.more[key] = !st.more[key];
+        renderGridErrors(wrap, pid, model, st);
+        var again = wrap.querySelector('[data-fxmore="' + key + '"]');
+        if(again) again.focus();
+        return;
+      }
+      var ev = e.target.closest("[data-every]");
+      if(ev){
+        var sub = document.getElementById("fxev-" + pid);
+        sub.hidden = !sub.hidden;
+        ev.setAttribute("aria-expanded", sub.hidden ? "false" : "true");
+        return;
+      }
+      var row = e.target.closest("[data-fxrow]");
+      if(row){ toggle(parseInt(row.getAttribute("data-fxrow"), 10), undefined, false); return; }
+      var cell = e.target.closest("[data-fx]");
+      if(cell){
+        var tn = parseInt(cell.getAttribute("data-fx").split(":")[0], 10);
+        toggle(tn, st.open[tn] ? false : true, true);
+      }
+    });
+    Array.prototype.forEach.call(wrap.querySelectorAll("details[data-fxrounds]"), function(d){
+      var t = model.tries.filter(function(x){ return x.n === parseInt(d.getAttribute("data-fxrounds"), 10); })[0];
+      var built = false;
+      d.addEventListener("toggle", function(){
+        if(!d.open || built) return;
+        built = true;
+        d.querySelector(".rf-body").appendChild(foldRoundsTableEl(g.step + "-try-" + t.n, t.rows));
+      });
+    });
+    return wrap;
+  }
   function buildFoldBodyEl(g){
     var f = g.fold, human = f.who === "human";
     var body = foldEl("div", "audit-fold-body", null, "audit-fold-body-" + g.step);
     if(f.tally) body.appendChild(foldEl("div", "audit-tally", f.tally, "audit-tally"));
-    (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t, human, g.step)); });
-    body.appendChild(foldRoundsEl(g));
+    if(human){
+      (f.tries || []).forEach(function(t){ body.appendChild(foldTryEl(t)); });
+      body.appendChild(foldRoundsEl(g));
+    } else {
+      body.appendChild(buildGridEl(g));
+    }
     return body;
   }
   var auditExpanded = {}; // step -> true/false once a human toggled it; reset when the run changes
@@ -3815,6 +4227,13 @@
     document.getElementById("update-bar").hidden = text === null;
     if(text !== null) document.getElementById("update-text").textContent = text;
   }
+  // M4d am35: the Inbox poll (every LISTS_POLL_MS) is the panel's heartbeat. A reply of any kind (even an HTTP error) means node answered = online; only a
+  // failed read with no HTTP status (the network, a dead panel) = offline. ONE painter writes the dot; the served page starts online.
+  function paintOnline(isOnline){
+    var el = document.getElementById("online-dot");
+    el.className = isOnline ? "on" : "off";
+    el.textContent = isOnline ? "\u25CF online" : "\u25CF offline";
+  }
   document.getElementById("update-reload").addEventListener("click", function(){ location.reload(); });
   function tickLeft(){
     document.querySelectorAll(".live-left").forEach(function(el){ el._say(Math.max(0, el._endsAt - Date.now())); });
@@ -3915,7 +4334,8 @@
   // Immediate (every user action that re-reads calls this); the tick uses `listsDue` to throttle.
   function reloadLists(){
     lastListsAt = Date.now();
-    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); }).catch(function(){});
+    getJSON("/api/inbox").then(function(r){ renderInbox(r.rows || [], r.openCount); paintUpdateBar(r.version); })
+      .then(function(){ paintOnline(true); }, function(err){ paintOnline(!!(err && typeof err.status === "number")); }).catch(function(){});
     getJSON("/api/runs").then(function(r){
       var next = sig(r);
       if(next !== null && next === lastSig.runs) return;
@@ -4822,6 +5242,7 @@
     var destEl = document.getElementById("jf-dest-folder");
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
+    var signTicketEl = document.getElementById("chat-sign-ticket");   // M12 p3: the ticket # box of a green ticket job
     var mainHint = document.getElementById("chat-main-hint");
     var startOverBtn = document.getElementById("chat-startover-btn");
     var reviseBtn = document.getElementById("chat-revise-btn");
@@ -5202,6 +5623,13 @@
         var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
         if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
         row.appendChild(pathEl);
+        // M12 piece 3 (hamr 2026-10-29): a ticket-list input takes ONE ticket per hand run, picked by number; Run stays off until it is filled
+        if(f && f.tickets && f.tickets.indexOf(role) !== -1){
+          var tk = makeInput("jf-ticket", "ticket #", "");
+          tk.inputMode = "numeric"; tk.setAttribute("data-testid", "jf-run-ticket"); tk.setAttribute("aria-label", "Ticket number to run");
+          tk.addEventListener("input", function(){ clearFieldErrors(); refreshStartEnabled(); });
+          row.appendChild(tk);
+        }
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
       });
@@ -5233,8 +5661,14 @@
       runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
       return waits;
     }
+    // M12 piece 3: the ticket number box of a ticket-list input; one function reads it, "" = none given (and no box = null)
+    function ticketBoxValue(){
+      var el = runInputsEl.querySelector(".jf-ticket");
+      return el ? el.value.trim() : null;
+    }
     function currentRun(){
       return {
+        ...(ticketBoxValue() === null ? {} : { ticket: ticketBoxValue() }),
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
         destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
         // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
@@ -5268,7 +5702,7 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && (ticketBoxValue() === null || /^[1-9][0-9]{0,8}$/.test(ticketBoxValue())) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
       }
       if(mode === "resume"){
         return !!resumeCtx && capValid(resumeCapEl.value.trim());
@@ -5530,7 +5964,10 @@
     var whenConfirmText = ""; // the words the button shows after click 1 ("every day at 13:15", "cancel schedule"); read only while whenHash is set
     var whenLocked = false;   // ~1.5 s after a successful sign the main button is disabled, so a fast extra click cannot start a run
     var whenReady = false;   // the lock sync can run before this block has
-    function whenCanon(t){ return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; })); }
+    function whenCanon(t){
+      if(t !== null && t.kind === "new-ticket") t = {kind: t.kind, role: t.role};   // M12: the list, server and tool are filled by the server from the signed job
+      return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; }));
+    }
     function whenTriggerFromBoxes(){
       var kind = byId("jf-when").value;
       if(kind === "hand") return null;
@@ -5540,6 +5977,7 @@
         if(kind === "weekly") o.day = byId("jf-when-day").value;
         return o;
       }
+      if(kind === "new-ticket") return {kind: kind, role: byId("jf-when-role").value};   // M12: the person picks the input; the server fills the rest
       var q = {kind: kind, role: byId("jf-when-role").value};
       q[kind === "new-file" ? "folder" : "path"] = byId("jf-when-path").value.trim();
       return q;
@@ -5548,7 +5986,8 @@
       var kind = byId("jf-when").value;
       byId("jf-when-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
       byId("jf-when-day").hidden = kind !== "weekly";
-      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
+      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file" || kind === "new-ticket");
+      byId("jf-when-path").hidden = kind === "new-ticket";
       byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
     }
     // M9 am4: is When changed from the signed value? The ONE reader; the main button turns into Sign schedule while it is.
@@ -5562,6 +6001,17 @@
       if(!whenReady) return;
       renderMain();
     }
+    // M10: a file trigger watches a FILE; a web-page input is never offered. M12: a ticket trigger offers the page inputs that are a GitHub issues list.
+    var TICKET_LIST = /^https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/?$/;
+    function whenFileRoles(f){ return ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); }); }
+    function whenTicketRoles(f){ return ((f && f.roles) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }
+    function whenFillRoles(){
+      var f = selectedFlow(), roleSel = byId("jf-when-role"), keep = roleSel.value;
+      var roles = byId("jf-when").value === "new-ticket" ? whenTicketRoles(f) : whenFileRoles(f);
+      roleSel.innerHTML = "";
+      roles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      if(roles.indexOf(keep) >= 0) roleSel.value = keep;
+    }
     function paintWhen(){
       var f = selectedFlow();
       var c = f ? f.trigger : null;
@@ -5569,14 +6019,13 @@
       whenHash = null; whenBusy = false;
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
-      roleSel.innerHTML = "";
-      // M10: a file trigger watches a FILE; a web-page input is never offered (a job with only page inputs gets the clock options only)
-      var fileRoles = ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); });
-      fileRoles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
       ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
+      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
+      whenFillRoles();
       if(t && t.hour !== undefined){ byId("jf-when-time").value = ("0" + t.hour).slice(-2) + ":" + ("0" + t.minute).slice(-2); }
       if(t && t.day) byId("jf-when-day").value = t.day;
       if(t && t.role) roleSel.value = t.role;
@@ -5587,7 +6036,7 @@
       byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
       whenShowSubs(); whenSyncButton();
     }
-    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; whenShowSubs(); whenSyncButton(); }
+    function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; if(this && this.id === "jf-when") whenFillRoles(); whenShowSubs(); whenSyncButton(); }
     ["jf-when", "jf-when-day", "jf-when-time", "jf-when-role"].forEach(function(id){ document.getElementById(id).addEventListener("change", whenEdited); });
     document.getElementById("jf-when-path").addEventListener("input", whenEdited);
     function doWhenSign(){
@@ -5884,8 +6333,12 @@
         st.capUsd = lastState.card.capUsd;
       }
       var b = mainButtonFor(st);
+      // M12 piece 3: the ticket # box shows on a green plan whose job reads a ticket list; Sign & run stays off until it holds a whole number from 1
+      var needTicket = mode === "new" && sessionLive && !!lastState && lastState.phase === "green" && !!lastState.ticketRole;
+      signTicketEl.hidden = !needTicket;
+      if(!needTicket) signTicketEl.value = "";
       mainBtn.textContent = b.text;
-      mainBtn.disabled = b.disabled;
+      mainBtn.disabled = b.disabled || (needTicket && (b.action === "sign-prepare" || b.action === "sign") && !/^[1-9][0-9]{0,8}$/.test(signTicketEl.value.trim()));
       mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
@@ -6193,7 +6646,7 @@
       // click 2: the ONLY call that signs. It carries the hash this page showed; the server signs only if it is still the draft's hash on disk.
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash}).then(function(r){
+      authorPost("/api/author/" + id + "/sign", signTicketEl.hidden ? {hash: signInfo.hash} : {hash: signInfo.hash, ticket: signTicketEl.value.trim()}).then(function(r){
         var o = chatPostOutcome(r);
         if(!o.ok){
           busy = false;
@@ -6288,6 +6741,7 @@
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     qSend.addEventListener("click", doAnswer);
     qAnswer.addEventListener("keydown", function(e){ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); doAnswer(); } });
+    signTicketEl.addEventListener("input", function(){ renderMain(); });   // M12 p3
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
@@ -6408,7 +6862,8 @@
   // M4d Providers layout F. One parent block per key (.pv-key): its key band (name, API shape select, Base URL box, the legacy tick, tokens,
   // the Refresh button), a folded summary, and its model lines as child rows (.pv-mrow). The key row owns shape, Base URL and the legacy
   // tick, so a model line can never drift from them. Shape and Base URL are always editable; a change of either saves both (judged together).
-  var folds = {};      // slot -> true (unfolded) / false (folded): set once, on first paint (a key with a ticked model starts unfolded), then only the person changes it
+  // slot -> true (unfolded) / false (folded): set once, on first paint (every key starts folded; borrowed-from: bareloop src/panel/index.html@357a482), then only the person changes it
+  var folds = {};
   var typedOpen = {};  // slot -> true while "+ type a model name" is open
   function buildProviderRow(row){
     var key = document.createElement("div");
@@ -6443,6 +6898,7 @@
   function buildModelLine(slot, m){
     var d = document.createElement("div");
     d.className = "pv-mrow";
+    d.tabIndex = -1;
     d.setAttribute("data-model", m.model);
     d.setAttribute("data-testid", "model-line");
     d.innerHTML =
@@ -6554,7 +7010,7 @@
     data.rows.forEach(function(row){
       var key = pvRows.querySelector('.pv-key[data-slot="' + row.slot + '"]');
       if(!key){ key = buildProviderRow(row); pvRows.appendChild(key); }
-      if(folds[row.slot] === undefined) folds[row.slot] = row.models.some(function(m){ return m.use === true; });
+      if(folds[row.slot] === undefined) folds[row.slot] = false;
       key.setAttribute("data-open", folds[row.slot] ? "1" : "0");
       var fold = key.querySelector("[data-act=fold]");
       fold.textContent = folds[row.slot] ? "▾" : "▸";

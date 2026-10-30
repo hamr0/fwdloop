@@ -54,6 +54,7 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
+import { ticketListsOf } from '../src/ticket-shape.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
@@ -305,6 +306,10 @@ function reportRunResult(result, { rootArg }) {
     process.exitCode = 1;
     return;
   }
+  if (result.outcome === 'skipped') {   // hamr 2026-10-30: a skip is a normal grey ending, not a failure
+    process.stdout.write(`skipped: spentUsd=${result.spentUsd}\n`);
+    return;
+  }
   process.stderr.write(`fwdloop: ${result.outcome}${result.red ? ` — ${result.red}` : ''}\n`);
   process.exitCode = 1;
 }
@@ -319,6 +324,8 @@ async function cmdRun(rest) {
     options: {
       root: { type: 'string' },
       source: { type: 'string', multiple: true, default: [] },
+      ticket: { type: 'string' },   // M12: the one ticket of the job's ticket list this run reads, by number
+      anyway: { type: 'boolean' },   // M12 p3 (hamr 2026-10-30): this ticket came by "Run it anyway"; the run does not skip it for its labels or closed
       'run-id': { type: 'string' },
       // a job drafted before its model was recorded: the model it runs with (a ticked line); --provider only if two keys tick the same id
       model: { type: 'string' }, provider: { type: 'string' },
@@ -333,6 +340,12 @@ async function cmdRun(rest) {
   const root = resolveRoot('run', values.root);
   const nameCheck = checkFlowName(flowName);
   if (!nameCheck.ok) fail(nameCheck.red);
+
+  // A refusal before the run starts must leave no run folder behind. The panel claims `run-<n>` (and may put the signed values in it) BEFORE it spawns this
+  // child, so EVERY exit before the run begins undoes it: registered here, at the first line that can fail, not after the checks (rmdir only ever removes an EMPTY folder).
+  const dropUnstartedRun = (dir) => process.on('exit', () => { dropUnstartedValues(dir); try { rmdirSync(dir); } catch { /* not empty, or gone: nothing to undo */ } });
+  const typedRun = typeof values['run-id'] === 'string' ? resolveRunDir(join(root, flowName), values['run-id']) : null;
+  if (typedRun?.ok) dropUnstartedRun(typedRun.runDir);
 
   const loaded = loadCatalogue();
   if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
@@ -368,7 +381,15 @@ async function cmdRun(rest) {
       fail(`run: --source role "${role}" is not declared by flow "${flowName}" (known roles: ${declaredRoles.join(', ') || '(none)'})`);
     }
   }
-  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role] }));
+  // M12 piece 2 (PRD ruling 2026-10-29): a job with a ticket-list input reads ONE ticket per run, picked by number. Refused at $0, by name, before anything is claimed.
+  const ticketLists = ticketListsOf(read.arbiter);
+  const ticketRoles = Object.keys(ticketLists);
+  if (ticketRoles.length > 1) fail(`run: flow "${flowName}" has more than one ticket list (${ticketRoles.join(', ')}); a run reads one. Nothing started.`);
+  if (values.anyway && values.ticket === undefined) fail(`run: --anyway belongs with --ticket <number>. Nothing started.`);
+  if (values.ticket !== undefined && ticketRoles.length === 0) fail(`run: --ticket ${values.ticket}, but flow "${flowName}" has no ticket-list input. Nothing started.`);
+  if (ticketRoles.length === 1 && values.ticket === undefined) fail(`run: flow "${flowName}" reads tickets from "${ticketRoles[0]}" (${ticketLists[ticketRoles[0]]}); pick the ticket with --ticket <number>. Nothing started.`);
+  if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
+  const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles[0] === role ? { ticket: { number: Number(values.ticket), ...(values.anyway ? { anyway: true } : {}) } } : {}) }));
   for (const src of sources) {
     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
   }
@@ -383,6 +404,7 @@ async function cmdRun(rest) {
     if (!claimed.ok) fail(claimed.red);
     runId = claimed.runId;
     runDir = claimed.runDir;
+    dropUnstartedRun(runDir);
   } else {
     const runIdCheck = resolveRunDir(join(root, flowName), runId);
     if (!runIdCheck.ok) fail(runIdCheck.red);
@@ -394,8 +416,6 @@ async function cmdRun(rest) {
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
   if (!applied.ok) fail(`run: ${applied.red}`);
   const { arbiter } = applied;
-  // a refusal before the run starts must not leave the claimed empty folder behind (rmdir only ever removes an EMPTY folder)
-  process.on('exit', () => { dropUnstartedValues(runDir); try { rmdirSync(runDir); } catch { /* not empty, or gone: nothing to undo */ } });
 
   // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
   // here — before ANY directory for this run is created.

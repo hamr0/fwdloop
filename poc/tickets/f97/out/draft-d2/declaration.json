@@ -1,0 +1,87 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "breakage_diagnosis",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what is broken"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_priority",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "breakage_diagnosis",
+        "ticket_priority"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "accepted_plan",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "accepted_plan"
+      ],
+      "emits": "written_plan_file",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "1": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "guardrail is a human judgement of importance, not a fixed list of values"
+  },
+  "refused": [],
+  "inputFacts": {}
+}

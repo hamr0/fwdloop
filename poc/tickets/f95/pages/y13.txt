@@ -1,0 +1,179 @@
+url: https://github.com/YarouAnarkis/UTS-PPL-Kelompok-07-Katalog/issues/13
+31,831 chars → 8,248 chars (74% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "YarouAnarkis" [ref=290]
+      - link "UTS-PPL-Kelompok-07-Katalog" [ref=292]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=293]
+      - link "Issues (18)" [ref=294]
+      - Repository: Pull requests [ref=295], Actions [ref=296], Projects [ref=297], Security and quality [ref=298], Insights [ref=299]
+  - region "Header"
+    - heading "[BUG] TC-R2-11: Empty search returns product list instead of empty result #13" [level=1]
+    - link "New issue" [ref=403]
+    - button "Copy link" [ref=404]
+  - Open
+  - heading "Description" [level=2]
+  - link "@JinXProorgindo's profile" [ref=477]
+  - link "JinXProorgindo" [ref=419]
+  - opened
+  - link "1w ago" [ref=480]
+  - button "Last edited by JinXProorgindo" [expanded=false] [ref=424]
+  - generic "This user has been invited to collaborate on the UTS-PPL-Kelompok-07-Katalog repository."
+    - Collaborator
+  - button "Issue body actions" [expanded=false] [ref=429]
+  - heading "1. Summary" [level=2]
+  - Searching with an empty query returns the full product list instead of an empty
+  - result. On the reference site the same input correctly returns 0 products.
+  - heading "2. Environment" [level=2]
+  - listitem [level=1]
+    - strong
+      - Application Under Test (AUT):
+    - link "https://with-bugs.practicesoftwaretesting.com" [ref=751]
+  - listitem [level=1]
+    - strong
+      - Oracle / Reference (No-Bug):
+    - link "https://practicesoftwaretesting.com" [ref=755]
+  - listitem [level=1]
+    - strong
+      - Browser & Version:
+    - Google Chrome v141.0
+  - listitem [level=1]
+    - strong
+      - Operating System / Device:
+    - Windows 11
+  - listitem [level=1]
+    - strong
+      - Viewport Resolution:
+    - Desktop 1920x1080
+  - heading "3. Pre-conditions" [level=2]
+  - User is on the Catalog (home) page of the AUT.
+  - No user is logged in; no filters are applied.
+  - The search input field is empty and untouched.
+  - heading "4. Steps to Reproduce" [level=2]
+  - listitem [level=1]
+    - Navigate to '
+    - link "https://with-bugs.practicesoftwaretesting.com/" [ref=775]
+  - Leave the search field empty, then click the 'Search' button (or press Enter).
+  - Observe the product list rendered on the page.
+  - Repeat the search with a query containing only spaces.
+  - listitem [level=1]
+    - Compare the result with '
+    - link "https://practicesoftwaretesting.com" [ref=785]
+  - heading "5. Expected Result" [level=2]
+  - An empty or whitespace-only query should return 0 products (empty result list) or
+  - display a validation message asking the user to enter a keyword. Behaviour should
+  - match the reference site, where both cases return 0 products and no error occurs.
+  - heading "6. Actual Result" [level=2]
+  - An empty search still returns a product list instead of an empty result.
+  - Comparison with the reference site:
+  - Different. On
+  - link "https://practicesoftwaretesting.com" [ref=681]
+  - , an empty search as well as a
+  - whitespace-only search return 0 products and do not raise any error.
+  - Reproducibility: 3/3 attempts.
+  - heading "7. Severity & Priority Assessment" [level=2]
+  - listitem [level=1]
+    - strong
+      - Severity:
+    - Minor
+    - listitem [level=2]
+      - emphasis
+        - Severity Justification:
+      - The deviation occurs only in the result set produced
+      - by an empty query. No crash, data loss, or security impact was observed, and
+      - the search feature remains fully functional for normal keywords. The technical
+      - impact is limited to incorrect result presentation.
+  - listitem [level=1]
+    - strong
+      - Priority:
+    - P2
+    - listitem [level=2]
+      - emphasis
+        - Priority Justification:
+      - Although the technical impact is small, the defect is
+      - visible to every user who clicks the Search button without entering a keyword,
+      - and the results shown do not match the user's query. It should therefore be
+      - scheduled for the current cycle, but it does not block the release.
+  - heading "8. Evidence" [level=2]
+  - link "Image" [ref=582]
+  - heading "9. Traceability & Quality Gate" [level=2]
+  - listitem [level=1]
+    - strong
+      - Kiwi TCMS Test Case ID:
+    - link "https://100.102.60.61/case/54/" [ref=824]
+  - listitem [level=1]
+    - strong
+      - Linked Test Run:
+    - link "https://100.102.60.61/runs/15/" [ref=828]
+  - heading "R5 Defect Management Review" [level=3]
+  - listitem [level=1]
+    - listitem [level=2]
+      - checkbox "Steps to Reproduce are clear and reproducible by other testers checklist item" [checked=true, disabled] [ref=1239]
+      - Steps to Reproduce are clear and reproducible by other testers
+    - listitem [level=2]
+      - checkbox "Expected Result verified against oracle website (`practicesoftwaretesting.com`) checklist item" [checked=true, disabled] [ref=1241]
+      - Expected Result verified against oracle website (
+      - code
+        - practicesoftwaretesting.com
+    - listitem [level=2]
+      - checkbox "No duplicate found for this root cause checklist item" [checked=true, disabled] [ref=1243]
+      - No duplicate found for this root cause
+    - listitem [level=2]
+      - checkbox "Fullscreen evidence provided checklist item" [checked=true, disabled] [ref=1245]
+      - Fullscreen evidence provided
+    - listitem [level=2]
+      - checkbox "Severity and Priority justified properly checklist item" [checked=true, disabled] [ref=1247]
+      - Severity and Priority justified properly
+    - listitem [level=2]
+      - strong
+        - Triage Decision:
+      - Approved
+    - listitem [level=2]
+      - strong
+        - Triage Notes:
+      - Empty search defect verified on the AUT. Submitting empty search parameters improperly returns the full catalog product list rather than an empty state.
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - JinXProorgindo [ref=833] · added: bug Something isn't working [ref=835], severity : minor Non-critical feature issue or broken styling with workaround [ref=838], priority : P2-High High priority to fix before release; required for Quality Gate PASS [ref=841], area : katalog Product listing, search, filters, sort, pagination, and detail page [ref=844]
+      - link "1w ago" [ref=703]
+    - listitem [level=1]
+      - link "Pramudcka" [ref=848]
+      - added
+      - link "severity : major ore feature broken, incorrect calculation, severe UI failure" [ref=850]
+      - and
+      - removed
+      - link "severity : minor Non-critical feature issue or broken styling with workaround" [ref=855]
+      - link "1w ago" [ref=710]
+    - listitem [level=1]
+      - link "YarouAnarkis" [ref=859]
+      - added
+      - link "type : functional Discovered through functional, EP/BVA, or negative testing (R2)" [ref=861]
+      - link "triage : approved Verified and confirmed valid bug by Defect Management Engineer" [ref=864]
+      - link "1w ago" [ref=715]
+  - link "Sign up for free" [ref=437]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=440]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: area : katalog Product listing, search, filters, sort, pagination, and detail page [ref=613], bug Something isn't working [ref=616], priority : P2-High High priority to fix before release; required for Quality Gate PASS [ref=619], severity : major ore feature broken, incorrect calculation, severe UI failure [ref=622], triage : approved Verified and confirmed valid bug by Defect Management Engineer [ref=625], type : functional Discovered through functional, EP/BVA, or negative testing (R2) [ref=628]
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @JinXProorgindo [ref=544], @YarouAnarkis [ref=545], @Pramudcka [ref=546]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=645]

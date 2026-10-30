@@ -1,0 +1,461 @@
+url: https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2
+67,023 chars → 28,858 chars (57% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls. Links: "name" <url>.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" <https://github.com/flutter> [ref=325]
+      - link "flutter" <https://github.com/flutter/flutter> [ref=327]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" <https://github.com/flutter/flutter> [ref=328]
+      - link "Issues (5k+)" <https://github.com/flutter/flutter/issues> [ref=329]
+      - link "Pull requests (730)" <https://github.com/flutter/flutter/pulls> [ref=330]
+      - Repository: Actions <https://github.com/flutter/flutter/actions> [ref=331], Projects <https://github.com/flutter/flutter/projects> [ref=332], Wiki <https://github.com/flutter/flutter/wiki> [ref=333]
+      - button "More items" [expanded=false] [ref=248]
+  - complementary "Issues sidebar navigation"
+    - navigation "Issue filters"
+      - Issue filters: Issues <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=1659], Assigned to me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me> [ref=1660], Created by me <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+author%3A%40me> [ref=1661], Mentioned <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me> [ref=1662], Recent activity <https://github.com/flutter/flutter/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc> [ref=1663]
+    - navigation "Pages"
+      - Pages: Views <https://github.com/flutter/flutter/issues/views> [ref=1664], Projects <https://github.com/flutter/flutter/projects> [ref=1665], Milestones <https://github.com/flutter/flutter/milestones> [ref=1666], Labels <https://github.com/flutter/flutter/labels> [ref=1667]
+    - navigation "Feedback"
+      - link "Feedback Preview" <https://gh.io/issues-sidebar-feedback> [ref=1668]
+    - button "Collapse sidebar" [expanded=true] [ref=1168]
+  - heading "Issues" [level=1]
+  - link "New issue" <https://github.com/login?return_to=https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2> [ref=339]
+  - search "Issues"
+    - form "Search issues"
+      - LabelText
+        - Search issues
+      - combobox "Search issues" [expanded=false] [ref=1673]
+        - is:open label:P2
+      - button "Clear filter" [ref=1173]
+      - button "Search" [ref=1176]
+  - heading "Issues" [level=2]
+  - heading "7925 results" [level=3]
+  - toolbar "Issue list controls"
+    - button "Filter by author" [expanded=false] [ref=475]
+      - Author
+    - button "Filter by labels" [expanded=false] [ref=477]
+      - Labels
+    - button "More Issue list controls" [expanded=false] [ref=478]
+  - list "Issues display density"
+    - button "Comfortable display density" [ref=1676]
+    - button "Compact display density" [ref=1679]
+  - list "Issues"
+    - listitem "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag. More information available below." [level=1]
+      - heading [level=4]
+        - link "[gestures] latestPointer switches control to a stationary second finger when the first finger starts a drag" <https://github.com/flutter/flutter/issues/195415> [ref=1682]
+      - button "Filter by label f: gestures" [ref=1194]
+      - button "Filter by label framework" [ref=1195]
+      - button "Filter by label has reproducible steps" [ref=1196]
+      - button "Filter by label P2" [ref=1197]
+      - button "Filter by label team-framework" [ref=1198]
+      - button "Filter by label triaged-framework" [ref=1199]
+      - Unread
+      - flutter/flutter#195415
+      - button "Filter by author Pancf" [ref=497]
+      - opened
+      - generic "Oct 27, 2026, 2:01 PM GMT+1"
+        - 20h ago
+      - 1
+      - button "Filter by assignee Renzo-Olivares" [ref=508]
+    - listitem "TableBorder.lerp and TableBorder.scale drop borderRadius. More information available below." [level=1]
+      - heading [level=4]
+        - link "TableBorder.lerp and TableBorder.scale drop borderRadius" <https://github.com/flutter/flutter/issues/195397> [ref=1698]
+      - button "Filter by label framework" [ref=1213]
+      - button "Filter by label has reproducible steps" [ref=1214]
+      - button "Filter by label P2" [ref=1215]
+      - button "Filter by label team-framework" [ref=1216]
+      - button "Filter by label triaged-framework" [ref=1217]
+      - Unread
+      - flutter/flutter#195397
+      - button "Filter by author ChandraChaan" [ref=524]
+      - opened
+      - generic "Oct 27, 2026, 8:53 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/flutter#195398: Fix TableBorder.lerp and scale dropping borderRadius, Open" <https://github.com/flutter/flutter/pull/195398> [ref=530]
+      - 4
+      - button "Filter by assignee ChandraChaan" [ref=536]
+    - listitem "[cupertino_ui] NoDefaultCupertinoThemeData == and hashCode ignore selectionHandleColor. More information available below." [level=1]
+      - heading [level=4]
+        - link "[cupertino_ui] NoDefaultCupertinoThemeData == and hashCode ignore selectionHandleColor" <https://github.com/flutter/flutter/issues/195391> [ref=1712]
+      - button "Filter by label p: cupertino_ui" [ref=1231]
+      - button "Filter by label P2" [ref=1232]
+      - button "Filter by label package" [ref=1233]
+      - button "Filter by label team-design" [ref=1234]
+      - button "Filter by label triaged-design" [ref=1235]
+      - Unread
+      - flutter/flutter#195391
+      - button "Filter by author ChandraChaan" [ref=552]
+      - opened
+      - generic "Oct 27, 2026, 4:59 AM GMT+1"
+        - 1d ago
+      - link "1 linked pull request flutter/packages#13450: [cupertino_ui] Include selectionHandleColor in NoDefaultCupertinoThemeData equality, Open" <https://github.com/flutter/packages/pull/13450> [ref=558]
+      - 1
+    - listitem "90th_percentile_frame_rasterizer_time_millis1 20% regression. More information available below." [level=1]
+      - heading [level=4]
+        - link "90th_percentile_frame_rasterizer_time_millis1 20% regression" <https://github.com/flutter/flutter/issues/195338> [ref=1726]
+      - button "Filter by label c: performance" [ref=1248]
+      - button "Filter by label P2" [ref=1249]
+      - button "Filter by label team-engine" [ref=1250]
+      - Unread
+      - flutter/flutter#195338
+      - button "Filter by author gaaclarke" [ref=579]
+      - opened
+      - generic "Oct 26, 2026, 7:19 PM GMT+1"
+        - 2d ago
+      - 3
+      - button "Filter by assignee gmackall" [ref=590]
+    - listitem "[Impeller][GLES] AndroidSurfaceGLImpeller and EmbedderSurfaceGLImpeller recreate AiksContext. More information available below." [level=1]
+      - heading [level=4]
+        - link "[Impeller][GLES] AndroidSurfaceGLImpeller and EmbedderSurfaceGLImpeller recreate AiksContext" <https://github.com/flutter/flutter/issues/195311> [ref=1736]
+      - button "Filter by label c: performance" [ref=1264]
+      - button "Filter by label e: impeller" [ref=1265]
+      - button "Filter by label engine" [ref=1266]
+      - button "Filter by label P2" [ref=1267]
+      - button "Filter by label platform-android" [ref=1268]
+      - button "Filter by label team-engine" [ref=1269]
+      - button "Filter by label triaged-engine" [ref=1270]
+      - Unread
+      - flutter/flutter#195311
+      - button "Filter by author zanderso" [ref=606]
+      - opened
+      - generic "Oct 26, 2026, 5:58 AM GMT+1"
+        - 2d ago
+      - link "1 linked pull request flutter/flutter#195310: [Impeller] Share AiksContext across OpenGL ES surfaces, Open" <https://github.com/flutter/flutter/pull/195310> [ref=612]
+      - 2
+    - listitem "ReorderableList drag proxy and drop index are wrong under a scaled ancestor (e.g. app zoom). More information available below." [level=1]
+      - heading [level=4]
+        - link "ReorderableList drag proxy and drop index are wrong under a scaled ancestor (e.g. app zoom)" <https://github.com/flutter/flutter/issues/195303> [ref=1754]
+      - button "Filter by label f: scrolling" [ref=1283]
+      - button "Filter by label found in release: 3.47" [ref=1284]
+      - button "Filter by label framework" [ref=1285]
+      - button "Filter by label has reproducible steps" [ref=1286]
+      - button "Filter by label P2" [ref=1287]
+      - button "Filter by label team-framework" [ref=1288]
+      - button "Filter by label triaged-framework" [ref=1289]
+      - Unread
+      - flutter/flutter#195303
+      - button "Filter by author saitatter" [ref=633]
+      - opened
+      - generic "Oct 25, 2026, 11:49 PM GMT+1"
+        - 2d ago
+      - link "1 linked pull request flutter/flutter#195304: Fix ReorderableList drag under a scaled ancestor, Open" <https://github.com/flutter/flutter/pull/195304> [ref=639]
+      - 2
+      - button "Filter by assignee saitatter" [ref=645]
+    - listitem "Add direct unit tests for MouseCursorManager (services). More information available below." [level=1]
+      - heading [level=4]
+        - link "Add direct unit tests for MouseCursorManager (services)" <https://github.com/flutter/flutter/issues/195285> [ref=1772]
+      - button "Filter by label a: mouse" [ref=1303]
+      - button "Filter by label a: tests" [ref=1304]
+      - button "Filter by label c: tech-debt" [ref=1305]
+      - button "Filter by label framework" [ref=1306]
+      - button "Filter by label P2" [ref=1307]
+      - button "Filter by label team-framework" [ref=1308]
+      - button "Filter by label triaged-framework" [ref=1309]
+      - Unread
+      - flutter/flutter#195285
+      - button "Filter by author ashu3699" [ref=661]
+      - opened
+      - generic "Oct 25, 2026, 7:12 PM GMT+1"
+        - 3d ago
+      - link "1 linked pull request flutter/flutter#195286: Add unit tests for MouseCursorManager (services), Open" <https://github.com/flutter/flutter/pull/195286> [ref=667]
+      - 1
+      - button "Filter by assignee ashu3699" [ref=673]
+    - listitem "[cupertino_ui] CupertinoButton.tinted fills with 12% of the accent, not UIKit's 18%. More information available below." [level=1]
+      - heading [level=4]
+        - link "[cupertino_ui] CupertinoButton.tinted fills with 12% of the accent, not UIKit's 18%" <https://github.com/flutter/flutter/issues/195265> [ref=1790]
+      - button "Filter by label a: fidelity" [ref=1323]
+      - button "Filter by label has reproducible steps" [ref=1324]
+      - button "Filter by label p: cupertino_ui" [ref=1325]
+      - button "Filter by label P2" [ref=1326]
+      - button "Filter by label package" [ref=1327]
+      - button "Filter by label team-design" [ref=1328]
+      - button "Filter by label triaged-design" [ref=1329]
+      - Unread
+      - flutter/flutter#195265
+      - button "Filter by author LahaLuhem" [ref=689]
+      - opened
+      - generic "Oct 25, 2026, 3:10 PM GMT+1"
+        - 3d ago
+      - link "1 linked pull request flutter/packages#13436: [cupertino_ui] Fix the tinted button's fill opacity, Open" <https://github.com/flutter/packages/pull/13436> [ref=695]
+    - listitem "[material_ui] showModalBottomSheet(useSafeArea: true) subtracts the opposite safe area from a sheet on a display-feature sub-screen. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] showModalBottomSheet(useSafeArea: true) subtracts the opposite safe area from a sheet on a display-feature sub-screen" <https://github.com/flutter/flutter/issues/195218> [ref=1808]
+      - button "Filter by label a: adaptivity" [ref=1342]
+      - button "Filter by label a: layout" [ref=1343]
+      - button "Filter by label has reproducible steps" [ref=1344]
+      - button "Filter by label p: material_ui" [ref=1345]
+      - button "Filter by label P2" [ref=1346]
+      - button "Filter by label package" [ref=1347]
+      - button "Filter by label team-design" [ref=1348]
+      - button "Filter by label triaged-design" [ref=1349]
+      - Unread
+      - flutter/flutter#195218
+      - button "Filter by author 4KDV" [ref=716]
+      - opened
+      - generic "Oct 24, 2026, 10:56 AM GMT+2"
+        - 4d ago
+      - link "1 linked pull request flutter/packages#13428: [material_ui] Fix showModalBottomSheet safe area on display-feature sub-screens, Open" <https://github.com/flutter/packages/pull/13428> [ref=722]
+      - 1
+    - listitem "DisplayFeatureSubScreen.subScreensInBounds depends on the order of displayFeatures and can return a sub-screen that spans a fold. More information available below." [level=1]
+      - heading [level=4]
+        - link "DisplayFeatureSubScreen.subScreensInBounds depends on the order of displayFeatures and can return a sub-screen that spans a fold" <https://github.com/flutter/flutter/issues/195216> [ref=1828]
+      - button "Filter by label a: tests" [ref=1362]
+      - button "Filter by label framework" [ref=1363]
+      - button "Filter by label has reproducible steps" [ref=1364]
+      - button "Filter by label P2" [ref=1365]
+      - button "Filter by label team-framework" [ref=1366]
+      - button "Filter by label triaged-framework" [ref=1367]
+      - Unread
+      - flutter/flutter#195216
+      - button "Filter by author naderm11" [ref=743]
+      - opened
+      - generic "Oct 24, 2026, 10:43 AM GMT+2"
+        - 4d ago
+      - link "1 linked pull request flutter/flutter#195331: Fix DisplayFeatureSubScreen sub-screens depending on display feature order, Draft" <https://github.com/flutter/flutter/pull/195331> [ref=749]
+      - 1
+    - listitem "[web] RawMagnifier BackdropFilter matrix magnification does not render in widgets/magnifier_test.dart. More information available below." [level=1]
+      - heading [level=4]
+        - link "[web] RawMagnifier BackdropFilter matrix magnification does not render in widgets/magnifier_test.dart" <https://github.com/flutter/flutter/issues/195195> [ref=1844]
+      - button "Filter by label P2" [ref=1380]
+      - button "Filter by label team-web" [ref=1381]
+      - button "Filter by label triaged-web" [ref=1382]
+      - Unread
+      - flutter/flutter#195195
+      - button "Filter by author harryterkelsen" [ref=770]
+      - opened
+      - generic "Oct 24, 2026, 12:39 AM GMT+2"
+        - 4d ago
+    - listitem "[web][skwasm] CupertinoPopupSurface BackdropFilter color-filter/blur rendering diverges under --wasm. More information available below." [level=1]
+      - heading [level=4]
+        - link "[web][skwasm] CupertinoPopupSurface BackdropFilter color-filter/blur rendering diverges under --wasm" <https://github.com/flutter/flutter/issues/195194> [ref=1854]
+      - button "Filter by label P2" [ref=1394]
+      - button "Filter by label team-web" [ref=1395]
+      - button "Filter by label triaged-web" [ref=1396]
+      - Unread
+      - flutter/flutter#195194
+      - button "Filter by author harryterkelsen" [ref=794]
+      - opened
+      - generic "Oct 24, 2026, 12:39 AM GMT+2"
+        - 4d ago
+    - listitem "[web] instantiateImageCodecWithSize hardcodes allowUpscaling: false, breaking ResizeImage(allowUpscaling: true). More information available below." [level=1]
+      - heading [level=4]
+        - link "[web] instantiateImageCodecWithSize hardcodes allowUpscaling: false, breaking ResizeImage(allowUpscaling: true)" <https://github.com/flutter/flutter/issues/195193> [ref=1864]
+      - button "Filter by label P2" [ref=1408]
+      - button "Filter by label team-web" [ref=1409]
+      - button "Filter by label triaged-web" [ref=1410]
+      - Unread
+      - flutter/flutter#195193
+      - button "Filter by author harryterkelsen" [ref=818]
+      - opened
+      - generic "Oct 24, 2026, 12:39 AM GMT+2"
+        - 4d ago
+      - button "3 linked pull requests" [expanded=false] [ref=824]
+    - listitem "[material_ui] DropdownButtonFormField: InputDecoration looks enabled and reacts to hover when enabled: false. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] DropdownButtonFormField: InputDecoration looks enabled and reacts to hover when enabled: false" <https://github.com/flutter/flutter/issues/195192> [ref=1875]
+      - button "Filter by label p: material_ui" [ref=1426]
+      - button "Filter by label P2" [ref=1427]
+      - button "Filter by label package" [ref=1428]
+      - button "Filter by label team-design" [ref=1429]
+      - button "Filter by label triaged-design" [ref=1430]
+      - Unread
+      - flutter/flutter#195192
+      - button "Filter by author JannikWinter" [ref=843]
+      - opened
+      - generic "Oct 23, 2026, 11:52 PM GMT+2"
+        - 4d ago
+      - 1
+    - listitem "[iPhone Duo] Make sure PlatformDispatcher.instance.displays is correct when open/close iPhone Duo. More information available below." [level=1]
+      - heading [level=4]
+        - link "[iPhone Duo] Make sure PlatformDispatcher.instance.displays is correct when open/close iPhone Duo" <https://github.com/flutter/flutter/issues/195177> [ref=1889]
+      - button "Filter by label P2" [ref=1443]
+      - button "Filter by label platform-ios" [ref=1444]
+      - button "Filter by label team-ios" [ref=1445]
+      - button "Filter by label triaged-ios" [ref=1446]
+      - Unread
+      - flutter/flutter#195177
+      - button "Filter by author hellohuanlin" [ref=869]
+      - opened
+      - generic "Oct 23, 2026, 8:56 PM GMT+2"
+        - 5d ago
+      - 1
+      - button "Filter by assignee hellohuanlin" [ref=880]
+    - listitem "[web] Semantics text fields render autocomplete="off" until focused, ignoring autofillHints. More information available below." [level=1]
+      - heading [level=4]
+        - link "[web] Semantics text fields render autocomplete="off" until focused, ignoring autofillHints" <https://github.com/flutter/flutter/issues/195175> [ref=1901]
+      - button "Filter by label a: accessibility" [ref=1460]
+      - button "Filter by label a: text input" [ref=1461]
+      - button "Filter by label engine" [ref=1462]
+      - button "Filter by label has reproducible steps" [ref=1463]
+      - button "Filter by label P2" [ref=1464]
+      - button "Filter by label platform-web" [ref=1465]
+      - button "Filter by label team-accessibility" [ref=1466]
+      - Unread
+      - flutter/flutter#195175
+      - button "Filter by author flutter-zl" [ref=896]
+      - opened
+      - generic "Oct 23, 2026, 8:21 PM GMT+2"
+        - 5d ago
+      - button "Filter by assignee flutter-zl" [ref=905]
+    - listitem "[web] Hidden autofill form inputs are exposed to assistive technology without a label. More information available below." [level=1]
+      - heading [level=4]
+        - link "[web] Hidden autofill form inputs are exposed to assistive technology without a label" <https://github.com/flutter/flutter/issues/195174> [ref=1919]
+      - button "Filter by label a: accessibility" [ref=1479]
+      - button "Filter by label a: text input" [ref=1480]
+      - button "Filter by label assigned for triage" [ref=1481]
+      - button "Filter by label engine" [ref=1482]
+      - button "Filter by label P2" [ref=1483]
+      - button "Filter by label platform-web" [ref=1484]
+      - button "Filter by label team-web" [ref=1485]
+      - Unread
+      - flutter/flutter#195174
+      - button "Filter by author flutter-zl" [ref=921]
+      - opened
+      - generic "Oct 23, 2026, 8:21 PM GMT+2"
+        - 5d ago
+      - 2
+      - button "Filter by assignee flutter-zl" [ref=932]
+    - listitem "[iOS][SwiftPM] flutter build ios --simulator / flutter run fail for packages with a SwiftPM build-tool plugin backed by an executable target: flutter_tools always passes -sdk iphonesimulator. More information available below." [level=1]
+      - heading [level=4]
+        - link "[iOS][SwiftPM] flutter build ios --simulator / flutter run fail for packages with a SwiftPM build-tool plugin backed by an executable target: flutter_tools always passes -sdk iphonesimulator" <https://github.com/flutter/flutter/issues/195155> [ref=1937]
+      - button "Filter by label a: plugins" [ref=1499]
+      - button "Filter by label has reproducible steps" [ref=1500]
+      - button "Filter by label P2" [ref=1501]
+      - button "Filter by label platform-ios" [ref=1502]
+      - button "Filter by label t: xcode" [ref=1503]
+      - button "Filter by label team-ios" [ref=1504]
+      - button "Filter by label tool" [ref=1505]
+      - button "Filter by label triaged-ios" [ref=1506]
+      - Unread
+      - flutter/flutter#195155
+      - button "Filter by author snoopdoggy322" [ref=948]
+      - opened
+      - generic "Oct 23, 2026, 3:15 PM GMT+2"
+        - 5d ago
+      - link "1 linked pull request flutter/flutter#195167: [flutter_tools] Don't pass -sdk to xcodebuild for iOS simulator builds, Open" <https://github.com/flutter/flutter/pull/195167> [ref=954]
+      - 1
+    - listitem "[material_ui] SimpleDialog with no title puts its children 20 from the top, not 24. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] SimpleDialog with no title puts its children 20 from the top, not 24" <https://github.com/flutter/flutter/issues/195153> [ref=1957]
+      - button "Filter by label a: tests" [ref=1519]
+      - button "Filter by label has reproducible steps" [ref=1520]
+      - button "Filter by label p: material_ui" [ref=1521]
+      - button "Filter by label P2" [ref=1522]
+      - button "Filter by label package" [ref=1523]
+      - button "Filter by label team-design" [ref=1524]
+      - button "Filter by label triaged-design" [ref=1525]
+      - Unread
+      - flutter/flutter#195153
+      - button "Filter by author LahaLuhem" [ref=975]
+      - opened
+      - generic "Oct 23, 2026, 2:03 PM GMT+2"
+        - 5d ago
+      - link "1 linked pull request flutter/packages#13426: [material_ui] Fix SimpleDialog missing edge padding, Draft" <https://github.com/flutter/packages/pull/13426> [ref=981]
+    - listitem "[go_router_builder] onExit method not detected in mixins. More information available below." [level=1]
+      - heading [level=4]
+        - link "[go_router_builder] onExit method not detected in mixins" <https://github.com/flutter/flutter/issues/195151> [ref=1975]
+      - button "Filter by label has reproducible steps" [ref=1538]
+      - button "Filter by label p: go_router_builder" [ref=1539]
+      - button "Filter by label p: go_router" [ref=1540]
+      - button "Filter by label P2" [ref=1541]
+      - button "Filter by label package" [ref=1542]
+      - button "Filter by label team-ecosystem" [ref=1543]
+      - button "Filter by label triaged-ecosystem" [ref=1544]
+      - button "Filter by label waiting for PR to land (fixed)" [ref=1545]
+      - button "Filter by label workaround available" [ref=1546]
+      - Unread
+      - flutter/flutter#195151
+      - button "Filter by author PeterStaev" [ref=1002]
+      - opened
+      - generic "Oct 23, 2026, 1:36 PM GMT+2"
+        - 5d ago
+      - link "1 linked pull request flutter/packages#13416: [go_router_builder] Detect inherited onExit callbacks, Open" <https://github.com/flutter/packages/pull/13416> [ref=1008]
+      - 2
+    - listitem "[web] Platform views render offscreen when host document has dir="rtl". More information available below." [level=1]
+      - heading [level=4]
+        - link "[web] Platform views render offscreen when host document has dir="rtl"" <https://github.com/flutter/flutter/issues/195150> [ref=1997]
+      - button "Filter by label a: platform-views" [ref=1559]
+      - button "Filter by label has reproducible steps" [ref=1560]
+      - button "Filter by label P2" [ref=1561]
+      - button "Filter by label platform-web" [ref=1562]
+      - button "Filter by label team-web" [ref=1563]
+      - button "Filter by label triaged-web" [ref=1564]
+      - Unread
+      - flutter/flutter#195150
+      - button "Filter by author bardiakz" [ref=1029]
+      - opened
+      - generic "Oct 23, 2026, 12:20 PM GMT+2"
+        - 5d ago
+      - link "1 linked pull request flutter/flutter#194601: [web] Anchor platform view slots to top-left to fix RTL document layout, Open" <https://github.com/flutter/flutter/pull/194601> [ref=1035]
+      - 1
+      - button "Filter by assignee bardiakz" [ref=1041]
+    - listitem "[Linux] fontFamilyFallback: ["emoji"] picks a monochrome emoji font: family preference order is lost in SkFontMgr_fontconfig matchFamily/matchStyle. More information available below." [level=1]
+      - heading [level=4]
+        - link "[Linux] fontFamilyFallback: ["emoji"] picks a monochrome emoji font: family preference order is lost in SkFontMgr_fontconfig matchFamily/matchStyle" <https://github.com/flutter/flutter/issues/195102> [ref=2013]
+      - button "Filter by label a: typography" [ref=1578]
+      - button "Filter by label engine" [ref=1579]
+      - button "Filter by label has reproducible steps" [ref=1580]
+      - button "Filter by label P2" [ref=1581]
+      - button "Filter by label platform-linux" [ref=1582]
+      - button "Filter by label team-engine" [ref=1583]
+      - button "Filter by label triaged-engine" [ref=1584]
+      - Unread
+      - flutter/flutter#195102
+      - button "Filter by author Henry-Hiles" [ref=1057]
+      - opened
+      - generic "Oct 22, 2026, 10:04 PM GMT+2"
+        - 1w ago
+      - 7
+      - button "Filter by assignee Rusino" [ref=1068]
+    - listitem "[material_ui] An untitled AlertDialog pads its content 16 from the top, not 24. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] An untitled AlertDialog pads its content 16 from the top, not 24" <https://github.com/flutter/flutter/issues/195096> [ref=2031]
+      - button "Filter by label p: material_ui" [ref=1598]
+      - button "Filter by label P2" [ref=1599]
+      - button "Filter by label package" [ref=1600]
+      - button "Filter by label team-design" [ref=1601]
+      - button "Filter by label triaged-design" [ref=1602]
+      - Unread
+      - flutter/flutter#195096
+      - button "Filter by author LahaLuhem" [ref=1084]
+      - opened
+      - generic "Oct 22, 2026, 8:49 PM GMT+2"
+        - 1w ago
+      - link "1 linked pull request flutter/packages#13399: [material_ui] Fix untitled AlertDialog content's top inset, Open" <https://github.com/flutter/packages/pull/13399> [ref=1090]
+    - listitem "[material_ui] Escape doesn't close a MenuAnchor menu opened by a tap or click. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] Escape doesn't close a MenuAnchor menu opened by a tap or click" <https://github.com/flutter/flutter/issues/195059> [ref=2045]
+      - button "Filter by label has reproducible steps" [ref=1615]
+      - button "Filter by label p: material_ui" [ref=1616]
+      - button "Filter by label P2" [ref=1617]
+      - button "Filter by label package" [ref=1618]
+      - button "Filter by label team-design" [ref=1619]
+      - button "Filter by label triaged-design" [ref=1620]
+      - Unread
+      - flutter/flutter#195059
+      - button "Filter by author LahaLuhem" [ref=1111]
+      - generic "Oct 22, 2026, 3:21 PM GMT+2"
+        - 1w ago
+      - link "1 linked pull request flutter/packages#13430: [material_ui] Fix Escape key not closing MenuAnchor opened by tap or click, Open" <https://github.com/flutter/packages/pull/13430> [ref=1117]
+      - 2
+      - button "Filter by assignee mmohankrishna-lab" [ref=1123]
+    - listitem "[material_ui] Let a modal bottom sheet open at half height and pull to full screen, as M3 describes. More information available below." [level=1]
+      - heading [level=4]
+        - link "[material_ui] Let a modal bottom sheet open at half height and pull to full screen, as M3 describes" <https://github.com/flutter/flutter/issues/195041> [ref=2061]
+      - button "Filter by label c: proposal" [ref=1634]
+      - button "Filter by label p: material_ui" [ref=1635]
+      - button "Filter by label P2" [ref=1636]
+      - button "Filter by label package" [ref=1637]
+      - button "Filter by label team-design" [ref=1638]
+      - button "Filter by label triaged-design" [ref=1639]
+      - Unread
+      - flutter/flutter#195041
+      - button "Filter by author LahaLuhem" [ref=1139]
+      - opened
+      - generic "Oct 22, 2026, 11:08 AM GMT+2"
+        - 1w ago
+  - navigation "Pagination"
+    - Pagination: Page 1 [ref=433], Page 2 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=2> [ref=434], Page 3 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=3> [ref=435], Page 4 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=4> [ref=436], Page 5 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=5> [ref=437], Page 6 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=6> [ref=438], Page 7... <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=7> [ref=439], Page 40 <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=40> [ref=441], Next Page <https://github.com/flutter/flutter/issues?q=is%3Aopen+label%3AP2&page=2> [ref=442]

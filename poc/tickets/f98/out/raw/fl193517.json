@@ -1,0 +1,54 @@
+{
+ "number": 193517,
+ "title": "[tool_crash] Unhandled SessionNotCreatedException in WebDriverService.startTest during flutter drive",
+ "body": "### Summary\nIn Flutter 3.47.5 (7 days post-release), `SessionNotCreatedException` at `parseW3cResponse` (`package:webdriver/src/handler/w3c/utils.dart-9abe6b17`) is the #6 tool crasher, accounting for **112 crashes (7.3% of Top 10 crashes, 3.7% of all crashes)** during `flutter drive`.\n\n### Stack Trace & Error Message\n```text\nSessionNotCreatedException (500): session not created: DevToolsActivePort file doesn't exist\n```\n*(Also observed with Safari WebDriver timeouts: `SessionNotCreatedException (500): Could not create a session: The session timed out while connecting to a Safari instance.`)*\n\n```text\n#0      parseW3cResponse (package:webdriver/src/handler/w3c/utils.dart:81)\n#1      W3cSessionHandler.parseCreateResponse (package:webdriver/src/handler/w3c/session.dart:19)\n#2      InferSessionHandler.parseCreateResponse (package:webdriver/src/handler/infer_handler.dart:106)\n#3      AsyncRequestClient.send (package:webdriver/src/common/request_client.dart:96)\n<asynchronous suspension>\n#4      createDriver (package:webdriver/async_core.dart:62)\n<asynchronous suspension>\n#5      WebDriverService.startTest (package:flutter_tools/src/drive/web_driver_service.dart:200)\n<asynchronous suspension>\n#6      DriveCommand.runCommand (package:flutter_tools/src/commands/drive.dart:387)\n```\n\n### Root Cause Analysis\nIn `WebDriverService.startTest` (`packages/flutter_tools/lib/src/drive/web_driver_service.dart:199-219`), `async_io.createDriver(...)` only catches `SocketException`:\n```dart\n    try {\n      webDriver = await async_io.createDriver(\n        uri: Uri.parse('http://localhost:$driverPort/'),\n        desired: getDesiredCapabilities(...),\n      );\n    } on SocketException catch (error) {\n      _logger.printTrace('$error');\n      throwToolExit(\n        'Unable to start a WebDriver session for web testing.\\n'\n        'Make sure you have the correct WebDriver server (e.g. chromedriver) running at $driverPort.\\n'\n        'For instructions on how to obtain and run a WebDriver server, see:\\n'\n        'https://flutter.dev/to/integration-test-on-web\\n',\n      );\n    }\n```\nWhen the WebDriver server (`chromedriver`, `safaridriver`, `geckodriver`) is reachable over TCP but fails to launch or connect to the browser instance (e.g., Chrome crashes on launch without `--no-sandbox` / `DevToolsActivePort file doesn't exist`, browser/driver version mismatch, or Safari automation session timeout), `package:webdriver` throws `WebDriverException` (`SessionNotCreatedException`), which escapes uncaught as a tool crash.\n\n### Expected Behavior\n`WebDriverService.startTest` should catch `async_io.WebDriverException` (or `SessionNotCreatedException`) and call `throwToolExit` with the underlying WebDriver error message rather than crashing `flutter_tools`.\n\n### Related Issues & PRs\n- Prior closed/locked issues: https://github.com/flutter/flutter/issues/185032, https://github.com/flutter/flutter/issues/183363, https://github.com/flutter/flutter/issues/177981, https://github.com/flutter/flutter/issues/174195, https://github.com/flutter/flutter/issues/169006, https://github.com/flutter/flutter/issues/163790",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/193517",
+ "user": {
+  "login": "bkonyi",
+  "id": 24210656,
+  "profile_url": "https://github.com/bkonyi",
+  "avatar_url": "https://avatars.githubusercontent.com/u/24210656?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "c: crash",
+  "tool",
+  "P1",
+  "team-tool",
+  "triaged-tool",
+  "found in release: 3.47",
+  "t: top-crasher"
+ ],
+ "assignees": [],
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-09-29T19:05:45Z",
+ "updated_at": "2026-10-21T16:31:23Z",
+ "closed_at": "2026-10-21T16:31:23Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 194207,
+    "title": "[flutter_tools] Exit cleanly when the WebDriver server cannot create a session",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/194207",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

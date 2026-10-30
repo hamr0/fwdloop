@@ -1,0 +1,135 @@
+url: https://github.com/lmchkhi/CS423-CSC15003-Testing-N08/issues/270
+19,641 chars → 4,181 chars (79% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "lmchkhi" [ref=290]
+      - link "CS423-CSC15003-Testing-N08" [ref=292]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=293]
+      - link "Issues (261)" [ref=294]
+      - Repository: Pull requests [ref=295], Actions [ref=296], Projects [ref=297], Security and quality [ref=298], Insights [ref=299]
+  - region "Header"
+    - heading "[BUG][FR-03][API] reset-password returns 500 for text/plain request body #270" [level=1]
+    - link "New issue" [ref=393]
+    - button "Copy link" [ref=394]
+  - Open
+  - heading "Description" [level=2]
+  - link "@hnaht277's profile" [ref=465]
+  - link "hnaht277" [ref=409]
+  - opened
+  - link "on Aug 22" [ref=468]
+  - button "Last edited by hnaht277" [expanded=false] [ref=414]
+  - generic "This user has been invited to collaborate on the CS423-CSC15003-Testing-N08 repository."
+    - Collaborator
+  - button "Issue body actions" [expanded=false] [ref=419]
+  - heading "Found by Test Case" [level=2]
+  - TC-FR03-API-SCH-010
+  - heading "Requirement liên quan" [level=2]
+  - FR-03, SEC-05
+  - heading "Severity / Priority" [level=2]
+  - Major / P2
+  - heading "Environment" [level=2]
+  - Backend API URL:
+  - code
+    - http://localhost:3000
+  - Tool: Newman
+  - code
+    - 6.2.2
+  - Run date: 21/08/2026
+  - heading "Steps to reproduce" [level=2]
+  - listitem [level=1]
+    - Send
+    - code
+      - POST /api/reset-password
+  - listitem [level=1]
+    - Set request header
+    - code
+      - Content-Type: text/plain
+  - listitem [level=1]
+    - Send a JSON-looking plaintext body containing
+    - code
+      - email
+    - code
+      - resetToken
+    - , and
+    - code
+      - newPassword
+  - heading "Expected result" [level=2]
+  - The API rejects the unsupported content type with a client error such as
+  - code
+    - 400
+  - or
+  - code
+    - 415
+  - , and must not crash or expose an unexpected server error.
+  - heading "Actual result" [level=2]
+  - The API returns
+  - code
+    - 500 Internal Server Error
+  - heading "Evidence" [level=2]
+  - listitem [level=1]
+    - Newman HTML report:
+    - code
+      - reports/newman/hw06-fr03-reset-password.html
+  - listitem [level=1]
+    - Newman JSON report:
+    - code
+      - reports/newman/hw06-fr03-reset-password.json
+  - listitem [level=1]
+    - Newman CLI log:
+    - code
+      - reports/newman/hw06-fr03-reset-password-cli.txt
+  - listitem [level=1]
+    - CLI failures:
+    - listitem [level=2]
+      - code
+        - TC-FR03-API-SCH-010 status matches expected
+      - : expected
+      - code
+        - 400 or 415
+      - , got
+      - code
+        - 500
+    - listitem [level=2]
+      - code
+        - TC-FR03-API-SCH-010 no unexpected 5xx
+      - : expected
+      - code
+        - 500
+      - to be below
+      - code
+        - 500
+  - listitem [level=1]
+    - Screenshot:
+    - link "BUG-FR03-API-003" [ref=786]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - hnaht277 [ref=722] · added: Type: Bug This is a bug [ref=724], Severity: Major [ref=727], Status: New Bug has been newly discorver and not yet confirm [ref=729], Priority: P2 [ref=732], Module: Forgot password [ref=734]
+      - link "on Aug 22" [ref=645]
+  - link "Sign up for free" [ref=425]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=428]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: Module: Forgot password [ref=577], Priority: P2 [ref=579], Severity: Major [ref=581], Status: New Bug has been newly discorver and not yet confirm [ref=583], Type: Bug This is a bug [ref=586]
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - heading "Participants" [level=3]
+  - link "@hnaht277" [ref=528]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=601]

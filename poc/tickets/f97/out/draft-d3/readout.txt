@@ -1,0 +1,36 @@
+DRAFT READOUT — NOT SIGNED — flow "f97-d3"
+
+Drafted by: deepseek-flash in 1 round(s), cost $0.0028
+Flows root: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f97/work/root  (the flow is written to <flows root>/f97-d3 when you sign)
+Cap per run (signed by you in the prose): $0.25
+
+INPUTS
+  issue = https://github.com/hamr0/bareagent/issues/30
+
+STEPS
+  1. (line 1) read the ticket and say what is broken
+     grants: read | reads: issue | emits: breakage_summary | check: hitl
+  2. (line 2) read the ticket and pull out its priority
+     grants: read | reads: issue | emits: ticket_priority | check: hitl
+  3. (line 3) write a short first-response plan for the on-call engineer
+     grants: read | reads: breakage_summary, ticket_priority | emits: first_response_plan | check: softgreen
+  4. (line 4) check it with me,
+     grants: none (pure stop) | reads: first_response_plan | emits: accepted_plan | check: hitl
+  5. (line 5) and once I accept, write it out.
+     grants: write | reads: accepted_plan | emits: plan_written | check: hitl
+
+ASKS (human stops)
+  line 4: "check it with me," (ttl 30m)
+
+SEND TARGET (nothing leaves before an accepted ask)
+  line 5 -> file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f97-out
+
+JOB LINES
+  1. read the ticket and say what is broken
+  ~ only if it looks important to me
+  2. read the ticket and pull out its priority
+  3. write a short first-response plan for the on-call engineer
+  ~ under 150 words
+  4. check it with me,
+  ~ nothing goes out before I accept
+  5. and once I accept, write it out.

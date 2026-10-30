@@ -1,0 +1,37 @@
+{
+ "number": 195447,
+ "title": "[google_sign_in] needs updating to support eMudhra",
+ "body": "### Steps to reproduce\n\nAccording to the [documentation](https://firebase.google.com/support/guides/compromised-emudhra-intermediate-ca) we're encouraged to update Firestore, but if we move to something like 7.1.0 for `cloud_firestore`, then we can no longer use `google_sign_in: 7.2.0`, ultimately because of `gtm-session-fetcher`:\n\n```\n\nxcodebuild: error: Could not resolve package dependencies:\n  Failed to resolve dependencies Dependencies could not be resolved because 'firebase_storage-14.0.1' depends on 'firebase-ios-sdk' 13.1.1 and 'google_sign_in_ios-6.3.6' depends on 'googlesignin-ios' 9.0.0..<10.0.0.\n'googlesignin-ios' is incompatible with 'firebase-ios-sdk' because 'googlesignin-ios' 9.2.0 depends on 'gtm-session-fetcher' 3.3.0..<4.0.0 and 'firebase-ios-sdk' 13.1.1 depends on 'gtm-session-fetcher' 4.0.0..<6.0.0.\n'googlesignin-ios' {9.0.0..<9.2.0, 9.2.1..<10.0.0} practically depends on 'gtm-session-fetcher' 3.3.0..<4.0.0 because 'googlesignin-ios' 9.1.0 depends on 'gtm-session-fetcher' 3.3.0..<4.0.0.\n'googlesignin-ios' {9.0.0..<9.1.0, 9.1.1..<9.2.0, 9.2.1..<10.0.0} practically depends on 'gtm-session-fetcher' 3.3.0..<4.0.0 because no versions of 'googlesignin-ios' match the requirement {9.0.1..<9.1.0, 9.1.1..<9.2.0, 9.2.1..<10.0.0} and 'googlesignin-ios' 9.0.0 depends on 'gtm-session-fetcher' 3.3.0..<4.0.0.\n```\n\n### Expected results\n\nExpect to be able to compile.\n\n### Actual results\n\nCannot compile\n\n",
+ "state": "closed",
+ "state_reason": "duplicate",
+ "html_url": "https://github.com/flutter/flutter/issues/195447",
+ "user": {
+  "login": "jonmountjoy",
+  "id": 545244,
+  "profile_url": "https://github.com/jonmountjoy",
+  "avatar_url": "https://avatars.githubusercontent.com/u/545244?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "assignees": [],
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-27T22:29:31Z",
+ "updated_at": "2026-10-27T23:36:01Z",
+ "closed_at": "2026-10-27T23:36:01Z",
+ "closed_by": "stuartmorgan",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 0,
+  "references": []
+ }
+}

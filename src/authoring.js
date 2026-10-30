@@ -195,12 +195,22 @@ export function buildReadout({
     const h = declaration.inputFacts?.[s.role];
     out.push(`  ${s.role} = ${s.path}${h ? `  [headings: ${h.join(' | ') || 'none'}]` : ''}`);
   }
+  // M12 piece 3: what is signed for MCP, from the declaration's typed fields (a job without them prints none of these rows)
+  const mcp = declaration.mcp;
+  if (mcp && typeof mcp === 'object') out.push(`  mcp: ${mcp.server} · tools: ${(mcp.tools ?? []).join(', ')}`);
+  const filter = declaration.ticketFilter;
+  if (filter && typeof filter === 'object') {
+    const parts = [...(filter.priority?.length ? [`priority ${filter.priority.join(', ')}`] : []), ...(filter.labels?.length ? [`labels ${filter.labels.join(', ')}`] : [])];
+    if (parts.length) out.push(`  ticket filter: ${parts.join(' · ')}`);
+  }
+  if (Array.isArray(declaration.ticketWatch) && declaration.ticketWatch.length) out.push(`  ticket watch: ${declaration.ticketWatch.join(', ')}`);
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
+    if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${row}`);
     // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields

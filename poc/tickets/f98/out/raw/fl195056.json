@@ -1,0 +1,60 @@
+{
+ "number": 195056,
+ "title": "[video_player_avfoundation] 2.12.2: \"Attempted to read an unowned reference\" crash in VideoPlayerInstanceBridge.seek(to:) when seekTo is followed by dispose",
+ "body": "### Steps to reproduce\n\n1. Create a new Flutter app (`flutter create --platforms=ios repro`).\n2. Add `video_player` and pin the iOS implementation: `flutter pub add video_player video_player_avfoundation:2.12.2`.\n3. Replace `lib/main.dart` with the code sample below.\n4. `flutter run` on an iOS simulator.\n\nThe app crashes almost immediately (on the 2nd iteration in my runs).\n\nPinning `video_player_avfoundation: 2.12.1` with the exact same code runs 197+ iterations without a crash, so this is a regression from 2.12.2 (#13197, \"Convert player classes to Swift\").\n\nIn a real app this shows up as a carousel with video pages: when a page is swiped away, the widget resets the video with `seekTo(Duration.zero)` and then disposes the controller. The app crashes a few seconds after the home screen loads.\n\n### Expected results\n\n`seekTo` followed by `dispose` should not crash. The pending seek should be ignored, or complete with an error, once the player is disposed.\n\n### Actual results\n\nThe process aborts with:\n\n```\nFatal error: Attempted to read an unowned reference but the object was already destroyed\n```\n\n### Code sample\n\n<details open><summary>Code sample</summary>\n\n```dart\nimport 'package:flutter/material.dart';\nimport 'package:video_player/video_player.dart';\n\nvoid main() => runApp(const MaterialApp(home: ReproPage()));\n\nclass ReproPage extends StatefulWidget {\n  const ReproPage({super.key});\n\n  @override\n  State<ReproPage> createState() => _ReproPageState();\n}\n\nclass _ReproPageState extends State<ReproPage> {\n  int _iterations = 0;\n\n  @override\n  void initState() {\n    super.initState();\n    _run();\n  }\n\n  Future<void> _run() async {\n    while (mounted) {\n      final controller = VideoPlayerController.networkUrl(\n        Uri.parse('https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4'),\n      );\n      await controller.initialize();\n      await controller.play();\n\n      // Same pattern as a carousel page being swiped away:\n      // reset the video and dispose it without awaiting the seek.\n      controller.seekTo(Duration.zero);\n      await controller.dispose();\n\n      setState(() => _iterations++);\n      debugPrint('iteration $_iterations');\n    }\n  }\n\n  @override\n  Widget build(BuildContext context) {\n    return Scaffold(body: Center(child: Text('iterations: $_iterations')));\n  }\n}\n```\n\n</details>\n\n### Analysis\n\nIn 2.12.2, `VideoPlayerInstanceBridge` holds the player as `private unowned let player: VideoPlayer` (`VideoPlayer.swift`). The only strong reference to the player is `playersByIdentifier` in the plugin, and that entry is removed from `onDisposed` during `dispose()`.\n\nThe `seekTo` handler in the generated `Messages.g.swift` is asynchronous. It defers the call into a task:\n\n```swift\nseekToChannel.setMessageHandler { message, reply in\n  ...\n  Task { @MainActor in\n    do {\n      try await api.seek(to: positionArg)\n```\n\n`pause` and `dispose` are handled synchronously in the message handler. When `seekTo` and `dispose` arrive back to back:\n\n1. The `seekTo` message enqueues a `Task`.\n2. The `dispose` message runs synchronously, removes the player from `playersByIdentifier`, and the player is deallocated.\n3. The task then runs `VideoPlayerInstanceBridge.seek(to:)`, which loads the `unowned` reference to the destroyed player and triggers `swift_abortRetainUnowned`.\n\nThe other `async` bridge methods (`getAudioTracks`, `selectAudioTrack`, video track methods, etc.) have the same exposure.\n\nA `weak` reference with an early return (or a \"disposed\" error) in the bridge would avoid the crash.\n\n### Logs\n\n<details open><summary>Crash report (triggered thread)</summary>\n\n```\nException Type:  EXC_CRASH (SIGABRT)\n\n0  libsystem_kernel.dylib  __pthread_kill\n1  libsystem_pthread.dylib pthread_kill\n2  libsystem_c.dylib       abort\n3  libswiftCore.dylib      swift::fatalErrorv(unsigned int, char const*, char*)\n4  libswiftCore.dylib      swift::fatalError(unsigned int, char const*, ...)\n5  libswiftCore.dylib      swift::swift_abortRetainUnowned(void const*)\n6  libswiftCore.dylib      swift_unknownObjectUnownedLoadStrong\n7  Runner.debug.dylib      VideoPlayerInstanceBridge.seek(to:)\n8  Runner.debug.dylib      protocol witness for VideoPlayerInstanceApi.seek(to:) in conformance VideoPlayerInstanceBridge\n9  Runner.debug.dylib      closure #1 in closure #6 in static VideoPlayerInstanceApiSetup.setUp(binaryMessenger:api:messageChannelSuffix:)\n10 Runner.debug.dylib      partial apply for closure #1 in closure #6 in static VideoPlayerInstanceApiSetup.setUp(binaryMessenger:api:messageChannelSuffix:)\n11 Runner.debug.dylib      thunk for @escaping @isolated(any) @callee_guaranteed @async () -> (@out A)\n12 Runner.debug.dylib      partial apply for thunk for @escaping @isolated(any) @callee_guaranteed @async () -> (@out A)\n13 libswift_Concurrency.dylib completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*)\n```\n\n</details>\n\n### Flutter Doctor output\n\n<details open><summary>Environment</summary>\n\n```\nFlutter 3.47.7 • channel stable\nXcode 27.1\niOS Simulator: iPhone 14 Pro Max, iOS 27.0\nvideo_player 2.14.1\nvideo_player_avfoundation 2.12.2 (crashes) / 2.12.1 (no crash)\n```\n\n</details>\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/195056",
+ "user": {
+  "login": "Xelorium",
+  "id": 17748205,
+  "profile_url": "https://github.com/Xelorium",
+  "avatar_url": "https://avatars.githubusercontent.com/u/17748205?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "c: regression",
+  "c: crash",
+  "platform-ios",
+  "platform-macos",
+  "p: video_player",
+  "package",
+  "P2",
+  "c: fatal crash",
+  "team-ios",
+  "triaged-ios"
+ ],
+ "assignees": [
+  "stuartmorgan"
+ ],
+ "comments": 2,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-22T12:27:28Z",
+ "updated_at": "2026-10-23T23:38:35Z",
+ "closed_at": "2026-10-23T23:38:35Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 13383,
+    "title": "[video_player] Fix crash regression with async calls on iOS/macOS",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/packages/pull/13383",
+    "repository": "flutter/packages"
+   }
+  ]
+ }
+}

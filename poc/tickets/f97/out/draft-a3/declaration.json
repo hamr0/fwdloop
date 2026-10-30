@@ -1,0 +1,106 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "priority must be pulled from ticket text; no sheet check applies (no CSV input)",
+    "2": "whether a defect is only a crash or hang is a judgement of prose",
+    "4": "human acceptance gate on wording, not machine-checkable"
+  },
+  "refused": [],
+  "ticketFilter": [
+    {
+      "fromLine": 1,
+      "box": "priority",
+      "values": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "none",
+        "unsure"
+      ],
+      "allowed": [
+        "P2"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_priority",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "defect_summary",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what is broken"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_priority",
+        "defect_summary"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "plan_accepted"
+      ],
+      "emits": "plan_written",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

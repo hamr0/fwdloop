@@ -1,0 +1,57 @@
+{
+ "number": 193742,
+ "title": "[Linux] Use-after-free of FlTaskRunner on app shutdown: timeout source outlives the task runner",
+ "body": "### Steps to reproduce\n\n1. Run a Flutter Linux desktop app that uses the `window_manager` plugin (observed with FluffyChat, Flathub Flatpak `im.fluffychat.Fluffychat`).\n2. Use the app normally.\n3. Close the main window.\n\nThe app crashes with SIGSEGV very often (not every time) during shutdown.\n\n\n### Expected results\n\nThe app exits cleanly.\n\n### Actual results\n\nOn exit the following is logged, followed by a segfault:\n```\nembedder.cc (2603): 'FlutterEngineRemoveView' returned 'kInvalidArguments'. Remove view info was invalid. The implicit view cannot be removed.\n```\n\nThe crash happens on the main thread while `g_application_run()` is still iterating the main loop: a GLib timeout source fires and its callback in `libflutter_linux_gtk.so` casts its `user_data` to `FlTaskRunner`, but that object has already been finalized.\n\nNote that `user_data` of the timeout source and `type_instance` in the failed cast are the same address (`0x55c78106db20`).\n\n`fl_task_runner_tasks_did_change_locked()` schedules\n`g_timeout_add(..., fl_task_runner_on_expired_timeout, self)` without holding a reference to `self`. If the `FlTaskRunner` is disposed/finalized during engine shutdown while this timeout is still pending, the source is not removed and `fl_task_runner_on_expired_timeout()` runs on freed memory (`FL_TASK_RUNNER(data)` → `g_type_check_instance_cast` → SIGSEGV).\n\nPossible fixes: remove `timeout_source_id` in `fl_task_runner_dispose()`, or let the timeout source hold a strong or weak reference to the task runner.\n\nThis is the same class of bug as #192873 (idle source in `FlView` firing after the view was destroyed). `window_manager` seems to make the race much more likely by changing how the view is torn down (see leanflutter/window_manager#585). Possibly also related: #164564.\n\n\n### Code sample\n\n<details open><summary>Code sample</summary>\n\n```dart\nno minimal sample yet. Reproduced with FluffyChat (https://github.com/krille-chan/fluffychat), Linux Flatpak build. According to leanflutter/window_manager#585, just adding `window_manager` as a dependency is enough to get the `FlutterEngineRemoveView` error on exit.\n\n```\n\n</details>\n\n\n### Screenshots or Video\n\n<details open>\n<summary>Screenshots / Video demonstration</summary>\n\n[Upload media here]\n\n</details>\n\n\n### Logs\n\n<details open><summary>Logs</summary>\n\n<summary>Backtrace (gdb via flatpak-coredumpctl, GNOME 50 SDK + debug symbols)</summary>\n```\nSignal: 11 (SEGV)\n\n#0  g_type_check_instance_cast (type_instance=0x55c78106db20, iface_type=0x55c7813e8560 [FlTaskRunner]) at ../gobject/gtype.c:3949\n#1  0x00007f6fe94f5a7d in ??? () at /app/fluffychat/lib/libflutter_linux_gtk.so\n#2  0x00007f6fe8106901 in g_timeout_dispatch (source=0x55c782de0dc0, callback=<optimized out>, user_data=<optimized out>) at ../glib/gmain.c:5324\n#3  0x00007f6fe810252b in g_main_dispatch (context=context@entry=0x55c780ee79e0) at ../glib/gmain.c:3591\n        dispatch = 0x7f6fe81068e0 <g_timeout_dispatch>\n        user_data = 0x55c78106db20\n        callback = 0x7f6fe94f5a30\n        source = 0x55c782de0dc0\n#4  0x00007f6fe8105957 in g_main_context_dispatch_unlocked (context=0x55c780ee79e0) at ../glib/gmain.c:4451\n#5  g_main_context_iterate_unlocked (context=context@entry=0x55c780ee79e0, block=block@entry=0, dispatch=dispatch@entry=1, self=<optimized out>) at ../glib/gmain.c:4516\n#6  0x00007f6fe81061b3 in g_main_context_iteration (context=context@entry=0x55c780ee79e0, may_block=may_block@entry=0) at ../glib/gmain.c:4582\n#7  0x00007f6fe82feaaa in g_application_run (application=0x55c780ee6050 [MyApplication], argc=<optimized out>, argv=<optimized out>) at ../gio/gapplication.c:2773\n#8  0x000055c75085d4ae in main ()\n```\n\nAll other threads are idle (tokio workers from vodozemac, glycin image loader threads).\n\n\n</details>\n\n\n### Flutter Doctor output\n\n<details open><summary>Doctor output</summary>\n\nNot built locally. The app is the official FluffyChat Flatpak `<FluffyChat-Version>` (Flutter version: see FluffyChat release notes), runtime `org.gnome.Platform//50`, GLib 2.88.3, Fedora `<Version>`, `<GNOME/KDE>` on Wayland.\n\n</details>\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/193742",
+ "user": {
+  "login": "Mk-strg",
+  "id": 309201260,
+  "profile_url": "https://github.com/Mk-strg",
+  "avatar_url": "https://avatars.githubusercontent.com/u/309201260?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "c: crash",
+  "engine",
+  "platform-linux",
+  "has reproducible steps",
+  "P2",
+  "team-linux",
+  "triaged-linux"
+ ],
+ "assignees": [
+  "robert-ancell"
+ ],
+ "comments": 6,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-02T23:12:09Z",
+ "updated_at": "2026-10-21T00:23:56Z",
+ "closed_at": "2026-10-21T00:23:56Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 194525,
+    "title": "Fix use-after-free of FlTaskRunner timeout on shutdown",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/194525",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

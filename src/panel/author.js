@@ -55,6 +55,7 @@ import {
 } from '../provider.js';
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
+import { ticketNumberOf, ticketRefusals, ticketSourcesOf } from '../ticket-draft.js';
 import { draftStepList, reviseStepList } from '../draft-steps.js';
 import {
   capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
@@ -195,6 +196,16 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M12 piece 3: the ticket-list input of a plan's signed text (the role a by-hand start picks ONE ticket of), or null. The ONE reader; the green view shows the box from it and the sign door checks it.
+   * @param {string} dir the draft folder @param {string} rel the plan folder @returns {string|null}
+   */
+  function ticketRoleOfPlan(dir, rel) {
+    const prose = readFileInside(dir, `${rel}/prose.txt`);
+    const parsed = prose.ok ? parseSignedText(prose.text) : null;
+    return parsed?.ok === true ? (ticketSourcesOf(parsed.arbiter.sources)[0]?.role ?? null) : null;
+  }
+
+  /**
    * M4d am16: the split of the card's Cap $ at Sign & run, from ALL of this job's drafting (the one writer of that total, `draftingSpent`). Unpriced rounds count at their
    * worst case (the picked model's Settings ceiling). `refusal` = what is left cannot pay one run round at its worst case: refused at $0.
    * @param {string} dir the draft folder @param {any} card
@@ -284,7 +295,7 @@ export function createAuthor(opts) {
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
     if (res.phase === 'green') {
       const answers = newest > 0 && redrafts.has(newest) ? answersOf(dir, newest, keys) : [];
-      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, answers, ...planChecks(dir, rel) };
+      return { ...shared, phase: 'green', hash: res.hash, readout: res.readout, readoutHeads: res.readoutHeads, plan: rel, ticketRole: ticketRoleOfPlan(dir, rel), answers, ...planChecks(dir, rel) };
     }
     return { ...shared, phase: 'red', reds: res.reds, say: newest === 0 ? RED_SAY : cur.say };
   }
@@ -597,6 +608,11 @@ export function createAuthor(opts) {
         const run = starter.checkRun(name, runId);
         if (!run.ok) return { status: 400, body: { ok: false, refused: 'run-id', say: run.say } };
       }
+      // M12 piece 3 (hamr 2026-10-29): a ticket job reads ONE ticket per run, so Sign & run takes its number too; refused at $0 BEFORE signing (nothing signed, no run folder)
+      const ticketRole = ticketRoleOfPlan(dir, v.plan);
+      const ticketBad = ticketRefusals(ticketRole, b);
+      if (ticketBad.length > 0) return { status: 400, body: { ok: false, refused: 'ticket', refusals: ticketBad } };
+      const ticket = ticketNumberOf(b.ticket);
       const signedBy = userInfo().username;
       // M6 am9: a red run's redraft of an unchanged job is signed as the plan of a NEW run of the same workflow (the workflow's files are not written)
       const runOfRec = readJson(dir, RUN_OF_FILE);
@@ -625,7 +641,7 @@ export function createAuthor(opts) {
         }
       }
       const started = starter.start({
-        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values, ...(asRunOf ? { planRun: true, pick: result.modelPick ?? null } : {}),
+        kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path, ...(r.role === ticketRole ? { ticket: /** @type {number} */ (ticket) } : {}) })), values, ...(asRunOf ? { planRun: true, pick: result.modelPick ?? null } : {}),
       }, loaded);
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };

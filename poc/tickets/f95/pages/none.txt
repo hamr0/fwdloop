@@ -1,0 +1,141 @@
+url: https://github.com/flutter/flutter/issues/195468
+18,404 chars → 4,290 chars (77% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=304]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=307]
+      - link "Issues (5k+)" [ref=308]
+      - link "Pull requests (730)" [ref=309]
+      - Repository: Actions [ref=310], Projects [ref=311], Wiki [ref=312]
+      - button "More items" [expanded=false] [ref=249]
+  - region "Header"
+    - heading "[camera_android_camerax] takePicture sets an unchanged flash mode on every capture #195468" [level=1]
+    - link "New issue" [ref=400]
+    - button "Copy link" [ref=401]
+  - Open
+  - link "Open flutter/packages #13468" [ref=330]
+  - heading "Description" [level=2]
+  - link "@toyaji's profile" [ref=480]
+  - link "toyaji" [ref=422]
+  - opened
+  - link "1h ago" [ref=483]
+  - button "Issue body actions" [expanded=false] [ref=428]
+  - strong
+    - Once an app calls
+    - code
+      - setFlashMode
+    - , every
+    - code
+      - takePicture()
+    - sets the same flash mode on
+    - code
+      - ImageCapture
+    - again, which adds roughly 250-300 ms to each capture.
+  - This happens
+  - even when the mode is
+  - code
+    - FlashMode.off
+  - and never changes.
+  - heading "Steps to reproduce" [level=3]
+  - listitem [level=1]
+    - Create a camera with
+    - code
+      - ResolutionPreset.high
+  - listitem [level=1]
+    - Call
+    - code
+      - setFlashMode(FlashMode.off)
+  - listitem [level=1]
+    - Call
+    - code
+      - takePicture()
+    - repeatedly and measure the latency.
+  - heading "Results" [level=3]
+  - table
+    - row: setFlashMode never called · ZSL off: 517 ms · ZSL on: 360 ms
+    - row: setFlashMode(FlashMode.off) called once · ZSL off: 794 ms · ZSL on: 656 ms
+  - Galaxy S21 (SM-G991N), camera_android_camerax 0.7.6, CameraX 1.6.2. Each value is
+  - the median of 12 shots, after 2 warm-up shots, 600 ms apart. "ZSL on" means
+  - code
+    - setZeroShutterLagEnabled(true)
+  - heading "Why" [level=3]
+  - code
+    - takePicture
+  - calls
+  - code
+    - ImageCapture.setFlashMode
+  - before every capture whenever a
+  - flash mode has been set (since
+  - link "flutter/packages#3800" [ref=650]
+  - ). CameraX keeps the flash mode
+  - on the
+  - code
+    - ImageCapture
+  - instance for subsequent captures, so the repeated call does not
+  - change anything. In CameraX 1.6.2,
+  - code
+    - ImageCapture.setFlashMode
+  - has no check for an
+  - unchanged mode, so each call still goes through
+  - code
+    - CameraControl.setFlashMode
+  - . (The
+  - androidx-main source has since added that check.)
+  - heading "Proposed fix" [level=3]
+  - Only call
+  - code
+    - ImageCapture.setFlashMode
+  - in
+  - code
+    - takePicture
+  - when the mode differs from the
+  - one last applied to the current
+  - code
+    - ImageCapture
+  - instance. The torch behavior from
+  - link "flutter/packages#4903" [ref=677]
+  - (clearing a previous flash mode when torch is enabled) stays
+  - the same.
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - heading "toyajicommented1 hour ago" [level=3]
+      - link "@toyaji's profile" [ref=684]
+      - link "toyaji" [ref=583]
+      - link "1h ago" [ref=686]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for toyaji's comment, 7:47 AM today" [expanded=false] [ref=591]
+      - Fix:
+      - link "flutter/packages#13468" [ref=689]
+      - toolbar "Reactions"
+  - link "Sign up for free" [ref=434]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=437]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - No labels
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - link "[camera_android_camerax] Only set the ImageCapture flash mode when it changes" [ref=697]
+    - flutter/packages
+  - heading "Participants" [level=3]
+  - link "@toyaji" [ref=551]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=617]

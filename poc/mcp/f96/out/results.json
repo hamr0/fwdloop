@@ -1,0 +1,687 @@
+{
+ "checks": {
+  "M1": {
+   "verdict": "PASS",
+   "tools": [
+    {
+     "name": "get_label",
+     "readOnlyHint": true
+    },
+    {
+     "name": "issue_read",
+     "readOnlyHint": true
+    },
+    {
+     "name": "list_issue_fields",
+     "readOnlyHint": true
+    },
+    {
+     "name": "list_issue_types",
+     "readOnlyHint": true
+    },
+    {
+     "name": "list_issues",
+     "readOnlyHint": true
+    },
+    {
+     "name": "search_issues",
+     "readOnlyHint": true
+    }
+   ],
+   "count": 6
+  },
+  "M2": {
+   "bridgeTools": [
+    "github_issue_read"
+   ],
+   "missing": [],
+   "listIssuesCall": {
+    "refused": true,
+    "name": "ToolError",
+    "message": "mcp_invoke: \"github_list_issues\" is not on this run's allowed list"
+   },
+   "nonexistentCall": {
+    "refused": true,
+    "name": "ToolError",
+    "message": "mcp_invoke: unknown tool \"github_nonexistent_zzz\". Call mcp_discover for the current catalog."
+   },
+   "verdict": "PASS"
+  },
+  "M3": {
+   "verdict": "PASS",
+   "ok": 12,
+   "of": 12,
+   "perTicket": {
+    "f100047": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "c: crash",
+      "p: material_ui",
+      "package",
+      "P2",
+      "team-design",
+      "triaged-design"
+     ],
+     "state": "open",
+     "created_at": "2022-03-14T11:14:33Z"
+    },
+    "f193097": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "c: crash",
+      "engine",
+      "platform-macos",
+      "a: desktop",
+      "has reproducible steps",
+      "P2",
+      "team-macos",
+      "triaged-macos"
+     ],
+     "state": "open",
+     "created_at": "2026-09-21T14:08:44Z"
+    },
+    "f187579": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "package",
+      "team-ecosystem",
+      "has reproducible steps",
+      "P2",
+      "p: go_router",
+      "triaged-ecosystem"
+     ],
+     "state": "open",
+     "created_at": "2026-06-04T17:38:24Z"
+    },
+    "f193785": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "tool",
+      "P3",
+      "team-tool",
+      "triaged-tool"
+     ],
+     "state": "open",
+     "created_at": "2026-10-04T04:36:23Z"
+    },
+    "f180865": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "a: text input",
+      "platform-ios",
+      "P2",
+      "team-text-input",
+      "triaged-text-input"
+     ],
+     "state": "open",
+     "created_at": "2026-01-12T21:23:01Z"
+    },
+    "p2b": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "framework",
+      "has reproducible steps",
+      "P2",
+      "team-framework",
+      "triaged-framework"
+     ],
+     "state": "open",
+     "created_at": "2026-10-27T07:53:41Z"
+    },
+    "p3": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "p: cupertino_ui",
+      "package",
+      "c: proposal",
+      "P3",
+      "team-design",
+      "triaged-design"
+     ],
+     "state": "open",
+     "created_at": "2026-10-26T15:58:39Z"
+    },
+    "none": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "waiting for response"
+     ],
+     "state": "open",
+     "created_at": "2026-10-28T07:47:02Z"
+    },
+    "k124871": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "state_reason",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "comments",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "closed_at",
+      "closed_by",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "kind/bug",
+      "priority/important-soon",
+      "sig/node",
+      "lifecycle/rotten",
+      "needs-triage"
+     ],
+     "state": "closed",
+     "created_at": "2024-05-14T18:02:00Z"
+    },
+    "l270": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "Type: Bug",
+      "Severity: Major",
+      "Status: New",
+      "Priority: P2",
+      "Module: Forgot password"
+     ],
+     "state": "open",
+     "created_at": "2026-08-22T09:32:01Z"
+    },
+    "h11": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "bug"
+     ],
+     "state": "open",
+     "created_at": "2026-10-14T13:12:28Z"
+    },
+    "y13": {
+     "ok": true,
+     "topKeys": [
+      "number",
+      "title",
+      "body",
+      "state",
+      "html_url",
+      "user",
+      "author_association",
+      "labels",
+      "assignees",
+      "reactions",
+      "created_at",
+      "updated_at",
+      "has_parent",
+      "has_children",
+      "closed_by_pull_requests"
+     ],
+     "labelsPath": "labels",
+     "labelItemType": "string",
+     "labels": [
+      "bug",
+      "severity : major",
+      "priority : P2-High",
+      "area : katalog",
+      "type : functional",
+      "triage : approved"
+     ],
+     "state": "open",
+     "created_at": "2026-10-22T04:28:55Z"
+    }
+   }
+  },
+  "M4": {
+   "verdict": "PASS",
+   "match": 12,
+   "of": 12,
+   "mismatches": [],
+   "perTicket": {
+    "f100047": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "RUN",
+     "topic": "needs AI read"
+    },
+    "f193097": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "RUN",
+     "topic": "needs AI read"
+    },
+    "f187579": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "RUN",
+     "topic": "needs AI read"
+    },
+    "f193785": {
+     "priority": "P3",
+     "via": "label",
+     "expectedPriority": "P3",
+     "equal": true,
+     "decision": "SKIP",
+     "decisionOnExpectedPriority": "SKIP",
+     "f95FullDecision": "SKIP",
+     "topic": "(not needed: priority decided)"
+    },
+    "f180865": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "HITL",
+     "topic": "needs AI read"
+    },
+    "p2b": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "SKIP",
+     "topic": "needs AI read"
+    },
+    "p3": {
+     "priority": "P3",
+     "via": "label",
+     "expectedPriority": "P3",
+     "equal": true,
+     "decision": "SKIP",
+     "decisionOnExpectedPriority": "SKIP",
+     "f95FullDecision": "SKIP",
+     "topic": "(not needed: priority decided)"
+    },
+    "none": {
+     "priority": "none",
+     "via": "none",
+     "expectedPriority": "none",
+     "equal": true,
+     "decision": "SKIP",
+     "decisionOnExpectedPriority": "SKIP",
+     "f95FullDecision": "SKIP",
+     "topic": "(not needed: priority decided)"
+    },
+    "k124871": {
+     "priority": "unsure",
+     "via": "label-nonscale",
+     "expectedPriority": "unsure",
+     "equal": true,
+     "decision": "HITL",
+     "decisionOnExpectedPriority": "HITL",
+     "f95FullDecision": "HITL",
+     "topic": "(not needed: priority decided)"
+    },
+    "l270": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "SKIP",
+     "topic": "needs AI read"
+    },
+    "h11": {
+     "priority": "P2",
+     "via": "body",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "SKIP",
+     "topic": "needs AI read"
+    },
+    "y13": {
+     "priority": "P2",
+     "via": "label",
+     "expectedPriority": "P2",
+     "equal": true,
+     "decision": "RUN-candidate",
+     "decisionOnExpectedPriority": "RUN-candidate",
+     "f95FullDecision": "SKIP",
+     "topic": "needs AI read"
+    }
+   }
+  },
+  "M5": {
+   "verdict": "PASS",
+   "count": 30,
+   "typed": true,
+   "newestFirst": true,
+   "topKeys": [
+    "issues",
+    "pageInfo",
+    "totalCount"
+   ],
+   "pageInfo": {
+    "hasNextPage": true,
+    "hasPreviousPage": false,
+    "startCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yOFQxMDo0NjoyN1rPAAAAAWo9bdE=",
+    "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0yN1QwOTo1NjowOVrPAAAAAWkEwfQ="
+   },
+   "newestNumbers": [
+    [
+     195480,
+     "2026-10-28T10:46:27Z"
+    ],
+    [
+     195479,
+     "2026-10-28T10:01:23Z"
+    ],
+    [
+     195478,
+     "2026-10-28T10:01:21Z"
+    ],
+    [
+     195476,
+     "2026-10-28T09:31:21Z"
+    ],
+    [
+     195475,
+     "2026-10-28T09:31:19Z"
+    ]
+   ],
+   "oldestOnPage": [
+    195409,
+    "2026-10-27T09:56:09Z"
+   ],
+   "page2": {
+    "count": 30,
+    "firstNumber": 195408,
+    "overlapWithPage1": 0
+   },
+   "since": {
+    "accepted": true,
+    "count": 5,
+    "keys": [
+     "issues",
+     "pageInfo",
+     "totalCount"
+    ]
+   },
+   "f94PageNumbersKnown": 52,
+   "overlapWithF94": [
+    195476,
+    195475,
+    195474,
+    195473,
+    195470,
+    195469,
+    195468,
+    195466,
+    195465,
+    195464,
+    195463,
+    195456,
+    195455,
+    195443,
+    195441,
+    195439,
+    195435,
+    195431,
+    195428,
+    195427,
+    195424,
+    195423,
+    195415,
+    195414,
+    195412,
+    195410
+   ]
+  },
+  "M6": {
+   "sourceHasProviderCode": [
+    "bare-agent/prov",
+    "Loop("
+   ],
+   "verdictSourcePart": "FAIL"
+  }
+ },
+ "rec": {
+  "listServerToolsMs": 927,
+  "bridgeStartMs": 633,
+  "issueReadMs": [
+   1001,
+   1111,
+   812,
+   724,
+   670,
+   829,
+   693,
+   792,
+   770,
+   623,
+   671,
+   750
+  ],
+  "listMs": 1249
+ },
+ "dockerBefore": [
+  "39dafb25176a"
+ ],
+ "dockerAfter": [
+  "39dafb25176a"
+ ],
+ "totalMs": 15519
+}

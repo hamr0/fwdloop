@@ -1,0 +1,1 @@
+Error: Navigation to https://example.com blocked: example.com is not in allowHosts

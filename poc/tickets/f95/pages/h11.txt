@@ -1,0 +1,92 @@
+url: https://github.com/hoangphi117/HW02/issues/11
+14,397 chars → 3,070 chars (79% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "hoangphi117" [ref=290]
+      - link "HW02" [ref=292]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=293]
+      - link "Issues (40)" [ref=294]
+      - Repository: Pull requests [ref=295], Actions [ref=296], Projects [ref=297], Security and quality [ref=298], Insights [ref=299]
+  - region "Header"
+    - heading "[BUG-FR10-04] Admin Web UI renders 'Đánh dấu Đã giao' action button for canceled orders #11" [level=1]
+    - link "New issue" [ref=383]
+    - button "Copy link" [ref=384]
+  - Open
+  - heading "Description" [level=2]
+  - link "@hoangphi117's profile" [ref=453]
+  - link "hoangphi117" [ref=399]
+  - opened
+  - link "2w ago" [ref=456]
+  - generic "This user is the owner of the HW02 repository."
+    - Owner
+  - button "Issue body actions" [expanded=false] [ref=407]
+  - Feature: FR-10 Order State Machine
+  - Component: Frontend Admin frontend-admin/src/App.jsx (lines 862–869)
+  - Severity: Medium
+  - Priority: P2
+  - Related Test Case: FR10-DT-29
+  - listitem [level=1]
+    - GitHub Issue:
+    - link "[BUG-FR10-04] Admin Web UI renders 'Đánh dấu Đã giao' action button for canceled orders #11" [ref=625]
+  - heading "Steps to Reproduce" [level=4]
+  - listitem [level=1]
+    - Log in to Admin Web Portal (
+    - link "http://localhost:5174" [ref=629]
+  - Open the "Quản lý đơn hàng" tab.
+  - listitem [level=1]
+    - Locate an order with status
+    - code
+      - canceled
+  - Inspect the action buttons rendered in the table row.
+  - heading "Expected Result" [level=4]
+  - No action buttons should be rendered for orders in terminal states (
+  - code
+    - canceled
+  - and
+  - code
+    - delivered
+  - ), per Spec R5 and GĐ08.
+  - heading "Actual Result" [level=4]
+  - The UI explicitly renders a button labeled
+  - strong
+    - "Đánh dấu Đã giao"
+  - on
+  - code
+    - canceled
+  - orders. Clicking this button triggers the API call that exploits BUG-FR10-01, moving a canceled order to delivered.
+  - heading "Evidence" [level=4]
+  - link "Image" [ref=535]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "hoangphi117" [ref=654]
+      - added
+      - link "bug Something isn't working" [ref=656]
+      - link "2w ago" [ref=597]
+  - link "Sign up for free" [ref=413]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=416]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - link "bug Something isn't working" [ref=549]
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - heading "Participants" [level=3]
+  - link "@hoangphi117" [ref=511]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=564]

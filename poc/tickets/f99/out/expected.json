@@ -1,0 +1,428 @@
+{
+ "note": "reference matcher outputs; written BEFORE bareguard carriesAny exists",
+ "phrases": [
+  "crash",
+  "crashes",
+  "crashed",
+  "crashing",
+  "hang",
+  "hangs",
+  "hung",
+  "freeze",
+  "freezes",
+  "frozen",
+  "ANR",
+  "not responding"
+ ],
+ "counts": {
+  "tickets": 32,
+  "green": 16,
+  "red": 16,
+  "strictGreen": 16
+ },
+ "madeUpAllAgree": true,
+ "madeUp": [
+  {
+   "label": "multi-word across newline+spaces",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "multi-word not-respondingly",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "hang-up needs the hyphen (hyphen present)",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "hang-up needs the hyphen (hyphen absent)",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "hang-up needs the hyphen (underscore)",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "crash2 no match",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "ANR, matches",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "hang in change no match",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "hang in hanging no match (no stemming)",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "(hang) matches",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "HANG: matches (forgiving)",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "HANG: strict miss",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "hang at text start and end",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "accented letter glues (cafe-e)",
+   "got": false,
+   "expect": false
+  },
+  {
+   "label": "strict exact case ok",
+   "got": true,
+   "expect": true
+  },
+  {
+   "label": "strict lower text vs upper phrase",
+   "got": false,
+   "expect": false
+  }
+ ],
+ "per": {
+  "f100047": {
+   "number": 100047,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crashes"
+   ]
+  },
+  "f193097": {
+   "number": 193097,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crashes"
+   ]
+  },
+  "f187579": {
+   "number": 187579,
+   "forgiving": "green",
+   "found": [
+    "hang",
+    "hangs",
+    "freezes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "hang",
+    "hangs",
+    "freezes"
+   ]
+  },
+  "f193785": {
+   "number": 193785,
+   "forgiving": "green",
+   "found": [
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crashes"
+   ]
+  },
+  "f180865": {
+   "number": 180865,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "hang",
+    "freeze",
+    "freezes",
+    "ANR"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "freeze",
+    "freezes",
+    "ANR"
+   ]
+  },
+  "p2b": {
+   "number": 195397,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "p3": {
+   "number": 195327,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "none": {
+   "number": 195468,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "k124871": {
+   "number": 124871,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashed"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashed"
+   ]
+  },
+  "l270": {
+   "number": 270,
+   "forgiving": "green",
+   "found": [
+    "crash"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash"
+   ]
+  },
+  "h11": {
+   "number": 11,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "y13": {
+   "number": 13,
+   "forgiving": "green",
+   "found": [
+    "crash"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash"
+   ]
+  },
+  "fl195308": {
+   "number": 195308,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195056": {
+   "number": 195056,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes"
+   ]
+  },
+  "fl194649": {
+   "number": 194649,
+   "forgiving": "green",
+   "found": [
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crashes"
+   ]
+  },
+  "fl194570": {
+   "number": 194570,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes"
+   ]
+  },
+  "fl193783": {
+   "number": 193783,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes"
+   ]
+  },
+  "fl193742": {
+   "number": 193742,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes"
+   ]
+  },
+  "fl193721": {
+   "number": 193721,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes",
+    "crashed",
+    "hangs"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes",
+    "hangs"
+   ]
+  },
+  "fl193695": {
+   "number": 193695,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl193639": {
+   "number": 193639,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl193517": {
+   "number": 193517,
+   "forgiving": "green",
+   "found": [
+    "crash",
+    "crashes",
+    "crashing"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash",
+    "crashes",
+    "crashing"
+   ]
+  },
+  "fl195493": {
+   "number": 195493,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195492": {
+   "number": 195492,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195467": {
+   "number": 195467,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195447": {
+   "number": 195447,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195430": {
+   "number": 195430,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195414": {
+   "number": 195414,
+   "forgiving": "green",
+   "found": [
+    "crash"
+   ],
+   "strict": "green",
+   "strictFound": [
+    "crash"
+   ]
+  },
+  "fl195381": {
+   "number": 195381,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195371": {
+   "number": 195371,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195368": {
+   "number": 195368,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  },
+  "fl195348": {
+   "number": 195348,
+   "forgiving": "red",
+   "found": [],
+   "strict": "red",
+   "strictFound": []
+  }
+ }
+}

@@ -5,6 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-10-30
+
+M12 (tickets read through MCP start a run), M4d amendment 35 (online dot) and amendment 36 (Audit check
+grid), and a Providers page copied from bareloop. The M12 exit was walked on the real panel (signed
+2026-10-30). The POCs behind it (F92-F107) are recorded in `docs/logs/FINDINGS.md`.
+
+### Added
+- A job can read a GitHub issue through an MCP server from your own `~/.mcp.json`. The job declares
+  `mcp: {server, tools}` and a step lists its `mcpTools`; only those tools exist for the run, and a tool the
+  server does not mark read-only is refused by name at $0. A declared tool no step uses is refused at
+  preflight. A ticket is data, never instructions.
+- A ticket list is an ordinary Inputs line (`issues: https://github.com/<owner>/<repo>/issues`). A ticket job
+  takes a ticket number: `fwdloop run --ticket <n>`, or the `ticket #` box beside Run and Sign & run (the
+  button stays off until a whole number is typed).
+- Signed ticket filter and watch in the job: `ticketFilter {priority, labels}` and `ticketWatch`
+  (`state`, `labels`). The drafter may suggest them; code decides. Priority reads `P0` to `P3` from
+  labels (`Priority: P2` reads as `P2`); a label on another scale is unsure, not skipped.
+- The Run card's When dropdown has `When a new ticket arrives in <input name>`. The scheduler looks every
+  15 minutes ($0 each), newest first, stopping at a number already seen. The tickets on the list at
+  signing are the starting point and never run. Each new ticket queues one run (oldest first, like M9
+  files); a change to a watched field starts exactly one more.
+- Skipped is a grey outcome: a ticket the filter does not match, or a closed one, ends `skipped` at $0
+  with the reason, books balanced, no learnings note. `fwdloop run` prints `skipped:` and exits 0.
+- The Result tab of the run the schedule was set from shows one ticket list (Needs you / Stopped /
+  Passed / Skipped, newest first, filter chips and search). A skipped ticket has `Run it anyway`, which
+  asks for a reason first; the run is then never skipped again for labels or closed.
+- The draft readout shows what is signed for MCP: server and tools, ticket filter, ticket watch and each
+  step's tools. A job without them reads as before.
+- Audit tab: a model step's fold is a check grid (rows are checks, columns are tries; ✓ ✗ · ?), with
+  `every step: exists, done` as one row, a faint `told from earlier runs` row with an `N hints` button per
+  try, one error line per red try, `output judged` shown once and `rounds per try` folded (M4d am36,
+  copied from bareloop `feat/audit-grid` @c79d396).
+- An online dot next to Settings: green `online` while the panel answers the Inbox poll, red `offline`
+  when it stops (M4d am35).
+
+### Changed
+- Providers: a model row you click turns blue, and every key starts folded (copied from bareloop).
+
+### Fixed
+- A run the child refuses at $0 takes back the run folder the panel had claimed, so no empty `run-1`
+  husk is left and its number is free.
+
+### Known gaps
+The branch review's open items are parked for the next setup work and listed in `docs/product/PRD.md`
+("Missing requirements found by /branch-review"). Among them: a rerun of a ticket run reads the issue as
+a web page, not through MCP, so it has no label or closed check and drops off the Result list; when every
+seen ticket is closed, older open tickets read as new and can queue a flood of runs; a failed ledger write
+after a look exits the whole panel; the MCP server may be started with the full process environment (unverified which servers read provider keys).
+
 ## [0.26.2] - 2026-10-28
 
 M4b amendment 9 (update wording), M10 amendment 13 (an error page is never a job's input), and a

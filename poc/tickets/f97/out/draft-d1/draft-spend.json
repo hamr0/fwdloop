@@ -1,0 +1,29 @@
+{
+  "kind": "draft-live",
+  "provider": "DEEPSEEK_API_KEY",
+  "model": "deepseek-flash",
+  "price": {
+    "inPerM": 0.6,
+    "cachedInPerM": 0.6,
+    "outPerM": 1.2,
+    "source": {
+      "in": "model",
+      "cachedIn": "input",
+      "out": "model"
+    }
+  },
+  "tokens": {
+    "inputTokens": 401,
+    "outputTokens": 855,
+    "cacheReadTokens": 7424,
+    "cacheCreationTokens": 0
+  },
+  "costUsd": 0.0057209999999999995,
+  "rounds": 2,
+  "calls": 2,
+  "spendComplete": true,
+  "inFlight": false,
+  "at": "2026-10-28T19:40:57.569Z",
+  "startedAt": "2026-10-28T19:40:57.569Z",
+  "updatedAt": "2026-10-28T19:41:02.347Z"
+}

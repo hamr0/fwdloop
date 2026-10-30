@@ -32,6 +32,7 @@ import {
 import { scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
+import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { readModelRecord } from '../flowmodel.js';
 import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import {
@@ -45,6 +46,8 @@ import { triggerHash, triggerLine } from '../trigger-line.js';
 /** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
 const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
 
+/** M12: the one tool a ticket schedule's look uses, signed with the schedule's two clicks. */
+export const TICKET_LOOK_TOOL = 'list_issues';
 export const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
 const HISTORY_FILE = 'triggers.jsonl';
 
@@ -129,6 +132,14 @@ function shapeOf(t, roles) {
     if (typeof p !== 'string' || p === '' || !isAbsolute(p) || /[\x00-\x1f\x7f]/.test(p)) return { ok: false, say: `The ${where} must be a full path on one line, like /home/you/inbox. Nothing was changed.` };
     return { ok: true, trigger: /** @type {Trigger} */ (o.kind === 'new-file' ? { kind: 'new-file', role: o.role, folder: p } : { kind: 'file-updated', role: o.role, path: p }) };
   }
+  if (o.kind === 'new-ticket') {
+    // M12 piece 2: the person picks the input; the list address, the job's server and the look's tool are filled from the signed job (inspect), never typed here
+    const extra = Object.keys(o).filter((k) => !['kind', 'role', 'watch'].includes(k));
+    if (extra.length > 0) return { ok: false, say: `A "new-ticket" trigger takes a kind and a role, not "${extra[0]}". Nothing was changed.` };
+    if (typeof o.role !== 'string' || !roles.includes(o.role)) return { ok: false, say: `This job has no input named "${String(o.role)}" (it takes: ${roles.join(', ') || 'none'}). Pick one of those. Nothing was changed.` };
+    if (o.watch !== undefined && !(Array.isArray(o.watch) && o.watch.every((w) => WATCHABLE.includes(w)))) return { ok: false, say: `A ticket schedule can watch only ${WATCHABLE.join(' and ')}. Nothing was changed.` };
+    return { ok: true, trigger: /** @type {Trigger} */ ({ kind: 'new-ticket', role: o.role, list: '', server: '', tool: '', ...(o.watch ? { watch: o.watch } : {}) }) };
+  }
   try { return { ok: true, trigger: validateSchedule(t) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was changed.` }; }
 }
 
@@ -165,23 +176,35 @@ export function createTriggerDoor(opts) {
     const roles = (read.arbiter.sources ?? []).map((s) => s.role);
     const shaped = shapeOf(body?.trigger === undefined ? 'missing' : body.trigger, roles);
     if (!shaped.ok) return reply(400, { refused: 'bad-trigger', say: shaped.say });
-    const { trigger } = shaped;
+    let { trigger } = shaped;
+    if (trigger !== null && trigger.kind === 'new-ticket') {
+      // M12 piece 2 (items 8; PRD ruling "a tool counts as used if a step or the signed schedule uses it"): the look's tool is `list_issues` on the server the job names
+      const list = ticketListsOf(read.arbiter)[trigger.role];
+      if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.` });
+      const server = read.declaration?.mcp?.server;
+      if (typeof server !== 'string') return reply(400, { refused: 'bad-trigger', say: 'This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.' });
+      // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
+      const jobWatch = read.declaration?.ticketWatch;
+      const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);
+      trigger = { kind: trigger.kind, role: trigger.role, list, server, tool: TICKET_LOOK_TOOL, ...(watch ? { watch } : {}) };
+    }
     const flowDir = join(realRoot, flow);
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
     // M9 am20 item 3: neither Cancel nor a new schedule is refused because a run is starting, working or waiting: a run carries on from its own copy and
     // keeps its own signed values; the next fire uses the new schedule. (A schedule never touches the job, so there is nothing for a run to collide with.)
-    if (trigger !== null && 'role' in trigger && Object.hasOwn(pageAddressesOf(read.arbiter), trigger.role)) {
-      return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
+    const fileTrigger = trigger !== null && (trigger.kind === 'file-updated' || trigger.kind === 'new-file') ? trigger : null;
+    if (fileTrigger !== null && Object.hasOwn(pageAddressesOf(read.arbiter), fileTrigger.role)) {
+      return reply(400, { refused: 'bad-trigger', say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
     }
-    if (trigger !== null && 'role' in trigger) {
+    if (fileTrigger !== null) {
       try {
-        checkTarget(trigger.kind === 'new-file' ? 'new' : 'updated', trigger.kind === 'new-file' ? trigger.folder : trigger.path);
+        checkTarget(fileTrigger.kind === 'new-file' ? 'new' : 'updated', fileTrigger.kind === 'new-file' ? fileTrigger.folder : fileTrigger.path);
       } catch (e) {
         return reply(400, { refused: 'bad-trigger', say: `${/** @type {Error} */ (e).message}. Nothing was changed.` });
       }
       // a file that does not exist yet may arrive (checkTarget allows it), but its folder must be there: a typo is caught now, not never
-      if (trigger.kind === 'file-updated') {
-        try { realpathSync(dirname(trigger.path)); } catch { return reply(400, { refused: 'bad-trigger', say: `The folder of ${trigger.path} does not exist. Nothing was changed.` }); }
+      if (fileTrigger.kind === 'file-updated') {
+        try { realpathSync(dirname(fileTrigger.path)); } catch { return reply(400, { refused: 'bad-trigger', say: `The folder of ${fileTrigger.path} does not exist. Nothing was changed.` }); }
       }
     }
     // M6 am5 item 3: a schedule may carry the model of the run it was made from (a run field). Checked now by the Run door's own model check; the same as
@@ -367,7 +390,7 @@ export function createTriggerDoor(opts) {
      * are missing) -> started through the ONE start path (kind `trigger`; the reason and the catch-up mark go into the run's own folder first).
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger, schedule: Schedule}} job
-     * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string}} cause
+     * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string} | {kind: 'ticket', number: number, sha: string, role: string, list: string, why?: string, anyway?: boolean}} cause
      * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void, holdIfCannotStart?: boolean }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
      *   already has a row for that outcome and reason (`why`), so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
      *   start, once every check has passed: the scheduler writes the file's `ran` row there. `holdIfCannotStart` (a queued file, M9 am17): the starter's `canStart` is asked first, and a no writes nothing
@@ -381,7 +404,7 @@ export function createTriggerDoor(opts) {
       const desc = describe(trigger);
       const base = {
         at: new Date(now()).toISOString(), flow, trigger: desc, sig: schedule.sig,
-        ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : { file: cause.path, sha: cause.sha, catchUp: false }),
+        ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : cause.kind === 'ticket' ? { ticket: cause.number, sha: cause.sha, catchUp: false } : { file: cause.path, sha: cause.sha, catchUp: false }),
       };
       const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row))) appendOutcome(flowDir, row); return row; };
       const busy = flowsDoor.scheduleBusy(flow);   // M9 am8: one WORKING run at a time per job; a run waiting at its ask does not block
@@ -412,6 +435,7 @@ export function createTriggerDoor(opts) {
       const sources = [];
       const pages = pageAddressesOf(read.arbiter);
       for (const role of roles) {
+        if (cause.kind === 'ticket' && cause.role === role) { sources.push({ role, path: pages[role], ticket: cause.number, ...(cause.anyway === true ? { anyway: true } : {}) }); continue; }   // M12: this run's input is ONE ticket of the signed list
         if (Object.hasOwn(pages, role)) { sources.push({ role, path: pages[role] }); continue; } // M10 am3: a page input is its signed address, never an earlier run's or an arriving file
         const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
         if (!p) return done({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
@@ -439,7 +463,7 @@ export function createTriggerDoor(opts) {
       if (modelSays.length > 0) return done({ outcome: 'refused', why: modelSays[0].say.replace(/ Nothing was spent\.$/, '. Nothing started.') });
       const catchUp = base.catchUp === true;
       const record = {
-        kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : { file: cause.path, sha: cause.sha }),
+        kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : cause.kind === 'ticket' ? { ticket: cause.number, sha: cause.sha, ...(cause.why ? { why: cause.why } : {}) } : { file: cause.path, sha: cause.sha }),
         // M9 am6: typed facts for the run's Job tab and Audit (their words are built from these, in src/summary-words.js, never here)
         triggerKind: trigger.kind, words: scheduleHead(trigger), at: base.at, ...(cause.kind === 'clock' ? { lateMin: Math.max(0, Math.round((now() - cause.slot) / 60_000)) } : {}),
         sig: schedule.sig, ...(schedule.from ? { fromRun: schedule.from } : {}),

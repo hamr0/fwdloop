@@ -1,0 +1,1 @@
+Error: Navigation to https://codeberg.org/ blocked: codeberg.org is not in allowHosts

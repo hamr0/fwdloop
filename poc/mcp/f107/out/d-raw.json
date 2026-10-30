@@ -1,0 +1,59 @@
+{
+  "r1": {
+    "exit": 0,
+    "stderr": "barebrowse mcp v0.26.0 | serving from /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/222dfd88-573c-4931-9b1e-02498505c4fb/scratchpad/bb027/mcp-server.js | pid 3600799\n(node:3600799) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n",
+    "clickReply": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: Unknown tool: click"
+          }
+        ],
+        "isError": true
+      }
+    },
+    "list": [
+      "browse",
+      "goto",
+      "snapshot",
+      "readable",
+      "scroll",
+      "back",
+      "forward",
+      "pdf",
+      "reload",
+      "screenshot",
+      "wait_for",
+      "tabs",
+      "capabilities"
+    ]
+  },
+  "control": {
+    "listsClickAtRw": true,
+    "list": [
+      "browse",
+      "goto",
+      "snapshot",
+      "readable",
+      "click",
+      "type",
+      "press",
+      "scroll",
+      "back",
+      "forward",
+      "drag",
+      "pdf",
+      "reload",
+      "screenshot",
+      "wait_for",
+      "tabs",
+      "select",
+      "hover",
+      "switch_engine",
+      "capabilities"
+    ]
+  }
+}

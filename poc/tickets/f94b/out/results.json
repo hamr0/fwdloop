@@ -1,0 +1,460 @@
+{
+  "startedAt": "2026-10-28T11:39:52.606Z",
+  "K5hits": [],
+  "L1_AT": "2026-10-28T09:07:18.971Z",
+  "oldSeenCount": 26,
+  "pages": [
+    {
+      "n": 1,
+      "url": "https://github.com/flutter/flutter/issues",
+      "ms": 9276,
+      "status": "ok",
+      "tickets": [
+        {
+          "addr": "https://github.com/flutter/flutter/issues/188444",
+          "dateStr": "Jun 23, 2026, 11:24 PM GMT+2",
+          "date": 1782249840000,
+          "pinned": true
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195480",
+          "dateStr": "Oct 28, 2026, 11:46 AM GMT+1",
+          "date": 1793184360000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195479",
+          "dateStr": "Oct 28, 2026, 11:01 AM GMT+1",
+          "date": 1793181660000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195478",
+          "dateStr": "Oct 28, 2026, 11:01 AM GMT+1",
+          "date": 1793181660000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195476",
+          "dateStr": "Oct 28, 2026, 10:31 AM GMT+1",
+          "date": 1793179860000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195475",
+          "dateStr": "Oct 28, 2026, 10:31 AM GMT+1",
+          "date": 1793179860000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195474",
+          "dateStr": "Oct 28, 2026, 10:01 AM GMT+1",
+          "date": 1793178060000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195473",
+          "dateStr": "Oct 28, 2026, 10:01 AM GMT+1",
+          "date": 1793178060000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195470",
+          "dateStr": "Oct 28, 2026, 9:37 AM GMT+1",
+          "date": 1793176620000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195469",
+          "dateStr": "Oct 28, 2026, 9:04 AM GMT+1",
+          "date": 1793174640000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195468",
+          "dateStr": "Oct 28, 2026, 8:47 AM GMT+1",
+          "date": 1793173620000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195466",
+          "dateStr": "Oct 28, 2026, 8:03 AM GMT+1",
+          "date": 1793170980000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195465",
+          "dateStr": "Oct 28, 2026, 7:58 AM GMT+1",
+          "date": 1793170680000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195464",
+          "dateStr": "Oct 28, 2026, 7:23 AM GMT+1",
+          "date": 1793168580000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195463",
+          "dateStr": "Oct 28, 2026, 7:00 AM GMT+1",
+          "date": 1793167200000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195456",
+          "dateStr": "Oct 28, 2026, 4:47 AM GMT+1",
+          "date": 1793159220000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195455",
+          "dateStr": "Oct 28, 2026, 3:28 AM GMT+1",
+          "date": 1793154480000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195443",
+          "dateStr": "Oct 27, 2026, 10:03 PM GMT+1",
+          "date": 1793134980000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195441",
+          "dateStr": "Oct 27, 2026, 8:43 PM GMT+1",
+          "date": 1793130180000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195439",
+          "dateStr": "Oct 27, 2026, 8:24 PM GMT+1",
+          "date": 1793129040000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195435",
+          "dateStr": "Oct 27, 2026, 6:41 PM GMT+1",
+          "date": 1793122860000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195431",
+          "dateStr": "Oct 27, 2026, 5:32 PM GMT+1",
+          "date": 1793118720000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195428",
+          "dateStr": "Oct 27, 2026, 5:15 PM GMT+1",
+          "date": 1793117700000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195427",
+          "dateStr": "Oct 27, 2026, 5:15 PM GMT+1",
+          "date": 1793117700000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195424",
+          "dateStr": "Oct 27, 2026, 4:39 PM GMT+1",
+          "date": 1793115540000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195423",
+          "dateStr": "Oct 27, 2026, 4:03 PM GMT+1",
+          "date": 1793113380000,
+          "pinned": false
+        }
+      ],
+      "dropped": [
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+author%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc",
+        "https://github.com/flutter/flutter/issues/views",
+        "https://gh.io/issues-sidebar-feedback",
+        "https://github.com/login?return_to=https://github.com/flutter/flutter/issues",
+        "https://github.com/flutter/packages/pull/13468",
+        "https://github.com/flutter/packages/pull/13467",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40"
+      ],
+      "pagination": "- Pagination: Page 1 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=439], Page 2 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=440], Page 3 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=441], Page 4 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4> [ref=442], Page 5 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5> [ref=443], Page 6 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6> [ref=444], Page 7... <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7> [ref=445], Page 40 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40> [ref=447], Next Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=448]"
+    },
+    {
+      "n": 2,
+      "url": "https://github.com/flutter/flutter/issues?page=2",
+      "ms": 9605,
+      "status": "ok",
+      "tickets": [
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195415",
+          "dateStr": "Oct 27, 2026, 2:01 PM GMT+1",
+          "date": 1793106060000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195414",
+          "dateStr": "Oct 27, 2026, 1:51 PM GMT+1",
+          "date": 1793105460000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195412",
+          "dateStr": "Oct 27, 2026, 1:37 PM GMT+1",
+          "date": 1793104620000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195410",
+          "dateStr": "Oct 27, 2026, 11:25 AM GMT+1",
+          "date": 1793096700000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195409",
+          "dateStr": "Oct 27, 2026, 10:56 AM GMT+1",
+          "date": 1793094960000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195408",
+          "dateStr": "Oct 27, 2026, 10:51 AM GMT+1",
+          "date": 1793094660000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195407",
+          "dateStr": "Oct 27, 2026, 10:33 AM GMT+1",
+          "date": 1793093580000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195403",
+          "dateStr": "Oct 27, 2026, 10:18 AM GMT+1",
+          "date": 1793092680000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195402",
+          "dateStr": "Oct 27, 2026, 10:18 AM GMT+1",
+          "date": 1793092680000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195401",
+          "dateStr": "Oct 27, 2026, 9:48 AM GMT+1",
+          "date": 1793090880000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195399",
+          "dateStr": "Oct 27, 2026, 9:17 AM GMT+1",
+          "date": 1793089020000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195397",
+          "dateStr": "Oct 27, 2026, 8:53 AM GMT+1",
+          "date": 1793087580000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195396",
+          "dateStr": "Oct 27, 2026, 8:49 AM GMT+1",
+          "date": 1793087340000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195395",
+          "dateStr": "Oct 27, 2026, 8:01 AM GMT+1",
+          "date": 1793084460000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195391",
+          "dateStr": "Oct 27, 2026, 4:59 AM GMT+1",
+          "date": 1793073540000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195390",
+          "dateStr": "Oct 27, 2026, 4:59 AM GMT+1",
+          "date": 1793073540000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195385",
+          "dateStr": "Oct 27, 2026, 2:33 AM GMT+1",
+          "date": 1793064780000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195374",
+          "dateStr": "Oct 26, 2026, 11:46 PM GMT+1",
+          "date": 1793054760000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195360",
+          "dateStr": "Oct 26, 2026, 9:24 PM GMT+1",
+          "date": 1793046240000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195359",
+          "dateStr": "Oct 26, 2026, 9:23 PM GMT+1",
+          "date": 1793046180000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195358",
+          "dateStr": "Oct 26, 2026, 9:22 PM GMT+1",
+          "date": 1793046120000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195357",
+          "dateStr": "Oct 26, 2026, 9:21 PM GMT+1",
+          "date": 1793046060000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195354",
+          "dateStr": "Oct 26, 2026, 9:09 PM GMT+1",
+          "date": 1793045340000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195353",
+          "dateStr": "Oct 26, 2026, 9:04 PM GMT+1",
+          "date": 1793045040000,
+          "pinned": false
+        },
+        {
+          "addr": "https://github.com/flutter/flutter/issues/195350",
+          "dateStr": "Oct 26, 2026, 8:53 PM GMT+1",
+          "date": 1793044380000,
+          "pinned": false
+        }
+      ],
+      "dropped": [
+        "https://github.com/flutter/flutter/issues",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+author%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc",
+        "https://github.com/flutter/flutter/issues/views",
+        "https://gh.io/issues-sidebar-feedback",
+        "https://github.com/login?return_to=https://github.com/flutter/flutter/issues?page=2",
+        "https://github.com/flutter/flutter/pull/195404",
+        "https://github.com/flutter/flutter/pull/195398",
+        "https://github.com/flutter/packages/pull/13452",
+        "https://github.com/flutter/packages/pull/13450",
+        "https://github.com/flutter/packages/pull/13449",
+        "https://github.com/flutter/packages/pull/13446",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen+parent-issue%3Aflutter%2Fflutter%23195357",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7",
+        "https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40"
+      ],
+      "pagination": "- Pagination: Previous Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=430], Page 1 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen> [ref=431], Page 2 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=2> [ref=432], Page 3 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=433], Page 4 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=4> [ref=434], Page 5 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=5> [ref=435], Page 6 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=6> [ref=436], Page 7... <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=7> [ref=437], Page 40 <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=40> [ref=439], Next Page <https://github.com/flutter/flutter/issues?q=is%3Aissue+state%3Aopen&page=3> [ref=440]",
+      "isExtra": true
+    }
+  ],
+  "stopLit": 1,
+  "stopPin": 1,
+  "status": "ok",
+  "dupAcrossPages": [],
+  "noDate": [],
+  "border": [],
+  "truthNew": [
+    {
+      "a": "https://github.com/flutter/flutter/issues/195475",
+      "d": "Oct 28, 2026, 10:31 AM GMT+1",
+      "page": [
+        1
+      ]
+    },
+    {
+      "a": "https://github.com/flutter/flutter/issues/195476",
+      "d": "Oct 28, 2026, 10:31 AM GMT+1",
+      "page": [
+        1
+      ]
+    },
+    {
+      "a": "https://github.com/flutter/flutter/issues/195478",
+      "d": "Oct 28, 2026, 11:01 AM GMT+1",
+      "page": [
+        1
+      ]
+    },
+    {
+      "a": "https://github.com/flutter/flutter/issues/195479",
+      "d": "Oct 28, 2026, 11:01 AM GMT+1",
+      "page": [
+        1
+      ]
+    },
+    {
+      "a": "https://github.com/flutter/flutter/issues/195480",
+      "d": "Oct 28, 2026, 11:46 AM GMT+1",
+      "page": [
+        1
+      ]
+    }
+  ],
+  "totalNew": 5,
+  "onPage1": 5,
+  "N1_notOnPage1": 0,
+  "queuePin": [
+    "https://github.com/flutter/flutter/issues/195475",
+    "https://github.com/flutter/flutter/issues/195476",
+    "https://github.com/flutter/flutter/issues/195478",
+    "https://github.com/flutter/flutter/issues/195479",
+    "https://github.com/flutter/flutter/issues/195480"
+  ],
+  "queueLit": [
+    "https://github.com/flutter/flutter/issues/195475",
+    "https://github.com/flutter/flutter/issues/195476",
+    "https://github.com/flutter/flutter/issues/195478",
+    "https://github.com/flutter/flutter/issues/195479",
+    "https://github.com/flutter/flutter/issues/195480"
+  ],
+  "page1OnlyQueue": [
+    "https://github.com/flutter/flutter/issues/195475",
+    "https://github.com/flutter/flutter/issues/195476",
+    "https://github.com/flutter/flutter/issues/195478",
+    "https://github.com/flutter/flutter/issues/195479",
+    "https://github.com/flutter/flutter/issues/195480"
+  ],
+  "P2detail": {
+    "missing": [],
+    "bogus": [],
+    "orderOk": true,
+    "extraPageRead": 2,
+    "extraPageNew": 0,
+    "queueLen": 5
+  },
+  "checks": {
+    "P1": "INCONCLUSIVE",
+    "P2": "INCONCLUSIVE (flood absent; checks held)",
+    "P3": "PASS",
+    "P4": "PASS",
+    "P5": "PASS"
+  },
+  "endedAt": "2026-10-28T11:40:11.500Z"
+}

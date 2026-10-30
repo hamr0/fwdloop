@@ -35,7 +35,7 @@ export function readSeen(file, sig) {
 }
 
 /** The ONE appender: write-once by id within a signing (a second row with the same id is not written). Starts on a fresh line when the file does not end in a newline (a torn last line). @param {string} file @param {SeenRow} row @param {string} [sig] stamped on the row @returns {boolean} written */
-function appendSeen(file, row, sig) {
+export function appendSeen(file, row, sig) {
   if (readSeen(file, sig).some((r) => r.id === row.id)) return false;
   mkdirSync(dirname(file), { recursive: true });
   appendRow(file, sig === undefined ? row : { ...row, sig });

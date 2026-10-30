@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 import { validateSchedule } from './trigger-clock.js';
 
 /** @typedef {import('./trigger-clock.js').Schedule} Schedule */
-/** @typedef {Schedule | {kind:'file-updated', role:string, path:string} | {kind:'new-file', role:string, folder:string}} Trigger */
+/** @typedef {Schedule | {kind:'file-updated', role:string, path:string} | {kind:'new-file', role:string, folder:string} | {kind:'new-ticket', role:string, list:string, server:string, tool:string, watch?:string[]}} Trigger */
 
 const LINE_RE = /^\s*guardrail:\s*trigger\b/i;
 const CLOCK_RE = /^(daily|weekdays) (\d{2}):(\d{2})$/;
@@ -52,6 +52,7 @@ export function triggerLine(t) {
   if (t.kind === 'daily' || t.kind === 'weekdays') return `guardrail: trigger ${t.kind} ${hhmm(t)}`;
   if (t.kind === 'weekly') return `guardrail: trigger weekly ${t.day} ${hhmm(t)}`;
   if (t.kind === 'file-updated') return `guardrail: trigger file-updated ${t.role} = file:${t.path}`;
+  if (t.kind === 'new-ticket') return `guardrail: trigger new-ticket ${t.role} = tickets:${t.list}`;   // M12: written only for the row/reason words; the parser above never reads it back
   const f = /** @type {{role: string, folder: string}} */ (t);
   return `guardrail: trigger new-file ${f.role} = file:${f.folder}`;
 }

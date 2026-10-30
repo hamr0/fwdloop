@@ -1,0 +1,106 @@
+{
+ "aborted": false,
+ "calls": 42,
+ "N": 3,
+ "Q1": {
+  "perTicket": [
+   {
+    "id": "f100047",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "f193097",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "f187579",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "s1",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "f193785",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "s2",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "p2b",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "p3",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "none",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "l270",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "h11",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "y13",
+    "ok": 3,
+    "of": 3
+   },
+   {
+    "id": "f180865",
+    "ok": 0,
+    "of": 3
+   },
+   {
+    "id": "k124871",
+    "ok": 3,
+    "of": 3
+   }
+  ],
+  "verdict": "FAIL"
+ },
+ "Q2": {
+  "wrongSkips": [],
+  "verdict": "PASS"
+ },
+ "Q3": {
+  "f180865_topic_unsure": 0,
+  "k124871_priority_unsure": 3,
+  "of": 3,
+  "verdict": "FAIL"
+ },
+ "Q4": {
+  "s2_P3": 3,
+  "s1_P2": 3,
+  "h11_P2": 3,
+  "of": 3,
+  "verdict": "PASS"
+ },
+ "Q5": {
+  "bad": [],
+  "verdict": "PASS"
+ },
+ "Q6": {
+  "totalUsd": 0.21922019999999998,
+  "unmetered": 0,
+  "verdict": "PASS"
+ }
+}

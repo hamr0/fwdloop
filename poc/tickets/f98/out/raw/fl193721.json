@@ -1,0 +1,54 @@
+{
+ "number": 193721,
+ "title": "[Impeller] Metal: PipelineLibraryMTL pipeline map is accessed from two threads without a lock (crash with Flutter GPU)",
+ "body": "### Steps to reproduce\n\n1. Create a macOS app from the code sample below and enable Flutter GPU (`FLTEnableFlutterGPU` in `Info.plist`).\n2. Run it. A Flutter GPU scene draws every frame while the overlay keeps creating new Impeller pipeline variants (blurred text shadow, backdrop blur, changing blend mode).\n\nA normal run crashes only rarely. With a ThreadSanitizer engine (`tools/gn ... --tsan`) the race is reported within seconds.\n\n### Expected results\n\nFlutter GPU and Impeller can request pipelines at the same time without a race, as on Vulkan, where `PipelineLibraryVK` locks its maps.\n\n### Actual results\n\n`PipelineLibraryMTL` reads and writes `pipelines_` with no lock (still true on master). Flutter GPU looks pipelines up on the UI thread (`RenderPass::Draw` → `GetPipeline`) while the raster thread inserts new variants (`ContentContext` → `CreateVariant` → `GetPipeline`), so a lookup can hit a rehash.\n\n- We hit it once in a release app on 3.47.1: `SIGSEGV` in `unordered_map::find`, while the raster thread was building a pipeline for the first blurred text shadow.\n- TSan reports the race in the code sample on master.\n- An engine test that looks pipelines up while two threads add new ones fails, hangs or crashes without a lock, and passes 40/40 with one.\n\n`SamplerLibraryMTL` and `PipelineLibraryGLES` look similar and will be reported separately.\n\n### Code sample\n\n<details><summary>pubspec.yaml and lib/main.dart</summary>\n\n`pubspec.yaml`:\n\n```yaml\nname: gpu_pipeline_race\npublish_to: none\n\nenvironment:\n  sdk: ^3.13.0\n\ndependencies:\n  flutter:\n    sdk: flutter\n  flutter_scene: 0.23.0\n  vector_math: ^2.4.3\n\nflutter:\n  uses-material-design: true\n```\n\n`lib/main.dart`:\n\n```dart\nimport 'dart:ui' as ui;\n\nimport 'package:flutter/material.dart';\nimport 'package:flutter/scheduler.dart';\nimport 'package:flutter_scene/scene.dart';\nimport 'package:vector_math/vector_math.dart' as vm;\n\nvoid main() => runApp(const MaterialApp(home: Repro()));\n\nclass Repro extends StatefulWidget {\n  const Repro({super.key});\n\n  @override\n  State<Repro> createState() => _ReproState();\n}\n\nclass _ReproState extends State<Repro> with SingleTickerProviderStateMixin {\n  final Scene scene = Scene();\n  late final Ticker ticker;\n  int frame = 0;\n\n  @override\n  void initState() {\n    super.initState();\n    final geometry = CuboidGeometry(vm.Vector3.all(0.4));\n    final materials = [UnlitMaterial(), PhysicallyBasedMaterial()];\n    for (var i = 0; i < 400; i++) {\n      scene.add(\n        Node(mesh: Mesh(geometry, materials[i % 2]))\n          ..localTransform = vm.Matrix4.translation(\n            vm.Vector3((i % 20 - 10) * 0.6, 0, (i ~/ 20 - 10) * 0.6),\n          ),\n      );\n    }\n    ticker = createTicker((_) => setState(() => frame++))..start();\n  }\n\n  @override\n  void dispose() {\n    ticker.dispose();\n    super.dispose();\n  }\n\n  @override\n  Widget build(BuildContext context) {\n    final mode = BlendMode.values[frame % BlendMode.values.length];\n    return Stack(\n      children: [\n        Positioned.fill(\n          child: SceneView(\n            scene,\n            camera: PerspectiveCamera(\n              position: vm.Vector3(0, 10, 14),\n              target: vm.Vector3.zero(),\n            ),\n          ),\n        ),\n        Positioned(\n          left: 20,\n          top: 20,\n          width: 300,\n          height: 200,\n          child: ColorFiltered(\n            colorFilter: ColorFilter.mode(Colors.teal, mode),\n            child: ClipRect(\n              child: BackdropFilter(\n                filter: ui.ImageFilter.blur(\n                  sigmaX: 1.0 + frame % 20,\n                  sigmaY: 1.0 + frame % 20,\n                ),\n                blendMode: mode,\n                child: Text(\n                  'frame $frame',\n                  style: TextStyle(\n                    fontSize: 40,\n                    color: Colors.white,\n                    shadows: [\n                      Shadow(blurRadius: 1.0 + frame % 40, color: Colors.black),\n                    ],\n                  ),\n                ),\n              ),\n            ),\n          ),\n        ),\n      ],\n    );\n  }\n}\n```\n\n</details>\n\n### Screenshots or Video\n\nN/A (crash).\n\n### Logs\n\n<details><summary>Crash and TSan stacks</summary>\n\nRelease crash, 3.47.1 (`EXC_BAD_ACCESS` at `0x3f800000`):\n\n```console\nThread 0 Crashed (main / UI thread):\n  std::unordered_map<PipelineDescriptor, PipelineFuture<...>>::find\n  impeller::PipelineLibraryMTL::GetPipeline\n  flutter::gpu::RenderPass::GetOrCreatePipeline\n  flutter::gpu::RenderPass::Draw\nThread 6 (io.flutter.raster), same moment:\n  -[AGXG16XFamilyDevice newRenderPipelineStateWithDescriptor:completionHandler:]\n  impeller::PipelineLibraryMTL::GetPipeline\n  impeller::Pipeline<PipelineDescriptor>::CreateVariant\n  impeller::ContentContext::GetTexturePipeline\n  impeller::GaussianBlurFilterContents::RenderFilter\n  impeller::TextShadowCache::Lookup\n```\n\nTSan, code sample on master d03768e:\n\n```console\nWARNING: ThreadSanitizer: data race\n  Read by main thread:\n    __hash_table::find\n    impeller::PipelineLibraryMTL::GetPipeline\n    flutter::gpu::RenderPass::GetOrCreatePipeline\n  Previous write by thread T7 (raster):\n    __hash_table::__emplace_unique_key_args\n    impeller::PipelineLibraryMTL::GetPipeline\n    impeller::Pipeline<PipelineDescriptor>::CreateVariant\n    impeller::ContentContext::GetTexturePipeline\n```\n\n</details>\n\n### Flutter Doctor output\n\n<details><summary>flutter doctor -v</summary>\n\n```console\n[✓] Flutter (Channel stable, 3.47.1, on macOS 26.7 25G229 darwin-arm64, locale en-CA) [1,710ms]\n    • Flutter version 3.47.1 on channel stable at /Users/<user>/development/flutter\n    • Upstream repository https://github.com/flutter/flutter.git\n    • Framework revision 6655482ec0 (6 weeks ago), 2026-08-19 10:07:23 -0700\n    • Engine revision 5d53178869\n    • Dart version 3.13.1\n    • DevTools version 2.60.0\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration\n\n[✓] Android toolchain - develop for Android devices (Android SDK version 36.1.0) [4.4s]\n    • Android SDK at /Users/<user>/Library/Android/sdk\n    • Emulator version 36.6.11.0 (build_id 15507667) (CL:N/A)\n    • Platform android-36.1, build-tools 36.1.0\n    • Java binary at: /Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java\n      This is the JDK bundled with the latest Android Studio installation on this machine.\n      To manually set the JDK path, use: `flutter config --jdk-dir=\"path/to/jdk\"`.\n    • Java version OpenJDK Runtime Environment (build 21.0.10+-117844308-b1163.108)\n    • All Android licenses accepted.\n\n[!] Xcode - develop for iOS and macOS (Xcode 27.0) [4.5s]\n    • Xcode at /Applications/Xcode.app/Contents/Developer\n    • Build 27A266a\n    ! iOS 27.0 Simulator not installed; this may be necessary for iOS and macOS development.\n      To download and install the platform, open Xcode, select Xcode > Settings > Components,\n      and click the GET button for the required platform.\n\n      For more information, please visit:\n        https://developer.apple.com/documentation/xcode/installing-additional-simulator-runtimes\n    • CocoaPods version 1.16.2\n\n[✓] Chrome - develop for the web [7ms]\n    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n\n[✓] Connected device (3 available) [7.3s]\n    • iPhone 17 Pro (mobile) • <simulator-udid> • ios            • com.apple.CoreSimulator.SimRuntime.iOS-26-4 (simulator)\n    • macOS (desktop)        • macos                                • darwin-arm64   • macOS 26.7 25G229 darwin-arm64\n    • Chrome (web)           • chrome                               • web-javascript • Google Chrome 154.0.8037.95\n\n[✓] Network resources [1,093ms]\n    • All expected network resources are available.\n\n! Doctor found issues in 1 category.\n```\n\n</details>\n",
+ "state": "closed",
+ "state_reason": "completed",
+ "locked": true,
+ "html_url": "https://github.com/flutter/flutter/issues/193721",
+ "user": {
+  "login": "leehack",
+  "id": 1233094,
+  "profile_url": "https://github.com/leehack",
+  "avatar_url": "https://avatars.githubusercontent.com/u/1233094?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "c: crash",
+  "engine",
+  "e: impeller",
+  "team-fluttergpu",
+  "found in release: 3.47"
+ ],
+ "assignees": [],
+ "comments": 1,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-02T18:28:33Z",
+ "updated_at": "2026-10-20T05:01:09Z",
+ "closed_at": "2026-10-06T04:34:28Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 193722,
+    "title": "[Impeller] Guard the Metal pipeline library maps with a mutex",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/193722",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

@@ -1,0 +1,16 @@
+{
+  "model": {
+    "slot": "DEEPSEEK_API_KEY",
+    "model": "deepseek-flash"
+  },
+  "thinking": false,
+  "inputs": [
+    {
+      "id": "issue",
+      "source": "https://github.com/ColinLeeo/tsfile/issues/5",
+      "frozen": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/flows/f102/runs/run-1/inputs/issue.txt",
+      "sha256": "ef66f34d48bac0b949f804c4be27a281f19f0406da86e78f0b164bcbc13952a9",
+      "bytes": 758
+    }
+  ]
+}

@@ -22,13 +22,14 @@ const root = path.join(base, 'walk');
 after(() => rmSync(base, { recursive: true, force: true }));
 
 const WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped', '[–]': 'skipped',
 };
 
-test('(g) one table: each of the eight signs maps to its one word, and a plain line never repeats it', () => {
+test('(g) one table: each of the nine signs maps to its one word, and a plain line never repeats it', () => {
   assert.deepEqual(SIGN_WORDS, WORDS);
   assert.deepEqual(signParts('[II]', 'stuck — your answer is saved; the run stopped before using it'),
     { word: 'stuck', line: 'your answer is saved; the run stopped before using it' });
+  assert.deepEqual(signParts('[–]', 'skipped — it did not match the guardrail'), { word: 'skipped', line: 'it did not match the guardrail' });
   assert.deepEqual(signParts('[✓]', 'passed'), { word: 'passed', line: null });
   assert.deepEqual(signParts('[·]', 'waiting on you (parked, unanswered)'), { word: 'waiting', line: 'waiting on you (parked, unanswered)' });
   assert.deepEqual(signParts('[✗]', 'stopped by you (rerun), a fresh run was started', true).word, null, 'a rerun is never called failed');

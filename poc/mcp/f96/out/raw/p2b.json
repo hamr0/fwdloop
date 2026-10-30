@@ -1,0 +1,52 @@
+{
+ "number": 195397,
+ "title": "TableBorder.lerp and TableBorder.scale drop borderRadius",
+ "body": "\n### Steps to reproduce\n\n```dart\nfinal a = TableBorder.all(borderRadius: const BorderRadius.all(Radius.circular(4)));\nfinal b = TableBorder.all(borderRadius: const BorderRadius.all(Radius.circular(12)));\n\nprint(TableBorder.lerp(a, b, 0.5)!.borderRadius); // BorderRadius.zero\nprint(b.scale(0.5).borderRadius);                 // BorderRadius.zero\n```\n\n### Expected results\n\n`lerp` interpolates the radius (8 here), and `scale` scales it (6 here), the same way `BoxDecoration` handles `borderRadius`.\n\n### Actual results\n\nBoth return `BorderRadius.zero`. `TableBorder.lerp` and `TableBorder.scale` build a new `TableBorder` from the six sides only, so a table with rounded corners loses them for the whole of an animation, for example when the table's border animates through a theme change. `TableBorder.lerp(null, b, t)` goes through `scale`, so animating a rounded border in from nothing is affected too.\n\n### Flutter version\n\n`master` and stable 3.47.8.\n\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/195397",
+ "user": {
+  "login": "ChandraChaan",
+  "id": 53801679,
+  "profile_url": "https://github.com/ChandraChaan",
+  "avatar_url": "https://avatars.githubusercontent.com/u/53801679?v=4"
+ },
+ "author_association": "NONE",
+ "labels": [
+  "framework",
+  "has reproducible steps",
+  "P2",
+  "team-framework",
+  "triaged-framework"
+ ],
+ "assignees": [
+  "ChandraChaan"
+ ],
+ "comments": 4,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-27T07:53:41Z",
+ "updated_at": "2026-10-27T23:12:31Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 195398,
+    "title": "Fix TableBorder.lerp and scale dropping borderRadius",
+    "state": "OPEN",
+    "url": "https://github.com/flutter/flutter/pull/195398",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

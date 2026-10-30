@@ -1,0 +1,358 @@
+url: https://github.com/flutter/flutter/issues/180865
+64,510 chars → 18,152 chars (72% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=318]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=321]
+      - link "Issues (5k+)" [ref=322]
+      - link "Pull requests (728)" [ref=323]
+      - Repository: Actions [ref=324], Projects [ref=325], Wiki [ref=326]
+      - button "More items" [expanded=false] [ref=263]
+  - region "Header"
+    - heading "iOS App Hang FlutterPlatformPlugin getClipboardData blocks main thread for 2+ seconds #180865" [level=1]
+    - link "New issue" [ref=432]
+    - button "Copy link" [ref=433]
+  - Open
+  - heading "Description" [level=2]
+  - link "@xavier-hunt's profile" [ref=527]
+  - link "xavier-hunt" [ref=448]
+  - opened
+  - link "on Jan 12" [ref=530]
+  - button "Last edited by xavier-hunt" [expanded=false] [ref=453]
+  - button "Issue body actions" [expanded=false] [ref=456]
+  - heading "Steps to reproduce" [level=2]
+  - Enable Universal Clipboard across Apple devices (e.g., iPhone + Mac)
+  - Copy content on one device (e.g., Mac)
+  - listitem [level=1]
+    - Before clipboard sync completes, tap on a
+    - code
+      - TextField
+    - in the Flutter app on iPhone
+  - App freezes for 2+ seconds
+  - strong
+    - Note:
+  - This issue is timing-dependent and intermittent, making it difficult to reproduce on demand. However, it occurs regularly in production environments and is captured by crash/ANR monitoring tools (Sentry).
+  - strong
+    - Affected iOS versions:
+  - iOS 14+ (confirmed on iOS 26.1)
+  - strong
+    - Affected devices:
+  - Various iPhones (confirmed on iPhone 18,2)
+  - heading "Analysis" [level=2]
+  - The root cause appears to be in
+  - code
+    - FlutterPlatformPlugin.mm
+  - line 411 where
+  - code
+    - getClipboardData:
+  - calls
+  - code
+    - [UIPasteboard string]
+  - synchronously on the main thread.
+  - code
+    - UIPasteboard
+  - operations can block when:
+  - listitem [level=1]
+    - strong
+      - Universal Clipboard
+    - - Syncing clipboard content from other devices requires network operations
+  - listitem [level=1]
+    - strong
+      - Content type coercion
+    - - Converting clipboard formats triggers inter-process communication
+  - listitem [level=1]
+    - strong
+      - Privacy checks
+    - - iOS 14+ clipboard access permissions
+  - Apple's
+  - code
+    - UIPasteboard
+  - documentation doesn't guarantee these operations complete quickly, and blocking the main thread for 2+ seconds triggers iOS's "App Hang" detection.
+  - heading "Expected results" [level=2]
+  - Tapping on a TextField should not freeze the app.
+  - heading "Actual results" [level=2]
+  - The main thread blocks on
+  - code
+    - semaphore_wait_trap
+  - for 2+ seconds while waiting for clipboard data, causing an "App Hang" (ANR).
+  - heading "Minimal reproducible code sample" [level=2]
+  - This issue is difficult to reproduce with a minimal sample because it depends on:
+  - Universal Clipboard sync timing between devices
+  - iOS system state regarding clipboard data availability/coercion
+  - However, any app with a basic
+  - code
+    - TextField
+  - can trigger this:
+  - import 'package:flutter/material.dart' void main runApp const MyApp class MyApp extends StatelessWidget const MyApp super .key}); @override Widget build BuildContext context) { return MaterialApp ( home Scaffold ( appBar AppBar (title const Text 'Clipboard Hang Repro' )), body const Padding ( padding EdgeInsets all 16 ), child TextField ( decoration InputDecoration ( hintText 'Tap here while Universal Clipboard is syncing'
+  - button "Copy code to clipboard" [ref=1537]
+  - To reproduce:
+  - Run on a physical iOS device with iCloud/Universal Clipboard enabled
+  - Copy large content (e.g., an image or formatted text) on a paired Mac
+  - Immediately tap the TextField before sync completes
+  - heading "Screenshots or Video" [level=3]
+  - emphasis
+    - No response
+  - heading "Stack trace / crash report" [level=2]
+  - This is captured by Sentry as an "App Hang" event with mechanism type
+  - code
+    - AppHang
+  - . The blocking call stack:
+  - code
+    - semaphore_wait_trap (libsystem_kernel.dylib) _dispatch_sema4_wait (libdispatch.dylib) _dispatch_semaphore_wait_slow (libdispatch.dylib) _coerceItemToClass (UIKitCore) -[_UIConcretePasteboard string] (UIKitCore) -[FlutterPlatformPlugin getClipboardData:] (Flutter.framework) ← FlutterPlatformPlugin.mm:411 -[FlutterPlatformPlugin handleMethodCall:result:] (Flutter.framework) ← FlutterPlatformPlugin.mm:145 __47-[FlutterEngine maybeSetupPlatformViewChannels]... (Flutter.framework) ← FlutterEngine.mm:674 __45-[FlutterMethodChannel setMethodCallHandler:]... (Flutter.framework) ← FlutterChannels.mm:313 flutter::PlatformMessageHandlerIos::HandlePlatformMessage (Flutter.framework) _dispatch_call_block_and_release (libdispatch.dylib) _dispatch_client_callout (libdispatch.dylib) _dispatch_main_queue_drain (libdispatch.dylib) _dispatch_main_queue_callback_4CF (libdispatch.dylib) __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__ (CoreFoundation) __CFRunLoopRun (CoreFoundation) _CFRunLoopRunSpecificWithOptions (CoreFoundation) GSEventRunModal (GraphicsServices) -[UIApplication _run] (UIKitCore) UIApplicationMain (UIKitCore) main (Runner) start (dyld)
+  - button "Copy code to clipboard" [ref=1553]
+  - heading "Flutter diagnostics" [level=2]
+  - code
+    - [✓] Flutter (Channel stable, 3.38.5, on macOS 26.1 25B78 darwin-arm64, locale en-US) • Flutter version 3.38.5 on channel stable at /Users/xavier.hunt/development/flutter • Upstream repository https://github.com/flutter/flutter.git • Framework revision f6ff1529fd (5 weeks ago), 2025-12-11 11:50:07 -0500 • Engine revision 1527ae0ec5 • Dart version 3.10.4 • DevTools version 2.51.1 [✓] Xcode - develop for iOS and macOS (Xcode 16.3) • Xcode at /Applications/Xcode.app/Contents/Developer • Build 16E140 • CocoaPods version 1.16.2
+  - button "Copy code to clipboard" [ref=1556]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "darshankawar" [ref=1557]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=1559]
+      - link "on Jan 13" [ref=1167]
+    - listitem [level=1]
+      - heading "darshankawarcommentedon Jan 13" [level=3]
+      - link "@darshankawar's profile" [ref=1171]
+      - link "darshankawar" [ref=808]
+      - link "on Jan 13" [ref=1173]
+      - generic "This user is a member of the flutter organization."
+        - Member
+      - button "Actions for darshankawar's comment, 10:57 AM on January 13" [expanded=false] [ref=816]
+      - Keeping the issue open and labeling for team's tracking.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - darshankawar [ref=1572] · added: platform-ios iOS applications specifically [ref=1574], a: text input Entering text in a text field or keyboard related problems [ref=1577], team-ios Owned by iOS platform team [ref=1580]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=1585]
+      - link "on Jan 13" [ref=1184]
+    - listitem [level=1]
+      - link "loic-sharma" [ref=1589]
+      - added
+      - link "fyi-text-input For the attention of Text Input team" [ref=1591]
+      - link "on Jan 13" [ref=1188]
+    - listitem [level=1]
+      - heading "loic-sharmacommentedon Jan 13" [level=3]
+      - link "@loic-sharma's profile" [ref=1192]
+      - link "loic-sharma" [ref=837]
+      - link "on Jan 13" [ref=1194]
+      - generic "This user is a member of the flutter organization."
+        - Member
+      - button "Actions for loic-sharma's comment, 6:25 PM on January 13" [expanded=false] [ref=845]
+      - Thanks for filing this issue!
+      - An easy fix might be to kick off a background task, read the pasteboard, switch back to the main thread, and then respond to the platform channel message (
+      - link "1" [ref=1198]
+      - link "2" [ref=1200]
+      - ). A better but more complex fix might be to switch to
+      - link "UIPasteboard.itemProviders" [ref=1202]
+      - for reading the clipboard.
+      - This issue leads to an interesting takeaway: to properly support Universal Clipboard, Flutter must have asynchronous clipboard APIs. While merged threads let us introduce synchronous clipboard APIs, these should not replace the existing async APIs.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "hellohuanlincommentedon Jan 13" [level=3]
+      - link "@hellohuanlin's profile" [ref=1208]
+      - link "hellohuanlin" [ref=856]
+      - link "on Jan 13" [ref=1210]
+      - button "Last edited by hellohuanlin" [expanded=false] [ref=861]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for hellohuanlin's comment, 7:41 PM on January 13" [expanded=false] [ref=866]
+      - blockquote
+        - The root cause appears to be in FlutterPlatformPlugin.mm line 411 where getClipboardData: calls [UIPasteboard string] synchronously on the main thread.
+      - IIRC
+      - code
+        - getClipboardData
+      - is not the one used in text input's paste. The text input's blocking is likely happening here:
+      - link "flutter/engine/src/flutter/shell/platform/darwin/ios/framework/Source/FlutterTextInputPlugin.mm" [ref=1221]
+      - Line 1339 in
+      - link "7674e46" [ref=1223]
+      - LayoutTableCell "1339"
+      - LayoutTableCell "return [UIPasteboard generalPasteboard].hasStrings;"
+      - However,
+      - code
+        - getClipboardData
+      - blocking the main thread is problematic in other places that use this API. So it should also be addressed.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "hellohuanlin" [ref=1645]
+      - self-assigned this
+      - link "on Jan 15" [ref=1231]
+    - listitem [level=1]
+      - heading "hellohuanlincommentedon Feb 6" [level=3]
+      - link "@hellohuanlin's profile" [ref=1235]
+      - link "hellohuanlin" [ref=891]
+      - link "on Feb 6" [ref=1237]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for hellohuanlin's comment, 12:00 AM on February 6" [expanded=false] [ref=899]
+      - I tried this out and measured the time on
+      - code
+        - hasStrings
+      - call.
+      - For local pastes, it typically takes less than 0.1ms.
+      - For network calls, it can take a few ms.
+      - For slow network calls, a system window shows up, indicating it's pasting from my mac:
+      - link "Image" [ref=904]
+      - So I think iOS gets it covered and we should be good.
+      - link "@xavier-hunt" [ref=1247]
+      - did you see the progress window when pasting long content?
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "hellohuanlincommentedon Feb 9" [level=3]
+      - link "@hellohuanlin's profile" [ref=1252]
+      - link "hellohuanlin" [ref=911]
+      - link "on Feb 9" [ref=1254]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for hellohuanlin's comment, 6:52 PM on February 9" [expanded=false] [ref=919]
+      - From the stack trace, it looks like you are using the old Flutter context menu:
+      - code
+        - -[FlutterPlatformPlugin getClipboardData:] (Flutter.framework) ← FlutterPlatformPlugin.mm:411 -[FlutterPlatformPlugin handleMethodCall:result:] (Flutter.framework) ← FlutterPlatformPlugin.mm:145 __47-[FlutterEngine maybeSetupPlatformViewChannels]... (Flutter.framework) ← FlutterEngine.mm:674 __45-[FlutterMethodChannel setMethodCallHandler:]... (Flutter.framework) ← FlutterChannels.mm:313
+      - button "Copy code to clipboard" [ref=1681]
+      - With latest Flutter, we use
+      - link "system context menu" [ref=1260]
+      - by default, which doesn't call
+      - code
+        - -[FlutterPlatformPlugin getClipboardData:]
+      - anymore, and it should provide the same UX as a native app.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "hellohuanlin" [ref=1688]
+      - added
+      - link "waiting for response The Flutter team cannot make further progress on this issue until the original reporter responds" [ref=1690]
+      - link "on Feb 9" [ref=1267]
+    - listitem [level=1]
+      - heading "xavier-huntcommentedon Feb 12" [level=3]
+      - link "@xavier-hunt's profile" [ref=1271]
+      - link "xavier-hunt" [ref=936]
+      - link "on Feb 12" [ref=1273]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for xavier-hunt's comment, 10:35 PM on February 12" [expanded=false] [ref=944]
+      - link "@hellohuanlin" [ref=1275]
+      - sorry for the late response. Just checked Sentry, no events for past 24 days which more or less lines up with most recent Flutter upgrade.
+      - Thank you to you and the team for the speedy response and follow ups.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "github-actions" [ref=1710]
+      - removed
+      - link "waiting for response The Flutter team cannot make further progress on this issue until the original reporter responds" [ref=1712]
+      - link "on Feb 12" [ref=1282]
+    - listitem [level=1]
+      - heading "9 remaining items" [level=3]
+      - button "Load more" [ref=643]
+    - listitem [level=1]
+      - heading "hellohuanlincommentedon Feb 19" [level=3]
+      - link "@hellohuanlin's profile" [ref=1290]
+      - link "hellohuanlin" [ref=966]
+      - link "on Feb 19" [ref=1292]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for hellohuanlin's comment, 10:23 PM on February 19" [expanded=false] [ref=974]
+      - link "@Renzo-Olivares" [ref=1294]
+      - from triage: assigning to text input team for prioritization since you are looking into it. feel free to kick it back to team-ios.
+      - toolbar "Reactions"
+        - switch "👍 1 reaction" [checked=false] [ref=979]
+          - React with 👍
+        - Reacted by Renzo Olivares
+    - listitem [level=1]
+      - flutter-triage-bot [ref=1735] · removed: fyi-ios For the attention of iOS platform team [ref=1737], triaged-ios Triaged by iOS platform team [ref=1740], fyi-text-input For the attention of Text Input team [ref=1743]
+      - link "on Feb 20" [ref=1309]
+    - listitem [level=1]
+      - heading "flutter-triage-botcommentedon Feb 20" [level=3]
+      - link "@flutter-triage-bot's profile" [ref=1313]
+      - link "flutter-triage-bot" [ref=992]
+      - Bot
+      - link "on Feb 20" [ref=1316]
+      - button "Actions for flutter-triage-bot's comment, 11:08 PM on February 19" [expanded=false] [ref=1000]
+      - The
+      - code
+        - fyi-text-input
+      - label is redundant with the
+      - code
+        - team-text-input
+      - label.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "hellohuanlin" [ref=1761]
+      - added
+      - link "triaged-ios Triaged by iOS platform team" [ref=1763]
+      - link "fyi-ios For the attention of iOS platform team" [ref=1766]
+      - link "on Feb 24" [ref=1326]
+    - listitem [level=1]
+      - link "flutter-triage-bot" [ref=1770]
+      - removed
+      - link "fyi-ios For the attention of iOS platform team" [ref=1772]
+      - link "triaged-ios Triaged by iOS platform team" [ref=1775]
+      - link "on Feb 24" [ref=1331]
+    - listitem [level=1]
+      - link "justinmc" [ref=1779]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=1781]
+      - link "triaged-text-input Triaged by Text Input team" [ref=1784]
+      - link "on Feb 26" [ref=1336]
+    - listitem [level=1]
+      - link "Renzo-Olivares" [ref=1788]
+      - added this to
+      - link "SelectableRegion Improvements" [ref=1339]
+      - link "on Mar 2" [ref=1340]
+    - listitem [level=1]
+      - link "github-project-automation" [ref=1792]
+      - moved this to
+      - Incoming Issues in
+      - link "SelectableRegion Improvements" [ref=1344]
+      - link "on Mar 2" [ref=1345]
+    - listitem [level=1]
+      - heading "Renzo-Olivarescommentedon Mar 6" [level=3]
+      - link "@Renzo-Olivares's profile" [ref=1349]
+      - link "Renzo-Olivares" [ref=1039]
+      - link "on Mar 6" [ref=1351]
+      - generic "This user has previously committed to the flutter repository."
+        - Contributor
+      - button "Actions for Renzo-Olivares's comment, 10:53 PM on March 6" [expanded=false] [ref=1047]
+      - I was not able to reproduce this issue using
+      - code
+        - SelectableText
+      - or
+      - code
+        - SelectionArea
+      - . This makes sense if this issue is mainly centered around
+      - code
+        - getClipboardData
+      - which they never call since you cannot paste into static text.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "Renzo-Olivares" [ref=1816]
+      - removed this from
+      - link "SelectableRegion Improvements" [ref=1362]
+      - link "on Mar 6" [ref=1363]
+  - link "Sign up for free" [ref=484]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=487]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=1064], a: text input Entering text in a text field or keyboard related problems [ref=1067], platform-ios iOS applications specifically [ref=1070], team-text-input Owned by Text Input team [ref=1073], triaged-text-input Triaged by Text Input team [ref=1076]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @justinmc [ref=748], @loic-sharma [ref=749], @Renzo-Olivares [ref=750], @hellohuanlin [ref=751], @darshankawar [ref=752]
+  - button "and 1 other participants, click to see the full list" [ref=753]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=1101]

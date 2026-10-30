@@ -1,0 +1,49 @@
+{
+  "runId": "run-2",
+  "flow": {
+    "root": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/f100/flows",
+    "name": "f100"
+  },
+  "signatureHash": "d9400bd9e28959b5db4a561e392330ee12e55e9bf354ad40d71f4f062a63f2b5",
+  "inputsManifest": [
+    {
+      "id": "issue",
+      "source": "https://github.com/flutter/flutter/issues/100047",
+      "frozen": "/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/4bec273e-ed6e-489e-af3a-f8155c50cf10/scratchpad/f100/flows/f100/runs/run-2/inputs/issue.txt",
+      "sha256": "8480dfbf7153b402670e959ca09a74c486f03982412fe0ffa85dff77c04819b3",
+      "bytes": 3772
+    }
+  ],
+  "stepIndex": 2,
+  "askId": "f823a3fa-0bdd-48e4-a6ca-9c75daab3191",
+  "expiresAt": "2026-10-29T10:22:55.132Z",
+  "spent": 0.015115799999999999,
+  "spendComplete": true,
+  "redone": 0,
+  "evidenceUnjudged": [
+    {
+      "step": "read the ticket and pull out its priority and what is broken",
+      "emits": "ticket_digest",
+      "artifact": {
+        "cells": {
+          "priority": "P2",
+          "what_is_broken": "Scaffold.of(context).showBottomSheet crashes with a failed assertion: 'bottomSheetKey.currentState != null': is not true (scaffold.dart line 2366, in ScaffoldState._buildBottomSheet._removeCurrentBottomSheet). Reproduces with high probability when tapping the back arrow at the same time as the 'show bottom sheet' button repeatedly (rapid show/pop interleaving); the failure surfaces via LocalHistoryEntry._notifyRemoved -> LocalHistoryRoute.didPop -> NavigatorState.pop/maybePop. Labels include 'c: crash' and 'p: material_ui'.",
+          "ticket_number": 100047,
+          "title": "`Scaffold.of(context).showBottomSheet` crashes",
+          "labels": [
+            "c: crash",
+            "p: material_ui",
+            "package",
+            "P2",
+            "team-design",
+            "triaged-design"
+          ],
+          "state": "open",
+          "source": "https://github.com/flutter/flutter/issues/100047"
+        }
+      }
+    }
+  ],
+  "unjudgedCount": 1,
+  "startedAt": 1793267546968
+}

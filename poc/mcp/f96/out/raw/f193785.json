@@ -1,0 +1,49 @@
+{
+ "number": 193785,
+ "title": "Flutter Linux host name parsing crashes on an empty PRETTY_NAME",
+ "body": "### Steps to reproduce\n\nVerified against flutter/flutter master `53d381d9067f16b1d4132f5b8f059a9cc5ddb9ec`.\n\n1. In an isolated Linux environment, set `/etc/os-release` to contain `PRETTY_NAME=`.\n2. Run `flutter doctor -v`, which reads the operating-system name.\n3. Also try `PRETTY_NAME=\"Linux=Example\"`.\n\n### Expected results\n\nAn empty name uses the existing Linux fallback; a name containing `=` is preserved.\n\n### Actual results\n\nEmpty values cause a `RangeError` when the parser reads `value[0]`. Splitting at all equals signs also truncates nonempty names.\n\n### Code sample\n\n```text\nPRETTY_NAME=\n```\n\n### Screenshots or Video\n\nNot applicable to this tool parsing defect.\n\n### Logs\n\nThe focused regression on unmodified production code reports 3 passed, 8 failed. The failure was reproduced using the repository's existing unit-test entry with fake processes or a memory filesystem. Unit tests use a memory filesystem and a fake Linux platform; they do not modify the host's system files.\n\nA minimal fix with regression coverage is prepared. A draft PR will follow.\n\n### Flutter Doctor output\n\nCollected using the checkout's `bin/flutter doctor -v`; identifiers have been redacted. The branch/PATH, simulator, and proxy warnings are host-environment limitations and are separate from these deterministic tool-unit-test failures.\n\n<details><summary>Doctor output</summary>\n\n```console\n[!] Flutter (Channel [user-branch], 3.49.0-1.0.pre-303, on macOS 26.6.2 25G83 darwin-arm64, locale zh-Hans-TW) [2.1s]\n    ! Flutter version 3.49.0-1.0.pre-303 on channel [user-branch] at <checkout>\n      Currently on an unknown channel. Run `flutter channel` to switch to an official channel.\n      If that doesn't fix the issue, try deleting the 'bin/cache/flutter.version.json' file in your Flutter SDK directory and then reinstall Flutter by following instructions at https://flutter.dev/setup.\n    ! Warning: `flutter` on your path resolves to <home>/Documents/sdk/flutter/bin/flutter, which is not inside your current Flutter SDK checkout at <checkout>. Consider adding <checkout>/bin to the front of your path.\n    ! Warning: `dart` on your path resolves to /opt/homebrew/Cellar/dart/3.12.2/libexec/bin/dart, which is not inside your current Flutter SDK checkout at <checkout>. Consider adding <checkout>/bin to the front of your path.\n    • Upstream repository git@github.com:flutter/flutter.git\n    • Framework revision 53d381d906 (28 hours ago), 2026-10-03 00:43:29 +0000\n    • Engine revision 0e66e3d62d\n    • Dart version 3.14.0 (build 3.14.0-294.0.dev)\n    • DevTools version 2.61.0\n    • Pub download mirror https://pub.flutter-io.cn\n    • Flutter download mirror https://storage.flutter-io.cn\n    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration, enable-riscv64, enable-hcpp\n    • If those were intentional, you can disregard the above warnings; however it is recommended to use \"git\" directly to perform update checks and upgrades.\n\n[✓] Android toolchain - develop for Android devices (Android SDK version 36.1.0) [3.6s]\n    • Android SDK at <home>/Library/Android/sdk\n    • Emulator version 36.6.11.0 (build_id 15507667) (CL:N/A)\n    • Platform android-36.1, build-tools 36.1.0\n    • ANDROID_HOME = <home>/Library/Android/sdk\n    • ANDROID_SDK_ROOT = <home>/Library/Android/sdk\n    • Java binary at: /Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java\n      This is the JDK bundled with the latest Android Studio installation on this machine.\n      To manually set the JDK path, use: `flutter config --jdk-dir=\"path/to/jdk\"`.\n    • Java version OpenJDK Runtime Environment (build 21.0.10+-117844308-b1163.108)\n    • All Android licenses accepted.\n\n[!] Xcode - develop for iOS and macOS (Xcode 27.0) [3.6s]\n    • Xcode at /Applications/Xcode.app/Contents/Developer\n    • Build 27A266a\n    ! iOS 27.0 Simulator not installed; this may be necessary for iOS and macOS development.\n      To download and install the platform, open Xcode, select Xcode > Settings > Components,\n      and click the GET button for the required platform.\n\n      For more information, please visit:\n        https://developer.apple.com/documentation/xcode/installing-additional-simulator-runtimes\n    • CocoaPods version 1.17.0\n\n[✓] Chrome - develop for the web [5ms]\n    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n\n[!] Proxy Configuration [4ms]\n    • HTTP_PROXY is set\n    ! NO_PROXY is not set\n\n[✓] Connected device (3 available)\n    • Device names and identifiers redacted.\n\n[✓] Network resources [1,597ms]\n    • All expected network resources are available.\n\n! Doctor found issues in 3 categories.\n```\n\n</details>\n\n",
+ "state": "open",
+ "html_url": "https://github.com/flutter/flutter/issues/193785",
+ "user": {
+  "login": "kaluli123123",
+  "id": 295758798,
+  "profile_url": "https://github.com/kaluli123123",
+  "avatar_url": "https://avatars.githubusercontent.com/u/295758798?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "tool",
+  "P3",
+  "team-tool",
+  "triaged-tool"
+ ],
+ "assignees": [],
+ "comments": 2,
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-04T04:36:23Z",
+ "updated_at": "2026-10-07T20:07:29Z",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 1,
+  "references": [
+   {
+    "number": 193790,
+    "title": "Parse complete Linux os-release values safely",
+    "state": "OPEN",
+    "url": "https://github.com/flutter/flutter/pull/193790",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

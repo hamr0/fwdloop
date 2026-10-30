@@ -1,0 +1,12 @@
+1. read the ticket and say what is broken
+   guardrail: network outages only
+2. read the ticket and pull out its priority
+3. write a short first-response plan for the on-call engineer
+   guardrail: under 150 words
+4. ask 30m: check it with me,
+   guardrail: nothing goes out before I accept
+5. and once I accept, write it out.
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: send at line 5 to file:/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/7d8d323b-1864-4b58-964d-91c87128c497/scratchpad/f97-out
+guardrail: source issue = ticket:https://github.com/hamr0/bareagent/issues/30

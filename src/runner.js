@@ -54,7 +54,7 @@ import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
 import {
-  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed,
+  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findUnusedMcpTool, unusedMcpToolRed,
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
@@ -77,6 +77,8 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
+import { readTicketMcp } from './ticket-mcp.js';
+import { decideTicket, readTicketFields } from './ticket-labels.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
@@ -419,16 +421,36 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  (never the original again after this) and return the manifest, which `runFlow` records as the `inputs` of `run.json` (M8b). An
  *  unreadable source refuses by name. A source that is a web address
  *  (M10 item 1) is fetched and frozen by `freezePage`, in the same manifest.
- *  @param {string} runDir @param {Array<{id: string, path: string}>} sources
+ *  @param {string} runDir @param {Array<{id: string, path: string, ticket?: {number: number, anyway?: true}}>} sources
  *  M10b amendment 1: a CSV input named in `tableRoles` (the sheets a step's `close.sheet` reads) also gets its `tableSha` (bareguard's fingerprint of the table made
  *  from the FROZEN copy) in its manifest entry - the ONE place it is written, once, with the run's inputs; every sheet check of the run uses this recorded value.
  *  A sheet bareguard cannot read as a table refuses the run here, naming the input.
- *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[]}} [o] */
-export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [] } = {}) {
+ *  M12 piece 1b: a source with `ticket: {number}` is one ticket of the list at its `path`, read through the job's MCP tools (`mcp`, the declaration's `{server, tools}`) by
+ *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
+ *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp, ticketFilter?: {priority?: string[], labels?: string[]}}} [o] */
+export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp, ticketFilter } = {}) {
   const inputsDir = join(runDir, 'inputs');
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
-  for (const { id, path: sourcePath } of sources ?? []) {
+  /** M12 piece 3: the first ticket the signed labels (or its state) skip: its reason; the run ends `skipped` after its start record is written */
+  let skip = null;
+  for (const { id, path: sourcePath, ticket } of sources ?? []) {
+    if (ticket) {
+      if (!mcp) return { ok: false, red: `freeze: input "${id}": the job lists no MCP tools` };
+      const got = await ticketRead({ listUrl: sourcePath, number: ticket.number, mcp });
+      if (!got.ok) return { ok: false, red: `freeze: input "${id}": ${got.error}` };
+      const page = await freezePage(inputsDir, id, got.url, { fetchPage: async () => got });
+      if (!page.ok) return page;
+      const verdict = decideTicket({ text: got.text, filter: ticketFilter });
+      const fields = readTicketFields(got.text);
+      // hamr 2026-10-30: a ticket sent with "Run it anyway" is never skipped (labels or closed); the record keeps what the filter would have said
+      const anyway = ticket.anyway === true;
+      manifest.push({
+        ...page.entry, mcp: got.record, ticket: { number: ticket.number, title: fields.ok ? fields.title : null }, filter: anyway ? { outcome: 'anyway', was: verdict } : verdict,
+      });
+      if (!anyway && verdict.outcome === 'skip' && skip === null) skip = verdict.reason;
+      continue;
+    }
     if (isWebUrl(sourcePath)) {
       const page = await freezePage(inputsDir, id, sourcePath, { fetchPage });
       if (!page.ok) return page;
@@ -453,7 +475,7 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
     }
     manifest.push(entry);
   }
-  return { ok: true, manifest };
+  return { ok: true, manifest, skip };
 }
 
 /** realpath of a path that may not exist (falls back to the lexical resolve). */
@@ -1233,6 +1255,14 @@ export async function runFlow({
     });
   }
 
+  // M12 piece 1a (F105): a job tool no step grants is refused at $0, by name
+  const unusedTool = findUnusedMcpTool(declaration);
+  if (unusedTool) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unusedMcpToolRed(unusedTool), spent: { value: 0 },
+    });
+  }
+
   // M4e amendment 19 4: every softgreen check is built before the first model call; one that cannot be built is refused at $0, by step name
   const unbuildable = findUnbuildableCheckStep(declaration);
   if (unbuildable) {
@@ -1273,7 +1303,7 @@ export async function runFlow({
     }
   }
 
-  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps) });
+  const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp, ticketFilter: declaration.ticketFilter });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
@@ -1281,6 +1311,12 @@ export async function runFlow({
   }
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
   writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest) });
+  // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
+  if (frozen.skip) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'skipped', red: '', skip: frozen.skip, spent: { value: 0 },
+    });
+  }
   // M4c: every guard above has passed — this process records itself (pid row) before its first step.
   recordPid(runDir, 'run', now());
 
@@ -2116,6 +2152,8 @@ export async function resumeRun({
         red: unwiredRed(unwiredVerb),
       };
     }
+    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
+    if (unusedTool) return { outcome: 'refused', red: unusedMcpToolRed(unusedTool) };
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable), detail: unbuildable.why };
   }
@@ -2647,6 +2685,8 @@ export async function continueRun({
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
+    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
+    if (unusedTool) return refused(unusedMcpToolRed(unusedTool));
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return refused(unbuildableRed(unbuildable), unbuildable.why);
   }
@@ -2960,6 +3000,7 @@ export function readAsk(runDir) {
  * @param {{ value: number }} opts.spent
  * @param {any[]} [opts.attempts]
  * @param {Record<string, any>} [opts.artifacts]
+ * @param {string|null} [opts.skip] - M12 p3: the reason a ticket run ends `skipped` (history row `skipReason`, log.json `skipReason`)
  * @param {string|null} [opts.signatureHash] - the flow's `signature.json` `flow`
  *   hash, when this halt happened AFTER `readFlow` succeeded (item 9: every
  *   history row carries it, halts included). A halt before the signature was
@@ -2977,7 +3018,7 @@ export function readAsk(runDir) {
  */
 function haltRun({
   flowDir, runDir, runId, capUsd, startedAt, now, nowMs = Date.now, outcome, red, spent, attempts = [], artifacts = {}, signatureHash = null,
-  priorSpendComplete = true, resumeAt = null, stop = null, detail = null,
+  priorSpendComplete = true, resumeAt = null, stop = null, detail = null, skip = null,
 }) {
   // F45 finding 3: `startedAt` here is always the RUN's start (every caller
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
@@ -2990,7 +3031,7 @@ function haltRun({
     if (existsSync(runDir)) {
       recordLateAnswerIfAny(runDir, now);
       writeLog(runDir, {
-        runId, outcome, red, ...(detail ? { detail } : {}), attempts, artifacts,
+        runId, outcome, red, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), attempts, artifacts,
       });
       // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
       if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
@@ -3010,7 +3051,7 @@ function haltRun({
     const stoppedWithoutHaltRecord = outcome === 'stopped' && resumeAt && !readHaltRecord(runDir).ok;
     if (!stoppedWithoutHaltRecord) {
       appendHistory(flowDir, {
-        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), // amendment 23: bareguard's raw reason, never the sentence
+        runId, at: now(), outcome, spentUsd: spent.value, spendComplete, capUsd: capUsd ?? null, wallMs, signatureHash, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), // amendment 23: bareguard's raw reason, never the sentence
       });
     }
   }

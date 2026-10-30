@@ -1,0 +1,24 @@
+FROZEN ok
+{
+ "id": "issue",
+ "source": "https://github.com/flutter/flutter/issues/100047",
+ "bytes": 3772,
+ "sha256": "8480dfbf7153b402670e959ca09a74c486f03982412fe0ffa85dff77c04819b3",
+ "shaMatches": true,
+ "mcp": {
+  "server": "github",
+  "exposed": [
+   "github_issue_read"
+  ],
+  "missing": [],
+  "calls": [
+   {
+    "tool": "issue_read",
+    "owner": "flutter",
+    "repo": "flutter",
+    "issue_number": 100047
+   }
+  ]
+ }
+}
+body has "Tap the back arrow": true

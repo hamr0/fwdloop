@@ -1,0 +1,30 @@
+{"comments":1,"labels":["triage-needed","unreleased"],"number":344903,"state":"CLOSED","title":"Copilot session resume does not reconcile saved sandbox state with runtime and managed policy","updated_at":"2026-10-29T08:47:54Z"}
+{"comments":0,"labels":["triage-needed"],"number":344905,"state":"OPEN","title":"Custom language models do not appear in GitHub Copilot Chat when using Remote SSH","updated_at":"2026-10-29T08:21:07Z"}
+{"comments":1,"labels":["agents-window","bug","sessions-list"],"number":344908,"state":"OPEN","title":"Agents window: drag and drop onto a workspace revealed by \"+N more workspaces\" does nothing","updated_at":"2026-10-29T07:03:40Z"}
+{"comments":0,"labels":["bug","unreleased"],"number":344909,"state":"CLOSED","title":"Canvas extension toggle reports failure after preference is saved","updated_at":"2026-10-29T09:14:30Z"}
+{"comments":0,"labels":["new release","triage-needed"],"number":344910,"state":"OPEN","title":"Integrated Browser traps mouse focus in editor area, while keyboard shortcuts work","updated_at":"2026-10-29T08:21:00Z"}
+{"comments":1,"labels":[],"number":344911,"state":"OPEN","title":"MCP: server's notifications/cancelled cancels the editor's own request instead of the server's sampling/elicitation request","updated_at":"2026-10-29T10:57:34Z"}
+{"comments":1,"labels":[],"number":344913,"state":"OPEN","title":"Explorer rejects valid Windows file names with a leading space or Unicode whitespace, and accepts control characters","updated_at":"2026-10-29T09:20:28Z"}
+{"comments":0,"labels":["triage-needed"],"number":344916,"state":"OPEN","title":"I suspect the issue might be caused by the Copilot harness and I'm hoping the Local harness is not affected.","updated_at":"2026-10-29T10:16:01Z"}
+{"comments":0,"labels":["bug"],"number":344917,"state":"OPEN","title":"Session nested under another can't be moved back out: \"has no recorded conversation of its own\"","updated_at":"2026-10-29T08:56:12Z"}
+{"comments":1,"labels":[],"number":344918,"state":"OPEN","title":"Codex could not start","updated_at":"2026-10-29T09:09:57Z"}
+{"comments":2,"labels":[],"number":344919,"state":"OPEN","title":"Copilot \"Assisted permissions (Experimental)\" instantly wipes out 100% of monthly Copilot Pro+ quota in a single session (Ticket #4838700)","updated_at":"2026-10-29T10:15:58Z"}
+{"comments":0,"labels":["triage-needed"],"number":344920,"state":"OPEN","title":"Agent Debug Logs: no data for active agent-host (Copilot CLI) sessions until VS Code restart — live events never stream","updated_at":"2026-10-29T10:15:55Z"}
+{"comments":0,"labels":["triage-needed"],"number":344921,"state":"OPEN","title":"Improve Agent Skills discoverability, grouping, and invocation semantics","updated_at":"2026-10-29T10:15:52Z"}
+{"comments":0,"labels":["triage-needed"],"number":344922,"state":"OPEN","title":"Column editing bug:","updated_at":"2026-10-29T11:14:53Z"}
+{"comments":0,"labels":[],"number":344924,"state":"OPEN","title":"Copilot harness: retain local memories","updated_at":"2026-10-29T10:26:08Z"}
+{"comments":1,"labels":["triage-needed"],"number":344925,"state":"OPEN","title":"Copilot harness: restore input box MCP tools picker","updated_at":"2026-10-29T11:14:49Z"}
+{"comments":0,"labels":["triage-needed"],"number":344926,"state":"OPEN","title":"Copilot harness: restore access to VS Code-aware explicit context items","updated_at":"2026-10-29T11:14:45Z"}
+{"comments":2,"labels":["testplan-item"],"number":344927,"state":"OPEN","title":"Test: Multiple harnesses in one Agents-window session (Copilot, Claude and Codex chats side by side)","updated_at":"2026-10-29T12:46:33Z"}
+{"comments":0,"labels":["triage-needed"],"number":344928,"state":"OPEN","title":"Copilot harness: refine thinking output","updated_at":"2026-10-29T11:14:42Z"}
+{"comments":0,"labels":[],"number":344931,"state":"OPEN","title":"GitHub Markdown Alerts not rendering in the new experimental Markdown Editor","updated_at":"2026-10-29T10:01:57Z"}
+{"comments":0,"labels":["bug"],"number":344932,"state":"OPEN","title":"Agent host: chat created while the remote host connection is down cannot be restored (Session identity was not advertised)","updated_at":"2026-10-29T09:55:30Z"}
+{"comments":2,"labels":[],"number":344933,"state":"OPEN","title":"Github copilot chat is responding with the same text twice","updated_at":"2026-10-29T11:14:38Z"}
+{"comments":2,"labels":["triage-needed"],"number":344934,"state":"OPEN","title":"VSCode editor corrupted display","updated_at":"2026-10-29T11:14:34Z"}
+{"comments":0,"labels":["triage-needed"],"number":344935,"state":"OPEN","title":"Copilot harness: in-Chat terminals are more difficult to follow and cancel by default","updated_at":"2026-10-29T11:14:29Z"}
+{"comments":0,"labels":["triage-needed"],"number":344936,"state":"OPEN","title":"Changing the markdown source is not reflected in the markdow preview","updated_at":"2026-10-29T12:23:17Z"}
+{"comments":0,"labels":["unreleased"],"number":344940,"state":"CLOSED","title":"Agent-created independent sessions omit client plugins such as Agent Plan","updated_at":"2026-10-29T11:23:45Z"}
+{"comments":0,"labels":["new release","triage-needed"],"number":344942,"state":"OPEN","title":"Nested user chat opens as a read-only “Execution Subagent” after restoring a persisted session","updated_at":"2026-10-29T12:23:12Z"}
+{"comments":0,"labels":["feature-request"],"number":344946,"state":"OPEN","title":"Let extensions add PATH entries to Copilot agent host terminals","updated_at":"2026-10-29T10:41:04Z"}
+{"comments":0,"labels":["bug"],"number":344950,"state":"OPEN","title":"Restored chat editor tabs show \"Chat\" instead of their session title until revealed","updated_at":"2026-10-29T10:49:00Z"}
+{"comments":0,"labels":[],"number":344962,"state":"OPEN","title":"MCP password inputs are lost on other machines with Settings Sync: encrypted `mcpInputs` is synced but its key is machine-local","updated_at":"2026-10-29T12:35:01Z"}

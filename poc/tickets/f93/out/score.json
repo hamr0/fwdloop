@@ -1,0 +1,32 @@
+{
+ "J1": {
+  "n": 15,
+  "of": 15,
+  "bar": 14,
+  "caseFolded": 15,
+  "verdict": "PASS"
+ },
+ "J2": {
+  "n": 5,
+  "of": 5,
+  "bar": 5,
+  "verdict": "PASS"
+ },
+ "J3": {
+  "n": 5,
+  "of": 5,
+  "bar": 5,
+  "verdict": "PASS"
+ },
+ "J4": {
+  "clean": 0,
+  "of": 25,
+  "verdict": "FAIL"
+ },
+ "J5": {
+  "totalUsd": 0.12864240000000002,
+  "unmetered": 0,
+  "bar": 0.08,
+  "verdict": "FAIL"
+ }
+}

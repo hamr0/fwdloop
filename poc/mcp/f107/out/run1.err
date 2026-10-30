@@ -1,0 +1,18 @@
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'barebrowse',
+    error: 'MCP server "barebrowse" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_TIER must be r, rw or rwx (got "rx")\n'
+  }
+]
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'barebrowse',
+    error: 'MCP server "barebrowse" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry "https://codeberg.org" (expected "host" or "*.host", no scheme/port/path)\n'
+  }
+]
+[MCP Bridge] Some servers failed to connect: [
+  {
+    server: 'barebrowse',
+    error: 'MCP server "barebrowse" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry "a b" (expected "host" or "*.host", no scheme/port/path)\n'
+  }
+]

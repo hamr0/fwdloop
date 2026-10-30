@@ -1,0 +1,107 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "2": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "label check must be evaluated against the ticket's actual labels, not a recomputable sheet figure",
+    "2": "date arithmetic on the ticket's opened date cannot be checked by a typed check here"
+  },
+  "refused": [],
+  "ticketFilter": [
+    {
+      "fromLine": 1,
+      "box": "labels",
+      "values": [
+        "bug",
+        "enhancement",
+        "question",
+        "documentation",
+        "none",
+        "unsure"
+      ],
+      "allowed": [
+        "bug"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_labels",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and note its labels"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_opened_at",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and note when it was opened"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue",
+        "ticket_labels",
+        "ticket_opened_at"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "plan_accepted",
+        "first_response_plan"
+      ],
+      "emits": "first_response_plan_file",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

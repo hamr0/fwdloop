@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M12 ticket Results</title>
+<style>
+  :root{
+    --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+    --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89;
+    --green:#9ece6a; --red:#f7768e; --amber:#e0af68; --grey-dot:#878eac; --magenta:#bb9af7;
+    --accent:#7aa2f7; --accent-bg:rgba(122,162,247,.12);
+    font:14px/1.5 "Courier Prime","Courier New",Courier,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text)}
+  body{padding:16px;overflow-x:hidden}
+  button{font:inherit;color:inherit}
+  h1{font-size:18px;margin:0 0 4px}
+  .lead{color:var(--text-dim);font-size:13px;margin:0 0 4px;max-width:900px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr));gap:20px;align-items:start;margin-top:12px}
+  .vbox{border:1px solid var(--border-strong);background:var(--panel);padding:12px;min-width:0}
+  .vtag{color:var(--accent);font-weight:700}
+  .why{font-size:12px;color:var(--text-dim)}
+  .side{background:var(--bg);border:1px solid var(--border);padding:8px;max-width:520px;margin-top:8px}
+  .phone{width:min(390px,100%);border:2px solid var(--border-strong);border-radius:14px;padding:10px;background:var(--bg);margin-top:12px}
+  .phone-cap{font-size:11px;color:var(--text-faint);margin:12px 0 4px}
+  .new{display:inline-block;font-size:10px;font-weight:700;color:var(--bg);background:var(--amber);padding:0 4px;margin-left:4px;vertical-align:middle;letter-spacing:.04em}
+
+  /* from the panel: .audit-group, .btn, .badge, .hint, #result-body */
+  #result-body{min-width:0;overflow-wrap:anywhere}
+  .audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin-top:10px;margin-bottom:10px}
+  .audit-group h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;text-transform:none}
+  .audit-group h4::before{content:"┤ ";color:var(--text-faint)}
+  .audit-group h4::after{content:" ├";color:var(--text-faint)}
+  .badge.green{color:var(--green)} .badge.red{color:var(--red)} .badge.amber{color:var(--amber)} .badge.grey{color:var(--grey-dot)}
+  .sign{font-weight:700;margin-right:4px}
+  .hint{font-size:11px;color:var(--text-faint);margin-top:4px}
+  .ro-value{font-size:13px;color:var(--text);overflow-wrap:anywhere}
+  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em}
+  .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);position:relative;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  .btn::before{content:"[ ";color:var(--text-faint)} .btn::after{content:" ]";color:var(--text-faint)}
+  .btn.small{padding:0 9px;min-height:32px;font-size:12px}
+  @media (max-width:520px){.btn.small{min-height:44px}}
+  .fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font-size:12px;padding:4px 0;cursor:pointer;min-height:32px}
+  .fold:hover{color:var(--accent)} .fold:focus-visible,.btn:focus-visible,.rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0}
+  .tk:last-child{border-bottom:0}
+  .t1{display:flex;gap:6px;align-items:baseline;min-width:0}
+  .tn{color:var(--accent);font-weight:700;flex:none}
+  .tt{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere}
+  .t2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0}
+  .chg{font-size:12px;color:var(--amber)}
+  .frow{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+  .frow .fold{width:auto}
+  /* from the panel: .filterbar, .search-input, .chips, .chip.fchip */
+  .filterbar{margin-bottom:8px}
+  .search-input{display:block;width:100%;padding:6px 8px;min-height:32px;margin-bottom:6px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);font:inherit}
+  .search-input::placeholder{color:var(--text-faint)}
+  .chips{display:flex;gap:4px;margin-bottom:4px;flex-wrap:wrap}
+  .chip{padding:3px 7px;min-height:28px;min-width:28px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;color:var(--text-dim);text-align:center;cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--panel);color:var(--accent);border-color:var(--accent);font-weight:700}
+  .chip:focus-visible,.search-input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (max-width:520px){.chip{min-height:40px;min-width:40px}}
+  .when{color:var(--text-faint);font-size:12px;flex:none}
+</style>
+</head>
+<body>
+<h1>M12 — ticket list in the Result tab <span class="new">UNSIGNED</span></h1>
+<p class="lead">Unsigned mockup for M12 (tickets). The list sits in the Result tab of the run the schedule was set from, as a folded group like the Audit's <b>▸ schedule (k)</b>; one cumulative list, grouped by status, newest first in each group.</p>
+<p class="lead">Each row = one ticket = one run: <span class="badge green">[✓] passed</span> done · <span class="badge amber">[·] waiting</span> at its ask · <span class="badge red">[✗] stopped</span> · <span class="badge grey">skipped</span> grey, $0, with a reason and a button · a "status changed" line when it arrived again.</p>
+<p class="lead">Amber <span class="new">NEW</span> tags mark any label that does not exist in the panel today. Fold buttons work. Variant E, picked by hamr 2026-10-29, unsigned.</p>
+<div class="grid" id="variants"></div>
+<script>
+var NEWT='<span class="new">NEW</span>';
+var DAYS=[
+ {d:"10/29",open:true,rows:[
+  {n:"195342",t:"Crash when rotating the map on tablets",k:"done",run:12},
+  {n:"195338",t:"Docs: typo in Navigator.pushNamed example",k:"skip",why:"no P1 or P2 label"},
+  {n:"195331",t:"Scroll jank in nested ListView on Android",k:"wait",run:13},
+  {n:"195308",t:"Build fails on arm64 with Xcode 17",k:"stop",run:14},
+  {n:"195290",t:"Feature request: dark mode for DevTools",k:"skip",why:"closed"},
+  {n:"195272",t:"Keyboard focus lost after dialog closes",k:"done",run:15,chg:"status changed: open → closed"}]},
+ {d:"10/28",open:false,n:5,rows:[
+  {n:"195241",t:"Text field cursor drifts on iOS 19",k:"done",run:9},
+  {n:"195233",t:"Plugin template fails analyzer",k:"stop",run:8},
+  {n:"195220",t:"Slow cold start on low-end devices",k:"done",run:7},
+  {n:"195214",t:"Question: how to mock a platform channel",k:"skip",why:"no P1 or P2 label"},
+  {n:"195201",t:"Hot reload ignores const constructor change",k:"done",run:6}]},
+ {d:"10/27",open:false,n:3,rows:[
+  {n:"195150",t:"Semantics label missing on Switch",k:"done",run:5},
+  {n:"195144",t:"Impeller artifacts on rounded clip",k:"stop",run:4},
+  {n:"195139",t:"Typo in README",k:"skip",why:"closed"}]}
+];
+var state={};
+/* short date/time per ticket (fake) */
+var TIMES={"195342":"10/29 09:12","195338":"10/29 08:40","195331":"10/29 08:05","195308":"10/29 07:31","195290":"10/29 07:02","195272":"10/29 06:48",
+ "195241":"10/28 16:20","195233":"10/28 14:55","195220":"10/28 11:09","195214":"10/28 09:30","195201":"10/28 08:14",
+ "195150":"10/27 15:42","195144":"10/27 12:03","195139":"10/27 09:51"};
+var EGROUPS=[["wait","Needs you",true,false],["stop","Stopped",true,true],["done","Passed",false,true],["skip","Skipped",false,true]];
+var chipOn={},q={};
+function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var ST={done:["green","[✓]","passed"],wait:["amber","[·]","waiting"],stop:["red","[✗]","stopped"],skip:["grey","[–]","skipped"]};
+function runBtn(r){return '<button class="btn small" type="button">Run it anyway</button>'+NEWT}
+/* row: number + title on one line (title wraps), status line below */
+function row(r){
+ var s=ST[r.k];
+ var h='<div class="tk"><div class="t1"><span class="tn">#'+r.n+'</span><span class="tt">'+e(r.t)+'</span></div><div class="t2">';
+ if(r.chg)h+='<span class="chg">'+e(r.chg)+'</span>'+NEWT+'<br>';
+ if(r.k==="skip")h+='<span class="badge grey"><span class="sign">skipped</span></span>'+NEWT+' · <span>'+e(r.why)+' · $0</span>'+runBtn(r);
+ else h+='<span class="badge '+s[0]+'"><span class="sign">'+s[1]+'</span>'+s[2]+'</span> · <button class="rl" type="button">run-'+r.run+'</button>';
+ return h+'</div></div>'}
+function fold(key,def,open,label){return '<button class="fold" data-k="'+key+'" data-def="'+(def?1:0)+'" aria-expanded="'+open+'">'+(open?"▾":"▸")+' '+label+'</button>'}
+function frow(key,def,open,label,tag){return '<div class="frow">'+fold(key,def,open,label)+(tag?NEWT:"")+'</div>'}
+function isOpen(key,def){return state[key]===undefined?def:state[key]}
+function rowE(r){return row(r).replace('<span class="tt">','<span class="when">'+TIMES[r.n]+'</span><span class="tt">')}
+function viewE(id){
+ var all=[];DAYS.forEach(function(x){all=all.concat(x.rows)});
+ var on=chipOn[id]||{},any=EGROUPS.some(function(g){return on[g[0]]}),qq=(q[id]||"").toLowerCase();
+ var h='<div id="result-body"><div class="field"><label>Schedule</label><div class="ro-value">When a new ticket arrives in issues'+NEWT+' · looks every 15 min'+NEWT+'</div></div>';
+ h+='<div class="audit-group"><h4><span class="badge grey">tickets'+NEWT+'</span></h4>';
+ h+='<div class="filterbar"><input type="text" class="search-input" data-q="'+id+'" placeholder="ticket number or title" autocomplete="off" value="'+e(q[id]||"")+'">';
+ h+='<div class="chips" role="group" aria-label="Filter">';
+ EGROUPS.forEach(function(g){h+='<button class="chip fchip" type="button" aria-pressed="'+(on[g[0]]?"true":"false")+'" data-chip="'+g[0]+'" data-id="'+id+'">'+g[1]+'</button>'});
+ h+='</div></div>';
+ EGROUPS.forEach(function(g){
+  if(any&&!on[g[0]])return;
+  var rows=all.filter(function(r){return r.k===g[0]&&(!qq||(r.n+" "+r.t).toLowerCase().indexOf(qq)>=0)});
+  var key=id+"|g|"+g[0],o=isOpen(key,g[2]);
+  h+=frow(key,g[2],o,g[1]+' ('+rows.length+')',g[3]);
+  if(o)h+=rows.map(rowE).join("")});
+ h+='<div class="hint">newest first inside each group · each ticket opens its own run</div></div></div>';
+ return h}
+var IDS=["dE","pE"];
+function build(){
+ document.getElementById("variants").innerHTML='<section class="vbox"><div><span class="vtag">Variant E</span></div><div class="why">by status, not by day: Needs you and Stopped open, Passed and Skipped folded; newest first inside each group, date/time on each row; the filter bar\'s chips (and search) pick groups.</div>'+
+  '<div class="side" id="dE"></div><div class="phone-cap">phone (390px)</div><div class="phone" id="pE"></div></section>'}
+function render(){IDS.forEach(function(id){document.getElementById(id).innerHTML=viewE(id)})}
+document.addEventListener("click",function(ev){var b=ev.target.closest(".fold");if(!b)return;
+ var k=b.getAttribute("data-k");state[k]=!isOpen(k,b.getAttribute("data-def")==="1");render()});
+document.addEventListener("click",function(ev){var c=ev.target.closest(".fchip");if(!c)return;
+ var id=c.getAttribute("data-id"),k=c.getAttribute("data-chip");chipOn[id]=chipOn[id]||{};chipOn[id][k]=!chipOn[id][k];render()});
+document.addEventListener("input",function(ev){var t=ev.target;if(!t.getAttribute||!t.getAttribute("data-q"))return;
+ var id=t.getAttribute("data-q");q[id]=t.value;render();var n=document.querySelector('[data-q="'+id+'"]');n.focus();n.setSelectionRange(n.value.length,n.value.length)});
+build();render();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "stop": null,
+  "reds": [],
+  "rounds": 1,
+  "calls": 1,
+  "costUsd": 0.0028715999999999998,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 0,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [],
+  "log": [
+    {
+      "round": 1,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "valid"
+    }
+  ]
+}

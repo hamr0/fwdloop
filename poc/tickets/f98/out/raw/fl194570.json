@@ -1,0 +1,61 @@
+{
+ "number": 194570,
+ "title": "[tool_crash] Unhandled ProcessPackageException (OS Error 206: The filename or extension is too long) in _DefaultPub._preloadPubCache",
+ "body": "## Summary\n`flutter pub get` crashes on Windows with an unhandled `ProcessPackageException` (`ProcessException: The filename or extension is too long`, OS error code `206` / `ERROR_FILENAME_EXCED_RANGE`) in `_DefaultPub._preloadPubCache` (`package:flutter_tools/src/dart/pub.dart:645`) / `ErrorHandlingProcessManager.runSync` (`package:flutter_tools/src/base/error_handling_io.dart:1310`).\n\n## Crash Telemetry (Flutter `stable/3.47.7`)\n* **Signature**: `ProcessPackageException at LocalProcessManager.runSync at package:process/src/interface/local_process_manager.dart-313da74f`\n* **Rank**: #10 Top Crasher in `3.47.7`\n* **Total Occurrences**: 19 (3.7% of Top 10, 1.9% of all `3.47.7` crashes, ~2.5 crashes/day)\n* **Platform Distribution**: Windows: 19 (100.0%)\n* **Sample Command**: `flutter pub get`\n* **Error**:\n```text\nProcessException: The filename or extension is too long (at ../../runtime/bin/process_win.cc:579) | Command: C:\\Users\\User\\AppData\\Local\\Temp\\claude\\d--Dotlinker-Laravel-New-Set...\n```\n\n## Stack Trace\n```text\n#0      LocalProcessManager.runSync (package:process/src/interface/local_process_manager.dart:118)\n#1      ErrorHandlingProcessManager.runSync.<anonymous closure> (package:flutter_tools/src/base/error_handling_io.dart:1310)\n#2      _runSync (package:flutter_tools/src/base/error_handling_io.dart:1118)\n#3      ErrorHandlingProcessManager.runSync (package:flutter_tools/src/base/error_handling_io.dart:1308)\n#4      _DefaultPub._preloadPubCache (package:flutter_tools/src/dart/pub.dart:645)\n#5      _DefaultPub._getPubCacheIfAvailable (package:flutter_tools/src/dart/pub.dart:624)\n#6      _DefaultPub._createPubEnvironment (package:flutter_tools/src/dart/pub.dart:664)\n#7      _DefaultPub._runWithStdioInherited (package:flutter_tools/src/dart/pub.dart:379)\n```\n\n## Root Cause\n1. In `_DefaultPub._preloadPubCache` (`package:flutter_tools/src/dart/pub.dart`), `flutter_tools` passes all `.tar.gz` archive paths in `$FLUTTER_ROOT/.pub-preload-cache` to a single `_processManager.runSync(<String>[..._pubCommand, 'cache', 'preload', ...cacheFiles])` invocation. When the Flutter SDK or current working directory is located in a deep Windows path (or the concatenated `.tar.gz` paths exceed Windows `CreateProcessW` / `MAX_PATH` limits in `runtime/bin/process_win.cc`), Windows fails with error code `206` (`ERROR_FILENAME_EXCED_RANGE`: `The filename or extension is too long`).\n2. In `_handleWindowsException` (`package:flutter_tools/src/base/error_handling_io.dart:1467-1522`), error code `206` is not listed in the `switch (errorCode)` statement, so `_onProcessException` returns without throwing a `ToolExit` and `_runSync` rethrows the raw `ProcessPackageException`.\n\n## Recommendation\n1. Add `const kFilenameExcedRange = 206;` (`ERROR_FILENAME_EXCED_RANGE`) to `_handleWindowsException` in `package:flutter_tools/src/base/error_handling_io.dart` so process/filesystem calls failing with error code `206` exit cleanly with a `ToolExit` instructing the user to move the project/SDK to a shorter path or enable Windows Long Paths.\n2. In `_DefaultPub._preloadPubCache` (`package:flutter_tools/src/dart/pub.dart`), batch `cacheFiles` (or run with `workingDirectory: preloadCacheDir.path` using relative archive filenames) so `dart pub cache preload` does not exceed Windows command-line / path length limits.",
+ "state": "closed",
+ "state_reason": "completed",
+ "html_url": "https://github.com/flutter/flutter/issues/194570",
+ "user": {
+  "login": "bkonyi",
+  "id": 24210656,
+  "profile_url": "https://github.com/bkonyi",
+  "avatar_url": "https://avatars.githubusercontent.com/u/24210656?v=4"
+ },
+ "author_association": "CONTRIBUTOR",
+ "labels": [
+  "c: crash",
+  "tool",
+  "P1",
+  "team-tool",
+  "triaged-tool",
+  "found in release: 3.47",
+  "t: top-crasher"
+ ],
+ "assignees": [],
+ "reactions": {
+  "total_count": 0,
+  "+1": 0,
+  "-1": 0,
+  "laugh": 0,
+  "confused": 0,
+  "heart": 0,
+  "hooray": 0,
+  "rocket": 0,
+  "eyes": 0
+ },
+ "created_at": "2026-10-16T16:50:14Z",
+ "updated_at": "2026-10-21T15:41:58Z",
+ "closed_at": "2026-10-21T15:41:58Z",
+ "closed_by": "auto-submit[bot]",
+ "has_parent": false,
+ "has_children": false,
+ "closed_by_pull_requests": {
+  "total_count": 2,
+  "references": [
+   {
+    "number": 194867,
+    "title": "[flutter_tools] Exit cleanly when Windows path exceeds MAX_PATH (OS Error 206)",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/194867",
+    "repository": "flutter/flutter"
+   },
+   {
+    "number": 195077,
+    "title": "[flutter_tools] Pass relative archive paths to pub cache preload",
+    "state": "MERGED",
+    "url": "https://github.com/flutter/flutter/pull/195077",
+    "repository": "flutter/flutter"
+   }
+  ]
+ }
+}

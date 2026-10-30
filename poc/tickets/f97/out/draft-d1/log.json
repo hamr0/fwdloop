@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "stop": null,
+  "reds": [],
+  "rounds": 2,
+  "calls": 2,
+  "costUsd": 0.0057209999999999995,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 1,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [],
+  "log": [
+    {
+      "round": 1,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "validator: 2 red(s)",
+      "reds": [
+        "declaration: steps[0].close.shape.sections names \"Symptom\", which is not in the job line's words — change the job line on the card to change what it names",
+        "declaration: steps[0].close.shape.sections names \"Impact\", which is not in the job line's words — change the job line on the card to change what it names"
+      ]
+    },
+    {
+      "round": 2,
+      "kind": "revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "valid"
+    }
+  ]
+}

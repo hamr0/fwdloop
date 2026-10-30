@@ -1,0 +1,161 @@
+url: https://github.com/flutter/flutter/issues/187579
+66,572 chars → 12,671 chars (81% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "flutter" [ref=302]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=305]
+      - link "Issues (5k+)" [ref=306]
+      - link "Pull requests (728)" [ref=307]
+      - Repository: Actions [ref=308], Projects [ref=309], Wiki [ref=310]
+      - button "More items" [expanded=false] [ref=247]
+  - region "Header"
+    - heading "Navigator.popUntil can hang when popping a GoRoute with onExit #187579" [level=1]
+    - link "New issue" [ref=418]
+    - button "Copy link" [ref=419]
+  - Open
+  - heading "Description" [level=2]
+  - link "@khoadng's profile" [ref=495]
+  - link "khoadng" [ref=434]
+  - opened
+  - link "on Jun 4" [ref=498]
+  - button "Issue body actions" [expanded=false] [ref=440]
+  - heading "Steps to reproduce" [level=3]
+  - listitem [level=1]
+    - Tap
+    - code
+      - Go to guarded route
+  - listitem [level=1]
+    - Tap
+    - code
+      - Push raw route
+  - listitem [level=1]
+    - Tap
+    - code
+      - Pop until first
+  - heading "Expected results" [level=3]
+  - code
+    - Navigator.popUntil((route) => route.isFirst)
+  - should complete, or at minimum fail with an error message without locking up the UI thread.
+  - heading "Actual results" [level=3]
+  - The app hangs after this log:
+  - code
+    - Raw: calling Navigator.popUntil(route.isFirst)
+  - button "Copy code to clipboard" [ref=891]
+  - This log is never printed:
+  - code
+    - Raw: this line is never reached when the app freezes
+  - button "Copy code to clipboard" [ref=894]
+  - heading "Code sample" [level=3]
+  - DisclosureTriangle "Code sample" [expanded=true]
+    - Code sample
+  - import 'package:flutter/material.dart' import 'package:go_router/go_router.dart' void main runApp const ReproApp final GoRouter router GoRouter ( initialLocation '/parent' , debugLogDiagnostics true , routes GoRoute ( path '/parent' , builder (context, state) const ParentPage (), routes GoRoute ( path 'guarded' , onExit (context, state) { debugPrint 'guarded onExit: returning true' return true ; }, builder (context, state) const GuardedPage class ReproApp extends StatelessWidget const ReproApp super .key}); @override Widget build BuildContext context) { return MaterialApp router ( title 'go_router popUntil onExit repro' , debugShowCheckedModeBanner false , routerConfig router, theme ThemeData ( colorScheme ColorScheme fromSeed (seedColor Colors .indigo), useMaterial3 true class ParentPage extends StatelessWidget const ParentPage super .key}); @override Widget build BuildContext context) { return ReproScaffold ( title 'Parent' , path '/parent' , color const Color 0xffeef7ff ), body FilledButton ( onPressed debugPrint 'Parent: context.go("/parent/guarded")' ); context. go '/parent/guarded' ); }, child const Text 'Go to guarded route' class GuardedPage extends StatelessWidget const GuardedPage super .key}); @override Widget build BuildContext context) { return ReproScaffold ( title 'Guarded' , path '/parent/guarded' , color const Color 0xfffff8d8 ), body FilledButton ( onPressed debugPrint 'Guarded: Navigator.push(RawPushedPage)' Navigator of (context). push MaterialPageRoute void >( builder (context) const RawPushedPage (), ), ); }, child const Text 'Push raw route' class RawPushedPage extends StatelessWidget const RawPushedPage super .key}); @override Widget build BuildContext context) { return ReproScaffold ( title 'Raw route' , path 'MaterialPageRoute above /parent/guarded' , color const Color 0xffe8fff4 ), body FilledButton ( onPressed debugPrint 'Raw: calling Navigator.popUntil(route.isFirst)' Navigator of (context). popUntil ((route) route.isFirst); debugPrint 'Raw: this line is never reached when the app freezes' ); }, child const Text 'Pop until first' class ReproScaffold extends StatelessWidget const ReproScaffold required this .title, required this .path, required this .color, required this .body, super .key, }); final String title; final String path; final Color color; final Widget body; @override Widget build BuildContext context) { return Scaffold ( backgroundColor color, appBar AppBar (title Text (title)), body SafeArea ( child Center ( child ConstrainedBox ( constraints const BoxConstraints (maxWidth 560 ), child Padding ( padding const EdgeInsets all 24 ), child Column ( mainAxisSize MainAxisSize .min, crossAxisAlignment CrossAxisAlignment .stretch, children Text (path, style Theme of (context).textTheme.headlineSmall), const SizedBox (height 16 ), body, const SizedBox (height 24 Text 'Current go_router URI: ${ router state uri , style Theme of (context).textTheme.bodySmall, ), ], ), ), ), ), ), ); } }
+  - button "Copy code to clipboard" [ref=1552]
+  - heading "Screenshots or Video" [level=3]
+  - emphasis
+    - No response
+  - heading "Logs" [level=3]
+  - DisclosureTriangle "Logs" [expanded=true]
+    - Logs
+  - Parent: context.go("/parent/guarded") Guarded: Navigator.push(RawPushedPage) Raw: calling Navigator.popUntil(route.isFirst)
+  - button "Copy code to clipboard" [ref=1560]
+  - heading "Flutter Doctor output" [level=3]
+  - DisclosureTriangle "Doctor output" [expanded=true]
+    - Doctor output
+  - [!] Flutter (Channel stable, 3.44.0, on macOS 26.3.1 25D771280a darwin-arm64, locale en-VN) [299ms] • Flutter version 3.44.0 on channel stable at /Users/khoa.nguyen/fvm/versions/3.44.0 ! Warning: `flutter` on your path resolves to /Users/khoa.nguyen/fvm/versions/3.32.8/bin/flutter, which is not inside your current Flutter SDK checkout at /Users/khoa.nguyen/fvm/versions/3.44.0. Consider adding /Users/khoa.nguyen/fvm/versions/3.44.0/bin to the front of your path. ! Warning: `dart` on your path resolves to /opt/homebrew/Cellar/dart/3.12.0-303.0.dev/libexec/bin/dart, which is not inside your current Flutter SDK checkout at /Users/khoa.nguyen/fvm/versions/3.44.0. Consider adding /Users/khoa.nguyen/fvm/versions/3.44.0/bin to the front of your path. • Upstream repository https://github.com/flutter/flutter.git • Framework revision 559ffa3f75 (3 weeks ago), 2026-05-15 14:13:13 -0700 • Engine revision 4c525dac5e • Dart version 3.12.0 • DevTools version 2.57.0 • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration • If those were intentional, you can disregard the above warnings; however it is recommended to use "git" directly to perform update checks and upgrades. [✓] Android toolchain - develop for Android devices (Android SDK version 36.0.0) [1,246ms] • Android SDK at /Users/khoa.nguyen/Library/Android/sdk • Emulator version 35.5.10.0 (build_id 13402964) (CL:N/A) • Platform android-36, build-tools 36.0.0 • Java binary at: /opt/homebrew/opt/openjdk@17/bin/java This JDK is specified in your Flutter configuration. To change the current JDK, run: `flutter config --jdk-dir="path/to/jdk"`. • Java version OpenJDK Runtime Environment Homebrew (build 17.0.15+0) • All Android licenses accepted. [✓] Xcode - develop for iOS and macOS (Xcode 26.3) [715ms] • Xcode at /Applications/Xcode.app/Contents/Developer • Build 17C529 • CocoaPods version 1.16.2 [✓] Chrome - develop for the web [5ms] • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome [✓] Connected device (3 available) [6.3s] • iPhone 15 Pro Max (mobile) • DB484DB3-4D03-41F9-92A6-6EE1D1910482 • ios • com.apple.CoreSimulator.SimRuntime.iOS-17-5 (simulator) • macOS (desktop) • macos • darwin-arm64 • macOS 26.3.1 25D771280a darwin-arm64 • Chrome (web) • chrome • web-javascript • Google Chrome 148.0.7778.216 ! Error: Browsing on the local area network for iPhone SE 3. Ensure the device is unlocked and attached with a cable or associated with the same local area network as this Mac. The device must be opted into Developer Mode to connect wirelessly. (code -27) ! Error: Browsing on the local area network for iPhone của Son (2). Ensure the device is unlocked and attached with a cable or associated with the same local area network as this Mac. The device must be opted into Developer Mode to connect wirelessly. (code -27) [✓] Network resources [344ms] • All expected network resources are available. ! Doctor found issues in 1 category.
+  - button "Copy code to clipboard" [ref=1636]
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "suryaKommana2662" [ref=915]
+      - added
+      - link "in triage Presently being triaged by the triage team" [ref=917]
+      - link "on Jun 5" [ref=786]
+    - listitem [level=1]
+      - heading "suryaKommana2662commentedon Jun 5" [level=3]
+      - link "@suryaKommana2662's profile" [ref=790]
+      - link "suryaKommana2662" [ref=646]
+      - link "on Jun 5" [ref=792]
+      - button "Actions for suryaKommana2662's comment, 5:38 AM on June 5" [expanded=false] [ref=652]
+      - link "@khoadng" [ref=793]
+      - Thanks for the detailed reproduction sample. I can reproduce the reported behavior using
+      - code
+        - Flutter 3.44.1
+      - and
+      - code
+        - go_router 17.3.0
+      - . Routing to the
+      - code
+        - team-framework
+      - for further investigation.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - suryaKommana2662 [ref=938] · added: package flutter/packages repository. See also p: labels. [ref=940], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=943], p: go_router The go_router package [ref=946], team-framework Owned by Framework team [ref=949]
+      - and
+      - removed
+      - link "in triage Presently being triaged by the triage team" [ref=954]
+      - link "on Jun 5" [ref=810]
+    - listitem [level=1]
+      - link "Piinks" [ref=958]
+      - added
+      - link "P2 Important issues not at the top of the work list" [ref=960]
+      - link "triaged-framework Triaged by Framework team" [ref=963]
+      - link "on Jun 10" [ref=815]
+    - listitem [level=1]
+      - heading "KarthikManikuttancommentedon Jun 12" [level=3]
+      - link "@KarthikManikuttan's profile" [ref=819]
+      - link "KarthikManikuttan" [ref=673]
+      - link "on Jun 12" [ref=821]
+      - button "Actions for KarthikManikuttan's comment, 5:24 AM on June 12" [expanded=false] [ref=679]
+      - I can work on it.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "KarthikManikuttancommentedon Jun 12" [level=3]
+      - link "@KarthikManikuttan's profile" [ref=826]
+      - link "KarthikManikuttan" [ref=688]
+      - link "on Jun 12" [ref=828]
+      - button "Actions for KarthikManikuttan's comment, 11:35 AM on June 12" [expanded=false] [ref=694]
+      - link "@suryaKommana2662" [ref=829]
+      - I’ve submitted a PR (
+      - link "#187919" [ref=831]
+      - ) with a proposed fix for handling deferred page-based pops in Navigator.popUntil.
+      - Please take a look when you get a chance—happy to iterate if any changes are needed.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "Piinks" [ref=990]
+      - added
+      - link "team-ecosystem Owned by Ecosystem team" [ref=992]
+      - link "triaged-ecosystem Triaged by Ecosystem team" [ref=995]
+      - and
+      - removed
+      - link "team-framework Owned by Framework team" [ref=1000]
+      - link "triaged-framework Triaged by Framework team" [ref=1003]
+      - link "on Aug 26" [ref=842]
+  - link "Sign up for free" [ref=452]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=455]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - No one assigned
+  - heading "Labels" [level=3]
+  - Labels: P2 Important issues not at the top of the work list [ref=712], has reproducible steps The issue has been confirmed reproducible and is ready to work on [ref=715], p: go_router The go_router package [ref=718], package flutter/packages repository. See also p: labels. [ref=721], team-ecosystem Owned by Ecosystem team [ref=724], triaged-ecosystem Triaged by Ecosystem team [ref=727]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - No projects
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - link "Handle deferred page-based pops in Navigator.popUntil" [ref=862]
+    - flutter/flutter
+  - Participants: @Piinks [ref=600], @khoadng [ref=601], @KarthikManikuttan [ref=602], @suryaKommana2662 [ref=603]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=747]

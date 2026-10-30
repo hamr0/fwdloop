@@ -1,0 +1,9 @@
+{
+  "old-0.26.0": {
+    "ms": 30561,
+    "err": "Error: Timeout waiting for CDP event: Page.loadEventFired",
+    "len": 0,
+    "b1": false,
+    "b2": false
+  }
+}

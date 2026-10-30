@@ -1,0 +1,21 @@
+{
+  "askId": "c72f3cb6-6a39-4714-a3ab-a7ac45b149b8",
+  "question": "check it with me,",
+  "askedAt": "2026-10-28T08:48:24.079Z",
+  "expiresAt": "2026-10-28T09:18:24.079Z",
+  "evidence": {
+    "artifact": {
+      "text": "**First response — Issue #30 (peer-range bump to admit bareguard 0.13.x)**\n\nStatus: already closed as completed (Aug 13) — this is triage only; do not reopen or file a duplicate.\n\n- Confirm nothing is outstanding: bare-agent v0.36.1 is published to npm as latest; PR #31 merged; tag v0.36.1.\n- Spot-check the manifest on the registry: peer + dev range should read `>=0.9.0 <0.14.0`. If it still shows `<0.13.0`, escalate to hamr0.\n- No code change was ever needed — `judgeToAnnotation` (src/bareguard-adapter.js) already sets an explicit-boolean `surface`, so it satisfied bareguard 0.13.0's stricter annotate rule by construction.\n- Evidence if challenged: bareguard-touching tests 84/84 against bareguard 0.13.0; CI full suite green.\n- User reporting an install-time peer conflict: have them upgrade to 0.36.1. Nothing else to change.\n"
+    },
+    "unjudged": [
+      {
+        "step": "read the ticket and pull out its priority and what is broken",
+        "emits": "ticket_findings",
+        "artifact": {
+          "text": "Issue #30 — \"Peer-range bump to admit bareguard 0.13.x (conditional — only if bareguard 0.13.0 ships)\"\n\nPRIORITY: None set. GitHub shows no priority field — no assignees (\"No one assigned\"), no milestone (\"No milestone\"), no projects (\"No projects\"), no relationships (\"None yet\"). The only label is \"dependencies\" (Pull requests that update a dependency file). The issue's own status heading is \"BLOCKED / conditional — no action until bareguard 0.13.0 is approved & released\", i.e. it was a conditional tracking item, not a scheduled priority.\n\nWHAT IS BROKEN:\n- bare-agent 0.36.0 pins the optional peer bareguard to \">=0.9.0 <0.13.0\". With that <0.13.0 ceiling, bare-agent 0.36.0 would refuse to install alongside bareguard 0.13.x — an install-time peer-range conflict, even though the adapter is already compliant.\n- Root cause of the incoming 0.13.0: the bareguard maintainer proposed (not yet approved at filing time) bareguard 0.13.0 hardening the gate.annotate array fail-open — `surface` must be an explicit boolean, else the row is malformed → buffer nothing, never throw, emit a distinct annotate_malformed audit row. That is a gate-behaviour + audit-format change, cut as a minor pre-1.0.\n- No code fault on the bare-agent side: judgeToAnnotation (src/bareguard-adapter.js) returns a single object literal and always sets `surface: v.verdict !== 'honored'` (an explicit boolean), so it satisfies the new rule by construction. The fix is a manifest range bump only — no code change.\n\nRESOLUTION (activity): hamr0 commented Aug 13 — resolved in v0.36.1 (published to npm, latest). bareguard 0.13.0 went live; peer + dev ranges widened to >=0.9.0 <0.14.0 (conservative <0.14.0 ceiling). No code change; judgeToAnnotation already compliant (single object literal, explicit-boolean surface, String()-coerced JSON-safe meta). Validated against bareguard 0.13.0: bareguard-touching tests 84/84, CI full suite green. PR #31, tag v0.36.1. Issue closed as completed on Aug 13."
+        }
+      }
+    ]
+  },
+  "emits": "plan_accepted"
+}

@@ -16,7 +16,7 @@
 //   starting  the child is alive and the run dir has no book row yet
 //   started   the run dir has its first book row (`pids.jsonl`, written by the run itself before its first step); `state` is
 //             working / parked / ended from `runLiveness` + `ask.json` (M4c's one "is it running?" rule), never a timer
-//   refused   the child is dead and the run dir never got a book row: `say` = the CLI's own sentence (scrubbed) + "Nothing spent."
+//   refused   the child is dead and the run dir never got a book row (a skipped run's history row counts as one, it ended): `say` = the CLI's own sentence (scrubbed) + "Nothing spent."
 //
 // One click, one start: `start` is fully synchronous (check -> mkdir -> spawn -> write pid.json, no await), so two requests that
 // arrive together run one after the other and the second sees the first's `starting` start and is refused.
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
-import { readPidRows } from '../books.js';
+import { readHistory, readPidRows } from '../books.js';
 import {
   PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
@@ -77,7 +77,8 @@ export function createStarter(opts) {
     const st = readJsonFile(dir, 'start.json');
     if (!st || typeof st.flow !== 'string' || typeof st.runId !== 'string') return null;
     const base = { startId: id, kind: st.kind, flow: st.flow, runId: st.runId };
-    const resolved = resolveRunDir(join(realpathSync(root), st.flow), st.runId);
+    const flowDir = join(realpathSync(root), st.flow);
+    const resolved = resolveRunDir(flowDir, st.runId);
     if (!resolved.ok) return null;
     // alive FIRST, then the book row: a child that writes its row and exits between the two reads as started, never refused
     const alive = childRunning(dir);
@@ -97,6 +98,8 @@ export function createStarter(opts) {
     } else if (readPidRows(resolved.runDir).length > 0) {
       return { ...base, phase: 'started', state: carriedOn() };
     } else if (alive) return { ...base, phase: 'starting' };
+    // a SKIPPED run (hamr 2026-10-30) ends before its first pid row, but its history row is a real ending: a grey one, never a refusal
+    if (readHistory(flowDir).some((h) => h.runId === st.runId && h.outcome === 'skipped')) return { ...base, phase: 'started', state: 'ended' };
     const log = readFileInside(dir, 'child.log');
     const tail = log.ok ? scrub(log.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
     const say = tail === '' ? ENDED_SAY : (tail.includes(NOTHING_SPENT) ? tail : `${tail}\n${NOTHING_SPENT}`);
@@ -171,7 +174,7 @@ export function createStarter(opts) {
      * folder as `signed-values.json` BEFORE the spawn; the run then uses them (`pickRunValues`). None = the flow's own.
      * `trigger` (M9): `{kind, reason, catchUp, ...}` for a start a trigger fired (kind 'trigger'): written once into the run's own folder as `trigger.json`
      * BEFORE the spawn; `appendHistory` copies it into the run's history row (the catch-up mark, am2 item 1).
-     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
+     * @param {{ kind: 'run'|'sign'|'trigger', flow: string, runId: string, sources: {role: string, path: string, ticket?: number, anyway?: boolean}[], planRun?: boolean, planOf?: string|null, values?: any, pick?: {slot: string, model: string}|null, trigger?: Record<string, any>|null }} a
      * @param {{ env: Record<string, string|undefined>, keyNames?: string[] }} loaded the keys load: its env is the child's env AND (with its key names) the scrub list
      * @returns {{ status: number, body: any }}
      */
@@ -230,7 +233,8 @@ export function createStarter(opts) {
       writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
         kind, flow, runId, sources, startedAt: new Date().toISOString(),
       }, null, 2)}\n`, { mode: 0o600 });
-      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
+      // M12: `--ticket N` (the one ticket of the list this run reads) follows the sources
+      const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), ...sources.flatMap((s) => (s.ticket === undefined ? [] : ['--ticket', String(s.ticket), ...(s.anyway === true ? ['--anyway'] : [])])), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
       let child;
       try {
         child = spawnDetached({
@@ -290,7 +294,7 @@ export function createStarter(opts) {
       for (const id of readdirInside(sd, '.').filter((n) => ID_RE.test(n)).sort().reverse()) {
         if (readFileInside(join(sd, id), 'cleared.json').ok) continue;
         const v = readStart(join(sd, id), id, keys);
-        if (v === null) continue;
+        if (v === null || v.kind === 'trigger') continue;   // the Chat card never shows a start it did not make
         return v.phase === 'started' ? null : v;
       }
       return null;

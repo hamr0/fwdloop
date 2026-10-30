@@ -1,0 +1,419 @@
+url: https://github.com/kubernetes/kubernetes/issues/124871
+67,806 chars → 21,586 chars (68% pruned)
+# data mode: one line per record. Tables: row "<label>": <column>: <value> · …  Groups: <label>: a, b, c.  A title line followed by detail lines is one block, up to the next title line. Main content only; use mode "act" for menus and page controls.
+- main
+  - sectionheader "Global navigation menu"
+    - navigation "Breadcrumbs"
+      - link "kubernetes" [ref=306]
+    - heading "Repository navigation" [level=2]
+    - navigation "Repository"
+      - link "Code" [ref=309]
+      - link "Issues (1.9k)" [ref=310]
+      - link "Pull requests (1.4k)" [ref=311]
+      - Repository: Actions [ref=312], Projects [ref=313], Security and quality [ref=314], Insights [ref=315]
+  - region "Header"
+    - heading "kubelet crash loop panic with SIGSEGV #124871" [level=1]
+    - link "New issue" [ref=420]
+    - button "Copy link" [ref=421]
+  - Closed
+  - heading "Description" [level=2]
+  - link "@garymm's profile" [ref=516]
+  - link "garymm" [ref=436]
+  - opened
+  - link "on May 14, 2024" [ref=519]
+  - button "Issue body actions" [expanded=false] [ref=442]
+  - heading "What happened?" [level=3]
+  - I was running some pods on my node as usual.
+  - At some point (23:41:35.127989 in the log), the kubelet crashed and then went into a crash loop.
+  - Log showing the first crash and several thereafter:
+  - link "kubelet-crash.txt" [ref=1168]
+  - The errors I see shortly before the crash are:
+  - code
+    - projected.go:292] Couldn't get configMap default/kube-root-ca.crt: object "default"/"kube-root-ca.crt" not registered projected.go:198] Error preparing data for projected volume kube-api-access-lwp5v for pod default/run-fluid-wtw5n-99kwf: object "default"/"kube-root-ca.crt" not registered nestedpendingoperations.go:348] Operation for "{volumeName:kubernetes.io/projected/e6cfc866-a5b2-4e16-9b83-884de8552d45-kube-api-access-lwp5v podName:e6cfc866-a5b2-4e16-9b83-884de8552d45 nodeName:}" failed. No retries permitted until 2024-05-13 23:41:38.8756138 +0000 UTC m=+9176.959811707 (durationBeforeRet ry 2m2s). Error: MountVolume.SetUp failed for volume "kube-api-access-lwp5v" (UniqueName: "kubernetes.io/projected/e6cfc866-a5b2-4e16-9b83-884de8552d45-kube-api-access-lwp5v") pod "run-fluid-wtw5n-99kwf" (UID: "e6cfc866-a5b2-4e16-9b83-884de8552d45") : object "default"/"kube-root-ca.crt" not registered
+  - button "Copy code to clipboard" [ref=1477]
+  - Stack trace from the first crash (later stack traces are a bit different):
+  - code
+    - goroutine 401 [running]: k8s.io/apimachinery/pkg/util/runtime.logPanic({0x3d005c0?, 0x6d89410}) vendor/k8s.io/apimachinery/pkg/util/runtime/runtime.go:75 +0x99 k8s.io/apimachinery/pkg/util/runtime.HandleCrash({0x0, 0x0, 0x480e338?}) vendor/k8s.io/apimachinery/pkg/util/runtime/runtime.go:49 +0x75 panic({0x3d005c0, 0x6d89410}) /usr/local/go/src/runtime/panic.go:884 +0x213 errors.As({0x12, 0x0}, {0x3eac4c0?, 0xc0014e6590?}) /usr/local/go/src/errors/wrap.go:109 +0x215 k8s.io/apimachinery/pkg/util/net.IsConnectionReset(...) vendor/k8s.io/apimachinery/pkg/util/net/util.go:45 k8s.io/client-go/rest.(*Request).request.func2(0x6d2e8a0?, {0x12, 0x0}) vendor/k8s.io/client-go/rest/request.go:1007 +0x79 k8s.io/client-go/rest.IsRetryableErrorFunc.IsErrorRetryable(...) vendor/k8s.io/client-go/rest/with_retry.go:43 k8s.io/client-go/rest.(*withRetry).IsNextRetry(0xc001587f40, {0x0?, 0x0?}, 0x0?, 0xc001ef5f00, 0xc001bb1560, {0x12, 0x0}, 0x480e328) vendor/k8s.io/client-go/rest/with_retry.go:169 +0x170 k8s.io/client-go/rest.(*Request).request.func3(0xc001bb1560, 0xc002913af8, {0x4c44840?, 0xc001587f40?}, 0x0?, 0x0?, 0x39efc40?, {0x12?, 0x0?}, 0x480e328) vendor/k8s.io/client-go/rest/request.go:1042 +0xba k8s.io/client-go/rest.(*Request).request(0xc00199f200, {0x4c42e00, 0xc00227b0e0}, 0x2?) vendor/k8s.io/client-go/rest/request.go:1048 +0x4e5 k8s.io/client-go/rest.(*Request).Do(0xc00199f200, {0x4c42dc8, 0xc000196010}) vendor/k8s.io/client-go/rest/request.go:1063 +0xc9 k8s.io/client-go/kubernetes/typed/core/v1.(*nodes).Get(0xc001db6740, {0x4c42dc8, 0xc000196010}, {0x7ffe6a355c42, 0x1d}, {{{0x0, 0x0}, {0x0, 0x0}}, {0x4c03920, ...}}) vendor/k8s.io/client-go/kubernetes/typed/core/v1/node.go:77 +0x145 k8s.io/kubernetes/pkg/kubelet.(*Kubelet).tryUpdateNodeStatus(0xc000289400, {0x4c42dc8, 0xc000196010}, 0x44ead4?) pkg/kubelet/kubelet_node_status.go:561 +0xf6 k8s.io/kubernetes/pkg/kubelet.(*Kubelet).updateNodeStatus(0xc000289400, {0x4c42dc8, 0xc000196010}) pkg/kubelet/kubelet_node_status.go:536 +0xfc k8s.io/kubernetes/pkg/kubelet.(*Kubelet).syncNodeStatus(0xc000289400) pkg/kubelet/kubelet_node_status.go:526 +0x105 k8s.io/apimachinery/pkg/util/wait.BackoffUntil.func1(0xc002913f28?) vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:226 +0x3e k8s.io/apimachinery/pkg/util/wait.BackoffUntil(0x0?, {0x4c19ae0, 0xc0008f2000}, 0x1, 0xc000180360) vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:227 +0xb6 k8s.io/apimachinery/pkg/util/wait.JitterUntil(0x0?, 0x2540be400, 0x3fa47ae147ae147b, 0x0?, 0x0?) vendor/k8s.io/apimachinery/pkg/util/wait/backoff.go:204 +0x89 created by k8s.io/kubernetes/pkg/kubelet.(*Kubelet).Run pkg/kubelet/kubelet.go:1606 +0x58a panic: runtime error: invalid memory address or nil pointer dereference [recovered] panic: runtime error: invalid memory address or nil pointer dereference [signal SIGSEGV: segmentation violation code=0x1 addr=0x1a pc=0x47a935]
+  - button "Copy code to clipboard" [ref=1481]
+  - heading "What did you expect to happen?" [level=3]
+  - Ideally no crash, but at least a useful error message.
+  - heading "How can we reproduce it (as minimally and precisely as possible)?" [level=3]
+  - Really not sure.
+  - heading "Anything else we need to know?" [level=3]
+  - emphasis
+    - No response
+  - heading "Kubernetes version" [level=3]
+  - Client Version: v1.28.6
+  - Kustomize Version: v5.0.4-0.20230601165947-6ce0bf390ce3
+  - Server Version: v1.28.6
+  - heading "Cloud provider" [level=3]
+  - Bare metal.
+  - heading "OS version" [level=3]
+  - DisclosureTriangle "Details" [expanded=false]
+    - Details
+  - heading "Install tools" [level=3]
+  - kubespray
+  - heading "Container runtime (CRI) and version (if applicable)" [level=3]
+  - containerd
+  - containerd github.com/containerd/containerd v1.7.13 7c3aca7a610df76212171d200ca3811ff6096eb8
+  - heading "Related plugins (CNI, CSI, ...) and versions (if applicable)" [level=3]
+  - CNI = calico v3.26.4
+  - toolbar "Reactions"
+  - heading "Activity" [level=2]
+  - list "Activity"
+    - listitem [level=1]
+      - link "garymm" [ref=1510]
+      - added
+      - link "kind/bug Categorizes issue or PR as related to a bug." [ref=1512]
+      - link "on May 14, 2024" [ref=1203]
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1516]
+      - added
+      - link "needs-sig Indicates an issue or PR lacks a `sig/foo` label and requires one." [ref=1518]
+      - link "needs-triage Indicates an issue or PR lacks a `triage/foo` label and requires one." [ref=1521]
+      - link "on May 14, 2024" [ref=1208]
+    - listitem [level=1]
+      - heading "k8s-ci-robotcommentedon May 14, 2024" [level=3]
+      - link "@k8s-ci-robot's profile" [ref=1212]
+      - link "k8s-ci-robot" [ref=821]
+      - link "on May 14, 2024" [ref=1214]
+      - generic "This user has previously committed to the kubernetes repository."
+        - Contributor
+      - button "Actions for k8s-ci-robot's comment, 6:02 PM on May 14, 2024" [expanded=false] [ref=829]
+      - This issue is currently awaiting triage.
+      - If a SIG or subproject determines this is a relevant issue, they will accept it by applying the
+      - code
+        - triage/accepted
+      - label and provide further guidance.
+      - The
+      - code
+        - triage/accepted
+      - label can be added by org members by writing
+      - code
+        - /triage accepted
+      - in a comment.
+      - DisclosureTriangle "Details" [expanded=false]
+        - Details
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "garymmcommentedon May 14, 2024" [level=3]
+      - link "@garymm's profile" [ref=1231]
+      - link "garymm" [ref=841]
+      - link "on May 14, 2024" [ref=1233]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for garymm's comment, 6:02 PM on May 14, 2024" [expanded=false] [ref=849]
+      - /sig node
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1559]
+      - added
+      - link "sig/node Categorizes an issue or PR as relevant to SIG Node." [ref=1561]
+      - and
+      - removed
+      - link "needs-sig Indicates an issue or PR lacks a `sig/foo` label and requires one." [ref=1566]
+      - link "on May 14, 2024" [ref=1242]
+    - listitem [level=1]
+      - heading "saschagrunertcommentedon May 15, 2024" [level=3]
+      - link "@saschagrunert's profile" [ref=1246]
+      - link "saschagrunert" [ref=864]
+      - link "on May 15, 2024" [ref=1248]
+      - generic "This user is a member of the kubernetes organization."
+        - Member
+      - button "Actions for saschagrunert's comment, 9:07 AM on May 15, 2024" [expanded=false] [ref=872]
+      - link "errors.As" [ref=1250]
+      - will panic if target is not a non-nil pointer to either a type that implements error, or to any interface type. As returns false if err is nil. But
+      - code
+        - syscall.Errno
+      - clearly implements error.
+      - link "kubernetes/staging/src/k8s.io/apimachinery/pkg/util/net/util.go" [ref=1254]
+      - Lines 44 to 47 in
+      - link "be3af46" [ref=1256]
+      - table
+        - row: 44 · var errno syscall.Errno
+        - row: 45 · if errors.As(err, &errno) {
+        - row: 46 · return errno == syscall.ECONNRESET
+        - row: 47 · }
+      - If we assume that you're using golang 1.20.13 to build this version, then it would panic there:
+      - link "https://github.com/golang/go/blob/a95136a88cb8a51ede3ec2cdca4cfa3962dcfacd/src/errors/wrap.go#L109" [ref=1263]
+      - Which golang version did you use to build this Kubernetes version?
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "garymmcommentedon May 15, 2024" [level=3]
+      - link "@garymm's profile" [ref=1268]
+      - link "garymm" [ref=891]
+      - link "on May 15, 2024" [ref=1270]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for garymm's comment, 4:44 PM on May 15, 2024" [expanded=false] [ref=899]
+      - According to the changelog, kubernentes v1.28.6 (what I'm using) is built with go 1.21.7
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - heading "haircommandercommentedon May 22, 2024" [level=3]
+      - link "@haircommander's profile" [ref=1276]
+      - link "haircommander" [ref=908]
+      - link "on May 22, 2024" [ref=1278]
+      - generic "This user has previously committed to the kubernetes repository."
+        - Contributor
+      - button "Actions for haircommander's comment, 5:56 PM on May 22, 2024" [expanded=false] [ref=916]
+      - /assign
+      - link "@rphillips" [ref=1281]
+      - /priority important-soon
+      - link "@garymm" [ref=1284]
+      - do you have a more succinct reproducer to make it easier to find the issue?
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1625]
+      - assigned
+      - link "rphillips" [ref=1627]
+      - link "on May 22, 2024" [ref=1289]
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1629]
+      - added
+      - link "priority/important-soon Must be staffed and worked on either currently, or very soon, ideally in time for the next release." [ref=1631]
+      - link "on May 22, 2024" [ref=1293]
+    - listitem [level=1]
+      - heading "garymmcommentedon May 23, 2024" [level=3]
+      - link "@garymm's profile" [ref=1297]
+      - link "garymm" [ref=938]
+      - link "on May 23, 2024" [ref=1299]
+      - generic "This user is the author of this issue"
+        - Author
+      - button "Actions for garymm's comment, 11:30 PM on May 22, 2024" [expanded=false] [ref=946]
+      - Not really sorry. The only weird thing which may be relevant: This happened on a control plane node, and I didn't have any taints on my control plane nodes, so it was running normal pods as well as control plane pods. No idea if that's relevant.
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "kannon92" [ref=1648]
+      - added this to
+      - link "SIG Node Bugs" [ref=1306]
+      - link "on Jul 22, 2024" [ref=1307]
+    - listitem [level=1]
+      - link "kannon92" [ref=1652]
+      - moved this to
+      - High Priority in
+      - link "SIG Node Bugs" [ref=1311]
+      - link "on Jul 22, 2024" [ref=1312]
+    - listitem [level=1]
+      - heading "k8s-triage-robotcommentedon Aug 21, 2024" [level=3]
+      - link "@k8s-triage-robot's profile" [ref=1316]
+      - link "k8s-triage-robot" [ref=967]
+      - link "on Aug 21, 2024" [ref=1318]
+      - button "Actions for k8s-triage-robot's comment, 11:45 PM on August 20, 2024" [expanded=false] [ref=973]
+      - The Kubernetes project currently lacks enough contributors to adequately respond to all issues.
+      - This bot triages un-triaged issues according to the following rules:
+      - listitem [level=2]
+        - After 90d of inactivity,
+        - code
+          - lifecycle/stale
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/stale
+        - was applied,
+        - code
+          - lifecycle/rotten
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/rotten
+        - was applied, the issue is closed
+      - You can:
+      - listitem [level=2]
+        - Mark this issue as fresh with
+        - code
+          - /remove-lifecycle stale
+      - listitem [level=2]
+        - Close this issue with
+        - code
+          - /close
+      - listitem [level=2]
+        - Offer to help out with
+        - link "Issue Triage" [ref=1692]
+      - Please send feedback to sig-contributor-experience at
+      - link "kubernetes/community" [ref=1329]
+      - /lifecycle stale
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1697]
+      - added
+      - link "lifecycle/stale Denotes an issue or PR has remained open with no activity and has become stale." [ref=1699]
+      - link "on Aug 21, 2024" [ref=1335]
+    - listitem [level=1]
+      - heading "vaibhav2107commentedon Aug 22, 2024" [level=3]
+      - link "@vaibhav2107's profile" [ref=1339]
+      - link "vaibhav2107" [ref=994]
+      - link "on Aug 22, 2024" [ref=1341]
+      - generic "This user is a member of the kubernetes organization."
+        - Member
+      - button "Actions for vaibhav2107's comment, 8:13 AM on August 22, 2024" [expanded=false] [ref=1002]
+      - /remove-lifecycle stale
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1712]
+      - removed
+      - link "lifecycle/stale Denotes an issue or PR has remained open with no activity and has become stale." [ref=1714]
+      - link "on Aug 22, 2024" [ref=1347]
+    - listitem [level=1]
+      - heading "k8s-triage-robotcommentedon Nov 20, 2024" [level=3]
+      - link "@k8s-triage-robot's profile" [ref=1351]
+      - link "k8s-triage-robot" [ref=1017]
+      - link "on Nov 20, 2024" [ref=1353]
+      - button "Actions for k8s-triage-robot's comment, 8:47 AM on November 20, 2024" [expanded=false] [ref=1023]
+      - The Kubernetes project currently lacks enough contributors to adequately respond to all issues.
+      - This bot triages un-triaged issues according to the following rules:
+      - listitem [level=2]
+        - After 90d of inactivity,
+        - code
+          - lifecycle/stale
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/stale
+        - was applied,
+        - code
+          - lifecycle/rotten
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/rotten
+        - was applied, the issue is closed
+      - You can:
+      - listitem [level=2]
+        - Mark this issue as fresh with
+        - code
+          - /remove-lifecycle stale
+      - listitem [level=2]
+        - Close this issue with
+        - code
+          - /close
+      - listitem [level=2]
+        - Offer to help out with
+        - link "Issue Triage" [ref=1753]
+      - Please send feedback to sig-contributor-experience at
+      - link "kubernetes/community" [ref=1364]
+      - /lifecycle stale
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1758]
+      - added
+      - link "lifecycle/stale Denotes an issue or PR has remained open with no activity and has become stale." [ref=1760]
+      - link "on Nov 20, 2024" [ref=1370]
+    - listitem [level=1]
+      - heading "k8s-triage-robotcommentedon Dec 20, 2024" [level=3]
+      - link "@k8s-triage-robot's profile" [ref=1374]
+      - link "k8s-triage-robot" [ref=1044]
+      - link "on Dec 20, 2024" [ref=1376]
+      - button "Actions for k8s-triage-robot's comment, 9:30 AM on December 20, 2024" [expanded=false] [ref=1050]
+      - The Kubernetes project currently lacks enough active contributors to adequately respond to all issues.
+      - This bot triages un-triaged issues according to the following rules:
+      - listitem [level=2]
+        - After 90d of inactivity,
+        - code
+          - lifecycle/stale
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/stale
+        - was applied,
+        - code
+          - lifecycle/rotten
+        - is applied
+      - listitem [level=2]
+        - After 30d of inactivity since
+        - code
+          - lifecycle/rotten
+        - was applied, the issue is closed
+      - You can:
+      - listitem [level=2]
+        - Mark this issue as fresh with
+        - code
+          - /remove-lifecycle rotten
+      - listitem [level=2]
+        - Close this issue with
+        - code
+          - /close
+      - listitem [level=2]
+        - Offer to help out with
+        - link "Issue Triage" [ref=1799]
+      - Please send feedback to sig-contributor-experience at
+      - link "kubernetes/community" [ref=1387]
+      - /lifecycle rotten
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1804]
+      - added
+      - link "lifecycle/rotten Denotes an issue or PR that has aged beyond stale and will be auto-closed." [ref=1806]
+      - and
+      - removed
+      - link "lifecycle/stale Denotes an issue or PR has remained open with no activity and has become stale." [ref=1811]
+      - link "on Dec 20, 2024" [ref=1396]
+    - listitem [level=1]
+      - heading "SergeyKanzhelevcommentedon Mar 12, 2025" [level=3]
+      - link "@SergeyKanzhelev's profile" [ref=1400]
+      - link "SergeyKanzhelev" [ref=1071]
+      - link "on Mar 12, 2025" [ref=1402]
+      - generic "This user is a member of the kubernetes organization."
+        - Member
+      - button "Actions for SergeyKanzhelev's comment, 5:31 PM on March 12, 2025" [expanded=false] [ref=1079]
+      - link "@garymm" [ref=1404]
+      - the version 1.28 is out of support and we do not have any other reports of this issue. If you can repro it on fresh k8s versions and have more ideas how to repro - please reopen.
+      - /close
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "k8s-ci-robot" [ref=1828]
+      - closed this
+      - as
+      - link "completed" [ref=1410]
+      - link "on Mar 12, 2025" [ref=1411]
+    - listitem [level=1]
+      - heading "k8s-ci-robotcommentedon Mar 12, 2025" [level=3]
+      - link "@k8s-ci-robot's profile" [ref=1415]
+      - link "k8s-ci-robot" [ref=1095]
+      - link "on Mar 12, 2025" [ref=1417]
+      - generic "This user has previously committed to the kubernetes repository."
+        - Contributor
+      - button "Actions for k8s-ci-robot's comment, 5:31 PM on March 12, 2025" [expanded=false] [ref=1103]
+      - link "@SergeyKanzhelev" [ref=1419]
+      - : Closing this issue.
+      - DisclosureTriangle "Details" [expanded=false]
+        - Details
+      - toolbar "Reactions"
+    - listitem [level=1]
+      - link "github-project-automation" [ref=1848]
+      - moved this from High Priority to
+      - Done in
+      - link "SIG Node Bugs" [ref=1427]
+      - link "on Mar 12, 2025" [ref=1428]
+  - link "Sign up for free" [ref=472]
+  - strong
+    - to join this conversation on GitHub.
+  - Already have an account?
+  - link "Sign in to comment" [ref=475]
+  - heading "Metadata" [level=2]
+  - heading "Assignees" [level=3]
+  - link "rphillips" [ref=1430]
+  - heading "Labels" [level=3]
+  - Labels: kind/bug Categorizes issue or PR as related to a bug. [ref=1121], lifecycle/rotten Denotes an issue or PR that has aged beyond stale and will be auto-closed. [ref=1124], needs-triage Indicates an issue or PR lacks a `triage/foo` label and requires one. [ref=1127], priority/important-soon Must be staffed and worked on either currently, or very soon, ideally in time for the next release. [ref=1130], sig/node Categorizes an issue or PR as relevant to SIG Node. [ref=1133]
+  - heading "Type" [level=3]
+  - No type
+  - heading "Projects" [level=3]
+  - listitem [level=1]
+    - link "SIG Node Bugs" [ref=1447]
+    - Status
+    - Done
+    - button "Show more project fields" [expanded=false] [ref=1453]
+  - heading "Milestone" [level=3]
+  - No milestone
+  - heading "Relationships" [level=3]
+  - None yet
+  - heading "Development" [level=3]
+  - No branches or pull requests
+  - Participants: @rphillips [ref=759], @garymm [ref=760], @saschagrunert [ref=761], @kannon92 [ref=762], @haircommander [ref=763]
+  - button "and 4 other participants, click to see the full list" [ref=764]
+  - heading "Issue actions" [level=2]
+  - button "Open in GitHub Copilot app" [ref=1158]

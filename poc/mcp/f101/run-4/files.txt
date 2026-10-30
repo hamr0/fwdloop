@@ -1,0 +1,5 @@
+./job/declaration.json
+./job/prose.txt
+./job/signature.json
+./log.json
+./mcp-calls.jsonl

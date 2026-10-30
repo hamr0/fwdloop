@@ -85,8 +85,9 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
   assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 3'), 'one parent row per key');
   assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent.includes("3 models")'), 'B listed');
   const q = (expr) => chrome.ev(expr);
-  // fold default: A (a ticked model) unfolded; B (none ticked) and C (list failed) folded
-  assert.deepEqual(await q('[...document.querySelectorAll(".pv-key")].map(k => [k.dataset.slot, k.dataset.open])'), [['A_KEY', '1'], ['B_KEY', '0'], ['C_KEY', '0']]);
+  // fold default (hamr ruling 2026-10-30): every key starts folded, A (a ticked model) too; the geometry below needs A's rows, so the test unfolds A
+  assert.deepEqual(await q('[...document.querySelectorAll(".pv-key")].map(k => [k.dataset.slot, k.dataset.open])'), [['A_KEY', '0'], ['B_KEY', '0'], ['C_KEY', '0']]);
+  await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] [data-act=fold]\').click()');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent'), '3 models · none ticked');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-sum\').textContent'), '2 models · 1 ticked');
   assert.equal(await q('getComputedStyle(document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-models\')).display'), 'none', 'folded hides its models');

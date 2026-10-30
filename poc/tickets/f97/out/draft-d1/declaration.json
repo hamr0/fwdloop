@@ -1,0 +1,91 @@
+{
+  "guardrailClasses": {
+    "1": "hitl",
+    "3": "softgreen",
+    "4": "hitl"
+  },
+  "unjudgeable": {
+    "1": "only if it looks important to me is the human's taste; not a fixed list"
+  },
+  "refused": [],
+  "steps": [
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "broken_assessment",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and say what is broken"
+    },
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "issue"
+      ],
+      "emits": "ticket_priority",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "read the ticket and pull out its priority"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issue",
+        "broken_assessment",
+        "ticket_priority"
+      ],
+      "emits": "first_response_plan",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "maxWords": 150
+        }
+      },
+      "goal": "write a short first-response plan for the on-call engineer"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "first_response_plan"
+      ],
+      "emits": "plan_accepted",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "read",
+        "write"
+      ],
+      "reads": [
+        "plan_accepted",
+        "first_response_plan"
+      ],
+      "emits": "written_plan",
+      "fromLine": 5,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "inputFacts": {}
+}

@@ -1,0 +1,147 @@
+{
+  "errors": [],
+  "missing": [
+    {
+      "server": "barebrowse",
+      "tool": "click"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "type"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "press"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "drag"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "upload"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "select"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "hover"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "switch_engine"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "eval"
+    },
+    {
+      "server": "barebrowse",
+      "tool": "assess"
+    }
+  ],
+  "listed": 13,
+  "tools": [
+    {
+      "name": "barebrowse_browse",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_goto",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_snapshot",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_readable",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_scroll",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_back",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_forward",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_pdf",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_reload",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "barebrowse_screenshot",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_wait_for",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_tabs",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "idempotentHint": true
+      }
+    },
+    {
+      "name": "barebrowse_capabilities",
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "idempotentHint": true
+      }
+    }
+  ],
+  "allReadOnlyTrue": true
+}
