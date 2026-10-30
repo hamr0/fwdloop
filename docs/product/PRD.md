@@ -264,6 +264,19 @@ Open points (unsettled):
 6. Digit-join run-id comparison (`src/panel/tickets.js`): `run-3-rerun-1` reads as 31 and beats `run-25`. UNVERIFIED; masked today because a rerun carries no ticket entry.
 7. No upper bound on a numeric ticket value in the body (`src/ticket-draft.js`). UNVERIFIED; ends as a refused start (the page only sends strings).
 
+
+**Design talk 2026-10-30 (hamr, unsigned; replaces items 2, 3 and 6 above where they differ).**
+
+1. No "where" box: the Inputs line names what to read. Inputs may be empty for a generic MCP job.
+2. One dropdown labelled `MCP` with modes: none, MCP (generic), Issues, Issues URL, Search. Chat is added later when beeperbox is connected.
+3. MCP (generic) takes any read-only server from a Settings > MCP tab and uses the normal Result page; it is the base. Named cases (Issues, later Chat, others as needed) are known job shapes grown per need.
+4. A server pick shows only for MCP (generic) and Issues. Issues URL and Search are barebrowse modes: no server pick, barebrowse at tier r locked to the Inputs URL's host.
+5. Search takes a URL in Inputs (e.g. `search: https://google.com`) and searches there. Open: with the site lock it reads the results page only; whether that is enough, and whether the site blocks automated reads, needs a small POC.
+6. Schedule stays its own choice and grows with the mode: By hand and Every day at… for all; `When a new ticket arrives` only for a mode that defines "new" (Issues, Issues URL). A generic server has no "new".
+7. Schedule can be set on a new job from the start (ruling 1 over "schedule only after green"). It stays off until the first green run, then turns on. While waiting, the Run card shows a grey line `Schedule waiting for a green run`; a red run is normal shaping, not a warning.
+8. The first run of a ticket job reads the newest ticket at the time it starts; older tickets never run. There is no ticket # box.
+9. Result tab: variant B, one grid for all runs with buckets Needs you / Stopped / Passed / Skipped as fold rows and a stats line; runs named by ticket number.
+10. Mail: reading mail through a generic MCP server the user adds is the user's call later; nothing mail-specific is built (the earlier "no mail" suite-peer ruling stands).
 Items 1-3 are the ones hamr asked about by name; the item numbers match the review report.
 
 *Update 2026-10-30: this ask was signed by hamr as M4d amendment 36 (2026-10-29) and is built on branch `mcp-tickets` (80676fe, 869a52b); the text below is the original unsigned ask, kept as written. The signed text is in docs/wiki/the-module-ladder.md.*
