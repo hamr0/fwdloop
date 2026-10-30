@@ -336,6 +336,12 @@ async function cmdRun(rest) {
   const nameCheck = checkFlowName(flowName);
   if (!nameCheck.ok) fail(nameCheck.red);
 
+  // A refusal before the run starts must leave no run folder behind. The panel claims `run-<n>` (and may put the signed values in it) BEFORE it spawns this
+  // child, so EVERY exit before the run begins undoes it: registered here, at the first line that can fail, not after the checks (rmdir only ever removes an EMPTY folder).
+  const dropUnstartedRun = (dir) => process.on('exit', () => { dropUnstartedValues(dir); try { rmdirSync(dir); } catch { /* not empty, or gone: nothing to undo */ } });
+  const typedRun = typeof values['run-id'] === 'string' ? resolveRunDir(join(root, flowName), values['run-id']) : null;
+  if (typedRun?.ok) dropUnstartedRun(typedRun.runDir);
+
   const loaded = loadCatalogue();
   if (!loaded.ok) fail(`catalogue: ${loaded.reds.join('; ')}`);
   const catalogue = loaded.primitives;
@@ -392,6 +398,7 @@ async function cmdRun(rest) {
     if (!claimed.ok) fail(claimed.red);
     runId = claimed.runId;
     runDir = claimed.runDir;
+    dropUnstartedRun(runDir);
   } else {
     const runIdCheck = resolveRunDir(join(root, flowName), runId);
     if (!runIdCheck.ok) fail(runIdCheck.red);
@@ -403,8 +410,6 @@ async function cmdRun(rest) {
   const applied = applyRunValues(read.arbiter, flowName, read.signature.flow, pickRunValues(runDir));
   if (!applied.ok) fail(`run: ${applied.red}`);
   const { arbiter } = applied;
-  // a refusal before the run starts must not leave the claimed empty folder behind (rmdir only ever removes an EMPTY folder)
-  process.on('exit', () => { dropUnstartedValues(runDir); try { rmdirSync(runDir); } catch { /* not empty, or gone: nothing to undo */ } });
 
   // The key preflight (item A: "refuses at $0 BEFORE any book write") runs
   // here — before ANY directory for this run is created.
