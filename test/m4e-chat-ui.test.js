@@ -153,7 +153,8 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
   assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/reuse-check', '/api/author/run', '/api/author/run', '/api/author/run-prepare']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
-  assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign", \{hash: signInfo\.hash\}/);
+  // the sign body is {hash}, widened only by the signed ticket when the ticket box shows; nothing else rides along
+  assert.ok(code.includes('authorPost("/api/author/" + id + "/sign", signTicketEl.hidden ? {hash: signInfo.hash} : {hash: signInfo.hash, ticket: signTicketEl.value.trim()})'));
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
 });
 
