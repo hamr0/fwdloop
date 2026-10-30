@@ -4726,3 +4726,17 @@ Question: M13 item 9.5 says an MCP gets only its own settings plus what it needs
 **Win rule: (a) FAIL on the letter**, as expected: today every MCP child receives all of the parent's env, provider keys included.
 
 **What M13 must therefore do.** Item 9.5 needs a code fix in fwdloop, no bare-agent change: build a per-start temp config that wraps the signed server's command in `env -i PATH=.. HOME=.. <its own env> <command> <args>`. The wrapper must resolve the server's own `${VAR}` env references itself first (bare-agent resolves those from `process.env` at `:220-228`, and `env -i` hides them), and must keep a launcher that is not on a cut PATH working (not tested). The must-fail test: plant canary key names in the parent and assert a child never lists them. Untested here: servers needing more than PATH and HOME to start (for example a `node` version manager), and `${VAR}` own-env references.
+
+## F110 pre-registration (2026-10-30): does the npm child of `fwdloop update` get provider keys — $0
+
+Question: `fwdloop update` runs `npm install -g fwdloop@latest` through `runNpm` (`src/launcher.js`), `spawnImpl('npm', args, { shell: false, stdio: 'inherit' })` with NO `env` option, so Node hands the child the whole `process.env`. Do provider keys reach it?
+
+**Read before the run (a guess, to be measured).** `bin/fwdloop:1039` calls `launcherMain(cmd, args, { root })`; the launcher never calls `keysForDoor`/`loadKeysEnv` (only `keysfile` helpers `keysHome`, `keysFilePath`, `createKeysFile` in `installCmd`). So keys reach the launcher env only if the user's shell exported them. Guess: case A yes, case B no. `startCmd` hands the panel child `d.env ?? process.env` (`launcher.js:459`), the same shell env; the panel then loads the keys file itself via `keysForDoor` (`panel/server.js:714,719`).
+
+**Cases.** (A) canary `FAKE_PROVIDER_API_KEY=sk-canary-f110-shell` exported in the parent process env, no keys file. (B) canary `FAKE2_PROVIDER_API_KEY=sk-canary-f110-file` only in a keys file `<tmp HOME>/.config/fwdloop/.env` (mode 0600), not in the process env.
+
+**Criteria.** Per case record yes/no: does the canary NAME appear in the env NAMES the npm child received. Context only: whether keys reach the panel child of `fwdloop start` (the env passed to the spawn).
+
+**Method.** Temp HOME and temp dir. A fake `npm` executable first on PATH writes its sorted env NAMES (never values) to a file and exits 0, so nothing installs. The real `launcherMain('update')` -> real `updateCmd` -> real `runNpm` (real `child_process.spawn`) is called from a node script in a child process per case; the only fakes are `registryFetch` (returns version 99.0.0), `version` (0.0.1), a fake TTY stdin answering `y`. The real CLI cannot reach the npm step offline (registry fetch has no CLI injection). For the panel, a recording `spawnFn` captures the env names `startCmd` would hand it; nothing is started. No key value is printed or stored; `pass` is never read. Scripts in `poc/f110/`.
+
+**Win rule.** Record the yes/no per case. No pass/fail: this is a measurement.
