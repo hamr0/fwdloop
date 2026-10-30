@@ -17,6 +17,7 @@
 // FWDLOOP_TEST_DRAFT_MAP=<json> -> the page-map call answers that map (default: every ~ rule tied to its own word of the default page, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_SHEET=<json> -> the sheet-word call (M10 piece 5; a CSV job with a ~ rule) answers that (default: no word, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_PAGE=<file> -> the fetched page's text (default: a small Boston-Chicago results page).
+// FWDLOOP_TEST_DRAFT_TICKET=1 -> the plan reads the `jd` input as a ticket list through the github MCP server's issue_read (M12; the card's jd is then a GitHub issues list, HOME has a .mcp.json naming github).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
 import { appendFileSync, readFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply, textReply } from '../drafter-fixture.mjs';
@@ -46,6 +47,11 @@ const tiedMap = (content) => {
 export default function make() {
   const args = validArgs();
   if (process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED) args.notChecked = JSON.parse(process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED); // the drafter's own "not checked" list on every plan
+  if (process.env.FWDLOOP_TEST_DRAFT_TICKET === '1') {
+    args.mcp = { server: 'github', tools: ['issue_read'] };
+    args.steps[0].mcpTools = ['issue_read'];
+    args.steps[0].reads = ['jd'];
+  }
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['forget'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });

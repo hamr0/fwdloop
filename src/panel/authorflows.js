@@ -14,7 +14,7 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
-import { ticketSourcesOf } from '../ticket-draft.js';
+import { ticketNumberOf, ticketRefusals, ticketSourcesOf } from '../ticket-draft.js';
 import { endRow, readHistory } from '../books.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
@@ -232,10 +232,8 @@ export function createFlowsDoor(opts) {
     const declared = (read.arbiter.sources ?? []).map((s) => s.role);
     // M12 piece 3 (hamr 2026-10-29): a by-hand Run on a job with a ticket list picks ONE ticket by number; any other job takes none
     const ticketRole = ticketSourcesOf(read.arbiter.sources)[0]?.role ?? null;
-    const ticket = typeof body?.ticket === 'string' && /^[1-9][0-9]{0,8}$/.test(body.ticket.trim()) ? Number(body.ticket.trim())
-      : (Number.isInteger(body?.ticket) && body.ticket >= 1 ? body.ticket : null);
-    if (ticketRole !== null && ticket === null) refusals.push({ field: 'ticket', say: `This job reads one ticket of "${ticketRole}" per run. Give its ticket number (a whole number from 1). Nothing started.` });
-    if (ticketRole === null && Object.hasOwn(body ?? {}, 'ticket') && body.ticket !== undefined) refusals.push({ field: 'ticket', say: 'This job has no ticket list, so there is no ticket number to give. Nothing started.' });
+    const ticket = ticketNumberOf(body?.ticket);
+    refusals.push(...ticketRefusals(ticketRole, body));
     for (const role of declared) {
     if (!Object.hasOwn(pages, role) && !rows.some((r) => r.role === role)) refusals.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
     }
@@ -469,7 +467,7 @@ export function createFlowsDoor(opts) {
         };
       }
       const started = starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path, ...(role === s.ticketRole ? { ticket: s.ticket } : {}) })), values, pick: s.newPick, planOf: s.planFrom,
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path, ...(role === s.ticketRole ? { ticket: /** @type {number} */ (s.ticket) } : {}) })), values, pick: s.newPick, planOf: s.planFrom,
       }, loaded);
       // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
       if (started.status === 202 && s.newPick !== null) {

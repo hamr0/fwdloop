@@ -728,7 +728,7 @@
   #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
   .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
-  .jf-inrow .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
+  .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
   /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
@@ -1257,6 +1257,8 @@
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
+          <!-- M12 piece 3: a green ticket job takes its ticket number here, beside Sign & run (the Run card's ticket # box, same class) -->
+          <input type="text" class="jf-ticket" id="chat-sign-ticket" data-testid="jf-sign-ticket" inputmode="numeric" placeholder="ticket #" aria-label="Ticket number to run" autocomplete="off" spellcheck="false" hidden>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
           <!-- M4e amendment 14 item 2: on a green plan, Revise opens every card field (the main button then reads Draft) -->
@@ -5237,6 +5239,7 @@
     var destEl = document.getElementById("jf-dest-folder");
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
+    var signTicketEl = document.getElementById("chat-sign-ticket");   // M12 p3: the ticket # box of a green ticket job
     var mainHint = document.getElementById("chat-main-hint");
     var startOverBtn = document.getElementById("chat-startover-btn");
     var reviseBtn = document.getElementById("chat-revise-btn");
@@ -6327,8 +6330,12 @@
         st.capUsd = lastState.card.capUsd;
       }
       var b = mainButtonFor(st);
+      // M12 piece 3: the ticket # box shows on a green plan whose job reads a ticket list; Sign & run stays off until it holds a whole number from 1
+      var needTicket = mode === "new" && sessionLive && !!lastState && lastState.phase === "green" && !!lastState.ticketRole;
+      signTicketEl.hidden = !needTicket;
+      if(!needTicket) signTicketEl.value = "";
       mainBtn.textContent = b.text;
-      mainBtn.disabled = b.disabled;
+      mainBtn.disabled = b.disabled || (needTicket && (b.action === "sign-prepare" || b.action === "sign") && !/^[1-9][0-9]{0,8}$/.test(signTicketEl.value.trim()));
       mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
@@ -6636,7 +6643,7 @@
       // click 2: the ONLY call that signs. It carries the hash this page showed; the server signs only if it is still the draft's hash on disk.
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash}).then(function(r){
+      authorPost("/api/author/" + id + "/sign", signTicketEl.hidden ? {hash: signInfo.hash} : {hash: signInfo.hash, ticket: signTicketEl.value.trim()}).then(function(r){
         var o = chatPostOutcome(r);
         if(!o.ok){
           busy = false;
@@ -6731,6 +6738,7 @@
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     qSend.addEventListener("click", doAnswer);
     qAnswer.addEventListener("keydown", function(e){ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); doAnswer(); } });
+    signTicketEl.addEventListener("input", function(){ renderMain(); });   // M12 p3
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);

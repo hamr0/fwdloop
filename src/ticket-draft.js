@@ -15,6 +15,19 @@ export const isTicketListUrl = (url) => LIST_URL.test(String(url).trim());
 /** the signed page sources that are ticket roles @param {Array<{kind?: string, role: string, path: string}>} sources */
 export const ticketSourcesOf = (sources) => (sources ?? []).filter((s) => s.kind === 'page' && isTicketListUrl(s.path));
 
+/**
+ * M12 piece 3: the ONE reader of a by-hand ticket number (a Run or a Sign & run body) and the ONE writer of its refusals. A whole number from 1, or null.
+ * @param {unknown} v @returns {number|null}
+ */
+export const ticketNumberOf = (v) => (typeof v === 'string' && /^[1-9][0-9]{0,8}$/.test(v.trim()) ? Number(v.trim()) : (Number.isInteger(v) && /** @type {number} */ (v) >= 1 ? /** @type {number} */ (v) : null));
+
+/** the refusals of a by-hand start's ticket box: a ticket job needs a number; any other job takes none. @param {string|null} ticketRole @param {any} body @returns {{field: string, say: string}[]} */
+export function ticketRefusals(ticketRole, body) {
+  if (ticketRole !== null && ticketNumberOf(body?.ticket) === null) return [{ field: 'ticket', say: `This job reads one ticket of "${ticketRole}" per run. Give its ticket number (a whole number from 1). Nothing started.` }];
+  if (ticketRole === null && Object.hasOwn(body ?? {}, 'ticket') && body.ticket !== undefined) return [{ field: 'ticket', say: 'This job has no ticket list, so there is no ticket number to give. Nothing started.' }];
+  return [];
+}
+
 /** the server names in the user's own `~/.mcp.json` (what the drafter may name); none when the file is missing or unreadable @param {string} [configPath] @returns {string[]} */
 export function userMcpServers(configPath = USER_MCP_CONFIG()) {
   try { return [...discoverServers([configPath]).keys()]; } catch { return []; }
