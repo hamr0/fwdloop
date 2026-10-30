@@ -193,7 +193,7 @@ export function recordAnyway(ledger, sig, a, at) {
   const n = rows.filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === a.number).length;
   const watch = lastSeen(ledger, sig).get(a.number);
   appendSeen(ledger, /** @type {any} */ ({
-    id: `arrived:ticket:${a.number}:${n}`, kind: 'arrived', sha: `ticket:${a.number}:${n}`, name: `#${a.number}`, path: `#${a.number}`, size: 0, at, number: a.number, ...(watch ? { watch } : {}), reason: a.reason,
+    id: `arrived:ticket:${a.number}:${n}`, kind: 'arrived', sha: `ticket:${a.number}:${n}`, name: `#${a.number}`, path: `#${a.number}`, size: 0, at, number: a.number, ...(watch ? { watch } : {}), reason: a.reason, anyway: true,
   }), sig);
   return { ok: true };
 }

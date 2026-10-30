@@ -54,7 +54,7 @@ export function createScheduler(opts) {
     const key = (/** @type {string} */ sha, /** @type {Record<string, any>} */ r) => `${sha}|${r.outcome}|${r.why ?? ''}`;   // a refusal is told once PER REASON; busy / monthly carry no `why`
     const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string' && r.sig === sig).map((r) => key(r.sha, r)));
     const ticketJob = job.trigger.kind === 'new-ticket';   // M12 piece 2: a ticket has no file to look at again; it is its number
-    const cause = (/** @type {any} */ q) => (ticketJob ? { kind: /** @type {'ticket'} */ ('ticket'), number: q.number, sha: q.sha, role: job.trigger.role, list: job.trigger.list, ...(q.reason ? { why: q.reason } : {}) } : { kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
+    const cause = (/** @type {any} */ q) => (ticketJob ? { kind: /** @type {'ticket'} */ ('ticket'), number: q.number, sha: q.sha, role: job.trigger.role, list: job.trigger.list, ...(q.reason ? { why: q.reason } : {}), ...(q.anyway === true ? { anyway: true } : {}) } : { kind: /** @type {'file'} */ ('file'), path: q.path, sha: q.sha });
     const told = (/** @type {any} */ q) => (/** @type {Record<string, any>} */ row) => { const k = key(q.sha, row); const had = spoken.has(k); spoken.add(k); return had; };
     if (door.busy(job)) {
       for (const q of queue) door.fire(job, cause(q), { told: told(q) });

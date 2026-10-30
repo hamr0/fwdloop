@@ -390,7 +390,7 @@ export function createTriggerDoor(opts) {
      * are missing) -> started through the ONE start path (kind `trigger`; the reason and the catch-up mark go into the run's own folder first).
      * The fire / ran ledger row was written by the caller BEFORE this, so a crash loses a run and never doubles one.
      * @param {{flow: string, flowDir: string, read: any, trigger: Trigger, schedule: Schedule}} job
-     * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string} | {kind: 'ticket', number: number, sha: string, role: string, list: string, why?: string}} cause
+     * @param {{kind: 'clock', slot: number, catchUp: boolean, missed: number} | {kind: 'file', path: string, sha: string} | {kind: 'ticket', number: number, sha: string, role: string, list: string, why?: string, anyway?: boolean}} cause
      * @param {{ told?: (row: Record<string, any>) => boolean, beforeStart?: () => void, holdIfCannotStart?: boolean }} [hooks] M9 am3 (a queued file): `told(row)` true = this file
      *   already has a row for that outcome and reason (`why`), so none is written again (the outcome is still returned); `beforeStart` runs right before the ONE
      *   start, once every check has passed: the scheduler writes the file's `ran` row there. `holdIfCannotStart` (a queued file, M9 am17): the starter's `canStart` is asked first, and a no writes nothing
@@ -435,7 +435,7 @@ export function createTriggerDoor(opts) {
       const sources = [];
       const pages = pageAddressesOf(read.arbiter);
       for (const role of roles) {
-        if (cause.kind === 'ticket' && cause.role === role) { sources.push({ role, path: pages[role], ticket: cause.number }); continue; }   // M12: this run's input is ONE ticket of the signed list
+        if (cause.kind === 'ticket' && cause.role === role) { sources.push({ role, path: pages[role], ticket: cause.number, ...(cause.anyway === true ? { anyway: true } : {}) }); continue; }   // M12: this run's input is ONE ticket of the signed list
         if (Object.hasOwn(pages, role)) { sources.push({ role, path: pages[role] }); continue; } // M10 am3: a page input is its signed address, never an earlier run's or an arriving file
         const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
         if (!p) return done({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
