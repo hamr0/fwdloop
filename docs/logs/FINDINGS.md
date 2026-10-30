@@ -4824,3 +4824,29 @@ Question: can "use counts come from what runs already record" be computed from t
 (d) On a temp copy (never hamr's files) with one run.json truncated mid-way, one empty, one a JSON array, one diary with a torn last line: the count completes, skips the bad file and reports how many were skipped; the totals equal the clean totals minus only the damaged files' own rows. FAIL if it throws or the counts of undamaged runs change. The test must be able to fail: the same copy's counts must differ from the clean counts (the damage must really remove rows).
 **Win rule.** (a) through (d) all PASS.
 **Not tested.** A panel page, MCP tool rows from a generic job (none exist yet), runs on other machines.
+
+### F112 RESULT (run 2026-10-30, $0, no model call; `poc/mcp/f112/f112.mjs` + `stub.mjs`, run as `env -i PATH HOME node ...`, installed bare-agent 0.54.1, `listServerTools` exists so `createMCPBridge` was not needed)
+(a) PASS. litectx: 8 tools, readOnlyHint true 0 / false 0 / absent 8 (names: index, recall, get, recent, promotions, impact, remember, forget). barebrowse: 22 tools (no `eval`: tier default), true 14 / false 8 / absent 0. Annotations pass through as the server sent them (absent key stays absent).
+(b) PASS. The control saw descendants during each real call (1 to 2 PIDs seen per call, `ps` pollers excluded); 2 s after every call, 0 of them alive and 0 descendants of the POC process, for both servers, cold and warm, for (d) and (e) too. No `/tmp/barebrowse-*` dir was created (tools/list starts no browser).
+(c) PASS (recorded, none over 15 s). litectx cold 324 ms, warm 264 ms. barebrowse cold 1841 ms, warm 1512 ms.
+(d) PASS. Missing command: rejected in 4 ms, `ToolError`, message names the server ("MCP server "ghost" failed to start: command ... (ENOENT)"), no child.
+(e) PASS. Stub answering `initialize` only, `timeout` 2000: rejected in 2351 ms, `ToolError`, `context.timeout === true`, message `MCP server "stubby" "tools/list" timed out after 2000ms`; the per-round-trip bound tripped first (not the 8 s total deadline); stub PID gone.
+(f) PASS. The output holds only server and tool names, counts, ms and the error text of my own temp servers; grep of the output for key/token/KEY found 0 lines; no `pass` call; no command or env value of litectx/barebrowse/github printed. Observed fact, not judged: bare-agent 0.54.1 merges the parent `process.env` into the child (the F111 gap); here the parent had only PATH and HOME.
+**Verdict.** All six PASS. `listServerTools` is enough for `check tools`: one server, one call, child reaped, errors named, bounded by `timeout` (and by 4 x timeout in total). Not tested: `github`, a tool call, pagination, a remote server, the panel.
+
+### F113 RESULT (run 2026-10-30, $0, read-only; `poc/mcp/f113/f113.mjs` and `d.mjs`; flows root `~/.config/fwdloop/flows`)
+Harness fixes before the recorded run (script bugs, not criteria): the first pass counted `runs/.stores` (2 dirs) as runs, and a first `run-\d+` filter dropped the legacy folder `run-1-rerun-1`; the final filter is names starting `run-`. The (d) script first tore 11 diaries instead of one (a `break` that left the outer loop); fixed, rerun, numbers below are from the fixed run.
+(a) PASS. Table (names and counts only; `last` for MCP = run.json mtime, since run.json holds no time; for built-in = latest diary row `at`):
+server / tool / calls / runs / denied / last
+(built-in) read 45 / 12 / 2 / 2026-10-25T06:21:36Z
+(built-in) get 30 / 6 / 0 / 2026-10-25T06:21:58Z
+(built-in) stash 12 / 6 / 0 / 2026-10-25T06:21:38Z
+(built-in) addressCells 6 / 5 / 0 / 2026-10-26T07:17:43Z
+(built-in) readDocx 5 / 5 / 0 / 2026-10-25T06:21:24Z
+(built-in) grep 3 / 1 / 1 / 2026-10-21T20:31:26Z
+github issue_read 8 / 8 / 0 / 2026-10-30T11:50:59Z
+Independent python count of `run.json` `inputs[].mcp.calls`: 8 calls in 8 runs. Matches.
+(b) PASS. Denied is recorded: the diary tool row (`runs/run-N/diary.jsonl`, `kind:"tool"`, `decision:"deny"`, `rule`), read by `readTools` (`src/diary.js:47`), the same rows `deriveFold` uses (`src/audit-fold.js:76-79`). Table total 3 (read 2, grep 1) = `grep -c '"decision":"deny"'` over the same files (3). Not recorded for MCP calls: `run.json` `mcp.calls` holds only the ticket read's calls (no decision), and no diary row yet names an MCP tool (no generic MCP job exists).
+(c) PASS. 80 run folders read in 16.7 to 21.3 ms in-process (0.21 to 0.26 ms per run); whole `node` process 154 ms wall. 10x projection: 800 runs about 170 ms (about 2 s for 10,000 runs at the same rate, disk cache permitting; this read was warm-cache, unchecked cold-disk).
+(d) PASS. On a temp copy (76 run folders that had either file): `run.json` truncated, one emptied, one a JSON array, one diary with a torn last line. The count completed, skipped 3 (truncated, empty, torn line; the array is valid JSON with no inputs, counted as nothing), `github/issue_read` fell 8 to 5 (the 3 damaged runs' own rows) and no other key changed. The damage removed rows, so the check could fail.
+**Verdict.** All four PASS. Use counts need no new run-folder file.
