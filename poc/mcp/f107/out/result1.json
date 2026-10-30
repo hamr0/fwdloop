@@ -1,0 +1,312 @@
+{
+  "a": {
+    "errors": [],
+    "missing": [
+      {
+        "server": "barebrowse",
+        "tool": "click"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "type"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "press"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "drag"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "upload"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "select"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "hover"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "switch_engine"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "eval"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "assess"
+      }
+    ],
+    "listed": 13,
+    "tools": [
+      {
+        "name": "barebrowse_browse",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_goto",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_snapshot",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_readable",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_scroll",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_back",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_forward",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_pdf",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_reload",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        }
+      },
+      {
+        "name": "barebrowse_screenshot",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_wait_for",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_tabs",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "name": "barebrowse_capabilities",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false,
+          "idempotentHint": true
+        }
+      }
+    ],
+    "allReadOnlyTrue": true
+  },
+  "b": {
+    "refused": []
+  },
+  "d2": {
+    "clickListed": false,
+    "clickInMissing": true
+  },
+  "c": {
+    "err": "Error: Timeout waiting for CDP event: Page.loadEventFired",
+    "len": 0,
+    "body1": false,
+    "body2": false
+  },
+  "e1": {
+    "err": "Error: Navigation to https://example.com blocked: example.com is not in allowHosts",
+    "reply": "",
+    "namesHost": true,
+    "gotContent": false
+  },
+  "e3": {
+    "hasTier": true,
+    "hasAllow": true
+  },
+  "d3": {
+    "names": [
+      "barebrowse_browse",
+      "barebrowse_capabilities"
+    ],
+    "exact": false,
+    "missing": [],
+    "tries": {
+      "goto": {
+        "refused": true,
+        "denied": true,
+        "msg": "mcp_invoke: \"barebrowse_goto\" is not on this run's allowed list"
+      },
+      "click": {
+        "refused": true,
+        "denied": false,
+        "msg": "mcp_invoke: unknown tool \"barebrowse_click\". Call mcp_discover for the current catalog."
+      }
+    }
+  },
+  "d1": {
+    "list": [
+      "browse",
+      "goto",
+      "snapshot",
+      "readable",
+      "scroll",
+      "back",
+      "forward",
+      "pdf",
+      "reload",
+      "screenshot",
+      "wait_for",
+      "tabs",
+      "capabilities"
+    ],
+    "hasClick": false,
+    "clickReply": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Error: Unknown tool: click"
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  "d_control": {
+    "listsClickAtRw": true,
+    "list": [
+      "browse",
+      "goto",
+      "snapshot",
+      "readable",
+      "click",
+      "type",
+      "press",
+      "scroll",
+      "back",
+      "forward",
+      "drag",
+      "pdf",
+      "reload",
+      "screenshot",
+      "wait_for",
+      "tabs",
+      "select",
+      "hover",
+      "switch_engine",
+      "capabilities"
+    ]
+  },
+  "e2_codeberg": {
+    "err": "Error: Navigation to https://codeberg.org/ blocked: codeberg.org is not in allowHosts",
+    "reply": "",
+    "refused": true,
+    "namesTarget": true
+  },
+  "e2_github": {
+    "err": "Error: Navigation to https://github.com/ blocked: github.com is not in allowHosts",
+    "reply": "",
+    "refused": true,
+    "namesTarget": true
+  },
+  "f": {
+    "tier-rx": {
+      "bridgeErrors": [
+        {
+          "server": "barebrowse",
+          "error": "MCP server \"barebrowse\" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_TIER must be r, rw or rwx (got \"rx\")"
+        }
+      ],
+      "bridgeTools": [],
+      "directExit": 1,
+      "directStderr": "barebrowse mcp: BAREBROWSE_TIER must be r, rw or rwx (got \"rx\")",
+      "directListed": false
+    },
+    "allow-scheme": {
+      "bridgeErrors": [
+        {
+          "server": "barebrowse",
+          "error": "MCP server \"barebrowse\" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry \"https://codeberg.org\" (expected \"host\" or \"*.host\", no scheme/port/path)"
+        }
+      ],
+      "bridgeTools": [],
+      "directExit": 1,
+      "directStderr": "barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry \"https://codeberg.org\" (expected \"host\" or \"*.host\", no scheme/port/path)",
+      "directListed": false
+    },
+    "allow-space": {
+      "bridgeErrors": [
+        {
+          "server": "barebrowse",
+          "error": "MCP server \"barebrowse\" exited (code 1). stderr: barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry \"a b\" (expected \"host\" or \"*.host\", no scheme/port/path)"
+        }
+      ],
+      "bridgeTools": [],
+      "directExit": 1,
+      "directStderr": "barebrowse mcp: BAREBROWSE_ALLOW: allowHosts: invalid entry \"a b\" (expected \"host\" or \"*.host\", no scheme/port/path)",
+      "directListed": false
+    }
+  },
+  "f_control": {
+    "errors": [],
+    "listed": 21,
+    "missing": [
+      {
+        "server": "barebrowse",
+        "tool": "eval"
+      },
+      {
+        "server": "barebrowse",
+        "tool": "assess"
+      }
+    ]
+  }
+}

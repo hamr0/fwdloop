@@ -1,0 +1,1 @@
+Error: Navigation to https://github.com/ blocked: github.com is not in allowHosts
