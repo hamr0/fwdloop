@@ -4740,3 +4740,18 @@ Question: `fwdloop update` runs `npm install -g fwdloop@latest` through `runNpm`
 **Method.** Temp HOME and temp dir. A fake `npm` executable first on PATH writes its sorted env NAMES (never values) to a file and exits 0, so nothing installs. The real `launcherMain('update')` -> real `updateCmd` -> real `runNpm` (real `child_process.spawn`) is called from a node script in a child process per case; the only fakes are `registryFetch` (returns version 99.0.0), `version` (0.0.1), a fake TTY stdin answering `y`. The real CLI cannot reach the npm step offline (registry fetch has no CLI injection). For the panel, a recording `spawnFn` captures the env names `startCmd` would hand it; nothing is started. No key value is printed or stored; `pass` is never read. Scripts in `poc/f110/`.
 
 **Win rule.** Record the yes/no per case. No pass/fail: this is a measurement.
+
+### F110 RESULT (run 2026-10-30, $0, no model call, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/f110/` (`f110.mjs`, `run.sh`; names only, canary values never printed or saved). Real `launcherMain('update')` -> `updateCmd` -> `runNpm` -> real `spawn`; fakes: `npm` on PATH (writes env NAMES, exits 0), `registryFetch`, `version`, a fake TTY answering `y`. First two attempts crashed in my harness (stream shape), nothing ran; fixed, then run once.
+
+| Case | Canary NAME reaches the npm child | Panel spawn env (context) |
+|---|---|---|
+| (A) exported in the parent env | YES | YES (`FAKE_PROVIDER_API_KEY` in the env `startCmd` hands the spawn) |
+| (B) only in the keys file under a temp HOME | NO | NO (the launcher never read the file; the panel loads it itself later, `panel/server.js:714,719`) |
+
+Both runs: update exit 0, fake npm ran, nothing installed. The test could fail: case A is the yes.
+
+**Where keys enter the launcher env.** Only from the user's shell. `bin/fwdloop:1039` calls `launcherMain` with no env; `launcherMain` uses `deps.processEnv ?? process.env` (`launcher.js:605`) for colour only; the launcher never calls `keysForDoor`/`loadKeysEnv` (it uses only `keysHome`, `keysFilePath`, `createKeysFile`, and the chmod at `launcher.js:279`). `runNpm` (`launcher.js:~310`) passes `{ shell: false, stdio: 'inherit' }` with no `env`, so Node gives npm the whole `process.env`; `startCmd` passes `d.env ?? process.env` to the panel (`launcher.js:459`).
+
+**Consequence.** A user with provider keys exported in their shell (case A) hands them to `npm install -g fwdloop@latest` and to whatever npm runs (lifecycle scripts of fwdloop and its dependencies). Keys only in the keys file do not. Smallest fix, described not applied: in `runNpm` pass `env` built from `process.env` minus every name `isKeyName` (`keysfile.js:38`) accepts, e.g. `spawnImpl('npm', args, { shell: false, stdio: 'inherit', env: withoutKeys(process.env) })`. Must-fail test: canary `*_KEY` name in the parent, fake npm lists names, assert absent while PATH/HOME stay. The panel spawn (`launcher.js:459`) needs no cut: the panel is the key user.
