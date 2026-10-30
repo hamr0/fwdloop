@@ -3123,3 +3123,85 @@ same run. Scope is stated when its turn comes.
 - *Built after signing — not signed text (2026-10-30):* built in 80676fe and 869a52b (tests 38d3ee9), copied from bareloop `feat/audit-grid` @c79d396 with the `.mark` glyphs and fwdloop's fold (`fold.tries[].checks`, `gap`); one error text per red try, shown once however many checks failed (fwdloop's close reports one gap, not one per check). Still open: re-check against bareloop's release tag.
 
 **M12 EXIT SIGNED — hamr, 2026-10-30 ("sign m12 exit").** Evidence: flow `ticket-triage` on hamr's real panel, DeepSeek V4.1 Flash via Fireworks, test repo hamr0/hol-guard, GitHub MCP server (`issue_read` in the job, `list_issues` in `schedule.json`), signed ticket filter `priority P1`, watch `state`. run-1 (#6, by hand via the ticket # box) reached its ask, accepted, green $0.00285435. Schedule signed; #1–#6 baseline, never ran. Look 08:06 UTC: #7 (P1) one run, accepted, green $0.00275805; #8 (P3) skipped `priority P3, not P1` $0; #9 (closed) skipped `closed` $0. Look 09:33 UTC: #10 (new P1) one run, green $0.0023706; #9 reopened arrived once (`state closed→open`), one run, green $0.003195; #6 body edit started nothing; #7/#8 never ran again. Run it anyway on #8 (after fix 7bffaee) ran, accepted, green $0.00320175. Books: every run's audit `usd` sum equals its history `spentUsd`; skipped runs 0 and 0. Two live bugs found and fixed before sign-off: 7bffaee (Run it anyway re-skipped), b778d0e (a skipped run shown as a red refusal).
+
+## M13 — one setup for outside sources
+
+**M13 scope — SIGNED by hamr 2026-10-30 ("sign m13"), the text exactly as shown (draft items 1–11, item 9b and the two added Must-fail lines, shown in chat the same day).** Design: `docs/product/m13-setup-mock.html`, `docs/product/m13-settings-mcp-mock.html`; PRD "one setup for outside sources" design talk parts 1 and 2.
+
+1. **Where MCPs come from.** The 4 places bare-agent reads, plus any path you add on Settings > MCP. A project folder's `.mcp.json` is never read. A remote MCP (no start command) is listed but not usable. If two paths have an MCP with the same name, the first in the list wins and the page warns.
+2. **Settings > MCP tab**, as in the mockup.
+   - One "Path and MCP" list. Paths start open, MCPs start folded.
+   - `check tools` starts an MCP once, only when pressed.
+   - Use counts come from what runs already record.
+   - It never edits your config files, and never shows commands or keys.
+3. **MCPs are used as offered.**
+   - What a tool does outside is your responsibility. Scoping is done where the key is made (IAM, fine-grained tokens).
+   - fwdloop's own sends still need a signed destination and an accept.
+   - Hints are shown as info only. M12's read-only refusal is dropped.
+   - Only the tools you sign exist for the run.
+4. **Job card.**
+   - A `Flow type` dropdown: plain, MCP (generic), Tickets. Plus an `MCP` pick for the last two. Both are signed with the job.
+   - Inputs names what to read, and may be empty for MCP (generic).
+   - There's no ticket # box and no `mcp:` keyword.
+5. **MCP (generic).** Steps call the signed tools. Schedule: By hand, or Every day at….
+6. **Tickets.** The ticket list address is an Inputs line.
+   - The first run reads the newest ticket at the time it starts. Older tickets never run.
+   - A ticket is new only if its number is higher than the highest seen. A reopened ticket comes back only through a watched field.
+   - M12's filter, skip and queue engine stays.
+   - A run shows as `<job> #<number>`. Schedule adds `When a new ticket arrives`.
+7. **Schedule on every new job card.**
+   - It's signed in `schedule.json` in the same sign.
+   - It's off until the first green run, then it turns on. While waiting, the Run card shows a grey line: `Schedule waiting for a green run`.
+   - `Schedule run` stays for jobs that had none.
+8. **Result tab, variant B, for every job.**
+   - One grid, with the buckets Needs you / Stopped / Passed / Skipped as fold rows, and a stats line.
+   - Rows are runs, and columns are checks.
+   - A skipped row shows its reason and `Run it anyway`, which asks for a reason first.
+9. **The 7 parked bugs, fixed:**
+   1. A rerun reads its ticket through MCP, with the filter.
+   2. No flood when the seen tickets close (covered by item 6's rule).
+   3. A failed save after a look is recorded as an error, and the panel stays up.
+   4. An unsure label goes to a human.
+   5. An MCP gets only its own settings plus what it needs to start, never your provider keys.
+   6. Run numbers compare as numbers.
+   7. Ticket numbers have an upper limit.
+
+   **9b. M12 walk loose ends, fixed:**
+   1. **A Tickets job's look tool** (`list_issues`) is signed in the job's tool list, like every other tool. It's no longer only in `schedule.json`.
+   2. **"Reuse workflow" from a run that failed preflight** shows "Run now", not "Start drafting", when the plan is unchanged. A root-cause hunt comes first. No fix is guessed before the cause is found.
+   3. **A look that couldn't read** (for example pass locked) shows on the Run card as one line naming the cause. It's never shown as "0 new".
+   4. **The drafter is told every wording of a ticket filter** (for example "priority P1 only" and "only tickets with priority P1 count"). A POC on the real drafter at a few cents proves both wordings give the filter.
+10. **Out of M13:** Tickets URL and Search (M13b), Chat, remote MCPs, gating by hints.
+11. **POCs before each piece, on the real path:**
+    - discovery on your 4 places plus an added path, at $0
+    - `check tools` on a real MCP
+    - a generic MCP job reading through a signed tool
+    - a Tickets first run reading the newest ticket
+    - a schedule that waits through a red run and turns on after a green
+    - closed seen tickets: 0 extra runs
+    - what env an MCP process receives
+
+**Done when.** On your real panel, on deepseek-flash:
+- You add `~/.claude.json` and check an MCP's tools.
+- You set up a Tickets job from the new card, with a schedule, and no special typing.
+- It waits through a red run. After the first green, a new ticket starts one run named `#<n>`, and a non-matching ticket shows as skipped.
+- A generic MCP job runs by hand and goes green.
+- Everything shows in the new Result grid, and the books balance.
+- Plus tests that fail first.
+
+**Must fail when:**
+- a project `.mcp.json` is read
+- `check tools` runs without a press
+- a key or command shows on the page
+- an unsigned tool runs
+- a schedule turns on before a green run
+- an older ticket runs
+- closed seen tickets queue runs
+- a failed save kills the panel
+- a rerun skips the filter
+- a provider key reaches an MCP process
+- a skipped run unbalances the books
+- "Reuse workflow" with an unchanged plan offers a paid redraft
+- an unreadable look reads as "0 new" or shows nowhere
+
+- *Not signed text (2026-10-30):* hamr walked the Audit grid (M4d am36) and Providers fold/selection on the real panel: pass. Both match bareloop v0.52.0 (no change to the grid after `c79d396`; the Providers change is `357a482`, nothing after it).
