@@ -254,6 +254,18 @@ Open points (unsettled):
   - The drafter emitted the ticket filter only for some wordings (`priority P1 only` worked; `only tickets with priority P1 count` did not).
   - The Audit grid (M4d am36) was copied from bareloop's unreleased branch. It must be re-checked against bareloop's release tag.
 
+**Missing requirements found by /branch-review, to discuss before any fix (hamr, 2026-10-30, unsigned).** These fold into this redesign. None is fixed yet; each is discussed first, then fixed. All are in the fix ledger.
+
+1. Rerun of a ticket run reads the issue as a web page, not through MCP (`src/runner.js`): no label or closed check, and the rerun drops off the Result list. Only the read step was reproduced, not a whole rerun.
+2. Flood: when every seen ticket is closed, older open tickets read as new (`src/trigger-tickets.js`). 100 open, the 10 newest closed, 1 new = 91 queued runs; this clashes with signed M12 item 6.
+3. A failed ledger write after a look exits the whole panel (`src/panel/scheduler.js`).
+4. `unsure` from a label is written to run.json and read nowhere (`src/ticket-labels.js`); signed item 4 says an off-scale label goes to a human.
+5. The MCP server is spawned with the full process env, so provider keys can reach a third-party server (`src/ticket-mcp.js`). UNVERIFIED which servers read them.
+6. Digit-join run-id comparison (`src/panel/tickets.js`): `run-3-rerun-1` reads as 31 and beats `run-25`. UNVERIFIED; masked today because a rerun carries no ticket entry.
+7. No upper bound on a numeric ticket value in the body (`src/ticket-draft.js`). UNVERIFIED; ends as a refused start (the page only sends strings).
+
+Items 1-3 are the ones hamr asked about by name; the item numbers match the review report.
+
 *Update 2026-10-30: this ask was signed by hamr as M4d amendment 36 (2026-10-29) and is built on branch `mcp-tickets` (80676fe, 869a52b); the text below is the original unsigned ask, kept as written. The signed text is in docs/wiki/the-module-ladder.md.*
 
 **Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:

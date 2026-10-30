@@ -4645,3 +4645,18 @@ Question: F106 failed because barebrowse 0.26.0 marked no tool `readOnlyHint: tr
 **Win rule: (a) through (f) all PASS: NOT met on the letter ((c) FAIL).** Five of six pass; (c)'s failure reproduces on 0.26.0 and with the lock off, so it is the Chromium page load of Codeberg today, not the tier or lock; the same call on the Firefox engine returns the body.
 
 **Verdict.** The branch does what F106 asked for: tier r tools are all `readOnlyHint: true` and clear M12's gate (b), tools above the tier or outside fwdloop's allow do not exist and are refused (d), the site lock refuses an off-list host and an off-list redirect and `capabilities` reports both (e), and a bad tier or allow stops the server with exit 1 and a named error (f). The pre-registered body read (c) FAILED on the letter on Chromium for a cause not in the branch.
+
+### F107 re-run on published barebrowse 0.27.0 (2026-10-30, $0, no model call)
+
+barebrowse 0.27.0 and bare-agent 0.54.1 installed in a scratch dir; scripts and criteria unchanged. a, b, c, d, e, f all PASS.
+
+- a: PASS. 14 tools at tier r, all readOnlyHint true; assess now loads.
+- c: PASS. Chromium headless, tier r, lock on; a Codeberg issue via browse pruneMode data returned 16,201 chars with both strings. The earlier load timeout did not recur.
+- d: PASS. Tools above the tier are not listed; click refused.
+- e: PASS. Off-list and www-to-bare redirects refused; capabilities shows tier and allowHosts.
+- f: PASS. Bad tier/allow values exit 1 with a named error and 0 tools.
+- Extra, not registered: the "[blocked navigation to <host>]" note is per tab and cleared by that tab's next goto (library, local server). A pending note on one tab while a different tab navigates was not tested.
+- Relaunch: Chromium killed 3 times in each of 2 scripts at tier r; no page load slipped through.
+- Two oddities, cause not traced: right after the kill, a goto to an allowed host that redirects off-list did not return until a 60s client timeout (3 of 3 rounds), and tabs timed out once at 5s. After a relaunch there were 2 tabs both about:blank, with `tabs` showing https://www.github.com/ on tab 1 but about:blank content.
+- Harness note: a symlinked package makes mcp-server.js exit 0 silently (is-main check); a real directory copy works.
+- Results not yet delivered to the browse session (it closed).
