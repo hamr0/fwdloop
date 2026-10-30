@@ -4660,3 +4660,36 @@ barebrowse 0.27.0 and bare-agent 0.54.1 installed in a scratch dir; scripts and 
 - Two oddities, cause not traced: right after the kill, a goto to an allowed host that redirects off-list did not return until a 60s client timeout (3 of 3 rounds), and tabs timed out once at 5s. After a relaunch there were 2 tabs both about:blank, with `tabs` showing https://www.github.com/ on tab 1 but about:blank content.
 - Harness note: a symlinked package makes mcp-server.js exit 0 silently (is-main check); a real directory copy works.
 - Results not yet delivered to the browse session (it closed).
+
+## F108 pre-registration (2026-10-30): MCP discovery over the M13 places — $0
+
+Question: M13 item 1 reads the 4 places bare-agent reads plus an added path. Does bare-agent's own `discoverServers` (from `bare-agent/mcp`, installed 0.54.1, as M13 will use it) do what item 1 says, or must fwdloop do part of it?
+
+**Path.** `discoverServers(paths)` with explicit paths = `~/.mcp.json`, `~/.claude/mcp_servers.json`, `~/.config/Claude/claude_desktop_config.json`, `~/.cursor/mcp.json`, then added `~/.claude.json`, in that order. Script `poc/mcp/f108/f108.mjs`. Prints server NAMES and field NAMES only, never a command, arg or env value.
+
+**Expected on hamr's machine (a $0 read earlier today).** `~/.mcp.json` 1 (github); `~/.claude/mcp_servers.json` 1 (aurora); Desktop and Cursor files missing; `~/.claude.json` 4 (beeper, baremobile, barebrowse, litectx), beeper with no `command`.
+
+**Checks (PASS / FAIL on the letter).**
+(a) Each found file lists its server names; a missing file is reported as missing, and the rest still run. FAIL if a missing file throws or stops the rest.
+(b) A remote server (no `command`) is told apart from a startable one; record exactly which field shows it.
+(c) With a planted `.mcp.json` in a temp cwd holding canary `f108-canary`: discovery WITHOUT explicit paths does not list it; discovery WITH explicit paths never reads cwd either. FAIL if the canary is listed in either case.
+(d) Same server name in two given files (two temp files of my own): record which one the Map keeps. M13 says first wins with a warning; PASS if first is kept, and record that the warning is NOT given by bare-agent (so fwdloop must produce it) if so.
+(e) Nothing starts: no child process during discovery (a canary server whose command would write a file if run; the file must not appear; `ps --ppid` empty).
+(f) No command or env value appears in the script output.
+
+**Win rule.** (a) through (f) all PASS. **Not tested.** Starting any server, `check tools`, the Settings page.
+
+## F109 pre-registration (2026-10-30): what env an MCP process receives — $0
+
+Question: M13 item 9.5 says an MCP gets only its own settings plus what it needs to start, never provider keys. What does `createMCPBridge` give a child today? This POC measures today's behaviour; it is expected to show the leak the review reported, so FAIL here means the item 9.5 fix is needed.
+
+**Path.** `createMCPBridge` as `src/ticket-mcp.js:37` uses it (`configPaths` = one temp config, `allow` list, `confirmServer: () => true`), starting a tiny stdio MCP server written in `poc/mcp/f109/` (answers initialize and tools/list, one tool `env_names`; at start writes the sorted list of its env variable NAMES, names only, to a temp file). Canary values set in the parent before the bridge: `DEEPSEEK_API_KEY=sk-canary-f109-deepseek`, `FIREWORKS_API_KEY=sk-canary-f109-fireworks`, `F109_PLAIN=x`; the server config has `env: {F109_OWN: "own"}`.
+
+**Checks.**
+(a) Do the names `DEEPSEEK_API_KEY` and `FIREWORKS_API_KEY` reach the child? PASS = neither reaches it (no leak); FAIL = leak (expected).
+(b) `F109_OWN` reaches the child. PASS if yes.
+(c) Record `PATH` and `HOME` presence.
+(d) Record the full list of names the child got; run a second time with the parent env cut to PATH, HOME (and the server's own env) and record whether the server still starts. Record whether bare-agent offers any way to not pass the parent env (file:line in `node_modules/bare-agent/src/mcp-bridge.js`).
+(e) Where fwdloop starts the bridge (`src/ticket-mcp.js`) and whether fwdloop could cut the env before spawn without changing bare-agent (file:line). No `src` change.
+
+**Win rule.** (a) and (b) PASS; (c)-(e) are recordings. **Not tested.** Real servers, any model.
