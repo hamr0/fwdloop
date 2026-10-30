@@ -250,9 +250,11 @@ Open points (unsettled):
   - `list_issues` is signed only in `schedule.json` (`trigger.tool`), not in the declaration's `mcp.tools`. The M12 Done-when said both are signed. Settle where a trigger's tool is signed.
   - "Reuse workflow" from a preflight-red run showed **Start drafting** (a paid redraft) instead of **Run now**. Cause not found.
   - An `unreadable` look (for example pass locked) is recorded only in the schedule ledger. Nothing on screen shows it.
-  - A watched change that arrives while the same ticket is still queued queues a second run.
+  - A watched change that arrives while the same ticket is still queued queues a second run. Fixed on this branch (8063c49): a watched change on a ticket still queued queues no second run.
   - The drafter emitted the ticket filter only for some wordings (`priority P1 only` worked; `only tickets with priority P1 count` did not).
   - The Audit grid (M4d am36) was copied from bareloop's unreleased branch. It must be re-checked against bareloop's release tag.
+
+*Update 2026-10-30: this ask was signed by hamr as M4d amendment 36 (2026-10-29) and is built on branch `mcp-tickets` (80676fe, 869a52b); the text below is the original unsigned ask, kept as written. The signed text is in docs/wiki/the-module-ladder.md.*
 
 **Next, not scheduled: the Audit tab's check grid (bareloop variant F)** (hamr, 2026-10-29, unsigned; signed in bareloop by hamr 2026-10-29 as a mockup, not built there yet). Not drafted; it needs its own amendment signed by hamr before it is built here, copied from bareloop's released tag once bareloop builds it. A copy of bareloop's mockup is kept in `.claude/stash/2026-10-29-bareloop-audit-variant-F/` (gitignored). What it is, per bareloop:
 1. Each part keeps its header and tools line. Under it, a check grid: rows are the part's checks in run order with their plain question; columns are try 1..N (with thinking on/off); cells ✓ ✗ · (not run) ? (no verdict). The grid scrolls inside its own box; no page side-scroll at 390px.
