@@ -65,7 +65,7 @@ export function createSettings(cfg) {
   /** The row named by a request, or null: only a key that is in the keys file (or the shell) is a row. @param {any} slot */
   const slotOf = (slot) => (rowNames(keys()).includes(slot) ? slot : null);
 
-  /** config.json, or `{problem}` in plain words when it is broken (never read as "nothing set"). */
+  /** config.json, or `{problem}` in plain words when it is broken (never read as "nothing set"). @returns {{ config: Record<string, any>, problem: string|null }} */
   function config() {
     try { return { config: readConfig({ home: cfg.home }), problem: null }; } catch (e) {
       if (!(e instanceof ConfigError)) throw e;
