@@ -4989,3 +4989,22 @@ Target: signed M13 item 5 ("MCP (generic): steps call the signed tools"), riskie
 | MCP tool wrapper (check, throw, `gateSeen`) | none | harness |
 | goal/class/close check | none (hitl class, `buildEmitArtifactSchema`) | harness check of `ok`, `text`, `done` |
 **Smallest seam M13 needs in `src/`:** (1) `src/runner.js:924`: `grantedTools` is built from `step.primitives` only; add the step's `mcpTools` as wrapped bridge tools to that map (model-step already takes any `{name, description, parameters, execute, gateSeen}` there, `src/model-step.js:373`, and already counts them as granted at `:407`). (2) `src/primitives.js:353` (`resolvePrimitives`, where the step Gate is built): add `tools.allowlist` = the step's fs verbs plus the signed `<server>_<tool>` names, and one wrapper (gate.check, `GateRefusal`, `gateSeen.n += 1`, as `:362-365`). (3) a bridge start per step before the first try and `close()` in a `finally` after the last (runner, around `:924` and the step's return paths). (4) `GateRefusal` needs a non-fs message for a tool refusal (`src/primitives.js:73`). `model-step.js` itself needs no edit.
+
+## F118 PRE-REGISTRATION (2026-10-31, $0, no model call, `src/` and `package.json` unchanged; `poc/mcp/f118/f118.mjs`)
+Target: bare-agent's new bridge-level `cwd` (peer commit 97cd65a on `feat/mcp-bridge-cwd`, unreleased): `createMCPBridge({cwd})`, `listServerTools({cwd})`, `cfg.mcp.cwd`. Agreed shape: a server's own `def.cwd` wins; unset = today; spawn-only, never written to `.mcp-bridge.json`; a bad folder is a `ValidationError` before any spawn; no `~` expansion. Agreed use: fwdloop passes `os.homedir()`. No model call, no `pass`, no key or env value printed. The peer's checkout is read-only to me (`npm pack` into scratch only; `git -C ../bareagent status --short` must be empty afterwards).
+
+**Method.** `npm pack` of the checkout into a scratch dir, installed into a mkdtemp scratch (a real copy, not a symlink); the installed source must contain `validateBridgeCwd`. A second scratch holds the published `bare-agent@0.56.0` for the negative control. The script is run as a bare command; its exit code is the verdict (nonzero if any of (a)-(h), (j) fails). A fake stdio MCP server reports `process.cwd()` through a tool result AND a marker file, and exits on stdin close. Paths are compared by realpath. The harness `chdir`s to its own tmp dir C first, so "parent cwd" differs from folder A.
+
+**Criteria (pass bars).**
+- (a) `createMCPBridge({cwd: A})`: the server's tool result and marker file both equal realpath(A).
+- (b) `cwd` unset: both equal realpath(C), the parent's `process.cwd()`.
+- (c) server `def.cwd = B`, bridge `cwd = A`: both equal realpath(B).
+- (d) `listServerTools({cwd: A})`: the marker file shows the server started in A.
+- (e) bad folders (missing path, a file, relative path, `"~"`, `""`, non-string `42`): each from BOTH `createMCPBridge` and `listServerTools` is a `ValidationError`, and the marker server never wrote its marker (no spawn).
+- (f) `.mcp-bridge.json` written (default discovery mode, explicit `bridgePath`) with bridge `cwd` set exists and does not contain the string A.
+- (g) `passEnv ['PATH','HOME']` with `cwd: A`: server reports A, and a parent marker env var (canary) is absent in the child.
+- (h) negative control: part (a) run against the published `bare-agent@0.56.0`: the server must NOT report A (it reports C). The test can fail: if 0.56.0 reported A, (h) is FAIL.
+- (i) measurement, reported not pass/fail: real servers started as F111b did (from `~/.claude.json`) with `cwd = os.homedir()`, `passEnv ['PATH','HOME']`, `allow` = one tool each. barebrowse `browse` of `https://example.com` returns page text (yes/no, chars, ms). litectx `recall` any query returns ok (an empty result at home is the EXPECTED outcome): record exactly what it returned, ms, and the home top-level listing before/after (only names that appear or vanish are printed). `github` is not started: a stand-in server named `github` is in the config but not in `allow`; its marker must not appear.
+- (j) after `bridge.close()` of every bridge, no descendant of the harness survives a 1.5 s grace (ppid walk, as F116 (e)); leftovers are killed by PID and counted as FAIL.
+
+**Win rule.** (a)-(h) and (j) all PASS, exit 0. Any browser started is killed by PID; `/tmp/barebrowse-*` dirs created by this run are removed. A wrong name or shape in my script stays FAIL on the letter; no bar is refitted.
