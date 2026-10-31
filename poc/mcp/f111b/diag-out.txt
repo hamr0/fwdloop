@@ -1,0 +1,14 @@
+candidates present: DISPLAY,XDG_RUNTIME_DIR,LANG
+passEnv PATH,HOME ms 3619 len 126 example-domain false
+TEXT url: https://example.com
+1,310 chars → 65 chars (95% pruned)
+- link "Learn more" [ref=11]
+  - StaticText "Learn more" [ref=18]
+---
+candidates present: DISPLAY,XDG_RUNTIME_DIR,LANG
+passEnv PATH,HOME,DISPLAY ms 3424 len 126 example-domain false
+TEXT url: https://example.com
+1,310 chars → 65 chars (95% pruned)
+- link "Learn more" [ref=11]
+  - StaticText "Learn more" [ref=18]
+---

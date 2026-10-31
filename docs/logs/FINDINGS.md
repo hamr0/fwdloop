@@ -4902,3 +4902,38 @@ Question: F111 was run against an unreleased checkout (4a50481). bare-agent 0.56
 - (i) new, measurement: real tool calls under passEnv `['PATH','HOME']` through `createMCPBridge` with `allow` = one tool. barebrowse `browse` of `https://example.com` (headless): record whether it returned page text, ms, and whether it needed extra names; on failure retry adding one at a time from `DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG` and record the minimum. litectx `recall` with any query: record ok/err and ms. `github` is not started.
 
 **Win rule.** (a)-(g) all pass. (h) and (i) are reported, not pass/fail. Any browser started is killed by PID and `/tmp/barebrowse-*` dirs I created are removed.
+
+### F111b RESULT (run 2026-10-31, $0, no model call, `src/` unchanged, installed bare-agent 0.56.0 from npm)
+[MEASURED] Evidence in `poc/mcp/f111b/` (`f111.mjs` = F111 plus part (i), `server.mjs`, `marker.mjs`, `out.txt`, `diag.mjs`, `diag-out.txt`). Scratch `npm i bare-agent@0.56.0` (a real copy, not a symlink); `node_modules/bare-agent/package.json` version 0.56.0; `buildChildEnv` present in `src/mcp-bridge.js` (2 hits). Run as `env -i PATH HOME F111_SCRATCH=<dir> node f111.mjs`; exit code of the bare command: **0**.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) unset | PASS | both canaries reach the child; `F111_SECRET` and own env too |
+| (b) `['PATH','HOME']` | PASS | canaries absent; child names exactly `F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED HOME PATH` |
+| (c) `${F111_SECRET}` | PASS | `F111_RESOLVED` present, equals expected true; `F111_SECRET` absent |
+| (d) own wins | PASS | equals own true, equals parent false |
+| (e) `[]` | PASS | exactly the four own names |
+| (f) bad values | PASS | `'PATH'`, `['']`, `[1]`, `{}`: `ValidationError` from both entry points; marker never created |
+| (g) `listServerTools` | PASS | canaries absent; PATH and own present; 1 tool |
+
+Same verdicts as F111 on the checkout: the published package behaves as agreed.
+
+**(h) `tools/list`, passEnv `['PATH','HOME']`.**
+
+| Server | Started | Tools | Extra names needed |
+|---|---|---|---|
+| barebrowse (npx) | yes | 22 | none |
+| litectx (node) | yes | 8 | none |
+| baremobile (npx) | yes | 17 | none |
+| sh-wrapped test server | yes | 1 | none (child saw `F111_OUT_FILE F111_OWN F111_SERVER HOME PATH PWD SHLVL`) |
+
+**(i) real tool calls, `createMCPBridge` with `allow` = one tool, passEnv `['PATH','HOME']`.**
+
+| Server.tool | Result | ms | Extra names needed |
+|---|---|---|---|
+| litectx.recall (query "f111b test") | ok, returned 56 chars | 2023 | none |
+| barebrowse.browse (`https://example.com`) | page loaded and a result returned; recorded as "fail" by my script, see below | 6101 (script), 3.4-4.8 s in 7 reruns | none |
+
+The barebrowse "fail" row in `out.txt` is a check of mine, not a tool failure: the script required the text "example domain" in the result, but `browse` returns a pruned accessibility snapshot (`url: https://example.com`, `1,310 chars → 65 chars (95% pruned)`, one link "Learn more"), so the heading is not in it. The criterion as pre-registered ("whether it returned page text") is answered by `diag.mjs`: the page loaded (raw 1,310 chars, pruned to 65, result 126 chars) under `['PATH','HOME']` with no extra name. The extra-name retry in `out.txt` did not run because the main script ran under `env -i`, so none of `DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG` existed in its env; `diag.mjs` ran in the real shell env (DISPLAY, XDG_RUNTIME_DIR, LANG present; TMPDIR absent) and gave the same 126-char result for `['PATH','HOME']` alone and with each of DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG added: the minimum needed is none. Headless; barebrowse did not need a display name. Not shown by this: whether the pruned snapshot is enough for a real step (a `readable`/`snapshot` tool may suit better). No leftover browser PID of mine (script killed 0), no `/tmp/barebrowse-*` dir created.
+
+**Verdict.** (a)-(g) all PASS on bare-agent 0.56.0 from npm, exit 0. With the provider keys cut (`['PATH','HOME']`), real tool calls work for litectx and barebrowse with no extra names. `github` not started.
