@@ -19,7 +19,7 @@ const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, pr
 test('A: bare-agent 0.56.0 is installed and package.json asks for it', () => {
   const v = JSON.parse(readFileSync(new URL('../node_modules/bare-agent/package.json', import.meta.url), 'utf8')).version;
   assert.match(v, /^0\.52\.|^0\.5[3-9]\.|^0\.[6-9]\d\./);
-  assert.match(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).dependencies['bare-agent'], /0\.54\.1/);
+  assert.match(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).dependencies['bare-agent'], /0\.56\.0/);
 });
 
 test('B1: the row\'s Base URL is the 3rd argument of bareagent\'s lookup (a row of the common chat protocol on a host bareagent knows resolves by that host)', () => {
