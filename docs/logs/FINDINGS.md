@@ -5008,3 +5008,29 @@ Target: bare-agent's new bridge-level `cwd` (peer commit 97cd65a on `feat/mcp-br
 - (j) after `bridge.close()` of every bridge, no descendant of the harness survives a 1.5 s grace (ppid walk, as F116 (e)); leftovers are killed by PID and counted as FAIL.
 
 **Win rule.** (a)-(h) and (j) all PASS, exit 0. Any browser started is killed by PID; `/tmp/barebrowse-*` dirs created by this run are removed. A wrong name or shape in my script stays FAIL on the letter; no bar is refitted.
+
+### F118 RESULT (run 2026-10-31, $0, no model call, `src/` and `package.json` unchanged; `poc/mcp/f118/{f118.mjs,server.mjs,marker.mjs,out.txt}`)
+[MEASURED] Install: `npm pack` of `../bareagent` (branch `feat/mcp-bridge-cwd`, HEAD 97cd65a, package version still 0.56.0) into scratch, installed as a real copy (`node_modules/bare-agent` is a directory, not a symlink); `validateBridgeCwd` appears 3 times in the installed `src/mcp-bridge.js`. Control scratch: published `bare-agent@0.56.0` from npm (0 hits for `validateBridgeCwd`, 2 for `buildChildEnv`). Run as the bare command `F118_NEW=<new> F118_OLD=<old> node f118.mjs`; exit code of that command: **0**. `git -C ../bareagent status --short` was empty before and after.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) `cwd: A` | PASS | tool result and marker file both realpath(A) |
+| (b) unset | PASS | both = C, the harness's `process.cwd()` |
+| (c) `def.cwd=B`, bridge `cwd=A` | PASS | both = B |
+| (d) `listServerTools({cwd: A})` | PASS | marker = A |
+| (e) bad folders | PASS | 12/12 (6 values x both entry points): `ValidationError`, marker never written. Values: missing path, a file, relative `rel/dir`, `"~"`, `""`, `42` |
+| (f) `.mcp-bridge.json` | PASS | file written (363 chars) with `cwd: A`; does not contain A; server did start in A |
+| (g) `passEnv ['PATH','HOME']` + `cwd: A` | PASS | server in A, `F118_CANARY` absent in child (tool result and marker) |
+| (h) negative control, 0.56.0 | PASS (control red as intended) | published 0.56.0 with `cwd: A` silently ignores it: server reports C, not A |
+| (i) real servers, `cwd = os.homedir()` | measurement | see below |
+| (j) no survivors | PASS | 199 descendant PIDs seen over the run (npx, chromium, test servers); 0 alive 1.5 s after the last `close()` |
+
+**(i)** Config from `~/.claude.json` (as F111b), `passEnv ['PATH','HOME']`, `allow` = `barebrowse:[browse]` and `litectx:[recall]`; the bridge exposed exactly `barebrowse_browse, litectx_recall`, `missing: []`.
+- barebrowse `browse` `https://example.com`: returned 126 chars in 2441 ms, the same pruned snapshot as F111b (`1,310 chars -> 65 chars`, link "Learn more"). Page text came back with cwd = home.
+- litectx `recall` ("f118 cwd test"): ok, 56 chars in 11 ms, exactly `{"code": [], "doc": [], "fact": [], "episode": []}` (empty at home, as expected).
+- **Side effect found:** top-level home went 104 -> 105 entries; created `.litectx` (a folder with one file `index.db`, 220 KB, timestamp 09:07:08, during the run); nothing vanished. So litectx creates its store in its start folder: with `cwd = os.homedir()` each first start leaves a `~/.litectx/` in the home folder. This run's copy was left in place (my delete was blocked); it holds only an empty index.
+- `github` stand-in (a marker server named `github` in the config, not in `allow`): never started (marker absent). The real GitHub server was not started, no `pass` touched.
+
+**Cleanup.** Scratch tmp removed by the script; no `/tmp/barebrowse-*` dir exists; no headless browser of mine remains (the only chrome-named process is Beeper's crashpad handler, pid 2037, started yesterday, not mine).
+
+**Verdict.** (a)-(h), (j) PASS, exit 0. Bridge-level `cwd` on 97cd65a does what was agreed. Not tested: `cfg.mcp.cwd` via `bin/cli.js --config`; a folder deleted after validation; fwdloop's own wiring (src untouched). Open for hamr: with `cwd = os.homedir()` litectx writes `~/.litectx/index.db`.
