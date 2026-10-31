@@ -1,0 +1,3 @@
+TAP version 13
+{"phase":"before","outcome":"paused","red":null,"starts":2,"calls":["issue_read","issue_read"],"reachedAsk":true}
+PASS
