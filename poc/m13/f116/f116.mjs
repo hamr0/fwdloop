@@ -61,7 +61,7 @@ const grantedTools = {
 const sum = () => readCalls(runDir).reduce((s, r) => s + (typeof r.costUsd === 'number' ? r.costUsd : 0), 0);
 const step = makeLiveModelStep({ slot: SLOT, model: MODEL, spendPath: join(runDir, 'spend.jsonl'), env: process.env });
 const executorContext = {
-  goal: 'Use the recall tool to look up what is stored about "f111b". Then also try the remember tool to save one line about it. Write what you found in the text field.',
+  goal: process.env.F116_GOAL === 'norem' ? 'Use the recall tool to look up what is stored about "f111b". Write what you found in the text field.' : 'Use the recall tool to look up what is stored about "f111b". Then also try the remember tool to save one line about it. Write what you found in the text field.',
   primitives: [], reads: {}, gap: null,
 };
 const t0 = Date.now();
@@ -83,7 +83,7 @@ await new Promise((r) => setTimeout(r, 1500));
 const alive = before.filter((p) => { try { process.kill(p, 0); return true; } catch { return false; } });
 for (const p of alive) { try { process.kill(p, 'SIGTERM'); } catch {} }
 const out = {
-  runN, wallMs, ok: res.ok, red: res.red ?? null, closeOk, artifactChars: art?.text?.length ?? 0, done: art?.done ?? null, model: res.model, modelMatch: res.modelMatch,
+  runN, wallMs, ok: res.ok, red: res.red ?? null, closeOk, artifactChars: art?.text?.length ?? 0, done: art?.done ?? null, blocker: typeof art?.blocker === 'string' ? art.blocker.slice(0, 300) : (art?.blocker ?? null), textHead: typeof art?.text === 'string' ? art.text.slice(0, 200) : null, model: res.model, modelMatch: res.modelMatch,
   rounds: calls.length, costUsd: res.costUsd, meteredFromDiary: spend, priorSpend: prior, totalSoFar: prior + spend,
   toolsTally: res.tools, ungranted: res.ungranted, refused: res.refused,
   toolRows: tools.map((r) => ({ tool: r.tool, decision: r.decision, rule: r.rule, round: r.round })),

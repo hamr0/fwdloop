@@ -1,0 +1,66 @@
+{
+ "runN": 1,
+ "wallMs": 11775,
+ "ok": true,
+ "red": null,
+ "closeOk": false,
+ "artifactChars": 1658,
+ "done": false,
+ "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+ "modelMatch": "match",
+ "rounds": 6,
+ "costUsd": 0.010091249999999998,
+ "meteredFromDiary": 0.010091249999999998,
+ "priorSpend": 0,
+ "totalSoFar": 0.010091249999999998,
+ "toolsTally": {
+  "litectx_recall": 2,
+  "litectx_remember": 2
+ },
+ "refused": [
+  {
+   "verb": "litectx_remember",
+   "path": "",
+   "rule": "tools.allowlist.exclusive"
+  },
+  {
+   "verb": "litectx_remember",
+   "path": "",
+   "rule": "tools.allowlist.exclusive"
+  }
+ ],
+ "toolRows": [
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 1
+  },
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 2
+  },
+  {
+   "tool": "litectx_remember",
+   "decision": "deny",
+   "rule": "tools.allowlist.exclusive",
+   "round": 3
+  },
+  {
+   "tool": "litectx_remember",
+   "decision": "deny",
+   "rule": "tools.allowlist.exclusive",
+   "round": 4
+  }
+ ],
+ "directRemember": "denied rule=tools.allowlist.exclusive",
+ "rememberReached": 0,
+ "fsUnderAllowlist": "deny",
+ "bridgeChildren": [
+  108217,
+  108226
+ ],
+ "aliveAfterClose": []
+}
