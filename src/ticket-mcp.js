@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { redactSecrets } from './redact.js';
 import { parseTicketList } from './ticket-shape.js';
+import { mcpConfigFor } from './mcp-sources.js';
 
 /** M13 item 9.5: the only parent env names an MCP gets (plus its own settings); the one list for every place fwdloop starts an MCP, so no provider key reaches it */
 export const MCP_PASS_ENV = ['PATH', 'HOME'];
@@ -18,8 +19,21 @@ export const mcpStartOpts = () => ({ passEnv: MCP_PASS_ENV, cwd: homedir() });
 /** the refusal for a failed bridge start: a bad home folder (bare-agent throws ValidationError before any spawn) says so plainly, any other cause keeps its own first line */
 export const startRefusal = (/** @type {string} */ server, /** @type {any} */ e) => `${server} did not start: ${e?.name === 'ValidationError' ? `the home folder could not be used (${firstLine(e)})` : firstLine(e)}`;
 
-/** the user's own MCP config, the only source of a tool */
+/** the user's own `~/.mcp.json`: the config a caller that names no place falls back to (a server found nowhere then reads "not in ~/.mcp.json") */
 export const USER_MCP_CONFIG = () => join(homedir(), '.mcp.json');
+
+/**
+ * M13 piece 3: the config file a server starts from. An explicit path (a test seam) wins; otherwise the file of the WINNING place for `server` (src/mcp-sources.js,
+ * the one decider), or `~/.mcp.json` when no place has it. `remote` true = the winner has no start command (listed, not usable).
+ * @param {string} server @param {string} [explicit] @returns {{ file: string, remote: boolean }}
+ */
+export function configForServer(server, explicit) {
+  if (explicit) return { file: explicit, remote: false };
+  return mcpConfigFor(server) ?? { file: USER_MCP_CONFIG(), remote: false };
+}
+
+/** the refusal for a remote server (no start command), at $0 @param {string} server */
+export const remoteRefusal = (server) => `${server} is a remote server, not supported yet`;
 
 /** the first line of a message, secrets redacted, clipped: all a refusal ever shows of a server's own error */
 export const firstLine = (e) => redactSecrets(String(e?.message ?? e ?? '')).split('\n').find((l) => l.trim() !== '')?.trim().slice(0, 200) ?? 'no message';
@@ -33,14 +47,16 @@ export const isDeviceLogin = (text) => text.includes('github.com/login/device');
  * @returns {Promise<{ok: true, text: string, url: string, record: {server: string, exposed: string[], missing: Array<{server: string, tool: string}>, calls: Array<{tool: string, owner: string, repo: string, issue_number: number}>}} | {ok: false, error: string}>}
  *   `record` is what the run keeps (in its `run.json` input entry): what the server exposed and lacked, and each call made.
  */
-export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MCP_CONFIG(), timeoutMs = 90000 }) {
+export async function readTicketMcp({ listUrl, number, mcp, configPath: explicitConfig, timeoutMs = 90000 }) {
   const list = parseTicketList(listUrl);
   if (!list.ok) return list;
   if (!Number.isInteger(number) || number < 1) return { ok: false, error: `ticket number ${JSON.stringify(number)} is not a whole number from 1` };
   const { owner, repo } = list;
   const { server, tools } = mcp;
   if (!tools.includes('issue_read')) return { ok: false, error: `the job does not list issue_read, the tool that reads a ticket` };
+  const { file: configPath, remote } = configForServer(server, explicitConfig);
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
+  if (remote) return { ok: false, error: remoteRefusal(server) };
   let bridge;
   try {
     bridge = await createMCPBridge({ configPaths: [configPath], ...mcpStartOpts(), timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });

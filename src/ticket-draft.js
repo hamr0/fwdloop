@@ -3,7 +3,7 @@
 // per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read) and a `ticketFilter` (priority / label names); a human
 // signs it and code decides at run. The first facts line is F90c's, the line that made the drafter read a ticket role at all (FINDINGS F90c, F92).
 import { discoverServers } from 'bare-agent/mcp';
-import { USER_MCP_CONFIG } from './ticket-mcp.js';
+import { startableMcpServers } from './mcp-sources.js';
 import { LIST_URL } from './ticket-shape.js';
 
 /** the one tool the first slice reads a ticket with */
@@ -28,9 +28,9 @@ export function ticketRefusals(ticketRole, body) {
   return [];
 }
 
-/** the server names in the user's own `~/.mcp.json` (what the drafter may name); none when the file is missing or unreadable @param {string} [configPath] @returns {string[]} */
-export function userMcpServers(configPath = USER_MCP_CONFIG()) {
-  try { return [...discoverServers([configPath]).keys()]; } catch { return []; }
+/** the startable server names across the MCP sources (src/mcp-sources.js), or in one explicit file (what the drafter may name); none when the file is missing or unreadable @param {string} [configPath] @returns {string[]} */
+export function userMcpServers(configPath) {
+  try { return configPath ? [...discoverServers([configPath]).keys()] : startableMcpServers(); } catch { return []; }
 }
 
 /**

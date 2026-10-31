@@ -7,7 +7,7 @@
 // and `name: #<number>`, so `queueOf`, `recordRan` and `recordDropped` work on it unchanged.
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 
-import { USER_MCP_CONFIG, mcpStartOpts, startRefusal, firstLine, isDeviceLogin } from './ticket-mcp.js';
+import { configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine, isDeviceLogin } from './ticket-mcp.js';
 import { parseTicketList } from './ticket-shape.js';
 import { appendSeen, readSeen, queueOf } from './trigger-files.js';
 
@@ -44,13 +44,15 @@ export function reasonFor(prev, cur, watch) {
  * @returns {Promise<{ok: true, first: boolean, found: Array<{number: number, state: string, labels: string[], createdAt: string|null}>, changed: Array<{number: number, reason: string, state: string, labels: string[]}>, pages: number} | {ok: false, error: string}>}
  */
 export async function lookTickets({
-  listUrl, mcp, configPath = USER_MCP_CONFIG(), seen, last, watch, perPage = 10, timeoutMs = 90000,
+  listUrl, mcp, configPath: explicitConfig, seen, last, watch, perPage = 10, timeoutMs = 90000,
 }) {
   const parsed = parseTicketList(listUrl);
   if (!parsed.ok) return parsed;
   const { owner, repo } = parsed;
   const { server, tool } = mcp;
+  const { file: configPath, remote } = configForServer(server, explicitConfig);
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
+  if (remote) return { ok: false, error: remoteRefusal(server) };
   const first = seen === null;
   let bridge;
   try {

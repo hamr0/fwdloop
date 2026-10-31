@@ -77,7 +77,7 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
-import { readTicketMcp, USER_MCP_CONFIG, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
+import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { mcpToolName } from './primitives.js';
 import { decideTicket, readTicketFields } from './ticket-labels.js';
@@ -1169,8 +1169,9 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
   const signed = opts.step?.mcpTools ?? [];
   if (signed.length === 0 || !mcpServer) return runStepTries(opts);
   const refuse = (/** @type {string} */ red) => ({ ok: /** @type {const} */ (false), outcome: 'preflight-red', red });
-  const config = USER_MCP_CONFIG();
+  const { file: config, remote } = configForServer(mcpServer);
   if (!discoverServers([config]).has(mcpServer)) return refuse(`${mcpServer} is not in ~/.mcp.json`);
+  if (remote) return refuse(remoteRefusal(mcpServer));
   /** @type {any} */
   let bridge;
   try {
