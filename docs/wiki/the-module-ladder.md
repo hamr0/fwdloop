@@ -3205,3 +3205,7 @@ same run. Scope is stated when its turn comes.
 - an unreadable look reads as "0 new" or shows nowhere
 
 - *Not signed text (2026-10-30):* hamr walked the Audit grid (M4d am36) and Providers fold/selection on the real panel: pass. Both match bareloop v0.52.0 (no change to the grid after `c79d396`; the Providers change is `357a482`, nothing after it).
+
+**M13 amendment 1 — SIGNED by hamr 2026-10-31 ("sign m13 am1"), the text exactly as shown.** Why: F110 measured that `fwdloop update` hands shell-exported `*_KEY` settings to `npm install -g fwdloop@latest` and its install scripts.
+
+> **M13 am1:** `fwdloop update` starts npm without any `*_KEY` setting from your shell; the panel still gets its keys.
