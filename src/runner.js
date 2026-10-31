@@ -1163,11 +1163,12 @@ const MCP_CALL_MS = 120000;
  * tool refuses by name at $0 before any provider call, in `readTicketMcp`'s own words (src/ticket-mcp.js). Each tool the model sees is the bridge's, bound to the run's gated entry
  * (`resolvePrimitives`), so every call is the Gate's decision and the model step's diary row. A step with no `mcpTools` takes the plain path, untouched.
  * @param {Parameters<typeof runStepTries>[0] & {mcpServer?: string|null}} opts - `mcpServer`: the job's signed `mcp.server`
+ * @returns {ReturnType<typeof runStepTries>}
  */
 export async function runStepRalph({ mcpServer = null, ...opts }) {
   const signed = opts.step?.mcpTools ?? [];
   if (signed.length === 0 || !mcpServer) return runStepTries(opts);
-  const refuse = (/** @type {string} */ red) => ({ ok: false, outcome: 'preflight-red', red });
+  const refuse = (/** @type {string} */ red) => ({ ok: /** @type {const} */ (false), outcome: 'preflight-red', red });
   const config = USER_MCP_CONFIG();
   if (!discoverServers([config]).has(mcpServer)) return refuse(`${mcpServer} is not in ~/.mcp.json`);
   /** @type {any} */

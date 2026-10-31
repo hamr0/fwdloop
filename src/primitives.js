@@ -436,7 +436,7 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   }
 
   // M13 item 5: one entry per signed MCP tool. The runner binds it to the step's bridge tool; `gatedCall` asks the gate first (the same check, refusal and `gateSeen` as the fs verbs).
-  for (const tool of mcp?.tools ?? []) {
+  if (mcp) for (const tool of mcp.tools) {
     const name = mcpToolName(mcp.server, tool);
     tools[name] = {
       name,
