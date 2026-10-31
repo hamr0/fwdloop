@@ -876,9 +876,15 @@ async function cmdDraft(rest) {
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
+      // M13 piece 4: the job's flow type (plain | mcp | tickets) and its MCP server, from the card; the tools come from that server's newest OK `check tools` (never a started server)
+      'flow-type': { type: 'string' }, mcp: { type: 'string' },
     },
     allowPositionals: true,
   });
+  const flowType = values['flow-type'] ?? 'plain';
+  if (!['plain', 'mcp', 'tickets'].includes(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
+  if (flowType === 'plain' && values.mcp !== undefined) fail('draft: --mcp goes with --flow-type mcp or tickets');
+  if (flowType !== 'plain' && !values.mcp) fail(`draft: --flow-type ${flowType} needs --mcp <server>`);
   const keysLoad = keyedLoad();
   const { env } = keysLoad;
   const proseFile = positionals[0];
@@ -951,6 +957,8 @@ async function cmdDraft(rest) {
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
     draftThinking: values.thinking === true ? 'on' : 'off',
+    flowType,
+    ...(values.mcp ? { mcpServer: values.mcp } : {}),
     env,
     keyNames: keysLoad.keyNames,
     ...pick,

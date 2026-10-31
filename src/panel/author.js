@@ -380,7 +380,9 @@ export function createAuthor(opts) {
   }
 
   /** The flags that make a draft child use the card's model and thinking choice. @param {any} card */
-  const modelArgv = (card) => ['--model', card.model, '--provider', card.provider, ...(card.thinking === true ? ['--thinking'] : [])];
+  const modelArgv = (card) => ['--model', card.model, '--provider', card.provider, ...(card.thinking === true ? ['--thinking'] : []),
+    // M13 piece 4: the card's Flow type and MCP ride every draft of the job (first, revised, redrafted)
+    ...(card.flowType ? ['--flow-type', card.flowType, '--mcp', card.mcp] : [])];
 
   /**
    * The $0 checks both a first draft and a revise run on the card as submitted: the card's own checks (a key value, the flow name,

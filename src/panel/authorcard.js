@@ -19,6 +19,10 @@ import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
 import { capTooSmallText } from '../draftspend.js';
+import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
+import { mcpPickFor } from '../mcp-pick.js';
+import { isTicketListUrl } from '../ticket-draft.js';
+import { remoteRefusal } from '../ticket-mcp.js';
 import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
 /** The heading line the prose files use (flows/job2-m6a-3/prose.txt); the parser matches `/^arbiter guardrails\b/i`. */
@@ -182,6 +186,8 @@ export function cardFields(body) {
     // M4d amendment 6: the picked model (a key name and a model id from Chat's menu) and the per-job "Thinking on" tick; present only when sent
     ...(str(b.provider).trim() !== '' || str(b.model).trim() !== '' ? { provider: str(b.provider).trim(), model: str(b.model).trim() } : {}),
     ...(b.thinking === true ? { thinking: true } : {}),
+    // M13 piece 4: the Flow type (plain | mcp | tickets) and the MCP pick; sent only when the card names one, signed with the job
+    ...(str(b.flowType).trim() !== '' && str(b.flowType).trim() !== 'plain' ? { flowType: str(b.flowType).trim(), mcp: str(b.mcp).trim() } : {}),
   };
 }
 
@@ -388,6 +394,21 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
   if (dest !== '') {
     const why = destinationRefusal(dest, root);
     if (why !== null) no('destination', why);
+  }
+
+  // M13 piece 4: the Flow type and its MCP. MCP (generic) and Tickets name an MCP fwdloop can start whose tools have been checked (R1: the job gets every tool of the newest OK check;
+  // never a started server here). Tickets needs the ticket list address as an Inputs line; MCP (generic) may have none.
+  const flow = /** @type {{flowType?: string, mcp?: string}} */ (card).flowType ?? 'plain';
+  if (!['plain', 'mcp', 'tickets'].includes(flow)) no('flowType', 'Flow type must be plain, MCP (generic) or Tickets.');
+  else if (flow !== 'plain') {
+    const server = String(/** @type {any} */ (card).mcp ?? '');
+    if (server === '') no('mcp', 'Pick an MCP.');
+    else if (!startableMcpServers({ home }).includes(server)) no('mcp', mcpConfigFor(server, { home })?.remote ? remoteRefusal(server) : `${server} is not an MCP fwdloop can start (Settings > MCP lists the ones found).`);
+    else {
+      const pick = mcpPickFor(server, home);
+      if (!pick.ok) no('mcp', pick.say);
+    }
+    if (flow === 'tickets' && !parseInputLines(card.inputs).some((i) => isTicketListUrl(i.path))) no('inputs', 'Tickets needs the ticket list address as an Inputs line (for example issues: https://github.com/owner/repo/issues).');
   }
 
   // inputs: one `name: path` per line; a role and a path on every line, no repeated role; each path a readable regular file (realpath)
