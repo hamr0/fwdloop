@@ -22,18 +22,27 @@ import { SHAPES } from '../providershapes.js';
 import { keysForDoor, isKeyName } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
 import { openInOs } from '../opener.js';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { listServerTools } from 'bare-agent/mcp';
+import { configHome, mcpPathProblem } from '../config.js';
+import { mcpSources, expandMcpPath, DEFAULT_MCP_PLACES } from '../mcp-sources.js';
+import { countMcpUse } from '../mcp-use.js';
+import { mcpStartOpts } from '../ticket-mcp.js';
 
 const TIMEOUT_MS = 4000;
+const MCP_CHECK_MS = 15000;
+/** the append-only log of `check tools` presses, beside config.json (M13 piece 3, hamr 2026-10-31): one line per press, never rewritten */
+export const MCP_CHECKS_FILE = 'mcp-checks.jsonl';
 
 const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.';
 
 const isNumberAbove0 = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 /**
- * @param {{ home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }} cfg
- *   `home` the config home (undefined = the real `~/.config/fwdloop`); `skip` true under a test process
+ * @param {{ root?: string, home?: string, skip?: boolean, env?: Record<string,string|undefined>, fetch?: typeof fetch, now?: () => number, openFolderSpawn?: (cmd: string, args: string[], o: object) => any, platform?: string }} cfg
+ *   `root` the jobs folder (the MCP use counts read its runs); `home` the config home (undefined = the real `~/.config/fwdloop`); `skip` true under a test process
  *   with no `FWDLOOP_CONFIG_HOME` (Settings then touches nothing); `env` the shell side (tests only);
  *   `fetch` and `now` are test seams.
  */
@@ -290,18 +299,143 @@ export function createSettings(cfg) {
     return reply(200, { ok: true, monthlyLimitUsd: clear ? null : raw });
   }
 
+  // ---- M13 piece 3: Settings > MCP. Reads the MCP config files (never writes them) and shows names, flags and counts only: no command, args, env or key.
+  /** @type {Set<string>} */
+  const checking = new Set();
+  const checksFile = () => join(configHome(cfg.home), MCP_CHECKS_FILE);
+
+  /** the newest line of the check log per `path\tserver`; a torn or foreign line is skipped @returns {Map<string, any>} */
+  function newestChecks() {
+    const out = new Map();
+    let text = '';
+    try { text = readFileSync(checksFile(), 'utf8'); } catch { return out; }
+    for (const line of text.split('\n')) {
+      let r;
+      try { r = JSON.parse(line); } catch { continue; }
+      if (typeof r?.server !== 'string' || typeof r?.path !== 'string' || typeof r?.at !== 'string') continue;
+      out.set(`${r.path}\t${r.server}`, r);
+    }
+    return out;
+  }
+
+  /** a tool hint as the page shows it: only `readOnlyHint: true` is a hint; anything else is "no hint" (null) @param {any} a */
+  const hintOf = (a) => (a?.readOnlyHint === true ? 'read-only' : null);
+
+  function mcpGet() {
+    const src = mcpSources({ home: cfg.home });
+    const names = [...new Set(src.places.flatMap((p) => p.servers.map((x) => x.name)))];
+    const use = cfg.root ? countMcpUse(cfg.root, names) : new Map();
+    const checks = newestChecks();
+    const places = src.places.map((p) => ({
+      path: p.path,
+      added: p.added,
+      status: p.status,
+      servers: p.servers.map((x) => {
+        const u = use.get(x.name);
+        const c = x.remote || x.shadowedBy !== null ? null : checks.get(`${p.path}\t${x.name}`) ?? null;
+        return {
+          name: x.name,
+          remote: x.remote,
+          shadowedBy: x.shadowedBy,
+          check: c === null ? null : (c.ok === true && Array.isArray(c.tools)
+            ? { at: c.at, ok: true, tools: c.tools.map((/** @type {any} */ t) => ({ name: String(t?.name), hint: t?.hint === 'read-only' ? 'read-only' : null })) }
+            : { at: c.at, ok: false, error: typeof c.error === 'string' ? c.error : 'The check failed.' }),
+          use: x.remote || x.shadowedBy !== null || !u ? null : { calls: u.calls, runs: u.runs, last: u.last, denied: u.denied, tools: Object.fromEntries(u.tools) },
+        };
+      }),
+    }));
+    return reply(200, { ok: true, problem: src.problem, places });
+  }
+
+  /** the plain sentence for a failed `check tools`; the library's own message can hold the start command, so it is never passed on @param {any} e */
+  function checkFailure(e) {
+    if (e?.context?.timeout === true) return 'The server did not answer in time.';
+    if (e?.context?.spawnError === true) return 'The server did not start.';
+    if (e?.context?.notFound === true) return 'The server is not in the list any more.';
+    return 'The check failed.';
+  }
+
+  /** The one place a press starts a server: ONLY from this POST (never a page load or a GET), that one server, once, with the same start options as a run. */
+  async function mcpCheck(body) {
+    const server = body?.server;
+    if (typeof server !== 'string' || server === '') return refuse('bad-server', 'Pick an MCP to check. Nothing was started.');
+    const place = mcpSources({ home: cfg.home }).places.find((p) => p.servers.some((x) => x.name === server));
+    const row = place?.servers.find((x) => x.name === server);
+    if (!place || !row) return refuse('unknown-mcp', 'That MCP is not in the list. Nothing was started.');
+    if (row.remote) return refuse('remote-mcp', 'A remote server is not supported yet. Nothing was started.');
+    if (row.shadowedBy !== null) return refuse('shadowed-mcp', 'An earlier path has an MCP with this name, so this one is not used. Nothing was started.');
+    if (checking.has(server)) return refuse('already-checking', 'That MCP is being checked right now.', 409);
+    checking.add(server);
+    const line = { server, path: place.path, at: new Date(cfg.now ? cfg.now() : Date.now()).toISOString() };
+    try {
+      let entry;
+      try {
+        const tools = await listServerTools({ server, configPaths: [place.file], ...mcpStartOpts(), confirmServer: () => true, timeout: MCP_CHECK_MS });
+        entry = { ...line, ok: true, tools: tools.map((t) => ({ name: t.name, hint: hintOf(t.annotations) })) };
+      } catch (e) {
+        entry = { ...line, ok: false, error: checkFailure(e) };
+      }
+      try {
+        mkdirSync(configHome(cfg.home), { recursive: true, mode: 0o700 });
+        appendFileSync(checksFile(), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+      } catch {
+        return refuse('log-failed', 'The check ran but its result could not be saved.', 500);
+      }
+      return reply(200, { ok: true, checked: entry.ok });
+    } finally {
+      checking.delete(server);
+    }
+  }
+
+  function mcpPathAdd(body) {
+    const typed = typeof body?.path === 'string' ? body.path.trim() : body?.path;
+    const why = mcpPathProblem(typed);
+    if (why) return refuse('bad-path', `The path ${why}. Nothing was saved.`);
+    const c = config();
+    if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    const list = Array.isArray(c.config.mcpPaths) ? c.config.mcpPaths : [];
+    const same = (/** @type {string} */ a) => expandMcpPath(a) === expandMcpPath(typed);
+    if (DEFAULT_MCP_PLACES().some(same) || list.some(same)) return refuse('path-listed', 'That path is already in the list. Nothing was saved.');
+    try {
+      updateConfig({ mcpPaths: [...list, typed] }, { home: cfg.home });
+    } catch (e) {
+      if (!(e instanceof ConfigError)) throw e;
+      return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    }
+    return reply(200, { ok: true, path: typed });
+  }
+
+  function mcpPathRemove(body) {
+    const c = config();
+    if (c.problem) return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    const list = Array.isArray(c.config.mcpPaths) ? c.config.mcpPaths : [];
+    if (typeof body?.path !== 'string' || !list.includes(body.path)) return refuse('path-unknown', 'That path is not one you added. Nothing was changed.');
+    const next = list.filter((/** @type {string} */ p) => p !== body.path);
+    try {
+      updateConfig({ mcpPaths: next.length ? next : null }, { home: cfg.home });
+    } catch (e) {
+      if (!(e instanceof ConfigError)) throw e;
+      return refuse('config-broken', `${BROKEN_CONFIG} Nothing was saved.`);
+    }
+    return reply(200, { ok: true });
+  }
+
   /**
    * @param {{ method: string, pathname: string, query: URLSearchParams, body: any }} r
    * @returns {Promise<{ status: number, body: any }>}
    */
   async function handle({ method, pathname, query, body }) {
     if (cfg.skip) return refuse('settings-unavailable', 'Settings is not available here.', 404);
-    const known = { GET: ['/api/settings/providers', '/api/settings/money'], POST: ['/api/settings/open-keys-folder', '/api/settings/test', '/api/settings/models', '/api/settings/model', '/api/settings/provider', '/api/settings/money'] };
+    const known = { GET: ['/api/settings/providers', '/api/settings/money', '/api/settings/mcp'], POST: ['/api/settings/mcp-check', '/api/settings/mcp-path', '/api/settings/mcp-path-remove', '/api/settings/open-keys-folder', '/api/settings/test', '/api/settings/models', '/api/settings/model', '/api/settings/provider', '/api/settings/money'] };
     if (!(known[method] ?? []).includes(pathname)) return refuse('no-such-settings-route', 'Settings cannot do that. Keys are typed into your keys file by hand.', 404);
     if (method === 'GET') {
       if (pathname === '/api/settings/providers') return providers();
+      if (pathname === '/api/settings/mcp') return mcpGet();
       return moneyGet();
     }
+    if (pathname === '/api/settings/mcp-check') return mcpCheck(body);
+    if (pathname === '/api/settings/mcp-path') return mcpPathAdd(body);
+    if (pathname === '/api/settings/mcp-path-remove') return mcpPathRemove(body);
     if (pathname === '/api/settings/open-keys-folder') return openKeysFolder(body);
     if (pathname === '/api/settings/test') return test(body);
     if (pathname === '/api/settings/models') return models(body);
