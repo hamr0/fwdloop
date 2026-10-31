@@ -60,6 +60,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'refused',
   'inputFacts',
   'mcp',
+  'flowType',
   'ticketFilter',
   'ticketWatch',
   // step level
@@ -87,9 +88,37 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'ticketFilter', 'ticketWatch']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
 const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+
+/** M13 piece 4 (signed item 4): the job's flow type, set by code from the job card, signed with the job. */
+export const FLOW_TYPES = Object.freeze(['plain', 'mcp', 'tickets']);
+
+/**
+ * M13 piece 4: the ONE reader of a job's flow type. The field when present; a job signed before it existed (M12 shape: an `mcp` block, no `flowType`) is a Tickets
+ * job, since M12 only had ticket jobs; no `mcp` block is plain.
+ * @param {Record<string, any>} declaration @returns {'plain'|'mcp'|'tickets'}
+ */
+export function flowTypeOf(declaration) {
+  if (typeof declaration?.flowType === 'string' && FLOW_TYPES.includes(declaration.flowType)) return /** @type {any} */ (declaration.flowType);
+  return declaration?.mcp ? 'tickets' : 'plain';
+}
+
+/** M13 piece 4: `flowType` (optional on a job signed before M13) must be one of the three, and agree with the `mcp` block.
+ *  @param {Record<string, any>} declaration @param {string[]} reds */
+function checkFlowType(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'flowType')) return;
+  const t = declaration.flowType;
+  if (typeof t !== 'string' || !FLOW_TYPES.includes(t)) { reds.push('declaration: flowType must be plain, mcp or tickets'); return; }
+  const hasMcp = Object.hasOwn(declaration, 'mcp');
+  if (t === 'plain' && hasMcp) reds.push('declaration: flowType "plain" takes no "mcp" server');
+  if (t !== 'plain' && !hasMcp) reds.push(`declaration: flowType "${t}" needs an "mcp" server`);
+  if (t !== 'tickets') {
+    if (Object.hasOwn(declaration, 'ticketFilter')) reds.push('declaration: "ticketFilter" belongs to a Tickets job');
+    if (Object.hasOwn(declaration, 'ticketWatch')) reds.push('declaration: "ticketWatch" belongs to a Tickets job');
+  }
+}
 
 /** M12 piece 1a: the ONE shape of an MCP server or tool name in a job (the bridge names a tool `<server>_<tool>`). */
 const MCP_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -769,6 +798,7 @@ export function validateDeclaration(declaration, context = {}) {
   }
 
   // --- M12 piece 1a: the job's MCP tools (optional) -------------------------------
+  checkFlowType(declaration, reds);
   const mcpTools = checkMcp(declaration, reds);
   checkTicketFilter(declaration, reds);
   checkTicketWatch(declaration, reds);

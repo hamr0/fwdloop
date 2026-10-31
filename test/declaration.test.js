@@ -182,6 +182,10 @@ const FIELD_META = {
   mcpTools: {
     level: 'step', required: false, needle: 'mcpTools', retype: () => 'issue_read', invalid: () => ['issue_read'],
   },
+  // M13 piece 4: the job's flow type (top), optional (a job signed before M13 has none)
+  flowType: {
+    level: 'top', required: false, needle: 'flowType', retype: () => 42, invalid: () => 'chat',
+  },
   // M12 piece 3: the signed label filter (top), optional
   ticketFilter: {
     level: 'top', required: false, needle: 'ticketFilter', retype: () => 'P2', invalid: () => ({ priority: [] }),
@@ -299,6 +303,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'picks', level: 'step' },
   { field: 'mcp', level: 'top' },
   { field: 'mcpTools', level: 'step' },
+  { field: 'flowType', level: 'top' },
   { field: 'ticketFilter', level: 'top' },
   { field: 'ticketWatch', level: 'top' },
   { field: 'class', level: 'close' },
