@@ -238,6 +238,40 @@ for (const width of [1280, 390, 320]) {
   });
 }
 
+for (const width of [1280, 390, 320]) {
+  test(`the MCP tab at ${width}px: a shadowed MCP says "same name as above, not used", an unreadable file says "can't be read", a failed check is one fixed red sentence; no sideways scroll`, { skip: SKIP && 'no browser' }, async (t) => {
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    const w = world(t, {
+      '.mcp.json': { mcpServers: { dup: fakeServer(), ghost: { command: `/nonexistent/${CMD}/serve`, args: ['--token', KEY] } } },
+      '.cursor/mcp.json': { mcpServers: { dup: fakeServer() } },
+    });
+    mkdirSync(path.join(w.home, '.claude'), { recursive: true });
+    writeFileSync(path.join(w.home, '.claude', 'mcp_servers.json'), '{ not json');
+    const h = remember(await createPanelServer({ port: 0, root: w.root, settings: { home: w.cfg, env: {} } }));
+    HANDLES.push(h);
+    await chrome.open(`http://127.0.0.1:${h.port}/`, width);
+    await chrome.ev('document.getElementById("settings-open").click()');
+    await chrome.ev('document.getElementById("stab-mcp").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll("[data-testid=mcp-row]").length === 3'), 'the rows did not paint');
+    const heads = JSON.parse(await chrome.ev('JSON.stringify(Array.prototype.map.call(document.querySelectorAll("[data-testid=mcp-path] .mc-grow"), function(e){ return e.textContent; }))'));
+    assert.ok(heads.some((x) => x.includes('~/.claude/mcp_servers.json') && x.endsWith("can't be read")), JSON.stringify(heads));
+    assert.ok(heads.some((x) => x.includes('~/.config/Claude/claude_desktop_config.json') && x.endsWith('not found')), JSON.stringify(heads));
+    const rows = JSON.parse(await chrome.ev('JSON.stringify(Array.prototype.map.call(document.querySelectorAll("[data-testid=mcp-row]"), function(r){ return r.querySelector("code").textContent + "|" + r.querySelectorAll(".pv-cell")[1].textContent + "|" + (r.querySelector("[data-testid=mcp-check]") ? 1 : 0) + "|" + (r.querySelector(".mc-use") ? 1 : 0); }))'));
+    assert.ok(rows.includes('dup|Toolssame name as above, not used|0|0'), JSON.stringify(rows));
+    // a failed check: one fixed sentence under that MCP, never the library's words
+    await chrome.ev('Array.prototype.forEach.call(document.querySelectorAll("[data-testid=mcp-row]"), function(r){ if(r.querySelector("code").textContent === "ghost") r.querySelector("[data-testid=mcp-check]").click(); })');
+    assert.ok(await chrome.waitFor('document.querySelector(".pv-more .hint.bad") !== null'), 'no red sentence');
+    const red = JSON.parse(await chrome.ev('JSON.stringify(Array.prototype.map.call(document.querySelectorAll(".pv-more .hint.bad"), function(e){ return e.textContent; }))'));
+    assert.deepEqual(red, ['The server did not start.']);
+    assert.equal(await chrome.ev('document.documentElement.scrollWidth - document.documentElement.clientWidth'), 0, 'the page scrolls sideways');
+    assert.equal(await chrome.ev('(function(){var x=document.querySelector("[data-testid=mcp-table-wrap]");return x.scrollWidth-x.clientWidth;})()'), 0, 'the table scrolls sideways');
+    const html = await chrome.ev('document.documentElement.outerHTML');
+    assert.ok(!html.includes(KEY) && !html.includes(CMD), 'a key or command is in the page');
+  });
+}
+
 test('mcpSources reads only explicit places: a scratch HOME with nothing in it lists the four places as missing', async (t) => {
   const w = world(t);
   assert.deepEqual(mcpSources({ home: w.cfg }).places.map((p) => [p.path, p.status]), [['~/.mcp.json', 'missing'], ['~/.claude/mcp_servers.json', 'missing'], ['~/.config/Claude/claude_desktop_config.json', 'missing'], ['~/.cursor/mcp.json', 'missing']]);

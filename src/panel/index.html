@@ -7274,7 +7274,7 @@
     var open = mcpSrvOpen[key] === true;
     var ok = s.check && s.check.ok === true;
     var idle = s.remote || s.shadowedBy !== null;
-    var tools = s.remote ? '<span class="hint">remote server, not supported yet</span>' : idle ? "—" : ok ? s.check.tools.length + (s.check.tools.length === 1 ? " tool" : " tools") : s.check ? "—" : "never checked";
+    var tools = s.remote ? '<span class="hint">remote server, not supported yet</span>' : s.shadowedBy !== null ? '<span class="hint">same name as above, not used</span>' : idle ? "—" : ok ? s.check.tools.length + (s.check.tools.length === 1 ? " tool" : " tools") : s.check ? "—" : "never checked";
     var at = s.check ? mcpClock(s.check.at) : "";
     var checked = idle ? "—" : s.check ? "checked " + (at ? at.text : "") : "never checked";
     var busy = mcpBusy[key] === true;
@@ -7308,7 +7308,7 @@
     var h = '<div class="pv-head mc-k" aria-hidden="true"><span>PATH / MCP</span><span>TOOLS</span><span>CHECKED</span><span></span></div>';
     mcpData.places.forEach(function(g, pi){
       var found = g.status === "found", n = g.servers.length, open = mcpPathFold[g.path] !== false;
-      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + "not found";
+      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + (g.status === "unreadable" ? "can't be read" : "not found");
       h += '<div class="mc-grp" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-path"><div class="mc-prow' + (found ? "" : " faint") + '">' +
         (found ? '<button class="pv-fold" type="button" data-pfold="' + pi + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><span class="pv-ok">✓</span>' : '<span class="pv-fold" style="display:inline-block">&nbsp;</span><span>–</span>') +
         '<span class="mc-grow"><code>' + escapeXml(g.path) + '</code>' + escapeXml(note) + '</span>' +
