@@ -77,7 +77,7 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
-import { readTicketMcp, USER_MCP_CONFIG, MCP_PASS_ENV, firstLine } from './ticket-mcp.js';
+import { readTicketMcp, USER_MCP_CONFIG, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { mcpToolName } from './primitives.js';
 import { decideTicket, readTicketFields } from './ticket-labels.js';
@@ -1174,9 +1174,9 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
   /** @type {any} */
   let bridge;
   try {
-    bridge = await createMCPBridge({ configPaths: [config], passEnv: MCP_PASS_ENV, timeout: MCP_START_MS, callTimeout: MCP_CALL_MS, confirmServer: () => true, allow: { [mcpServer]: signed } });
+    bridge = await createMCPBridge({ configPaths: [config], ...mcpStartOpts(), timeout: MCP_START_MS, callTimeout: MCP_CALL_MS, confirmServer: () => true, allow: { [mcpServer]: signed } });
   } catch (/** @type {any} */ e) {
-    return refuse(`${mcpServer} did not start: ${firstLine(e)}`);
+    return refuse(startRefusal(mcpServer, e));
   }
   try {
     const failed = bridge.errors.find((/** @type {any} */ e) => e.server === mcpServer);

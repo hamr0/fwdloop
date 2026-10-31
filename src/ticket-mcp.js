@@ -12,6 +12,12 @@ import { parseTicketList } from './ticket-shape.js';
 /** M13 item 9.5: the only parent env names an MCP gets (plus its own settings); the one list for every place fwdloop starts an MCP, so no provider key reaches it */
 export const MCP_PASS_ENV = ['PATH', 'HOME'];
 
+/** M13 design point 11 (F118): the one start option set for every place fwdloop starts an MCP: no provider key (passEnv) and the home folder as the start folder (bare-agent bridge `cwd`; no `~` expansion, so the real path) */
+export const mcpStartOpts = () => ({ passEnv: MCP_PASS_ENV, cwd: homedir() });
+
+/** the refusal for a failed bridge start: a bad home folder (bare-agent throws ValidationError before any spawn) says so plainly, any other cause keeps its own first line */
+export const startRefusal = (/** @type {string} */ server, /** @type {any} */ e) => `${server} did not start: ${e?.name === 'ValidationError' ? `the home folder could not be used (${firstLine(e)})` : firstLine(e)}`;
+
 /** the user's own MCP config, the only source of a tool */
 export const USER_MCP_CONFIG = () => join(homedir(), '.mcp.json');
 
@@ -37,7 +43,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
   let bridge;
   try {
-    bridge = await createMCPBridge({ configPaths: [configPath], passEnv: MCP_PASS_ENV, timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
+    bridge = await createMCPBridge({ configPaths: [configPath], ...mcpStartOpts(), timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
     const failed = bridge.errors.find((e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
     const lacking = bridge.missing?.[0];
@@ -62,7 +68,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
     if (text.trim() === '') return { ok: false, error: `${server}: issue_read returned nothing for ${url}` };
     return { ok: true, text, url, record };
   } catch (e) {
-    return { ok: false, error: `${server} did not start: ${firstLine(e)}` };
+    return { ok: false, error: startRefusal(server, e) };
   } finally {
     try { await bridge?.close(); } catch { /* already closed */ }
   }
