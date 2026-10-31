@@ -16,16 +16,35 @@ export function appendMcpCheck(home, entry) {
   appendFileSync(mcpChecksFile(home), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
 }
 
-/** the newest line per `path\tserver` @param {string|undefined} home @returns {Map<string, any>} */
-export function newestMcpChecks(home) {
-  const out = new Map();
+/** every well-formed line, oldest first; none when the file is missing @param {string|undefined} home @returns {any[]} */
+function checkLines(home) {
   let text = '';
-  try { text = readFileSync(mcpChecksFile(home), 'utf8'); } catch { return out; }
+  try { text = readFileSync(mcpChecksFile(home), 'utf8'); } catch { return []; }
+  const out = [];
   for (const line of text.split('\n')) {
     let r;
     try { r = JSON.parse(line); } catch { continue; }
     if (typeof r?.server !== 'string' || typeof r?.path !== 'string' || typeof r?.at !== 'string') continue;
-    out.set(`${r.path}\t${r.server}`, r);
+    out.push(r);
   }
   return out;
+}
+
+/** the newest line per `path\tserver` @param {string|undefined} home @returns {Map<string, any>} */
+export function newestMcpChecks(home) {
+  const out = new Map();
+  for (const r of checkLines(home)) out.set(`${r.path}\t${r.server}`, r);
+  return out;
+}
+
+/** M13 piece 4 (R1): the tool names of the newest OK line (with at least one tool) for this server at this path, or null @param {string|undefined} home @param {string} server @param {string} path @returns {string[]|null} */
+export function newestOkMcpTools(home, server, path) {
+  /** @type {string[]|null} */
+  let tools = null;
+  for (const r of checkLines(home)) {
+    if (r.server !== server || r.path !== path || r.ok !== true || !Array.isArray(r.tools)) continue;
+    const names = r.tools.map((/** @type {any} */ x) => x?.name).filter((/** @type {unknown} */ n) => typeof n === 'string' && n !== '');
+    if (names.length > 0) tools = [...new Set(names)];
+  }
+  return tools;
 }
