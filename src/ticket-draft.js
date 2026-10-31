@@ -34,29 +34,40 @@ export function userMcpServers(configPath) {
 }
 
 /**
- * The lines under "Inputs" for one ticket role. The first is F90c's, word for word; the rest tell the drafter the two optional fields it may suggest.
- * @param {string} role @param {string[]} servers @returns {string[]}
+ * The lines under "Inputs" for one ticket role (M13 piece 4: flow type Tickets). The first is F90c's, word for word. The ticket is already frozen under its role and the job's own
+ * tools (`issue_read` to read it, `list_issues` to look for new ones) belong to the job, so no step needs them; a step lists a tool only if it calls it live.
+ * @param {string} role @returns {string[]}
  */
-export function ticketFactsLines(role, servers) {
+export function ticketFactsLines(role) {
   return [
     `- ${role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${role}" in a step's reads, do not fetch it)`,
-    `  The ticket is read through the job's MCP tool "${TICKET_TOOL}" (read-only). Declare the top-level "mcp": {"server": one of ${servers.join(', ')}, "tools": ["${TICKET_TOOL}"]} and put "${TICKET_TOOL}" in "mcpTools" of the step that reads "${role}"; no other step gets it.`,
+    `  Flow type: Tickets. The ticket is already frozen under "${role}" by the job's own tools ("${TICKET_TOOL}" reads it, "${LOOK_TOOL}" looks for new ones); no step needs them. A step lists a tool in "mcpTools" ONLY if that step calls the tool live; leave "mcpTools" out of every other step. The job's server and tool list are set by the program, not by you.`,
     '  You may SUGGEST a top-level "ticketFilter": {"priority": [P0 to P3 values], "labels": [label names]} ONLY for a guardrail that names a priority or a label (for example "priority P2 only", "only issues labelled bug"); leave it out for any other guardrail, which stays hitl. A human signs it and code decides at run; never invent a label.',
     '  You may SUGGEST a top-level "ticketWatch": ["state", "labels"] (one or both) ONLY for a guardrail that says to run a ticket again when its state or its labels change. Any other thing to watch cannot be put there: leave it out and it stays hitl.',
   ];
 }
 
-/** the schema parts a job with a ticket role adds: top-level `mcp` and `ticketFilter`, per-step `mcpTools` @param {string[]} servers */
-export function ticketSchemaParts(servers) {
+/** the lines for a generic MCP job: the server, its tool names (so the drafter can grant them to steps), and the rule that a step lists a tool only if it calls it live @param {string} server @param {string[]} tools @returns {string[]} */
+export function mcpFactsLines(server, tools) {
+  return [
+    `- Flow type: MCP (generic). The job's MCP server is "${server}" and its tools are: ${tools.join(', ')}. The job's server and tool list are set by the program, not by you.`,
+    '  A step lists a tool in "mcpTools" ONLY if that step calls the tool live, using the exact tool name above; at least one step must list at least one tool. Leave "mcpTools" out of every other step.',
+  ];
+}
+
+/** the one tool a Tickets job looks for new tickets with (src/panel/authortrigger.js) */
+export const LOOK_TOOL = 'list_issues';
+
+/**
+ * The schema parts a job with an MCP adds (M13 piece 4): per-step `mcpTools` (an enum of the job's tool names) for MCP (generic) and Tickets, and for Tickets the top-level
+ * `ticketFilter` and `ticketWatch`. The job's own `mcp` block and `flowType` are NOT offered: code sets them.
+ * @param {{flowType: 'mcp'|'tickets', tools: string[]}} o
+ */
+export function ticketSchemaParts({ flowType, tools }) {
+  const step = { mcpTools: { type: 'array', items: { type: 'string', enum: tools }, description: 'the MCP tools this step calls LIVE (exact names); omit on every step that calls none' } };
+  if (flowType !== 'tickets') return { top: {}, step };
   return {
     top: {
-      mcp: {
-        type: 'object',
-        properties: { server: { type: 'string', enum: servers }, tools: { type: 'array', items: { type: 'string', enum: [TICKET_TOOL] } } },
-        required: ['server', 'tools'],
-        additionalProperties: false,
-        description: `the MCP server (from the person's ~/.mcp.json) and the tools the job uses: ["${TICKET_TOOL}"]`,
-      },
       ticketFilter: {
         type: 'object',
         properties: {
@@ -68,20 +79,19 @@ export function ticketSchemaParts(servers) {
       },
       ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'optional: suggest only for a guardrail that says to run a ticket again when its state or its labels change' },
     },
-    step: { mcpTools: { type: 'array', items: { type: 'string', enum: [TICKET_TOOL] }, description: `["${TICKET_TOOL}"] on the step that reads the ticket; omit on every other step` } },
+    step,
   };
 }
 
 /**
- * Reds a draft with a ticket role must not pass with: no `mcp`, a server the person's config does not have, or no step that reads the ticket and holds the tool.
- * @param {Record<string, any>} declaration @param {Array<{role: string}>} ticketSources @param {string[]} servers @returns {string[]}
+ * M13 piece 4: the $0 refusals before any provider call. Tickets needs a ticket-list Inputs line; MCP (generic) and Tickets need a server that is startable and a tool list from a
+ * check (`pick`, src/mcp-pick.js: `{ok, server, tools}` or `{ok:false, say}`).
+ * @param {{flowType: string, ticketSources: Array<{role: string}>, pick: any, servers: string[]}} o @returns {string[]}
  */
-export function ticketReds(declaration, ticketSources, servers) {
-  const reds = [];
-  const roles = ticketSources.map((s) => s.role);
-  if (!declaration.mcp) return [`declaration: the job reads the ticket input "${roles[0]}" but lists no "mcp" server and tools`];
-  if (!servers.includes(declaration.mcp.server)) reds.push(`declaration: mcp.server "${declaration.mcp.server}" is not a server in your ~/.mcp.json (${servers.join(', ')})`);
-  const reader = (declaration.steps ?? []).some((st) => (st.mcpTools ?? []).includes(TICKET_TOOL) && (st.reads ?? []).some((r) => roles.includes(r)));
-  if (!reader) reds.push(`declaration: no step reads "${roles[0]}" and lists "${TICKET_TOOL}" in mcpTools`);
-  return reds;
+export function ticketReds({ flowType, ticketSources, pick, servers }) {
+  if (flowType === 'plain') return [];
+  if (flowType === 'tickets' && ticketSources.length === 0) return ['Tickets needs the ticket list address as an Inputs line (for example issues: https://github.com/owner/repo/issues)'];
+  if (!pick || pick.ok !== true) return [String(pick?.say ?? 'press check tools in Settings > MCP first')];
+  if (!servers.includes(pick.server)) return [`the MCP "${pick.server}" is not a server fwdloop can start (${servers.join(', ') || 'none found'})`];
+  return [];
 }

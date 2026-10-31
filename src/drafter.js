@@ -20,8 +20,9 @@ import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
+import { findMcpPlanRed } from './canrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
-import { ticketSourcesOf, ticketFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
+import { ticketSourcesOf, ticketFactsLines, mcpFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
 import { readInputFacts } from './input-facts.js';
 import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
@@ -130,12 +131,12 @@ const SHAPE_PROPS = Object.freeze({
 /**
  * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
  * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
- * M12 piece 3: `ticket` = `{servers}` when the job signs a ticket list; then the tool may also carry `mcp`, `ticketFilter` and a step's `mcpTools` (src/ticket-draft.js).
- * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {servers: string[]}}} [o]
+ * M13 piece 4: `ticket` = `{flowType, tools}` for MCP (generic) and Tickets; then a step may carry `mcpTools` (an enum of the job's tools) and, for Tickets, the tool carries `ticketFilter` and `ticketWatch` (src/ticket-draft.js). The job's `mcp` block and `flowType` are set by code, never offered.
+ * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o]
  */
 export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
   const sheetProp = sheets ? sheetChecksProp(sheets) : null;
-  const ticketParts = ticket ? ticketSchemaParts(ticket.servers) : null;
+  const ticketParts = ticket ? ticketSchemaParts(ticket) : null;
   const shapeProps = {};
   for (const key of SHAPE_KEYS) {
     if (!SHAPE_PROPS[key]) throw new Error(`schema: SHAPE_KEYS gained "${key}" — add its type to SHAPE_PROPS`);
@@ -244,7 +245,7 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {servers: string[]}}} [o] */
+/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o] */
 export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticket = undefined } = {}) {
   const s = buildDeclarationSchema(menu, { sheets, ticket });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
@@ -435,6 +436,8 @@ export async function draft({
   draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
   learnHints = /** @type {{text: string, ids: string[]}|null} */ (null),
   mcpServers = /** @type {string[]|undefined} */ (undefined),
+  // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
+  flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcp = /** @type {any} */ (null),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -460,10 +463,12 @@ export async function draft({
   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
   const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
   if (!fileFacts.ok) return fail(fileFacts.reds);
-  // M12 piece 3: a GitHub issues list is a ticket role, not a page: never fetched at draft; the drafter is told it exists and may suggest the job's MCP tools and label filter
-  const ticketSources = ticketSourcesOf(arbiter.sources);
-  const servers = ticketSources.length ? (mcpServers ?? userMcpServers()) : [];
-  if (ticketSources.length && servers.length === 0) return fail([`input "${ticketSources[0].role}": a ticket list is read through an MCP server, and ~/.mcp.json names none`]);
+  // M13 piece 4: with flow type Tickets, a GitHub issues list is a ticket role, not a page: never fetched at draft; the drafter is told it exists and may suggest a label filter.
+  // The job's flow type and MCP (server + every tool of its newest OK check) come from the card; the refusals are at $0, before any provider is built.
+  const ticketSources = flowType === 'tickets' ? ticketSourcesOf(arbiter.sources) : [];
+  const servers = flowType === 'plain' ? [] : (mcpServers ?? userMcpServers());
+  const flowReds = ticketReds({ flowType, ticketSources, pick: mcp, servers });
+  if (flowReds.length) return fail(flowReds);
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
@@ -667,7 +672,7 @@ export async function draft({
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
   const factsBase = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
-  const factsInfo = [...factsBase, ...ticketSources.flatMap((s) => ticketFactsLines(s.role, servers))];
+  const factsInfo = [...factsBase, ...ticketSources.flatMap((s) => ticketFactsLines(s.role)), ...(flowType === 'mcp' ? mcpFactsLines(mcp.server, mcp.tools) : [])];
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
   // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
@@ -700,7 +705,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: ticketSources.length ? { servers } : undefined });
+    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: flowType === 'plain' ? undefined : { flowType, tools: mcp.tools } });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -776,6 +781,10 @@ export async function draft({
     const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
     /** @type {Record<string, any>} */
     const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
+    // M13 piece 4: the flow type and the job's MCP (server + every tool of the newest OK check, R1) are set by code; whatever the model sent for them is overwritten.
+    declaration.flowType = flowType;
+    if (flowType === 'plain') delete declaration.mcp;
+    else declaration.mcp = { server: mcp.server, tools: [...mcp.tools] };
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
@@ -791,14 +800,15 @@ export async function draft({
       });
     }
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
-    const verdict0 = validateDeclaration(declaration, {
+    const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
-    const ticketRed = ticketSources.length ? ticketReds(declaration, ticketSources, servers) : [];
-    const verdict = ticketRed.length ? { ok: false, reds: [...(verdict0.ok ? [] : verdict0.reds), ...ticketRed] } : verdict0;
+    // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
+    const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
+    const verdict = planRed ? { ok: false, reds: [planRed] } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
