@@ -21,7 +21,7 @@ import path from 'node:path';
 
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
-import { validateDeclaration } from './declaration.js';
+import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { factRows } from './citedcheck.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
@@ -197,6 +197,11 @@ export function buildReadout({
     out.push(`  ${s.role} = ${s.path}${h ? `  [headings: ${h.join(' | ') || 'none'}]` : ''}`);
   }
   // M12 piece 3: what is signed for MCP, from the declaration's typed fields (a job without them prints none of these rows)
+  // M13 piece 4: the flow type (the card's Flow type, signed with the job), in the card's own words; a declaration with no `flowType` (signed before M13) prints no such row
+  if (Object.hasOwn(declaration, 'flowType')) {
+    const flowType = flowTypeOf(declaration);
+    out.push(`  flow type: ${flowType === 'mcp' ? 'MCP (generic)' : flowType === 'tickets' ? 'Tickets' : 'plain'}`);
+  }
   const mcp = declaration.mcp;
   if (mcp && typeof mcp === 'object') out.push(`  mcp: ${mcp.server} · tools: ${(mcp.tools ?? []).join(', ')}`);
   const filter = declaration.ticketFilter;
