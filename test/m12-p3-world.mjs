@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { loadCatalogue } from '../src/catalogue.js';
 import { writeFlow } from '../src/flow.js';
 import { runFlow } from '../src/runner.js';
+import { resolvePrimitives, stepMcp } from '../src/primitives.js';
 import { writeSchedule, sigOf } from '../src/schedule.js';
 import { triggerHash } from '../src/trigger-line.js';
 import { sandboxSend } from './send-sandbox.js';
@@ -27,7 +28,7 @@ guardrail: cap $0.25 per run
 guardrail: send at line 3 to file:poc/m0/out
 guardrail: source issues = page:${LIST}
 `;
-const DECL = {
+export const DECL = {
   steps: [
     { goal: 'Read the ticket and say what is broken,', primitives: ['read'], reads: ['issues'], emits: 'ticket_note', fromLine: 1, close: { class: 'hitl' }, mcpTools: ['issue_read'] },
     { goal: 'check it with me,', primitives: [], reads: ['ticket_note'], emits: 'ask_check', fromLine: 2, close: { class: 'hitl' } },
@@ -36,6 +37,15 @@ const DECL = {
   guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [], inputFacts: {},
   mcp: { server: 'github', tools: ['issue_read'] }, ticketFilter: { priority: ['P1', 'P2'] },
 };
+/** The run's primitives built the way bin/fwdloop builds them: the real resolvePrimitives with the job's signed MCP tools (stepMcp), frozen-input paths predicted as the CLI does. */
+export function runPrimitives(root, name, runId, declaration, sources) {
+  const runDir = path.join(root, name, 'runs', runId);
+  const inputs = sources.map((s) => ({ id: s.id, frozen: path.join(runDir, 'inputs', `${s.id}${path.extname(s.path)}`) }));
+  const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
+  const { tools, reds } = resolvePrimitives(cat.primitives, allVerbs, { runDir, inputs, mcp: stepMcp(declaration) });
+  assert.deepEqual(reds, []);
+  return tools;
+}
 export async function skippedWorld(t) {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m12p3-api-'));
   const home = mkdtempSync(path.join(tmpdir(), 'fwdloop-m12p3-api-home-'));

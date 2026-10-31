@@ -16,7 +16,7 @@ import { arriveAnywayOf } from '../src/panel/tickets.js';
 import { ledgerOf } from '../src/schedule.js';
 import { readSeen, appendSeen } from '../src/trigger-files.js';
 import { readHistory, readAudit } from '../src/books.js';
-import { skippedWorld } from './m12-p3-world.mjs';
+import { skippedWorld, runPrimitives, DECL } from './m12-p3-world.mjs';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 import { seedGreen } from './m9-trigger-world.mjs';
@@ -31,8 +31,9 @@ const ARGV_ECHO = path.join(HERE, 'fixtures', 'm4d-argv-echo', 'fwdloop');
 async function runTicket(w, runId, issue, ticket, paid = false) {
   writeFileSync(path.join(w.home, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [path.join(HERE, 'fixtures', 'fake-mcp-issue.mjs')], env: { FAKE_MCP_SERVER: '1', FAKE_ISSUE: JSON.stringify(issue) } } } }));
   const calls = { model: 0 };
+  const sources = [{ id: 'issues', path: LIST, ticket }];
   const r = await runFlow({
-    root: w.root, name: 'tick', runId, catalogue: cat.primitives, primitives: {}, businessDate: '2026-06-01', sources: [{ id: 'issues', path: LIST, ticket }],
+    root: w.root, name: 'tick', runId, catalogue: cat.primitives, primitives: runPrimitives(w.root, 'tick', runId, DECL, sources), businessDate: '2026-06-01', sources,
     modelStep: async () => { calls.model += 1; if (paid) return { ok: true, costUsd: 0.001, artifact: { text: 'x', done: false, blocker: 'stopped for the test' } }; throw new Error('a model step ran'); }, askStep: async () => { throw new Error('ask'); }, sendStep: async () => { throw new Error('send'); },
   }).catch((e) => ({ outcome: 'threw', red: e.message }));
   const rec = JSON.parse(readFileSync(path.join(w.root, 'tick', 'runs', runId, 'run.json'), 'utf8'));
