@@ -9,6 +9,9 @@ import { join } from 'node:path';
 import { redactSecrets } from './redact.js';
 import { parseTicketList } from './ticket-shape.js';
 
+/** M13 item 9.5: the only parent env names an MCP gets (plus its own settings); the one list for every place fwdloop starts an MCP, so no provider key reaches it */
+export const MCP_PASS_ENV = ['PATH', 'HOME'];
+
 /** the user's own MCP config, the only source of a tool */
 export const USER_MCP_CONFIG = () => join(homedir(), '.mcp.json');
 
@@ -34,7 +37,7 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath = USER_MC
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
   let bridge;
   try {
-    bridge = await createMCPBridge({ configPaths: [configPath], timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
+    bridge = await createMCPBridge({ configPaths: [configPath], passEnv: MCP_PASS_ENV, timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
     const failed = bridge.errors.find((e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
     const lacking = bridge.missing?.[0];

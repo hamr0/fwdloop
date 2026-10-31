@@ -7,7 +7,7 @@
 // and `name: #<number>`, so `queueOf`, `recordRan` and `recordDropped` work on it unchanged.
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 
-import { USER_MCP_CONFIG, firstLine, isDeviceLogin } from './ticket-mcp.js';
+import { USER_MCP_CONFIG, MCP_PASS_ENV, firstLine, isDeviceLogin } from './ticket-mcp.js';
 import { parseTicketList } from './ticket-shape.js';
 import { appendSeen, readSeen, queueOf } from './trigger-files.js';
 
@@ -54,7 +54,7 @@ export async function lookTickets({
   const first = seen === null;
   let bridge;
   try {
-    bridge = await createMCPBridge({ configPaths: [configPath], timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: [tool] } });
+    bridge = await createMCPBridge({ configPaths: [configPath], passEnv: MCP_PASS_ENV, timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: [tool] } });
     const failed = bridge.errors.find((/** @type {any} */ e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
     if (bridge.missing?.[0]) return { ok: false, error: `${server} does not offer ${bridge.missing[0].tool}` };
