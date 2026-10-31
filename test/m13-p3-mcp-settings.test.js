@@ -221,8 +221,10 @@ for (const width of [1280, 390, 320]) {
     assert.equal(await chrome.ev('Array.prototype.every.call(document.querySelectorAll("[data-testid=mcp-row]"), function(r){ return r.getAttribute("data-open") === "0"; })'), true, 'an MCP starts open');
     assert.equal(await chrome.ev('document.querySelectorAll("[data-testid=mcp-tool]").length'), 0, 'tools listed before a press');
     assert.equal(existsSync(path.join(w.cfg, 'mcp-checks.jsonl')), false, 'a page load pressed check tools');
+    assert.equal(await chrome.ev('document.querySelector("[data-testid=mcp-check]").classList.contains("primary")'), true, 'a never-checked MCP\'s check button lacks the highlight');
     await chrome.ev('document.querySelector("[data-testid=mcp-check]").click()');
     assert.ok(await chrome.waitFor('document.querySelectorAll("[data-testid=mcp-tool]").length === 5'), 'five tools show, the rest behind +N more');
+    assert.equal(await chrome.ev('document.querySelector("[data-testid=mcp-check]").classList.contains("primary")'), false, 'a checked MCP keeps the highlight');
     assert.match(await chrome.ev('document.querySelector(".pv-more .pv-add[data-more]").textContent'), /^\+3 more$/);
     await chrome.ev('document.querySelector("[data-more]").click()');
     assert.equal(await chrome.ev('document.querySelectorAll("[data-testid=mcp-tool]").length'), 8);

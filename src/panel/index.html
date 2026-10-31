@@ -7278,7 +7278,7 @@
     var at = s.check ? mcpClock(s.check.at) : "";
     var checked = idle ? "—" : s.check ? "checked " + (at ? at.text : "") : "never checked";
     var busy = mcpBusy[key] === true;
-    var btn = idle ? "" : (busy ? '<button class="btn small pv-refbtn" type="button" disabled>checking…</button>' : '<button class="btn small pv-refbtn" type="button" data-chk="' + pi + "-" + si + '" data-testid="mcp-check">check tools</button>');
+    var btn = idle ? "" : (busy ? '<button class="btn small pv-refbtn" type="button" disabled>checking…</button>' : '<button class="btn small pv-refbtn' + (s.check ? "" : " primary") + '" type="button" data-chk="' + pi + "-" + si + '" data-testid="mcp-check">check tools</button>');
     var use = idle ? "" : mcpUseLine(s.use);
     var list = "";
     if(ok){
