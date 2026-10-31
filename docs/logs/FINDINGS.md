@@ -4946,3 +4946,11 @@ Target: signed M13 item 6 ("the first run reads the newest ticket at the time it
 - (d) wall time of (a)+(b); the github child is gone afterwards (own-PID check of children of the script, no `pgrep -f`).
 - (e) if the token is unavailable or `pass`/gpg prompts: record the exact refusal text (expected the M12 "GitHub token unavailable" refusal), stop, no retry.
 **Win rule.** (a)-(d) PASS: N is an integer, (b) ok with text length > 0, (c) holds, (d) no child left. (e) is itself a result. No write tool is called.
+
+### F117 RESULT (run 2026-10-31, $0, no model call, `src/` unchanged; `poc/m13/f117/f117.mjs`, output `poc/m13/f117/out.txt`)
+[MEASURED] Real GitHub MCP, repo hamr0/hol-guard, read-only (`list_issues`, `issue_read` only). No token, key or command printed; I ran no `pass`. Token available, no prompt, no refusal ((e) did not occur).
+- (a) PASS. Real `lookTickets` first look (`seen = null`, state OPEN, newest first): T0 = 2026-10-31T06:48:02.315Z, 1 page, found [10..1], newest open ticket **N = 10**, 1812 ms.
+- (b) PASS. Real `readTicketMcp` on #10 through `issue_read`: ok true, text length 631, state open, labels ["P1"], title "fwdloop test: P1 walk 5", 2407 ms. Bridge exposed only `github_issue_read`; one call recorded.
+- (c) PASS. N = 10 is available as `ticket.number` in the entry shape `runner.js:449` already writes into `run.json` inputs (`{path, ticket: {number: 10, title}}`); the first run's baseline cut needs no new file. Not shown: that the scheduler reads it back (that is the build).
+- (d) PASS. (a)+(b) = 4219 ms. After close the script's only child was its own `ps` probe; no github child of this run. A `github-mcp-serv` (pid 95116, parent 95091) exists but started before this run (lower pid), so it is not this script's; left alone.
+**Verdict.** (a)-(d) PASS. Item 6's baseline cut can be N, the number the first run read, taken from the existing run record. Not tested: the scheduler change itself, a real run, the arm hook.
