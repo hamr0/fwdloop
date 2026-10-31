@@ -5034,3 +5034,10 @@ Target: bare-agent's new bridge-level `cwd` (peer commit 97cd65a on `feat/mcp-br
 **Cleanup.** Scratch tmp removed by the script; no `/tmp/barebrowse-*` dir exists; no headless browser of mine remains (the only chrome-named process is Beeper's crashpad handler, pid 2037, started yesterday, not mine).
 
 **Verdict.** (a)-(h), (j) PASS, exit 0. Bridge-level `cwd` on 97cd65a does what was agreed. Not tested: `cfg.mcp.cwd` via `bin/cli.js --config`; a folder deleted after validation; fwdloop's own wiring (src untouched). Open for hamr: with `cwd = os.homedir()` litectx writes `~/.litectx/index.db`.
+
+### F118 RERUN on installed bare-agent 0.57.0 (run 2026-10-31, $0, no model call)
+[MEASURED] Scratch `npm i bare-agent@0.57.0` from npm (real copy, not a symlink; `package.json` version 0.57.0; `validateBridgeCwd` 3 hits in `src/mcp-bridge.js`). Same unchanged `poc/mcp/f118/f118.mjs`, control = the same published 0.56.0 scratch. Run as the bare command `F118_NEW=<0.57.0 scratch> F118_OLD=<0.56.0 scratch> node f118.mjs`; exit code **0**.
+- (a)-(h), (j): all PASS, same evidence as the branch run ((e) 12/12 ValidationError with no spawn; (h) 0.56.0 still reports C; (j) 189 descendants seen, 0 alive 1.5 s after close).
+- (i): barebrowse `browse` 126 chars in 2242 ms; litectx `recall` ok, 12 ms, `{"code": [], "doc": [], "fact": [], "episode": []}` (the expected empty result at home); `github` stand-in not started.
+- Home listing: 105 before, 105 after, nothing created. Not proof that 0.57.0 avoids `~/.litectx`: that folder was already there from the branch run. litectx's own lazy-db fix is a separate, unreleased litectx change.
+- Not covered: 0.57.0's new spawn-time label (`working folder could not be used`, `context.cwdFailed: true`) for a folder that passes the up-front check but cannot be entered at spawn. fwdloop's `src/` does not match MCP spawn error text (grep for `failed to start`/`spawnError`/`cwdFailed` in `src/` finds no MCP match), so the label change needs no fwdloop edit.
