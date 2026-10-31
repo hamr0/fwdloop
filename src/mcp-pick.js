@@ -10,10 +10,15 @@ import { remoteRefusal } from './ticket-mcp.js';
 export const NEVER_CHECKED_SAY = 'press check tools in Settings > MCP first';
 
 /**
- * @param {string} server @param {string|undefined|null} home the config home (a test seam; undefined or null = there is none, so the answer is "never checked")
+ * @param {string} server @param {string|undefined|null} home the config home; undefined = the door's decision (`configDoorHome`: a test process with no `FWDLOOP_CONFIG_HOME` has none, so "never checked"; otherwise the default config home); null = none
  * @returns {{ ok: true, server: string, tools: string[] } | { ok: false, say: string }}
  */
 export function mcpPickFor(server, home) {
+  if (home === undefined) {
+    const door = configDoorHome();
+    if (door.skip) return { ok: false, say: NEVER_CHECKED_SAY };
+    home = configHome(door.home);
+  }
   if (typeof home !== 'string') return { ok: false, say: NEVER_CHECKED_SAY };
   const place = mcpSources({ home }).places.find((p) => p.servers.some((s) => s.name === server));
   if (!place) return { ok: false, say: `${server} is not in any MCP config (Settings > MCP lists the ones found)` };
@@ -24,6 +29,5 @@ export function mcpPickFor(server, home) {
 
 /** `mcpPickFor` at the config home this process uses (a test process with no `FWDLOOP_CONFIG_HOME` has none) @param {string} server */
 export function mcpPickHere(server) {
-  const door = configDoorHome();
-  return mcpPickFor(server, door.skip ? undefined : configHome(door.home));
+  return mcpPickFor(server, undefined);
 }
