@@ -68,3 +68,22 @@ describe('4: flowType', () => {
     assert.equal(validate(d).ok, true, redsOf(validate(d)).join('\n'));
   });
 });
+
+// --- commit 2: job-owned ticket tools -----------------------------------------------------------------------------------------------------------------
+import { writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { tmpdir } from 'node:os';
+import { readTicketMcp } from '../src/ticket-mcp.js';
+
+describe('4: the frozen ticket read starts only issue_read, whatever else the job lists', () => {
+  test('a job listing every tool of the server (one with no read-only mark) still reads: only issue_read is exposed', async (t) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p4-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const configPath = path.join(dir, 'mcp.json');
+    const FAKE_TOOLS = JSON.stringify([{ name: 'issue_read', annotations: { readOnlyHint: true } }, { name: 'list_issues', annotations: { readOnlyHint: true } }, { name: 'create_issue' }]);
+    writeFileSync(configPath, JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [path.join(HERE, 'fixtures', 'fake-mcp-server.mjs')], env: { FAKE_MCP_SERVER: '1', FAKE_TOOLS } } } }));
+    const r = await readTicketMcp({ listUrl: 'https://github.com/flutter/flutter/issues', number: 7, mcp: { server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, configPath });
+    assert.equal(r.ok, true, r.ok ? '' : r.error);
+    assert.deepEqual(r.record.exposed, ['github_issue_read']);
+  });
+});

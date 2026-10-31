@@ -53,13 +53,14 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath: explicit
   if (!Number.isInteger(number) || number < 1) return { ok: false, error: `ticket number ${JSON.stringify(number)} is not a whole number from 1` };
   const { owner, repo } = list;
   const { server, tools } = mcp;
+  // M13 piece 4: the frozen read starts the server with issue_read alone, whatever else the job lists (the job lists every tool of its server)
   if (!tools.includes('issue_read')) return { ok: false, error: `the job does not list issue_read, the tool that reads a ticket` };
   const { file: configPath, remote } = configForServer(server, explicitConfig);
   if (!discoverServers([configPath]).has(server)) return { ok: false, error: `${server} is not in ~/.mcp.json` };
   if (remote) return { ok: false, error: remoteRefusal(server) };
   let bridge;
   try {
-    bridge = await createMCPBridge({ configPaths: [configPath], ...mcpStartOpts(), timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: tools } });
+    bridge = await createMCPBridge({ configPaths: [configPath], ...mcpStartOpts(), timeout: timeoutMs, callTimeout: timeoutMs, confirmServer: () => true, allow: { [server]: ['issue_read'] } });
     const failed = bridge.errors.find((e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
     const lacking = bridge.missing?.[0];

@@ -54,7 +54,7 @@ import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
 import {
-  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findUnusedMcpTool, unusedMcpToolRed,
+  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findMcpPlanRed,
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
@@ -1305,11 +1305,11 @@ export async function runFlow({
     });
   }
 
-  // M12 piece 1a (F105): a job tool no step grants is refused at $0, by name
-  const unusedTool = findUnusedMcpTool(declaration);
-  if (unusedTool) {
+  // M12 piece 1a (F105), M13 piece 4: a step tool the job does not list, or a generic MCP job whose steps call none, is refused at $0, by name
+  const mcpRed = findMcpPlanRed(declaration);
+  if (mcpRed) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unusedMcpToolRed(unusedTool), spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: mcpRed, spent: { value: 0 },
     });
   }
 
@@ -2208,8 +2208,8 @@ export async function resumeRun({
         red: unwiredRed(unwiredVerb),
       };
     }
-    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
-    if (unusedTool) return { outcome: 'refused', red: unusedMcpToolRed(unusedTool) };
+    const mcpRed = findMcpPlanRed(preflightRead.declaration);
+    if (mcpRed) return { outcome: 'refused', red: mcpRed };
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable), detail: unbuildable.why };
   }
@@ -2743,8 +2743,8 @@ export async function continueRun({
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
-    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
-    if (unusedTool) return refused(unusedMcpToolRed(unusedTool));
+    const mcpRed = findMcpPlanRed(preflightRead.declaration);
+    if (mcpRed) return refused(mcpRed);
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return refused(unbuildableRed(unbuildable), unbuildable.why);
   }

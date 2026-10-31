@@ -3,6 +3,7 @@
 // verb with no wired implementation) is not offered. Reads only; writes nothing. `WIRED_VERBS` stays the one list (src/primitives.js).
 import { WIRED_VERBS } from './primitives.js';
 import { buildSoftgreenRubric } from './closers.js';
+import { flowTypeOf } from './declaration.js';
 
 /**
  * The first step granting a verb that has no wired implementation, or null. (A verb absent from the catalogue entirely is caught earlier,
@@ -25,21 +26,23 @@ export function unwiredRed(found) {
 }
 
 /**
- * M12 piece 1a (F105): the first tool the job lists (`declaration.mcp.tools`) that no step grants (`steps[].mcpTools`), or null. A job lists only the tools its
- * steps use (PRD, hamr 2026-10-29); the ticket schedule's own tool lives in `schedule.json`, not here. A declaration without `mcp` has nothing to check.
- * @param {Record<string, any>} declaration `readFlow`'s declaration @returns {{tool: string, server: string}|null}
+ * M13 piece 4 (F105 rewritten): the first plan problem with the job's MCP tools, as the preflight sentence, or null. Two rules, both $0 and by name:
+ * a step may grant only a tool the job lists (`mcp.tools`); a generic MCP job (flowType `mcp`) needs at least one step granting at least one of them. A Tickets job's
+ * own tools (`issue_read`, `list_issues`) belong to the job (the frozen read and the look), so no step has to grant them. A job with no `mcp` block has nothing to check.
+ * @param {Record<string, any>} declaration `readFlow`'s declaration @returns {string|null}
  */
-export function findUnusedMcpTool(declaration) {
-  const tools = declaration.mcp?.tools;
-  if (!Array.isArray(tools)) return null;
-  const granted = new Set(declaration.steps.flatMap((s) => s.mcpTools ?? []));
-  const tool = tools.find((t) => !granted.has(t));
-  return tool === undefined ? null : { tool, server: String(declaration.mcp.server) };
-}
-
-/** The preflight refusal sentence for a job tool no step grants. @param {{tool: string, server: string}} found */
-export function unusedMcpToolRed(found) {
-  return `preflight: job tool "${found.tool}" (server "${found.server}") is granted to no step`;
+export function findMcpPlanRed(declaration) {
+  const server = declaration.mcp?.server;
+  if (!server) return null;
+  const listed = new Set(Array.isArray(declaration.mcp.tools) ? declaration.mcp.tools : []);
+  for (const step of declaration.steps) {
+    const stray = (step.mcpTools ?? []).find((/** @type {string} */ t) => !listed.has(t));
+    if (stray !== undefined) return `preflight: step "${step.emits}" (line ${step.fromLine}) grants tool "${stray}", which the job does not list for server "${server}"`;
+  }
+  if (flowTypeOf(declaration) === 'mcp' && !declaration.steps.some((/** @type {any} */ s) => (s.mcpTools ?? []).length > 0)) {
+    return `preflight: MCP (generic) job (server "${server}") has no step that calls one of its tools`;
+  }
+  return null;
 }
 
 /** bareguard refuses a signed name or phrase past this many characters (rubric MAX_SIGNED_LEN). */
@@ -117,8 +120,8 @@ export function canFlowRun(read) {
   if (!read || read.ok !== true) return { ok: false, red: String(read?.reds?.[0] ?? 'the flow does not read') };
   const unwired = findUnwiredVerbStep(read.declaration);
   if (unwired) return { ok: false, red: unwiredRed(unwired) };
-  const unusedTool = findUnusedMcpTool(read.declaration);
-  if (unusedTool) return { ok: false, red: unusedMcpToolRed(unusedTool) };
+  const mcpRed = findMcpPlanRed(read.declaration);
+  if (mcpRed) return { ok: false, red: mcpRed };
   const unbuildable = findUnbuildableCheckStep(read.declaration);
   if (unbuildable) return { ok: false, red: unbuildableRed(unbuildable), detail: unbuildable.why };
   return { ok: true };
