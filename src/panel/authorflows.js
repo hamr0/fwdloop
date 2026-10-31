@@ -304,7 +304,7 @@ export function createFlowsDoor(opts) {
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
-      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card } : c; })(),
+      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: { ...c.card, ...(flowTypeOf(read.declaration) === 'plain' ? {} : { flowType: flowTypeOf(read.declaration), mcp: read.declaration?.mcp?.server ?? '' }) } } : c; })(),
     };
   }
 

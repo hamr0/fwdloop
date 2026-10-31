@@ -129,11 +129,11 @@ async function cliWorld(o) {
   return w;
 }
 
-test('Must fail: a ticket job run with no ticket number is refused at $0, naming the input and its list', async () => {
+test('M13 p4 (R2): a by-hand run of a Tickets job with no --ticket looks for the newest ticket; a server missing from the MCP config is refused at $0 by name', async () => {
   const w = await cliWorld();
-  const r = cli(w.root, 'tk');
+  const r = cli(w.root, 'tk');   // HOME is the scratch root: no MCP config there
   assert.notEqual(r.code, 0);
-  assert.match(r.err, /reads tickets from "jd" \(https:\/\/github\.com\/flutter\/flutter\/issues\); pick the ticket with --ticket <number>\. Nothing started\./);
+  assert.match(r.err, /run: github is not in ~\/\.mcp\.json\. Nothing started\./);
 });
 
 test('Must fail: a ticket number that is not a whole number from 1 is refused at $0', async () => {

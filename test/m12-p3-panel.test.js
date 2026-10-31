@@ -115,12 +115,12 @@ import { seedGreen } from './m9-trigger-world.mjs';
 import { ticketJob } from './m12-p2-world.mjs';
 
 killChildrenAfter();
-async function openRunCard(width, { fileJd = false } = {}) {
+async function openRunCard(width, { fileJd = false, flowType = 'tickets' } = {}) {
   const chrome = await launchChrome();
   if (!chrome) return null;
   CLOSERS.push(async () => chrome.close());
   const w = await world({ limit: 5 });
-  ticketJob(w.root, 'tk', { fileJd });
+  ticketJob(w.root, 'tk', { fileJd, flowType });
   seedGreen(w, 'tk');
   rmSync(path.join(w.root, '.drafts'), { recursive: true, force: true });
   await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
@@ -155,3 +155,19 @@ for (const width of [390, 320]) {
     assert.deepEqual(m.over, [], JSON.stringify(m));
   });
 }
+
+// ---- M13 piece 4 (signed item 5/6): the Run card's schedule options follow the flow type ----
+const WHEN_OPTIONS = 'Array.from(document.getElementById("jf-when").options).filter(function(o){ return !o.hidden && !o.disabled; }).map(function(o){ return o.value; })';
+
+test('M13 p4: schedule options by flow type: MCP (generic) offers By hand and Every day only; Tickets adds a new ticket arrives; plain offers no ticket option', { skip: SKIP && 'no browser' }, async (t) => {
+  const g = await openRunCard(1280, { flowType: 'mcp' });
+  if (!g) { t.skip('no chromium installed'); return; }
+  assert.deepEqual(await g.chrome.ev(WHEN_OPTIONS), ['hand', 'daily']);
+  const k = await openRunCard(1280);
+  const tickets = await k.chrome.ev(WHEN_OPTIONS);
+  assert.ok(tickets.includes('new-ticket') && tickets.includes('hand') && tickets.includes('daily'), JSON.stringify(tickets));
+  const p = await openRunCard(1280, { fileJd: true });
+  const plain = await p.chrome.ev(WHEN_OPTIONS);
+  assert.equal(plain.includes('new-ticket'), false, JSON.stringify(plain));
+  assert.ok(plain.includes('daily'));
+});

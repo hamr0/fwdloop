@@ -728,6 +728,7 @@
   #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
   .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
+  .link{color:var(--text-faint);text-decoration:underline;font-size:11px;cursor:pointer;}   /* M13 p4: from the setup mock */
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
   /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
@@ -1149,8 +1150,23 @@
                   <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
                 </div>
-                <div class="hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
+                <div class="hint" id="jf-inputs-hint" data-testid="jf-inputs-hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
                 <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
+              </div>
+              <div class="field" id="jf-flowtype-field" data-testid="jf-flowtype-field">
+                <label for="jf-flowtype">Flow type</label>
+                <select id="jf-flowtype" data-testid="jf-flowtype" aria-label="Flow type">
+                  <option value="plain">plain</option>
+                  <option value="mcp">MCP (generic)</option>
+                  <option value="tickets">Tickets</option>
+                </select>
+                <div class="jf-err" id="jf-err-flowType" data-testid="jf-err-flowType"></div>
+              </div>
+              <div class="field" id="jf-mcp-field" data-testid="jf-mcp-field" hidden>
+                <label for="jf-mcp">MCP</label>
+                <select id="jf-mcp" data-testid="jf-mcp" aria-label="MCP"></select>
+                <div class="hint"><a class="link" id="jf-mcp-manage" data-testid="jf-mcp-manage" href="#">manage in Settings &gt; MCP</a></div>
+                <div class="jf-err" id="jf-err-mcp" data-testid="jf-err-mcp"></div>
               </div>
               <div class="field">
                 <label for="jf-dest-folder">Destination</label>
@@ -5292,6 +5308,12 @@
     var jobEl = document.getElementById("jf-job");
     var jobBoxEl = document.getElementById("jf-run-jobbox");   // the Reuse card's job box: the SAME component as #jf-job
     var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
+    var flowTypeEl = document.getElementById("jf-flowtype");     // M13 p4: Flow type (plain | MCP (generic) | Tickets), signed with the job
+    var mcpEl = document.getElementById("jf-mcp");               // M13 p4: the MCP pick, shown for the last two
+    var mcpFieldEl = document.getElementById("jf-mcp-field");
+    var inputsHintEl = document.getElementById("jf-inputs-hint");
+    var INPUTS_HINT_PLAIN = inputsHintEl.textContent;
+    var mcpServers = [];                                         // the startable MCPs (Settings > MCP; winners only, remote left out)
     var destEl = document.getElementById("jf-dest-folder");
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
@@ -5687,6 +5709,36 @@
         return {role: role, path: row.querySelector(".jf-path").value.trim()};
       });
     }
+    // M13 piece 4: Flow type and MCP (mock docs/product/m13-setup-mock.html, Part 1). The MCP list is Settings > MCP's winners; the page only READS it (never a command or a key).
+    function paintMcpOptions(keep){
+      var want = keep === undefined ? mcpEl.value : keep;
+      var names = mcpServers.slice();
+      if(want && names.indexOf(want) === -1) names.push(want);   // a reused job's server that is no longer listed stays pickable by name; the card refuses it with the cause
+      mcpEl.innerHTML = "";
+      names.forEach(function(n){ var o = document.createElement("option"); o.value = n; o.textContent = n; mcpEl.appendChild(o); });
+      if(want) mcpEl.value = want;
+    }
+    function paintFlowType(){
+      var generic = flowTypeEl.value === "mcp", tickets = flowTypeEl.value === "tickets";
+      mcpFieldEl.hidden = !(generic || tickets);
+      inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
+    }
+    function setFlow(type, server){
+      flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
+      paintMcpOptions(server || "");
+      paintFlowType();
+    }
+    function loadMcpServers(){
+      return getJSON("/api/settings/mcp").then(function(d){
+        var names = [];
+        ((d && d.places) || []).forEach(function(p){ (p.servers || []).forEach(function(sv){ if(!sv.remote && !sv.shadowedBy && names.indexOf(sv.name) === -1) names.push(sv.name); }); });
+        mcpServers = names; paintMcpOptions();
+      }, function(){ /* the list stays as it was; a pick the server cannot start is refused with its cause */ });
+    }
+    flowTypeEl.addEventListener("change", function(){ paintFlowType(); byId("jf-err-flowType").textContent = ""; byId("jf-err-mcp").textContent = ""; renderMain(); });
+    mcpEl.addEventListener("change", function(){ byId("jf-err-mcp").textContent = ""; });
+    byId("jf-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
+    paintFlowType(); loadMcpServers();
     function currentCard(){
       return {
         flowName: byId("jf-name").value.trim(),
@@ -5698,6 +5750,7 @@
         provider: modelPick().provider,
         model: modelPick().model,
         thinking: thinkingEl.checked && !thinkingNone,
+        ...(flowTypeEl.value !== "plain" ? {flowType: flowTypeEl.value, mcp: mcpEl.value} : {}),
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
@@ -5846,6 +5899,8 @@
       var on = cardLocked();
       whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
+      flowTypeEl.disabled = on; mcpEl.disabled = on;
+      flowTypeEl.classList.toggle("locked", on); mcpEl.classList.toggle("locked", on);
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
@@ -5935,6 +5990,7 @@
       setMode("new");
       setVal("jf-name", reuseRunOf ? f.flow : newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
       setVal("jf-dest-folder", runDestEl.value.trim()); setVal("jf-inputs", rows.map(function(r){ return r.role + ": " + r.path; }).join("\n")); setVal("jf-ask-wait", firstWait);
+      setFlow(f.flowType, f.mcp);   // M13 p4: a reused job keeps its Flow type and MCP
       if(pk.provider !== "") setModelPick(pk.provider, pk.model);
       editBannerEl.textContent = reuseRunOf
         ? "Reusing \u201c" + f.flow + "\u201d after a failed run. Draft a new plan, read it, then sign: it becomes the next run of \u201c" + f.flow + "\u201d, which is not changed."
@@ -5947,7 +6003,7 @@
     // the card stops reusing: the name box is free again. ONE owner: reuseOf and the boxes startReuseDraft filled go together, so a card that
     // left Reuse (a refused signed start too) can never be drafted as a plain new job carrying the old job and name
     function leaveReuse(){
-      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); askWaitEl.value = "1h"; }
+      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); setFlow("plain", ""); askWaitEl.value = "1h"; }
       reuseOf = null;
       editBannerEl.hidden = true; editBannerEl.textContent = "";
     }
@@ -6043,7 +6099,7 @@
     // M10: a file trigger watches a FILE; a web-page input is never offered. M12: a ticket trigger offers the page inputs that are a GitHub issues list.
     var TICKET_LIST = /^https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/?$/;
     function whenFileRoles(f){ return ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); }); }
-    function whenTicketRoles(f){ return ((f && f.roles) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }
+    function whenTicketRoles(f){ return ((f && f.tickets) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }   // M13 p4: only a Tickets job has a ticket list
     function whenFillRoles(){
       var f = selectedFlow(), roleSel = byId("jf-when-role"), keep = roleSel.value;
       var roles = byId("jf-when").value === "new-ticket" ? whenTicketRoles(f) : whenFileRoles(f);
@@ -6059,8 +6115,11 @@
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
-      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
-      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a job with a ticket-list input offers it
+      // M13 p4 (signed item 5): MCP (generic) offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
+      var generic = !!f && f.flowType === "mcp";
+      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic || fileRoles.length === 0; });
+      ["weekdays", "weekly"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic; });
+      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = generic || ticketRoles.length === 0;   // M12: only a Tickets job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
@@ -6437,6 +6496,7 @@
       if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
       leaveReuse();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
+      setFlow("plain", "");
       askWaitEl.value = "1h";
       thinkingEl.checked = false; // per job: unticked for the next one
       clearPick(); // a flow picked in Run a signed flow (Run again too) goes with the rest
@@ -6738,6 +6798,7 @@
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
+      setFlow(c.flowType, c.mcp);
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);

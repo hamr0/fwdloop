@@ -396,7 +396,7 @@ async function cmdRun(rest) {
     const lookTool = (read.declaration.mcp?.tools ?? []).find((t) => t === LOOK_TOOL);
     if (lookTool === undefined) fail(`run: flow "${flowName}" does not list ${LOOK_TOOL} among its signed tools, so the newest ticket cannot be found. Nothing started.`);
     const next = await newestUnrunTicket({ flowDir: join(root, flowName), listUrl: ticketLists[ticketRoles[0]], mcp: { server: read.declaration.mcp.server, tool: lookTool } });
-    if (!next.ok) fail(`run: ${next.say} Nothing started.`);
+    if (!next.ok) fail(`run: ${next.say.replace(/\.?$/, '.')} Nothing started.`);
     values.ticket = String(next.number);
   }
   if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
