@@ -33,6 +33,8 @@ import { scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
+import { LOOK_TOOL } from '../ticket-draft.js';
+import { flowTypeOf } from '../declaration.js';
 import { readModelRecord } from '../flowmodel.js';
 import { pageAddressesOf, pageAddressRefusal } from '../pagefetch.js';
 import {
@@ -46,8 +48,8 @@ import { triggerHash, triggerLine } from '../trigger-line.js';
 /** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
 const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
 
-/** M12: the one tool a ticket schedule's look uses, signed with the schedule's two clicks. */
-export const TICKET_LOOK_TOOL = 'list_issues';
+/** M12: the tool a ticket schedule's look uses. M13 piece 4: it must be in the job's signed `mcp.tools` (item 9b.1), and the schedule's two clicks sign it again. */
+export const TICKET_LOOK_TOOL = LOOK_TOOL;
 export const NO_GREEN_SAY = 'This job has not had a good run yet. Run it once by hand and get it right first; then you can set when it runs. Nothing was changed.';
 const HISTORY_FILE = 'triggers.jsonl';
 
@@ -183,10 +185,14 @@ export function createTriggerDoor(opts) {
       if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.` });
       const server = read.declaration?.mcp?.server;
       if (typeof server !== 'string') return reply(400, { refused: 'bad-trigger', say: 'This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.' });
+      if (flowTypeOf(read.declaration) !== 'tickets') return reply(400, { refused: 'bad-trigger', say: 'Only a Tickets job can start on a new ticket. Nothing was changed.' });
+      // M13 piece 4 (item 9b.1): the look's tool is one of the job's signed tools, like every other tool; a job whose list lacks it cannot be scheduled by "a new ticket arrives"
+      const lookTool = (Array.isArray(read.declaration.mcp.tools) ? read.declaration.mcp.tools : []).find((/** @type {string} */ t) => t === TICKET_LOOK_TOOL);
+      if (lookTool === undefined) return reply(400, { refused: 'bad-trigger', say: `This job's signed tools do not include ${TICKET_LOOK_TOOL}, the tool that looks for new tickets, so a new ticket cannot start a run. Draft the job again as a Tickets job. Nothing was changed.` });
       // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
       const jobWatch = read.declaration?.ticketWatch;
       const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);
-      trigger = { kind: trigger.kind, role: trigger.role, list, server, tool: TICKET_LOOK_TOOL, ...(watch ? { watch } : {}) };
+      trigger = { kind: trigger.kind, role: trigger.role, list, server, tool: lookTool, ...(watch ? { watch } : {}) };
     }
     const flowDir = join(realRoot, flow);
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });

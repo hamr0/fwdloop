@@ -14,9 +14,9 @@ const cat = loadCatalogue();
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
 
 /** a signed job whose `jd` input is a ticket list; `mcp` = false: a job that names no MCP server; `fileJd`: jd stays a file (no ticket list) */
-export function ticketJob(root, name, { mcp = true, fileJd = false } = {}) {
+export function ticketJob(root, name, { mcp = true, fileJd = false, tools = ['issue_read', 'list_issues'], flowType = 'tickets' } = {}) {
   const declaration = JSON.parse(fixture('job2.m1.declaration.json'));
-  if (mcp) { declaration.mcp = { server: 'github', tools: ['issue_read'] }; declaration.steps[0].mcpTools = ['issue_read']; }
+  if (mcp) { declaration.flowType = flowType; declaration.mcp = { server: 'github', tools }; }
   let prose = sandboxSend(fixture('job2-with-sources.signed.txt'));
   if (!fileJd) prose = prose.replace(/guardrail: source jd = file:.*/, `guardrail: source jd = page:${LIST}`);
   const r = writeFlow({ root, name, proseText: prose, declaration, signedBy: 'hamr', signedAt: '2026-10-29T12:00:00Z', catalogue: cat.primitives });
