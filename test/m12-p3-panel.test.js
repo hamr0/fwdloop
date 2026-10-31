@@ -134,29 +134,14 @@ async function openRunCard(width, { fileJd = false } = {}) {
   return { chrome, w };
 }
 
-test('a ticket job\'s Run card has a ticket # box: Run is off until a whole number is in it; a job without a ticket list has no box', { skip: SKIP && 'no browser' }, async (t) => {
+test('M13 p4 (R2): a Tickets job\'s Run card has NO ticket # box; with the file input filled, Run is on', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await openRunCard(1280);
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  // the file input is filled so only the ticket box stands between the card and Run
   await c.ev('var p = document.querySelector("#jf-run-inputs .jf-inrow .jf-path:not([data-page])"); p.value = "/tmp/resume.md"; p.dispatchEvent(new Event("input", {bubbles: true}))');
   await c.ev('var cap = document.getElementById("jf-run-cap"); cap.value = "0.25"; cap.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 1);
-  assert.equal(await c.ev('document.querySelector("[data-testid=jf-run-ticket]").placeholder'), 'ticket #');
-  const btn = 'document.getElementById("chat-main-btn")';
-  assert.equal(await c.ev(`${btn}.disabled`), true, 'no number, no Run');
-  for (const bad of ['abc', '0', '-2', '1.5']) {
-    // eslint-disable-next-line no-await-in-loop
-    await c.ev(`var tk = document.querySelector("[data-testid=jf-run-ticket]"); tk.value = ${JSON.stringify(bad)}; tk.dispatchEvent(new Event("input", {bubbles: true}))`);
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => setTimeout(r, 700));   // the server's reuse check answers after the edit (200 ms debounce); Run must still be off after it
-    // eslint-disable-next-line no-await-in-loop
-    assert.equal(await c.ev(`${btn}.disabled`), true, `"${bad}" is no ticket number`);
-  }
-  await c.ev('var tk2 = document.querySelector("[data-testid=jf-run-ticket]"); tk2.value = "195342"; tk2.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.ok(await c.waitFor(`${btn}.disabled === false`), 'a number turns Run on');
-  const o2 = await openRunCard(1280, { fileJd: true });
-  assert.equal(await o2.chrome.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 0);
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=jf-run-ticket], .jf-ticket").length'), 0);
+  assert.ok(await c.waitFor('document.getElementById("chat-main-btn").disabled === false'), 'no number is asked for: Run is on');
 });
 
 for (const width of [390, 320]) {

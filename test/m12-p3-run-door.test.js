@@ -42,36 +42,21 @@ async function doorWorld() {
   return { w, argv, inputs };
 }
 
-test('Run with a ticket number starts the run with --ticket N beside the signed list', async () => {
+test('M13 p4 (R2): Run on a Tickets job has no ticket box; it starts the run with NO --ticket (the child reads the newest ticket that has not run yet)', async () => {
   const { w, argv, inputs } = await doorWorld();
-  const r = await w.post('/api/author/run', { flow: 'tk', inputs, runId: 'r1', ticket: 6 });
+  const r = await w.post('/api/author/run', { flow: 'tk', inputs, runId: 'r1' });
   assert.equal(r.status, 202, r.text);
   await until(() => argv().length > 0, 20000);
   const a = argv()[0];
-  assert.equal(a[a.indexOf('--ticket') + 1], '6', JSON.stringify(a));
+  assert.equal(a.includes('--ticket'), false, JSON.stringify(a));
   assert.ok(a.includes(`jd=${LIST}`));
 });
 
-test('Run on a ticket job without a number, or with a bad one, is refused at $0 naming the ticket box; nothing starts', async () => {
+test('M13 p4: a body that still names a ticket number is not a Run body (the box is gone); nothing starts', async () => {
   const { w, argv, inputs } = await doorWorld();
-  for (const ticket of [undefined, '', 'abc', 0, -3, 1.5, '12x']) {
-    // eslint-disable-next-line no-await-in-loop
-    const r = await w.post('/api/author/run', { flow: 'tk', inputs, runId: 'r2', ...(ticket === undefined ? {} : { ticket }) });
-    assert.equal(r.status, 400, `${JSON.stringify(ticket)}: ${r.text}`);
-    assert.deepEqual(r.json().refusals.map((x) => x.field), ['ticket']);
-    assert.match(r.json().refusals[0].say, /ticket number/);
-  }
-  assert.deepEqual(argv(), []);
-});
-
-test('a ticket number on a job with no ticket list is refused, naming the box', async () => {
-  const w = await world({ limit: 5, bin: ARGV_ECHO });
-  w.env.ARGV_FILE = path.join(w.work, 'argv.jsonl');
-  ticketJob(w.root, 'tk', { fileJd: true });
-  seedGreen(w, 'tk');
-  const r = await w.post('/api/author/run', { flow: 'tk', inputs: [{ role: 'resume', path: path.join(w.inDir, 'resume.md') }, { role: 'jd', path: path.join(w.inDir, 'jd.md') }], runId: 'r3', ticket: 4 });
+  const r = await w.post('/api/author/run', { flow: 'tk', inputs, runId: 'r2', ticket: 6 });
   assert.equal(r.status, 400, r.text);
-  assert.deepEqual(r.json().refusals.map((x) => x.field), ['ticket']);
+  assert.deepEqual(argv(), []);
 });
 
 // ---- the door fills trigger.watch from the signed job (signed M12 item 7); a job with no ticketWatch watches nothing ----
@@ -84,8 +69,8 @@ import { sandboxSend } from './send-sandbox.js';
 async function watchWorld(watch) {
   const w = await world({ limit: 5 });
   const declaration = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'job2.m1.declaration.json'), 'utf8'));
-  declaration.mcp = { server: 'github', tools: ['issue_read'] };
-  declaration.steps[0].mcpTools = ['issue_read'];
+  declaration.flowType = 'tickets';
+  declaration.mcp = { server: 'github', tools: ['issue_read', 'list_issues'] };
   if (watch) declaration.ticketWatch = watch;
   const prose = sandboxSend(readFileSync(path.join(HERE, 'fixtures', 'job2-with-sources.signed.txt'), 'utf8')).replace(/guardrail: source jd = file:.*/, `guardrail: source jd = page:${LIST}`);
   const r = writeFlow({ root: w.root, name: 'tk', proseText: prose, declaration, signedBy: 'hamr', signedAt: '2026-10-29T12:00:00Z', catalogue: loadCatalogue().primitives });

@@ -55,6 +55,9 @@ import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsR
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf } from '../src/ticket-shape.js';
+import { flowTypeOf } from '../src/declaration.js';
+import { LOOK_TOOL } from '../src/ticket-draft.js';
+import { newestUnrunTicket } from '../src/ticket-next.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
@@ -382,12 +385,20 @@ async function cmdRun(rest) {
     }
   }
   // M12 piece 2 (PRD ruling 2026-10-29): a job with a ticket-list input reads ONE ticket per run, picked by number. Refused at $0, by name, before anything is claimed.
-  const ticketLists = ticketListsOf(read.arbiter);
+  // M13 piece 4: only a Tickets job (flow type) has a ticket list; the address is its Inputs line
+  const ticketLists = flowTypeOf(read.declaration) === 'tickets' ? ticketListsOf(read.arbiter) : {};
   const ticketRoles = Object.keys(ticketLists);
   if (ticketRoles.length > 1) fail(`run: flow "${flowName}" has more than one ticket list (${ticketRoles.join(', ')}); a run reads one. Nothing started.`);
   if (values.anyway && values.ticket === undefined) fail(`run: --anyway belongs with --ticket <number>. Nothing started.`);
   if (values.ticket !== undefined && ticketRoles.length === 0) fail(`run: --ticket ${values.ticket}, but flow "${flowName}" has no ticket-list input. Nothing started.`);
-  if (ticketRoles.length === 1 && values.ticket === undefined) fail(`run: flow "${flowName}" reads tickets from "${ticketRoles[0]}" (${ticketLists[ticketRoles[0]]}); pick the ticket with --ticket <number>. Nothing started.`);
+  if (ticketRoles.length === 1 && values.ticket === undefined) {
+    // M13 piece 4 (R2): a by-hand run has no ticket # box; it reads the newest ticket that has not run yet. `--ticket` stays for the machine's own starts (the schedule, Run it anyway, a rerun).
+    const lookTool = (read.declaration.mcp?.tools ?? []).find((t) => t === LOOK_TOOL);
+    if (lookTool === undefined) fail(`run: flow "${flowName}" does not list ${LOOK_TOOL} among its signed tools, so the newest ticket cannot be found. Nothing started.`);
+    const next = await newestUnrunTicket({ flowDir: join(root, flowName), listUrl: ticketLists[ticketRoles[0]], mcp: { server: read.declaration.mcp.server, tool: lookTool } });
+    if (!next.ok) fail(`run: ${next.say} Nothing started.`);
+    values.ticket = String(next.number);
+  }
   if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
   const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles[0] === role ? { ticket: { number: Number(values.ticket), ...(values.anyway ? { anyway: true } : {}) } } : {}) }));
   for (const src of sources) {
