@@ -16,7 +16,7 @@ killChildrenAfter();
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra });
 
-test('A: bare-agent 0.54.1 is installed and package.json asks for it', () => {
+test('A: bare-agent 0.56.0 is installed and package.json asks for it', () => {
   const v = JSON.parse(readFileSync(new URL('../node_modules/bare-agent/package.json', import.meta.url), 'utf8')).version;
   assert.match(v, /^0\.52\.|^0\.5[3-9]\.|^0\.[6-9]\d\./);
   assert.match(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).dependencies['bare-agent'], /0\.54\.1/);
