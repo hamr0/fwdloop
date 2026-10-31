@@ -22,19 +22,17 @@ import { SHAPES } from '../providershapes.js';
 import { keysForDoor, isKeyName } from '../keysfile.js';
 import { spendSummary } from '../monthly.js';
 import { openInOs } from '../opener.js';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { listServerTools } from 'bare-agent/mcp';
-import { configHome, mcpPathProblem } from '../config.js';
+import { mcpPathProblem } from '../config.js';
+import { appendMcpCheck, newestMcpChecks } from '../mcp-checks.js';
 import { mcpSources, expandMcpPath, DEFAULT_MCP_PLACES } from '../mcp-sources.js';
 import { countMcpUse } from '../mcp-use.js';
 import { mcpStartOpts } from '../ticket-mcp.js';
 
 const TIMEOUT_MS = 4000;
 const MCP_CHECK_MS = 15000;
-/** the append-only log of `check tools` presses, beside config.json (M13 piece 3, hamr 2026-10-31): one line per press, never rewritten */
-export const MCP_CHECKS_FILE = 'mcp-checks.jsonl';
 
 const BROKEN_CONFIG = 'Your settings file (config.json) cannot be read. Fix or remove it, then look again.';
 
@@ -302,22 +300,6 @@ export function createSettings(cfg) {
   // ---- M13 piece 3: Settings > MCP. Reads the MCP config files (never writes them) and shows names, flags and counts only: no command, args, env or key.
   /** @type {Set<string>} */
   const checking = new Set();
-  const checksFile = () => join(configHome(cfg.home), MCP_CHECKS_FILE);
-
-  /** the newest line of the check log per `path\tserver`; a torn or foreign line is skipped @returns {Map<string, any>} */
-  function newestChecks() {
-    const out = new Map();
-    let text = '';
-    try { text = readFileSync(checksFile(), 'utf8'); } catch { return out; }
-    for (const line of text.split('\n')) {
-      let r;
-      try { r = JSON.parse(line); } catch { continue; }
-      if (typeof r?.server !== 'string' || typeof r?.path !== 'string' || typeof r?.at !== 'string') continue;
-      out.set(`${r.path}\t${r.server}`, r);
-    }
-    return out;
-  }
-
   /** a tool hint as the page shows it: only `readOnlyHint: true` is a hint; anything else is "no hint" (null) @param {any} a */
   const hintOf = (a) => (a?.readOnlyHint === true ? 'read-only' : null);
 
@@ -325,7 +307,7 @@ export function createSettings(cfg) {
     const src = mcpSources({ home: cfg.home });
     const names = [...new Set(src.places.flatMap((p) => p.servers.map((x) => x.name)))];
     const use = cfg.root ? countMcpUse(cfg.root, names) : new Map();
-    const checks = newestChecks();
+    const checks = newestMcpChecks(cfg.home);
     const places = src.places.map((p) => ({
       path: p.path,
       added: p.added,
@@ -376,8 +358,7 @@ export function createSettings(cfg) {
         entry = { ...line, ok: false, error: checkFailure(e) };
       }
       try {
-        mkdirSync(configHome(cfg.home), { recursive: true, mode: 0o700 });
-        appendFileSync(checksFile(), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+        appendMcpCheck(cfg.home, entry);
       } catch {
         return refuse('log-failed', 'The check ran but its result could not be saved.', 500);
       }

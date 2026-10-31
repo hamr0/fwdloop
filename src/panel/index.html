@@ -1058,7 +1058,7 @@
           <div id="mcp-paths" data-testid="mcp-paths"></div>
           <div class="pv-more" style="padding-left:10px;border-top:1px solid var(--border-strong)">
             <button class="btn small" type="button" id="mcp-add-open" data-testid="mcp-add-open">+ add a path</button>
-            <div class="pv-typed" id="mcp-add-box" hidden><input type="text" id="mcp-add-in" data-testid="mcp-add-in" autocomplete="off" spellcheck="false" aria-label="path" placeholder="type a path to an MCP config file"> <button class="btn small" type="button" id="mcp-add-go" data-testid="mcp-add-go">Add</button><div class="hint pv-msg" id="mcp-add-msg" data-testid="mcp-add-msg"></div></div>
+            <div class="pv-typed" id="mcp-add-box" hidden></div>
           </div>
         </div>
         <div class="hint" id="mcp-problem" data-testid="mcp-problem"></div>
@@ -7345,18 +7345,25 @@
       }, function(){ mcpBusy[key] = false; mcpFail[key] = networkText(); paintMcp(); });
     }
   });
+  // the typed-path box is built on the first press of "+ add a path" (like the Providers tab's typed-model box: the page has no static input but the monthly limit)
   document.getElementById("mcp-add-open").addEventListener("click", function(){
-    var b = document.getElementById("mcp-add-box"); b.hidden = !b.hidden; if(!b.hidden) document.getElementById("mcp-add-in").focus();
+    var b = document.getElementById("mcp-add-box");
+    if(!b.firstChild){
+      b.innerHTML = '<input type="text" id="mcp-add-in" data-testid="mcp-add-in" autocomplete="off" spellcheck="false" aria-label="path" placeholder="type a path to an MCP config file"> <button class="btn small" type="button" id="mcp-add-go" data-testid="mcp-add-go">Add</button><div class="hint pv-msg" id="mcp-add-msg" data-testid="mcp-add-msg"></div>';
+      document.getElementById("mcp-add-go").addEventListener("click", mcpAddPath);
+    }
+    b.hidden = !b.hidden; if(!b.hidden) document.getElementById("mcp-add-in").focus();
   });
-  document.getElementById("mcp-add-go").addEventListener("click", function(){
+  function mcpAddPath(){
     var inp = document.getElementById("mcp-add-in"), msg = document.getElementById("mcp-add-msg");
     var v = inp.value.trim();
-    if(!v){ setNote(msg, true, "Type a path first."); msg.className += " pv-msg"; return; }
+    var say = function(bad, text){ setNote(msg, bad, text); msg.className += " pv-msg"; };
+    if(!v){ say(true, "Type a path first."); return; }
     postJSON("/api/settings/mcp-path", { path: v }).then(function(res){
-      if(res.body && res.body.ok){ inp.value = ""; setNote(msg, false, "added"); msg.className += " pv-msg"; loadMcp(); }
-      else { setNote(msg, true, settingsRefusal(res)); msg.className += " pv-msg"; }
-    }, function(){ setNote(msg, true, networkText()); msg.className += " pv-msg"; });
-  });
+      if(res.body && res.body.ok){ inp.value = ""; say(false, "added"); loadMcp(); }
+      else say(true, settingsRefusal(res));
+    }, function(){ say(true, networkText()); });
+  }
   wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-mcp"), document.getElementById("stab-money")]);
   document.getElementById("stab-mcp").addEventListener("click", function(){ loadMcp(); });
 
