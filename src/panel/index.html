@@ -954,6 +954,47 @@
     .pv-knote,.pv-more{padding-left:8px;}
     .pv-m-msg{padding-left:8px;}
   }
+  /* M13 piece 3: Settings > MCP, from docs/product/m13-settings-mcp-mock.html; reuses .pv-key/.pv-krow/.pv-mrow with other columns */
+  .mc-sect{font-size:12px;color:var(--text-dim);font-weight:700;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.06em;}
+  .mc-sect:first-child{margin-top:0;}
+  .mc-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:6px 10px;border-top:1px solid var(--border-strong);min-height:40px;overflow-wrap:anywhere;}
+  .mc-row:first-child{border-top:none;}
+  .mc-row.faint{color:var(--text-faint);}
+  .mc-row .mc-grow{flex:1 1 220px;min-width:0;}
+  .mc-row .btn{margin-left:auto;}
+  .mc-add{padding:6px 10px;}
+  .pv-head.mc-k,.pv-krow.mc-k{--pv-cols:minmax(0,1.6fr) minmax(0,1.5fr) minmax(0,.8fr) 150px;}
+  .mc-grp{border-top:1px solid var(--border-strong);}
+  .mc-grp:first-of-type{border-top:none;}
+  .mc-prow{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:4px 8px;min-height:40px;background:var(--panel2);overflow-wrap:anywhere;}
+  .mc-prow .mc-grow{flex:1 1 100px;min-width:0;}
+  .mc-prow .btn{margin-left:auto;}
+  .mc-prow.faint{color:var(--text-faint);}
+  .mc-grp[data-open="0"] .mc-kids{display:none;}
+  .mc-grp .pv-key:first-child{border-top:1px solid var(--border-strong);}
+  .mc-k .pv-name{padding-left:26px;}
+  .mc-grp .pv-more{padding-left:60px;}
+  .mc-grp .mc-use{padding-left:60px;}
+  .mc-use{padding:0 8px 6px 34px;margin:0;}
+  .mc-use .bad{color:var(--red);}
+  /* M13 piece 3: the tool rows use the SAME columns as the MCP row above them (the mock gave them their own, so HINT and USED sat under no header) */
+  .pv-mrow.mc-t,.pv-mhead.mc-t{--pv-cols:minmax(0,1.6fr) minmax(0,1.5fr) minmax(0,.8fr) 150px;}
+  .pv-mrow.mc-t{display:grid;padding:0 8px;}
+  .mc-t .pv-m-name{padding-left:52px;}
+  .mc-t .n{text-align:left;font-variant-numeric:tabular-nums;}
+  .pv-key.faint{color:var(--text-faint);}
+  @media (max-width:1279px){
+    .pv-mhead.mc-t{display:grid;}
+    .pv-mrow.mc-t{display:grid;padding:0 8px;}
+    .mc-use{padding-left:8px;}
+    .mc-kids{margin-left:14px;border-left:2px solid var(--border-strong);}
+    .mc-k .pv-name{padding-left:0;}
+    .mc-grp .pv-more,.mc-grp .mc-use{padding-left:8px;}
+    .pv-mrow.mc-t,.pv-mhead.mc-t{--pv-cols:minmax(0,2fr) minmax(0,1fr) minmax(0,.6fr);}
+    .mc-t .n{text-align:right;}
+    .mc-t .pv-m-name{padding-left:0;}
+    .pv-refcell:empty{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -987,6 +1028,7 @@
     </div>
     <div class="tabrow" role="tablist" aria-label="Settings views">
       <button role="tab" id="stab-providers" aria-controls="spanel-providers" aria-selected="true" data-testid="settings-tab-providers">Providers</button>
+      <button role="tab" id="stab-mcp" aria-controls="spanel-mcp" aria-selected="false" data-testid="settings-tab-mcp">MCP</button>
       <button role="tab" id="stab-money" aria-controls="spanel-money" aria-selected="false" data-testid="settings-tab-money">Money &amp; limits</button>
     </div>
     <div class="pane-body">
@@ -1009,6 +1051,20 @@
           </div>
         </div>
         <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">⟳ refresh models (free) · old max_tokens: tick if the server wants the old field name</div>
+      </section>
+      <section id="spanel-mcp" class="tabpanel" role="tabpanel" aria-labelledby="stab-mcp" hidden>
+        <div class="mc-sect">Path and MCP</div>
+        <div class="table-wrap" data-testid="mcp-table-wrap">
+          <div id="mcp-paths" data-testid="mcp-paths"></div>
+          <div class="pv-more" style="padding-left:10px;border-top:1px solid var(--border-strong)">
+            <button class="btn small" type="button" id="mcp-add-open" data-testid="mcp-add-open">+ add a path</button>
+            <div class="pv-typed" id="mcp-add-box" hidden><input type="text" id="mcp-add-in" data-testid="mcp-add-in" autocomplete="off" spellcheck="false" aria-label="path" placeholder="type a path to an MCP config file"> <button class="btn small" type="button" id="mcp-add-go" data-testid="mcp-add-go">Add</button><div class="hint pv-msg" id="mcp-add-msg" data-testid="mcp-add-msg"></div></div>
+          </div>
+        </div>
+        <div class="hint" id="mcp-problem" data-testid="mcp-problem"></div>
+        <div class="hint" style="margin-top:6px;">Read only. fwdloop never edits these files and never shows keys. A project folder's .mcp.json is never read.</div>
+        <div class="hint">check tools starts the server once, only when pressed.</div>
+        <div class="hint">&mdash; = no hint; shown, not blocked. Hints are info only.</div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -6832,12 +6888,11 @@
   var PV_NOTE_DEFAULT = pvNote.textContent;
   document.getElementById("settings-open").addEventListener("click", function(){
     mainView.hidden = true; settingsView.hidden = false;
-    loadProviders(true); loadMoney();
+    loadProviders(true); loadMoney(); loadMcp();
   });
   document.getElementById("settings-back").addEventListener("click", function(){
     settingsView.hidden = true; mainView.hidden = false;
   });
-  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
   document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
   document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
 
@@ -7181,6 +7236,129 @@
       } else setNote(msg, true, settingsRefusal(r));
     }, function(){ setNote(msg, true, networkText()); });
   });
+
+
+  // ---- M13 piece 3: Settings > MCP (mock docs/product/m13-settings-mcp-mock.html). One list "Path and MCP": a path is a header, its MCPs sit under it.
+  // The page only READS: GET /api/settings/mcp (names, flags, counts; never a command or a key) and, on a press, POST .../mcp-check for that one MCP.
+  var mcpRoot = document.getElementById("mcp-paths");
+  var mcpData = null;
+  var mcpPathFold = {};   // path -> false when folded (paths start open)
+  var mcpSrvOpen = {};    // path + tab + name -> true when open (MCPs start folded)
+  var mcpMoreOpen = {};
+  var mcpBusy = {};
+  var mcpFail = {};       // path + tab + name -> the sentence of a press that was refused
+  var MCP_TOOLS_SHOWN = 5;
+  function loadMcp(){
+    return getJSON("/api/settings/mcp").then(function(d){ mcpData = d; setNote(document.getElementById("mcp-problem"), true, d.problem || ""); paintMcp(); }, function(e){
+      setNote(document.getElementById("mcp-problem"), true, loadFailureText(e));
+    });
+  }
+  function mcpClock(iso){
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    var two = function(n){ return ("0" + n).slice(-2); };
+    var hm = two(d.getHours()) + ":" + two(d.getMinutes());
+    var now = new Date();
+    if(d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) return { today: true, text: hm };
+    return { today: false, text: d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()) + " " + hm };
+  }
+  function mcpUseLine(u){
+    if(!u || (u.calls === 0 && u.denied === 0)) return "never used";
+    var t = "used " + u.calls + (u.calls === 1 ? " time" : " times") + (u.calls > 0 ? " in " + u.runs + (u.runs === 1 ? " run" : " runs") : "");
+    var c = u.last ? mcpClock(u.last) : "";
+    if(c) t += " · last used " + (c.today ? "today " : "") + c.text;
+    return '<span>' + escapeXml(t) + ' · <span class="' + (u.denied > 0 ? "bad" : "") + '">' + u.denied + ' denied</span></span>';
+  }
+  function mcpSrvHtml(s, pi, si, place){
+    var key = place.path + "\t" + s.name;
+    var open = mcpSrvOpen[key] === true;
+    var ok = s.check && s.check.ok === true;
+    var idle = s.remote || s.shadowedBy !== null;
+    var tools = s.remote ? '<span class="hint">remote server, not supported yet</span>' : idle ? "—" : ok ? s.check.tools.length + (s.check.tools.length === 1 ? " tool" : " tools") : s.check ? "—" : "never checked";
+    var at = s.check ? mcpClock(s.check.at) : "";
+    var checked = idle ? "—" : s.check ? "checked " + (at ? at.text : "") : "never checked";
+    var busy = mcpBusy[key] === true;
+    var btn = idle ? "" : (busy ? '<button class="btn small pv-refbtn" type="button" disabled>checking…</button>' : '<button class="btn small pv-refbtn" type="button" data-chk="' + pi + "-" + si + '" data-testid="mcp-check">check tools</button>');
+    var use = idle ? "" : mcpUseLine(s.use);
+    var list = "";
+    if(ok){
+      var more = mcpMoreOpen[key] === true;
+      var shown = more ? s.check.tools : s.check.tools.slice(0, MCP_TOOLS_SHOWN);
+      list = '<div class="pv-mhead mc-t" aria-hidden="true"><span>TOOL</span><span>HINT</span><span class="n">USED</span></div>' +
+        shown.map(function(t){
+          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && s.use.tools[t.name]) || 0) + '</span></div>';
+        }).join("") +
+        (s.check.tools.length > shown.length ? '<div class="pv-more"><button class="pv-add" type="button" data-more="' + pi + "-" + si + '">+' + (s.check.tools.length - shown.length) + ' more</button></div>' : "");
+    } else if(s.check) list = '<div class="pv-more"><span class="hint bad">' + escapeXml(s.check.error || "") + '</span></div>';
+    else if(!idle) list = '<div class="pv-more"><span class="hint">Press check tools to list its tools.</span></div>';
+    if(mcpFail[key]) list += '<div class="pv-more"><span class="hint bad">' + escapeXml(mcpFail[key]) + '</span></div>';
+    return '<div class="pv-key' + (s.shadowedBy !== null ? " faint" : "") + '" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-row">' +
+      '<div class="pv-krow mc-k">' +
+        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-fold="' + pi + "-" + si + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><code>' + escapeXml(s.name) + '</code></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Tools</span><span>' + tools + (busy ? ' <span class="mc-spin">…</span>' : "") + '</span></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Checked</span><span>' + escapeXml(checked) + '</span></div>' +
+        '<div class="pv-cell pv-refcell nolbl">' + btn + '</div>' +
+      '</div>' +
+      (use ? '<div class="hint mc-use">' + use + '</div>' : "") +
+      '<div class="pv-models">' + list + '</div>' +
+    '</div>';
+  }
+  function paintMcp(){
+    if(!mcpData) return;
+    var h = '<div class="pv-head mc-k" aria-hidden="true"><span>PATH / MCP</span><span>TOOLS</span><span>CHECKED</span><span></span></div>';
+    mcpData.places.forEach(function(g, pi){
+      var found = g.status === "found", n = g.servers.length, open = mcpPathFold[g.path] !== false;
+      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + "not found";
+      h += '<div class="mc-grp" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-path"><div class="mc-prow' + (found ? "" : " faint") + '">' +
+        (found ? '<button class="pv-fold" type="button" data-pfold="' + pi + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><span class="pv-ok">✓</span>' : '<span class="pv-fold" style="display:inline-block">&nbsp;</span><span>–</span>') +
+        '<span class="mc-grow"><code>' + escapeXml(g.path) + '</code>' + escapeXml(note) + '</span>' +
+        (g.added ? '<button class="btn small" type="button" data-rm="' + pi + '" data-testid="mcp-remove">remove</button>' : "") + '</div>' +
+        (found ? '<div class="mc-kids">' + g.servers.map(function(s, si){ return mcpSrvHtml(s, pi, si, g); }).join("") + '</div>' : "") + '</div>';
+    });
+    mcpRoot.innerHTML = h;
+  }
+  function mcpAt(id){ var a = id.split("-"); var g = mcpData.places[+a[0]]; return { place: g, srv: g.servers[+a[1]] }; }
+  mcpRoot.addEventListener("click", function(e){
+    if(!mcpData) return;
+    var pf = e.target.closest("[data-pfold]");
+    if(pf){ var g = mcpData.places[+pf.getAttribute("data-pfold")]; mcpPathFold[g.path] = mcpPathFold[g.path] === false; paintMcp(); return; }
+    var r = e.target.closest("[data-rm]");
+    if(r){
+      var path = mcpData.places[+r.getAttribute("data-rm")].path;
+      postJSON("/api/settings/mcp-path-remove", { path: path }).then(function(res){
+        if(res.body && res.body.ok) loadMcp(); else setNote(document.getElementById("mcp-problem"), true, settingsRefusal(res));
+      }, function(){ setNote(document.getElementById("mcp-problem"), true, networkText()); });
+      return;
+    }
+    var f = e.target.closest("[data-fold]");
+    if(f){ var x = mcpAt(f.getAttribute("data-fold")); var k = x.place.path + "\t" + x.srv.name; mcpSrvOpen[k] = mcpSrvOpen[k] !== true; paintMcp(); return; }
+    var m = e.target.closest("[data-more]");
+    if(m){ var y = mcpAt(m.getAttribute("data-more")); mcpMoreOpen[y.place.path + "\t" + y.srv.name] = true; paintMcp(); return; }
+    var c = e.target.closest("[data-chk]");
+    if(c){
+      var z = mcpAt(c.getAttribute("data-chk")); var key = z.place.path + "\t" + z.srv.name;
+      mcpBusy[key] = true; delete mcpFail[key]; paintMcp();
+      postJSON("/api/settings/mcp-check", { server: z.srv.name }).then(function(res){
+        mcpBusy[key] = false;
+        if(res.body && res.body.ok) mcpSrvOpen[key] = true; else mcpFail[key] = settingsRefusal(res);
+        loadMcp();
+      }, function(){ mcpBusy[key] = false; mcpFail[key] = networkText(); paintMcp(); });
+    }
+  });
+  document.getElementById("mcp-add-open").addEventListener("click", function(){
+    var b = document.getElementById("mcp-add-box"); b.hidden = !b.hidden; if(!b.hidden) document.getElementById("mcp-add-in").focus();
+  });
+  document.getElementById("mcp-add-go").addEventListener("click", function(){
+    var inp = document.getElementById("mcp-add-in"), msg = document.getElementById("mcp-add-msg");
+    var v = inp.value.trim();
+    if(!v){ setNote(msg, true, "Type a path first."); msg.className += " pv-msg"; return; }
+    postJSON("/api/settings/mcp-path", { path: v }).then(function(res){
+      if(res.body && res.body.ok){ inp.value = ""; setNote(msg, false, "added"); msg.className += " pv-msg"; loadMcp(); }
+      else { setNote(msg, true, settingsRefusal(res)); msg.className += " pv-msg"; }
+    }, function(){ setNote(msg, true, networkText()); msg.className += " pv-msg"; });
+  });
+  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-mcp"), document.getElementById("stab-money")]);
+  document.getElementById("stab-mcp").addEventListener("click", function(){ loadMcp(); });
 
   // theme toggle
   (function(){
