@@ -5159,3 +5159,17 @@ Not measured here: whether the after drafts carried the P1 ticketFilter (F121b c
 **Method.** A `git worktree` at `7d15791^`; a `cp -a` COPY of `~/.config/fwdloop/flows` (the original is never written). That old panel runs on a free port (not 4800, not 8765) with `--root <copy>` and a scratch HOME. For every flow and every run, read via the panel API: the run detail's `hasResult` (the old tab decision), `GET .../result` status and the payload's top-level key set (its kind), and each flow's `flowType` as `flowTypeOf` reads it. Then the same on the post-build code of this branch, same copy, a second scratch HOME, reading the new tab decision field and `/result` and `/grid`.
 
 **Pass bar (fixed now, no refit).** (1) Every job whose type is plain or MCP (flowType plain/mcp, or no flowType and no `mcp` block): new Result-tab decision equals the old `hasResult`, and the `/result` status and key set equal the old, for every run. (2) Every Tickets job (flowType tickets, or an old M12 job with an `mcp` block): the new decision shows the tab and the grid is drawn (grid flag true). Any difference is FAIL.
+
+## F123 RESULT (2026-11-01, [MEASURED], $0, no model call; PASS)
+
+Old panel = `7d15791^` (81f04ab, in a worktree), new = this branch after the am2 build; both on a `cp -a` copy of hamr's flows root (30 jobs, 84 runs), scratch HOMEs, ports 4911/4912. Per run: the run detail's tab field, `GET .../result` status and top-level key set, and the new `hasGrid`.
+
+| jobs (type as `flowTypeOf` reads it) | runs | OLD tab (`hasResult`) | OLD `/result` | NEW tab (`resultTab`) | NEW grid (`hasGrid`) | NEW `/result` |
+|---|---|---|---|---|---|---|
+| 25 plain jobs (aging-live-*, am29-walk-2, exit-walk-1, flights-learn-*, m10-walk-*, m10b-*, m7-walk-*, thinking-check-1) | 70 | shown (all read a page, CSV or .docx) | 200 | shown | no | 200, same key set |
+| browse-check (mcp) | 1 | hidden | 404 | hidden | no | 404 |
+| ticket-triage, -2, -3, -4 (tickets) | 12 | shown (they read a page, so the cards stay) | 200 | shown | yes | 200, same key set |
+
+Per run, all 84 matched the bar: every plain and MCP job has the same tab decision and the same `/result` status and key set as the old code; every Tickets job has the grid. Not seen on this data: a plain job with no M10 page (only browse-check, an MCP job, is such a job); that case is covered by test/m13-am2-result-tab.test.js (a signed MCP job with a plain text input: no tab, no grid) and test/m10-am4-result-page.test.js.
+
+**Verdict against the pre-registered bar: PASS.**
