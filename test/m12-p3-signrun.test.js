@@ -7,7 +7,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
-import { killChildrenAfter, until, world } from './m4e-world.mjs';
+import { killChildrenAfter, until, useHome, world } from './m4e-world.mjs';
 import { appendMcpCheck } from '../src/mcp-checks.js';
 import { LIST } from './m12-p2-world.mjs';
 
@@ -34,7 +34,7 @@ async function ticketDraft({ echo = false } = {}) {
   const fakeHome = path.join(w.work, 'home');
   mkdirSync(fakeHome);
   writeFileSync(path.join(fakeHome, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: 'true' } } }));
-  w.env.HOME = fakeHome;
+  useHome(w, fakeHome);
   appendMcpCheck(w.home, { server: 'github', path: '~/.mcp.json', at: '2026-10-31T10:00:00Z', ok: true, tools: ['issue_read', 'list_issues'].map((name) => ({ name, hint: null })) });
   const card = w.card({ inputs: `resume: ${path.join(w.inDir, 'resume.md')}\njd: ${LIST}`, flowType: 'tickets', mcp: 'github' });
   const id = (await w.post('/api/author/draft', card)).json().draftId;
@@ -56,7 +56,7 @@ test('a Tickets card whose MCP was never checked is refused at $0 on the MCP fie
   const fakeHome = path.join(w.work, 'home');
   mkdirSync(fakeHome);
   writeFileSync(path.join(fakeHome, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: 'true' } } }));
-  w.env.HOME = fakeHome;
+  useHome(w, fakeHome);
   const r = await w.post('/api/author/draft', w.card({ inputs: `jd: ${LIST}`, flowType: 'tickets', mcp: 'github' }));
   assert.equal(r.status, 400, r.text);
   assert.deepEqual(r.json().refusals.map((x) => x.field), ['mcp']);

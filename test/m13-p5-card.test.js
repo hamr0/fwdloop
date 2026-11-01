@@ -7,7 +7,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
-import { killChildrenAfter, until, world } from './m4e-world.mjs';
+import { killChildrenAfter, until, useHome, world } from './m4e-world.mjs';
 import { appendMcpCheck } from '../src/mcp-checks.js';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
 import { readRows } from '../src/trigger-clock.js';
@@ -35,7 +35,7 @@ async function tWorld() {
   const fakeHome = path.join(w.work, 'home');
   mkdirSync(fakeHome);
   writeFileSync(path.join(fakeHome, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: 'true' } } }));
-  w.env.HOME = fakeHome;
+  useHome(w, fakeHome);
   appendMcpCheck(w.home, { server: 'github', path: '~/.mcp.json', at: '2026-10-31T10:00:00Z', ok: true, tools: ['issue_read', 'list_issues'].map((name) => ({ name, hint: null })) });
   return w;
 }
