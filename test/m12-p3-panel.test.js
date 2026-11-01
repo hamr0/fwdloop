@@ -52,7 +52,7 @@ test('the four buckets are fold rows of one grid, Skipped folded at first; skipp
   assert.equal(await c.ev('document.querySelector("[data-testid=grid-stats]").textContent'), '0 needs you · 0 stopped · 0 passed · 2 skipped · spent $0');
   await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
   const rows = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-row]")).map(function(r){ return r.querySelector("[data-testid=grid-name]").textContent + "|" + r.nextElementSibling.querySelector("[data-testid=ticket-reason]").textContent; })');
-  assert.deepEqual(rows.sort(), ['#102|priority P3, not P1 or P2 · $0', '#103|closed · $0']);
+  assert.deepEqual(rows.sort(), ['#102 · Docs typo|priority P3, not P1 or P2 · $0', '#103 · Old one|closed · $0']);
   const heads = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-table] thead th")).map(function(h){ return h.textContent; })');
   assert.deepEqual(heads, ['run', 'every stepexists, done', 'output judged', 'cost', 'time']);
   await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');

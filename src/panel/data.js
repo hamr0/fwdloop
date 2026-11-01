@@ -2295,7 +2295,7 @@ export function getJobGrid({
     const entry = inputs.ok ? inputs.entries.find((e) => e && e.ticket && Number.isInteger(e.ticket.number)) : null;
     const at = typeof ctx.historyRow?.at === 'string' ? Date.parse(ctx.historyRow.at) : NaN;
     runs.push({
-      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, at: Number.isFinite(at) ? at : null,
+      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, title: entry && typeof entry.ticket.title === 'string' ? entry.ticket.title : null, at: Number.isFinite(at) ? at : null,
       history: ctx.historyRow ?? null, spendRows: ctx.spendRows, diary: readChecks(run.runDir),
       steps: ctx.flowRead.ok ? (ctx.flowRead.declaration?.steps ?? []) : [],
       reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,

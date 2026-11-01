@@ -93,7 +93,7 @@ export function checkCells({ diary, steps, ended, red, skipped }) {
 
 /**
  * The grid of one job: every run a row in its bucket, newest first inside each bucket, and the stats line's numbers.
- * @param {{runs: Array<{runId: string, glyph: string, ticket: number|null, at: number|null, history: any, spendRows: any[], diary: any[], steps: any[], reason: string|null}>, anyway?: {runId: string, numbers: Set<number>}|null, now?: number}} a
+ * @param {{runs: Array<{runId: string, glyph: string, ticket: number|null, title?: string|null, at: number|null, history: any, spendRows: any[], diary: any[], steps: any[], reason: string|null}>, anyway?: {runId: string, numbers: Set<number>}|null, now?: number}} a
  */
 export function buildJobGrid({ runs, anyway = null, now = Date.now() }) {
   const rows = runs.map((r) => {
@@ -104,7 +104,7 @@ export function buildJobGrid({ runs, anyway = null, now = Date.now() }) {
     const lines = [...cells.lines];
     if (money.usd === null) lines.push('cost unknown, not shown as $0');
     return {
-      runId: r.runId, name: r.ticket !== null ? `#${r.ticket}` : r.runId, number: r.ticket, bucket, glyph: r.glyph, at: r.at ?? now,
+      runId: r.runId, name: r.ticket !== null ? `#${r.ticket}` : r.runId, title: r.ticket !== null && typeof r.title === 'string' ? r.title : null, number: r.ticket, bucket, glyph: r.glyph, at: r.at ?? now,
       ex: cells.ex, oj: cells.oj,
       cost: { mark: money.usd !== null && money.complete ? 'g' : 'q', value: money.usd === null ? '—' : moneyWords(money.usd, money.complete) },
       time: { mark: bucket === 'skip' ? 'n' : (wall !== null ? 'g' : 'q'), value: wall }, // value: ms, or null = unknown
