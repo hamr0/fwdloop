@@ -70,6 +70,9 @@ export function nextInWords(ms, now) {
   return hours < 48 ? `next in ${hours}h` : `next in ${Math.floor(hours / 24)}d`;
 }
 
+/** M13 piece 5 (signed item 7): a schedule that was signed with the job and is off until the first green run. The Run card's grey line; one owner. */
+export const SCHEDULE_WAITING_SAY = 'Schedule waiting for a green run';
+
 /**
  * NEXT of a job with a trigger. One sentence, first match wins:
  *  1. a run of this job is waiting at its ask (the next run waits too);
@@ -77,7 +80,8 @@ export function nextInWords(ms, now) {
  *  3. a clock kind with a next slot; 4. a file kind that is armed; 5. not armed yet.
  * A last outcome of `refused` goes in front of 3-5, so a trigger that cannot start is never silent.
  * `red` is the typed flag for "the human must act": monthly-exhausted and the refused lead. The page paints it; it never guesses from the text.
- * @param {{trigger: Trigger, armed: boolean, nextSlotMs: number|null, lastOutcome: any, waitingLine: number|null, now: number}} f
+ * M13 piece 5: `waiting` (signed with the job, off until the first green run) says SCHEDULE_WAITING_SAY, before every other row but the ask.
+ * @param {{trigger: Trigger, armed: boolean, waiting?: boolean, nextSlotMs: number|null, lastOutcome: any, waitingLine: number|null, now: number}} f
  * @returns {{text: string, red: boolean}}
  */
 export function scheduledNextFor(f) {
@@ -92,6 +96,7 @@ export function scheduledNextFor(f) {
     const left = last.atLeast === true ? `at most ${money(last.leftUsd)} left` : `${money(last.leftUsd)} left`;
     return say(`Paused: not enough money left this month (${left}, a run needs up to ${money(last.needUsd)}). Raise the monthly limit in Settings, or it starts again on the 1st.`, true);
   }
+  if (f.waiting === true) return say(SCHEDULE_WAITING_SAY);
   const lead = last !== null && last.outcome === 'refused' && typeof last.why === 'string' && last.why !== '' ? `The last try did not start: ${last.why} ` : '';
   const red = lead !== '';
   if (!armed) return say(`${lead}Not armed yet: the panel arms it on its next check.`, red);
@@ -258,14 +263,16 @@ function monthUsedUpWords(row) {
  *  - month used up: `month used up: $0.01 left, needs $0.50 · next: raise the limit in Settings, or it starts on the 1st`, red only while `nowMs` is still that month;
  *  - refused: `refused: <why> · next: fix it in Cancel / modify schedule`, red until a later good start.
  * `next` otherwise: `next <day stamp>`, `next: waiting for a new file` (file schedule) or `next: not armed yet`.
- * @param {{trigger: Trigger|null, home?: string, last: {at: string, runId: string, outcome: string, catchUp: boolean}|null, nextSlotMs: number|null, armed: boolean, problem: any, nowMs?: number}} f
+ * M13 piece 5: a schedule signed with the job and still off (`waiting`) has line 2 `Schedule waiting for a green run`, `grey: true` (a red run is normal shaping, never red).
+ * @param {{trigger: Trigger|null, home?: string, last: {at: string, runId: string, outcome: string, catchUp: boolean}|null, nextSlotMs: number|null, armed: boolean, waiting?: boolean, problem: any, nowMs?: number}} f
  *   `problem`: the newest fire when it started nothing (busy, monthly-exhausted, refused), else null.
- * @returns {{line1: string, line2: string|null, red: boolean}}
+ * @returns {{line1: string, line2: string|null, red: boolean, grey?: boolean}}
  */
 export function scheduleBlockWords(f) {
   const head = scheduleHead(f.trigger, f.home);
   const tr = f.trigger;
   if (head === null || tr === null) return { line1: 'By hand', line2: null, red: false };
+  if (f.waiting === true) return { line1: head, line2: SCHEDULE_WAITING_SAY, red: false, grey: true };
   const file = tr.kind === 'new-file' || tr.kind === 'file-updated';
   const next = tr.kind === 'new-ticket' ? 'next: waiting for a new ticket' : file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
   const p = f.problem;

@@ -23,13 +23,14 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { flowValues, valuesHash } from '../runvalues.js';
 import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
 import { endRow, readHistory } from '../books.js';
+import { readRunInputs } from '../runfile.js';
 import { appendRow } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
 } from '../flow.js';
-import { scheduleHead, scheduledWords } from '../summary-words.js';
+import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
@@ -66,20 +67,20 @@ export function appendOutcome(flowDir, row) {
 }
 
 /**
- * M9 item 1 and 2: does this job have "one green run"? The ONE function that decides it. A passed run counts when the job it ran (its own
+ * M9 item 1 and 2: the runs that count as "one green run" for this job, in run-name order. THE decider: a passed run counts when the job it ran (its own
  * `job/` copy) is the job as it is now (prose and declaration, byte for byte: a schedule is its own file, so setting one never changes the job).
  * A run from before runs kept a job copy has none to compare, so it counts only when its history row's signature is the job's current one.
- * @param {string} flowDir
+ * @param {string} flowDir @returns {Generator<{runId: string, runDir: string, at: string}>}
  */
-export function hasGreenRunForJob(flowDir) {
+function* greenRuns(flowDir) {
   const cur = {};
   for (const f of FLOW_FILES) {
     const r = readFileInside(flowDir, f);
-    if (!r.ok) return false;
+    if (!r.ok) return;
     cur[f] = r.text;
   }
   let sig;
-  try { sig = JSON.parse(cur['signature.json']).flow; } catch { return false; }
+  try { sig = JSON.parse(cur['signature.json']).flow; } catch { return; }
   const key = (/** @type {string} */ prose, /** @type {string} */ decl) => `${prose.trimEnd()}\n\u0000${decl}`;
   const want = key(cur['prose.txt'], cur['declaration.json']);
   const history = readHistory(flowDir);
@@ -90,16 +91,33 @@ export function hasGreenRunForJob(flowDir) {
     if (end === null || end.outcome !== 'complete') continue;
     const prose = readFileInside(r.runDir, 'job/prose.txt');
     const decl = readFileInside(r.runDir, 'job/declaration.json');
-    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) return true; } else if (!prose.ok && prose.missing && end.signatureHash === sig) return true;
+    const at = typeof end.at === 'string' ? end.at : '';
+    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) yield { runId: id, runDir: r.runDir, at }; } else if (!prose.ok && prose.missing && end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
   }
-  return false;
+}
+
+/** M9 item 1 and 2: does this job have "one green run"? @param {string} flowDir */
+export function hasGreenRunForJob(flowDir) {
+  return !greenRuns(flowDir).next().done;
+}
+
+/**
+ * M13 piece 5: the first green run of this job (the earliest one to end), or null. A resume that ends green counts: the history row is the run's last. The one reader of
+ * "which run turned the schedule on".
+ * @param {string} flowDir @returns {{runId: string, runDir: string, at: string}|null}
+ */
+export function firstGreenRunFor(flowDir) {
+  let first = null;
+  for (const g of greenRuns(flowDir)) if (first === null || g.at < first.at) first = g;
+  return first;
 }
 
 /**
  * The ONE writer of "this schedule was set": the starting point (am2 item 2). Idempotent per signing. A file kind records what is already there first
  * (never runs; `baseline: false` = the folder is the same as the earlier signing's, whose rows were carried), then the armed row. Throws, naming why,
  * when the target is not usable now.
- * @param {string} flowDir @param {Schedule} schedule @param {number} now epoch ms @param {{baseline?: boolean}} [o]
+ * M13 piece 5: `ticketN` (the first green run's ticket number) rides the armed row of a ticket schedule, for its first look's cut.
+ * @param {string} flowDir @param {Schedule} schedule @param {number} now epoch ms @param {{baseline?: boolean, ticketN?: number}} [o]
  * @returns {{armed: boolean, already: boolean}}
  */
 export function armFor(flowDir, schedule, now, o = {}) {
@@ -110,8 +128,31 @@ export function armFor(flowDir, schedule, now, o = {}) {
     if (trigger.kind === 'file-updated') createFileTrigger({ mode: 'updated', target: trigger.path, ledger, sig }).arm();
     else if (trigger.kind === 'new-file') createFileTrigger({ mode: 'new', target: trigger.folder, ledger, sig }).arm();
   }
-  armTrigger(ledger, now, sig);
+  armTrigger(ledger, now, sig, o.ticketN);
   return { armed: true, already: false };
+}
+
+/**
+ * A `new-ticket` trigger filled from the SIGNED job: the list address of its ticket input, the job's server, the look's tool (one of the job's signed tools) and the fields to watch.
+ * Both the Run card's two clicks and the New job card's sign build it here. `{ok:false, say}` names what is wrong, and says nothing was changed.
+ * @param {any} read the signed job @param {{role: string, watch?: string[]}} trigger
+ * @returns {{ok: true, trigger: Trigger} | {ok: false, say: string}}
+ */
+function newTicketTrigger(read, trigger) {
+  const no = (/** @type {string} */ say) => ({ ok: /** @type {false} */ (false), say });
+  // M12 piece 2 (items 8; PRD ruling "a tool counts as used if a step or the signed schedule uses it"): the look's tool is `list_issues` on the server the job names
+  const list = ticketListsOf(read.arbiter)[trigger.role];
+  if (list === undefined) return no(`The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.`);
+  const server = read.declaration?.mcp?.server;
+  if (typeof server !== 'string') return no('This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.');
+  if (flowTypeOf(read.declaration) !== 'tickets') return no('Only a Tickets job can start on a new ticket. Nothing was changed.');
+  // M13 piece 4 (item 9b.1): the look's tool is one of the job's signed tools, like every other tool; a job whose list lacks it cannot be scheduled by "a new ticket arrives"
+  const lookTool = (Array.isArray(read.declaration.mcp.tools) ? read.declaration.mcp.tools : []).find((/** @type {string} */ t) => t === TICKET_LOOK_TOOL);
+  if (lookTool === undefined) return no(`This job's signed tools do not include ${TICKET_LOOK_TOOL}, the tool that looks for new tickets, so a new ticket cannot start a run. Draft the job again as a Tickets job. Nothing was changed.`);
+  // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
+  const jobWatch = read.declaration?.ticketWatch;
+  const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);
+  return { ok: true, trigger: { kind: 'new-ticket', role: trigger.role, list, server, tool: lookTool, ...(watch ? { watch } : {}) } };
 }
 
 /**
@@ -143,6 +184,22 @@ function shapeOf(t, roles) {
     return { ok: true, trigger: /** @type {Trigger} */ ({ kind: 'new-ticket', role: o.role, list: '', server: '', tool: '', ...(o.watch ? { watch: o.watch } : {}) }) };
   }
   try { return { ok: true, trigger: validateSchedule(t) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was changed.` }; }
+}
+
+/**
+ * THE builder of a Schedule record (the Run card's second click and the New job card's sign both call it): the hash binds exactly what the human was shown.
+ * @param {{flow: string, flowSignatureHash: string, trigger: Trigger, model: Schedule['model'], destination: string|null, inputs: Schedule['inputs'], plan: Schedule['plan'], from: string|null, signedBy: string, at: number}} o
+ * @returns {Schedule}
+ */
+function buildSchedule(o) {
+  const signedAt = new Date(o.at).toISOString();
+  const bound = triggerHash({
+    flow: o.flow, flowSignatureHash: o.flowSignatureHash, trigger: o.trigger, model: o.model, destination: o.destination, inputs: o.inputs, plan: o.plan,
+  });
+  return {
+    v: 1, flow: o.flow, trigger: o.trigger, flowSignatureHash: o.flowSignatureHash, bound, sig: sigOf(bound, signedAt), signedBy: o.signedBy, signedAt,
+    model: o.model, destination: o.destination, inputs: o.inputs, plan: o.plan, from: o.from,
+  };
 }
 
 /**
@@ -180,19 +237,9 @@ export function createTriggerDoor(opts) {
     if (!shaped.ok) return reply(400, { refused: 'bad-trigger', say: shaped.say });
     let { trigger } = shaped;
     if (trigger !== null && trigger.kind === 'new-ticket') {
-      // M12 piece 2 (items 8; PRD ruling "a tool counts as used if a step or the signed schedule uses it"): the look's tool is `list_issues` on the server the job names
-      const list = ticketListsOf(read.arbiter)[trigger.role];
-      if (list === undefined) return reply(400, { refused: 'bad-trigger', say: `The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.` });
-      const server = read.declaration?.mcp?.server;
-      if (typeof server !== 'string') return reply(400, { refused: 'bad-trigger', say: 'This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.' });
-      if (flowTypeOf(read.declaration) !== 'tickets') return reply(400, { refused: 'bad-trigger', say: 'Only a Tickets job can start on a new ticket. Nothing was changed.' });
-      // M13 piece 4 (item 9b.1): the look's tool is one of the job's signed tools, like every other tool; a job whose list lacks it cannot be scheduled by "a new ticket arrives"
-      const lookTool = (Array.isArray(read.declaration.mcp.tools) ? read.declaration.mcp.tools : []).find((/** @type {string} */ t) => t === TICKET_LOOK_TOOL);
-      if (lookTool === undefined) return reply(400, { refused: 'bad-trigger', say: `This job's signed tools do not include ${TICKET_LOOK_TOOL}, the tool that looks for new tickets, so a new ticket cannot start a run. Draft the job again as a Tickets job. Nothing was changed.` });
-      // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
-      const jobWatch = read.declaration?.ticketWatch;
-      const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);
-      trigger = { kind: trigger.kind, role: trigger.role, list, server, tool: lookTool, ...(watch ? { watch } : {}) };
+      const filled = newTicketTrigger(read, trigger);
+      if (!filled.ok) return reply(400, { refused: 'bad-trigger', say: filled.say });
+      trigger = filled.trigger;
     }
     const flowDir = join(realRoot, flow);
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
@@ -321,12 +368,9 @@ export function createTriggerDoor(opts) {
       }
       const at = now();
       const signedAt = new Date(at).toISOString();
-      const bound = s.hash;
-      /** @type {Schedule} */
-      const schedule = {
-        v: 1, flow: s.flow, trigger: s.trigger, flowSignatureHash: s.read.signature.flow, bound, sig: sigOf(bound, signedAt), signedBy: userInfo().username, signedAt,
-        model: s.model, destination: s.destination, inputs: s.inputs, plan: s.plan, from: s.from,
-      };
+      const schedule = buildSchedule({
+        flow: s.flow, flowSignatureHash: s.read.signature.flow, trigger: s.trigger, model: s.model, destination: s.destination, inputs: s.inputs, plan: s.plan, from: s.from, signedBy: userInfo().username, at,
+      });
       const keep = cur !== null && sameTarget(cur.trigger, s.trigger);
       try {
         if (cur !== null && keep) carryQueue(s.flowDir, cur.sig, schedule.sig);
@@ -369,6 +413,60 @@ export function createTriggerDoor(opts) {
         if (sc === null) continue;
         const read = readSigned(realRoot, flow);
         if (read.ok && sc.flowSignatureHash !== read.signature.flow) cancelSchedule(flow, flowDir, sc);
+      }
+    },
+
+    /**
+     * M13 piece 5 (signed item 7), the $0 check of the New job card's Schedule row, before anything is signed: the trigger it becomes, built from the plan that is about to be
+     * signed (`arbiter` and `declaration` of the draft). Every day at HH:MM is the card's own data; a new ticket is filled from the plan (one ticket-list input, the job's
+     * server and signed look tool). `{ok:false, say}` names what is wrong. Writes nothing.
+     * @param {any} spec the card's `schedule` @param {{arbiter: any, declaration: any}} plan
+     * @returns {{ok: true, trigger: Trigger} | {ok: false, say: string}}
+     */
+    cardSchedule(spec, plan) {
+      if (spec.kind === 'new-ticket') {
+        const roles = Object.keys(ticketListsOf(plan.arbiter));
+        if (roles.length !== 1) return { ok: false, say: 'When a new ticket arrives needs exactly one ticket list in Inputs. Nothing was signed.' };
+        return newTicketTrigger(plan, { role: roles[0] });
+      }
+      try { return { ok: true, trigger: validateSchedule(spec) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was signed.` }; }
+    },
+
+    /**
+     * M13 piece 5 (signed item 7): the New job card's sign writes `schedule.json` for the job it just signed, in the same sign action. OFF: no `armed` row. The one turn-on is
+     * `armWaiting` (a green run); `from` = the run the sign started. The job and its signature are not touched. @param {{flow: string, flowSignatureHash: string, trigger: Trigger, from: string|null, signedBy: string}} o
+     */
+    signSchedule(o) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return;
+      writeSchedule(join(realRoot, o.flow), buildSchedule({
+        flow: o.flow, flowSignatureHash: o.flowSignatureHash, trigger: o.trigger, model: null, destination: null, inputs: null, plan: null, from: o.from, signedBy: o.signedBy, at: now(),
+      }));
+    },
+
+    /**
+     * M13 piece 5 (signed item 7): THE turn-on. A schedule signed with the job is off until the job's first green run (`firstGreenRunFor`: a resume that ends green counts, a red
+     * run does not); the panel's next check then writes its one `armed` row through `armFor`. A ticket schedule keeps the ticket number that run read (`ticketN`), so its first
+     * look baselines only tickets up to it and a ticket that came in during the wait still runs (F114f). Called at the top of every scheduler tick; idempotent.
+     */
+    armWaiting() {
+      const realRoot = realRootOrNull();
+      if (realRoot === null) return;
+      for (const flow of listFlowNames(realRoot)) {
+        const flowDir = join(realRoot, flow);
+        const sc = readSchedule(flowDir);
+        if (sc === null || isArmed(flowDir, sc.sig)) continue;
+        const read = readSigned(realRoot, flow);
+        if (!read.ok || sc.flowSignatureHash !== read.signature.flow) continue;   // an Edited job's schedule is retired, not turned on
+        const green = firstGreenRunFor(flowDir);
+        if (green === null) continue;
+        let ticketN;
+        if (sc.trigger.kind === 'new-ticket') {
+          const got = readRunInputs(green.runDir);
+          const n = got.ok ? got.entries.find((e) => Number.isInteger(e?.ticket?.number))?.ticket.number : undefined;
+          if (Number.isInteger(n)) ticketN = n;
+        }
+        try { armFor(flowDir, sc, now(), { ticketN }); } catch { /* the target is not usable now; tried again next tick */ }
       }
     },
 
@@ -498,12 +596,15 @@ export function createTriggerDoor(opts) {
       const trigger = sc === null ? null : sc.trigger;
       const armedRow = sc === null ? undefined : readRows(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
       const outcomes = sc === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === sc.sig);
+      const hasGreenRun = hasGreenRunForJob(flowDir);
       const clockKind = trigger !== null && (trigger.kind === 'daily' || trigger.kind === 'weekdays' || trigger.kind === 'weekly');
       return {
         flow, trigger, flowHash: r.signature.flow, sig: sc === null ? null : sc.sig, armed: armedRow !== undefined, armedAt: armedRow ? armedRow.at : null,
         nextSlotMs: clockKind && armedRow ? nextSlot(/** @type {any} */ (trigger), now()) : null,
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
-        hasGreenRun: hasGreenRunForJob(flowDir),
+        hasGreenRun,
+        // M13 piece 5: signed with the job and still off, because no run has been green yet (a green run not yet turned on by the next check is not waiting for one)
+        waiting: sc !== null && armedRow === undefined && !hasGreenRun,
       };
     },
 
@@ -545,7 +646,9 @@ export function createTriggerDoor(opts) {
       if (r === null) return null;
       return {
         trigger: r.trigger, words: scheduledWords(r.trigger), armed: r.armed, hasGreenRun: r.hasGreenRun,
-        refusal: r.hasGreenRun ? null : NO_GREEN_SAY,
+        // M13 piece 5: a schedule signed with the job waits for a green run; the card can still Cancel it, and says so in the signed grey words
+        refusal: r.hasGreenRun || r.waiting ? null : NO_GREEN_SAY,
+        ...(r.waiting ? { waitingSay: SCHEDULE_WAITING_SAY } : {}),
       };
     },
   };

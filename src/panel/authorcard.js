@@ -22,6 +22,7 @@ import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
 import { isTicketListUrl } from '../ticket-draft.js';
+import { validateSchedule } from '../trigger-clock.js';
 import { remoteRefusal } from '../ticket-mcp.js';
 import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
@@ -188,6 +189,9 @@ export function cardFields(body) {
     ...(b.thinking === true ? { thinking: true } : {}),
     // M13 piece 4: the Flow type (plain | mcp | tickets) and the MCP pick; sent only when the card names one, signed with the job
     ...(str(b.flowType).trim() !== '' && str(b.flowType).trim() !== 'plain' ? { flowType: str(b.flowType).trim(), mcp: str(b.mcp).trim() } : {}),
+    // M13 piece 5 (item 7): the Schedule row, signed with the job. Absent = By hand (no schedule.json). Only the typed fields are kept.
+    ...(b.schedule && typeof b.schedule === 'object' && !Array.isArray(b.schedule)
+      ? { schedule: b.schedule.kind === 'new-ticket' ? { kind: 'new-ticket' } : { kind: b.schedule.kind, hour: b.schedule.hour, minute: b.schedule.minute } } : {}),
   };
 }
 
@@ -409,6 +413,16 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
       if (!pick.ok) no('mcp', pick.say);
     }
     if (flow === 'tickets' && !parseInputLines(card.inputs).some((i) => isTicketListUrl(i.path))) no('inputs', 'Tickets needs the ticket list address as an Inputs line (for example issues: https://github.com/owner/repo/issues).');
+  }
+
+  // M13 piece 5 (item 7): the Schedule row. Every day at HH:MM for any flow type; When a new ticket arrives only for Tickets. The trigger itself (list, server, tool) is filled from the signed job at sign.
+  const sched = /** @type {any} */ (card).schedule;
+  if (sched !== undefined) {
+    if (sched.kind === 'new-ticket') {
+      if (flow !== 'tickets') no('schedule', 'Only a Tickets job can start on a new ticket.');
+    } else if (sched.kind === 'daily') {
+      try { validateSchedule(sched); } catch { no('schedule', 'The time must be an hour 0-23 and a minute 0-59, like 09:00.'); }
+    } else no('schedule', 'Pick when it runs from the choices.');
   }
 
   // inputs: one `name: path` per line; a role and a path on every line, no repeated role; each path a readable regular file (realpath)

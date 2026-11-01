@@ -604,6 +604,18 @@ export function createAuthor(opts) {
       const runOfRec = readJson(dir, RUN_OF_FILE);
       const asRunOf = typeof runOfRec?.flow === 'string' ? { flow: runOfRec.flow } : undefined;
       if (asRunOf !== undefined && runId !== '') return { status: 400, body: { ok: false, refused: 'run-id', say: 'This plan becomes the next run of its workflow by itself; a run name cannot be typed. Nothing was signed.' } };
+      // M13 piece 5 (signed item 7): the card's Schedule row is checked now, on the plan about to be signed, so a refusal never leaves a signed job without its schedule. A plan that becomes the next
+      // run of its workflow signs no job, so it signs no schedule: the workflow keeps the one it has.
+      let cardSchedule = null;
+      if (asRunOf === undefined && v.card.schedule) {
+        const planProse = readFileInside(join(dir, v.plan), 'prose.txt');
+        const planDecl = readJson(join(dir, v.plan), 'declaration.json');
+        const parsedPlan = planProse.ok ? parseSignedText(planProse.text) : null;
+        if (!parsedPlan || !parsedPlan.ok || !planDecl) return { status: 409, body: { ok: false, refused: 'schedule', say: 'The plan could not be read to check its schedule. Nothing was signed.' } };
+        const planned = triggerDoor.cardSchedule(v.card.schedule, { arbiter: parsedPlan.arbiter, declaration: planDecl });
+        if (!planned.ok) return { status: 400, body: { ok: false, refused: 'schedule', say: planned.say } };
+        cardSchedule = planned.trigger;
+      }
       const result = signDraft({
         dir: join(dir, v.plan), approve: v.hash, signedBy, env: loaded.env, keyNames: loaded.keyNames, sessionDir: dir, ...(asRunOf ? { asRunOf } : {}),
       });
@@ -629,6 +641,8 @@ export function createAuthor(opts) {
       const started = starter.start({
         kind: 'sign', flow: name, runId, sources: inputs.map((r) => ({ role: r.role, path: r.path })), values, ...(asRunOf ? { planRun: true, pick: result.modelPick ?? null } : {}),
       }, loaded);
+      // M13 piece 5 (signed item 7): the same sign writes the job's schedule.json, OFF; the panel turns it on after the job's first green run. `from` = the run this sign started.
+      if (cardSchedule !== null) triggerDoor.signSchedule({ flow: name, flowSignatureHash: result.signature.flow, trigger: cardSchedule, from: started.status === 202 && typeof started.body.runId === 'string' ? started.body.runId : null, signedBy });
       if (started.status !== 202) return { status: started.status, body: { ...started.body, signed: true, flow: name, say: `${started.body.say ?? 'The run did not start.'} The flow is signed; start it from "Run a signed flow".` } };
       return { status: 202, body: { ...started.body, signed: true } };
     },

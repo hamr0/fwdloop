@@ -1497,7 +1497,7 @@ function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
   return scheduleBlockWords({
     trigger: t && t.trigger ? t.trigger : null, home,
     last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
-    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
+    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), waiting: !!(t && t.waiting), nowMs: now(),
     problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
   });
 }
@@ -1544,7 +1544,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
   if (t && t.trigger) {
     const nx = scheduledNextFor({
-      trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
+      trigger: t.trigger, armed: t.armed, waiting: t.waiting === true, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
     });
     scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
   }

@@ -19,7 +19,7 @@ import { dirname } from 'node:path';
 import { appendRow, ledgerText } from './jsonl-append.js';
 
 /** @typedef {{kind:'daily'|'weekdays', hour:number, minute:number} | {kind:'weekly', day:string, hour:number, minute:number}} Schedule */
-/** @typedef {{id:string, kind:'armed'|'fire', at:number, slot?:number, catchUp?:boolean, missed?:number, sig?:string}} ClockRow */
+/** @typedef {{id:string, kind:'armed'|'fire', at:number, slot?:number, catchUp?:boolean, missed?:number, sig?:string, ticketN?:number}} ClockRow */
 /** @typedef {{fire:boolean, catchUp:boolean, missed:number, slot?:number}} Due */
 
 /** A slot seen MORE than this after its set time is a catch-up (M9 am2 item 1). Exactly this late is on time. */
@@ -129,9 +129,9 @@ function appendOnce(file, row, sig) {
   appendRow(file, sig === undefined ? row : { ...row, sig });
 }
 
-/** The trigger was set at `now`: no slot before this ever fires. @param {string} file @param {number} now @param {string} [sig] */
-export function armTrigger(file, now, sig) {
-  appendOnce(file, { id: `armed:${now}`, kind: 'armed', at: now }, sig);
+/** The trigger was set at `now`: no slot before this ever fires. M13 piece 5: `ticketN` = the highest ticket number the first green run read; a ticket schedule's first look baselines only tickets up to it. @param {string} file @param {number} now @param {string} [sig] @param {number} [ticketN] */
+export function armTrigger(file, now, sig, ticketN) {
+  appendOnce(file, { id: `armed:${now}`, kind: 'armed', at: now, ...(Number.isInteger(ticketN) ? { ticketN } : {}) }, sig);
 }
 
 /**
