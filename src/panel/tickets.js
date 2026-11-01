@@ -9,6 +9,7 @@ import { readSeen } from '../trigger-files.js';
 import { compareNatural } from '../natural.js';
 import { readRunInputs } from '../runfile.js';
 import { recordAnyway } from '../trigger-tickets.js';
+import { isTicketNumber, TICKET_NUMBER_WORDS } from '../ticket-shape.js';
 
 /** the four groups, in the mockup's order: key, label, open at first. The page draws them; it types none of these words. */
 export const TICKET_GROUPS = Object.freeze([
@@ -88,7 +89,7 @@ export function ticketAnyway({ body, listOf, queue }) {
   const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
   if (reason === '') return { status: 400, body: { ok: false, refused: 'reason-required', say: 'Please write a reason to run it anyway.' } };
   if (reason.length > ANYWAY_REASON_MAX) return { status: 400, body: { ok: false, refused: 'reason-too-long', say: `Keep the reason under ${ANYWAY_REASON_MAX} characters. Nothing started.` } };
-  if (typeof b.flow !== 'string' || typeof b.runId !== 'string' || !Number.isInteger(b.number)) return { status: 400, body: { ok: false, refused: 'bad-request', say: 'Name the job, the run and the ticket number. Nothing started.' } };
+  if (typeof b.flow !== 'string' || typeof b.runId !== 'string' || !isTicketNumber(b.number)) return { status: 400, body: { ok: false, refused: 'bad-request', say: `Name the job, the run and the ticket number (${TICKET_NUMBER_WORDS}). Nothing started.` } };
   const list = listOf(b.flow, b.runId);
   const row = list?.groups.find((g) => g.key === 'skip')?.rows.find((r) => r.number === b.number);
   if (!row) return { status: 409, body: { ok: false, refused: 'not-skipped', say: `Ticket #${b.number} is not a skipped ticket of this list. Nothing started.` } };

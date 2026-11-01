@@ -54,7 +54,7 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
-import { ticketListsOf } from '../src/ticket-shape.js';
+import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
 import { flowTypeOf } from '../src/declaration.js';
 import { LOOK_TOOL } from '../src/ticket-draft.js';
 import { newestUnrunTicket } from '../src/ticket-next.js';
@@ -399,7 +399,7 @@ async function cmdRun(rest) {
     if (!next.ok) fail(`run: ${next.say.replace(/\.?$/, '.')} Nothing started.`);
     values.ticket = String(next.number);
   }
-  if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
+  if (values.ticket !== undefined && !(/^[1-9][0-9]*$/.test(values.ticket) && isTicketNumber(Number(values.ticket)))) fail(`run: --ticket "${values.ticket}" is not a ticket number (${TICKET_NUMBER_WORDS}). Nothing started.`);
   const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles[0] === role ? { ticket: { number: Number(values.ticket), ...(values.anyway ? { anyway: true } : {}) } } : {}) }));
   for (const src of sources) {
     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);

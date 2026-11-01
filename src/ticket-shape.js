@@ -22,3 +22,12 @@ export function parseTicketList(listUrl) {
 export function ticketListsOf(arbiter) {
   return Object.fromEntries((arbiter?.sources ?? []).filter((s) => s.kind === 'page' && LIST_URL.test(String(s.path).trim())).map((s) => [s.role, String(s.path).trim()]));
 }
+
+/** M13 piece 7 (9.7): the one cap on a ticket number, 10 digits. Every door that takes or reads a ticket number uses `isTicketNumber`. Under 2^53, so a safe JS number. */
+export const TICKET_MAX = 9_999_999_999;
+
+/** The one check of a ticket number: a whole number from 1 to `TICKET_MAX`. @param {unknown} n @returns {n is number} */
+export const isTicketNumber = (n) => Number.isSafeInteger(n) && /** @type {number} */ (n) >= 1 && /** @type {number} */ (n) <= TICKET_MAX;
+
+/** The words every refusal of a ticket number uses. */
+export const TICKET_NUMBER_WORDS = `a whole number from 1 to ${TICKET_MAX.toLocaleString('en-US')}`;

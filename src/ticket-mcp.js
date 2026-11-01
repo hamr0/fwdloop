@@ -7,7 +7,7 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { redactSecrets } from './redact.js';
-import { parseTicketList } from './ticket-shape.js';
+import { parseTicketList, isTicketNumber, TICKET_NUMBER_WORDS } from './ticket-shape.js';
 import { mcpConfigFor } from './mcp-sources.js';
 
 /** M13 item 9.5: the only parent env names an MCP gets (plus its own settings); the one list for every place fwdloop starts an MCP, so no provider key reaches it */
@@ -50,7 +50,7 @@ export const isDeviceLogin = (text) => text.includes('github.com/login/device');
 export async function readTicketMcp({ listUrl, number, mcp, configPath: explicitConfig, timeoutMs = 90000 }) {
   const list = parseTicketList(listUrl);
   if (!list.ok) return list;
-  if (!Number.isInteger(number) || number < 1) return { ok: false, error: `ticket number ${JSON.stringify(number)} is not a whole number from 1` };
+  if (!isTicketNumber(number)) return { ok: false, error: `ticket number ${JSON.stringify(number)} is not ${TICKET_NUMBER_WORDS}` };
   const { owner, repo } = list;
   const { server, tools } = mcp;
   // M13 piece 4: the frozen read starts the server with issue_read alone, whatever else the job lists (the job lists every tool of its server)

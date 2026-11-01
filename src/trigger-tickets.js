@@ -8,7 +8,7 @@
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 
 import { configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine, isDeviceLogin } from './ticket-mcp.js';
-import { parseTicketList } from './ticket-shape.js';
+import { parseTicketList, isTicketNumber, TICKET_MAX } from './ticket-shape.js';
 import { appendSeen, readSeen, queueOf } from './trigger-files.js';
 
 /** A look every 15 minutes, fixed (item 8). */
@@ -43,7 +43,7 @@ export function reasonFor(prev, cur, watch) {
  * M13 piece 5 (F114f): `cut` (first look only) = the highest ticket number the job's first green run read. The first look goes on past a page whose tickets are all above it, so
  * every ticket that came in after that run started is seen; `recordLook` then baselines the ones up to `cut` and lets the rest arrive.
  * @param {{listUrl: string, mcp: {server: string, tool: string}, configPath?: string, seen: Set<number>|null, last: Map<number, {state: string, labels: string[]}>, watch: string[], cut?: number, perPage?: number, timeoutMs?: number}} o
- * @returns {Promise<{ok: true, first: boolean, cut?: number, found: Array<{number: number, state: string, labels: string[], createdAt: string|null}>, changed: Array<{number: number, reason: string, state: string, labels: string[]}>, pages: number} | {ok: false, error: string}>}
+ * @returns {Promise<{ok: true, first: boolean, cut?: number, ignored?: number[], found: Array<{number: number, state: string, labels: string[], createdAt: string|null}>, changed: Array<{number: number, reason: string, state: string, labels: string[]}>, pages: number} | {ok: false, error: string}>}
  */
 export async function lookTickets({
   listUrl, mcp, configPath: explicitConfig, seen, last, watch, cut, perPage = 10, timeoutMs = 90000,
@@ -82,6 +82,8 @@ export async function lookTickets({
     };
 
     const found = [];
+    /** @type {number[]} */
+    const ignored = [];
     /** @type {Array<{number: number, reason: string, state: string, labels: string[]}>} */
     const changed = [];
     const tracked = new Set(first ? [] : last.keys());
@@ -105,6 +107,8 @@ export async function lookTickets({
       for (const i of r.issues) {
         const n = i.number;
         if (!Number.isInteger(n)) continue;
+        // M13 piece 7 (9.7): a number over the one cap is ignored, never a crash; the look records one reason
+        if (!isTicketNumber(n)) { ignored.push(n); continue; }
         lowest = Math.min(lowest, n);
         const rec = { number: n, ...watchedOf(i), createdAt: typeof i.created_at === 'string' ? i.created_at : null };
         if (first) { found.push(rec); continue; }
@@ -125,7 +129,7 @@ export async function lookTickets({
       after = r.pageInfo.endCursor;
     }
     return {
-      ok: true, first, ...(first && cut !== undefined ? { cut } : {}), found, changed: changed.sort((a, b) => a.number - b.number), pages,
+      ok: true, first, ...(first && cut !== undefined ? { cut } : {}), ...(ignored.length ? { ignored } : {}), found, changed: changed.sort((a, b) => a.number - b.number), pages,
     };
   } catch (e) {
     return { ok: false, error: startRefusal(server, e) };
@@ -169,7 +173,9 @@ export function recordLook(ledger, sig, look, at) {
     return { arrived: [], unreadable: look.error };
   }
   // a look that read, after one that could not: one `looked` row ends the problem even when nothing is new (the only look row that is not found tickets)
-  if (lookProblemOf(readSeen(ledger, sig))) appendSeen(ledger, /** @type {any} */ ({ id: `looked:${at}`, kind: 'looked', sha: `looked:${at}`, name: '', size: 0, at }), sig);
+  // M13 piece 7 (9.7): ticket numbers over the cap were ignored by the look; ONE reason is recorded on the same row
+  const note = look.ignored?.length ? `ignored ${look.ignored.length} ticket number${look.ignored.length === 1 ? '' : 's'} over ${TICKET_MAX.toLocaleString('en-US')}: ${look.ignored.slice(0, 5).join(', ')}` : null;
+  if (note !== null || lookProblemOf(readSeen(ledger, sig))) appendSeen(ledger, /** @type {any} */ ({ id: `looked:${at}`, kind: 'looked', sha: `looked:${at}`, name: '', size: 0, at, ...(note !== null ? { why: note } : {}) }), sig);
   const arrived = [];
   const watch = (/** @type {{state: string, labels: string[]}} */ w) => ({ state: w.state, labels: w.labels });
   if (look.first) {
