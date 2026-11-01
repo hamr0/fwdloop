@@ -25,6 +25,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
+import { compareNatural } from './natural.js';
 import { parseSignedText } from './signed-text.js';
 import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
@@ -251,7 +252,7 @@ export function listRunIds(flowDir) {
   return entries
     .filter((e) => e.isDirectory() && checkRunId(e.name).ok)
     .map((e) => e.name)
-    .sort();
+    .sort(compareNatural);
 }
 
 /**

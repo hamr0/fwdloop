@@ -1,7 +1,7 @@
 // M13 piece 7 (docs/wiki/the-module-ladder.md, M13 item 9 and 9b): the parked bugs. Each describe names its item. A real bare-agent bridge against the fake stdio server, no network, no model.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { writeFileSync, rmSync } from 'node:fs';
+import { writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { lookTickets, recordLook, seenNumbers } from '../src/trigger-tickets.js';
 import { queueOf } from '../src/trigger-files.js';
 import { readSeen } from '../src/trigger-files.js';
+import { compareNatural } from '../src/natural.js';
+import { listRunIds } from '../src/flow.js';
+import { buildJobGrid } from '../src/panel/jobgrid.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(HERE, 'fixtures', 'fake-mcp-server.mjs');
@@ -47,5 +50,31 @@ describe('9.2 closed seen tickets queue no runs (item 6: new = higher than the h
     recordLook(ledger, sig, r, 1000);
     assert.equal(queueOf(readSeen(ledger, sig)).length, 1);
     assert.deepEqual([...seenNumbers(ledger, sig)], [101]);
+  });
+});
+
+describe('9.6 run and ticket numbers compare as numbers, everywhere', () => {
+  test('queueOf: arrivals with the same time run #8, #9, #10, #11 (not #10, #11, #8, #9)', () => {
+    const rows = [11, 10, 9, 8].map((n) => ({ id: `arrived:ticket:${n}`, kind: 'arrived', sha: `ticket:${n}`, name: `#${n}`, path: `#${n}`, size: 0, at: 500, number: n }));
+    assert.deepEqual(queueOf(rows).map((r) => r.name), ['#8', '#9', '#10', '#11']);
+  });
+  test('queueOf: an earlier arrival still goes first whatever its name', () => {
+    const rows = [{ id: 'a', kind: 'arrived', sha: 'ticket:9', name: '#9', path: '#9', size: 0, at: 600, number: 9 }, { id: 'b', kind: 'arrived', sha: 'ticket:100', name: '#100', path: '#100', size: 0, at: 400, number: 100 }];
+    assert.deepEqual(queueOf(rows).map((r) => r.name), ['#100', '#9']);
+  });
+  test('compareNatural: digit runs compare as numbers; a rerun of run-3 is before run-25', () => {
+    const ids = ['run-25', 'run-3-rerun-1', 'run-9', 'run-10', 'run-3', 'run-3-rerun-10', 'run-3-rerun-2'];
+    assert.deepEqual([...ids].sort(compareNatural), ['run-3', 'run-3-rerun-1', 'run-3-rerun-2', 'run-3-rerun-10', 'run-9', 'run-10', 'run-25']);
+  });
+  test('listRunIds lists run-9 before run-10', (t) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p7-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    for (const id of ['run-10', 'run-9', 'run-2']) mkdirSync(path.join(dir, 'runs', id), { recursive: true });
+    assert.deepEqual(listRunIds(dir), ['run-2', 'run-9', 'run-10']);
+  });
+  test('the grid: at the same time run-25 is newer than run-3-rerun-1', () => {
+    const run = (runId) => ({ runId, glyph: '[✓]', ticket: null, at: 1000, history: { spentUsd: 0, spendComplete: true, wallMs: 1 }, spendRows: [], diary: [], steps: [], reason: null });
+    const g = buildJobGrid({ runs: [run('run-3-rerun-1'), run('run-25')] });
+    assert.deepEqual(g.groups.find((x) => x.key === 'done').rows.map((r) => r.runId), ['run-25', 'run-3-rerun-1']);
   });
 });

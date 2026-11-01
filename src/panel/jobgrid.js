@@ -7,6 +7,7 @@
 // priced spend rows when the run has no history row yet.
 import { GROUP_OF, TICKET_GROUPS } from './tickets.js';
 import { EVERY_STEP } from '../try-checks.js';
+import { compareNatural } from '../natural.js';
 
 /** the buckets, in the mock's order (the same four as the M12 ticket list: one list of words) */
 export const GRID_BUCKETS = TICKET_GROUPS;
@@ -15,8 +16,6 @@ export const GRID_BUCKETS = TICKET_GROUPS;
 export const bucketOf = (glyph) => /** @type {any} */ (GROUP_OF[glyph] ?? 'stop');
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x);
-/** a run id's number, compared as a number (`run-10` is after `run-9`) @param {string} id */
-const runNumber = (id) => Number(String(id).replace(/\D/g, '')) || 0;
 
 /** a figure in dollars: `$0` for an exact zero, `$0.0412`, or `at least $0.0412` when the figure is only a floor (never `$0` for unknown) @param {number} usd @param {boolean} complete */
 export function moneyWords(usd, complete) {
@@ -113,7 +112,7 @@ export function buildJobGrid({ runs, anyway = null, now = Date.now() }) {
       lines, money,
     };
   });
-  const order = (a, b) => b.at - a.at || runNumber(b.runId) - runNumber(a.runId);
+  const order = (a, b) => b.at - a.at || compareNatural(b.runId, a.runId);
   const groups = GRID_BUCKETS.map((g) => ({ ...g, rows: rows.filter((r) => r.bucket === g.key).sort(order).map(({ money, ...row }) => row) }));
   const total = sumMoney(rows.map((r) => r.money));
   return {

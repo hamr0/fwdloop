@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { compareNatural } from './natural.js';
 import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
 import { readAudit, readHistory } from './books.js';
@@ -316,7 +317,7 @@ export function seedLedger({ root, home }) {
       } catch { out.skipped.unreadable += 1; }
     }
   }
-  todo.sort((a, b) => a.end.getTime() - b.end.getTime() || `${a.workflow}/${a.runId}`.localeCompare(`${b.workflow}/${b.runId}`));
+  todo.sort((a, b) => a.end.getTime() - b.end.getTime() || compareNatural(`${a.workflow}/${a.runId}`, `${b.workflow}/${b.runId}`));
   for (const t of todo) {
     const cur = readLedger(home);
     if (cur.problem) { out.problem = cur.problem; return out; }

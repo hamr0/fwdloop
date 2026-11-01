@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 import { readSchedule, ledgerOf } from '../schedule.js';
 import { readSeen } from '../trigger-files.js';
+import { compareNatural } from '../natural.js';
 import { readRunInputs } from '../runfile.js';
 import { recordAnyway } from '../trigger-tickets.js';
 
@@ -63,7 +64,7 @@ export function ticketListOf({ flowDir, runId, runIdsOf, glyphOf, atOf = () => n
       changed: arr && arr.count > 1 ? arr.reason : null,
     };
     const prior = byNumber.get(n);
-    if (!prior || Number(id.replace(/\D/g, '')) > Number(prior.runId.replace(/\D/g, ''))) byNumber.set(n, row);
+    if (!prior || compareNatural(id, prior.runId) > 0) byNumber.set(n, row);
   }
   const rows = [...byNumber.values()].sort((a, b) => b.at - a.at || b.number - a.number);
   return {
