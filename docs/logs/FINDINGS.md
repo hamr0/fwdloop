@@ -5128,3 +5128,15 @@ Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket fil
 **Observations.**
 - Every draft that came back green carried the P1 filter (5 of 5). The silent drop seen in F121 (a1, a3) did not recur.
 - The one failure is the separate pause-at-unsigned-line validator red (a red draft, nothing signable). It has now been seen 3 times in 12 drafts across F121 and F121b (F121 a2, b1; F121b a1), always on line 1 of the ticket job. Its cause is not yet found.
+
+## F122 PRE-REGISTRATION (2026-11-01, PAID, about $0.10 to $0.25 per run; written before any run, NOT yet run)
+
+**Question.** The pause-at-an-unsigned-line red (F121 a2, b1; F121b a1) is thought to come from the drafter giving line 1 of a Tickets job `primitives: []` although it reads the frozen ticket. Cause not proven. Does adding one line to `ticketFactsLines` ("reading the frozen ticket still needs \"read\" in that step's primitives") plus a hint in the pause red ("grant read, or make the line an Ask") stop line 1 coming out with no primitives?
+
+**Method.** Script `poc/mcp/f122/f122.mjs`. N=12 real drafts of the F121 wording A job (`priority P1 only`) through the real `fwdloop draft --flow-type tickets --mcp github`, model `accounts/fireworks/models/deepseek-v4p1-flash`, key `FIREWORKS_API_KEY` from the environment (refused at $0 when empty), a NEW work folder per run, cumulative spend guard $0.25 per run. Each draft's `log.json` try 1 (`log[0].args.steps[0].primitives`, saved since commit cfe2499) is read. Two runs, by the orchestrator, `F122_LABEL=baseline|after`:
+- BASELINE on cfe2499 (the log.json raw-answer commit, before the fix).
+- AFTER on the fix commit (the one-line ticketFactsLines addition plus the pause-red hint; nothing else).
+
+**Measured per run.** (1) drafts whose TRY-1 `steps[0].primitives` is empty; (2) drafts ending red with the pause red; (3) total spend. A draft with no parsed try-1 declaration is counted "unknown", reported, and never counted as empty.
+
+**Pass bar (fixed now, no refit).** BASELINE try-1 empty >= 2 of 12, else the cause is not shown and the result is INCONCLUSIVE (not a pass). AND AFTER try-1 empty <= 1 of 12 AND AFTER final pause reds = 0 of 12. Anything else is FAIL.
