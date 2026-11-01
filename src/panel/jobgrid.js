@@ -30,7 +30,7 @@ export function moneyWords(usd, complete) {
  * @returns {{usd: number|null, complete: boolean}}
  */
 export function runMoney(history, spendRows) {
-  if (history && isNum(history.spentUsd)) return { usd: history.spentUsd, complete: history.spendComplete !== false };
+  if (history && isNum(history.spentUsd)) return { usd: /** @type {number} */ (history.spentUsd), complete: history.spendComplete !== false };
   const priced = (spendRows ?? []).filter((r) => isNum(r?.costUsd));
   return priced.length === 0 ? { usd: null, complete: false } : { usd: priced.reduce((a, r) => a + r.costUsd, 0), complete: false };
 }
