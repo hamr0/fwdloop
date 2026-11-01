@@ -40,6 +40,16 @@ export function readTicketFields(text) {
 }
 
 /**
+ * M13 piece 7 (9.4): the ONE reader of "the filter was unsure about this ticket", from a run.json input entry: true when its stored verdict ran with an `unsure`
+ * reason (also when the ticket was sent with Run it anyway and the filter's own verdict was unsure). Anything else, a torn entry too, is false.
+ * @param {any} entry @returns {boolean}
+ */
+export function filterUnsure(entry) {
+  const f = entry?.filter;
+  return typeof f?.unsure === 'string' || (f?.outcome === 'anyway' && typeof f?.was?.unsure === 'string');
+}
+
+/**
  * @param {{text: string, filter?: {priority?: string[], labels?: string[]}}} a `filter` = the job's signed `ticketFilter` (or absent)
  * @returns {{outcome: 'run', unsure?: string}|{outcome: 'skip', reason: string}}
  */

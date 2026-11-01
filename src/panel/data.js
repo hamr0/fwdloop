@@ -52,6 +52,7 @@ import { ticketListOf, ticketScheduleOf } from './tickets.js';
 import { buildJobGrid } from './jobgrid.js';
 import { readChecks } from '../diary.js';
 import { readRunInputs } from '../runfile.js';
+import { filterUnsure } from '../ticket-labels.js';
 import { readSchedule } from '../schedule.js';
 import { flowTypeOf } from '../declaration.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
@@ -2296,7 +2297,7 @@ export function getJobGrid({
     const entry = inputs.ok ? inputs.entries.find((e) => e && e.ticket && Number.isInteger(e.ticket.number)) : null;
     const at = typeof ctx.historyRow?.at === 'string' ? Date.parse(ctx.historyRow.at) : NaN;
     runs.push({
-      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, title: entry && typeof entry.ticket.title === 'string' ? entry.ticket.title : null, at: Number.isFinite(at) ? at : null,
+      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, title: entry && typeof entry.ticket.title === 'string' ? entry.ticket.title : null, unsure: filterUnsure(entry), at: Number.isFinite(at) ? at : null,
       history: ctx.historyRow ?? null, spendRows: ctx.spendRows, diary: readChecks(run.runDir),
       steps: ctx.flowRead.ok ? (ctx.flowRead.declaration?.steps ?? []) : [],
       reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,
@@ -2830,6 +2831,9 @@ export function getRunAsks({
     if (!results) return ask;
     return { ...ask, evidence: { ...ev, cited: citedLineOfResults(results, cited) } };
   };
+  // M13 piece 7 (9.4): the same reader as the grid's mark (filterUnsure), so the ask page and the grid never disagree
+  const runInputs = readRunInputs(run.runDir);
+  const filterUnsureRun = runInputs.ok && runInputs.entries.some(filterUnsure);
   const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
@@ -2840,6 +2844,7 @@ export function getRunAsks({
     stepName: stepInfo[i].step,
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
+    ...(filterUnsureRun ? { filterUnsure: true } : {}),
   }));
   // M11 am11 item 3: the Ask tab of an expired-ask run offers Remove from Needs you when the card is in Needs you now
   const needs = getRunNeeds({

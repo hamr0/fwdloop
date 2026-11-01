@@ -583,6 +583,7 @@
   table.grid.jg button.jg-name:hover{text-decoration:underline;}
   table.grid.jg button.jg-name:focus-visible,table.grid.jg button.jg-arrow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   table.grid.jg button.jg-arrow{flex:0 0 auto;width:auto;color:var(--accent);font-weight:700;}
+  .jg-unsure{flex:0 0 auto;margin-left:6px;}
   .jg-val{font-size:11px;color:var(--text-faint);margin-left:4px;}
   tr.jg-grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px;}
   .jg-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;min-height:34px;cursor:pointer;}
@@ -2753,7 +2754,8 @@
     var label = r.title ? r.name + " \u00b7 " + r.title : r.name;
     var nameBtn = '<button class="jg-name" type="button" data-testid="grid-name" data-run="' + escapeXml(r.runId) + '" title="' + escapeXml(label) + '">' + escapeXml(label) + '</button>';
     var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r"><div class="jg-rowname">' + (skip ? "" :
-      '<button class="q-fold jg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn + '</div></td>' +
+      '<button class="q-fold jg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn +
+      (r.unsure ? '<span class="badge grey jg-unsure" data-testid="grid-unsure">unsure</span>' : "") + '</div></td>' +
       jgCell(r.ex) + jgCellOJ(r.oj) + jgCellV(r.cost.mark, r.cost.value) + jgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
     if(skip){
       h += '<tr class="step-sub"><td colspan="5"><div class="jg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
@@ -5263,6 +5265,7 @@
     body.hidden = !expanded;
     var statusBlock = askStatusBlock(ask);
     if(statusBlock) body.appendChild(statusBlock);
+    if(ask.filterUnsure){ var fu = textDiv("hint", "the filter was unsure about this ticket"); fu.setAttribute("data-testid", "ask-filter-unsure"); body.appendChild(fu); }
     body.appendChild(renderAskEvidenceBlock(ask, ctx));
     body.appendChild(renderAnswersSoFar(block));
     // M4b piece 4: the answer doors (or the reason there are none) — for the CURRENT draft.
