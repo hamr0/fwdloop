@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { lookTickets, recordLook, seenNumbers } from '../src/trigger-tickets.js';
 import { queueOf } from '../src/trigger-files.js';
 import { readSeen } from '../src/trigger-files.js';
+import { freezeInputs, rerunSourcesOf } from '../src/runner.js';
 import { compareNatural } from '../src/natural.js';
 import { listRunIds } from '../src/flow.js';
 import { buildJobGrid } from '../src/panel/jobgrid.js';
@@ -76,5 +77,33 @@ describe('9.6 run and ticket numbers compare as numbers, everywhere', () => {
     const run = (runId) => ({ runId, glyph: '[✓]', ticket: null, at: 1000, history: { spentUsd: 0, spendComplete: true, wallMs: 1 }, spendRows: [], diary: [], steps: [], reason: null });
     const g = buildJobGrid({ runs: [run('run-3-rerun-1'), run('run-25')] });
     assert.deepEqual(g.groups.find((x) => x.key === 'done').rows.map((r) => r.runId), ['run-25', 'run-3-rerun-1']);
+  });
+});
+
+describe('9.1 a rerun reads its ticket through MCP, with the filter', () => {
+  const READ = { ok: true, text: JSON.stringify({ number: 5, title: 'T', state: 'open', labels: ['P3'] }), url: `${LIST}/5`, record: { server: 'github', exposed: [], missing: [], calls: [] } };
+  test('a ticket input re-frozen for a rerun goes to ticketRead (list address and number), never to the page fetcher, and the filter still skips', async (t) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p7-'));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const mcp = { server: 'github', tools: ['issue_read'] };
+    const first = await freezeInputs(path.join(dir, 'run-1'), [{ id: 'issues', path: LIST, ticket: { number: 5 } }], { mcp, ticketRead: async () => READ, ticketFilter: { priority: ['P1'] } });
+    assert.equal(first.ok, true);
+    const reads = [];
+    let fetched = 0;
+    const again = await freezeInputs(path.join(dir, 'run-1-rerun-1'), rerunSourcesOf(first.manifest), {
+      mcp, ticketRead: async (a) => { reads.push(a); return READ; }, fetchPage: async () => { fetched += 1; return { ok: true, text: 'a login page', url: 'x' }; }, ticketFilter: { priority: ['P1'] },
+    });
+    assert.equal(fetched, 0, 'the ticket is not read as a web page');
+    assert.deepEqual(reads.map((r) => [r.listUrl, r.number]), [[LIST, 5]]);
+    assert.equal(again.ok, true);
+    assert.equal(again.manifest[0].ticket.number, 5, 'the rerun keeps its ticket mark');
+    assert.match(again.skip, /priority P3, not P1/, 'the filter applies');
+  });
+  test('a file input and a plain page input are re-frozen from their source as before', () => {
+    assert.deepEqual(rerunSourcesOf([{ id: 'a', source: '/x/a.csv' }, { id: 'b', source: 'https://example.com/p' }]), [{ id: 'a', path: '/x/a.csv' }, { id: 'b', path: 'https://example.com/p' }]);
+  });
+  test('a ticket sent with Run it anyway stays anyway on its rerun', () => {
+    const [s] = rerunSourcesOf([{ id: 'issues', source: `${LIST}/8`, ticket: { number: 8 }, filter: { outcome: 'anyway', was: { outcome: 'skip', reason: 'closed' } } }]);
+    assert.deepEqual(s, { id: 'issues', path: LIST, ticket: { number: 8, anyway: true } });
   });
 });

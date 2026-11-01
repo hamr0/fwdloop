@@ -480,6 +480,20 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
   return { ok: true, manifest, skip };
 }
 
+/**
+ * The sources a rerun re-freezes: each input's original source. M13 item 9.1: a ticket input's source is the ticket's own address; it goes back as its LIST address with the
+ * ticket mark, so the rerun reads the ticket through the job's MCP tools and the signed filter, not as a web page.
+ * @param {Array<{id: string, source: string, ticket?: {number: number}, filter?: {outcome?: string}}>} manifest
+ */
+export function rerunSourcesOf(manifest) {
+  return (manifest ?? []).map((entry) => {
+    const n = entry.ticket?.number;
+    const tail = `/${n}`;
+    if (!Number.isInteger(n) || !entry.source.endsWith(tail)) return { id: entry.id, path: entry.source };
+    return { id: entry.id, path: entry.source.slice(0, -tail.length), ticket: { number: n, ...(entry.filter?.outcome === 'anyway' ? { anyway: /** @type {const} */ (true) } : {}) } };
+  });
+}
+
 /** realpath of a path that may not exist (falls back to the lexical resolve). */
 function realOrResolved(p) {
   try { return realpathSync(p); } catch { return resolve(p); }
@@ -2504,7 +2518,7 @@ export async function resumeRun({
       // `inputsManifest[].source` since `freezeInputs` first wrote it (M3
       // scope item 7's own note: "persist those in state.json at park if
       // they aren't already" — they already are, via this field).
-      const rerunSources = (state.inputsManifest ?? []).map((entry) => ({ id: entry.id, path: entry.source }));
+      const rerunSources = rerunSourcesOf(state.inputsManifest);
 
       if (typeof onRerunStart === 'function') onRerunStart(newRunDir);
       const newRun = await runFlow({
