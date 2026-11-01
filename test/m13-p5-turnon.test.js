@@ -103,3 +103,16 @@ test('the Run card words: a waiting schedule says the grey line, never red; an a
   assert.notEqual(scheduleBlockWords({ trigger: t, last: null, nextSlotMs: null, armed: true, problem: null }).line2, SCHEDULE_WAITING_SAY);
   assert.deepEqual(scheduledNextFor({ trigger: t, armed: false, waiting: true, nextSlotMs: null, lastOutcome: null, waitingLine: null, now: T0 }), { text: SCHEDULE_WAITING_SAY, red: false });
 });
+
+test('the Run card\'s schedule data while waiting: the grey words, the box is not refused (Cancel schedule works), and Cancel removes the waiting schedule', async (t) => {
+  const w = mk(t);
+  const card = w.door.card('tk');
+  assert.equal(card.waitingSay, 'Schedule waiting for a green run');
+  assert.equal(card.refusal, null, 'a waiting schedule is not shut behind "no good run yet"');
+  const p = w.door.prepare({ flow: 'tk', trigger: null });
+  assert.equal(p.status, 200);
+  assert.equal(w.door.set({ flow: 'tk', trigger: null, hash: p.body.hash }).status, 200);
+  assert.equal(w.door.read('tk').trigger, null);
+  // a job with no schedule and no green run is still refused the old way
+  assert.equal(w.door.card('tk').refusal !== null, true);
+});

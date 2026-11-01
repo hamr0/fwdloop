@@ -318,6 +318,7 @@
   .ended-block.magenta{border-color:var(--magenta);}
   .ended-block.red{border-color:var(--red);}
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
+  .ended-text.is-grey{color:var(--grey-dot);}
   .ended-block.green{border-color:var(--green);}
   .ended-block.grey,.ended-block.stopped,.ended-block.skipped{border-color:var(--grey-dot);}
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
@@ -1167,6 +1168,20 @@
                 <select id="jf-mcp" data-testid="jf-mcp" aria-label="MCP"></select>
                 <div class="hint"><a class="link" id="jf-mcp-manage" data-testid="jf-mcp-manage" href="#">manage in Settings &gt; MCP</a></div>
                 <div class="jf-err" id="jf-err-mcp" data-testid="jf-err-mcp"></div>
+              </div>
+              <div class="field" id="jf-sched-field" data-testid="jf-sched-field">
+                <label for="jf-sched">Schedule</label>
+                <select id="jf-sched" data-testid="jf-sched" aria-label="Schedule">
+                  <option value="hand">By hand</option>
+                  <option value="new-ticket">When a new ticket arrives</option>
+                  <option value="daily">Every day at HH:MM</option>
+                </select>
+                <div class="when-sub" id="jf-sched-clock" hidden>
+                  <input id="jf-sched-time" type="time" value="09:00" data-testid="jf-sched-time" aria-label="Time, HH:MM">
+                </div>
+                <div class="hint" id="jf-sched-hint" data-testid="jf-sched-hint" hidden>off until the first green run, then turns on</div>
+                <div class="hint" id="jf-sched-ticket-hint" data-testid="jf-sched-ticket-hint" hidden>the first run reads the newest ticket at the time it starts; older tickets never run</div>
+                <div class="jf-err" id="jf-err-schedule" data-testid="jf-err-schedule"></div>
               </div>
               <div class="field">
                 <label for="jf-dest-folder">Destination</label>
@@ -2875,8 +2890,8 @@
   // src/summary-words.js); this only paints them. ENDED / NEXT while a finished run; SCHEDULED / NEXT for a job with a trigger.
   // borrowed-from: bareloop src/panel/index.html@f845ee7 (renderEnded)
   // M9 am13: ONE framed box, rows `label | value`. Frame: red on a SCHEDULE problem (sm.schedule.red, the one owner is scheduleBlockOf), else the colour of the run's card (glyphClass; M9 am14). ENDED and NEXT text are never red; only a problem reddens SCHEDULE.
-  function summaryRow(label, value, testid, red){
-    var c = red ? ' is-red' : '';
+  function summaryRow(label, value, testid, red, grey){
+    var c = red ? ' is-red' : (grey ? ' is-grey' : '');
     return '<div class="ended-row"><span class="ended-label' + c + '">' + label + '</span><span class="ended-text' + c + '"' + (testid ? ' data-testid="' + testid + '"' : '') + '>' + escapeXml(value) + '</span></div>';
   }
   // M9 am24: `next` is one string; `rows` ([label, instruction] pairs, from summary-words.js) is there only when it holds several instructions
@@ -2896,7 +2911,7 @@
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");
       box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
-        (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true) : "") : "");
+        (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true, sc.grey === true) : "") : "");
     } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;
     note.textContent = sm.catchUp || "";
@@ -5309,6 +5324,8 @@
     var jobBoxEl = document.getElementById("jf-run-jobbox");   // the Reuse card's job box: the SAME component as #jf-job
     var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
     var flowTypeEl = document.getElementById("jf-flowtype");     // M13 p4: Flow type (plain | MCP (generic) | Tickets), signed with the job
+    var schedEl = document.getElementById("jf-sched");           // M13 p5: Schedule (By hand | When a new ticket arrives | Every day at HH:MM), signed with the job; off until the first green run
+    var schedTimeEl = document.getElementById("jf-sched-time");
     var mcpEl = document.getElementById("jf-mcp");               // M13 p4: the MCP pick, shown for the last two
     var mcpFieldEl = document.getElementById("jf-mcp-field");
     var inputsHintEl = document.getElementById("jf-inputs-hint");
@@ -5718,14 +5735,32 @@
       names.forEach(function(n){ var o = document.createElement("option"); o.value = n; o.textContent = n; mcpEl.appendChild(o); });
       if(want) mcpEl.value = want;
     }
+    // M13 p5 (signed item 7, the mock's Schedule row): "When a new ticket arrives" only for Tickets; the time box and the two hints follow the pick
+    function paintSchedule(){
+      var tk = schedEl.querySelector('option[value="new-ticket"]');
+      tk.hidden = tk.disabled = flowTypeEl.value !== "tickets";
+      if(schedEl.value === "new-ticket" && tk.disabled) schedEl.value = "hand";
+      byId("jf-sched-clock").hidden = schedEl.value !== "daily";
+      byId("jf-sched-hint").hidden = schedEl.value === "hand";
+      byId("jf-sched-ticket-hint").hidden = schedEl.value !== "new-ticket";
+    }
+    function scheduleOfCard(){
+      if(schedEl.value === "new-ticket") return {kind: "new-ticket"};
+      if(schedEl.value !== "daily") return null;
+      var t = /^(\d{2}):(\d{2})$/.exec(schedTimeEl.value || "");
+      return {kind: "daily", hour: t ? Number(t[1]) : NaN, minute: t ? Number(t[2]) : NaN};
+    }
     function paintFlowType(){
       var generic = flowTypeEl.value === "mcp", tickets = flowTypeEl.value === "tickets";
+      paintSchedule();
       mcpFieldEl.hidden = !(generic || tickets);
       inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
     }
-    function setFlow(type, server){
+    function setFlow(type, server, sched){
       flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
       paintMcpOptions(server || "");
+      schedEl.value = sched && sched.kind === "daily" ? "daily" : (sched && sched.kind === "new-ticket" ? "new-ticket" : "hand");
+      if(sched && sched.kind === "daily" && Number.isInteger(sched.hour) && Number.isInteger(sched.minute)) schedTimeEl.value = ("0" + sched.hour).slice(-2) + ":" + ("0" + sched.minute).slice(-2);
       paintFlowType();
     }
     function loadMcpServers(){
@@ -5737,6 +5772,8 @@
     }
     flowTypeEl.addEventListener("change", function(){ paintFlowType(); byId("jf-err-flowType").textContent = ""; byId("jf-err-mcp").textContent = ""; renderMain(); });
     mcpEl.addEventListener("change", function(){ byId("jf-err-mcp").textContent = ""; });
+    schedEl.addEventListener("change", function(){ paintSchedule(); byId("jf-err-schedule").textContent = ""; });
+    schedTimeEl.addEventListener("input", function(){ byId("jf-err-schedule").textContent = ""; });
     byId("jf-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
     paintFlowType(); loadMcpServers();
     function currentCard(){
@@ -5751,6 +5788,7 @@
         model: modelPick().model,
         thinking: thinkingEl.checked && !thinkingNone,
         ...(flowTypeEl.value !== "plain" ? {flowType: flowTypeEl.value, mcp: mcpEl.value} : {}),
+        ...(scheduleOfCard() ? {schedule: scheduleOfCard()} : {}),
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
@@ -5899,8 +5937,8 @@
       var on = cardLocked();
       whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
-      flowTypeEl.disabled = on; mcpEl.disabled = on;
-      flowTypeEl.classList.toggle("locked", on); mcpEl.classList.toggle("locked", on);
+      flowTypeEl.disabled = on; mcpEl.disabled = on; schedEl.disabled = on; schedTimeEl.disabled = on;
+      flowTypeEl.classList.toggle("locked", on); mcpEl.classList.toggle("locked", on); schedEl.classList.toggle("locked", on); schedTimeEl.classList.toggle("locked", on);
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
@@ -6131,7 +6169,7 @@
       var refused = !f || !c || !!c.refusal;
       sel.disabled = refused;
       byId("jf-when-day").disabled = byId("jf-when-time").disabled = roleSel.disabled = byId("jf-when-path").disabled = refused;
-      byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
+      byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.waitingSay ? c.waitingSay : (c.words ? "Now: " + c.words : "")));   // M13 p5: a schedule signed with the job says its grey words until the first green run
       whenShowSubs(); whenSyncButton();
     }
     function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; if(this && this.id === "jf-when") whenFillRoles(); whenShowSubs(); whenSyncButton(); }
@@ -6798,7 +6836,7 @@
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
-      setFlow(c.flowType, c.mcp);
+      setFlow(c.flowType, c.mcp, c.schedule);
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
