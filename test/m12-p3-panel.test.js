@@ -79,7 +79,9 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").placeholder'), 'reason (needed to run it anyway)');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").getAttribute("aria-label")'), 'reason (needed to run it anyway)');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").textContent'), 'Run it anyway');
+  await c.ev('window.__posts = 0; var of = window.fetch; window.fetch = function(u){ if(String(u).indexOf("ticket-anyway") !== -1) window.__posts += 1; return of.apply(this, arguments); }');
   await c.ev('var g0 = document.querySelector("[data-testid=ticket-anyway-go]"); g0.disabled = false; g0.click()');
+  assert.equal(await c.ev('window.__posts'), 0, 'the page itself sends nothing without a reason');
   assert.equal(await c.ev('document.getElementById("ticket-msg").textContent'), 'Please write a reason to run it anyway.');
   assert.deepEqual(calls, []);
   await c.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.value = "   "; ta.dispatchEvent(new Event("input", {bubbles: true}))');
