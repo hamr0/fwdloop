@@ -52,9 +52,9 @@ for (const width of [1280, 390, 320]) {
     assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM'], 'plain');
     assert.equal(await shown(c, 'jf-sched-hint'), false, 'By hand has no hint');
     await setSel(c, 'jf-flowtype', 'mcp');
-    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM'], 'MCP (generic)');
+    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM'], 'MCP');
     await setSel(c, 'jf-flowtype', 'tickets');
-    assert.deepEqual(await optionsOf(c), ['By hand', 'When a new ticket arrives', 'Every day at HH:MM'], 'Tickets');
+    assert.deepEqual(await optionsOf(c), ['By hand', 'When a new ticket arrives', 'Every day at HH:MM'], 'Tickets MCP');
     await setSel(c, 'jf-sched', 'new-ticket');
     assert.equal(await c.ev('document.getElementById("jf-sched-hint").textContent'), 'off until the first green run, then turns on');
     assert.equal(await c.ev('document.getElementById("jf-sched-ticket-hint").textContent'), 'the first run reads the newest ticket at the time it starts; older tickets never run');

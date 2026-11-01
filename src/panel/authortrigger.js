@@ -146,10 +146,10 @@ function newTicketTrigger(read, trigger) {
   if (list === undefined) return no(`The input "${trigger.role}" is not a ticket list (a GitHub issues list address), so no new ticket can start a run from it. Nothing was changed.`);
   const server = read.declaration?.mcp?.server;
   if (typeof server !== 'string') return no('This job names no MCP server, so the ticket list cannot be looked at. Nothing was changed.');
-  if (flowTypeOf(read.declaration) !== 'tickets') return no('Only a Tickets job can start on a new ticket. Nothing was changed.');
+  if (flowTypeOf(read.declaration) !== 'tickets') return no('Only a Tickets MCP job can start on a new ticket. Nothing was changed.');
   // M13 piece 4 (item 9b.1): the look's tool is one of the job's signed tools, like every other tool; a job whose list lacks it cannot be scheduled by "a new ticket arrives"
   const lookTool = (Array.isArray(read.declaration.mcp.tools) ? read.declaration.mcp.tools : []).find((/** @type {string} */ t) => t === TICKET_LOOK_TOOL);
-  if (lookTool === undefined) return no(`This job's signed tools do not include ${TICKET_LOOK_TOOL}, the tool that looks for new tickets, so a new ticket cannot start a run. Draft the job again as a Tickets job. Nothing was changed.`);
+  if (lookTool === undefined) return no(`This job's signed tools do not include ${TICKET_LOOK_TOOL}, the tool that looks for new tickets, so a new ticket cannot start a run. Draft the job again as a Tickets MCP job. Nothing was changed.`);
   // signed M12 item 7: the fields to watch come from the signed job (`ticketWatch`) unless the click itself names them; a job that names none watches nothing
   const jobWatch = read.declaration?.ticketWatch;
   const watch = trigger.watch ?? (Array.isArray(jobWatch) && jobWatch.length > 0 ? jobWatch : undefined);

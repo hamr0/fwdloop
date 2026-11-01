@@ -86,7 +86,7 @@ test('M13 p4 (9b.1): the look\'s tool must be in the job\'s signed tools, and on
   const generic = await ticketWorld({ flowType: 'mcp' });
   const b = await prepare(generic.w, TICKET);
   assert.equal(b.status, 400, b.text);
-  assert.match(b.json().say, /Only a Tickets job can start on a new ticket/);
+  assert.match(b.json().say, /Only a Tickets MCP job can start on a new ticket/);
 });
 
 test('end to end through the panel\'s own tick: first look = starting point, then a new ticket starts the run with `--ticket N` beside the signed list; the row and the run\'s record name it', async () => {

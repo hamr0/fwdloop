@@ -39,7 +39,7 @@ test('1a (M13 p4): a run of a generic MCP job whose steps call no tool is refuse
     modelStep: async () => { throw new Error('a model step ran'); }, askStep: async () => { throw new Error('ask'); }, sendStep: async () => { throw new Error('send'); },
   });
   assert.equal(r.outcome, 'preflight-red');
-  assert.match(r.red, /MCP \(generic\) job \(server "github"\) has no step that calls one of its tools/);
+  assert.match(r.red, /MCP job \(server "github"\) has no step that calls one of its tools/);
   const h = lastHistory(root, 'tick');
   assert.equal(h.outcome, 'preflight-red');
   assert.equal(h.spentUsd, 0);

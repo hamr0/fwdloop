@@ -53,7 +53,7 @@ test('the card refuses a Schedule it cannot sign, at $0, naming the Schedule box
   const bad = async (schedule, card = w.card()) => { const r = await w.post('/api/author/draft', { ...card, schedule }); assert.equal(r.status, 400, r.text); return r.json().refusals; };
   let rs = await bad({ kind: 'new-ticket' });
   assert.deepEqual(rs.map((x) => x.field), ['schedule']);
-  assert.equal(rs[0].say, 'Only a Tickets job can start on a new ticket.');
+  assert.equal(rs[0].say, 'Only a Tickets MCP job can start on a new ticket.');
   rs = await bad({ kind: 'daily', hour: 25, minute: 0 });
   assert.equal(rs[0].say, 'The time must be an hour 0-23 and a minute 0-59, like 09:00.');
   rs = await bad({ kind: 'weekly', day: 'mon', hour: 9, minute: 0 });

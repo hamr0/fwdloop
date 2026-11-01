@@ -88,7 +88,7 @@ test('MCP (generic): told the server and every tool name; a draft where no step 
   const system = p.calls[0].messages[0].content;
   for (const line of mcpFactsLines('github', TOOLS)) assert.ok(system.includes(line), line);
   assert.ok(system.includes(TOOLS.join(', ')));
-  assert.match(p.calls[1].messages.at(-1).content, /MCP \(generic\) job \(server "github"\) has no step that calls one of its tools/);
+  assert.match(p.calls[1].messages.at(-1).content, /MCP job \(server "github"\) has no step that calls one of its tools/);
 });
 
 test('plain: nothing about MCP is told or offered, and the declaration says flowType plain with no mcp block', async () => {

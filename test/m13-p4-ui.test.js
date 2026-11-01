@@ -1,5 +1,5 @@
 // M13 piece 4 (item 4, mock Part 1): the New job card's Flow type and MCP, in the real panel (headless chromium; skips only when none is installed), at 1280, 390 and 320:
-// the dropdown words are the mock's, the MCP pick shows for MCP (generic) and Tickets only, the Inputs hint follows, the page is not wider than the screen, and an MCP
+// the dropdown words are the mock's, the MCP pick shows for MCP and Tickets only, the Inputs hint follows, the page is not wider than the screen, and an MCP
 // nobody has checked is refused on the MCP field with the one sentence. $0, no model.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
@@ -36,11 +36,11 @@ const pick = (c, value) => c.ev(`var s = document.getElementById("jf-flowtype");
 const SPILL = '({ vw: document.documentElement.clientWidth, scrollW: document.documentElement.scrollWidth })';
 
 for (const width of [1280, 390, 320]) {
-  test(`Flow type and MCP at ${width}px: the mock's words, the MCP pick only for MCP (generic) and Tickets, no sideways scroll`, { skip: SKIP && 'no browser' }, async (t) => {
+  test(`Flow type and MCP at ${width}px: the mock's words, the MCP pick only for MCP and Tickets, no sideways scroll`, { skip: SKIP && 'no browser' }, async (t) => {
     const o = await open(width);
     if (!o) { t.skip('no chromium installed'); return; }
     const c = o.chrome;
-    assert.deepEqual(await c.ev('Array.from(document.getElementById("jf-flowtype").options).map(function(x){ return x.textContent; })'), ['plain', 'MCP (generic)', 'Tickets']);
+    assert.deepEqual(await c.ev('Array.from(document.getElementById("jf-flowtype").options).map(function(x){ return x.textContent; })'), ['plain', 'MCP', 'Tickets MCP']);
     assert.equal(await c.ev('document.querySelector("label[for=jf-flowtype]").textContent'), 'Flow type');
     assert.equal(await c.ev('document.getElementById("jf-flowtype").value'), 'plain');
     assert.equal(await c.ev('document.getElementById("jf-mcp-field").hidden'), true, 'plain has no MCP pick');

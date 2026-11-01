@@ -400,10 +400,10 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     if (why !== null) no('destination', why);
   }
 
-  // M13 piece 4: the Flow type and its MCP. MCP (generic) and Tickets name an MCP fwdloop can start whose tools have been checked (R1: the job gets every tool of the newest OK check;
-  // never a started server here). Tickets needs the ticket list address as an Inputs line; MCP (generic) may have none.
+  // M13 piece 4: the Flow type and its MCP. MCP and Tickets name an MCP fwdloop can start whose tools have been checked (R1: the job gets every tool of the newest OK check;
+  // never a started server here). Tickets needs the ticket list address as an Inputs line; MCP may have none.
   const flow = /** @type {{flowType?: string, mcp?: string}} */ (card).flowType ?? 'plain';
-  if (!['plain', 'mcp', 'tickets'].includes(flow)) no('flowType', 'Flow type must be plain, MCP (generic) or Tickets.');
+  if (!['plain', 'mcp', 'tickets'].includes(flow)) no('flowType', 'Flow type must be plain, MCP or Tickets MCP.');
   else if (flow !== 'plain') {
     const server = String(/** @type {any} */ (card).mcp ?? '');
     if (server === '') no('mcp', 'Pick an MCP.');
@@ -419,7 +419,7 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
   const sched = /** @type {any} */ (card).schedule;
   if (sched !== undefined) {
     if (sched.kind === 'new-ticket') {
-      if (flow !== 'tickets') no('schedule', 'Only a Tickets job can start on a new ticket.');
+      if (flow !== 'tickets') no('schedule', 'Only a Tickets MCP job can start on a new ticket.');
     } else if (sched.kind === 'daily') {
       try { validateSchedule(sched); } catch { no('schedule', 'The time must be an hour 0-23 and a minute 0-59, like 09:00.'); }
     } else no('schedule', 'Pick when it runs from the choices.');

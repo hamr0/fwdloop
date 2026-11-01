@@ -40,7 +40,7 @@ export function findMcpPlanRed(declaration) {
     if (stray !== undefined) return `preflight: step "${step.emits}" (line ${step.fromLine}) grants tool "${stray}", which the job does not list for server "${server}"`;
   }
   if (flowTypeOf(declaration) === 'mcp' && !declaration.steps.some((/** @type {any} */ s) => (s.mcpTools ?? []).length > 0)) {
-    return `preflight: MCP (generic) job (server "${server}") has no step that calls one of its tools`;
+    return `preflight: MCP job (server "${server}") has no step that calls one of its tools`;
   }
   return null;
 }

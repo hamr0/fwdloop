@@ -99,7 +99,7 @@ describe('1a (M13 p4 rewrite of F105): preflight refuses a step tool the job doe
   });
   test('a generic MCP job with no step granting a tool: refused naming the server', () => {
     const decl = { flowType: 'mcp', steps: [step()], mcp: { server: 'github', tools: ['issue_read'] } };
-    assert.equal(findMcpPlanRed(decl), 'preflight: MCP (generic) job (server "github") has no step that calls one of its tools');
+    assert.equal(findMcpPlanRed(decl), 'preflight: MCP job (server "github") has no step that calls one of its tools');
     assert.equal(canFlowRun({ ok: true, declaration: decl }).ok, false);
     assert.equal(findMcpPlanRed({ ...decl, steps: [step(['issue_read'])] }), null);
   });

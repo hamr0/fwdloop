@@ -200,7 +200,7 @@ export function buildReadout({
   // M13 piece 4: the flow type (the card's Flow type, signed with the job), in the card's own words; a declaration with no `flowType` (signed before M13) prints no such row
   if (Object.hasOwn(declaration, 'flowType')) {
     const flowType = flowTypeOf(declaration);
-    out.push(`  flow type: ${flowType === 'mcp' ? 'MCP (generic)' : flowType === 'tickets' ? 'Tickets' : 'plain'}`);
+    out.push(`  flow type: ${flowType === 'mcp' ? 'MCP' : flowType === 'tickets' ? 'Tickets MCP' : 'plain'}`);
   }
   const mcp = declaration.mcp;
   if (mcp && typeof mcp === 'object') out.push(`  mcp: ${mcp.server} · tools: ${(mcp.tools ?? []).join(', ')}`);

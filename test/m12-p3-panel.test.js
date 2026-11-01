@@ -159,7 +159,7 @@ for (const width of [390, 320]) {
 // ---- M13 piece 4 (signed item 5/6): the Run card's schedule options follow the flow type ----
 const WHEN_OPTIONS = 'Array.from(document.getElementById("jf-when").options).filter(function(o){ return !o.hidden && !o.disabled; }).map(function(o){ return o.value; })';
 
-test('M13 p4: schedule options by flow type: MCP (generic) offers By hand and Every day only; Tickets adds a new ticket arrives; plain offers no ticket option', { skip: SKIP && 'no browser' }, async (t) => {
+test('M13 p4: schedule options by flow type: MCP offers By hand and Every day only; Tickets adds a new ticket arrives; plain offers no ticket option', { skip: SKIP && 'no browser' }, async (t) => {
   const g = await openRunCard(1280, { flowType: 'mcp' });
   if (!g) { t.skip('no chromium installed'); return; }
   assert.deepEqual(await g.chrome.ev(WHEN_OPTIONS), ['hand', 'daily']);

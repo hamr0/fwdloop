@@ -1167,8 +1167,8 @@
                 <label for="jf-flowtype">Flow type</label>
                 <select id="jf-flowtype" data-testid="jf-flowtype" aria-label="Flow type">
                   <option value="plain">plain</option>
-                  <option value="mcp">MCP (generic)</option>
-                  <option value="tickets">Tickets</option>
+                  <option value="mcp">MCP</option>
+                  <option value="tickets">Tickets MCP</option>
                 </select>
                 <div class="jf-err" id="jf-err-flowType" data-testid="jf-err-flowType"></div>
               </div>
@@ -5369,7 +5369,7 @@
     var jobEl = document.getElementById("jf-job");
     var jobBoxEl = document.getElementById("jf-run-jobbox");   // the Reuse card's job box: the SAME component as #jf-job
     var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
-    var flowTypeEl = document.getElementById("jf-flowtype");     // M13 p4: Flow type (plain | MCP (generic) | Tickets), signed with the job
+    var flowTypeEl = document.getElementById("jf-flowtype");     // M13 p4: Flow type (plain | MCP | Tickets), signed with the job
     var schedEl = document.getElementById("jf-sched");           // M13 p5: Schedule (By hand | When a new ticket arrives | Every day at HH:MM), signed with the job; off until the first green run
     var schedTimeEl = document.getElementById("jf-sched-time");
     var mcpEl = document.getElementById("jf-mcp");               // M13 p4: the MCP pick, shown for the last two
@@ -6199,7 +6199,7 @@
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
-      // M13 p4 (signed item 5): MCP (generic) offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
+      // M13 p4 (signed item 5): MCP offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
       var generic = !!f && f.flowType === "mcp";
       ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic || fileRoles.length === 0; });
       ["weekdays", "weekly"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic; });

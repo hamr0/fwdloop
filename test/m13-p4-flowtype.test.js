@@ -53,8 +53,8 @@ describe('4: flowType', () => {
   });
   test('ticketFilter and ticketWatch belong to tickets only', () => {
     const f = { priority: ['P1'] };
-    assert.match(redsOf(validate({ ...withMcp('mcp'), ticketFilter: f })).join('\n'), /"ticketFilter" belongs to a Tickets job/);
-    assert.match(redsOf(validate({ ...withMcp('mcp'), ticketWatch: ['state'] })).join('\n'), /"ticketWatch" belongs to a Tickets job/);
+    assert.match(redsOf(validate({ ...withMcp('mcp'), ticketFilter: f })).join('\n'), /"ticketFilter" belongs to a Tickets MCP job/);
+    assert.match(redsOf(validate({ ...withMcp('mcp'), ticketWatch: ['state'] })).join('\n'), /"ticketWatch" belongs to a Tickets MCP job/);
     assert.equal(validate({ ...withMcp('tickets'), ticketFilter: f, ticketWatch: ['state'] }).ok, true);
   });
   test('flowTypeOf: the field when present; an old M12 job (mcp, no flowType) is tickets; no mcp is plain', () => {

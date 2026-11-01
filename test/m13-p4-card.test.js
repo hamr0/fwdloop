@@ -27,14 +27,14 @@ function world(t, { checked = true } = {}) {
 const fields = (r) => (r.ok ? [] : r.refusals.map((x) => x.field));
 const says = (r) => (r.ok ? [] : r.refusals.map((x) => x.say));
 
-test('cardFields: plain carries no flow fields; MCP (generic) and Tickets carry flowType and mcp', (t) => {
+test('cardFields: plain carries no flow fields; MCP and Tickets carry flowType and mcp', (t) => {
   const w = world(t);
   assert.equal('flowType' in w.card(), false);
   assert.equal('flowType' in w.card({ flowType: 'plain' }), false);
   assert.deepEqual([w.card({ flowType: 'mcp', mcp: ' github ' }).flowType, w.card({ flowType: 'mcp', mcp: ' github ' }).mcp], ['mcp', 'github']);
 });
 
-test('MCP (generic) with a checked MCP and empty Inputs passes; plain passes with no MCP at all', (t) => {
+test('MCP with a checked MCP and empty Inputs passes; plain passes with no MCP at all', (t) => {
   const w = world(t);
   assert.equal(w.check({ flowType: 'mcp', mcp: 'github' }).ok, true, JSON.stringify(w.check({ flowType: 'mcp', mcp: 'github' })));
   assert.equal(w.check({}).ok, true);

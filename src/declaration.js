@@ -115,8 +115,8 @@ function checkFlowType(declaration, reds) {
   if (t === 'plain' && hasMcp) reds.push('declaration: flowType "plain" takes no "mcp" server');
   if (t !== 'plain' && !hasMcp) reds.push(`declaration: flowType "${t}" needs an "mcp" server`);
   if (t !== 'tickets') {
-    if (Object.hasOwn(declaration, 'ticketFilter')) reds.push('declaration: "ticketFilter" belongs to a Tickets job');
-    if (Object.hasOwn(declaration, 'ticketWatch')) reds.push('declaration: "ticketWatch" belongs to a Tickets job');
+    if (Object.hasOwn(declaration, 'ticketFilter')) reds.push('declaration: "ticketFilter" belongs to a Tickets MCP job');
+    if (Object.hasOwn(declaration, 'ticketWatch')) reds.push('declaration: "ticketWatch" belongs to a Tickets MCP job');
   }
 }
 
