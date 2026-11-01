@@ -5188,3 +5188,17 @@ Per run, all 84 matched the bar: every plain and MCP job has the same tab decisi
 - (baseline, informational, not part of the bar) scan() empty and the Run it anyway POST refused today.
 
 If (a) or (b) cannot pass because the start path lacks something, the result names exactly what.
+
+## F124 RESULT (2026-11-01, [MEASURED], $0, no model call, no network; PASS on (a)-(d), with two disclosed deviations)
+
+`timeout 300 node poc/mcp/f124/f124.mjs` (twice; the first run had a harness bug of mine, `writeModelRecord` on a copy that already had `model.json`, fixed before any criterion ran). Copy of `ticket-triage-5` in a mkdtemp panel root, fake issue MCP server (#15 open, label P3), stub model step, mkdtemp HOME; the start is `createStarter().start({kind:'run', sources:[{role:'issues', path:<list>, ticket:15, anyway:true}]})` spawning the real `bin/fwdloop run --ticket 15 --anyway` through `freezeInputs`.
+
+- **Baseline (informational).** With the schedule unarmed, `POST /api/author/ticket-anyway` for #15 returned 409 `queue`: "has no live ticket schedule, so Run it anyway has no queue to join. Nothing started." (`scan()` returns only armed schedules.) This is the live refusal am3 removes.
+- **(a) PASS.** 202, run-2; `run.json` `ticket.number` 15, `source` = list + `/15`, sha256 `9ef3407f56d9...` equals the sha256 of the 81 frozen bytes on disk.
+- **(b) PASS.** `filter` = `{outcome:'anyway', was:{outcome:'skip', reason:'priority P3, not P1'}}`; history outcome `not-done` (the stub step answered `done:false`), not `skipped`; 1 spend row (the model step was reached).
+- **(c) PASS.** After the run and 3 ticks: 0 `armed` rows in the schedule ledger; the Run card's schedule line2 reads "Schedule waiting for a green run".
+- **(d) PASS.** After a synthetic `complete` history row for run-2 and 1 tick: exactly 1 `armed` row, `ticketN` 15; line2 no longer reads waiting.
+
+**Deviations from the letter, disclosed.** (1) The pre-registration named `author.trigger.read(flow)` for armed/waiting; no panel route exposes it and `/api/author/flows` returned no card for this job, so (c)/(d) read the same facts through the Run card's line2 (F120's reader) plus the ledger rows. (2) (d) uses a synthetic `complete` row, as pre-registered; no real green model run was made.
+
+**Finding: no new plumbing is needed in the start path.** `starter.start` already forwards `ticket` + `anyway` as `--ticket N --anyway`, the CLI freezes and records the named ticket, and the runner keeps the filter verdict while not skipping. What is missing is only the caller: `ticketAnyway` / `arriveAnywayOf` (src/panel/tickets.js) only queue, and `scan()` hides unarmed schedules, so nothing calls `start` with the ticket. Also: a skipped run never arms (run-1 stayed unarmed).
