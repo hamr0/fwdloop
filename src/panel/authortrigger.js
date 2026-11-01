@@ -343,6 +343,73 @@ export function createTriggerDoor(opts) {
     removeSchedule(flowDir);
   }
 
+  /**
+   * Every check a start from a job's schedule makes, in the ONE order, shared by `fire` and `startAnyway` (the by-hand start of a named ticket): busy -> the kept plan ->
+   * canFlowRun -> monthly -> the sources -> the keys -> the model. A refusal is the outcome row's fields (`{outcome, ...}`); else what the ONE start needs.
+   * @param {{flow: string, flowDir: string, read: any, trigger: Trigger, schedule: Schedule}} job
+   * @param {{kind: string, role?: string, number?: number, anyway?: boolean, path?: string}} cause
+   * @returns {Record<string, any>}
+   */
+  function startChecks(job, cause) {
+    const { flow, flowDir, read: flowRead, trigger, schedule } = job;
+    let read = flowRead;   // the plan this start runs: the workflow's own, or (M6 am9) the kept plan of the run the schedule was set from
+    const busy = flowsDoor.scheduleBusy(flow);   // M9 am8: one WORKING run at a time per job; a run waiting at its ask does not block
+    if (busy !== null) return ({ outcome: 'busy', say: busy });
+    // M6 am9: a schedule set from a run that kept another plan runs THAT plan; it is re-verified now, against what the second click signed
+    let planRun = null;
+    const planRec = schedule.plan;
+    if (planRec !== null) {
+      const cat = loadCatalogue();
+      const rr = resolveRunDir(flowDir, planRec.run);
+      const kept = rr.ok && cat.ok ? readRunJobCopy(rr.runDir, cat.primitives) : null;
+      const decl = rr.ok ? readFileInside(rr.runDir, 'job/declaration.json') : null;
+      const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && decl && decl.ok && createHash('sha256').update(decl.text).digest('hex') === planRec.declSha;
+      if (!good) return ({ outcome: 'refused', why: `The plan of ${planRec.run} is no longer the one that was signed, so nothing started. Set the schedule again.` });
+      read = /** @type {any} */ (kept);
+      planRun = planRec.run;
+    }
+    // the Run door's own `canFlowRun` (a retired check form, an unwired verb), on the plan this fire runs, in the Run door's own sentence: refused at $0, nothing started
+    const can = canFlowRun(read);
+    if (!can.ok) return ({ outcome: 'refused', why: willNotRunSay(flow, String(can.red)) });
+    const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
+    if (claim && 'problem' in claim) return ({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
+    if (claim && !claim.ok) return ({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });
+    const roles = (read.arbiter.sources ?? []).map((x) => x.role);
+    // M6 am5 item 3: the scheduled run's inputs, when the schedule carries them; else the newest run's (as before). A file trigger's own role is always the arriving file.
+    let last = flowsDoor.lastSourcesOf(flow, roles).sources;
+    if (schedule.inputs !== null) last = { ...last, ...Object.fromEntries(schedule.inputs.map((r) => [r.role, r.path])) };
+    const sources = [];
+    const pages = pageAddressesOf(read.arbiter);
+    for (const role of roles) {
+      if (cause.kind === 'ticket' && cause.role === role) { sources.push({ role, path: pages[role], ticket: cause.number, ...(cause.anyway === true ? { anyway: true } : {}) }); continue; }   // M12: this run's input is ONE ticket of the signed list
+      if (Object.hasOwn(pages, role)) { sources.push({ role, path: pages[role] }); continue; } // M10 am3: a page input is its signed address, never an earlier run's or an arriving file
+      const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
+      if (!p) return ({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
+      try { sources.push({ role, path: realpathSync(p) }); } catch { return ({ outcome: 'refused', why: `The input "${role}" is not there (${p}). Nothing started.` }); }
+    }
+    const loaded = loadEnv();
+    if (!loaded.ok) return ({ outcome: 'refused', why: String(loaded.refusal) });
+    // the Run door's model check (its one `modelRefusal`), on the job's recorded model: a trigger picks no model, so a job without a record, or whose
+    // line is no longer ticked / priced / keyed in Settings, is refused here at $0, never started
+    const jobRec = readModelRecord(flowDir);
+    if (jobRec === null) return ({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
+    // M6 am5 item 3: the model this schedule was signed with (a run field) wins over the job's recorded one; it is signed into the run's own values
+    let rec = jobRec; let values = null;
+    if (schedule.model !== null) rec = schedule.model;
+    const destination = schedule.destination;
+    if (destination !== null) {
+      const why = destinationRefusal(destination, realpathSync(root));   // the Sign & run checks, again at the moment of use
+      if (why !== null) return ({ outcome: 'refused', why: `${why} Nothing started.` });
+    }
+    if (rec !== jobRec || destination !== null) {
+      const vals = { ...flowValues(read.arbiter), ...(destination !== null ? { destination } : {}), ...(rec !== jobRec ? { model: rec } : {}) };
+      values = { flow, flowSignatureHash: read.signature.flow, version: 0, values: vals, hash: valuesHash({ flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: vals }), signedBy: userInfo().username, at: new Date(now()).toISOString() };
+    }
+    const modelSays = modelRefusal({ provider: rec.slot, model: rec.model }, loaded);
+    if (modelSays.length > 0) return ({ outcome: 'refused', why: modelSays[0].say.replace(/ Nothing was spent\.$/, '. Nothing started.') });
+    return { read, planRun, sources, loaded, values, rec, jobRec };
+  }
+
   return {
     /** `POST /api/author/trigger-prepare`: the first click. Checks, signs and writes nothing. @param {any} body */
     prepare(body) {
@@ -402,6 +469,35 @@ export function createTriggerDoor(opts) {
         if (schedule !== null && isArmed(flowDir, schedule.sig)) jobs.push({ flow, flowDir, read, schedule, trigger: schedule.trigger, sig: schedule.sig });
       }
       return jobs;
+    },
+
+    /**
+     * M13 am3: `Run it anyway` on a skipped ticket while the job's ticket schedule is OFF (signed, waiting for its first green run): start that ticket's run at once, by hand
+     * (kind `run`, the job's normal cap), after the same checks `fire` makes (`startChecks`, the one function). `null` = not this door's case (no ticket schedule, or it is
+     * armed: the queue takes it, M12). Else `{ok, say}`; a refusal starts nothing and spends $0. It writes no ledger row: a skipped run never arms, a green one does (the existing path).
+     * @param {{flow: string, number: number}} a
+     * @returns {{ok: boolean, say: string} | null}
+     */
+    startAnyway({ flow, number }) {
+      const realRoot = realRootOrNull();
+      if (realRoot === null || !checkFlowName(flow).ok) return null;
+      const flowDir = join(realRoot, flow);
+      if (readSchedule(flowDir) === null) return null;
+      const read = readSigned(realRoot, flow);
+      if (!read.ok) return null;
+      const schedule = liveSchedule(flowDir, read.signature.flow);
+      if (schedule === null || schedule.trigger.kind !== 'new-ticket' || isArmed(flowDir, schedule.sig)) return null;
+      const trigger = schedule.trigger;
+      const prep = startChecks({ flow, flowDir, read, trigger, schedule }, { kind: 'ticket', role: trigger.role, number, anyway: true });
+      if ('outcome' in prep) {
+        const say = prep.outcome === 'busy' ? `${prep.say} Nothing started.`
+          : prep.outcome === 'monthly-exhausted' ? 'This month\'s limit has no room for this job\'s cap. Nothing started.'
+            : String(prep.why);
+        return { ok: false, say };
+      }
+      const started = starter.start({ kind: 'run', flow, runId: '', sources: prep.sources, values: prep.values, planOf: prep.planRun }, prep.loaded);
+      if (started.status !== 202) return { ok: false, say: String(started.body.say ?? 'The run did not start. Nothing started.') };
+      return { ok: true, say: `Ticket #${number} started now; the schedule is still off until a green run.` };
     },
 
     /** A schedule whose job was Edited since (M9 am1: By hand again) is cancelled the way Cancel does it, once. Called at the top of every scheduler tick. */
@@ -512,60 +608,9 @@ export function createTriggerDoor(opts) {
         ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), catchUp: cause.catchUp, missed: cause.missed } : cause.kind === 'ticket' ? { ticket: cause.number, sha: cause.sha, catchUp: false } : { file: cause.path, sha: cause.sha, catchUp: false }),
       };
       const done = (/** @type {Record<string, any>} */ r) => { const row = /** @type {Record<string, any>} */ ({ ...base, ...r }); if (!(row.outcome !== 'started' && hooks.told?.(row))) appendOutcome(flowDir, row); return row; };
-      const busy = flowsDoor.scheduleBusy(flow);   // M9 am8: one WORKING run at a time per job; a run waiting at its ask does not block
-      if (busy !== null) return done({ outcome: 'busy', say: busy });
-      // M6 am9: a schedule set from a run that kept another plan runs THAT plan; it is re-verified now, against what the second click signed
-      let planRun = null;
-      const planRec = schedule.plan;
-      if (planRec !== null) {
-        const cat = loadCatalogue();
-        const rr = resolveRunDir(flowDir, planRec.run);
-        const kept = rr.ok && cat.ok ? readRunJobCopy(rr.runDir, cat.primitives) : null;
-        const decl = rr.ok ? readFileInside(rr.runDir, 'job/declaration.json') : null;
-        const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && decl && decl.ok && createHash('sha256').update(decl.text).digest('hex') === planRec.declSha;
-        if (!good) return done({ outcome: 'refused', why: `The plan of ${planRec.run} is no longer the one that was signed, so nothing started. Set the schedule again.` });
-        read = /** @type {any} */ (kept);
-        planRun = planRec.run;
-      }
-      // the Run door's own `canFlowRun` (a retired check form, an unwired verb), on the plan this fire runs, in the Run door's own sentence: refused at $0, nothing started
-      const can = canFlowRun(read);
-      if (!can.ok) return done({ outcome: 'refused', why: willNotRunSay(flow, String(can.red)) });
-      const claim = monthlyClaim(read.arbiter.capUsd);   // the same check the Run door decides on
-      if (claim && 'problem' in claim) return done({ outcome: 'refused', why: `${claim.problem}. Nothing spent.` });
-      if (claim && !claim.ok) return done({ outcome: 'monthly-exhausted', leftUsd: claim.room.leftUsd, needUsd: claim.room.needUsd, atLeast: claim.room.atLeast === true });
-      const roles = (read.arbiter.sources ?? []).map((x) => x.role);
-      // M6 am5 item 3: the scheduled run's inputs, when the schedule carries them; else the newest run's (as before). A file trigger's own role is always the arriving file.
-      let last = flowsDoor.lastSourcesOf(flow, roles).sources;
-      if (schedule.inputs !== null) last = { ...last, ...Object.fromEntries(schedule.inputs.map((r) => [r.role, r.path])) };
-      const sources = [];
-      const pages = pageAddressesOf(read.arbiter);
-      for (const role of roles) {
-        if (cause.kind === 'ticket' && cause.role === role) { sources.push({ role, path: pages[role], ticket: cause.number, ...(cause.anyway === true ? { anyway: true } : {}) }); continue; }   // M12: this run's input is ONE ticket of the signed list
-        if (Object.hasOwn(pages, role)) { sources.push({ role, path: pages[role] }); continue; } // M10 am3: a page input is its signed address, never an earlier run's or an arriving file
-        const p = 'role' in trigger && trigger.role === role && cause.kind === 'file' ? cause.path : last[role];
-        if (!p) return done({ outcome: 'refused', why: `There is no earlier run of this job to take the input "${role}" from. Run it by hand once with that input. Nothing started.` });
-        try { sources.push({ role, path: realpathSync(p) }); } catch { return done({ outcome: 'refused', why: `The input "${role}" is not there (${p}). Nothing started.` }); }
-      }
-      const loaded = loadEnv();
-      if (!loaded.ok) return done({ outcome: 'refused', why: String(loaded.refusal) });
-      // the Run door's model check (its one `modelRefusal`), on the job's recorded model: a trigger picks no model, so a job without a record, or whose
-      // line is no longer ticked / priced / keyed in Settings, is refused here at $0, never started
-      const jobRec = readModelRecord(flowDir);
-      if (jobRec === null) return done({ outcome: 'refused', why: 'This job has no model recorded, so it cannot start by itself. Run it by hand once from the Chat card and pick a model. Nothing started.' });
-      // M6 am5 item 3: the model this schedule was signed with (a run field) wins over the job's recorded one; it is signed into the run's own values
-      let rec = jobRec; let values = null;
-      if (schedule.model !== null) rec = schedule.model;
-      const destination = schedule.destination;
-      if (destination !== null) {
-        const why = destinationRefusal(destination, realpathSync(root));   // the Sign & run checks, again at the moment of use
-        if (why !== null) return done({ outcome: 'refused', why: `${why} Nothing started.` });
-      }
-      if (rec !== jobRec || destination !== null) {
-        const vals = { ...flowValues(read.arbiter), ...(destination !== null ? { destination } : {}), ...(rec !== jobRec ? { model: rec } : {}) };
-        values = { flow, flowSignatureHash: read.signature.flow, version: 0, values: vals, hash: valuesHash({ flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values: vals }), signedBy: userInfo().username, at: new Date(now()).toISOString() };
-      }
-      const modelSays = modelRefusal({ provider: rec.slot, model: rec.model }, loaded);
-      if (modelSays.length > 0) return done({ outcome: 'refused', why: modelSays[0].say.replace(/ Nothing was spent\.$/, '. Nothing started.') });
+      const prep = startChecks(job, cause);
+      if ('outcome' in prep) return done(prep);
+      read = prep.read; const { planRun, sources, loaded, values } = prep;
       const catchUp = base.catchUp === true;
       const record = {
         kind: cause.kind, trigger: desc, reason: `Started by the trigger: ${desc}${catchUp ? ' (catch-up)' : ''}`, catchUp, ...(cause.kind === 'clock' ? { slot: new Date(cause.slot).toISOString(), missed: cause.missed } : cause.kind === 'ticket' ? { ticket: cause.number, sha: cause.sha, ...(cause.why ? { why: cause.why } : {}) } : { file: cause.path, sha: cause.sha }),

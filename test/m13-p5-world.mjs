@@ -25,7 +25,7 @@ export const T0 = new Date(2026, 10, 2, 8, 0, 0).getTime();
 export const newestFirst = (n) => Array.from({ length: n }, (_, i) => ({ number: n - i, state: 'OPEN', labels: [] }));
 
 /** @param {{trigger?: object, listSize?: number}} [o] */
-export function p5World({ trigger = { kind: 'new-ticket', role: 'jd', list: LIST, server: 'github', tool: 'list_issues' }, listSize = 5 } = {}) {
+export function p5World({ trigger = { kind: 'new-ticket', role: 'jd', list: LIST, server: 'github', tool: 'list_issues' }, listSize = 5, over = {} } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p5w-'));
   const root = path.join(dir, 'flows');
   mkdirSync(root);
@@ -40,17 +40,18 @@ export function p5World({ trigger = { kind: 'new-ticket', role: 'jd', list: LIST
   writeFileSync(config, JSON.stringify({ mcpServers: { github: { command: process.execPath, args: [FAKE], env: { FAKE_MCP_SERVER: '1', FAKE_LIST: listFile, FAKE_CALLS: calls } } } }));
   const clock = { t: T0 };
   const starts = [];
+  const reqs = [];   // every full start request the stub starter saw
   const door = createTriggerDoor({
     root,
-    flowsDoor: { scheduleBusy: () => null, lastSourcesOf: () => ({ sources: { resume } }), editBlock: () => null },
-    starter: { canStart: () => null, start: (req) => { starts.push(req.sources.find((s) => s.ticket !== undefined)?.ticket ?? null); return { status: 202, body: { runId: `run-s${starts.length}`, startId: `s${starts.length}` } }; } },
-    loadEnv: () => ({ ok: true, env: {}, keyNames: [] }),
-    monthlyClaim: () => null, modelRefusal: () => [], now: () => clock.t,
+    flowsDoor: { scheduleBusy: over.scheduleBusy ?? (() => null), lastSourcesOf: () => ({ sources: { resume } }), editBlock: () => null },
+    starter: { canStart: () => null, start: (req) => { reqs.push(req); starts.push(req.sources.find((s) => s.ticket !== undefined)?.ticket ?? null); return { status: 202, body: { runId: `run-s${starts.length}`, startId: `s${starts.length}` } }; } },
+    loadEnv: over.loadEnv ?? (() => ({ ok: true, env: {}, keyNames: [] })),
+    monthlyClaim: over.monthlyClaim ?? (() => null), modelRefusal: over.modelRefusal ?? (() => []), now: () => clock.t,
   });
   const sched = createScheduler({ door, now: () => clock.t, intervalMs: 0, mcpConfig: config });
   const sigHash = () => JSON.parse(readFileSync(path.join(flowDir, 'signature.json'), 'utf8')).flow;
   const w = {
-    dir, root, flowDir, clock, starts, door, sched, listFile,
+    dir, root, flowDir, clock, starts, reqs, door, sched, listFile,
     sign: () => door.signSchedule({ flow: 'tk', flowSignatureHash: sigHash(), trigger, from: null, signedBy: 'hamr' }),
     setList: (n) => writeFileSync(listFile, JSON.stringify(newestFirst(n))),
     lookCalls: () => { try { return readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean).length; } catch { return 0; } },

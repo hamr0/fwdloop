@@ -85,7 +85,7 @@ test('a job with no live ticket schedule is refused by name; nothing is written'
 
 const HANDLES = [];
 after(() => Promise.all(HANDLES.map((h) => h.close())));
-test('the production panel passes a real queue: a skipped ticket on a job whose schedule is not armed is refused by name, not "not connected"', async (t) => {
+test('the production panel passes a real queue: a skipped ticket on a job whose schedule is not armed goes to the by-hand start (M13 am3) and is refused by name at $0 here (no model, no keys), not "not connected"', async (t) => {
   const w = await skippedWorld(t);
   const h = await createPanelServer({ port: 0, root: w.root, settings: { home: path.join(w.home, 'cfg'), env: {} }, scheduler: { intervalMs: 0 } });
   HANDLES.push(h);
@@ -95,5 +95,6 @@ test('the production panel passes a real queue: a skipped ticket on a job whose 
   const b = await res.json();
   assert.equal(res.status, 409);
   assert.equal(b.refused, 'queue');
-  assert.match(b.say, /no live ticket schedule/);
+  assert.match(b.say, /no model recorded.*Nothing started/);
+  assert.doesNotMatch(b.say, /no live ticket schedule|not connected/);
 });

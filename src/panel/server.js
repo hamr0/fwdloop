@@ -743,7 +743,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), now: opts.author?.now ?? Date.now }),
+          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), startAnyway: (a) => author.trigger.startAnyway(a), now: opts.author?.now ?? Date.now }),
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

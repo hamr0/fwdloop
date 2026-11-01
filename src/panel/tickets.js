@@ -81,7 +81,7 @@ export const ANYWAY_REASON_MAX = 500;
 /**
  * `POST /api/author/ticket-anyway`: queue a SKIPPED ticket as a new arrival, after a short reason. Without a reason nothing starts. The queue is the schedule builder's:
  * `queue.arriveAnyway({flow, number, reason})` is the ONE seam (production: `arriveAnywayOf`).
- * @param {{body: any, listOf: (flow: string, runId: string) => ReturnType<typeof ticketListOf>, queue: {arriveAnyway: (a: {flow: string, runId: string, number: number, reason: string}) => {ok: boolean, say?: string}}}} a
+ * @param {{body: any, listOf: (flow: string, runId: string) => ReturnType<typeof ticketListOf>, queue: {arriveAnyway: (a: {flow: string, runId: string, number: number, reason: string}) => {ok: boolean, say?: string, started?: boolean}}}} a
  * @returns {{status: number, body: Record<string, any>}}
  */
 export function ticketAnyway({ body, listOf, queue }) {
@@ -95,19 +95,22 @@ export function ticketAnyway({ body, listOf, queue }) {
   if (!row) return { status: 409, body: { ok: false, refused: 'not-skipped', say: `Ticket #${b.number} is not a skipped ticket of this list. Nothing started.` } };
   const r = queue.arriveAnyway({ flow: b.flow, runId: b.runId, number: b.number, reason });
   if (!r.ok) return { status: 409, body: { ok: false, refused: 'queue', say: r.say ?? 'The ticket was not queued. Nothing started.' } };
+  if (r.started === true) return { status: 202, body: { ok: true, started: true, number: b.number, say: r.say } };   // M13 am3: the schedule is off, so the run started at once
   return { status: 202, body: { ok: true, queued: true, number: b.number, say: `Ticket #${b.number} is queued; it runs when its turn comes.` } };
 }
 
 /**
  * The production queue seam: ONE `arrived` row (`recordAnyway`, the ledger's writer) in the job's schedule ledger, so the scheduler's queue starts the ticket as a new
  * arrival under the job's normal cap. A job with no live ticket schedule is refused by name, at $0, with nothing written.
- * @param {{scan: () => any[], now: () => number}} a
- * @returns {{arriveAnyway: (a: {flow: string, runId: string, number: number, reason: string}) => {ok: boolean, say?: string}}}
+ * M13 am3: a ticket schedule that is signed but OFF (`startAnyway`, the trigger door's one by-hand start) starts the ticket at once instead; it writes no row.
+ * @param {{scan: () => any[], now: () => number, startAnyway?: (a: {flow: string, number: number}) => {ok: boolean, say: string} | null}} a
+ * @returns {{arriveAnyway: (a: {flow: string, runId: string, number: number, reason: string}) => {ok: boolean, say?: string, started?: boolean}}}
  */
-export function arriveAnywayOf({ scan, now }) {
+export function arriveAnywayOf({ scan, now, startAnyway }) {
   return {
     arriveAnyway({ flow, number, reason }) {
       const job = scan().find((j) => j.flow === flow && j.trigger?.kind === 'new-ticket');
+      if (!job && startAnyway) { const r = startAnyway({ flow, number }); if (r !== null) return { ok: r.ok, say: r.say, started: r.ok }; }
       if (!job) return { ok: false, say: `Job "${flow}" has no live ticket schedule, so Run it anyway has no queue to join. Nothing started.` };
       return recordAnyway(ledgerOf(job.flowDir), job.sig, { number, reason }, now());
     },
