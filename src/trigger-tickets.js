@@ -152,8 +152,8 @@ export function lastSeen(ledger, sig) {
  * (its `looked`, `baseline` or `arrived` row). @param {import('./trigger-files.js').SeenRow[]} rows @returns {{at: number, why: string}|null}
  */
 export function lookProblemOf(rows) {
-  const last = rows.findLast((r) => r.kind === 'unreadable' || r.kind === 'looked' || r.kind === 'baseline' || r.kind === 'arrived');
-  return last?.kind === 'unreadable' ? { at: last.at, why: String(/** @type {any} */ (last).why ?? 'it could not read the list') } : null;
+  const last = /** @type {any[]} */ (rows).findLast((r) => r.kind === 'unreadable' || r.kind === 'looked' || r.kind === 'baseline' || r.kind === 'arrived');
+  return last?.kind === 'unreadable' ? { at: last.at, why: String(last.why ?? 'it could not read the list') } : null;
 }
 export const hasBaseline = (ledger, sig) => readSeen(ledger, sig).some((r) => r.kind === 'baseline');
 
