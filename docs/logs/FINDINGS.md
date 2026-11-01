@@ -5109,3 +5109,22 @@ Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket fil
 **Criteria (unchanged).** A draft PASSES when `fwdloop draft` exits 0 and `declaration.json` has a top-level `ticketFilter` whose `priority` contains `P1` or whose `labels` contains `P1` (case-insensitive). **Pass bar: 6 of 6.** 5 of 6 or fewer is FAIL; no refit of the bar, the wordings or the counting. A non-zero exit, a red, or a missing `ticketFilter` is a FAIL, never skipped or re-run.
 
 **Recorded, not judged.** Per draft: exit code, cost, `ticketFilter`, and whether it exited 1 with the validator red "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line". That red was seen in F121 (a2, b1), is a separate drafter failure, and is reported here but is not what this change fixes; it still counts as a FAIL against the bar.
+
+### F121b RESULT (2026-11-01, [MEASURED], run by the orchestrator; FAIL, 5 of 6)
+
+**Setup.** `poc/mcp/f121/f121.mjs` as pre-registered, on commit d9772e1 (prompt line widened in 47a774b). Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, a new work folder. Total spent $0.0269 of the $0.10 guard.
+
+| draft | wording | exit | cost | ticketFilter | verdict |
+|---|---|---|---|---|---|
+| a1 | `priority P1 only` | 1 | $0.00819135 | null | FAIL (validator red: "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line") |
+| a2 | `priority P1 only` | 0 | $0.00276165 | `{"priority":["P1"]}` | PASS |
+| a3 | `priority P1 only` | 0 | $0.0053127 | P1 | PASS |
+| b1 | `only tickets with priority P1 count` | 0 | $0.0026964 | P1 | PASS |
+| b2 | `only tickets with priority P1 count` | 0 | $0.00532215 | P1 | PASS |
+| b3 | `only tickets with priority P1 count` | 0 | $0.0026568 | P1 | PASS |
+
+**Verdict: FAIL, 5 of 6** (bar was 6 of 6). No refit.
+
+**Observations.**
+- Every draft that came back green carried the P1 filter (5 of 5). The silent drop seen in F121 (a1, a3) did not recur.
+- The one failure is the separate pause-at-unsigned-line validator red (a red draft, nothing signable). It has now been seen 3 times in 12 drafts across F121 and F121b (F121 a2, b1; F121b a1), always on line 1 of the ticket job. Its cause is not yet found.
