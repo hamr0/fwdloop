@@ -5140,3 +5140,14 @@ Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket fil
 **Measured per run.** (1) drafts whose TRY-1 `steps[0].primitives` is empty; (2) drafts ending red with the pause red; (3) total spend. A draft with no parsed try-1 declaration is counted "unknown", reported, and never counted as empty.
 
 **Pass bar (fixed now, no refit).** BASELINE try-1 empty >= 2 of 12, else the cause is not shown and the result is INCONCLUSIVE (not a pass). AND AFTER try-1 empty <= 1 of 12 AND AFTER final pause reds = 0 of 12. Anything else is FAIL.
+
+## F122 RESULT (2026-11-01, [MEASURED], run by the orchestrator; PASS)
+
+Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, key `FIREWORKS_API_KEY` from hamr's keys file. 12 drafts per arm.
+
+- BASELINE (src identical to cfe2499): try-1 `steps[0].primitives` empty in 3 of 12 (drafts 6, 8, 12); unknown 0; final pause reds 0 (retries fixed all 3); 11 exit 0, 1 exit 1 (draft 7, try-1 granted, a different red); spent $0.0541.
+- AFTER (fix commit e89196e: `ticketFactsLines` line `A step that reads "<role>" still lists "read" in its primitives: the ticket is frozen, but reading it is a grant.` and the pause red hint `: grant it "read" (or the verb it needs), or make the line an Ask`): try-1 empty 0 of 12; unknown 0; final pause reds 0; 12 of 12 exit 0; spent $0.0406.
+
+**Verdict against the pre-registered bar: PASS.** Baseline 3 >= 2, after 0 <= 1, after final pause reds 0. Total spend F122 $0.0947.
+
+Not measured here: whether the after drafts carried the P1 ticketFilter (F121b covers that on the earlier prompt).
