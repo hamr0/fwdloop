@@ -213,7 +213,7 @@ for (const width of [1280, 390, 320]) {
     const over = await chrome.ev(`(function(){ var vw = document.documentElement.clientWidth, o = [];
       document.querySelectorAll("#result-body *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; var g = e.closest(".grid-wrap"); if(g && g !== e) return; if(r.right > vw + 0.5 || r.left < -0.5) o.push(e.tagName + "." + e.className); });
       return { scrollW: document.documentElement.scrollWidth, vw: vw, o: o.slice(0, 5) }; })()`);
-    const inCell = await chrome.ev('(function(){ var m = document.querySelector("[data-testid=grid-unsure]").getBoundingClientRect(), r = document.querySelector("[data-testid=grid-unsure]").closest(".jg-rowname").getBoundingClientRect(); return { markRight: Math.round(m.right), cellRight: Math.round(r.right), markW: Math.round(m.width) }; })()');
+    const inCell = await chrome.ev('(function(){ var m = document.querySelector("[data-testid=grid-unsure]").getBoundingClientRect(), r = document.querySelector("[data-testid=grid-unsure]").closest(".tg-rowname").getBoundingClientRect(); return { markRight: Math.round(m.right), cellRight: Math.round(r.right), markW: Math.round(m.width) }; })()');
     assert.ok(inCell.markRight <= inCell.cellRight + 1, `the mark stays inside the name cell ${JSON.stringify(inCell)}`);
     assert.ok(over.scrollW <= over.vw, JSON.stringify(over));
     assert.deepEqual(over.o, [], JSON.stringify(over));

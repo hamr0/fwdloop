@@ -46,7 +46,7 @@ test('the four buckets are fold rows of one grid, Skipped folded at first; skipp
   const o = await open(t, 1280);
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  const folds = await c.ev('Array.from(document.querySelectorAll(".jg-fold")).map(function(b){ return b.textContent.trim(); })');
+  const folds = await c.ev('Array.from(document.querySelectorAll(".tg-fold")).map(function(b){ return b.textContent.trim(); })');
   assert.deepEqual(folds, ['▾ Needs you (0)', '▾ Stopped (0)', '▸ Passed (0)', '▸ Skipped (2)']);
   assert.equal(await c.ev('document.querySelectorAll("[data-testid=grid-row]").length'), 0, 'Skipped is folded at first');
   assert.equal(await c.ev('document.querySelector("[data-testid=grid-stats]").textContent'), '0 needs you · 0 stopped · 0 passed · 2 skipped · spent $0');

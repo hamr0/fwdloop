@@ -519,7 +519,7 @@
   table.grid th.q,table.grid td.q{min-width:170px;max-width:340px;white-space:normal;overflow-wrap:anywhere;font-size:12px;}
   table.grid th.t,table.grid td.c{text-align:center;width:64px;min-width:56px;white-space:nowrap;}
   table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0;}
-  table.grid td.c .jg-none{margin:0;}
+  table.grid td.c .tg-none{margin:0;}
   table.grid td.c{padding:2px;}
   .cell{border:1px solid transparent;background:none;min-width:44px;min-height:32px;color:var(--text-faint);font-size:14px;font-weight:700;}
   .cell.fail{color:var(--red);border-color:var(--border-strong);background:var(--red-bg);}
@@ -598,24 +598,24 @@
   /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
   /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
   /* M13 piece 6: the job's Result grid (mock docs/product/m13-setup-mock.html Part 3). The table, cells, q-fold and step-sub are the Audit grid's own; these are the bucket fold rows, the stats line and the run column. */
-  #result-body .jg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
-  table.grid.jg td.r,table.grid.jg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
-  table.grid.jg td.c{min-width:84px;}
-  .jg-rowname{display:flex;align-items:center;max-width:min(240px,60vw);}
-  table.grid.jg button.jg-name{flex:0 1 auto;min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:none;padding:0;min-height:32px;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;}
-  table.grid.jg button.jg-name:hover{text-decoration:underline;}
-  table.grid.jg button.jg-name:focus-visible,table.grid.jg button.jg-arrow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  table.grid.jg button.jg-arrow{flex:0 0 auto;width:auto;color:var(--accent);font-weight:700;}
-  .jg-unsure{flex:0 0 auto;margin-left:6px;}
-  .jg-val{font-size:11px;color:var(--text-faint);margin-left:4px;}
-  tr.jg-grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px;}
-  .jg-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;min-height:34px;cursor:pointer;}
-  .jg-fold:hover{color:var(--accent);}
-  .jg-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  .jg-foldin{position:sticky;left:8px;}
-  .jg-skipwhy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  table.grid.jg tr.step-sub td{white-space:normal;overflow-wrap:anywhere;}
-  table.grid.jg tr.step-sub td>*{position:sticky;left:8px;width:min(560px,calc(100vw - 80px));max-width:100%;box-sizing:border-box;}
+  #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
+  table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
+  table.grid.tg td.c{min-width:84px;}
+  .tg-rowname{display:flex;align-items:center;max-width:min(240px,60vw);}
+  table.grid.tg button.tg-name{flex:0 1 auto;min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:none;padding:0;min-height:32px;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;}
+  table.grid.tg button.tg-name:hover{text-decoration:underline;}
+  table.grid.tg button.tg-name:focus-visible,table.grid.tg button.tg-arrow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  table.grid.tg button.tg-arrow{flex:0 0 auto;width:auto;color:var(--accent);font-weight:700;}
+  .tg-unsure{flex:0 0 auto;margin-left:6px;}
+  .tg-val{font-size:11px;color:var(--text-faint);margin-left:4px;}
+  tr.tg-grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px;}
+  .tg-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;min-height:34px;cursor:pointer;}
+  .tg-fold:hover{color:var(--accent);}
+  .tg-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tg-foldin{position:sticky;left:8px;}
+  .tg-skipwhy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  table.grid.tg tr.step-sub td{white-space:normal;overflow-wrap:anywhere;}
+  table.grid.tg tr.step-sub td>*{position:sticky;left:8px;width:min(560px,calc(100vw - 80px));max-width:100%;box-sizing:border-box;}
   .tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
   .tk-anyway{margin-top:6px;}
@@ -2772,20 +2772,20 @@
   var gridSeenGlyph = null;
   var gridUi = { open: {}, rows: {}, anyway: null, msg: "" };
   function gridMarkOf(c){ return gridGlyph(c === "g" ? "✓" : (c === "r" ? "✗" : (c === "q" ? "?" : "·"))); }
-  function jgCell(c){ return '<td class="c">' + gridMarkOf(c) + '</td>'; }
-  function jgCellOJ(c){ return c === "none" ? '<td class="c"><span class="hint jg-none" data-testid="grid-none" title="this job has no output checks">none</span></td>' : jgCell(c); }
-  function jgCellV(c, val){ return '<td class="c">' + gridMarkOf(c) + '<span class="jg-val">' + escapeXml(val) + '</span></td>'; }
-  function jgRowHTML(r, g){
+  function tgCell(c){ return '<td class="c">' + gridMarkOf(c) + '</td>'; }
+  function tgCellOJ(c){ return c === "none" ? '<td class="c"><span class="hint tg-none" data-testid="grid-none" title="this job has no output checks">none</span></td>' : tgCell(c); }
+  function tgCellV(c, val){ return '<td class="c">' + gridMarkOf(c) + '<span class="tg-val">' + escapeXml(val) + '</span></td>'; }
+  function tgRowHTML(r, g){
     var skip = r.bucket === "skip";
     var open = skip || !!gridUi.rows[r.runId];
     var label = r.title ? r.name + " \u00b7 " + r.title : r.name;
-    var nameBtn = '<button class="jg-name" type="button" data-testid="grid-name" data-run="' + escapeXml(r.runId) + '" title="' + escapeXml(label) + '">' + escapeXml(label) + '</button>';
-    var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r"><div class="jg-rowname">' + (skip ? "" :
-      '<button class="q-fold jg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn +
-      (r.unsure ? '<span class="badge grey jg-unsure" data-testid="grid-unsure">unsure</span>' : "") + '</div></td>' +
-      jgCell(r.ex) + jgCellOJ(r.oj) + jgCellV(r.cost.mark, r.cost.value) + jgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
+    var nameBtn = '<button class="tg-name" type="button" data-testid="grid-name" data-run="' + escapeXml(r.runId) + '" title="' + escapeXml(label) + '">' + escapeXml(label) + '</button>';
+    var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r"><div class="tg-rowname">' + (skip ? "" :
+      '<button class="q-fold tg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn +
+      (r.unsure ? '<span class="badge grey tg-unsure" data-testid="grid-unsure">unsure</span>' : "") + '</div></td>' +
+      tgCell(r.ex) + tgCellOJ(r.oj) + tgCellV(r.cost.mark, r.cost.value) + tgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
     if(skip){
-      h += '<tr class="step-sub"><td colspan="5"><div class="jg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
+      h += '<tr class="step-sub"><td colspan="5"><div class="tg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
         (r.anyway && !(gridUi.anyway && gridUi.anyway.number === r.number) ? '<button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>' : "") + '</div>';
       if(r.anyway && gridUi.anyway && gridUi.anyway.number === r.number){
         h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(gridUi.anyway.text) + '</textarea>' +
@@ -2798,29 +2798,29 @@
     }
     return h;
   }
-  function jgStatsHTML(st){
+  function tgStatsHTML(st){
     var c = st.counts;
-    return '<p class="jg-stats" data-testid="grid-stats"><b>' + c.wait + '</b> needs you · <b>' + c.stop + '</b> stopped · <b>' + c.done + '</b> passed · <b>' + c.skip + '</b> skipped · spent <b>' + escapeXml(st.spent === null ? "unknown" : st.spent) + '</b></p>';
+    return '<p class="tg-stats" data-testid="grid-stats"><b>' + c.wait + '</b> needs you · <b>' + c.stop + '</b> stopped · <b>' + c.done + '</b> passed · <b>' + c.skip + '</b> skipped · spent <b>' + escapeXml(st.spent === null ? "unknown" : st.spent) + '</b></p>';
   }
-  function jgTableHTML(g){
-    var h = '<div class="grid-wrap"><table class="grid jg" data-testid="grid-table"><thead><tr><th class="r">run</th><th class="t">every step<span class="hint">exists, done</span></th><th class="t">output judged</th><th class="t">cost</th><th class="t">time</th></tr></thead><tbody>';
+  function tgTableHTML(g){
+    var h = '<div class="grid-wrap"><table class="grid tg" data-testid="grid-table"><thead><tr><th class="r">run</th><th class="t">every step<span class="hint">exists, done</span></th><th class="t">output judged</th><th class="t">cost</th><th class="t">time</th></tr></thead><tbody>';
     g.groups.forEach(function(b){
       var open = gridUi.open[b.key] === undefined ? b.open : gridUi.open[b.key];
-      h += '<tr class="jg-grp"><td colspan="5"><button class="jg-fold" type="button" data-testid="grid-fold-' + b.key + '" data-group="' + b.key + '" aria-expanded="' + open + '"><span class="jg-foldin">' + (open ? "▾" : "▸") + " " + escapeXml(b.label) + " (" + b.rows.length + ")</span></button></td></tr>";
-      if(open) h += b.rows.map(function(r){ return jgRowHTML(r, g); }).join("");
+      h += '<tr class="tg-grp"><td colspan="5"><button class="tg-fold" type="button" data-testid="grid-fold-' + b.key + '" data-group="' + b.key + '" aria-expanded="' + open + '"><span class="tg-foldin">' + (open ? "▾" : "▸") + " " + escapeXml(b.label) + " (" + b.rows.length + ")</span></button></td></tr>";
+      if(open) h += b.rows.map(function(r){ return tgRowHTML(r, g); }).join("");
     });
     return h + '</tbody></table></div>';
   }
   function gridCardHTML(g, tickets){
-    return '<div class="audit-group" data-testid="result-grid"><h4><span class="badge grey">' + escapeXml(tickets ? "tickets" : g.flow) + '</span></h4>' + jgStatsHTML(g.stats) +
-      '<div id="grid-host" data-testid="grid-host">' + jgTableHTML(g) + '</div><div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(gridUi.msg) + '</div>' +
+    return '<div class="audit-group" data-testid="result-grid"><h4><span class="badge grey">' + escapeXml(tickets ? "tickets" : g.flow) + '</span></h4>' + tgStatsHTML(g.stats) +
+      '<div id="grid-host" data-testid="grid-host">' + tgTableHTML(g) + '</div><div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(gridUi.msg) + '</div>' +
       '<div class="hint">newest first inside each bucket</div></div>';
   }
   function wireGrid(body){
     var g = gridData;
     var host = body.querySelector("#grid-host");
     if(!g || !host) return;
-    function repaint(){ host.innerHTML = jgTableHTML(g); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta && gridUi.focusAnyway){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+    function repaint(){ host.innerHTML = tgTableHTML(g); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta && gridUi.focusAnyway){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
     host.addEventListener("click", function(ev){
       var t = ev.target.closest("button");
       if(!t || !host.contains(t)) return;
