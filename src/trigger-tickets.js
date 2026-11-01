@@ -91,6 +91,8 @@ export async function lookTickets({
     let after;
     let pages = 0;
     let hitSeen = false;
+    // M13 item 6: a ticket is new only if its number is higher than the highest seen (closed seen tickets leave an OPEN-only list; older open ones are not new)
+    const maxSeen = first ? 0 : Math.max(0, ...seen);
     for (;;) {
       const args = {
         owner, repo, orderBy: 'CREATED_AT', direction: 'DESC', perPage, ...(watch.length === 0 ? { state: 'OPEN' } : {}), fields: ['number', 'created_at', 'state', 'labels'], ...(after ? { after } : {}),
@@ -115,10 +117,10 @@ export async function lookTickets({
             const reason = reasonFor(prev, rec, watch);
             if (reason) changed.push({ number: n, reason, state: rec.state, labels: rec.labels });
           }
-        } else if (!hitSeen) found.push(rec);
+        } else if (!hitSeen && n > maxSeen) found.push(rec);
       }
       if (first && (cut === undefined || lowest <= cut)) break;
-      const done = hitSeen && (watch.length === 0 || stillNeeded.size === 0 || lowest < oldestTracked);
+      const done = (hitSeen || lowest <= maxSeen) && (watch.length === 0 || stillNeeded.size === 0 || lowest < oldestTracked);
       if (done || !r.pageInfo?.hasNextPage || !r.pageInfo?.endCursor) break;
       if (pages >= MAX_PAGES) return { ok: false, error: `more than ${MAX_PAGES} pages of new tickets in one look` };
       after = r.pageInfo.endCursor;
