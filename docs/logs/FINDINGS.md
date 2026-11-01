@@ -5248,3 +5248,15 @@ What the build needs (from this run, nothing built): (1) `getRunJob` (src/panel/
 - (5) Count: the cells where candidate and server differ are listed by name and must be exactly {plain/empty, plain/blank}.
 
 Unchecked by design: the page in a browser, the marks' look, Run a signed flow.
+
+## F126 RESULT (2026-11-01, [MEASURED], $0, no model call, no network; PASS on 1, 2, 4; FAIL on 3 and 5 on the letter, for one cell I did not foresee, and it is not a regression)
+
+`timeout 300 node poc/mcp/f126/f126.mjs` (script committed with this result; the pre-registration is e742348). Matrix of 10 cells; real `checkCard` for the server, the page's real `startReady` + `currentCard` for the page, a candidate rule (today's AND (MCP or Inputs trimmed not empty)).
+
+- **1 PASS.** Server: plain and MCP accept empty and blank Inputs (nothing in `checkCard` reads emptiness except Tickets); Tickets refuses empty and blank on field `inputs`; file and ticket-address cells pass.
+- **2 PASS.** Page today: `startReady` is true on all 10 cells; it never reads Inputs.
+- **3 FAIL on the letter.** Blocked-but-server-accepts = exactly plain/empty and plain/blank (the signed text's new strictness; the server never required Inputs on a plain card, so the page will be stricter than the server there, on purpose). But the candidate is ready where the server refuses on one cell: tickets/file (a Tickets card whose only Inputs line is a file, not a ticket-list address). The server's rule there is the address SHAPE, a content check; the page only checks "filled" and is, today and after, looser than the server on every content check (bad path, bad role, ticket shape). It is not new: page today is also ready on tickets/file.
+- **4 PASS.** Candidate: MCP ready with empty and blank Inputs.
+- **5 FAIL on the letter.** Differing cells are plain/empty, plain/blank and tickets/file; the third is the one above.
+
+Verdict: the assumption holds for what matters (nothing the server accepts is newly blocked except a plain card with empty Inputs, which am5 asks for; Tickets empty is refused by both; MCP stays open). I mis-specified the matrix by including tickets/file in "every file cell passes"; stays FAIL on the letter, no refit. The build takes the candidate rule as is (page checks "filled"; the server keeps judging content).
