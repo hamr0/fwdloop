@@ -5151,3 +5151,11 @@ Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, key `FIREWO
 **Verdict against the pre-registered bar: PASS.** Baseline 3 >= 2, after 0 <= 1, after final pause reds 0. Total spend F122 $0.0947.
 
 Not measured here: whether the after drafts carried the P1 ticketFilter (F121b covers that on the earlier prompt).
+
+## F123 PRE-REGISTRATION (2026-11-01, $0, no model call; written before any run, NOT yet run)
+
+**Question.** For M13 am2 item 2: what Result-tab decision and `/result` payload did each of hamr's jobs have BEFORE M13 piece 6 (commit 7d15791), and does the code after the am2 build give every plain and MCP job exactly that, and every Tickets job the grid?
+
+**Method.** A `git worktree` at `7d15791^`; a `cp -a` COPY of `~/.config/fwdloop/flows` (the original is never written). That old panel runs on a free port (not 4800, not 8765) with `--root <copy>` and a scratch HOME. For every flow and every run, read via the panel API: the run detail's `hasResult` (the old tab decision), `GET .../result` status and the payload's top-level key set (its kind), and each flow's `flowType` as `flowTypeOf` reads it. Then the same on the post-build code of this branch, same copy, a second scratch HOME, reading the new tab decision field and `/result` and `/grid`.
+
+**Pass bar (fixed now, no refit).** (1) Every job whose type is plain or MCP (flowType plain/mcp, or no flowType and no `mcp` block): new Result-tab decision equals the old `hasResult`, and the `/result` status and key set equal the old, for every run. (2) Every Tickets job (flowType tickets, or an old M12 job with an `mcp` block): the new decision shows the tab and the grid is drawn (grid flag true). Any difference is FAIL.
