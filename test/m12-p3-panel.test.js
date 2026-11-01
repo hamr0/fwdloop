@@ -93,6 +93,27 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   assert.deepEqual(calls, [{ flow: 'tick', runId: 'run-1', number: 102, reason: 'the label is wrong' }]);
 });
 
+test('Run it anyway is one button: the top one is replaced by the box with one full-width button below; Escape brings the top one back', { skip: SKIP && 'no browser' }, async (t) => {
+  for (const width of [1280, 320]) {
+    const o = await open(t, width);
+    if (!o) { t.skip('no chromium installed'); return; }
+    const c = o.chrome;
+    await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+    const count = 'Array.from(document.querySelectorAll("[data-testid=grid-table] button")).filter(function(b){ return b.textContent === "Run it anyway" && b.getBoundingClientRect().width > 0; }).length';
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open]").length'), 2, 'closed: one top button per skipped row');
+    await c.ev('document.querySelector("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").click()');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").length'), 0, 'open: the top button is gone');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-go]").length'), 1);
+    const same = await c.ev('(function(){ var a = document.querySelector("[data-testid=ticket-anyway-go]").getBoundingClientRect(), b = document.querySelector("[data-testid=ticket-anyway-text]").getBoundingClientRect(); return [a.width, b.width, a.top >= b.bottom - 0.5]; })()');
+    assert.ok(same[0] > 0 && Math.abs(same[0] - same[1]) < 0.5, `button width ${same[0]} must equal textarea width ${same[1]} at ${width}`);
+    assert.equal(same[2], true, 'the button sits below the box');
+    assert.equal(await c.ev(count), 2, 'open: the open row shows one Run it anyway (the other skipped row keeps its own)');
+    await c.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.focus(); ta.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-text]").length'), 0, 'Escape closes the box');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open]").length'), 2, 'Escape brings the top button back');
+  }
+});
+
 for (const width of [1280, 390, 320]) {
   test(`browser ${width}: the Result grid does not spill past the screen`, { skip: SKIP && 'no browser' }, async (t) => {
     const o = await open(t, width);
