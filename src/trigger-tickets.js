@@ -40,11 +40,13 @@ export function reasonFor(prev, cur, watch) {
  * One look. `seen` null = the first look after signing (the first page is the starting point, nothing runs). Otherwise newest first with the cursor, stopping at a seen
  * number; with watched fields the walk goes on past it only as far as the oldest tracked ticket, comparing each tracked ticket's watched values with `last`.
  * Every failure is `{ok:false, error}` naming its cause, at $0; none reads as "0 new".
- * @param {{listUrl: string, mcp: {server: string, tool: string}, configPath?: string, seen: Set<number>|null, last: Map<number, {state: string, labels: string[]}>, watch: string[], perPage?: number, timeoutMs?: number}} o
- * @returns {Promise<{ok: true, first: boolean, found: Array<{number: number, state: string, labels: string[], createdAt: string|null}>, changed: Array<{number: number, reason: string, state: string, labels: string[]}>, pages: number} | {ok: false, error: string}>}
+ * M13 piece 5 (F114f): `cut` (first look only) = the highest ticket number the job's first green run read. The first look goes on past a page whose tickets are all above it, so
+ * every ticket that came in after that run started is seen; `recordLook` then baselines the ones up to `cut` and lets the rest arrive.
+ * @param {{listUrl: string, mcp: {server: string, tool: string}, configPath?: string, seen: Set<number>|null, last: Map<number, {state: string, labels: string[]}>, watch: string[], cut?: number, perPage?: number, timeoutMs?: number}} o
+ * @returns {Promise<{ok: true, first: boolean, cut?: number, found: Array<{number: number, state: string, labels: string[], createdAt: string|null}>, changed: Array<{number: number, reason: string, state: string, labels: string[]}>, pages: number} | {ok: false, error: string}>}
  */
 export async function lookTickets({
-  listUrl, mcp, configPath: explicitConfig, seen, last, watch, perPage = 10, timeoutMs = 90000,
+  listUrl, mcp, configPath: explicitConfig, seen, last, watch, cut, perPage = 10, timeoutMs = 90000,
 }) {
   const parsed = parseTicketList(listUrl);
   if (!parsed.ok) return parsed;
@@ -115,14 +117,14 @@ export async function lookTickets({
           }
         } else if (!hitSeen) found.push(rec);
       }
-      if (first) break;
+      if (first && (cut === undefined || lowest <= cut)) break;
       const done = hitSeen && (watch.length === 0 || stillNeeded.size === 0 || lowest < oldestTracked);
       if (done || !r.pageInfo?.hasNextPage || !r.pageInfo?.endCursor) break;
       if (pages >= MAX_PAGES) return { ok: false, error: `more than ${MAX_PAGES} pages of new tickets in one look` };
       after = r.pageInfo.endCursor;
     }
     return {
-      ok: true, first, found, changed: changed.sort((a, b) => a.number - b.number), pages,
+      ok: true, first, ...(first && cut !== undefined ? { cut } : {}), found, changed: changed.sort((a, b) => a.number - b.number), pages,
     };
   } catch (e) {
     return { ok: false, error: startRefusal(server, e) };
@@ -161,6 +163,14 @@ export function recordLook(ledger, sig, look, at) {
   const watch = (/** @type {{state: string, labels: string[]}} */ w) => ({ state: w.state, labels: w.labels });
   if (look.first) {
     for (const i of [...look.found].reverse()) {
+      if (look.cut !== undefined && i.number > look.cut) {
+        // M13 piece 5 (F114f): above the number the first green run read = it came in after that run began, so it runs once the schedule is on
+        appendSeen(ledger, /** @type {any} */ ({
+          id: `arrived:ticket:${i.number}`, kind: 'arrived', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
+        }), sig);
+        arrived.push(i.number);
+        continue;
+      }
       appendSeen(ledger, /** @type {any} */ ({
         id: `baseline:ticket:${i.number}`, kind: 'baseline', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
       }), sig);

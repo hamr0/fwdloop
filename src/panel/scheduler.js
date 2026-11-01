@@ -91,9 +91,12 @@ export function createScheduler(opts) {
     const { sig, trigger } = job;
     const first = !hasBaseline(ledger, sig);
     const watch = Array.isArray(trigger.watch) ? trigger.watch : [];
+    // M13 piece 5 (F114f): the turn-on wrote the ticket number the first green run read; the first look baselines only tickets up to it
+    const armedRow = first ? readRows(ledger, sig).find((r) => r.kind === 'armed') : undefined;
+    const cut = Number.isInteger(armedRow?.ticketN) ? armedRow?.ticketN : undefined;
     const out = Promise.resolve(look({
       listUrl: trigger.list, mcp: { server: trigger.server, tool: trigger.tool }, ...(mcpConfig ? { configPath: mcpConfig } : {}),
-      seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch,
+      seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch, ...(cut === undefined ? {} : { cut }),
     })).then((r) => { recordLook(ledger, sig, r, now()); }, (e) => { recordLook(ledger, sig, { ok: false, error: String(e?.message ?? e) }, now()); })
       .finally(() => { /** @type {any} */ (st).out = null; });
     st.out = out;
@@ -103,6 +106,7 @@ export function createScheduler(opts) {
     const nowMs = now();
     const live = new Set();
     try { door.retireStale(); } catch { /* one job's files never stop the others; tried again next tick */ }
+    try { door.armWaiting?.(); } catch { /* M13 piece 5: a schedule signed with the job turns on after its first green run; tried again next tick */ }
     for (const job of door.scan()) {
       const { sig } = job;
       const key = `${job.flow}|${sig}`;
