@@ -7467,7 +7467,7 @@
     var h = '<div class="pv-head mc-k" aria-hidden="true"><span>PATH / MCP</span><span>TOOLS</span><span>CHECKED</span><span></span></div>';
     mcpData.places.forEach(function(g, pi){
       var found = g.status === "found", n = g.servers.length, open = mcpPathFold[g.path] !== false;
-      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + (g.status === "unreadable" ? "can't be read" : "not found");
+      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + (g.status === "not-json" ? "can't be read" : "not found");
       h += '<div class="mc-grp" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-path"><div class="mc-prow' + (found ? "" : " faint") + '">' +
         (found ? '<button class="pv-fold" type="button" data-pfold="' + pi + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><span class="pv-ok">✓</span>' : '<span class="pv-fold" style="display:inline-block">&nbsp;</span><span>–</span>') +
         '<span class="mc-grow"><code>' + escapeXml(g.path) + '</code>' + escapeXml(note) + '</span>' +

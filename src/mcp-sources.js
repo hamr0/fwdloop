@@ -39,10 +39,10 @@ export function addedMcpPaths(home) {
 
 /**
  * Every place, in order, with the servers found in it.
- * `status`: 'found' (a readable file), 'missing' (no file) or 'unreadable' (a file that is not JSON; bare-agent skips it silently).
+ * `status`: 'found' (a readable file), 'missing' (no file) or 'not-json' (a file that is not JSON; bare-agent skips it silently).
  * A server: `{name, remote, shadowedBy}`; `shadowedBy` is the shown path of the earlier place that has the same name (the earlier one wins), or null.
  * @param {{ home?: string }} [o] `home` the config home (tests); undefined = the door's
- * @returns {{ places: Array<{ path: string, file: string, added: boolean, status: 'found'|'missing'|'unreadable', servers: Array<{name: string, remote: boolean, shadowedBy: string|null}> }>, problem: string|null }}
+ * @returns {{ places: Array<{ path: string, file: string, added: boolean, status: 'found'|'missing'|'not-json', servers: Array<{name: string, remote: boolean, shadowedBy: string|null}> }>, problem: string|null }}
  */
 export function mcpSources(o = {}) {
   const added = addedMcpPaths(o.home);
@@ -52,7 +52,7 @@ export function mcpSources(o = {}) {
   const places = typed.map(({ path, added: isAdded }) => {
     const file = expandMcpPath(path);
     if (!existsSync(file)) return { path, file, added: isAdded, status: /** @type {const} */ ('missing'), servers: [] };
-    try { JSON.parse(readFileSync(file, 'utf8')); } catch { return { path, file, added: isAdded, status: /** @type {const} */ ('unreadable'), servers: [] }; }
+    try { JSON.parse(readFileSync(file, 'utf8')); } catch { return { path, file, added: isAdded, status: /** @type {const} */ ('not-json'), servers: [] }; }
     const found = discoverServers([file]);
     const servers = [...found].map(([name, def]) => {
       const shadowedBy = first.get(name) ?? null;
