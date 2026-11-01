@@ -1,4 +1,4 @@
-// M12 piece 3 (item 9, mockup E): the ticket list in the REAL Result tab, in a real headless browser, on the real panel, over REAL skipped ticket runs ($0).
+// M12 piece 3 (item 9) as M13 piece 6 (item 8, mock Part 3 variant B) draws it: the ticket runs in the job's ONE Result grid, in the REAL Result tab, in a real headless browser, on the real panel, over REAL skipped ticket runs ($0).
 // Groups, fold, chips, search, Run it anyway (a reason first), and the page not wider than the screen at 1280, 390 and 320 (per-box numbers printed).
 // Set FWDLOOP_WALK_OUT=<dir> to save one screenshot per width. Skips only when no chromium is installed.
 import assert from 'node:assert/strict';
@@ -32,33 +32,31 @@ async function open(t, width, extra = {}) {
   assert.ok(await chrome.waitFor('document.getElementById("active-wf-name").textContent.indexOf("run-1") !== -1'), 'run-1 is selected');
   assert.ok(await chrome.waitFor('!document.getElementById("tab-result").hidden'), 'the Result tab shows');
   await chrome.ev('document.getElementById("tab-result").click()');
-  assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=result-tickets]")'), 'the ticket list drew');
+  assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=result-grid]")'), 'the grid drew');
   return { chrome, w };
 }
 const MEASURE = `(function(){
   var vw = document.documentElement.clientWidth, over = [], worst = 0;
-  document.querySelectorAll("#result-body *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; if(r.right - vw > worst) worst = r.right - vw; if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right)); });
-  return { vw: vw, scrollW: document.documentElement.scrollWidth, worst: Math.round(worst), over: over.slice(0, 5) };
+  document.querySelectorAll("#result-body *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; var w = e.closest(".grid-wrap"); if(w && w !== e) return; if(r.right - vw > worst) worst = r.right - vw; if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right)); });
+  var gw = document.querySelector("#result-body .grid-wrap");
+  return { vw: vw, scrollW: document.documentElement.scrollWidth, worst: Math.round(worst), over: over.slice(0, 5), gridBox: gw ? gw.clientWidth : null, gridInner: gw ? gw.scrollWidth : null };
 })()`;
 
-test('groups, fold, chips and search work; skipped rows show reason and $0', { skip: SKIP && 'no browser' }, async (t) => {
+test('the four buckets are fold rows of one grid, Skipped folded at first; skipped rows are named #<n> with reason and $0; the stats line counts them', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await open(t, 1280);
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  const folds = await c.ev('Array.from(document.querySelectorAll(".tk-fold")).map(function(b){ return b.textContent.trim(); })');
+  const folds = await c.ev('Array.from(document.querySelectorAll(".tg-fold")).map(function(b){ return b.textContent.trim(); })');
   assert.deepEqual(folds, ['▾ Needs you (0)', '▾ Stopped (0)', '▸ Passed (0)', '▸ Skipped (2)']);
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 0, 'Skipped is folded at first');
-  await c.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
-  const rows = await c.ev('Array.from(document.querySelectorAll("[data-testid=ticket-row]")).map(function(r){ return r.getAttribute("data-number") + "|" + r.querySelector("[data-testid=ticket-reason]").textContent; })');
-  assert.deepEqual(rows.sort(), ['102|priority P3, not P1 or P2 · $0', '103|closed · $0']);
-  // chips pick groups; search narrows rows
-  await c.ev('document.querySelector("[data-testid=chip-tickets-done]").click()');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 0, 'only Passed is shown, and it is empty');
-  await c.ev('document.querySelector("[data-testid=chip-tickets-done]").click(); document.querySelector("[data-testid=chip-tickets-skip]").click()');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 2);
-  await c.ev('var s = document.getElementById("tickets-filter-search"); s.value = "docs"; s.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 1);
-  assert.equal(await c.ev('document.getElementById("tickets-filter-search") === document.activeElement || true'), true);
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=grid-row]").length'), 0, 'Skipped is folded at first');
+  assert.equal(await c.ev('document.querySelector("[data-testid=grid-stats]").textContent'), '0 needs you · 0 stopped · 0 passed · 2 skipped · spent $0');
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+  const rows = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-row]")).map(function(r){ return r.querySelector("[data-testid=grid-name]").textContent + "|" + r.nextElementSibling.querySelector("[data-testid=ticket-reason]").textContent; })');
+  assert.deepEqual(rows.sort(), ['#102 · Docs typo|priority P3, not P1 or P2 · $0', '#103 · Old one|closed · $0']);
+  const heads = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-table] thead th")).map(function(h){ return h.textContent; })');
+  assert.deepEqual(heads, ['run', 'every stepexists, done', 'output judged', 'cost', 'time']);
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=grid-row]").length'), 0, 'a fold row folds again');
 });
 
 test('the Result head wears [–] for a skipped run, the sign the ticket list uses', { skip: SKIP && 'no browser' }, async (t) => {
@@ -74,14 +72,16 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   const o = await open(t, 1280, { ticketQueue: { arriveAnyway: (a) => { calls.push(a); return { ok: true }; } } });
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  await c.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
   await c.ev('document.querySelector("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").click()');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").disabled'), true, 'no reason, no Run it anyway');
   assert.deepEqual(calls, []);
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").placeholder'), 'reason (needed to run it anyway)');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-text]").getAttribute("aria-label")'), 'reason (needed to run it anyway)');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").textContent'), 'Run it anyway');
+  await c.ev('window.__posts = 0; var of = window.fetch; window.fetch = function(u){ if(String(u).indexOf("ticket-anyway") !== -1) window.__posts += 1; return of.apply(this, arguments); }');
   await c.ev('var g0 = document.querySelector("[data-testid=ticket-anyway-go]"); g0.disabled = false; g0.click()');
+  assert.equal(await c.ev('window.__posts'), 0, 'the page itself sends nothing without a reason');
   assert.equal(await c.ev('document.getElementById("ticket-msg").textContent'), 'Please write a reason to run it anyway.');
   assert.deepEqual(calls, []);
   await c.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.value = "   "; ta.dispatchEvent(new Event("input", {bubbles: true}))');
@@ -93,11 +93,32 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   assert.deepEqual(calls, [{ flow: 'tick', runId: 'run-1', number: 102, reason: 'the label is wrong' }]);
 });
 
-for (const width of [1280, 390, 320]) {
-  test(`browser ${width}: the ticket list does not spill past the screen`, { skip: SKIP && 'no browser' }, async (t) => {
+test('Run it anyway is one button: the top one is replaced by the box with one full-width button below; Escape brings the top one back', { skip: SKIP && 'no browser' }, async (t) => {
+  for (const width of [1280, 320]) {
     const o = await open(t, width);
     if (!o) { t.skip('no chromium installed'); return; }
-    await o.chrome.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
+    const c = o.chrome;
+    await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+    const count = 'Array.from(document.querySelectorAll("[data-testid=grid-table] button")).filter(function(b){ return b.textContent === "Run it anyway" && b.getBoundingClientRect().width > 0; }).length';
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open]").length'), 2, 'closed: one top button per skipped row');
+    await c.ev('document.querySelector("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").click()');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").length'), 0, 'open: the top button is gone');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-go]").length'), 1);
+    const same = await c.ev('(function(){ var a = document.querySelector("[data-testid=ticket-anyway-go]").getBoundingClientRect(), b = document.querySelector("[data-testid=ticket-anyway-text]").getBoundingClientRect(); return [a.width, b.width, a.top >= b.bottom - 0.5]; })()');
+    assert.ok(same[0] > 0 && Math.abs(same[0] - same[1]) < 0.5, `button width ${same[0]} must equal textarea width ${same[1]} at ${width}`);
+    assert.equal(same[2], true, 'the button sits below the box');
+    assert.equal(await c.ev(count), 2, 'open: the open row shows one Run it anyway (the other skipped row keeps its own)');
+    await c.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.focus(); ta.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}))');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-text]").length'), 0, 'Escape closes the box');
+    assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-anyway-open]").length'), 2, 'Escape brings the top button back');
+  }
+});
+
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}: the Result grid does not spill past the screen`, { skip: SKIP && 'no browser' }, async (t) => {
+    const o = await open(t, width);
+    if (!o) { t.skip('no chromium installed'); return; }
+    await o.chrome.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
     await o.chrome.ev('document.querySelector("[data-testid=ticket-anyway-open]").click()');
     await o.chrome.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.value = "a long reason ".repeat(12); ta.dispatchEvent(new Event("input", {bubbles: true}))');
     const m = await o.chrome.ev(MEASURE);
@@ -115,12 +136,12 @@ import { seedGreen } from './m9-trigger-world.mjs';
 import { ticketJob } from './m12-p2-world.mjs';
 
 killChildrenAfter();
-async function openRunCard(width, { fileJd = false } = {}) {
+async function openRunCard(width, { fileJd = false, flowType = 'tickets' } = {}) {
   const chrome = await launchChrome();
   if (!chrome) return null;
   CLOSERS.push(async () => chrome.close());
   const w = await world({ limit: 5 });
-  ticketJob(w.root, 'tk', { fileJd });
+  ticketJob(w.root, 'tk', { fileJd, flowType });
   seedGreen(w, 'tk');
   rmSync(path.join(w.root, '.drafts'), { recursive: true, force: true });
   await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
@@ -134,29 +155,14 @@ async function openRunCard(width, { fileJd = false } = {}) {
   return { chrome, w };
 }
 
-test('a ticket job\'s Run card has a ticket # box: Run is off until a whole number is in it; a job without a ticket list has no box', { skip: SKIP && 'no browser' }, async (t) => {
+test('M13 p4 (R2): a Tickets job\'s Run card has NO ticket # box; with the file input filled, Run is on', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await openRunCard(1280);
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  // the file input is filled so only the ticket box stands between the card and Run
   await c.ev('var p = document.querySelector("#jf-run-inputs .jf-inrow .jf-path:not([data-page])"); p.value = "/tmp/resume.md"; p.dispatchEvent(new Event("input", {bubbles: true}))');
   await c.ev('var cap = document.getElementById("jf-run-cap"); cap.value = "0.25"; cap.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 1);
-  assert.equal(await c.ev('document.querySelector("[data-testid=jf-run-ticket]").placeholder'), 'ticket #');
-  const btn = 'document.getElementById("chat-main-btn")';
-  assert.equal(await c.ev(`${btn}.disabled`), true, 'no number, no Run');
-  for (const bad of ['abc', '0', '-2', '1.5']) {
-    // eslint-disable-next-line no-await-in-loop
-    await c.ev(`var tk = document.querySelector("[data-testid=jf-run-ticket]"); tk.value = ${JSON.stringify(bad)}; tk.dispatchEvent(new Event("input", {bubbles: true}))`);
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => setTimeout(r, 700));   // the server's reuse check answers after the edit (200 ms debounce); Run must still be off after it
-    // eslint-disable-next-line no-await-in-loop
-    assert.equal(await c.ev(`${btn}.disabled`), true, `"${bad}" is no ticket number`);
-  }
-  await c.ev('var tk2 = document.querySelector("[data-testid=jf-run-ticket]"); tk2.value = "195342"; tk2.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.ok(await c.waitFor(`${btn}.disabled === false`), 'a number turns Run on');
-  const o2 = await openRunCard(1280, { fileJd: true });
-  assert.equal(await o2.chrome.ev('document.querySelectorAll("[data-testid=jf-run-ticket]").length'), 0);
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=jf-run-ticket], .jf-ticket").length'), 0);
+  assert.ok(await c.waitFor('document.getElementById("chat-main-btn").disabled === false'), 'no number is asked for: Run is on');
 });
 
 for (const width of [390, 320]) {
@@ -170,3 +176,19 @@ for (const width of [390, 320]) {
     assert.deepEqual(m.over, [], JSON.stringify(m));
   });
 }
+
+// ---- M13 piece 4 (signed item 5/6): the Run card's schedule options follow the flow type ----
+const WHEN_OPTIONS = 'Array.from(document.getElementById("jf-when").options).filter(function(o){ return !o.hidden && !o.disabled; }).map(function(o){ return o.value; })';
+
+test('M13 p4: schedule options by flow type: MCP offers By hand and Every day only; Tickets adds a new ticket arrives; plain offers no ticket option', { skip: SKIP && 'no browser' }, async (t) => {
+  const g = await openRunCard(1280, { flowType: 'mcp' });
+  if (!g) { t.skip('no chromium installed'); return; }
+  assert.deepEqual(await g.chrome.ev(WHEN_OPTIONS), ['hand', 'daily']);
+  const k = await openRunCard(1280);
+  const tickets = await k.chrome.ev(WHEN_OPTIONS);
+  assert.ok(tickets.includes('new-ticket') && tickets.includes('hand') && tickets.includes('daily'), JSON.stringify(tickets));
+  const p = await openRunCard(1280, { fileJd: true });
+  const plain = await p.chrome.ev(WHEN_OPTIONS);
+  assert.equal(plain.includes('new-ticket'), false, JSON.stringify(plain));
+  assert.ok(plain.includes('daily'));
+});

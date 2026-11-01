@@ -91,10 +91,15 @@ export function createScheduler(opts) {
     const { sig, trigger } = job;
     const first = !hasBaseline(ledger, sig);
     const watch = Array.isArray(trigger.watch) ? trigger.watch : [];
+    // M13 piece 5 (F114f): the turn-on wrote the ticket number the first green run read; the first look baselines only tickets up to it
+    const armedRow = first ? readRows(ledger, sig).find((r) => r.kind === 'armed') : undefined;
+    const cut = Number.isInteger(armedRow?.ticketN) ? armedRow?.ticketN : undefined;
     const out = Promise.resolve(look({
       listUrl: trigger.list, mcp: { server: trigger.server, tool: trigger.tool }, ...(mcpConfig ? { configPath: mcpConfig } : {}),
-      seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch,
-    })).then((r) => { recordLook(ledger, sig, r, now()); }, (e) => { recordLook(ledger, sig, { ok: false, error: String(e?.message ?? e) }, now()); })
+      seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch, ...(cut === undefined ? {} : { cut }),
+    })).catch((e) => ({ ok: /** @type {const} */ (false), error: String(e?.message ?? e) }))
+      // M13 item 9.3: a save that throws (ledger path unwritable, disk full) is told once as a refusal and never leaves the look's promise rejected, so the panel stays up
+      .then((r) => { try { recordLook(ledger, sig, r, now()); } catch (e) { try { door.refuse(job, `ticket look: its result could not be saved: ${String(/** @type {any} */ (e)?.message ?? e).split('\n')[0]}`); } catch { /* telling is best effort */ } } })
       .finally(() => { /** @type {any} */ (st).out = null; });
     st.out = out;
   }
@@ -103,6 +108,7 @@ export function createScheduler(opts) {
     const nowMs = now();
     const live = new Set();
     try { door.retireStale(); } catch { /* one job's files never stop the others; tried again next tick */ }
+    try { door.armWaiting?.(); } catch { /* M13 piece 5: a schedule signed with the job turns on after its first green run; tried again next tick */ }
     for (const job of door.scan()) {
       const { sig } = job;
       const key = `${job.flow}|${sig}`;

@@ -1,0 +1,20 @@
+PASS a: 5 ticks: fires 0, armed rows 0, look calls 0, armFor calls 0
+PASS b: after not-done: fires 0 armed 0; after cap-halt: fires 0 armed 0; look calls 0
+TAP version 13
+PASS c: armed rows after next tick 1, after 4 more ticks 1, armFor calls 1; first look baselined [1,2,3,4,5], fires 0
+PASS e: queued after arming: stub starts [6], triggers.jsonl started rows for tickets [6]
+PASS d: hasGreenRunForJob false; 5 ticks: armed rows 0, fires 0
+PASS g1: hook off: (c) would read armed rows 0 (needs exactly 1) -> (c) is RED
+PASS g2: job/ copy check bypassed: (d) would read armed rows 1 (needs 0) -> (d) is RED
+FAIL f: T0 2026-10-13T06:00:00.000Z; armed at 2026-10-13T06:30:00.000Z; baseline rows [1,2,3,4,5,6] written at the first look after the arm; fires []; #A(5) ran false, #B(6) ran 0x -> #B was baselined, never ran (expected FAIL on today's code)
+PASS f2: counterfactual (wrapper, not src): first look keeps only number <= 5; baseline [1,2,3,4,5]; fires [6]; #A ran false, #B ran 1x
+SUMMARY a=PASS b=PASS c=PASS e=PASS d=PASS g1=PASS g2=PASS f=FAIL f2=PASS
+1..0
+# tests 0
+# suites 0
+# pass 0
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3201.411752

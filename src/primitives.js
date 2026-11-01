@@ -68,8 +68,11 @@ function shellTool(name) {
  *  `instanceof` and records `{verb, path, rule}` on the attempt's audit row —
  *  never parsed back out of the message string. */
 export class GateRefusal extends Error {
-  constructor(verb, resolved, rule) {
-    super(`${verb}: "${resolved}" is outside the sandbox — refused (bareguard rule: ${rule})`);
+  /** `tool: true` (M13 item 5): a refused MCP tool, `verb` is its name; it names no path, so it gets no filesystem wording */
+  constructor(verb, resolved, rule, { tool = false } = {}) {
+    super(tool
+      ? `tool "${verb}" is not allowed for this step — refused (bareguard rule: ${rule})`
+      : `${verb}: "${resolved}" is outside the sandbox — refused (bareguard rule: ${rule})`);
     this.name = 'GateRefusal';
     this.verb = verb;
     this.path = resolved;
@@ -318,6 +321,15 @@ export function wiredMenu(skills) {
   return cat.primitives.filter((e) => WIRED_VERBS.has(e.verb) && (!skills || skills.includes(e.skill)));
 }
 
+/** M13 item 5: the one name an MCP tool wears everywhere (bare-agent's bridge, the step's gate, the model's tool list, the diary row) */
+export const mcpToolName = (server, tool) => `${server}_${tool}`;
+
+/** M13 item 5: the job's MCP, as `resolvePrimitives` wants it: the signed server and every tool any step grants; `undefined` when no step has `mcpTools` */
+export function stepMcp(declaration) {
+  const tools = [...new Set((declaration?.steps ?? []).flatMap((s) => s.mcpTools ?? []))];
+  return declaration?.mcp?.server && tools.length > 0 ? { server: declaration.mcp.server, tools } : undefined;
+}
+
 /**
  * Resolve the granted tools for one step's model call. Never throws —
  * a verb absent from the catalogue, or present but unimplemented here, is
@@ -326,11 +338,11 @@ export function wiredMenu(skills) {
  *
  * @param {import('./types.js').CatalogueEntry[]} catalogue - `loadCatalogue().primitives` (or an injected test catalogue).
  * @param {string[]} grantedVerbs - `step.primitives`.
- * @param {{ runDir: string, inputs?: Array<{id:string, frozen:string}> }} ctx
+ * @param {{ runDir: string, inputs?: Array<{id:string, frozen:string}>, mcp?: {server: string, tools: string[]} }} ctx - `mcp` (`stepMcp`): the signed `<server>_<tool>` names the gate also allows (M13 item 5)
  * @returns {{ tools: Record<string, any>, reds: string[] }}
  */
 export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
-  const { runDir, inputs = [] } = ctx;
+  const { runDir, inputs = [], mcp } = ctx;
   const inputsByRole = Object.fromEntries(inputs.map((entry) => [entry.id, entry.frozen]));
   const outDir = path.join(runDir, 'out');
 
@@ -350,7 +362,11 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
   let gate;
   try {
     // M4d am29 item 3: the diaries are denied to the model by name (bareloop's `fs.deny` of its audit sidecar path)
-    gate = new Gate({ fs: { readScope, writeScope: [outDir], deny: diaryPaths(runDir) } });
+    // M13 item 5: an allowlist is exclusive for EVERY action (F116 measured it denying fs too), so with signed MCP tools it lists the step's verbs as well as their names
+    gate = new Gate({
+      fs: { readScope, writeScope: [outDir], deny: diaryPaths(runDir) },
+      ...(mcp ? { tools: { allowlist: [...(grantedVerbs ?? []), ...mcp.tools.map((t) => mcpToolName(mcp.server, t))] } } : {}),
+    });
   } catch (err) {
     return { tools: {}, reds: [`primitives: bareguard refused the step's file scope — ${err.message}`] };
   }
@@ -417,6 +433,19 @@ export function resolvePrimitives(catalogue, grantedVerbs, ctx) {
         if (CTX_VERBS.includes(verb)) tools[verb] = ctxTool(verb);
         else reds.push(`primitives: verb "${verb}" is in the catalogue but has no M2 implementation yet`);
     }
+  }
+
+  // M13 item 5: one entry per signed MCP tool. The runner binds it to the step's bridge tool; `gatedCall` asks the gate first (the same check, refusal and `gateSeen` as the fs verbs).
+  if (mcp) for (const tool of mcp.tools) {
+    const name = mcpToolName(mcp.server, tool);
+    tools[name] = {
+      name,
+      gatedCall: async (args, run) => {
+        const decision = await gate.check({ type: 'tool', tool: name, args });
+        if (decision.outcome !== 'allow') throw new GateRefusal(name, '', decision.rule, { tool: true });
+        return run(args);
+      },
+    };
   }
 
   for (const verb of Object.keys(tools)) tools[verb] = { ...tools[verb], gateSeen };

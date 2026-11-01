@@ -421,7 +421,7 @@ const ALLOWLIST = {
   },
   'src/panel/data.js': {
     reason: 'read-only checks (existsSync/realpathSync symlink guards) — actual book content is read via the imported readFlow/readAudit/readHistory/readAsk/etc. helpers, never fs directly',
-    names: { existsSync: 9, realpathSync: 2 },   // M11 am11: +1 existsSync in getRunNeeds (run folder presence, read-only, like getRunControls); the marker is WRITTEN by src/panel/needsyou.js
+    names: { existsSync: 11, realpathSync: 2 },   // M11 am11: +1 existsSync in getRunNeeds (run folder presence, read-only, like getRunControls); the marker is WRITTEN by src/panel/needsyou.js; M13 piece 6: +2 existsSync in getJobGrid (flow and run folder presence, read-only)
   },
   'src/panel/needsyou.js': {
     reason: 'M11 am11 item 3: the ONE writer of the "Remove from Needs you" marker (`needs-removed-<hash>.json`, 0600, once via `wx`) inside a run folder the route resolved through resolveRunDir; the run folder is realpathed at use time. Nothing is read here (every read is data.js through readFileInside).',
@@ -506,6 +506,18 @@ const ALLOWLIST = {
   'src/attemptdiff.js': {
     reason: "M8 (copied from bareloop v0.46.0): records what a try changed in a work folder through git. fs use is a throwaway temp dir for a temporary git index (mkdtemp, removed with rm in a finally) and an existsSync on the fence folders. It reads no run/flow book.",
     names: { existsSync: 1, mkdtemp: 1, rm: 1 },
+  },
+  'src/mcp-sources.js': {
+    reason: "M13 piece 3: READS the MCP config files (one existsSync to tell a missing file from an unreadable one, one readFileSync + JSON.parse to tell an unreadable file from an empty one). Read-only: no write, no remove; a project folder's .mcp.json is never in the list. Nothing read is passed on but server names and a remote flag.",
+    names: { existsSync: 1, readFileSync: 1 },
+  },
+  'src/mcp-use.js': {
+    reason: "M13 piece 3 (F113): READS the run folders' run.json and diary.jsonl to count MCP tool use (readdirSync through one safe-listing helper, readFileSync of the two files, statSync for run.json's time). Read-only, no new record file; a torn file is skipped.",
+    names: { readFileSync: 2, readdirSync: 1, statSync: 1 },
+  },
+  'src/mcp-checks.js': {
+    reason: "M13 piece 3 (hamr 2026-10-31): the ONE reader/appender of `<configHome>/mcp-checks.jsonl`, the append-only log of `check tools` presses, a regular file beside config.json outside any run/flow dir: one appendFileSync per press (never a rewrite), one readFileSync to find the newest line per MCP, one mkdirSync of the config home.",
+    names: { appendFileSync: 1, mkdirSync: 1, readFileSync: 1 },
   },
   'src/learnstore.js': {
     reason: "M8 item 3 (copied from bareloop v0.46.0): the ONE reader/writer of the per-user learnings ledger `<configHome>/learn/ledger.json`, a regular file OUTSIDE any run/flow dir, not a book: one read (existsSync + readFileSync), and an atomic replace (temp file + rename, mode 0600 by writeFileSync and chmodSync after mkdirSync of its folder). No run/flow book is read here.",

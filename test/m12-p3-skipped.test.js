@@ -9,10 +9,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../src/catalogue.js';
-import { writeFlow } from '../src/flow.js';
+import { writeFlow, readFlow } from '../src/flow.js';
 import { runFlow } from '../src/runner.js';
 import { computeGlyph } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
+import { runPrimitives } from './m12-p3-world.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
@@ -36,9 +37,10 @@ function world(t, issue, filter) {
   process.env.HOME = home;
   return root;
 }
+const SOURCES = [{ id: 'issue', path: LIST, ticket: { number: 7 } }];
 const start = (root, calls) => runFlow({
-  root, name: 'tick', runId: 'run-1', catalogue: cat.primitives, primitives: {}, businessDate: '2026-06-01',
-  sources: [{ id: 'issue', path: LIST, ticket: { number: 7 } }],
+  root, name: 'tick', runId: 'run-1', catalogue: cat.primitives, primitives: runPrimitives(root, 'tick', 'run-1', readFlow({ root, name: 'tick', catalogue: cat.primitives }).declaration, SOURCES), businessDate: '2026-06-01',
+  sources: SOURCES,
   modelStep: async () => { calls.model += 1; throw new Error('a model step ran'); }, askStep: async () => { throw new Error('ask'); }, sendStep: async () => { throw new Error('send'); },
 }).catch((e) => ({ outcome: 'threw', red: e.message }));
 const history = (root) => readFileSync(path.join(root, 'tick', 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));

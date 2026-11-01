@@ -11,7 +11,7 @@ import path from 'node:path';
 import { parseSignedText } from '../src/signed-text.js';
 import { validateDeclaration, DECLARATION_FIELDS } from '../src/declaration.js';
 import { canonicalBytes } from '../src/signature.js';
-import { canFlowRun, findUnusedMcpTool, unusedMcpToolRed } from '../src/canrun.js';
+import { canFlowRun, findMcpPlanRed } from '../src/canrun.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(path.join(HERE, 'fixtures', name), 'utf8');
@@ -78,24 +78,33 @@ describe('1a: the declaration shape', () => {
   }
 });
 
-describe('1a: preflight refuses a job tool no step grants (F105), by name, at $0', () => {
+describe('1a (M13 p4 rewrite of F105): preflight refuses a step tool the job does not list, and a generic MCP job whose steps call nothing, by name, at $0', () => {
   const step = (mcpTools) => ({ emits: 'ticket_digest', fromLine: 1, primitives: ['read'], close: { class: 'hitl' }, ...(mcpTools ? { mcpTools } : {}) });
-  test('a listed tool no step grants: refused, naming it', () => {
-    const decl = { steps: [step(['issue_read'])], mcp: { server: 'github', tools: ['issue_read', 'list_issues'] } };
-    const found = findUnusedMcpTool(decl);
-    assert.deepEqual(found, { tool: 'list_issues', server: 'github' });
-    assert.equal(unusedMcpToolRed(found), 'preflight: job tool "list_issues" (server "github") is granted to no step');
+  test('a step grants a tool the job does not list: refused, naming step and tool', () => {
+    const decl = { flowType: 'tickets', steps: [step(['issue_read', 'delete_repo'])], mcp: { server: 'github', tools: ['issue_read', 'list_issues'] } };
+    const red = findMcpPlanRed(decl);
+    assert.equal(red, 'preflight: step "ticket_digest" (line 1) grants tool "delete_repo", which the job does not list for server "github"');
     const can = canFlowRun({ ok: true, declaration: decl });
     assert.equal(can.ok, false);
-    assert.match(can.red, /list_issues/);
+    assert.match(can.red, /delete_repo/);
   });
-  test('every listed tool granted: fine', () => {
-    const decl = { steps: [step(['issue_read'])], mcp: { server: 'github', tools: ['issue_read'] } };
-    assert.equal(findUnusedMcpTool(decl), null);
+  test('a Tickets job lists tools no step grants (they are the job\'s own): fine', () => {
+    const decl = { flowType: 'tickets', steps: [step()], mcp: { server: 'github', tools: ['issue_read', 'list_issues'] } };
+    assert.equal(findMcpPlanRed(decl), null);
     assert.equal(canFlowRun({ ok: true, declaration: decl }).ok, true);
   });
+  test('an old M12 job (mcp, no flowType) with every tool granted, or none: fine', () => {
+    assert.equal(findMcpPlanRed({ steps: [step(['issue_read'])], mcp: { server: 'github', tools: ['issue_read'] } }), null);
+    assert.equal(findMcpPlanRed({ steps: [step()], mcp: { server: 'github', tools: ['issue_read'] } }), null);
+  });
+  test('a generic MCP job with no step granting a tool: refused naming the server', () => {
+    const decl = { flowType: 'mcp', steps: [step()], mcp: { server: 'github', tools: ['issue_read'] } };
+    assert.equal(findMcpPlanRed(decl), 'preflight: MCP job (server "github") has no step that calls one of its tools');
+    assert.equal(canFlowRun({ ok: true, declaration: decl }).ok, false);
+    assert.equal(findMcpPlanRed({ ...decl, steps: [step(['issue_read'])] }), null);
+  });
   test('no mcp field: nothing to refuse (an old job)', () => {
-    assert.equal(findUnusedMcpTool({ steps: [step()] }), null);
+    assert.equal(findMcpPlanRed({ steps: [step()] }), null);
     assert.equal(canFlowRun({ ok: true, declaration: { steps: [step()] } }).ok, true);
   });
 });

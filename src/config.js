@@ -6,6 +6,7 @@
 //     "prices": { "<slot>": { "inPerM": n, "cachedInPerM": n, "outPerM": n } },    // USD per 1M tokens, each optional; a saved "cachedInPerM" is tolerated, never read (M4d amendment 2)
 //     "providers": { "<KEY_NAME>": { "shape": "<shape id>", "baseUrl": "http(s)://…", "legacyMaxTokens": true|false } },   // each optional; a row is a key name from the keys file (M4d amendment 6). An older file's "model" is tolerated and read by nothing.
 //     "models": { "<KEY_NAME>": [ { "model": "<id>", "use": true|false, "inPerM": n, "outPerM": n } ] },         // M4d amendment 3 C: a price per model
+//     "mcpPaths": ["<path to an MCP config file>", …],   // M13 piece 3: the paths added on Settings > MCP, in order (absolute or ~/…); the page's only writer is POST /api/settings/mcp-path
 //     "learningHints": true|false }                  // M8 am1: absent = false; the drafter is handed earlier runs' notes only when true (src/learnstore.js learningHintsOn). No control on the Settings page.
 // A models line's price is a PAIR or nothing (`modelsProblem` is the one rule): 0 / 0 typed is a chosen price, a
 // ticked line needs both, a half pair is refused. A slot with no list is migrated on READ (`effectiveModels` in
@@ -129,6 +130,18 @@ export function providerFieldProblem(field, v) {
  *  // borrowed-from: bareloop src/config.js@v0.48.0 (ed3a110) */
 export const cleanBaseUrl = (v) => v.replace(/(?<!\/)\/+$/, '');
 
+/**
+ * M13 piece 3: why a typed MCP config path cannot be kept in `mcpPaths`, or null: one rule for the Settings route and for the config reader.
+ * Absolute or `~/…`, one line of at most 500 characters.
+ * @param {unknown} p
+ */
+export function mcpPathProblem(p) {
+  if (typeof p !== 'string' || p.trim() === '') return 'must be a path to an MCP config file';
+  if (p.length > 500 || /[\0\r\n]/.test(p)) return 'must be one line of at most 500 characters';
+  if (!(p.startsWith('/') || p.startsWith('~/'))) return 'must start with / or ~/';
+  return null;
+}
+
 const isPrice = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 /**
@@ -197,6 +210,11 @@ function validateDoc(doc) {
   }
   if (doc.learningHints !== undefined && typeof doc.learningHints !== 'boolean') {
     throw new ConfigError('learningHints must be true or false');
+  }
+  if (doc.mcpPaths !== undefined) {
+    if (!Array.isArray(doc.mcpPaths)) throw new ConfigError('mcpPaths must be a list of paths');
+    doc.mcpPaths.forEach((p, i) => { const why = mcpPathProblem(p); if (why) throw new ConfigError(`mcpPaths.${i} ${why}`); });
+    if (new Set(doc.mcpPaths).size !== doc.mcpPaths.length) throw new ConfigError('mcpPaths holds a path twice');
   }
   validateProviders(doc.providers);
   validateModels(doc.models);

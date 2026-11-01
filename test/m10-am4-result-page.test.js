@@ -98,7 +98,7 @@ test('browser 1280: the Result tab sits fifth (Run, Audit / logs, Job, Ask, Resu
 });
 
 test('browser: a run that is not an M10 job has no Result tab', { skip: SKIP && 'no browser' }, async (t) => {
-  const o = await open(1280, { detailPatch: { hasResult: false } });
+  const o = await open(1280, { detailPatch: { hasResult: false, resultTab: false, hasGrid: false } });
   if (!o) { t.skip('no chromium installed'); return; }
   assert.equal(await o.chrome.ev('document.getElementById("tab-result").hidden'), true);
   const tabs = await o.chrome.ev('Array.from(document.querySelectorAll(".rp-tabrow button")).filter(function(b){ return !b.hidden; }).map(function(b){ return b.getAttribute("data-testid"); })');

@@ -35,10 +35,11 @@ const MEASURE = `(function(){
   body.querySelectorAll("*").forEach(function(e){
     var r = e.getBoundingClientRect();
     if(r.width === 0 && r.height === 0) return;
+    var gw = e.closest(".grid-wrap"); if(gw && gw !== e) return;   // M13 p6: the job's grid scrolls inside its own box (as the Audit grid does); its box is measured, its cells are not
     boxes++;
     if(r.right - vw > worst) worst = r.right - vw;
     if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right));
-    if(e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== "visible") over.push("inner-scroll " + e.tagName + "." + e.className);
+    if(e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== "visible" && !e.classList.contains("grid-wrap")) over.push("inner-scroll " + e.tagName + "." + e.className);
   });
   var tabs = document.querySelector(".rp-tabrow"); var tr = tabs.getBoundingClientRect();
   return { vw: vw, docW: document.documentElement.scrollWidth, boxes: boxes, worst: Math.round(worst), over: over.slice(0, 8),

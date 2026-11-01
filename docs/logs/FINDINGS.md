@@ -4660,3 +4660,603 @@ barebrowse 0.27.0 and bare-agent 0.54.1 installed in a scratch dir; scripts and 
 - Two oddities, cause not traced: right after the kill, a goto to an allowed host that redirects off-list did not return until a 60s client timeout (3 of 3 rounds), and tabs timed out once at 5s. After a relaunch there were 2 tabs both about:blank, with `tabs` showing https://www.github.com/ on tab 1 but about:blank content.
 - Harness note: a symlinked package makes mcp-server.js exit 0 silently (is-main check); a real directory copy works.
 - Results not yet delivered to the browse session (it closed).
+
+## F108 pre-registration (2026-10-30): MCP discovery over the M13 places — $0
+
+Question: M13 item 1 reads the 4 places bare-agent reads plus an added path. Does bare-agent's own `discoverServers` (from `bare-agent/mcp`, installed 0.54.1, as M13 will use it) do what item 1 says, or must fwdloop do part of it?
+
+**Path.** `discoverServers(paths)` with explicit paths = `~/.mcp.json`, `~/.claude/mcp_servers.json`, `~/.config/Claude/claude_desktop_config.json`, `~/.cursor/mcp.json`, then added `~/.claude.json`, in that order. Script `poc/mcp/f108/f108.mjs`. Prints server NAMES and field NAMES only, never a command, arg or env value.
+
+**Expected on hamr's machine (a $0 read earlier today).** `~/.mcp.json` 1 (github); `~/.claude/mcp_servers.json` 1 (aurora); Desktop and Cursor files missing; `~/.claude.json` 4 (beeper, baremobile, barebrowse, litectx), beeper with no `command`.
+
+**Checks (PASS / FAIL on the letter).**
+(a) Each found file lists its server names; a missing file is reported as missing, and the rest still run. FAIL if a missing file throws or stops the rest.
+(b) A remote server (no `command`) is told apart from a startable one; record exactly which field shows it.
+(c) With a planted `.mcp.json` in a temp cwd holding canary `f108-canary`: discovery WITHOUT explicit paths does not list it; discovery WITH explicit paths never reads cwd either. FAIL if the canary is listed in either case.
+(d) Same server name in two given files (two temp files of my own): record which one the Map keeps. M13 says first wins with a warning; PASS if first is kept, and record that the warning is NOT given by bare-agent (so fwdloop must produce it) if so.
+(e) Nothing starts: no child process during discovery (a canary server whose command would write a file if run; the file must not appear; `ps --ppid` empty).
+(f) No command or env value appears in the script output.
+
+**Win rule.** (a) through (f) all PASS. **Not tested.** Starting any server, `check tools`, the Settings page.
+
+## F109 pre-registration (2026-10-30): what env an MCP process receives — $0
+
+Question: M13 item 9.5 says an MCP gets only its own settings plus what it needs to start, never provider keys. What does `createMCPBridge` give a child today? This POC measures today's behaviour; it is expected to show the leak the review reported, so FAIL here means the item 9.5 fix is needed.
+
+**Path.** `createMCPBridge` as `src/ticket-mcp.js:37` uses it (`configPaths` = one temp config, `allow` list, `confirmServer: () => true`), starting a tiny stdio MCP server written in `poc/mcp/f109/` (answers initialize and tools/list, one tool `env_names`; at start writes the sorted list of its env variable NAMES, names only, to a temp file). Canary values set in the parent before the bridge: `DEEPSEEK_API_KEY=sk-canary-f109-deepseek`, `FIREWORKS_API_KEY=sk-canary-f109-fireworks`, `F109_PLAIN=x`; the server config has `env: {F109_OWN: "own"}`.
+
+**Checks.**
+(a) Do the names `DEEPSEEK_API_KEY` and `FIREWORKS_API_KEY` reach the child? PASS = neither reaches it (no leak); FAIL = leak (expected).
+(b) `F109_OWN` reaches the child. PASS if yes.
+(c) Record `PATH` and `HOME` presence.
+(d) Record the full list of names the child got; run a second time with the parent env cut to PATH, HOME (and the server's own env) and record whether the server still starts. Record whether bare-agent offers any way to not pass the parent env (file:line in `node_modules/bare-agent/src/mcp-bridge.js`).
+(e) Where fwdloop starts the bridge (`src/ticket-mcp.js`) and whether fwdloop could cut the env before spawn without changing bare-agent (file:line). No `src` change.
+
+**Win rule.** (a) and (b) PASS; (c)-(e) are recordings. **Not tested.** Real servers, any model.
+
+### F108 RESULT (run 2026-10-30, $0, no model call, bare-agent 0.54.1 `discoverServers` from `bare-agent/mcp`, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/mcp/f108/` (`f108.mjs`, `out.txt`; names and field names only, no value printed or saved).
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| (a) per-file names; missing file does not stop the rest | PASS (with a caveat) | `~/.mcp.json` 1 [github]; `~/.claude/mcp_servers.json` 1 [aurora]; Desktop and Cursor files missing; `~/.claude.json` 4 [beeper, baremobile, barebrowse, litectx]; all 5 in order = 6 servers, no throw. Caveat: bare-agent skips a missing OR unparseable file silently (`mcp-bridge.js:115,117`, `catch { continue; }`) and returns one merged Map with no file of origin; the per-file list and the "missing" line come from fwdloop calling it once per path and checking `existsSync` itself. |
+| (b) remote vs startable | PASS | `beeper` fields = [type, url], no `command`; the other five have `command`. The field that shows it: no `command` string (plus `url`). |
+| (c) project `.mcp.json` never read | PASS | planted `f108-canary` in a temp cwd: not listed by `discoverServers()` without paths, nor with explicit paths. bare-agent also prints a `console.warn` about the skipped file in the default case. |
+| (d) same name in two files | PASS (first kept) | Map keeps the FIRST (`if (!servers.has(name))`, `mcp-bridge.js:121`). bare-agent gives NO warning (`console.warn` not called). |
+| (e) nothing starts | PASS | planted startable canary server: its marker file was never written; `ps --ppid` shows no child (first run showed "yes" only because the `ps` call itself is a child; script fixed to exclude `ps`, rerun clean). |
+| (f) no command/env value printed | PASS | script prints names, field names, yes/no only. |
+
+**Win rule: (a) through (f) all PASS.**
+
+**What M13 must therefore do.** Call `discoverServers([path])` once per path, check `existsSync` itself for "missing", and merge in fwdloop to keep the file of origin; build the "same name in two paths: first wins" warning itself (bare-agent keeps first but says nothing). Tell remote by "no `command`". Pass explicit paths always; never default discovery. Unparseable files are silent in bare-agent, so fwdloop should parse-check each path to say "unreadable" rather than "empty".
+
+### F109 RESULT (run 2026-10-30, $0, no model call, bare-agent 0.54.1 `createMCPBridge`, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/mcp/f109/` (`server.mjs`, `f109.mjs`, `out.txt`; canary values only, names only recorded). The `out.txt` name list is the names of the shell's env variables, no values.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| (a) provider key names do not reach the child | FAIL (leak, expected) | `DEEPSEEK_API_KEY` yes, `FIREWORKS_API_KEY` yes, `F109_PLAIN` yes. The child got 110 names: the whole parent env. M13 item 9.5 fix IS needed. |
+| (b) the server's own `F109_OWN` reaches the child | PASS | yes. |
+| (c) PATH and HOME | recorded | both present. |
+| (d) minimal env | recorded | with the parent env cut to PATH and HOME in-process before `createMCPBridge`, the server started, the bridge exposed `f109_env_names`, and the child got exactly 4 names: `F109_OUT_FILE F109_OWN HOME PATH`; both key names absent. Same 4 names, same start, with a config `command: env`, `args: [-i, PATH=.., HOME=.., own=.., node, server]` and no in-process cut. bare-agent offers no option to not pass the parent env: the spawn env is `{ ...process.env, ...resolveEnv(env) }` at `node_modules/bare-agent/src/mcp-bridge.js:258`, used at `:263-266`; `createMCPBridge` options (`:925-945`) have no env setting. |
+| (e) where fwdloop could cut | recorded | fwdloop starts the bridge at `src/ticket-mcp.js:37` (`createMCPBridge({ configPaths: [configPath], ... })`). Two ways without changing bare-agent: (1) fwdloop writes its own temp config whose `command` is `env` with `-i PATH HOME <server's own env> <real command> <args>` (proven above); (2) delete the other `process.env` names around the `createMCPBridge` call and restore them (proven above, but the whole panel process loses its env while the await runs, so a concurrent provider call could fail; not recommended). |
+
+**Win rule: (a) FAIL on the letter**, as expected: today every MCP child receives all of the parent's env, provider keys included.
+
+**What M13 must therefore do.** Item 9.5 needs a code fix in fwdloop, no bare-agent change: build a per-start temp config that wraps the signed server's command in `env -i PATH=.. HOME=.. <its own env> <command> <args>`. The wrapper must resolve the server's own `${VAR}` env references itself first (bare-agent resolves those from `process.env` at `:220-228`, and `env -i` hides them), and must keep a launcher that is not on a cut PATH working (not tested). The must-fail test: plant canary key names in the parent and assert a child never lists them. Untested here: servers needing more than PATH and HOME to start (for example a `node` version manager), and `${VAR}` own-env references.
+
+## F110 pre-registration (2026-10-30): does the npm child of `fwdloop update` get provider keys — $0
+
+Question: `fwdloop update` runs `npm install -g fwdloop@latest` through `runNpm` (`src/launcher.js`), `spawnImpl('npm', args, { shell: false, stdio: 'inherit' })` with NO `env` option, so Node hands the child the whole `process.env`. Do provider keys reach it?
+
+**Read before the run (a guess, to be measured).** `bin/fwdloop:1039` calls `launcherMain(cmd, args, { root })`; the launcher never calls `keysForDoor`/`loadKeysEnv` (only `keysfile` helpers `keysHome`, `keysFilePath`, `createKeysFile` in `installCmd`). So keys reach the launcher env only if the user's shell exported them. Guess: case A yes, case B no. `startCmd` hands the panel child `d.env ?? process.env` (`launcher.js:459`), the same shell env; the panel then loads the keys file itself via `keysForDoor` (`panel/server.js:714,719`).
+
+**Cases.** (A) canary `FAKE_PROVIDER_API_KEY=sk-canary-f110-shell` exported in the parent process env, no keys file. (B) canary `FAKE2_PROVIDER_API_KEY=sk-canary-f110-file` only in a keys file `<tmp HOME>/.config/fwdloop/.env` (mode 0600), not in the process env.
+
+**Criteria.** Per case record yes/no: does the canary NAME appear in the env NAMES the npm child received. Context only: whether keys reach the panel child of `fwdloop start` (the env passed to the spawn).
+
+**Method.** Temp HOME and temp dir. A fake `npm` executable first on PATH writes its sorted env NAMES (never values) to a file and exits 0, so nothing installs. The real `launcherMain('update')` -> real `updateCmd` -> real `runNpm` (real `child_process.spawn`) is called from a node script in a child process per case; the only fakes are `registryFetch` (returns version 99.0.0), `version` (0.0.1), a fake TTY stdin answering `y`. The real CLI cannot reach the npm step offline (registry fetch has no CLI injection). For the panel, a recording `spawnFn` captures the env names `startCmd` would hand it; nothing is started. No key value is printed or stored; `pass` is never read. Scripts in `poc/f110/`.
+
+**Win rule.** Record the yes/no per case. No pass/fail: this is a measurement.
+
+### F110 RESULT (run 2026-10-30, $0, no model call, `src/` unchanged)
+
+[MEASURED] Evidence in `poc/f110/` (`f110.mjs`, `run.sh`; names only, canary values never printed or saved). Real `launcherMain('update')` -> `updateCmd` -> `runNpm` -> real `spawn`; fakes: `npm` on PATH (writes env NAMES, exits 0), `registryFetch`, `version`, a fake TTY answering `y`. First two attempts crashed in my harness (stream shape), nothing ran; fixed, then run once.
+
+| Case | Canary NAME reaches the npm child | Panel spawn env (context) |
+|---|---|---|
+| (A) exported in the parent env | YES | YES (`FAKE_PROVIDER_API_KEY` in the env `startCmd` hands the spawn) |
+| (B) only in the keys file under a temp HOME | NO | NO (the launcher never read the file; the panel loads it itself later, `panel/server.js:714,719`) |
+
+Both runs: update exit 0, fake npm ran, nothing installed. The test could fail: case A is the yes.
+
+**Where keys enter the launcher env.** Only from the user's shell. `bin/fwdloop:1039` calls `launcherMain` with no env; `launcherMain` uses `deps.processEnv ?? process.env` (`launcher.js:605`) for colour only; the launcher never calls `keysForDoor`/`loadKeysEnv` (it uses only `keysHome`, `keysFilePath`, `createKeysFile`, and the chmod at `launcher.js:279`). `runNpm` (`launcher.js:~310`) passes `{ shell: false, stdio: 'inherit' }` with no `env`, so Node gives npm the whole `process.env`; `startCmd` passes `d.env ?? process.env` to the panel (`launcher.js:459`).
+
+**Consequence.** A user with provider keys exported in their shell (case A) hands them to `npm install -g fwdloop@latest` and to whatever npm runs (lifecycle scripts of fwdloop and its dependencies). Keys only in the keys file do not. Smallest fix, described not applied: in `runNpm` pass `env` built from `process.env` minus every name `isKeyName` (`keysfile.js:38`) accepts, e.g. `spawnImpl('npm', args, { shell: false, stdio: 'inherit', env: withoutKeys(process.env) })`. Must-fail test: canary `*_KEY` name in the parent, fake npm lists names, assert absent while PATH/HOME stay. The panel spawn (`launcher.js:459`) needs no cut: the panel is the key user.
+
+## F111 pre-registration (2026-10-30): does bare-agent's unreleased `passEnv` cut the MCP child env — $0
+
+Question: bare-agent branch `feat/mcp-pass-env` (HEAD 4a50481, unreleased, checkout `../bareagent`, not modified) adds `createMCPBridge({ passEnv })` and `listServerTools({ passEnv })`. Agreed shape: child env = the named parent vars that exist + the server's own env (`${VAR}` resolved from the full parent) on top, own env wins; unset = byte-identical to today; `[]` = own env only; a bad value = `ValidationError` before any spawn. F109 showed the bridge hands the whole parent env to a server.
+
+**Criteria (each a letter; the script exits 0 only if a-g pass; h is measurement).**
+- (a) passEnv unset: canaries `DEEPSEEK_API_KEY` / `FIREWORKS_API_KEY` reach the child (unchanged behaviour).
+- (b) passEnv `['PATH','HOME']`: no canary reaches the child; PATH, HOME and the server's own env names do.
+- (c) own env `${F111_SECRET}` (set in the parent, NOT in passEnv) reaches the child resolved: name present and a boolean "value equals expected"; value never printed; `F111_SECRET` itself absent.
+- (d) own env wins over a passEnv var of the same name (boolean).
+- (e) passEnv `[]`: only the server's own env names.
+- (f) bad values `'PATH'`, `['']`, `[1]`, `{}` each throw `ValidationError` and spawn nothing (marker-file canary server).
+- (g) `listServerTools` honours passEnv too (canary absent).
+- (h) real servers from hamr's `~/.claude.json` started with passEnv `['PATH','HOME']`, asked `tools/list` only: barebrowse (npx), litectx (node), baremobile (npx). Record per server: started yes/no, tools count. On failure retry adding names one at a time from `TMPDIR, LANG, USER, XDG_RUNTIME_DIR, NODE_OPTIONS, npm_config_cache`, record the minimum needed. The `github` server is NOT started (its wrapper reads `pass`); a self-written `sh -c`-wrapped node server stands in and its needs are recorded.
+
+**Method.** Scratch install `npm i ../bareagent` (file install of the checkout). Scripts in `poc/mcp/f111/`, run against the scratch install. Names and booleans only; no key value, no server command printed; `pass` never read; no model call. Browsers a server might start are killed by PID, `/tmp/barebrowse-*` dirs removed.
+
+**Win rule.** a-g all true. (h) is reported, not pass/fail.
+
+### F111 RESULT (run 2026-10-30, $0, no model call, `src/` unchanged, bare-agent checkout 4a50481 untouched)
+
+[MEASURED] Evidence in `poc/mcp/f111/` (`f111.mjs`, `server.mjs`, `marker.mjs`, `out.txt`). Scratch `npm i ../bareagent` (npm made a symlink to the checkout). Names and booleans only. Bare command `node f111.mjs` exit code: **0**. The first run's (h) rows were all "failed": a harness bug (listed server name `s`, config named it `f111`), fixed and rerun; a-g were identical both runs.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) unset | PASS | both canaries reach the child; `F111_SECRET` and own env too (unchanged behaviour) |
+| (b) `['PATH','HOME']` | PASS | canaries absent; child names exactly `F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED HOME PATH` |
+| (c) `${F111_SECRET}` in own env | PASS | `F111_RESOLVED` present, value equals expected: true; `F111_SECRET` itself absent from the child |
+| (d) own wins | PASS | with `F111_CLASH` in passEnv: child value equals own: true, equals parent: false |
+| (e) `[]` | PASS | child names exactly the four own names; no PATH, no HOME, no canary |
+| (f) bad values | PASS | `'PATH'`, `['']`, `[1]`, `{}`: both `createMCPBridge` and `listServerTools` throw `ValidationError`; marker file never created |
+| (g) `listServerTools` | PASS | canaries absent; PATH and own present; 1 tool |
+
+The test could fail: (a) is the control (canaries do arrive without passEnv) and (f)'s marker server would have written its file on a spawn.
+
+**(h) measurement, passEnv `['PATH','HOME']`, `tools/list` only.**
+
+| Server | Started | Tools | Extra names needed |
+|---|---|---|---|
+| barebrowse (npx) | yes | 22 | none |
+| litectx (node) | yes | 8 | none |
+| baremobile (npx) | yes | 17 | none |
+| sh-wrapped test server (`sh -c 'exec node "$F111_SERVER"'`) | yes | 1 | none (child saw `F111_OUT_FILE F111_OWN F111_SERVER HOME PATH PWD SHLVL`; `PWD`, `SHLVL` are added by `sh`) |
+
+The retry list (`TMPDIR, LANG, USER, XDG_RUNTIME_DIR, NODE_OPTIONS, npm_config_cache`) was never needed. Not tested: the `github` server (by instruction); only `tools/list`, not a tool call (a barebrowse call that launches a browser may need more, for example `XDG_RUNTIME_DIR` or `DISPLAY`); `beeper` (no command in config). No process of mine was left running and no `/tmp/barebrowse-*` dir exists.
+
+**Verdict.** The branch does what was agreed, a-g all pass. fwdloop can pass `['PATH','HOME']` and cut provider keys from MCP children; whether tool calls (not just listing) work under the cut is untested.
+
+## F112 pre-registration (2026-10-30): `check tools` on a real MCP (M13 item 2), installed bare-agent 0.54.1 — $0
+Question: can M13's `check tools` be built on what is installed? Installed `bare-agent/mcp` exports `discoverServers`, `createMCPBridge`, `buildMetaTools` and `listServerTools` (read in `node_modules/bare-agent/src/mcp-bridge.js`), so the POC uses `discoverServers([~/.claude.json])` then `listServerTools({server, configPaths:[~/.claude.json], confirmServer:()=>true, timeout})` for ONE server at a time; `createMCPBridge` is the fallback and is not needed. No model call, no key read, no `src/` change; code under `poc/mcp/f112/`. Servers: `litectx` and `barebrowse` from `~/.claude.json`. `github` is never started (it reads `pass`). The script prints server and tool names, counts, times and error class only, never a command, argument or env value.
+**Checks (PASS / FAIL on the letter).**
+(a) Each server returns a non-empty list, every entry has a string name, and annotations are passed as given. Recorded: count total, and count with `annotations.readOnlyHint` true / false / absent. FAIL on an empty list, a throw, or an entry with no name.
+(b) After each call returns or throws, no descendant of the POC process is left. The script polls the process table (`ps -e -o pid=,ppid=`) every 25 ms during the call to see the child PIDs (the control: at least one descendant must be SEEN during a real call, else the check cannot fail and is void), then after the call every seen PID must be gone within 2 s (`kill(pid,0)` throws ESRCH) and the descendant set must be empty. FAIL if any survives.
+(c) Wall time per server: call 1 (first call in a fresh node process, "cold") and call 2 (same process, "warm"). Recorded in ms, not judged, except that a call over `timeout` (15000 ms, the default) is a FAIL of (c).
+(d) A temp config whose server command does not exist (`/nonexistent/f112-no-such-command`): `listServerTools` rejects with an error whose message names the server, in under 3 s with `timeout` 5000. PASS if it rejects (not resolves), names the server, and is under 3 s and no child is left. FAIL on a hang, a resolve, or a message without the server name.
+(e) A temp stub server (node script that answers `initialize` and then never answers `tools/list`), `timeout` 2000: PASS if it rejects with a timeout error (context.timeout true or a message containing "timed out") between 1.8 s and 4 s, and the stub PID is gone afterwards. FAIL on a hang, an early or non-timeout error, or a survivor. The documented total ceiling is 4 x timeout = 8 s; the per-round-trip bound should trip first.
+(f) The script never reads `pass`, never prints an env value or a server command/args; the run output is grepped for the command strings and for the names of env keys in the server defs and must contain none. The child gets `process.env` merged (bare-agent 0.54.1, `createRpcClient`); that is the F111 gap, observed here only as a fact: the script runs with `env -i PATH HOME` so no provider key is in its environment to leak.
+**Win rule.** (a) through (f) all PASS.
+**Not tested.** `github`, a real tool call, remote servers, paginated lists, the panel.
+
+## F113 pre-registration (2026-10-30): use counts over real runs (M13 item 2), read-only — $0
+Question: can "use counts come from what runs already record" be computed from the files on disk, and fast? Flows root: `<config home>/flows` = `~/.config/fwdloop/flows` (read in `src/config.js:41-55`; the panel is started with `--root` to override). Two recorded sources: (1) `runs/run-N/run.json` `inputs[].mcp.calls[]` (`{tool, ...}`) with `inputs[].mcp.server`, written by the ticket read (`src/ticket-mcp.js` record); (2) the Audit fold's tool-call list: `src/audit-fold.js` calls `loadDiaries` -> `src/diary.js` `readTools`, the `kind:"tool"` rows of `runs/run-N/diary.jsonl` (`tool`, `decision` allow / deny / no check, `rule`, `at`). Diary tool rows today name built-in tools only (read, grep, get, ...); an MCP tool the model calls in a generic job is not yet recorded there (no such job exists), so MCP-tool counts come from (1) only. Script `poc/mcp/f113/f113.mjs` is read-only, prints names and counts only, writes nothing under `~/.config/fwdloop`.
+**Checks.**
+(a) Table per server (MCP: `run.json` server name; built-in: the label `(built-in)`) and per tool: total calls, number of runs, last used (MCP: the run.json file mtime, since run.json holds no time; built-in: the latest diary row `at`). PASS if the table prints and the MCP row matches a hand count made with `grep` on the same files (github / issue_read: counted independently with python).
+(b) Denied count = diary tool rows with `decision:"deny"`, per tool. PASS if printed and equal to an independent `grep -c '"decision":"deny"'` over the same diaries. Said where it is recorded (diary tool row) or that it is not.
+(c) Cold time over ALL run folders on disk (script start to table, one node process, ms) and the number of run folders read; PASS if under 1000 ms for the current count. Also ms per run and a 10x projection (10x runs = ms/run x 10 x runs) reported, not judged.
+(d) On a temp copy (never hamr's files) with one run.json truncated mid-way, one empty, one a JSON array, one diary with a torn last line: the count completes, skips the bad file and reports how many were skipped; the totals equal the clean totals minus only the damaged files' own rows. FAIL if it throws or the counts of undamaged runs change. The test must be able to fail: the same copy's counts must differ from the clean counts (the damage must really remove rows).
+**Win rule.** (a) through (d) all PASS.
+**Not tested.** A panel page, MCP tool rows from a generic job (none exist yet), runs on other machines.
+
+### F112 RESULT (run 2026-10-30, $0, no model call; `poc/mcp/f112/f112.mjs` + `stub.mjs`, run as `env -i PATH HOME node ...`, installed bare-agent 0.54.1, `listServerTools` exists so `createMCPBridge` was not needed)
+(a) PASS. litectx: 8 tools, readOnlyHint true 0 / false 0 / absent 8 (names: index, recall, get, recent, promotions, impact, remember, forget). barebrowse: 22 tools (no `eval`: tier default), true 14 / false 8 / absent 0. Annotations pass through as the server sent them (absent key stays absent).
+(b) PASS. The control saw descendants during each real call (1 to 2 PIDs seen per call, `ps` pollers excluded); 2 s after every call, 0 of them alive and 0 descendants of the POC process, for both servers, cold and warm, for (d) and (e) too. No `/tmp/barebrowse-*` dir was created (tools/list starts no browser).
+(c) PASS (recorded, none over 15 s). litectx cold 324 ms, warm 264 ms. barebrowse cold 1841 ms, warm 1512 ms.
+(d) PASS. Missing command: rejected in 4 ms, `ToolError`, message names the server ("MCP server "ghost" failed to start: command ... (ENOENT)"), no child.
+(e) PASS. Stub answering `initialize` only, `timeout` 2000: rejected in 2351 ms, `ToolError`, `context.timeout === true`, message `MCP server "stubby" "tools/list" timed out after 2000ms`; the per-round-trip bound tripped first (not the 8 s total deadline); stub PID gone.
+(f) PASS. The output holds only server and tool names, counts, ms and the error text of my own temp servers; grep of the output for key/token/KEY found 0 lines; no `pass` call; no command or env value of litectx/barebrowse/github printed. Observed fact, not judged: bare-agent 0.54.1 merges the parent `process.env` into the child (the F111 gap); here the parent had only PATH and HOME.
+**Verdict.** All six PASS. `listServerTools` is enough for `check tools`: one server, one call, child reaped, errors named, bounded by `timeout` (and by 4 x timeout in total). Not tested: `github`, a tool call, pagination, a remote server, the panel.
+
+### F113 RESULT (run 2026-10-30, $0, read-only; `poc/mcp/f113/f113.mjs` and `d.mjs`; flows root `~/.config/fwdloop/flows`)
+Harness fixes before the recorded run (script bugs, not criteria): the first pass counted `runs/.stores` (2 dirs) as runs, and a first `run-\d+` filter dropped the legacy folder `run-1-rerun-1`; the final filter is names starting `run-`. The (d) script first tore 11 diaries instead of one (a `break` that left the outer loop); fixed, rerun, numbers below are from the fixed run.
+(a) PASS. Table (names and counts only; `last` for MCP = run.json mtime, since run.json holds no time; for built-in = latest diary row `at`):
+server / tool / calls / runs / denied / last
+(built-in) read 45 / 12 / 2 / 2026-10-25T06:21:36Z
+(built-in) get 30 / 6 / 0 / 2026-10-25T06:21:58Z
+(built-in) stash 12 / 6 / 0 / 2026-10-25T06:21:38Z
+(built-in) addressCells 6 / 5 / 0 / 2026-10-26T07:17:43Z
+(built-in) readDocx 5 / 5 / 0 / 2026-10-25T06:21:24Z
+(built-in) grep 3 / 1 / 1 / 2026-10-21T20:31:26Z
+github issue_read 8 / 8 / 0 / 2026-10-30T11:50:59Z
+Independent python count of `run.json` `inputs[].mcp.calls`: 8 calls in 8 runs. Matches.
+(b) PASS. Denied is recorded: the diary tool row (`runs/run-N/diary.jsonl`, `kind:"tool"`, `decision:"deny"`, `rule`), read by `readTools` (`src/diary.js:47`), the same rows `deriveFold` uses (`src/audit-fold.js:76-79`). Table total 3 (read 2, grep 1) = `grep -c '"decision":"deny"'` over the same files (3). Not recorded for MCP calls: `run.json` `mcp.calls` holds only the ticket read's calls (no decision), and no diary row yet names an MCP tool (no generic MCP job exists).
+(c) PASS. 80 run folders read in 16.7 to 21.3 ms in-process (0.21 to 0.26 ms per run); whole `node` process 154 ms wall. 10x projection: 800 runs about 170 ms (about 2 s for 10,000 runs at the same rate, disk cache permitting; this read was warm-cache, unchecked cold-disk).
+(d) PASS. On a temp copy (76 run folders that had either file): `run.json` truncated, one emptied, one a JSON array, one diary with a torn last line. The count completed, skipped 3 (truncated, empty, torn line; the array is valid JSON with no inputs, counted as nothing), `github/issue_read` fell 8 to 5 (the 3 damaged runs' own rows) and no other key changed. The damage removed rows, so the check could fail.
+**Verdict.** All four PASS. Use counts need no new run-folder file.
+
+## F114 pre-registration (2026-10-30): a schedule that waits for a green run, and the ticket starting point (M13 items 6 and 7) — $0
+Question: signed M13 item 7 ("signed in the same sign; off until the first green run, then it turns on") and item 6 ("the first run reads the newest ticket at the time it starts; older tickets never run"). Can item 7 be built on what is there with one arm hook, and what does today's baseline logic do to a ticket that arrives between the first run's start and the arm? Facts read before the run (verified in `src/`): "on" = `schedule.json` plus an `armed` row in `schedule-ledger.jsonl` (`isArmed`, `src/schedule.js:102`); the sole writer of the armed row is `armFor` (`src/panel/authortrigger.js:103`); `hasGreenRunForJob` (`authortrigger.js:72`) needs the run's history outcome `complete` AND its `job/` copy equal to the current job; signing refuses today at `authortrigger.js:192` (`no-green-run`); `scan()` (`authortrigger.js:347-351`) returns only armed jobs; the scheduler walks `door.scan()` (`src/panel/scheduler.js:106`); the first look is a first look while no `baseline` row exists (`scheduler.js:92`), and its `found` become `baseline` rows (`src/trigger-tickets.js:105`, `:160`). No `src/` edit.
+**Method.** Script `poc/m13/f114/f114.mjs`. Real modules: `writeFlow` (a signed ticket job), `createTriggerDoor` (real `scan`, `hasGreenRunForJob`, `armFor`, `fire`), `createScheduler` with the real `lookTickets` against `test/fixtures/fake-mcp-server.mjs`, injected clock, a temp root per scenario (removed after). The starter is a stub that counts `start` calls and returns 202. `schedule.json` is written directly with `writeSchedule` (the narrowest bypass of the `no-green-run` refusal at `:192`; the same way `test/m12-p3-world.mjs` does it), so the schedule exists with no `armed` row. The ONLY new logic is the arm hook, in the script: before each `tick`, for each job with a live `schedule.json` that is not armed and whose `hasGreenRunForJob` is true, call `armFor(flowDir, schedule, now)` once. Runs are written the way `seedGreen` does it (job copy + a history row).
+**Criteria (PASS / FAIL on the letter).**
+(a) Signed, no run at all: 5 ticks 15 min apart, 0 fires, 0 look calls, 0 `armed` rows.
+(b) A run ends `not-done` (history), 3 ticks; then another ends `cap-halt`, 3 ticks: still 0 fires, 0 `armed` rows.
+(c) A run ends `complete` with a job copy equal to the current job: exactly one `armed` row after the next tick; 4 further ticks add none.
+(d) Fresh job, only a `complete` row whose run's `job/` copy differs from the current job: 5 ticks, 0 `armed` rows, 0 fires.
+(e) After (c)'s arming, one ticket queued after arming (list 5 -> 6): exactly one fire, for #6, `started` row in `triggers.jsonl`; 4 further ticks, still one.
+(f) Item 6 timing. First run starts at T0 (the clock value, recorded by the script; list = #1..#5, newest #5 = A, older than T0). #B = #6 is added at T0+10 min, before the arm. The first run turns green at T0+30 min; the hook arms on the next tick. Required: #A never runs, #B runs once after arming. Measured on today's baseline logic. EXPECTED FAIL (the first look after the arm baselines #1..#6, so #B never runs). Recorded: T0, the baseline rows, the fires, and the exact line that needs T0 (or the highest ticket number read at T0) in place of the arm time. A counterfactual (f2) is also shown, labelled as not `src`: a wrapper around `lookTickets` that on the first look keeps only tickets with number <= the highest read at T0, so #B arrives on the next look; PASS iff #B runs once and #A never.
+(g) The hook can fail. (g1) hook disabled: (c) must go red (no `armed` row). (g2) hook's green test replaced by "any `complete` history row" (job copy check bypassed): (d) must go red (an `armed` row appears).
+**Win rule.** (a)-(e), (f2) and (g) PASS; (f) is expected FAIL and is recorded on the letter, never refitted. Not tested: the panel UI, a real GitHub, the Run card's grey line, a real run (the runs are written files).
+
+### F114 RESULT (run 2026-10-30, $0, no model call, `src/` unchanged; `poc/m13/f114/f114.mjs`, output `poc/m13/f114/out.txt`; run twice, same verdicts)
+Real modules: `writeFlow` signed ticket job, `createTriggerDoor` (real `scan`, `hasGreenRunForJob`, `armFor`, `fire`), `createScheduler` with the real `lookTickets` on the fake MCP server, injected clock, stub starter. `schedule.json` is written with `writeSchedule` directly (the bypass of `authortrigger.js:192`; nothing else bypassed). The only new logic is the 8-line `armHook` in the script.
+(a) PASS. 5 ticks: fires 0, `armed` rows 0, look calls 0 (an unarmed schedule is not even looked at: `scan()` skips it).
+(b) PASS. After a `not-done` run, 3 ticks, then a `cap-halt` run, 3 ticks: fires 0, armed rows 0, look calls 0.
+(c) PASS. A `complete` run with an equal job copy: 1 `armed` row after the next tick, still 1 after 4 more, `armFor` called once. The first look then wrote baseline rows [1,2,3,4,5], fires 0.
+(d) PASS. A `complete` row whose run's `job/prose.txt` differs: `hasGreenRunForJob` false, 5 ticks, 0 armed rows, 0 fires.
+(e) PASS. List 5 -> 6 after arming: stub starts [6], and `triggers.jsonl` has one `started` row for ticket 6; 4 further ticks add none.
+(f) FAIL on the letter (expected). T0 = first run start 2026-10-13T06:00Z (script clock); #A = #5 (newest at T0); #B = #6 added at T0+10 min; green at T0+30 min; armed 06:30. The first look after the arm wrote baseline rows [1,2,3,4,5,6]: fires []. #A never ran (good), #B ran 0 times (required once).
+(f2) PASS (counterfactual, a wrapper around `lookTickets` in the script, not `src`). First look keeps only number <= 5 (the highest ticket read at T0): baseline [1,2,3,4,5], #6 arrives on the next look, fires [6], #A never ran.
+(g) PASS. Hook off: armed rows 0, so (c) goes red. Job-copy check bypassed (any `complete` history row counts): armed rows 1 for the changed job, so (d) goes red. Both checks can fail.
+**Where item 6 breaks, and the line.** Today the starting point is "whatever is on the list at the first LOOK", and the first look happens after the arm (`scheduler.js:92` `first = !hasBaseline(...)`; `lookTickets` `src/trigger-tickets.js:105` `if (first) { found.push(rec); continue; }`; `recordLook` `:160` `if (look.first)` writes a `baseline` row for every ticket found). To meet item 6 these must use the value the first run read at T0, not the arm-time list: store at the first run's start the highest ticket number it read (here 5; the ticket's `createdAt <= T0` is an alternative, `lookTickets` already returns `createdAt`), and in the first look baseline only tickets with `number <=` that value (cut at `trigger-tickets.js:105`, or filter `look.found` before `:160`); every higher ticket is recorded `arrived` and runs oldest first. Nothing in `src` records T0 or that number as such today (unchecked beyond `grep ticket src/runner.js`; run.json keeps `inputs[].ticket.number` of a ticket run), so a writer is a signed-scope decision.
+**Verdict.** Item 7 holds with a hook of one condition and one existing writer (`armFor`); item 6's "older never runs" holds, but its "a ticket between T0 and the arm runs" fails on today's baseline logic.
+
+## F115 pre-registration (2026-10-31): steps call the signed MCP tools (M13 item 5) — $0 first, spend only if wired
+Question: signed M13 item 5 ("MCP (generic): steps call the signed tools"). Does a run hand a step's `mcpTools` to the model today? Facts read before the run (unchecked by running): the only `createMCPBridge` calls in `src/` are `src/ticket-mcp.js:37` (freeze one ticket) and `src/trigger-tickets.js:57` (the look); `src/runner.js` and `src/model-step.js` never start a bridge; a step's granted tools come from `step.primitives` only (`src/runner.js:924`); `mcpTools` is read by `src/declaration.js` (shape) and `src/canrun.js:32` (`findUnusedMcpTool`, preflight) only. Tool rows are written by `appendTool` (`src/model-step.js:386`, `:458`) to `diary.jsonl`.
+Rule: if the code shows step tools are not wired at run time, the POC stops after (a), writes that as the result, and spends $0 (hamr's cap $0.10 is not touched).
+**Method.** Script `poc/m13/f115/f115.mjs`, $0, no model call, no `src` edit. Server `litectx` from `~/.claude.json` (names, counts only printed).
+**Criteria.**
+(a) At $0 on today's code, a generic job `mcp {server: litectx, tools: [recall]}` with one step `mcpTools: [recall]`: record what each real door says (declaration check, `findUnusedMcpTool` preflight, `readTicketMcp`), and the exact text of the read-only gate (`src/ticket-mcp.js:41`) when litectx (no tool marked `readOnlyHint`) is put through the same loop. Expected: preflight passes; the read-only text is reachable only through the ticket reader.
+(b) Real step on the real model calls the granted tool, closes green, books balance, spend <= $0.10: runs only if step tools are wired. (c) ungranted call denied and recorded. (d) tool call recorded where a use count reads it. (e) env names that reach the MCP child. All of (b)-(e) are NOT RUN if step tools are not wired.
+
+### F115 RESULT (run 2026-10-31, $0, no model call, `src/` unchanged; `poc/m13/f115/f115.mjs`, output `poc/m13/f115/out.txt`)
+**Verdict: STOPPED after (a) by the pre-registered rule. Step tools are NOT wired at run time. Spend $0.00. No run folder (no run was made).** M13 item 5 needs the wiring built.
+Step 0, read in code: `createMCPBridge` is called only in `src/ticket-mcp.js:37` (freeze one ticket) and `src/trigger-tickets.js:57` (the look). `src/runner.js` and `src/model-step.js` start no bridge. A step's tools to the model are `step.primitives` verbs only (`src/runner.js:924`, `grantedTools`). `mcpTools` is read only by declaration shape (`src/declaration.js:806-813`), `src/canrun.js:32` (`findUnusedMcpTool`, preflight), and display/drafter (`src/authoring.js:213`, `src/ticket-draft.js`). So a signed `mcpTools` is today a label: the preflight accepts it and nothing hands the tool to the model or adds the name to bareguard's allow list. MCP is used only to freeze a ticket input and to look for new tickets. Where a step's MCP call would be recorded: `appendTool` (`src/model-step.js:386`, `:458`) writes `diary.jsonl` `kind:"tool"` rows with `decision` allow/deny + `rule` (the F113 table's source), so an MCP call made through the same gate would land there; today nothing makes one.
+(a) PASS as a measurement (expectation partly wrong). litectx: 8 tools (index, recall, get, recent, promotions, impact, remember, forget), `readOnlyHint` absent on all 8. A generic job `mcp {litectx, [recall]}` + one step `mcpTools [recall]`: the preflight (`findUnusedMcpTool`) returns null, so it PASSES, no refusal at $0 today. `readTicketMcp` with that job's tools says `the job does not list issue_read, the tool that reads a ticket`; with `issue_read` listed, `litectx does not offer issue_read`. So the read-only refusal is NOT reachable for a generic job today (nothing starts the server for it). The gate's exact text (`src/ticket-mcp.js:41`, the same loop run on a bridge with `allow litectx:[recall]` in the script) is: `litectx does not mark recall read-only (readOnlyHint is not true)`. It would be the refusal a generic job gets only if the M13 wiring reused that loop; item 3 drops it.
+(b), (c), (d), (e): NOT RUN (nothing wired; no spend). Known from earlier results: (d) a tool row is recorded for built-in tools in `diary.jsonl` and `readTools` (`src/diary.js:47`) counts it (F113); for MCP `run.json` `mcp.calls` holds only ticket reads. (e) F109/F111: bare-agent 0.54.1 merges the parent env into the child; not re-measured here.
+**What M13 must build for item 5** (not built): per step, start the bridge with `allow` = that step's `mcpTools`, hand those tools to the model with the step's other grants, add the same names to the step's bareguard allow list, write a diary tool row per call, close the bridge at step end, and tell the drafter the tool exists. Then rerun F115 (b)-(e) at the $0.10 cap.
+
+## F111b pre-registration (2026-10-31): F111 again on the PUBLISHED bare-agent 0.56.0, plus one real tool call — $0
+Question: F111 was run against an unreleased checkout (4a50481). bare-agent 0.56.0 is published. Does `passEnv` behave the same on the npm package, and do real tool calls (not only `tools/list`) work with the cut env `['PATH','HOME']`? No model call, no `src/` change, no `pass`, no env value or server command printed (names, booleans, counts, ms only).
+
+**Method.** Scratch install `npm i bare-agent@0.56.0` in a scratch dir; version confirmed from `node_modules/bare-agent/package.json` and `buildChildEnv` confirmed present in `src/mcp-bridge.js`. Scripts copied from `poc/mcp/f111/` to `poc/mcp/f111b/` (`f111.mjs` plus new part (i)), run as the bare command `node f111.mjs`; the exit code is read off that command.
+
+**Criteria.** (a)-(g) are F111's, unchanged, against installed 0.56.0; the script exits 0 only if (a)-(g) pass.
+- (h) unchanged measurement: barebrowse (npx), litectx (node), baremobile (npx), an `sh -c`-wrapped test server; `tools/list` under `['PATH','HOME']`; started yes/no, tools count, extra names needed.
+- (i) new, measurement: real tool calls under passEnv `['PATH','HOME']` through `createMCPBridge` with `allow` = one tool. barebrowse `browse` of `https://example.com` (headless): record whether it returned page text, ms, and whether it needed extra names; on failure retry adding one at a time from `DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG` and record the minimum. litectx `recall` with any query: record ok/err and ms. `github` is not started.
+
+**Win rule.** (a)-(g) all pass. (h) and (i) are reported, not pass/fail. Any browser started is killed by PID and `/tmp/barebrowse-*` dirs I created are removed.
+
+### F111b RESULT (run 2026-10-31, $0, no model call, `src/` unchanged, installed bare-agent 0.56.0 from npm)
+[MEASURED] Evidence in `poc/mcp/f111b/` (`f111.mjs` = F111 plus part (i), `server.mjs`, `marker.mjs`, `out.txt`, `diag.mjs`, `diag-out.txt`). Scratch `npm i bare-agent@0.56.0` (a real copy, not a symlink); `node_modules/bare-agent/package.json` version 0.56.0; `buildChildEnv` present in `src/mcp-bridge.js` (2 hits). Run as `env -i PATH HOME F111_SCRATCH=<dir> node f111.mjs`; exit code of the bare command: **0**.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) unset | PASS | both canaries reach the child; `F111_SECRET` and own env too |
+| (b) `['PATH','HOME']` | PASS | canaries absent; child names exactly `F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED HOME PATH` |
+| (c) `${F111_SECRET}` | PASS | `F111_RESOLVED` present, equals expected true; `F111_SECRET` absent |
+| (d) own wins | PASS | equals own true, equals parent false |
+| (e) `[]` | PASS | exactly the four own names |
+| (f) bad values | PASS | `'PATH'`, `['']`, `[1]`, `{}`: `ValidationError` from both entry points; marker never created |
+| (g) `listServerTools` | PASS | canaries absent; PATH and own present; 1 tool |
+
+Same verdicts as F111 on the checkout: the published package behaves as agreed.
+
+**(h) `tools/list`, passEnv `['PATH','HOME']`.**
+
+| Server | Started | Tools | Extra names needed |
+|---|---|---|---|
+| barebrowse (npx) | yes | 22 | none |
+| litectx (node) | yes | 8 | none |
+| baremobile (npx) | yes | 17 | none |
+| sh-wrapped test server | yes | 1 | none (child saw `F111_OUT_FILE F111_OWN F111_SERVER HOME PATH PWD SHLVL`) |
+
+**(i) real tool calls, `createMCPBridge` with `allow` = one tool, passEnv `['PATH','HOME']`.**
+
+| Server.tool | Result | ms | Extra names needed |
+|---|---|---|---|
+| litectx.recall (query "f111b test") | ok, returned 56 chars | 2023 | none |
+| barebrowse.browse (`https://example.com`) | page loaded and a result returned; recorded as "fail" by my script, see below | 6101 (script), 3.4-4.8 s in 7 reruns | none |
+
+The barebrowse "fail" row in `out.txt` is a check of mine, not a tool failure: the script required the text "example domain" in the result, but `browse` returns a pruned accessibility snapshot (`url: https://example.com`, `1,310 chars → 65 chars (95% pruned)`, one link "Learn more"), so the heading is not in it. The criterion as pre-registered ("whether it returned page text") is answered by `diag.mjs`: the page loaded (raw 1,310 chars, pruned to 65, result 126 chars) under `['PATH','HOME']` with no extra name. The extra-name retry in `out.txt` did not run because the main script ran under `env -i`, so none of `DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG` existed in its env; `diag.mjs` ran in the real shell env (DISPLAY, XDG_RUNTIME_DIR, LANG present; TMPDIR absent) and gave the same 126-char result for `['PATH','HOME']` alone and with each of DISPLAY, XDG_RUNTIME_DIR, TMPDIR, LANG added: the minimum needed is none. Headless; barebrowse did not need a display name. Not shown by this: whether the pruned snapshot is enough for a real step (a `readable`/`snapshot` tool may suit better). No leftover browser PID of mine (script killed 0), no `/tmp/barebrowse-*` dir created.
+
+**Verdict.** (a)-(g) all PASS on bare-agent 0.56.0 from npm, exit 0. With the provider keys cut (`['PATH','HOME']`), real tool calls work for litectx and barebrowse with no extra names. `github` not started.
+
+### F117 PRE-REGISTRATION (2026-10-31, $0, no model call, `src/` unchanged; `poc/m13/f117/f117.mjs`)
+Target: signed M13 item 6 ("the first run reads the newest ticket at the time it starts") on the real GitHub MCP server, read-only, repo hamr0/hol-guard. `pass` is unlocked by hamr; the server gets its token by itself; I never run `pass` or print a token, key or server command.
+- (a) real `lookTickets` with `seen = null` (first look, state OPEN, newest first): record the newest open ticket number N and the call time T0.
+- (b) real `readTicketMcp` for ticket N through `issue_read`: record ok, text length, state and label names.
+- (c) the baseline cut M13 stores is N, the number the first run read: show it is present as `inputs[].ticket.number` in the shape `runner.js:449` writes (`ticket: {number, title}`), and that no new file is needed.
+- (d) wall time of (a)+(b); the github child is gone afterwards (own-PID check of children of the script, no `pgrep -f`).
+- (e) if the token is unavailable or `pass`/gpg prompts: record the exact refusal text (expected the M12 "GitHub token unavailable" refusal), stop, no retry.
+**Win rule.** (a)-(d) PASS: N is an integer, (b) ok with text length > 0, (c) holds, (d) no child left. (e) is itself a result. No write tool is called.
+
+### F117 RESULT (run 2026-10-31, $0, no model call, `src/` unchanged; `poc/m13/f117/f117.mjs`, output `poc/m13/f117/out.txt`)
+[MEASURED] Real GitHub MCP, repo hamr0/hol-guard, read-only (`list_issues`, `issue_read` only). No token, key or command printed; I ran no `pass`. Token available, no prompt, no refusal ((e) did not occur).
+- (a) PASS. Real `lookTickets` first look (`seen = null`, state OPEN, newest first): T0 = 2026-10-31T06:48:02.315Z, 1 page, found [10..1], newest open ticket **N = 10**, 1812 ms.
+- (b) PASS. Real `readTicketMcp` on #10 through `issue_read`: ok true, text length 631, state open, labels ["P1"], title "fwdloop test: P1 walk 5", 2407 ms. Bridge exposed only `github_issue_read`; one call recorded.
+- (c) PASS. N = 10 is available as `ticket.number` in the entry shape `runner.js:449` already writes into `run.json` inputs (`{path, ticket: {number: 10, title}}`); the first run's baseline cut needs no new file. Not shown: that the scheduler reads it back (that is the build).
+- (d) PASS. (a)+(b) = 4219 ms. After close the script's only child was its own `ps` probe; no github child of this run. A `github-mcp-serv` (pid 95116, parent 95091) exists but started before this run (lower pid), so it is not this script's; left alone.
+**Verdict.** (a)-(d) PASS. Item 6's baseline cut can be N, the number the first run read, taken from the existing run record. Not tested: the scheduler change itself, a real run, the arm hook.
+
+## F116 PRE-REGISTRATION (2026-10-31, paid, hard cap $0.10 total across all tries; `poc/m13/f116/f116.mjs`, `src/` unchanged)
+Target: signed M13 item 5 ("MCP (generic): steps call the signed tools"), riskiest assumption: a real model step, given one MCP tool through bare-agent's bridge plus bareguard, actually calls it; an ungranted tool is denied; the call lands as a diary tool row. Model: DeepSeek V4.1 Flash via Fireworks (`accounts/fireworks/models/deepseek-v4p1-flash`, prices from hamr's Settings), never Claude. bare-agent 0.54.1 (installed). Keys come from `~/.config/fwdloop/.env` sourced inside the detached command; I never read `pass`, nothing is printed.
+**Step 0 ($0, done before this text, `poc/m13/f116/probe.mjs`).** litectx `recall` run from the repo root returns hits for "f111b" (1787 chars, `code` kind); from another cwd it returns empty arrays (litectx's store follows the child's cwd). The tool is `litectx_recall` with params `query` (required), `kind`, `n`.
+**Job.** One model step, class hitl (typed `text` + `done`), granted tools = `litectx_recall` (bridge `allow: {litectx: ['recall']}`) and `litectx_remember` (exposed to the model, NOT on bareguard's `tools.allowlist`, and its real execute is replaced by a tripwire so no write can ever reach litectx). Goal text: `Use the recall tool to look up what is stored about "f111b". Then also try the remember tool to save one line about it. Write what you found in the text field.` Close (harness check): `res.ok`, artifact `text` non-empty, `done === true`.
+**Real fwdloop code:** `makeLiveModelStep` (src/model-step.js, unedited, through its `grantedTools` argument), `makeProvider` + config prices, the Loop + `onLlmResult` metering, `appendTool`/`appendCall` diary rows, `GateRefusal`, `seam.stopRequested` (used as the spend stop). **Harness:** the MCP tool wrapper (gate.check, GateRefusal, gateSeen), the Gate construction (`tools.allowlist: ['litectx_recall']` plus the run-dir fs scope), executorContext/stepMeta, the close check, the PID check. Not used: `runFlow`, `resolvePrimitives`, the runner's closers.
+**Criteria.**
+(a) the model calls `litectx_recall` at least once and the step closes green; up to 3 tries total across runs, each run reported, at most one run in flight.
+(b) `litectx_remember` is denied by bareguard (rule `tools.allowlist.exclusive` expected) and recorded with `decision: "deny"`: by the model's own call (goal text asks for it) in the real diary row, and by one forced direct call through the gate wrapper if the model never tried. The tripwire must never fire.
+(c) each recall call is a `diary.jsonl` `kind:"tool"` row with `tool` and `decision` (allow) that `readTools` returns.
+(d) every round summed (diary `call` rows and spend.jsonl), total across runs <= $0.10; the step is stopped (via `stopRequested`) once metered spend reaches $0.07.
+(e) after `bridge.close()` no descendant PID of the harness that existed with the bridge up is alive (checked by `process.kill(pid, 0)`; leftovers killed by own PID and reported).
+(f) a table of real vs harness parts, and the smallest seam M13 needs in `src/` (file:line).
+**Win rule.** (a)-(e) all pass. A try that closes red on a provider fault is reported, not fitted.
+
+### F116 RESULT (run 2026-10-31, paid, `src/` unchanged; `poc/m13/f116/f116.mjs`, per run `run-N/{diary.jsonl,spend.jsonl,result.json}`, logs `run-N.log`)
+[MEASURED] Model `accounts/fireworks/models/deepseek-v4p1-flash` (`modelMatch: match`), bare-agent 0.54.1, 3 tries (one at a time), litectx from the repo root. **Total spend $0.02750 of the $0.10 cap** (run 1 $0.010091, run 2 $0.010994, run 3 $0.006414; diary `call` rows and spend.jsonl agree per run; 6 + 6 + 4 = 16 rounds, every round summed).
+**Verdict: (a)-(e) PASS, with one deviation: runs 1 and 2 closed `done:false` and are reported as red; run 3 is the green one and has a changed goal (see below).**
+- (a) PASS pooled, 1 green in 3. Run 1 `ok:true`, artifact `done:false`. Run 2 identical job, same: `blocker` = "litectx_remember refused both attempts ... (bareguard rule: tools.allowlist.exclusive), so no memory line about f111b could be saved." So the red was MY GOAL WORDING: it asked the model to also call `remember`, the gate denied it, and the model honestly said it could not finish. That is the system working (only `done:false` halts), but it is not the pre-registered job's green. Run 3 dropped the remember sentence from the goal (`F116_GOAL=norem`; `remember` stays exposed, gate unchanged): the model called `litectx_recall` twice, artifact non-empty (text says recall returned pointers, no read tool was available), `done:true`, closed green. The pre-registered (a) text was not refitted; the goal change is the one deviation and is recorded here.
+- (b) PASS. `litectx_remember` was on the model's tool list and not on bareguard's `tools.allowlist`. Runs 1 and 2: the model itself called it twice per run; both denied, rule `tools.allowlist.exclusive`, both recorded by the real `appendTool` as `decision: deny` (`src/model-step.js:386`) and in `res.refused`. A forced direct call through the gate wrapper in every run (also run 3): `denied rule=tools.allowlist.exclusive`. The tripwire (the real `remember` execute replaced) fired 0 times in all 3 runs; nothing was written to litectx.
+- (c) PASS. Every recall call is a `kind:"tool"` row from `readTools`, with `tool: "litectx_recall"`, `decision: "allow"`, `rule: null`, `round`: run 1 two rows, run 2 three, run 3 two (7 allow rows). `path` is null for an MCP call (`toolRowPath`, `src/model-step.js:279` only knows path/role/id). A use count by tool name works as is. `gateSeen` made the allow decision show `allow`, not `no check`.
+- (d) PASS. $0.02750 total, all rounds metered via the real `onLlmResult`; the stop (`seam.stopRequested` at $0.07) never fired.
+- (e) PASS. Bridge descendants (2 PIDs per run, found by a ppid walk before close): all gone 1.5 s after `bridge.close()` in all 3 runs; nothing needed killing.
+**Other facts.** A `tools.allowlist` on the step's Gate also denies fs actions: `gate.check({type:'read', tool:'read'})` returned `deny` with `tools.allowlist: ['litectx_recall']` (measured, `fsUnderAllowlist` in each result.json), so M13 must list the step's own fs verbs (and `emit_artifact` needs no gate) in the allowlist or gate MCP calls another way. `GateRefusal`'s message is fs-worded (`... "" is outside the sandbox`, `src/primitives.js:73`): the model sees `"" is outside the sandbox` for a refused MCP tool. Not tested: runner wiring, `runFlow`, retries after a red, the drafter producing the step, `mcpTools` preflight, thinking on retry, a tool that returns very large text.
+**(f) Real vs harness.**
+| Part | Real fwdloop/bare code | Harness |
+|---|---|---|
+| model step, retries of round, emit_artifact, metering, spend row | `makeLiveModelStep` (`src/model-step.js:306`), `makeProvider`, bare-agent Loop | none |
+| diary rows (tool, call) | `appendTool`/`appendCall`, `readTools`/`readCalls` | none |
+| refusal type | `GateRefusal` (`src/primitives.js:70`) | thrown by harness wrapper |
+| MCP start/close, tool list, allow | bare-agent `createMCPBridge` (`allow: {litectx: ['recall']}`) | called by harness, not the runner |
+| gate | bareguard `Gate` | built by harness (`tools.allowlist`) |
+| MCP tool wrapper (check, throw, `gateSeen`) | none | harness |
+| goal/class/close check | none (hitl class, `buildEmitArtifactSchema`) | harness check of `ok`, `text`, `done` |
+**Smallest seam M13 needs in `src/`:** (1) `src/runner.js:924`: `grantedTools` is built from `step.primitives` only; add the step's `mcpTools` as wrapped bridge tools to that map (model-step already takes any `{name, description, parameters, execute, gateSeen}` there, `src/model-step.js:373`, and already counts them as granted at `:407`). (2) `src/primitives.js:353` (`resolvePrimitives`, where the step Gate is built): add `tools.allowlist` = the step's fs verbs plus the signed `<server>_<tool>` names, and one wrapper (gate.check, `GateRefusal`, `gateSeen.n += 1`, as `:362-365`). (3) a bridge start per step before the first try and `close()` in a `finally` after the last (runner, around `:924` and the step's return paths). (4) `GateRefusal` needs a non-fs message for a tool refusal (`src/primitives.js:73`). `model-step.js` itself needs no edit.
+
+## F118 PRE-REGISTRATION (2026-10-31, $0, no model call, `src/` and `package.json` unchanged; `poc/mcp/f118/f118.mjs`)
+Target: bare-agent's new bridge-level `cwd` (peer commit 97cd65a on `feat/mcp-bridge-cwd`, unreleased): `createMCPBridge({cwd})`, `listServerTools({cwd})`, `cfg.mcp.cwd`. Agreed shape: a server's own `def.cwd` wins; unset = today; spawn-only, never written to `.mcp-bridge.json`; a bad folder is a `ValidationError` before any spawn; no `~` expansion. Agreed use: fwdloop passes `os.homedir()`. No model call, no `pass`, no key or env value printed. The peer's checkout is read-only to me (`npm pack` into scratch only; `git -C ../bareagent status --short` must be empty afterwards).
+
+**Method.** `npm pack` of the checkout into a scratch dir, installed into a mkdtemp scratch (a real copy, not a symlink); the installed source must contain `validateBridgeCwd`. A second scratch holds the published `bare-agent@0.56.0` for the negative control. The script is run as a bare command; its exit code is the verdict (nonzero if any of (a)-(h), (j) fails). A fake stdio MCP server reports `process.cwd()` through a tool result AND a marker file, and exits on stdin close. Paths are compared by realpath. The harness `chdir`s to its own tmp dir C first, so "parent cwd" differs from folder A.
+
+**Criteria (pass bars).**
+- (a) `createMCPBridge({cwd: A})`: the server's tool result and marker file both equal realpath(A).
+- (b) `cwd` unset: both equal realpath(C), the parent's `process.cwd()`.
+- (c) server `def.cwd = B`, bridge `cwd = A`: both equal realpath(B).
+- (d) `listServerTools({cwd: A})`: the marker file shows the server started in A.
+- (e) bad folders (missing path, a file, relative path, `"~"`, `""`, non-string `42`): each from BOTH `createMCPBridge` and `listServerTools` is a `ValidationError`, and the marker server never wrote its marker (no spawn).
+- (f) `.mcp-bridge.json` written (default discovery mode, explicit `bridgePath`) with bridge `cwd` set exists and does not contain the string A.
+- (g) `passEnv ['PATH','HOME']` with `cwd: A`: server reports A, and a parent marker env var (canary) is absent in the child.
+- (h) negative control: part (a) run against the published `bare-agent@0.56.0`: the server must NOT report A (it reports C). The test can fail: if 0.56.0 reported A, (h) is FAIL.
+- (i) measurement, reported not pass/fail: real servers started as F111b did (from `~/.claude.json`) with `cwd = os.homedir()`, `passEnv ['PATH','HOME']`, `allow` = one tool each. barebrowse `browse` of `https://example.com` returns page text (yes/no, chars, ms). litectx `recall` any query returns ok (an empty result at home is the EXPECTED outcome): record exactly what it returned, ms, and the home top-level listing before/after (only names that appear or vanish are printed). `github` is not started: a stand-in server named `github` is in the config but not in `allow`; its marker must not appear.
+- (j) after `bridge.close()` of every bridge, no descendant of the harness survives a 1.5 s grace (ppid walk, as F116 (e)); leftovers are killed by PID and counted as FAIL.
+
+**Win rule.** (a)-(h) and (j) all PASS, exit 0. Any browser started is killed by PID; `/tmp/barebrowse-*` dirs created by this run are removed. A wrong name or shape in my script stays FAIL on the letter; no bar is refitted.
+
+### F118 RESULT (run 2026-10-31, $0, no model call, `src/` and `package.json` unchanged; `poc/mcp/f118/{f118.mjs,server.mjs,marker.mjs,out.txt}`)
+[MEASURED] Install: `npm pack` of `../bareagent` (branch `feat/mcp-bridge-cwd`, HEAD 97cd65a, package version still 0.56.0) into scratch, installed as a real copy (`node_modules/bare-agent` is a directory, not a symlink); `validateBridgeCwd` appears 3 times in the installed `src/mcp-bridge.js`. Control scratch: published `bare-agent@0.56.0` from npm (0 hits for `validateBridgeCwd`, 2 for `buildChildEnv`). Run as the bare command `F118_NEW=<new> F118_OLD=<old> node f118.mjs`; exit code of that command: **0**. `git -C ../bareagent status --short` was empty before and after.
+
+| Letter | Verdict | Evidence |
+|---|---|---|
+| (a) `cwd: A` | PASS | tool result and marker file both realpath(A) |
+| (b) unset | PASS | both = C, the harness's `process.cwd()` |
+| (c) `def.cwd=B`, bridge `cwd=A` | PASS | both = B |
+| (d) `listServerTools({cwd: A})` | PASS | marker = A |
+| (e) bad folders | PASS | 12/12 (6 values x both entry points): `ValidationError`, marker never written. Values: missing path, a file, relative `rel/dir`, `"~"`, `""`, `42` |
+| (f) `.mcp-bridge.json` | PASS | file written (363 chars) with `cwd: A`; does not contain A; server did start in A |
+| (g) `passEnv ['PATH','HOME']` + `cwd: A` | PASS | server in A, `F118_CANARY` absent in child (tool result and marker) |
+| (h) negative control, 0.56.0 | PASS (control red as intended) | published 0.56.0 with `cwd: A` silently ignores it: server reports C, not A |
+| (i) real servers, `cwd = os.homedir()` | measurement | see below |
+| (j) no survivors | PASS | 199 descendant PIDs seen over the run (npx, chromium, test servers); 0 alive 1.5 s after the last `close()` |
+
+**(i)** Config from `~/.claude.json` (as F111b), `passEnv ['PATH','HOME']`, `allow` = `barebrowse:[browse]` and `litectx:[recall]`; the bridge exposed exactly `barebrowse_browse, litectx_recall`, `missing: []`.
+- barebrowse `browse` `https://example.com`: returned 126 chars in 2441 ms, the same pruned snapshot as F111b (`1,310 chars -> 65 chars`, link "Learn more"). Page text came back with cwd = home.
+- litectx `recall` ("f118 cwd test"): ok, 56 chars in 11 ms, exactly `{"code": [], "doc": [], "fact": [], "episode": []}` (empty at home, as expected).
+- **Side effect found:** top-level home went 104 -> 105 entries; created `.litectx` (a folder with one file `index.db`, 220 KB, timestamp 09:07:08, during the run); nothing vanished. So litectx creates its store in its start folder: with `cwd = os.homedir()` each first start leaves a `~/.litectx/` in the home folder. This run's copy was left in place (my delete was blocked); it holds only an empty index.
+- `github` stand-in (a marker server named `github` in the config, not in `allow`): never started (marker absent). The real GitHub server was not started, no `pass` touched.
+
+**Cleanup.** Scratch tmp removed by the script; no `/tmp/barebrowse-*` dir exists; no headless browser of mine remains (the only chrome-named process is Beeper's crashpad handler, pid 2037, started yesterday, not mine).
+
+**Verdict.** (a)-(h), (j) PASS, exit 0. Bridge-level `cwd` on 97cd65a does what was agreed. Not tested: `cfg.mcp.cwd` via `bin/cli.js --config`; a folder deleted after validation; fwdloop's own wiring (src untouched). Open for hamr: with `cwd = os.homedir()` litectx writes `~/.litectx/index.db`.
+
+### F118 RERUN on installed bare-agent 0.57.0 (run 2026-10-31, $0, no model call)
+[MEASURED] Scratch `npm i bare-agent@0.57.0` from npm (real copy, not a symlink; `package.json` version 0.57.0; `validateBridgeCwd` 3 hits in `src/mcp-bridge.js`). Same unchanged `poc/mcp/f118/f118.mjs`, control = the same published 0.56.0 scratch. Run as the bare command `F118_NEW=<0.57.0 scratch> F118_OLD=<0.56.0 scratch> node f118.mjs`; exit code **0**.
+- (a)-(h), (j): all PASS, same evidence as the branch run ((e) 12/12 ValidationError with no spawn; (h) 0.56.0 still reports C; (j) 189 descendants seen, 0 alive 1.5 s after close).
+- (i): barebrowse `browse` 126 chars in 2242 ms; litectx `recall` ok, 12 ms, `{"code": [], "doc": [], "fact": [], "episode": []}` (the expected empty result at home); `github` stand-in not started.
+- Home listing: 105 before, 105 after, nothing created. Not proof that 0.57.0 avoids `~/.litectx`: that folder was already there from the branch run. litectx's own lazy-db fix is a separate, unreleased litectx change.
+- Not covered: 0.57.0's new spawn-time label (`working folder could not be used`, `context.cwdFailed: true`) for a folder that passes the up-front check but cannot be entered at spawn. fwdloop's `src/` does not match MCP spawn error text (grep for `failed to start`/`spawnError`/`cwdFailed` in `src/` finds no MCP match), so the label change needs no fwdloop edit.
+
+## F119 PRE-REGISTRATION (2026-10-31, $0, no model call, no `pass`; `poc/mcp/f119/f119.mjs`; written before any `src/` change of M13 piece 4)
+Target: the double start named in the M13 piece 2 note: a Tickets job starts its MCP server twice per run (the frozen ticket read in `freezeInputs`, then the step bridge in `runStepRalph`, because `findUnusedMcpTool` forces every job tool onto a step). Method: a hand-written Tickets declaration (`mcp {server:'github', tools:['issue_read','list_issues']}`, `ticketFilter`, step 1 reads the ticket, step 2 is an ask), run through the real `runFlow` with the real `resolvePrimitives`/`stepMcp`, a scripted provider (no key, no network) and a parking `askStep`. HOME is a mkdtemp dir whose `~/.mcp.json` names `github` as a wrapper script that appends one line per process start to a log, then becomes the repo's fake stdio server (`test/fixtures/fake-mcp-server.mjs`, `FAKE_CALLS` records each tool call). The real `~/.mcp.json`, `~/.claude.json` and `~/.config/fwdloop` are never touched.
+**Baseline bar (today's code):** the log shows exactly 2 starts up to the first ask, and the run reaches its ask (outcome paused). The test can fail: 1 start, or no ask reached, is FAIL and means the bug is not what the note says.
+**After the build (same script, `F119_PHASE=after`, the declaration of the new shape: `flowType: 'tickets'`, no step lists `issue_read`/`list_issues`):** exactly 1 start, the run reaches its ask, exactly 1 `issue_read` call recorded (the frozen read) and 0 `list_issues`. A wrong name or shape in my script stays FAIL on the letter; no bar is refitted.
+
+### F119 RESULT (run 2026-10-31, $0, no model call, no `pass`; `poc/mcp/f119/{f119.mjs,wrapper.mjs,out-before.txt,out-after.txt}`)
+[MEASURED] Same script, same fake server, a mkdtemp HOME (the real `~/.mcp.json`, `~/.claude.json` and `~/.config/fwdloop` untouched). Run as bare commands; exit code is the verdict.
+- **Baseline on today's code (commit before any piece-4 `src/` change; `F119_PHASE=before`, exit 0): PASS.** `{"outcome":"paused","starts":2,"calls":["issue_read","issue_read"],"reachedAsk":true}`. The double start is real: one start for the frozen read, one for the step bridge, and the step's own `issue_read` call is a second read of a ticket already frozen.
+- **After the build (`F119_PHASE=after`, flowType `tickets`, no step lists a job tool; exit 0): PASS.** `{"outcome":"paused","starts":1,"calls":["issue_read"],"reachedAsk":true}`: exactly 1 start, the run reached its ask, exactly 1 `issue_read` (the frozen read), 0 `list_issues`.
+- Not covered: a real GitHub server (the fake is `test/fixtures/fake-mcp-server.mjs` behind a start-logging wrapper); a Tickets job whose step does list a tool still starts a second bridge, by design (a step gets a live bridge only if its plan lists `mcpTools`).
+
+## F120 PRE-REGISTRATION (2026-11-01, $0, no model call, no `pass`; `poc/mcp/f120/f120.mjs`; written before any `src/` change of M13 piece 5)
+Target: signed M13 item 7 (Schedule on every new job card: signed in `schedule.json` in the same sign, off until the first green run, then on; while waiting the Run card shows `Schedule waiting for a green run`) and the F114f cut (item 6: a ticket that arrives between the first run's start and the turn-on runs once; older ones never run). Method: the real panel (`createPanelServer`, in-process, `test/m4e-world.mjs` `world`) with a mkdtemp HOME and config home, the test draft provider (`FWDLOOP_TEST_DRAFT_TICKET=1`, a Tickets job on a GitHub issues list) and a stand-in `fwdloop` bin whose `run` only records its argv (no model step, no spend). The ticket MCP is `test/fixtures/fake-mcp-server.mjs` (`FAKE_LIST` re-read per call) named in a mkdtemp `.mcp.json`; the scheduler gets it as `scheduler.mcpConfig` and an injected clock. The real `~/.mcp.json`, `~/.claude.json` and `~/.config/fwdloop` are never touched. Runs that end red or green are written as files the way F114 and `seedGreen` do it (job copy plus a history row; the first run's `run.json` `inputs[].ticket.number`). The card carries the schedule as `schedule: {kind: 'new-ticket'}` or `{kind: 'daily', hour, minute}` in the draft body (my guessed name; a wrong name stays FAIL on the letter).
+**Criteria (PASS / FAIL on the letter), baseline on today's code and again after the build.**
+(a) Draft with `schedule {kind:'new-ticket'}`, sign through `POST /api/author/:id/sign`: `<flow>/schedule.json` exists, its trigger is `new-ticket` with the card's list, server and `list_issues`, and the ledger has NO `armed` row (off). 6 scheduler ticks later still no `armed` row and 0 look calls on the MCP.
+(b) A first run that ends red (`not-done`), then a second that ends `cap-halt`; ticks: still no `armed` row, 0 fires. `GET /api/runs/<flow>/<run>` has `summary.schedule.line2 === 'Schedule waiting for a green run'` (the Run card's grey line).
+(c) A run ends `complete` (job copy equal): after the next tick exactly one `armed` row; 4 more ticks add none; the Run card line is no longer `Schedule waiting for a green run`.
+(d) F114f. The first run (`run-11`) reads ticket #5, the newest at its start (T0); #6 is added at T0+10 min; the run ends `not-done` at T0+5 and `complete` at T0+30 (a resume that ends green, one run id). After the turn-on: the stub bin records `--ticket 6` exactly once and never `--ticket 5` (or 1 to 4). 4 further ticks: still one start.
+(e) A daily card (`{kind:'daily', hour:9, minute:0}`), signed: `schedule.json` trigger `daily 09:00`, no `armed` row until a green run; with the clock past 09:00 of the next day before any green run, 0 fires; after the green run turns it on, the first slot fires one start.
+(f) Controls that can fail, inside the script's own data (AMENDED 2026-11-01 before any run of this script: the first draft of (f) asked for an env switch inside the script that disables `src`, which a script cannot do over ES modules; the revert-red proofs of the tests carry that part). (f1) a `complete` row whose run's `job/` copy differs from the job: 5 ticks, still no `armed` row (the green test can refuse). (f2) the (d) scenario with the first run's `run.json` holding no ticket number: no N exists, so the first look baselines every ticket on the list and #6 never runs (the cut depends on N, and a missing N falls back to today's rule).
+**Baseline expectation (today's code): (a) to (f) FAIL** since no card field is read and no schedule.json is written at sign; recorded as is. **After the build: all PASS.** Not tested: the page layout (separate tests at 1280, 390 and 320), a real GitHub, a real model.
+
+### F120 RESULT (run 2026-11-01, $0, no model call, no `pass`; `poc/mcp/f120/{f120.mjs,out-before.txt,out-after.txt}`)
+[MEASURED] Same script before and after the build; a mkdtemp HOME and config home (the real `~/.mcp.json`, `~/.claude.json` and `~/.config/fwdloop` untouched); real panel, real draft children with the test provider, a stand-in bin that records a run's argv, the fake ticket MCP server. Criteria as registered (with (f) amended before the first run, see above).
+- **Baseline on the commit before any piece-5 `src/` change: a, b, c, d, e, f1, f2 all FAIL**, as expected. The harness itself works: the sign returned 202 and started a run; `schedule.json` was never written (a: `schedule.json false`), so nothing could turn on or run.
+- **After the build: a, b, c, d, e, f1, f2 all PASS.** (a) sign 202, `schedule.json` trigger `new-ticket` with the signed list, server `github`, tool `list_issues`, 0 `armed` rows, 0 look calls over 3 ticks. (b) after a `not-done` and a `cap-halt` run: 0 armed, 0 fires, 0 looks, `GET /api/runs/job2/first-a` `summary.schedule.line2` is `Schedule waiting for a green run`. (c) after a `complete` run: 1 armed row on the next tick, still 1 after 4 more; line 2 is the normal one. (d) F114f: the first run read #5, #6 came in at T0+10 min, the run turned green at T0+30: the stub bin recorded `--ticket 6` once and nothing else. (e) a daily 09:00 card: no fire before a green run, 1 armed row, exactly 1 scheduled start the next day, none for the slot before the turn-on. (f1) a `complete` run whose job copy differs: `schedule.json` present, 0 armed after 5 ticks. (f2) the first run holding no ticket number: no cut, #6 baselined and never ran (today's rule is the fallback).
+- Not covered by this script: the page (its tests are `test/m13-p5-ui.test.js`), a real GitHub, a real model run (the runs that end red or green are history files).
+- Found on the way, not fixed (outside this piece's signed scope): `queueOf` (src/trigger-files.js) orders arrivals with the same arrival time by name as a string, so a look that finds #8 to #11 together runs `#10, #11, #8, #9`. A flood that crosses a digit count runs out of order. It was already true for every ticket flood; the cut makes a long wait more likely to show it.
+
+## F121 PRE-REGISTRATION (2026-11-01, PAID, a few cents; `poc/mcp/f121/f121.mjs`; written before any run, NOT yet run; hamr runs it)
+Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket filter"). The M12 walk saw `priority P1 only` give a `ticketFilter` and `only tickets with priority P1 count` give none (PRD, M12 walk loose ends). Question: on the real path, do both wordings give a `ticketFilter` naming P1?
+**Method.** The real `fwdloop draft <prose> --out <dir> --root <root> --name <n> --model deepseek-flash --flow-type tickets --mcp github`, 3 drafts per wording, 6 in all. The job is the same four lines for every draft; only the guardrail under line 1 differs: wording A `priority P1 only`, wording B `only tickets with priority P1 count`. Inputs line: `issues` = a GitHub issues list (`F121_LIST`, default `https://github.com/hamr0/hol-guard/issues`; never fetched at draft). Needs `check tools` pressed once for the `github` server (else the draft refuses at $0 and that refusal counts as the draft's FAIL). The key comes from the environment only (`F121_KEY_NAME`, default `DEEPSEEK_API_KEY`); the script never reads `pass` and never prints a key. It refuses at $0 (exit 2, before any draft) when that variable is empty or missing, because an emptied variable alone does not stop `fwdloop draft` from finding a key in the keys file (F97 disclosure). It stops if the cumulative spend passes $0.10.
+**Criteria (PASS / FAIL on the letter).** A draft PASSES when `fwdloop draft` exits 0 and its `declaration.json` has a top-level `ticketFilter` whose `priority` list contains `P1` or whose `labels` list contains `P1` (case-insensitive). **Pass bar: 6 of 6 drafts pass** (3 of 3 per wording). 5 of 6 or fewer is FAIL, with no refit of the bar, the wordings or the counting. A draft that exits non-zero, is red, or has no `ticketFilter` is a FAIL, never skipped or re-run. Recorded, not judged: each draft's `ticketFilter`, cost, and the exit code.
+**Baseline expectation (today's drafter text, `src/ticket-draft.js` lines 32 to 33: "ONLY for a guardrail that names a priority or a label (for example "priority P2 only", ...)"): wording B may FAIL**, which is the walk's finding. If B passes 3 of 3 today, the walk's miss was model variance, and no drafter change is made.
+**If it FAILS:** the drafter line is widened in one place (`ticketFactsLines`, the "You may SUGGEST a top-level ticketFilter" line) to say the guardrail may name a priority in any wording, and this script is run again on a new work folder; both runs are recorded. Not covered: other models, other wordings than these two, a real GitHub read, whether the filter then skips the right tickets (tests at $0 cover that).
+
+## F121 RESULT (2026-11-01, [MEASURED], run by the orchestrator; FAIL, 2 of 6)
+
+**Setup.** `poc/mcp/f121/f121.mjs` as pre-registered. Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks (key `FIREWORKS_API_KEY` from hamr's keys file). List `https://github.com/hamr0/hol-guard/issues`. Total spent $0.0322 of the $0.10 guard. The results file is in the orchestrator's scratchpad, not in the tree.
+
+| draft | wording | exit | cost | ticketFilter | verdict |
+|---|---|---|---|---|---|
+| a1 | `priority P1 only` | 0 | $0.0026424 | null | FAIL |
+| a2 | `priority P1 only` | 1 | $0.00806985 | null | FAIL |
+| a3 | `priority P1 only` | 0 | $0.0026514 | null | FAIL |
+| b1 | `only tickets with priority P1 count` | 1 | $0.0081117 | null | FAIL |
+| b2 | `only tickets with priority P1 count` | 0 | $0.00541305 | `{"priority":["P1"]}` | PASS |
+| b3 | `only tickets with priority P1 count` | 0 | $0.0053091 | `{"priority":["P1"]}` | PASS |
+
+**Verdict: FAIL, 2 of 6** (bar was 6 of 6). No refit.
+
+**Observations.**
+- a1 drafted green with the guardrail `~ priority P1 only` under line 1 but no `ticketFilter`. The guardrail is not in `not-checked.json` either (notChecked: accuracy of the diagnosis, usefulness of the plan, tone). The filter guardrail was silently dropped, so a signed job would run every ticket.
+- The two exit-1 drafts (a2, b1) were validator reds: "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line". That is a separate drafter failure, not the filter.
+- The prompt today says "You may SUGGEST a top-level ticketFilter ... ONLY for a guardrail that names a priority or a label" (`src/ticket-draft.js`, `ticketFactsLines`). Memory fact: deepseek-flash rarely uses an optional field.
+
+**Next step (registered):** widen that one line so the filter is required when a guardrail names a priority or a label; rerun as F121b on a new work folder.
+
+## F121b PRE-REGISTRATION (2026-11-01, PAID, a few cents; same script `poc/mcp/f121/f121.mjs`; written before any run, NOT yet run)
+
+**What changed since F121.** One line in `ticketFactsLines` (`src/ticket-draft.js`): the ticketFilter is no longer optional. It now says that when a guardrail names a priority or a label, the drafter MUST add a top-level `ticketFilter`; it may leave it out only when no guardrail names one. Nothing else changed.
+
+**Method.** Same script, same model (`accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks), same two wordings (A `priority P1 only`, B `only tickets with priority P1 count`), N=3 each, 6 drafts, a NEW work folder (the F121 folder is not reused). Same $0.10 spend guard.
+
+**Criteria (unchanged).** A draft PASSES when `fwdloop draft` exits 0 and `declaration.json` has a top-level `ticketFilter` whose `priority` contains `P1` or whose `labels` contains `P1` (case-insensitive). **Pass bar: 6 of 6.** 5 of 6 or fewer is FAIL; no refit of the bar, the wordings or the counting. A non-zero exit, a red, or a missing `ticketFilter` is a FAIL, never skipped or re-run.
+
+**Recorded, not judged.** Per draft: exit code, cost, `ticketFilter`, and whether it exited 1 with the validator red "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line". That red was seen in F121 (a2, b1), is a separate drafter failure, and is reported here but is not what this change fixes; it still counts as a FAIL against the bar.
+
+### F121b RESULT (2026-11-01, [MEASURED], run by the orchestrator; FAIL, 5 of 6)
+
+**Setup.** `poc/mcp/f121/f121.mjs` as pre-registered, on commit d9772e1 (prompt line widened in 47a774b). Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, a new work folder. Total spent $0.0269 of the $0.10 guard.
+
+| draft | wording | exit | cost | ticketFilter | verdict |
+|---|---|---|---|---|---|
+| a1 | `priority P1 only` | 1 | $0.00819135 | null | FAIL (validator red: "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line") |
+| a2 | `priority P1 only` | 0 | $0.00276165 | `{"priority":["P1"]}` | PASS |
+| a3 | `priority P1 only` | 0 | $0.0053127 | P1 | PASS |
+| b1 | `only tickets with priority P1 count` | 0 | $0.0026964 | P1 | PASS |
+| b2 | `only tickets with priority P1 count` | 0 | $0.00532215 | P1 | PASS |
+| b3 | `only tickets with priority P1 count` | 0 | $0.0026568 | P1 | PASS |
+
+**Verdict: FAIL, 5 of 6** (bar was 6 of 6). No refit.
+
+**Observations.**
+- Every draft that came back green carried the P1 filter (5 of 5). The silent drop seen in F121 (a1, a3) did not recur.
+- The one failure is the separate pause-at-unsigned-line validator red (a red draft, nothing signable). It has now been seen 3 times in 12 drafts across F121 and F121b (F121 a2, b1; F121b a1), always on line 1 of the ticket job. Its cause is not yet found.
+
+## F122 PRE-REGISTRATION (2026-11-01, PAID, about $0.10 to $0.25 per run; written before any run, NOT yet run)
+
+**Question.** The pause-at-an-unsigned-line red (F121 a2, b1; F121b a1) is thought to come from the drafter giving line 1 of a Tickets job `primitives: []` although it reads the frozen ticket. Cause not proven. Does adding one line to `ticketFactsLines` ("reading the frozen ticket still needs \"read\" in that step's primitives") plus a hint in the pause red ("grant read, or make the line an Ask") stop line 1 coming out with no primitives?
+
+**Method.** Script `poc/mcp/f122/f122.mjs`. N=12 real drafts of the F121 wording A job (`priority P1 only`) through the real `fwdloop draft --flow-type tickets --mcp github`, model `accounts/fireworks/models/deepseek-v4p1-flash`, key `FIREWORKS_API_KEY` from the environment (refused at $0 when empty), a NEW work folder per run, cumulative spend guard $0.25 per run. Each draft's `log.json` try 1 (`log[0].args.steps[0].primitives`, saved since commit cfe2499) is read. Two runs, by the orchestrator, `F122_LABEL=baseline|after`:
+- BASELINE on cfe2499 (the log.json raw-answer commit, before the fix).
+- AFTER on the fix commit (the one-line ticketFactsLines addition plus the pause-red hint; nothing else).
+
+**Measured per run.** (1) drafts whose TRY-1 `steps[0].primitives` is empty; (2) drafts ending red with the pause red; (3) total spend. A draft with no parsed try-1 declaration is counted "unknown", reported, and never counted as empty.
+
+**Pass bar (fixed now, no refit).** BASELINE try-1 empty >= 2 of 12, else the cause is not shown and the result is INCONCLUSIVE (not a pass). AND AFTER try-1 empty <= 1 of 12 AND AFTER final pause reds = 0 of 12. Anything else is FAIL.
+
+## F122 RESULT (2026-11-01, [MEASURED], run by the orchestrator; PASS)
+
+Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, key `FIREWORKS_API_KEY` from hamr's keys file. 12 drafts per arm.
+
+- BASELINE (src identical to cfe2499): try-1 `steps[0].primitives` empty in 3 of 12 (drafts 6, 8, 12); unknown 0; final pause reds 0 (retries fixed all 3); 11 exit 0, 1 exit 1 (draft 7, try-1 granted, a different red); spent $0.0541.
+- AFTER (fix commit e89196e: `ticketFactsLines` line `A step that reads "<role>" still lists "read" in its primitives: the ticket is frozen, but reading it is a grant.` and the pause red hint `: grant it "read" (or the verb it needs), or make the line an Ask`): try-1 empty 0 of 12; unknown 0; final pause reds 0; 12 of 12 exit 0; spent $0.0406.
+
+**Verdict against the pre-registered bar: PASS.** Baseline 3 >= 2, after 0 <= 1, after final pause reds 0. Total spend F122 $0.0947.
+
+Not measured here: whether the after drafts carried the P1 ticketFilter (F121b covers that on the earlier prompt).
+
+## F123 PRE-REGISTRATION (2026-11-01, $0, no model call; written before any run, NOT yet run)
+
+**Question.** For M13 am2 item 2: what Result-tab decision and `/result` payload did each of hamr's jobs have BEFORE M13 piece 6 (commit 7d15791), and does the code after the am2 build give every plain and MCP job exactly that, and every Tickets job the grid?
+
+**Method.** A `git worktree` at `7d15791^`; a `cp -a` COPY of `~/.config/fwdloop/flows` (the original is never written). That old panel runs on a free port (not 4800, not 8765) with `--root <copy>` and a scratch HOME. For every flow and every run, read via the panel API: the run detail's `hasResult` (the old tab decision), `GET .../result` status and the payload's top-level key set (its kind), and each flow's `flowType` as `flowTypeOf` reads it. Then the same on the post-build code of this branch, same copy, a second scratch HOME, reading the new tab decision field and `/result` and `/grid`.
+
+**Pass bar (fixed now, no refit).** (1) Every job whose type is plain or MCP (flowType plain/mcp, or no flowType and no `mcp` block): new Result-tab decision equals the old `hasResult`, and the `/result` status and key set equal the old, for every run. (2) Every Tickets job (flowType tickets, or an old M12 job with an `mcp` block): the new decision shows the tab and the grid is drawn (grid flag true). Any difference is FAIL.
+
+## F123 RESULT (2026-11-01, [MEASURED], $0, no model call; PASS)
+
+Old panel = `7d15791^` (81f04ab, in a worktree), new = this branch after the am2 build; both on a `cp -a` copy of hamr's flows root (30 jobs, 84 runs), scratch HOMEs, ports 4911/4912. Per run: the run detail's tab field, `GET .../result` status and top-level key set, and the new `hasGrid`.
+
+| jobs (type as `flowTypeOf` reads it) | runs | OLD tab (`hasResult`) | OLD `/result` | NEW tab (`resultTab`) | NEW grid (`hasGrid`) | NEW `/result` |
+|---|---|---|---|---|---|---|
+| 25 plain jobs (aging-live-*, am29-walk-2, exit-walk-1, flights-learn-*, m10-walk-*, m10b-*, m7-walk-*, thinking-check-1) | 70 | shown (all read a page, CSV or .docx) | 200 | shown | no | 200, same key set |
+| browse-check (mcp) | 1 | hidden | 404 | hidden | no | 404 |
+| ticket-triage, -2, -3, -4 (tickets) | 12 | shown (they read a page, so the cards stay) | 200 | shown | yes | 200, same key set |
+
+Per run, all 84 matched the bar: every plain and MCP job has the same tab decision and the same `/result` status and key set as the old code; every Tickets job has the grid. Not seen on this data: a plain job with no M10 page (only browse-check, an MCP job, is such a job); that case is covered by test/m13-am2-result-tab.test.js (a signed MCP job with a plain text input: no tab, no grid) and test/m10-am4-result-page.test.js.
+
+**Verdict against the pre-registered bar: PASS.**
+
+## F124 PRE-REGISTRATION (2026-11-01, $0, no model call, no network, no pass; written before any run, NOT yet run)
+
+**Question.** For M13 am3: while a ticket job's schedule is off, can the EXISTING real start path (`createStarter().start`, the function the panel's by-hand Run uses, spawning the real `bin/fwdloop run ... --ticket N --anyway` through `freezeInputs`) start a run of a NAMED skipped ticket with `anyway: true`, with no new plumbing in the start path itself?
+
+**Method.** `poc/mcp/f124/f124.mjs`. A `cp -a` COPY of `~/.config/fwdloop/flows/ticket-triage-5` (signed job, schedule.json present and unarmed, run-1 = skipped #15 `priority P3, not P1`) into a mkdtemp panel root (the original is never written; only the copy's `model.json` is pointed at the test world's ticked fake model). HOME is a mkdtemp dir holding a `.mcp.json` whose `github` server is the repo's fake issue server (`test/fixtures/fake-mcp-issue.mjs`, answers #15 as an open P3 ticket). The model step is a test stub (`FWDLOOP_TEST_MODEL_STEP`) that books $0.001 and answers `done:false` with a blocker (the run ends fast, not skipped). The start is `createStarter({root, bin: bin/fwdloop}).start({kind:'run', flow, runId:'', sources:[{role:'issues', path:<the signed list>, ticket:15, anyway:true}]}, loaded)`. The scheduler is the panel's own (`world()` with `scheduler:{intervalMs:0}`, ticked by hand). Also recorded as a baseline, before the start: `author.trigger.scan()` is empty and `POST /api/author/ticket-anyway` for #15 is refused (the problem am3 fixes).
+
+**Pass bar (fixed now, no refit; any miss on a letter = FAIL of that letter).**
+- (a) `start` returns 202; the new run's `run.json` `inputs[0].ticket.number === 15`; `inputs[0].sha256` is 64 hex and equals the sha256 of the bytes of the frozen file on disk (non-empty); `inputs[0].source` is the signed list address plus `/15`.
+- (b) `inputs[0].filter` deep-equals `{outcome:'anyway', was:{outcome:'skip', reason:'priority P3, not P1'}}`; the run's history outcome is not `skipped`; the stub model step was reached (the run's spend ledger holds >= 1 row).
+- (c) After the run ended and 3 scheduler ticks, with no green run yet: the schedule ledger holds 0 `armed` rows; `author.trigger.read(flow)` says `armed:false` and `waiting:true`; the earlier skipped run-1 did not arm it either.
+- (d) After a `complete` history row for that same run is appended (synthetic: the existing arming path is what is tested, F120 precedent; this is NOT a green model run) and one tick: exactly 1 `armed` row, carrying `ticketN === 15`, and `read(flow).armed === true`.
+- (baseline, informational, not part of the bar) scan() empty and the Run it anyway POST refused today.
+
+If (a) or (b) cannot pass because the start path lacks something, the result names exactly what.
+
+## F124 RESULT (2026-11-01, [MEASURED], $0, no model call, no network; FAIL on the letter on (c)(d); the facts held; build proceeds on hamr's word 2026-11-01)
+
+`timeout 300 node poc/mcp/f124/f124.mjs` (twice; the first run had a harness bug of mine, `writeModelRecord` on a copy that already had `model.json`, fixed before any criterion ran). Copy of `ticket-triage-5` in a mkdtemp panel root, fake issue MCP server (#15 open, label P3), stub model step, mkdtemp HOME; the start is `createStarter().start({kind:'run', sources:[{role:'issues', path:<list>, ticket:15, anyway:true}]})` spawning the real `bin/fwdloop run --ticket 15 --anyway` through `freezeInputs`.
+
+- **Baseline (informational).** With the schedule unarmed, `POST /api/author/ticket-anyway` for #15 returned 409 `queue`: "has no live ticket schedule, so Run it anyway has no queue to join. Nothing started." (`scan()` returns only armed schedules.) This is the live refusal am3 removes.
+- **(a) PASS.** 202, run-2; `run.json` `ticket.number` 15, `source` = list + `/15`, sha256 `9ef3407f56d9...` equals the sha256 of the 81 frozen bytes on disk.
+- **(b) PASS.** `filter` = `{outcome:'anyway', was:{outcome:'skip', reason:'priority P3, not P1'}}`; history outcome `not-done` (the stub step answered `done:false`), not `skipped`; 1 spend row (the model step was reached).
+- **(c) FAIL on the letter** (named reader `author.trigger.read(flow)` not used; the facts held: After the run and 3 ticks: 0 `armed` rows in the schedule ledger; the Run card's schedule line2 reads "Schedule waiting for a green run").
+- **(d) FAIL on the letter** (same; the facts held: After a synthetic `complete` history row for run-2 and 1 tick: exactly 1 `armed` row, `ticketN` 15; line2 no longer reads waiting).
+
+**Deviations from the letter, disclosed.** (1) The pre-registration named `author.trigger.read(flow)` for armed/waiting; no panel route exposes it and `/api/author/flows` returned no card for this job, so (c)/(d) read the same facts through the Run card's line2 (F120's reader) plus the ledger rows. (2) (d) uses a synthetic `complete` row, as pre-registered; no real green model run was made.
+
+**Finding: no new plumbing is needed in the start path.** `starter.start` already forwards `ticket` + `anyway` as `--ticket N --anyway`, the CLI freezes and records the named ticket, and the runner keeps the filter verdict while not skipping. What is missing is only the caller: `ticketAnyway` / `arriveAnywayOf` (src/panel/tickets.js) only queue, and `scan()` hides unarmed schedules, so nothing calls `start` with the ticket. Also: a skipped run never arms (run-1 stayed unarmed).
+
+## F125 PRE-REGISTRATION (2026-11-01, $0, no model call, no network, no pass; written before any run, NOT yet run)
+
+**Question.** For M13 am4 (Reuse shows and changes Flow type / MCP; the Job tab shows the MCP details). (a) Does the server already hand the page, for a signed MCP and a signed Tickets MCP job, everything am4 item 2 needs (flow type, MCP server, signed tools with hints, for Tickets the ticket filter and the watched field), and for what is missing, where on disk does it live? (b) Can the existing changed-job decider take flowType + mcp as part of "what changed" without changing an unchanged Reuse (Run stays Run)?
+
+**Method.** `poc/mcp/f125/f125.mjs`. `cp -a` COPIES of `~/.config/fwdloop/flows/browse-check` (mcp), `ticket-triage-5` (tickets) and `m7-walk-2` (plain) into the mkdtemp root of a `test/m4e-world.mjs` world (real panel server on a free port, scratch HOME, the world's config home; the originals are only read). A COPY of hamr's `mcp-checks.jsonl` goes into the world's config home to read hints. Readers, all checked to exist before this text: `GET /api/runs/:flow/:runId/job` (`getRunJob`, src/panel/data.js), `GET /api/author/flows` (`entryFor`, src/panel/authorflows.js: `flowType`, `mcp`), `POST /api/author/reuse-check` (`reuseCheck`, authorflows.js; compares `jobKeyOfCard` with `jobKeyOfSigned`, src/jobkey.js), `newestMcpChecks` (src/mcp-checks.js) for hints, and the signed files read straight from the copy (`declaration.json`: `flowType`, `mcp.server`, `mcp.tools`, `ticketFilter`, `ticketWatch`).
+
+**Pass bar (fixed now, no refit; a miss on a letter = FAIL of that item; a FAIL here names what the build must add, it is not a stop).**
+- (a1) `/job` payload for each of the 3 jobs carries, for mcp and tickets, the flow type, the MCP server and the signed tools as `{name, hint}`; for tickets also the ticket filter and the watched field; for the plain job none of these keys appear (plain Job tab unchanged).
+- (a2) `/api/author/flows` lists each of the 3 jobs with `flowType` and `mcp` equal to the signed declaration (a job it does not list is reported with its reason).
+- (a3) For every item (a1) lacks, name the file it lives in. Hints: the signed `declaration.json` carries tool names only; the hint is found only in a signed file if a `hint` key appears in any signed file of the copy; else in `mcp-checks.jsonl` (newest line per server and path, unsigned).
+- (b1) `reuse-check` with the job unchanged returns `kind: 'run'` for each of the 3 jobs, with or without `flowType` + `mcp` fields in the body equal to the signed values (the page will send them; today's `runPrepare` must not refuse them).
+- (b2) `reuse-check` with `flowType`/`mcp` changed from the signed values (mcp -> plain, plain -> mcp, tickets -> mcp, same type other server) returns `kind: 'draft'` with a `suggestedName` of the form `<name>-N`. Expected FAIL today (the decider reads the job lines only); the result names what the decider lacks.
+- (b3) The signed side is readable where the decider sits: `flowTypeOf(declaration)` and `declaration.mcp.server` of the copy equal the (a2) entry values for the 3 jobs.
+
+Unchecked by design: the page (no browser), sign, a real draft.
+
+## F125 RESULT (2026-11-01, [MEASURED], $0, no model call, no network; FAIL on a1, b1, b2 on the letter; PASS a2, a3, b3; the failures name the build)
+
+`timeout 300 node poc/mcp/f125/f125.mjs` on mkdtemp `cp -a` copies of browse-check (mcp), ticket-triage-5 (tickets), m7-walk-2 (plain), a copy of `mcp-checks.jsonl` for hints; real panel via `test/m4e-world.mjs`. The temp folders were removed.
+
+- **a1 FAIL.** `GET /api/runs/:flow/:runId/job` returns the same 20 keys for all three jobs (flow, runId, resolved, started, schedule, thinkingRule, jobFrom, jobFromWhy, model, modelWhy, prose, asks, capUsd, redoCap, sources, sends, guardrails, plan, signature, signatureWhy): no flowType, no MCP server, no tools, no ticket filter, no watched field. The plain job's payload is what a plain Job tab must keep.
+- **a2 PASS.** `/api/author/flows` lists all three (a job needs a passed run and `canFlowRun`; ticket-triage-5 is listed here) with `flowType` and `mcp` (server name, null for plain) equal to the signed declaration.
+- **a3 PASS.** Where each lives: `signed/declaration.json` (and the run's own copy `runs/<run>/job/declaration.json`, which `getRunJob` already reads as `flowRead.declaration`): `flowType`, `mcp.server`, `mcp.tools` (bare names only), `ticketFilter` (e.g. `{priority:["P1"]}`), `ticketWatch` (e.g. `["state"]`). No signed file has a `hint` key. Hints live only in the config home's `mcp-checks.jsonl` (unsigned, newest OK line per server and config path; barebrowse 14 of 22 tools carry a hint, github 6 of 6, the rest null). So "the signed tools (name and hint)" needs the hint read at view time from the newest check, and a tool with no hint or no check shows its name alone.
+- **b1 FAIL.** An unchanged Reuse is `kind: 'run'` for all three. But when the body also carries `flowType` + `mcp` equal to the signed values, `reuse-check` answers 400 `not-a-run` ("Only the files, the destination, the money cap and an ask's wait can change from..."): `reuseCheck` strips only `job` and `fromRun` before `runPrepare`/`inspect`. The page will send the two fields, so the build must strip them there too.
+- **b2 FAIL.** With flowType/mcp changed (mcp to plain, plain to mcp, tickets to mcp, mcp to another server) the answer is the same 400 refusal, never `draft` + a `<name>-N` suggestion. The decider compares only `jobKeyOfCard(job)` with `jobKeyOfSigned(read)` (job lines).
+- **b3 PASS.** `flowTypeOf(declaration)` and `declaration.mcp.server` are the values `entryFor` already hands the page, and `reuseCheck` already holds `read` (readSigned) for the same flow.
+
+**Verdict against the pre-registered bar: FAIL on a1, b1, b2; no item of the bar is outside the build's reach.**
+
+What the build needs (from this run, nothing built): (1) `getRunJob` (src/panel/data.js) adds, only when the declaration's flowType is mcp or tickets, flowType, mcp server, tools as `{name, hint}` (hint from `newestMcpChecks`, null when absent), and for tickets ticketFilter and ticketWatch; a plain payload unchanged. (2) `reuseCheck` (src/panel/authorflows.js) takes `flowType` and `mcp` out of the body before `runPrepare`, and returns `draft` + `suggestedName` when either differs from `flowTypeOf(read.declaration)` / `read.declaration.mcp?.server` (plain = no mcp); an absent field means unchanged. (3) The page: the Reuse (run) box has no Flow type or MCP box at all (`jf-flowtype` and `jf-mcp` exist only in the New card); it needs its own two boxes filled from the `/api/author/flows` entry, added to `reuseBody()`, and read by `startReuseDraft` in place of `f.flowType`/`f.mcp`. (4) `renderJob` (src/panel/index.html) renders the new keys. Unchecked: the page itself (no browser run), the hint source when the config path differs from the signed run's, a tool-name list longer than the card.
+
+## F126 PRE-REGISTRATION (2026-11-01, $0, no model call, no network, no pass; written before any run, NOT yet run)
+
+**Question.** For M13 am5 (required marks on the New job card; the main button stays off until Flow name, The job, Inputs and Cap $ are filled; Inputs optional for an MCP job). Riskiest assumption: adding "Inputs filled" to the New-card readiness (`startReady`, `src/panel/index.html`, the `mode === "new"` branch) blocks no flow the server accepts today except a plain or Tickets MCP card with empty Inputs; and the page is not looser than the server on empty Inputs. Where does the server stand on a plain card with no Inputs today?
+
+**Method.** `poc/mcp/f126/f126.mjs`. (1) Server side: the real `checkCard` (`src/panel/authorcard.js`, the draft door's own check) on a scratch root, a scratch HOME with a `~/.mcp.json` server `github` and one OK check line in a scratch config home (the m13-p4-card scaffolding), over the matrix flowType {plain, mcp, tickets} x Inputs {empty, blank (spaces and a newline), one readable file line, one ticket-list address line (tickets only)}, all other fields valid. (2) Page side: the page's REAL `startReady` and `currentCard` cut from `src/panel/index.html` with `scripts/panel-fixtures/fn-src.mjs`, run in `new Function` with the element boxes stubbed (mode `new`, `moneyRed` false), same matrix, giving today's verdict; plus the CANDIDATE rule written in the script (today's rule AND (flow type is MCP OR the Inputs text trimmed is not empty)).
+
+**Pass bar (fixed now, no refit).**
+- (1) Server: every cell with a readable file or a ticket-list address passes `checkCard`; plain/empty, plain/blank, mcp/empty, mcp/blank pass it; tickets/empty and tickets/blank are refused on field `inputs`. (This states what the server does today; a miss means the assumption "the server accepts a plain card with no Inputs" is wrong and the signed text is stricter than the server on purpose, to be reported.)
+- (2) Page today: `startReady` is true on all 12 cells (it never reads Inputs). Expected, the baseline.
+- (3) Candidate vs server: for every cell the server accepts, the candidate is ready, EXCEPT exactly the cells plain/empty, plain/blank (the signed text's new strictness). For every cell the candidate says ready, the server accepts (not looser than the server) except none expected; the candidate says not-ready on tickets/empty and tickets/blank, where the server refuses too.
+- (4) Candidate on MCP: ready with Inputs empty and blank.
+- (5) Count: the cells where candidate and server differ are listed by name and must be exactly {plain/empty, plain/blank}.
+
+Unchecked by design: the page in a browser, the marks' look, Run a signed flow.
+
+## F126 RESULT (2026-11-01, [MEASURED], $0, no model call, no network; PASS on 1, 2, 4; FAIL on 3 and 5 on the letter, for one cell I did not foresee, and it is not a regression)
+
+`timeout 300 node poc/mcp/f126/f126.mjs` (script committed with this result; the pre-registration is e742348). Matrix of 10 cells; real `checkCard` for the server, the page's real `startReady` + `currentCard` for the page, a candidate rule (today's AND (MCP or Inputs trimmed not empty)).
+
+- **1 PASS.** Server: plain and MCP accept empty and blank Inputs (nothing in `checkCard` reads emptiness except Tickets); Tickets refuses empty and blank on field `inputs`; file and ticket-address cells pass.
+- **2 PASS.** Page today: `startReady` is true on all 10 cells; it never reads Inputs.
+- **3 FAIL on the letter.** Blocked-but-server-accepts = exactly plain/empty and plain/blank (the signed text's new strictness; the server never required Inputs on a plain card, so the page will be stricter than the server there, on purpose). But the candidate is ready where the server refuses on one cell: tickets/file (a Tickets card whose only Inputs line is a file, not a ticket-list address). The server's rule there is the address SHAPE, a content check; the page only checks "filled" and is, today and after, looser than the server on every content check (bad path, bad role, ticket shape). It is not new: page today is also ready on tickets/file.
+- **4 PASS.** Candidate: MCP ready with empty and blank Inputs.
+- **5 FAIL on the letter.** Differing cells are plain/empty, plain/blank and tickets/file; the third is the one above.
+
+Verdict: the assumption holds for what matters (nothing the server accepts is newly blocked except a plain card with empty Inputs, which am5 asks for; Tickets empty is refused by both; MCP stays open). I mis-specified the matrix by including tickets/file in "every file cell passes"; stays FAIL on the letter, no refit. The build takes the candidate rule as is (page checks "filled"; the server keeps judging content).

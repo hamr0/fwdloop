@@ -21,7 +21,7 @@ import path from 'node:path';
 
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
-import { validateDeclaration } from './declaration.js';
+import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { factRows } from './citedcheck.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
@@ -38,6 +38,7 @@ import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
+import { mcpPickHere } from './mcp-pick.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
@@ -196,6 +197,11 @@ export function buildReadout({
     out.push(`  ${s.role} = ${s.path}${h ? `  [headings: ${h.join(' | ') || 'none'}]` : ''}`);
   }
   // M12 piece 3: what is signed for MCP, from the declaration's typed fields (a job without them prints none of these rows)
+  // M13 piece 4: the flow type (the card's Flow type, signed with the job), in the card's own words; a declaration with no `flowType` (signed before M13) prints no such row
+  if (Object.hasOwn(declaration, 'flowType')) {
+    const flowType = flowTypeOf(declaration);
+    out.push(`  flow type: ${flowType === 'mcp' ? 'MCP' : flowType === 'tickets' ? 'Tickets MCP' : 'plain'}`);
+  }
   const mcp = declaration.mcp;
   if (mcp && typeof mcp === 'object') out.push(`  mcp: ${mcp.server} · tools: ${(mcp.tools ?? []).join(', ')}`);
   const filter = declaration.ticketFilter;
@@ -289,6 +295,7 @@ export function draftKeyRefusal(slot, env) {
  */
 export async function draftToDir({
   proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, proseRead,
+  flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -362,8 +369,11 @@ export async function draftToDir({
       hintError = redactSecrets(String(e?.message ?? e)).split('\n')[0];
     }
   }
+  // M13 piece 4 (R1): the job's MCP is every tool of that server's newest OK check, read here by code (the server is never started); never checked = a $0 refusal in the drafter's pre-flight
+  const mcp = flowType === 'plain' ? null : (mcpPick ?? (typeof mcpServer === 'string' ? mcpPickHere(mcpServer) : { ok: false, say: 'pick an MCP for this flow type' }));
   const result = await draft({
     proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }),
+    flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }),
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }

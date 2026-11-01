@@ -15,9 +15,11 @@ function card(reuse) {
   const boxes = Object.fromEntries(IDS.map((id) => [id, { value: `old ${id}` }]));
   const askWaitEl = { value: '2h' };
   const editBannerEl = { hidden: false, textContent: 'Reusing' };
-  const api = new Function('byId', 'editBannerEl', 'askWaitEl', 'reuse',
-    `var reuseOf = reuse;\n${fnSrc(PAGE, 'leaveReuse', '    ')}\nreturn { leaveReuse, reuseOf: function(){ return reuseOf; } };`)((id) => boxes[id], editBannerEl, askWaitEl, reuse);
-  return { api, boxes, askWaitEl, editBannerEl };
+  const flowCalls = [];
+  const setFlow = (...a) => flowCalls.push(a);   // M13 p4 (6): leaveReuse also sets the Flow type back to plain (own owner, tested elsewhere)
+  const api = new Function('byId', 'editBannerEl', 'askWaitEl', 'reuse', 'setFlow',
+    `var reuseOf = reuse;\n${fnSrc(PAGE, 'leaveReuse', '    ')}\nreturn { leaveReuse, reuseOf: function(){ return reuseOf; } };`)((id) => boxes[id], editBannerEl, askWaitEl, reuse, setFlow);
+  return { api, flowCalls, boxes, askWaitEl, editBannerEl };
 }
 
 test('leaveReuse after a Reuse draft clears reuseOf and every box startReuseDraft filled (refused start cannot redraft the old job as a new one)', () => {
@@ -26,6 +28,7 @@ test('leaveReuse after a Reuse draft clears reuseOf and every box startReuseDraf
   assert.equal(c.api.reuseOf(), null);
   for (const id of IDS) assert.equal(c.boxes[id].value, '', id);
   assert.equal(c.askWaitEl.value, '1h');
+  assert.deepEqual(c.flowCalls, [['plain', '']]);
   assert.equal(c.editBannerEl.hidden, true);
 });
 

@@ -1,0 +1,36 @@
+(a) PASS tool cwd = A; marker cwd = A
+(b) PASS tool cwd = C (parent cwd); marker cwd = C (parent cwd)
+(c) PASS def.cwd=B, bridge cwd=A: tool = B; marker = B
+[MCP Bridge] spawning 1 server command(s) without a confirmServer hook:
+  f118 → /usr/bin/node-22 (1 args)
+  Pass { confirmServer } to vet each command before it runs.
+(d) PASS listServerTools returned 74 chars; marker cwd = A
+    e: missing path / createMCPBridge: ok (ValidationError, spawned false)
+    e: missing path / listServerTools: ok (ValidationError, spawned false)
+    e: a file / createMCPBridge: ok (ValidationError, spawned false)
+    e: a file / listServerTools: ok (ValidationError, spawned false)
+    e: relative / createMCPBridge: ok (ValidationError, spawned false)
+    e: relative / listServerTools: ok (ValidationError, spawned false)
+    e: "~" / createMCPBridge: ok (ValidationError, spawned false)
+    e: "~" / listServerTools: ok (ValidationError, spawned false)
+    e: empty string / createMCPBridge: ok (ValidationError, spawned false)
+    e: empty string / listServerTools: ok (ValidationError, spawned false)
+    e: non-string 42 / createMCPBridge: ok (ValidationError, spawned false)
+    e: non-string 42 / listServerTools: ok (ValidationError, spawned false)
+(e) PASS 12/12 cases are ValidationError with no spawn
+[MCP Bridge] Wrote /tmp/f118-OjKOJo/bridge-out.json
+MCP Bridge: 1 tools available from 1 server(s): f118.
+  f118: where
+Governance: open (all tools exposed).
+To restrict tools, edit .mcp-bridge.json and set tools to "deny".
+(f) PASS bridge file written true (363 chars); contains A: false; server cwd was A: true
+(g) PASS cwd A: true; canary in child (tool/marker): false/false
+(h) PASS published 0.56.0 with cwd:A: tool cwd = C (parent cwd); marker = C (parent cwd); reports A: false
+--- (i) real servers, cwd = os.homedir(), passEnv [PATH,HOME] ---
+(i) bridge tool names: barebrowse_browse, litectx_recall; missing: []
+(i) barebrowse.browse: returned 126 chars in 2441 ms; text: "url: https://example.com\n1,310 chars → 65 chars (95% pruned)\n- link \"Learn more\" [ref=11]\n  - StaticText \"Learn more\" [ref=18]"
+(i) litectx.recall: returned 56 chars in 11 ms; text: "{\n \"code\": [],\n \"doc\": [],\n \"fact\": [],\n \"episode\": []\n}"
+(i) home top-level before 104, after 105; created: [".litectx"]; vanished: []
+(i) github stand-in started: false (expected false)
+(j) PASS descendants ever seen 199; alive 1.5 s after the last close: 0
+RESULTS {"a":true,"b":true,"c":true,"d":true,"e":true,"f":true,"g":true,"h":true,"j":true}

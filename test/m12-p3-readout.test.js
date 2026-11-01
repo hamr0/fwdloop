@@ -49,3 +49,14 @@ test('each field shows only when it is there: a filter of one kind, no watch, to
   assert.match(labels, /  ticket filter: labels bug\n/);
   assert.doesNotMatch(labels, /priority/);
 });
+
+test('M13 p4: a declaration with a flowType shows it in the card\'s own words, above the MCP row; one without prints no such row', () => {
+  const rows = (extra) => build(extra).split('\n');
+  assert.ok(rows({ flowType: 'plain' }).includes('  flow type: plain'));
+  const t = rows({ flowType: 'tickets', mcp: { server: 'github', tools: ['issue_read', 'list_issues'] } });
+  const i = t.indexOf('  flow type: Tickets MCP');
+  assert.ok(i > 0);
+  assert.equal(t[i + 1], '  mcp: github · tools: issue_read, list_issues');
+  assert.ok(rows({ flowType: 'mcp', mcp: { server: 'github', tools: ['issue_read'] } }).includes('  flow type: MCP'));
+  assert.equal(rows({}).some((r) => r.startsWith('  flow type:')), false);
+});

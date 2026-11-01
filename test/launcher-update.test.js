@@ -4,6 +4,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { isKeyName } from '../src/keysfile.js';
 import { updateCmd, menuCmd, launcherMain, runNpm } from '../src/launcher.js';
 import {
   scratch, closeAll, freeBase, installedHome,
@@ -166,7 +167,10 @@ test('runNpm: spawns npm with the args, shell false, stdio inherit; exit 0 -> 0,
     const p = runNpm(['install', '-g', 'fwdloop@latest'], { spawnImpl: (...a) => { calls.push(a); return child; } });
     child.emit('close', code);
     assert.equal(await p, want);
-    assert.deepEqual(calls, [['npm', ['install', '-g', 'fwdloop@latest'], { shell: false, stdio: 'inherit' }]]);
+    assert.equal(calls.length, 1);
+    const [bin, argv, opts] = calls[0];
+    assert.deepEqual([bin, argv, opts.shell, opts.stdio], ['npm', ['install', '-g', 'fwdloop@latest'], false, 'inherit']);
+    assert.equal(Object.keys(opts.env).some((n) => isKeyName(n)), false); // M13 am1: no *_KEY name (the real-child proof is test/m13-p1-npm-env.test.js)
   }
 });
 

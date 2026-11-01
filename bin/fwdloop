@@ -34,7 +34,7 @@ import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import { seedLedger } from '../src/learnstore.js';
 import { sendViaPrimitive } from '../src/send.js';
-import { resolvePrimitives } from '../src/primitives.js';
+import { resolvePrimitives, stepMcp } from '../src/primitives.js';
 import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
@@ -54,7 +54,10 @@ import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
-import { ticketListsOf } from '../src/ticket-shape.js';
+import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
+import { flowTypeOf } from '../src/declaration.js';
+import { LOOK_TOOL } from '../src/ticket-draft.js';
+import { newestUnrunTicket } from '../src/ticket-next.js';
 
 // This CLI drives no fixed provider (M4d amendment 6). A job runs with the model recorded beside it as its DEFAULT (M4d am33: `run --model` picks any other ticked model for that run) (`model.json`, written when it was drafted:
 // the provider is the name of a key, its key is read from the env under that name and never printed); `draft` takes `--model` (+ `--provider`).
@@ -382,13 +385,21 @@ async function cmdRun(rest) {
     }
   }
   // M12 piece 2 (PRD ruling 2026-10-29): a job with a ticket-list input reads ONE ticket per run, picked by number. Refused at $0, by name, before anything is claimed.
-  const ticketLists = ticketListsOf(read.arbiter);
+  // M13 piece 4: only a Tickets job (flow type) has a ticket list; the address is its Inputs line
+  const ticketLists = flowTypeOf(read.declaration) === 'tickets' ? ticketListsOf(read.arbiter) : {};
   const ticketRoles = Object.keys(ticketLists);
   if (ticketRoles.length > 1) fail(`run: flow "${flowName}" has more than one ticket list (${ticketRoles.join(', ')}); a run reads one. Nothing started.`);
   if (values.anyway && values.ticket === undefined) fail(`run: --anyway belongs with --ticket <number>. Nothing started.`);
   if (values.ticket !== undefined && ticketRoles.length === 0) fail(`run: --ticket ${values.ticket}, but flow "${flowName}" has no ticket-list input. Nothing started.`);
-  if (ticketRoles.length === 1 && values.ticket === undefined) fail(`run: flow "${flowName}" reads tickets from "${ticketRoles[0]}" (${ticketLists[ticketRoles[0]]}); pick the ticket with --ticket <number>. Nothing started.`);
-  if (values.ticket !== undefined && !/^[1-9][0-9]{0,9}$/.test(values.ticket)) fail(`run: --ticket "${values.ticket}" is not a ticket number (a whole number from 1). Nothing started.`);
+  if (ticketRoles.length === 1 && values.ticket === undefined) {
+    // M13 piece 4 (R2): a by-hand run has no ticket # box; it reads the newest ticket that has not run yet. `--ticket` stays for the machine's own starts (the schedule, Run it anyway, a rerun).
+    const lookTool = (read.declaration.mcp?.tools ?? []).find((t) => t === LOOK_TOOL);
+    if (lookTool === undefined) fail(`run: flow "${flowName}" does not list ${LOOK_TOOL} among its signed tools, so the newest ticket cannot be found. Nothing started.`);
+    const next = await newestUnrunTicket({ flowDir: join(root, flowName), listUrl: ticketLists[ticketRoles[0]], mcp: { server: read.declaration.mcp.server, tool: lookTool } });
+    if (!next.ok) fail(`run: ${next.say.replace(/\.?$/, '.')} Nothing started.`);
+    values.ticket = String(next.number);
+  }
+  if (values.ticket !== undefined && !(/^[1-9][0-9]*$/.test(values.ticket) && isTicketNumber(Number(values.ticket)))) fail(`run: --ticket "${values.ticket}" is not a ticket number (${TICKET_NUMBER_WORDS}). Nothing started.`);
   const sources = declaredRoles.map((role) => ({ id: role, path: parsedSources[role], ...(ticketRoles[0] === role ? { ticket: { number: Number(values.ticket), ...(values.anyway ? { anyway: true } : {}) } } : {}) }));
   for (const src of sources) {
     if (!Object.hasOwn(pages, src.id) && !existsSync(src.path)) fail(`run: source "${src.id}" is unreadable at ${src.path}`);
@@ -447,7 +458,7 @@ async function cmdRun(rest) {
   // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
   const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
-  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs });
+  const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs, mcp: stepMcp(declaration) });
 
   const result = await runFlow({
     root,
@@ -718,7 +729,7 @@ async function cmdResume(rest) {
   // F46's unwired-verb preflight refusal now lives in `resumeRun` itself
   // (`src/runner.js`) — this CLI no longer keeps a second copy of the check.
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
-    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
+    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })), mcp: stepMcp(declaration),
   });
 
   const result = await resumeRun({
@@ -805,7 +816,7 @@ async function cmdContinue(rest) {
   const inputsManifest = inputsRead.ok ? inputsRead.entries : [];
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, {
-    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })),
+    runDir, inputs: inputsManifest.map((m) => ({ id: m.id, frozen: m.frozen })), mcp: stepMcp(declaration),
   });
 
   const result = await continueRun({
@@ -876,9 +887,15 @@ async function cmdDraft(rest) {
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
+      // M13 piece 4: the job's flow type (plain | mcp | tickets) and its MCP server, from the card; the tools come from that server's newest OK `check tools` (never a started server)
+      'flow-type': { type: 'string' }, mcp: { type: 'string' },
     },
     allowPositionals: true,
   });
+  const flowType = values['flow-type'] ?? 'plain';
+  if (!['plain', 'mcp', 'tickets'].includes(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
+  if (flowType === 'plain' && values.mcp !== undefined) fail('draft: --mcp goes with --flow-type mcp or tickets');
+  if (flowType !== 'plain' && !values.mcp) fail(`draft: --flow-type ${flowType} needs --mcp <server>`);
   const keysLoad = keyedLoad();
   const { env } = keysLoad;
   const proseFile = positionals[0];
@@ -951,6 +968,8 @@ async function cmdDraft(rest) {
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
     draftThinking: values.thinking === true ? 'on' : 'off',
+    flowType,
+    ...(values.mcp ? { mcpServer: values.mcp } : {}),
     env,
     keyNames: keysLoad.keyNames,
     ...pick,

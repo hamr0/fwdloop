@@ -77,6 +77,18 @@ test('refused at $0, nothing changed: an input that is not a ticket list; a job 
   assert.equal(readSchedule(f.flowDir), null);
 });
 
+test('M13 p4 (9b.1): the look\'s tool must be in the job\'s signed tools, and only a Tickets job can start on a new ticket', async () => {
+  const lacking = await ticketWorld({ tools: ['issue_read'] });
+  const a = await prepare(lacking.w, TICKET);
+  assert.equal(a.status, 400, a.text);
+  assert.match(a.json().say, /signed tools do not include list_issues/);
+  assert.equal(readSchedule(lacking.flowDir), null);
+  const generic = await ticketWorld({ flowType: 'mcp' });
+  const b = await prepare(generic.w, TICKET);
+  assert.equal(b.status, 400, b.text);
+  assert.match(b.json().say, /Only a Tickets MCP job can start on a new ticket/);
+});
+
 test('end to end through the panel\'s own tick: first look = starting point, then a new ticket starts the run with `--ticket N` beside the signed list; the row and the run\'s record name it', async () => {
   const f = await ticketWorld();
   const p = await prepare(f.w, TICKET);
@@ -117,11 +129,11 @@ async function cliWorld(o) {
   return w;
 }
 
-test('Must fail: a ticket job run with no ticket number is refused at $0, naming the input and its list', async () => {
+test('M13 p4 (R2): a by-hand run of a Tickets job with no --ticket looks for the newest ticket; a server missing from the MCP config is refused at $0 by name', async () => {
   const w = await cliWorld();
-  const r = cli(w.root, 'tk');
+  const r = cli(w.root, 'tk');   // HOME is the scratch root: no MCP config there
   assert.notEqual(r.code, 0);
-  assert.match(r.err, /reads tickets from "jd" \(https:\/\/github\.com\/flutter\/flutter\/issues\); pick the ticket with --ticket <number>\. Nothing started\./);
+  assert.match(r.err, /run: github is not in ~\/\.mcp\.json\. Nothing started\./);
 });
 
 test('Must fail: a ticket number that is not a whole number from 1 is refused at $0', async () => {

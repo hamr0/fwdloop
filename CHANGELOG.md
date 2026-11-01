@@ -5,6 +5,75 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-11-01
+
+M13 (one setup for outside sources) with amendments 1 to 5. The M13 exit was walked on the real panel
+(signed 2026-11-01). The POCs behind it (F108-F126) are recorded in `docs/logs/FINDINGS.md`.
+
+### Added
+- Settings > MCP tab: lists the MCPs from the 4 places bare-agent reads plus any path you add (`+ add a
+  path`, and remove). When two paths hold the same name, the first wins and the other reads `same name as
+  above, not used`. A remote MCP (no start command) is listed but not usable. It never edits your config
+  files and never shows a command or a key.
+- `check tools` on an MCP (a press only, never on its own): lists its tools with their hints (info only)
+  into an append-only `mcp-checks.jsonl`. Each tool shows how many times runs used it (denied calls
+  count), read from what runs already record.
+- New job card: a `Flow type` dropdown (`plain`, `MCP`, `Tickets MCP`) and an `MCP` pick for the last two,
+  signed with the job. An MCP job gets every tool of the MCP's newest check; an MCP never checked is
+  refused with `press check tools in Settings > MCP first`. Inputs may be empty for an `MCP` job. The
+  draft readout shows the flow type.
+- A step of an MCP job calls the signed MCP tools through the Gate: only the tools you sign exist for the
+  run, and a tool the server does not offer is refused by name at $0. The drafter is told the flow type
+  and the MCP's tool names, and a MCP job whose steps call no tool is fed back to it.
+- Schedule on the New job card, signed in `schedule.json` in the same sign. It is off until the job's
+  first green run, then turns on; the Run card shows `Schedule waiting for a green run`. A ticket
+  schedule's first look starts after the ticket that first run read, so a ticket that came in during the
+  wait still runs. The look tool (`list_issues`) is now part of the job's signed tools.
+- Result tab for `Tickets MCP` jobs: one grid with Needs you / Stopped / Passed / Skipped as fold rows,
+  newest first, a stats line, and one check cell per check. A row reads `#<n> · <title>`; the name opens
+  the run. `Output judged` reads `none` when the job has no output checks. `Plain` and `MCP` jobs keep
+  their old Result tab.
+- `Run it anyway` is one button; a click swaps it for the reason box. While the schedule is still waiting
+  for its first green run, it starts the ticket at once, by hand, with the job's cap (M13 am3).
+- `Reuse workflow` shows the job's `Flow type` and `MCP`; changing either drafts a new plan and signs a
+  new workflow `<name>-N`. The Job tab shows the MCP details (M13 am4).
+- Required marks: `Flow name`, `The job`, `Inputs` and `Cap $` carry a grey `required`, and the main
+  button waits until each is filled. `Inputs` is optional for an `MCP` job (M13 am5).
+- Section captions in Runs and Inbox are colour bars with a count pill; a divider sits between job cards;
+  Chat card captions are 14px bold with a blue left mark.
+
+### Changed
+- MCP servers start with `PATH` and `HOME` only, never your provider keys, in the home folder, from one
+  shared place. Applies to the ticket read, the look, and the steps' tools.
+- A by-hand `Tickets MCP` run reads the newest ticket that has not run yet; with nothing new it says so at
+  $0. The `ticket #` box is gone (`fwdloop run --ticket <n>` stays).
+- `fwdloop update` starts npm without any `*_KEY` setting from your shell; the panel still gets its keys
+  (M13 am1).
+- Flow type names read `plain`, `MCP` and `Tickets MCP` on the card, the readout and the refusals
+  (M13 am2). A job from M12 reads as `Tickets MCP`.
+- A tool's read-only hint no longer refuses it; hints are info only (M12's refusal is dropped).
+- An unsure filter verdict (a label on another scale) no longer skips: the ticket runs and is flagged with
+  a grey unsure mark in the grid and a line on its ask page.
+- The `[n]` numbers on the tab rows are gone.
+- bare-agent `^0.57.0`.
+
+### Fixed
+- A ticket is new only if its number is above the highest seen, so closed tickets no longer queue a flood
+  of runs (9.2).
+- A rerun of a ticket run re-reads the ticket through the job's MCP with its filter, keeping the ticket
+  mark and `Run it anyway` (9.1).
+- A look whose result cannot be saved is told as a refusal and the panel stays up (9.3). A look that
+  could not read shows on the Run card as one red line naming the cause (9b.3).
+- Run ids and ticket names compare as numbers (9.6). A ticket number is capped at 10 digits everywhere;
+  a listed ticket over the cap is ignored with one recorded reason (9.7).
+- `Reuse workflow` on a run that failed preflight, with the job unchanged, is `Run now`, not a paid
+  redraft (9b.2).
+- The drafter must write the `ticketFilter` line when a guardrail names a priority or label; before, it
+  could drop it silently (9b.4, F121).
+- The ticket facts tell the drafter that reading the frozen ticket needs `read`, and the pause red names
+  the fix (F122).
+- The drafter's `log.json` keeps each try's raw answer.
+
 ## [0.27.0] - 2026-10-30
 
 M12 (tickets read through MCP start a run), M4d amendment 35 (online dot) and amendment 36 (Audit check

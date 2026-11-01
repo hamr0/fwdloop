@@ -25,7 +25,7 @@ import { openAsker } from './prompts.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, updateConfig, configPath, defaultFlowsRoot, ConfigError } from './config.js';
-import { keysHome, keysFilePath, createKeysFile } from './keysfile.js';
+import { keysHome, keysFilePath, createKeysFile, isKeyName } from './keysfile.js';
 import { openInOs } from './opener.js';
 import { PLAIN, makePaint } from './tty-colour.js';
 import { readOwnVersion } from './version.js';
@@ -307,7 +307,9 @@ export function runNpm(args, o = {}) {
   const spawnImpl = o.spawnImpl ?? realSpawn;
   return new Promise((resolve) => {
     let child;
-    try { child = spawnImpl('npm', args, { shell: false, stdio: 'inherit' }); } catch { resolve(1); return; }
+    // M13 am1: npm and its install scripts get the shell's env without any `*_KEY` setting (`isKeyName`); only the panel spawn (startCmd) carries keys
+    const env = Object.fromEntries(Object.entries(process.env).filter(([n]) => !isKeyName(n)));
+    try { child = spawnImpl('npm', args, { shell: false, stdio: 'inherit', env }); } catch { resolve(1); return; }
     let done = false;
     const end = (/** @type {number} */ code) => { if (done) return; done = true; clearTimeout(timer); resolve(code); };
     const timer = setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* already gone */ } end(1); }, o.deadlineMs ?? NPM_DEADLINE_MS);

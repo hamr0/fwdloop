@@ -24,6 +24,7 @@ import {
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { plainPlanCheck } from '../plain-checks.js';
+import { compareNatural } from '../natural.js';
 import { join, sep } from 'node:path';
 
 import {
@@ -47,7 +48,13 @@ import {
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
-import { ticketListOf } from './tickets.js';
+import { ticketListOf, ticketScheduleOf } from './tickets.js';
+import { buildJobGrid } from './jobgrid.js';
+import { readChecks } from '../diary.js';
+import { readRunInputs } from '../runfile.js';
+import { filterUnsure } from '../ticket-labels.js';
+import { readSchedule } from '../schedule.js';
+import { flowTypeOf } from '../declaration.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readLearningsRecord } from '../flowmodel.js';
 import { readRunThinking } from '../runfile.js';
@@ -1471,7 +1478,7 @@ function waitingLineOf(ctx) {
  * through the same `runControls` the Stop door uses (`atAsk`), so "waiting" is one decision.
  */
 function jobWaitingLine(root, flowDir, flow, catalogue) {
-  const ids = listRunIds(flowDir).sort((a, b) => (Number(b.replace(/\D/g, '')) || 0) - (Number(a.replace(/\D/g, '')) || 0));
+  const ids = listRunIds(flowDir).sort((a, b) => compareNatural(b, a));
   const history = readHistory(flowDir);   // `atAsk` needs no end row (`runControls`), so an ended run is skipped by the same `endRow` rule before a context is built for it
   for (const id of ids) {
     const run = resolveRunDir(flowDir, id);
@@ -1497,7 +1504,7 @@ function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
   return scheduleBlockWords({
     trigger: t && t.trigger ? t.trigger : null, home,
     last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
-    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), nowMs: now(),
+    nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), waiting: !!(t && t.waiting), lookProblem: t ? t.lookProblem ?? null : null, nowMs: now(),
     problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
   });
 }
@@ -1544,7 +1551,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const t = typeof triggerRead === 'function' ? triggerRead(ctx.flowName) : null;
   if (t && t.trigger) {
     const nx = scheduledNextFor({
-      trigger: t.trigger, armed: t.armed, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
+      trigger: t.trigger, armed: t.armed, waiting: t.waiting === true, lookProblem: t.lookProblem ?? null, nextSlotMs: t.nextSlotMs, lastOutcome: t.lastOutcome, waitingLine: jobWaitingLine(root, ctx.flowDir, ctx.flowName, catalogue), now: now(),
     });
     scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
   }
@@ -1789,6 +1796,7 @@ export function getRunDetail({
   const model = deriveRunModel(ctx.auditRows);
   const modelWhy = model === null ? 'no audit.jsonl row in this run has ever named a model (no model step has run yet)' : null;
   const spendSummary = summarizeSpendRows(ctx.spendRows);
+  const hasGrid = ctx.flowRead.ok && flowTypeOf(ctx.flowRead.declaration) === 'tickets';
 
   return {
     flow,
@@ -1807,6 +1815,9 @@ export function getRunDetail({
     })),
     // M10 am4: the Result tab shows for a job that reads a page, a CSV or a .docx; `checkType` is its distinct close classes (the tab's top card)
     hasResult: isResultRun(ctx.arbiter),
+    // M13 am2 item 2: the ONE decider of the Result tab. The tab shows for a job that has M10's Result page (`hasResult`) or for a Tickets MCP job (the grid, `hasGrid`); a plain or MCP job keeps what it had before M13
+    hasGrid,
+    resultTab: isResultRun(ctx.arbiter) || hasGrid,
     checkType: ctx.flowRead.ok ? checkTypeOf(ctx.flowRead.declaration) : '\u2014',
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
@@ -2093,6 +2104,32 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
 }
 
 /**
+ * M13 am4 item 2: the Job tab's MCP keys, read off the run's own declaration; `{}` for a plain job. The hint of a tool is the newest OK check of this server that names it
+ * (`read-only` or null); no check, or a tool it does not name, is null (the page shows the name alone).
+ * @param {any} declaration @param {(() => Map<string, any>)|undefined} mcpChecks
+ */
+function mcpJobFields(declaration, mcpChecks) {
+  const flowType = flowTypeOf(declaration);
+  if (flowType === 'plain') return {};
+  const server = declaration.mcp?.server ?? null;
+  /** @type {any|null} */
+  let newest = null;
+  for (const r of (mcpChecks ? mcpChecks().values() : [])) {
+    if (r.server === server && r.ok === true && Array.isArray(r.tools) && (newest === null || String(r.at) > String(newest.at))) newest = r;
+  }
+  const names = Array.isArray(declaration.mcp?.tools) ? declaration.mcp.tools : [];
+  const tools = names.map((/** @type {any} */ t) => {
+    const name = typeof t === 'string' ? t : String(t?.name);
+    const hit = newest?.tools.find((/** @type {any} */ x) => x?.name === name);
+    return { name, hint: hit?.hint === 'read-only' ? 'read-only' : null };
+  });
+  return {
+    flowType, mcp: server, tools,
+    ...(flowType === 'tickets' ? { ticketFilter: declaration.ticketFilter ?? null, ticketWatch: declaration.ticketWatch ?? null } : {}),
+  };
+}
+
+/**
  * `GET /api/runs/:flow/:runId/job` — the Job tab (hamr's 2026-09-27
  * exit-check review #5: bareloop-style one-field-per-piece layout,
  * replacing the old split asks/sends/sources/signed-lines blocks). Every
@@ -2101,11 +2138,13 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
  * name carries its own why, never a blank or a guess. Field order (server
  * order matches the page's own render order): prose, asks, model, cap
  * (+redo cap), sources, sends, guardrails, plan (one row per step, amendment 34), signature.
- * @param {{root: string, flow: string, runId: string, catalogue: any, scheduleRead?: (flow: string) => any, home?: string}} opts
+ * M13 am4 item 2: an MCP or Tickets MCP job also carries `flowType`, `mcp` (the server) and `tools` (`{name, hint}`; the hint is the newest OK check's, else null);
+ * a Tickets job adds `ticketFilter` and `ticketWatch`. A plain job's payload has none of these keys. `mcpChecks` reads the newest-check map (unsigned, config home).
+ * @param {{root: string, flow: string, runId: string, catalogue: any, scheduleRead?: (flow: string) => any, home?: string, mcpChecks?: () => Map<string, any>}} opts
  * @returns {any|null}
  */
 export function getRunJob({
-  root, flow, runId, catalogue, scheduleRead, home,
+  root, flow, runId, catalogue, scheduleRead, home, mcpChecks,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -2144,6 +2183,7 @@ export function getRunJob({
     flow,
     runId,
     resolved: true,
+    ...mcpJobFields(flowRead.declaration, mcpChecks),
     // M9 am6 items 1-2 / am7 item 5: how this run began and the workflow's schedule now; words from src/summary-words.js, the same owner as the Run tab's SCHEDULE block
     started: startedWords(readTriggerRecord(run.runDir), (() => { const at = firstPidStartedAt(run.runDir); return at === null ? null : Date.parse(at); })(), home),
     schedule: (() => {
@@ -2264,6 +2304,45 @@ export function getTicketList({
   return ticketListOf({
     flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }), atOf: (id) => getRunEndedAt({ root, flow, runId: id, catalogue }),
   });
+}
+
+/**
+ * M13 piece 6 (item 8): the Result tab's ONE grid of a job, all its runs (`buildJobGrid`, src/panel/jobgrid.js). Each run is read once through `loadRunContext`
+ * (the glyph is `computeGlyph`'s, the money the history row's), a ticket run is named by the ticket number its `run.json` recorded. `Run it anyway` is offered
+ * only for a ticket the ticket list (M12) puts in Skipped. `null` = the flow does not resolve.
+ * @param {{root: string, flow: string, catalogue: any, now?: () => number}} a
+ */
+export function getJobGrid({
+  root, flow, catalogue, now = Date.now,
+}) {
+  const fd = resolveFlowDir(root, flow);
+  if (!fd.ok || !existsSync(fd.flowDir)) return null;
+  const { flowDir } = fd;
+  const runs = [];
+  let flowType = null;
+  for (const runId of listRunIds(flowDir)) {
+    const run = resolveRunPath(root, flow, runId);
+    if (!run.ok || !existsSync(run.runDir)) continue; // eslint-disable-line no-continue
+    const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+    if (flowType === null && ctx.flowRead.ok) flowType = flowTypeOf(ctx.flowRead.declaration);
+    const g = computeGlyph(ctx);
+    const inputs = readRunInputs(run.runDir);
+    const entry = inputs.ok ? inputs.entries.find((e) => e && e.ticket && Number.isInteger(e.ticket.number)) : null;
+    const at = typeof ctx.historyRow?.at === 'string' ? Date.parse(ctx.historyRow.at) : NaN;
+    runs.push({
+      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, title: entry && typeof entry.ticket.title === 'string' ? entry.ticket.title : null, unsure: filterUnsure(entry), at: Number.isFinite(at) ? at : null,
+      history: ctx.historyRow ?? null, spendRows: ctx.spendRows, diary: readChecks(run.runDir),
+      steps: ctx.flowRead.ok ? (ctx.flowRead.declaration?.steps ?? []) : [],
+      reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,
+    });
+  }
+  const sched = readSchedule(flowDir);
+  const from = sched && sched.trigger?.kind === 'new-ticket' && typeof sched.from === 'string' ? sched.from : null;
+  const list = from !== null && ticketScheduleOf(flowDir, from) !== null ? getTicketList({
+    root, flow, runId: from, catalogue,
+  }) : null;
+  const numbers = new Set((list?.groups.find((x) => x.key === 'skip')?.rows ?? []).map((r) => r.number));
+  return { flowType, ...buildJobGrid({ runs, anyway: from !== null ? { runId: from, numbers } : null, now: now() }) };
 }
 
 /**
@@ -2785,6 +2864,9 @@ export function getRunAsks({
     if (!results) return ask;
     return { ...ask, evidence: { ...ev, cited: citedLineOfResults(results, cited) } };
   };
+  // M13 piece 7 (9.4): the same reader as the grid's mark (filterUnsure), so the ask page and the grid never disagree
+  const runInputs = readRunInputs(run.runDir);
+  const filterUnsureRun = runInputs.ok && runInputs.entries.some(filterUnsure);
   const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
@@ -2795,6 +2877,7 @@ export function getRunAsks({
     stepName: stepInfo[i].step,
     stepLine: stepInfo[i].line,
     stepWhy: stepInfo[i].why,
+    ...(filterUnsureRun ? { filterUnsure: true } : {}),
   }));
   // M11 am11 item 3: the Ask tab of an expired-ask run offers Remove from Needs you when the card is in Needs you now
   const needs = getRunNeeds({

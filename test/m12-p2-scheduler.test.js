@@ -3,7 +3,7 @@
 // Injected clock, a stub door, the REAL look against the fake MCP server (test/fixtures/fake-mcp-server.mjs). No network, no model, no real waits.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, rmSync, readFileSync, existsSync, chmodSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -34,13 +34,14 @@ function setup(t, { issues = newestFirst(5), env = {}, watch, busy = false } = {
   const job = { flow: 'tk', flowDir: dir, sig: SIG, trigger, schedule: { sig: SIG } };
   const clock = { t: 1_000_000 };
   const fires = [];
+  const refused = [];
   const state = { busy };
   const door = {
     scan: () => [job],
     retireStale() {},
     busy: () => state.busy,
     note() {},
-    refuse() {},
+    refuse(j, why) { refused.push(why); },
     fire(j, cause, hooks = {}) {
       if (state.busy) { fires.push({ busy: true, number: cause.number }); return; }
       hooks.beforeStart?.();
@@ -50,7 +51,7 @@ function setup(t, { issues = newestFirst(5), env = {}, watch, busy = false } = {
   const s = createScheduler({ door, now: () => clock.t, intervalMs: 0, mcpConfig: config });
   const ledger = ledgerOf(dir);
   return {
-    s, clock, fires, state, ledger, setList: (l) => writeFileSync(listFile, JSON.stringify(l)),
+    s, clock, fires, refused, state, ledger, dir, setList: (l) => writeFileSync(listFile, JSON.stringify(l)),
     lookCalls: () => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n').length : 0),
     /** one tick (a look may start), the look settles, a second tick takes the queue: what two ticks 500 ms apart do */
     async step(advanceMs = 0) { clock.t += advanceMs; s.tick(); await s.settled(); s.tick(); },
@@ -187,4 +188,19 @@ test('watched change on a ticket NOT in the queue still arrives once (busy run, 
   f.setList(newestFirst(5).map((i) => (i.number === 3 ? { ...i, state: 'CLOSED' } : i.number === 4 ? { ...i, state: 'CLOSED' } : i)));
   await f.step(15 * MIN);
   assert.deepEqual(f.rows('arrived').map((r) => r.number), [3, 4]);
+});
+
+test('M13 item 9.3, Must fail: a look whose result cannot be saved (the ledger cannot be written) is recorded as an error and the scheduler stays up; the next look is tried', async (t) => {
+  const f = setup(t);
+  assert.notEqual(process.getuid?.(), 0, 'a read-only folder does not stop root');
+  chmodSync(f.dir, 0o500);   // the ledger can be read (no file yet) but not written: the save after the look throws
+  try {
+    f.s.tick();
+    await assert.doesNotReject(f.s.settled(), 'the look settles; a failed save is not an unhandled rejection');
+  } finally { chmodSync(f.dir, 0o700); }
+  assert.equal(f.refused.length, 1);
+  assert.match(f.refused[0], /ticket look.*could not be saved/);
+  f.s.tick();                       // the 15-minute rule still holds: no second look at once, no throw
+  await f.s.settled();
+  assert.equal(f.refused.length, 1);
 });

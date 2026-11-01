@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OLD = /run-model\.json|thinking\.json|inputs\.json|calls\.jsonl|tools\.jsonl|checks\.jsonl|cited-checks\.json|sheet-checks\.json/;
+const OLD = /run-model\.json|thinking\.json|inputs\.json|calls\.jsonl|tools\.jsonl|(?<![\w-])checks\.jsonl|cited-checks\.json|sheet-checks\.json/;
 
 function files(dir) {
   return readdirSync(path.join(ROOT, dir)).flatMap((n) => {
@@ -19,4 +19,10 @@ function files(dir) {
 test('no file in src/ or bin/ names an old run-folder file, no exception', () => {
   const hits = [...files('src'), ...files('bin')].filter((f) => OLD.test(readFileSync(path.join(ROOT, f), 'utf8')));
   assert.deepEqual(hits, []);
+});
+
+test('the checks.jsonl pattern matches the whole file name only (mcp-checks.jsonl, signed M13 p3, is a different file)', () => {
+  assert.ok(OLD.test('checks.jsonl'));
+  assert.ok(OLD.test(' checks.jsonl'));
+  assert.ok(!OLD.test('mcp-checks.jsonl'));
 });

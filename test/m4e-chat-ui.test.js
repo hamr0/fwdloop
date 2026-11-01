@@ -89,7 +89,7 @@ test('field set: the New job card has exactly the signed boxes (+ the Model menu
   for (const id of ['jf-name', 'jf-job', 'jf-job-gut', 'jf-cap-money', 'jf-ask-wait', 'jf-dest-folder', 'jf-inputs', 'jf-inputs-gut', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
     assert.ok(SECTION.includes(`id="${id}"`), `#${id} missing`);
   }
-  const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
+  const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<span class="req"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').trim());   // M13 am5: the caption words only; the grey `required` mark after them is not part of the caption
   for (const cap of ['Model', 'Thinking on', 'Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
   for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples']) {   // M6 am7: 'Reuse' left this list: Reuse workflow is the one door and the Run card's script names it
@@ -153,8 +153,8 @@ test('the Chat tab keeps the page rules: no token on the page, every POST goes t
   const paths = [...code.matchAll(/authorPost\(\s*"([^"]+)"/g)].map((m) => m[1]).filter((x) => !x.endsWith('/')).sort();
   assert.deepEqual(paths, ['/api/author/draft', '/api/author/resume', '/api/author/resume-prepare', '/api/author/reuse-check', '/api/author/run', '/api/author/run', '/api/author/run-prepare']);
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/sign-prepare"/);
-  // the sign body is {hash}, widened only by the signed ticket when the ticket box shows; nothing else rides along
-  assert.ok(code.includes('authorPost("/api/author/" + id + "/sign", signTicketEl.hidden ? {hash: signInfo.hash} : {hash: signInfo.hash, ticket: signTicketEl.value.trim()})'));
+  // the sign body is {hash} and nothing else (M13 p4 R2 removed the ticket # box, so no ticket rides along)
+  assert.ok(code.includes('authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash})'));
   assert.match(code, /authorPost\("\/api\/author\/" \+ id \+ "\/abandon"/);
 });
 

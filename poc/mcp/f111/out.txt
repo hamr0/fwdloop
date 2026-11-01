@@ -1,0 +1,19 @@
+(a) PASS canaries reached child: true,true; F111_SECRET: true; own: true
+(b) PASS canaries: false,false; PATH true; HOME true; own true; names (6): F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED HOME PATH
+(c) PASS F111_RESOLVED present true; value equals expected true; F111_SECRET itself in child false
+(d) PASS child clash equals own true; equals parent false
+(e) PASS child names (4): F111_CLASH F111_OUT_FILE F111_OWN F111_RESOLVED; extra beyond own: (none)
+   f[PATH] bridge ValidationError true (ValidationError); list ValidationError true; marker exists false
+   f[empty-string entry] bridge ValidationError true (ValidationError); list ValidationError true; marker exists false
+   f[number entry] bridge ValidationError true (ValidationError); list ValidationError true; marker exists false
+   f[object] bridge ValidationError true (ValidationError); list ValidationError true; marker exists false
+(f) PASS all four bad shapes (bridge and listServerTools)
+(g) PASS canaries: false,false; PATH true; own true; tools 1
+--- (h) measurement ---
+(h) barebrowse: with PATH+HOME started; tools 22; extra names needed: (none)
+(h) litectx: with PATH+HOME started; tools 8; extra names needed: (none)
+(h) baremobile: with PATH+HOME started; tools 17; extra names needed: (none)
+(h) sh-wrapped-test: with PATH+HOME started; tools 1; extra names needed: (none)
+(h) sh-wrapped-test child names (7): F111_OUT_FILE F111_OWN F111_SERVER HOME PATH PWD SHLVL
+H_TABLE [{"label":"barebrowse","base":"started","tools":22,"needs":[]},{"label":"litectx","base":"started","tools":8,"needs":[]},{"label":"baremobile","base":"started","tools":17,"needs":[]},{"label":"sh-wrapped-test","base":"started","tools":1,"needs":[]}]
+RESULTS {"a":true,"b":true,"c":true,"d":true,"e":true,"f":true,"g":true}

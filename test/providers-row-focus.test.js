@@ -57,9 +57,9 @@ for (const width of [1280, 390, 320]) {
     const h = await world();
     await chrome.open(`http://127.0.0.1:${h.port}/`, width);
     await chrome.ev('document.getElementById("settings-open").click()');
-    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 1 && document.querySelectorAll(".pv-mrow").length >= 2'));
-    assert.equal(await chrome.ev('document.querySelector(".pv-key").dataset.open'), '0', 'a key with a ticked model starts folded');
-    await chrome.ev('document.querySelector(".pv-key [data-act=fold]").click()');
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 1 && document.querySelectorAll("#pv-rows .pv-mrow").length >= 2'));
+    assert.equal(await chrome.ev('document.querySelector("#pv-rows .pv-key").dataset.open'), '0', 'a key with a ticked model starts folded');
+    await chrome.ev('document.querySelector("#pv-rows .pv-key [data-act=fold]").click()');
     const bg = (sel) => chrome.ev(`getComputedStyle(document.querySelector(${JSON.stringify(sel)})).backgroundColor`);
     const sel = '.pv-mrow[data-model="b2"]';
     const before = await bg(sel);

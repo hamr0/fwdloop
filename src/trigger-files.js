@@ -18,6 +18,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { compareNatural } from './natural.js';
 
 import { appendRow, ledgerText } from './jsonl-append.js';
 
@@ -78,13 +79,12 @@ export function recordDropped(ledger, item, why, at, sig) {
 }
 
 /**
- * The queue: arrived and neither ran nor dropped, oldest arrival first. Identical arrival times: by name, then by sha (deterministic).
+ * The queue: arrived and neither ran nor dropped, oldest arrival first. Identical arrival times: by name, then by sha (deterministic); numbers inside a name compare as numbers (`#8` before `#10`).
  * @param {SeenRow[]} rows @returns {(SeenRow & {path:string})[]}
  */
 export function queueOf(rows) {
-  const cmp = (/** @type {string} */ x, /** @type {string} */ y) => (x < y ? -1 : x > y ? 1 : 0);
   return /** @type {any} */ (rows.filter((r) => waiting(rows, r)))
-    .sort((x, y) => x.at - y.at || cmp(x.name, y.name) || cmp(x.sha, y.sha));
+    .sort((x, y) => x.at - y.at || compareNatural(x.name, y.name) || compareNatural(x.sha, y.sha));
 }
 
 /**

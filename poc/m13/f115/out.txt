@@ -1,0 +1,5 @@
+litectx tools: index:absent,recall:absent,get:absent,recent:absent,promotions:absent,impact:absent,remember:absent,forget:absent
+(a1) findUnusedMcpTool (preflight): null
+(a2) readTicketMcp with the generic job tools: {"ok":false,"error":"the job does not list issue_read, the tool that reads a ticket"}
+(a3) readTicketMcp with issue_read listed: {"ok":false,"error":"litectx does not offer issue_read"}
+(a4) gate text: litectx does not mark recall read-only (readOnlyHint is not true)

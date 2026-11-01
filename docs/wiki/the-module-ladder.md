@@ -3123,3 +3123,166 @@ same run. Scope is stated when its turn comes.
 - *Built after signing — not signed text (2026-10-30):* built in 80676fe and 869a52b (tests 38d3ee9), copied from bareloop `feat/audit-grid` @c79d396 with the `.mark` glyphs and fwdloop's fold (`fold.tries[].checks`, `gap`); one error text per red try, shown once however many checks failed (fwdloop's close reports one gap, not one per check). Still open: re-check against bareloop's release tag.
 
 **M12 EXIT SIGNED — hamr, 2026-10-30 ("sign m12 exit").** Evidence: flow `ticket-triage` on hamr's real panel, DeepSeek V4.1 Flash via Fireworks, test repo hamr0/hol-guard, GitHub MCP server (`issue_read` in the job, `list_issues` in `schedule.json`), signed ticket filter `priority P1`, watch `state`. run-1 (#6, by hand via the ticket # box) reached its ask, accepted, green $0.00285435. Schedule signed; #1–#6 baseline, never ran. Look 08:06 UTC: #7 (P1) one run, accepted, green $0.00275805; #8 (P3) skipped `priority P3, not P1` $0; #9 (closed) skipped `closed` $0. Look 09:33 UTC: #10 (new P1) one run, green $0.0023706; #9 reopened arrived once (`state closed→open`), one run, green $0.003195; #6 body edit started nothing; #7/#8 never ran again. Run it anyway on #8 (after fix 7bffaee) ran, accepted, green $0.00320175. Books: every run's audit `usd` sum equals its history `spentUsd`; skipped runs 0 and 0. Two live bugs found and fixed before sign-off: 7bffaee (Run it anyway re-skipped), b778d0e (a skipped run shown as a red refusal).
+
+## M13 — one setup for outside sources
+
+**M13 scope — SIGNED by hamr 2026-10-30 ("sign m13"), the text exactly as shown (draft items 1–11, item 9b and the two added Must-fail lines, shown in chat the same day).** Design: `docs/product/m13-setup-mock.html`, `docs/product/m13-settings-mcp-mock.html`; PRD "one setup for outside sources" design talk parts 1 and 2.
+
+1. **Where MCPs come from.** The 4 places bare-agent reads, plus any path you add on Settings > MCP. A project folder's `.mcp.json` is never read. A remote MCP (no start command) is listed but not usable. If two paths have an MCP with the same name, the first in the list wins and the page warns.
+2. **Settings > MCP tab**, as in the mockup.
+   - One "Path and MCP" list. Paths start open, MCPs start folded.
+   - `check tools` starts an MCP once, only when pressed.
+   - Use counts come from what runs already record.
+   - It never edits your config files, and never shows commands or keys.
+3. **MCPs are used as offered.**
+   - What a tool does outside is your responsibility. Scoping is done where the key is made (IAM, fine-grained tokens).
+   - fwdloop's own sends still need a signed destination and an accept.
+   - Hints are shown as info only. M12's read-only refusal is dropped.
+   - Only the tools you sign exist for the run.
+4. **Job card.**
+   - A `Flow type` dropdown: plain, MCP (generic), Tickets. Plus an `MCP` pick for the last two. Both are signed with the job.
+   - Inputs names what to read, and may be empty for MCP (generic).
+   - There's no ticket # box and no `mcp:` keyword.
+5. **MCP (generic).** Steps call the signed tools. Schedule: By hand, or Every day at….
+6. **Tickets.** The ticket list address is an Inputs line.
+   - The first run reads the newest ticket at the time it starts. Older tickets never run.
+   - A ticket is new only if its number is higher than the highest seen. A reopened ticket comes back only through a watched field.
+   - M12's filter, skip and queue engine stays.
+   - A run shows as `<job> #<number>`. Schedule adds `When a new ticket arrives`.
+7. **Schedule on every new job card.**
+   - It's signed in `schedule.json` in the same sign.
+   - It's off until the first green run, then it turns on. While waiting, the Run card shows a grey line: `Schedule waiting for a green run`.
+   - `Schedule run` stays for jobs that had none.
+8. **Result tab, variant B, for every job.**
+   - One grid, with the buckets Needs you / Stopped / Passed / Skipped as fold rows, and a stats line.
+   - Rows are runs, and columns are checks.
+   - A skipped row shows its reason and `Run it anyway`, which asks for a reason first.
+9. **The 7 parked bugs, fixed:**
+   1. A rerun reads its ticket through MCP, with the filter.
+   2. No flood when the seen tickets close (covered by item 6's rule).
+   3. A failed save after a look is recorded as an error, and the panel stays up.
+   4. An unsure label goes to a human.
+   5. An MCP gets only its own settings plus what it needs to start, never your provider keys.
+   6. Run numbers compare as numbers.
+   7. Ticket numbers have an upper limit.
+
+   **9b. M12 walk loose ends, fixed:**
+   1. **A Tickets job's look tool** (`list_issues`) is signed in the job's tool list, like every other tool. It's no longer only in `schedule.json`.
+   2. **"Reuse workflow" from a run that failed preflight** shows "Run now", not "Start drafting", when the plan is unchanged. A root-cause hunt comes first. No fix is guessed before the cause is found.
+   3. **A look that couldn't read** (for example pass locked) shows on the Run card as one line naming the cause. It's never shown as "0 new".
+   4. **The drafter is told every wording of a ticket filter** (for example "priority P1 only" and "only tickets with priority P1 count"). A POC on the real drafter at a few cents proves both wordings give the filter.
+10. **Out of M13:** Tickets URL and Search (M13b), Chat, remote MCPs, gating by hints.
+11. **POCs before each piece, on the real path:**
+    - discovery on your 4 places plus an added path, at $0
+    - `check tools` on a real MCP
+    - a generic MCP job reading through a signed tool
+    - a Tickets first run reading the newest ticket
+    - a schedule that waits through a red run and turns on after a green
+    - closed seen tickets: 0 extra runs
+    - what env an MCP process receives
+
+**Done when.** On your real panel, on deepseek-flash:
+- You add `~/.claude.json` and check an MCP's tools.
+- You set up a Tickets job from the new card, with a schedule, and no special typing.
+- It waits through a red run. After the first green, a new ticket starts one run named `#<n>`, and a non-matching ticket shows as skipped.
+- A generic MCP job runs by hand and goes green.
+- Everything shows in the new Result grid, and the books balance.
+- Plus tests that fail first.
+
+**Must fail when:**
+- a project `.mcp.json` is read
+- `check tools` runs without a press
+- a key or command shows on the page
+- an unsigned tool runs
+- a schedule turns on before a green run
+- an older ticket runs
+- closed seen tickets queue runs
+- a failed save kills the panel
+- a rerun skips the filter
+- a provider key reaches an MCP process
+- a skipped run unbalances the books
+- "Reuse workflow" with an unchanged plan offers a paid redraft
+- an unreadable look reads as "0 new" or shows nowhere
+
+- *Not signed text (2026-10-30):* hamr walked the Audit grid (M4d am36) and Providers fold/selection on the real panel: pass. Both match bareloop v0.52.0 (no change to the grid after `c79d396`; the Providers change is `357a482`, nothing after it).
+
+**M13 amendment 1 — SIGNED by hamr 2026-10-31 ("sign m13 am1"), the text exactly as shown.** Why: F110 measured that `fwdloop update` hands shell-exported `*_KEY` settings to `npm install -g fwdloop@latest` and its install scripts.
+
+> **M13 am1:** `fwdloop update` starts npm without any `*_KEY` setting from your shell; the panel still gets its keys.
+
+- *Built after signing — not signed text (2026-10-31), M13 pieces 1 and 2:*
+  - Piece 1: bare-agent ^0.56.0 (raised to ^0.57.0 by F118 below); `MCP_PASS_ENV = ['PATH','HOME']` in src/ticket-mcp.js is the one list, used at every bridge start (item 9.5). `runNpm` in src/launcher.js passes env minus `isKeyName` names (am1); the panel spawn is unchanged. Real GitHub MCP re-checked with PATH+HOME on hol-guard 2026-10-31 (F117 script rerun, pass unlocked): list and read OK. With pass locked: unchecked.
+  - Piece 2 (item 5): `runStepRalph` in src/runner.js wraps `runStepTries`; a step with `mcpTools` starts its bridge once before the first try and closes it in `finally`; refusals at $0 in readTicketMcp's words; `resolvePrimitives` in src/primitives.js takes `ctx.mcp` and adds `tools.allowlist` (verbs plus `<server>_<tool>`) and a gated entry per tool; `stepMcp`, `mcpToolName` exported; bin/fwdloop passes `mcp: stepMcp(declaration)` at run, resume, continue; GateRefusal has tool wording. Calls land as diary tool rows.
+  - Known at the time (both fixed later: the Settings piece reads every MCP source, the Flow type piece starts the server once, F119): the server config was `~/.mcp.json` only; a real ticket job started its server twice per run (frozen read, then the step bridge); the plan was to fix that in the Flow type piece, so a Tickets job's read/look tools are the job's and a step gets a live tool only if it needs one. MCPs now start in the home folder (bare-agent ^0.57.0 bridge `cwd`, one shared place `mcpStartOpts` in src/ticket-mcp.js), F118.
+
+- *Built after signing — not signed text (2026-10-31), M13 piece 3 (items 1 and 2; commits d2f2458 to 5549784):*
+  - One decider of MCP sources: `src/mcp-sources.js` (`mcpSources`, `mcpConfigFor`, `startableMcpServers`). Order: `~/.mcp.json`, `~/.claude/mcp_servers.json`, `~/.config/Claude/claude_desktop_config.json`, `~/.cursor/mcp.json`, then config.json `mcpPaths` (the paths added on the page, in the order added, written only by `POST /api/settings/mcp-path` and `.../mcp-path-remove` through `updateConfig`; `mcpPathProblem` in src/config.js is the one rule for a path). bare-agent's `discoverServers` is called once per path with an explicit path, never its default discovery. The first place with a name wins; each later place with the same name is marked `shadowedBy` in the API. A server with no `command` is `remote`: listed, never started, refused by name (`<server> is a remote server, not supported yet`). A file that exists but is not JSON has status `unreadable` in the API; the page shows it as `not found`.
+  - Every place that started an MCP from `~/.mcp.json` alone now takes the winning file: the runner's step bridge, `readTicketMcp`, `lookTickets`, the drafter's server names (`configForServer` in src/ticket-mcp.js; an explicit `configPath` is still a test seam). A server found in no place still reads `<server> is not in ~/.mcp.json`. `mcpStartOpts()` is on every start, `check tools` included.
+  - Settings > MCP: `GET /api/settings/mcp` (names, remote and shadow flags, the newest check, use counts; never a command, args, env or key), `POST /api/settings/mcp-check {server}` (the only place a press starts a server: `listServerTools` with `mcpStartOpts()`, 15 s per round trip), `POST .../mcp-path`, `POST .../mcp-path-remove`. A failed check stores a fixed plain sentence, never the library's message (it holds the start command). Nothing writes an MCP config file.
+  - The check log is `mcp-checks.jsonl` beside config.json, append-only: one line per press `{server, path, at, ok, tools:[{name, hint}]}` or `{..., ok:false, error}`; `hint` is `read-only` only when the server sent `readOnlyHint: true`, else null (shown as `—`). The page reads the newest line per path and server.
+  - Use counts (`src/mcp-use.js`, F113): `run.json` `inputs[].mcp.calls` for ticket reads, and `diary.jsonl` tool rows named `<server>_<tool>` for step calls (longest server name wins). A `decision:"deny"` row (piece 2 writes one for a denied MCP tool call) counts as denied, not as a use. A torn file or row is skipped.
+  - Page: the mock's `mc-*` CSS and markup. Two mock defects fixed: the tool rows now use the MCP row's own columns at 1280 and up (the mock gave them different ones, so HINT and USED sat under no header), and the empty button cell is hidden on a phone. Tools show five at a time, then `+N more`. Not in the mock, so not on the page: a label for a shadowed (duplicate-name) MCP; it shows faint with `—` and no `check tools`.
+  - Wordings ruled by hamr 2026-10-31: a shadowed (same name, later path) MCP shows, faint, `same name as above, not used` in place of the tools count, still with no `check tools` and no usage line. A failed `check tools` shows one plain red sentence under that MCP, the stored fixed sentence, never the library's error. A config file that exists but is not valid JSON (API status `not-json`) has the path header `can't be read` instead of `not found`.
+
+- *Built after signing — not signed text (2026-10-31), M13 piece 4 (item 4 job card, items 5 and 6 as far as the card, 9b.1, the double start; branch `outside-setup`, F119):*
+  - `flowType` is a top-level declaration field (`plain` | `mcp` | `tickets`), hashed with the job (`DECLARATION_FIELDS`, `flowTypeOf` in src/declaration.js is the one reader). `plain` takes no `mcp` block; `mcp` and `tickets` need one; `ticketFilter` and `ticketWatch` belong to `tickets`. A job signed before this (an `mcp` block, no `flowType`) is read as Tickets, since M12 only had ticket jobs; it keeps working unchanged.
+  - The job's `flowType` and `mcp {server, tools}` are set by code (src/drafter.js), never offered to the drafter; `tools` is every tool of the server's newest OK `check tools` line (`mcpPickFor`, src/mcp-pick.js, hamr ruling R1 in the PRD, design talk point 15). Never checked = the card refuses at $0 on the MCP field: `press check tools in Settings > MCP first`; `fwdloop draft --flow-type X --mcp S` refuses the same way and leaves no draft folder. The frozen ticket read starts the server with `issue_read` alone, whatever else the job lists.
+  - F105 rewritten (`findMcpPlanRed`, src/canrun.js, used by run, resume, continue and the Signed list): a step may grant only a tool the job lists; an MCP (generic) job needs at least one step that grants at least one tool. A Tickets job's `issue_read` and `list_issues` belong to the job (the frozen read and the look): no step has to grant them, and a step gets a live bridge only if its plan lists `mcpTools`. F119: a Tickets run up to its first ask started its server 2 times before, 1 time now.
+  - The drafter is told the flow type, that the ticket is already frozen under its role, and for MCP (generic) the server and every tool name; a step lists a tool only if it calls it live. A generic job whose steps call no tool is fed back like a validator red.
+  - Card: a `Flow type` dropdown (plain, MCP (generic), Tickets) and an `MCP` pick (Settings > MCP's winning, non-remote servers; a `manage in Settings > MCP` link) as in the mock; the Inputs hint for the last two is the mock's. The card is refused at $0 for an unknown flow type, no MCP, an MCP fwdloop cannot start, an unchecked MCP, or Tickets without a ticket-list Inputs line. A reused job keeps its flow type and MCP. The Run card's schedule options follow the flow type: MCP (generic) By hand and Every day at... only; Tickets adds `When a new ticket arrives`; plain offers none of the ticket option. `When a new ticket arrives` takes its look tool from the job's signed `mcp.tools` (a Tickets job whose list lacks `list_issues`, or any other flow type, is refused by name).
+  - No ticket # box on the Run card or beside Sign & run, and no `ticketRefusals`. A by-hand run with no `--ticket` reads the newest ticket that has not run yet (`newestUnrunTicket`, src/ticket-next.js: the schedule's own look, this job's own runs are what "has run" means); nothing new is one plain line at $0 and no run folder (hamr ruling R2, PRD design talk point 16). `--ticket` stays on the CLI for the machine's own starts (the schedule, Run it anyway, a rerun). The draft readout shows `flow type:` above the `mcp:` row.
+  - Not built in this piece: the Schedule row on the New job card (item 7), Tickets URL and Search (M13b).
+
+- *Built after signing — not signed text (2026-11-01), M13 piece 5 (item 7 and the F114f cut of item 6; branch `outside-setup`, F120):*
+  - The New job card has a `Schedule` row after the MCP pick, in the mock's words: `By hand`, `When a new ticket arrives` (Tickets only), `Every day at HH:MM` (with a time box), the hint `off until the first green run, then turns on`, and for the ticket choice the mock's second hint. All flow types offer By hand and Every day at HH:MM; the weekdays, weekly and file choices stay on the Run card (`Schedule run`, `Cancel / modify schedule`), which the signed text keeps for jobs that had none. By hand = no `schedule.json`.
+  - The card carries `schedule` (`{kind:'daily', hour, minute}` or `{kind:'new-ticket'}`; `cardFields`, `checkCard` in src/panel/authorcard.js, refusals named `schedule`). It rides the draft and every revise like the Flow type. A plan that becomes the next run of its workflow (`asRunOf`) signs no job, so it writes no schedule.
+  - The sign (`sign` in src/panel/author.js) checks the schedule on the plan about to be signed (`cardSchedule`: a new ticket needs exactly one ticket-list input and the job's signed `list_issues`), signs the job, starts the run, then writes `schedule.json` through `signSchedule` with `from` = the run it started. `buildSchedule` is the one builder of the record (the Run card's second click uses it too). The record is OFF: no `armed` row.
+  - The one turn-on is `armWaiting` (src/panel/authortrigger.js), called at the top of every scheduler tick: a live, unarmed schedule whose job has a green run (`firstGreenRunFor`, the one reader behind `hasGreenRunForJob`; a resume that ends green counts, a red or cap-halted run, or a run whose job copy differs, does not) is armed through `armFor`. A red run is never a warning. A ticket schedule's `armed` row carries `ticketN`, the ticket number the first green run's `run.json` read.
+  - F114f cut: a ticket schedule's first look uses `ticketN`: `lookTickets` goes on past a page whose tickets are all above it, and `recordLook` writes `baseline` rows for tickets up to `ticketN` and `arrived` rows for the rest, so a ticket that came in during the wait runs once and older ones never run. A schedule armed some other way, or a green run that read no ticket, has no `ticketN` and keeps today's rule (everything on the first page is baselined).
+  - The Run card: the Run tab's SCHEDULE box shows `Schedule waiting for a green run` as its second line, grey (`SCHEDULE_WAITING_SAY` in src/summary-words.js, `grey: true`), never red; `scheduledNextFor` says the same. The chat card's When box for a waiting job shows the same words, is not shut (Cancel schedule works) and still refuses a change before a green run.
+  - Known, not fixed here: ticket arrivals found in one look share an arrival time and are queued by name as strings (`#10` before `#8`; fixed in piece 7, 9.6); a ticket run by hand during the wait and above `ticketN` runs once more when the schedule turns on; a waiting schedule is listed on the Scheduled cards with its words and no next time.
+
+- *Built after signing — not signed text (2026-11-01), M13 piece 6 (item 8 and the `#<number>` run name of item 6; branch `outside-setup`):*
+  - One Result grid per job, for every job: `GET /api/runs/:flow/:runId/grid` (`getJobGrid`, src/panel/data.js; pure `buildJobGrid`, src/panel/jobgrid.js). The Result tab is there for every run; a job with the M10 result cards keeps them under the grid. M12's ticket list (variant E) is replaced on the page by the grid; its server list (`ticketListOf`) stays as the one check behind `Run it anyway` and the `tickets` field of `/result` is no longer drawn.
+  - Bucket of a run = its glyph (`computeGlyph`) through the M12 map `GROUP_OF` (src/panel/tickets.js, now exported), the only decider: a running, waiting, stuck or expired run is Needs you; `[✗]`, `[■]`, `[?]` and a rerun are Stopped; `[✓]` Passed; `[–]` Skipped. Newest first inside a bucket by the end time, ties by the run NUMBER. Needs you and Stopped start open, Passed and Skipped folded (the mock).
+  - Stats line: counts per bucket and `spent`, the sum of the runs' money (the history row's `spentUsd`; a run with no history row counts its priced spend rows as a floor; none priced = unknown). `at least` when any run's figure is a floor or unknown; nothing known reads `unknown`, never `$0`.
+  - Columns from the run's own check record (`diary.jsonl`, the Audit grid's checks: #1 and #2 are `every step: exists, done`, #3 and up are `output judged`), newest try of each step: ✓ all passed, ✗ one failed, · nothing ran or only a human's yes judged it, ? the run ended red with no check record. A skipped row shows · · and its reason, `· $0` and `Run it anyway` (a reason first; offered only for a ticket the ticket list holds skipped). A run opens to one line per step (`step N <goal>: exists, done`, or the failed check), the output-judged checks, `cost unknown, not shown as $0` when unknown, and its run id as the link to the run.
+  - Names: a ticket run is `#<number>` (the number `run.json` recorded), every other run `run-<n>`. The grid's badge is `tickets` for a Tickets job, the job's name otherwise (the mock only shows a ticket job).
+  - Not in the mock, so not built: the old filter chips and search, the schedule line of the ticket list, the line `waiting at the ask since HH:MM`. Known: the grid reads every run of the job through `loadRunContext` (as the ticket list did); a job with hundreds of runs is unmeasured.
+  - hamr 2026-11-01: a ticket row reads `#<number> · <title>` (the title `run.json` saved from the ticket's typed `title` field, a string only; none saved reads `#<number>` alone; escaped, cut with an ellipsis on one line, the name cell capped); clicking the name opens that run (the Runs list's `selectRun`) and the `▸` arrow stays the separate fold of the step marks, on skipped rows too.
+  - hamr 2026-11-01: in `output judged`, a run whose steps that ran had no check #3 or higher in their newest try reads `none` (muted, hover `this job has no output checks`) instead of `·`; `jobgrid.js` returns the distinct value `none`, `·` keeps its other meaning (nothing ran, or only a human's yes), `every step` is unchanged.
+
+- *Built after signing — not signed text (2026-11-01), M13 piece 7 (item 9, 9b.2, 9b.3, and item 3's dropped refusal; branch `outside-setup`):*
+  - 9.1 `rerunSourcesOf` (src/runner.js) is the one mapping from a run's input record to a rerun's sources: a ticket input goes back as its list address with the ticket mark (and `anyway` when it was sent with Run it anyway), so a rerun reads the ticket through the job's MCP read and the signed filter, and its `run.json` keeps the `ticket` entry. Proven on the function and on `freezeInputs` with a stub reader; a whole rerun end to end was not run.
+  - 9.2 The look treats a ticket as new only when its number is above the highest seen (item 6's rule was not in the code: the look stopped only at a seen number). With every seen ticket closed, an OPEN-only list no longer reads the older open tickets as new; the walk also stops once a page reaches the highest seen number.
+  - 9.3 The look's save is wrapped: a failed ledger write is told once as a refusal (`ticket look: its result could not be saved: <first line>`) and the panel stays up; the next look is tried 15 minutes later.
+  - 9.6 `compareNatural` (src/natural.js) is the one ordering of names with numbers in them. Used by `queueOf` (arrivals at the same time: `#8, #9, #10, #11`), `listRunIds`, the Result grid, the ticket list's newest-run pick, the waiting-run lookup and the learnings order. `run-3-rerun-1` is before `run-25`.
+  - Item 3: the `readOnlyHint` refusal is gone from the ticket read (`readTicketMcp`) and the look (`lookTickets`). The Settings page still shows each tool's hint as info.
+  - 9b.2 Root cause: a run that failed preflight ends with history outcome `preflight-red`, which `computeGlyph` draws as `[✗]` (`failed (preflight-red)`). `runIsRed` (src/panel/authorflows.js) read only the glyph, so M6 am9's "a red run always drafts" caught a run that never ran a step ($0, no plan result). `runIsRed` now says no for outcome `preflight-red`; Reuse workflow then answers `run` (Run now) when the job is unchanged, and a changed job still drafts a new workflow. A run that failed after a step ran stays red. The draft door's `job-unchanged` guard uses the same function.
+  - 9b.3 A ticket schedule whose newest look could not read shows on the Run card as one red line: `last look <stamp> · could not read the tickets: <cause>. It looks again in 15 minutes.` (the Run tab's SCHEDULE block and the summary's NEXT row; `lookProblem` in `read`/`facts`). The newest look row decides (`lookProblemOf`); a look that reads after one that could not writes one `looked` row, so the line clears even when nothing is new. Unreadable rows still grow one per look.
+  - 9b.4 Pre-registered as F121 (`poc/mcp/f121/f121.mjs`, FINDINGS), not run.
+  - hamr 2026-11-01, 9.4 "Run it, flag it": a ticket whose filter verdict is `unsure` is never skipped (it was not: `decideTicket` returns outcome `run` with an `unsure` reason; proven again by a test). The Result grid row wears a small grey `unsure` mark next to the name (`filterUnsure` in src/ticket-labels.js is the one reader of the run's stored verdict; `getJobGrid` returns `unsure`, the page only draws it); a job with an ask shows one line on its ask page, `the filter was unsure about this ticket` (`getRunAsks` returns `filterUnsure` on each ask of such a run); a job with no ask shows the grid mark only. A ticket sent with Run it anyway whose own filter verdict was unsure counts as unsure too.
+  - hamr 2026-11-01, 9.7 ticket numbers: one shared cap, 10 digits (1 to 9,999,999,999), in one place: `TICKET_MAX`, `isTicketNumber` and `TICKET_NUMBER_WORDS` in src/ticket-shape.js. Used by the CLI `--ticket` (bin/fwdloop), Run it anyway (`ticketAnyway`), the ticket read (`readTicketMcp`) and the look (`lookTickets`): over the cap, the first three refuse by name at $0; a listed ticket over the cap is ignored by the look, never a crash, and the look's `looked` row records ONE reason (`ignored N ticket numbers over 9,999,999,999: ...`). No place in src said 9 digits (the CLI regex already allowed 10).
+
+**M13 amendment 2 — SIGNED by hamr 2026-11-01 ("sign m13 am2"), the text exactly as shown.** Why: on the live walk, an MCP (generic) job (`browse-check`) showed the ticket Result grid, because signed item 8 said "for every job"; hamr's model is that a ticket job is the special shape and every other job is a standard job that may use an MCP.
+
+> **M13 am2.** (1) Flow type names: `plain`, `MCP`, `Tickets MCP` (were plain, MCP (generic), Tickets). (2) Item 8's Result grid (variant B) is for ticket jobs only: Tickets MCP now, and later Tickets URL and Chat. Plain and MCP jobs keep the Result page they had before M13 (none, or M10's for a job that has one). Nothing else in items 4, 5 and 8 changes.
+
+- *Built after signing — not signed text (2026-11-01), M13 am2 (branch `outside-setup`, F123):*
+  - Item 1: the Flow type options, the readout row `flow type:`, and the refusals read `plain`, `MCP`, `Tickets MCP`. Stored `flowType` values (`plain`, `mcp`, `tickets`) and option values are unchanged. The drafter's own prompt lines (src/ticket-draft.js, "Flow type: Tickets", "MCP (generic)") are not user-facing and are left as measured in F121/F122.
+  - Item 2: the run detail carries `hasGrid` (the job's flow type is `tickets`, an old M12 job with an `mcp` block included) and `resultTab` (`hasResult || hasGrid`). `resultTab` is the one decider of the Result tab; the page draws the grid, and fetches `/grid`, only when `hasGrid`. `hasResult` still decides M10's cards. `GET /api/runs/:flow/:runId/grid` still answers for any job; the page does not ask for a non-ticket one.
+  - F123 measured it on a copy of hamr's 84 real runs: plain and MCP jobs have the same tab decision and `/result` as before piece 6; Tickets jobs have the grid.
+
+**M13 amendment 3 — SIGNED by hamr 2026-11-01 ("sign m13 am3"), the text exactly as shown.** Why: on the live walk, ticket-triage-5's first run skipped #15 (P3, not P1); `Run it anyway` did nothing, because it joins the schedule's queue and the schedule stays off until a green run (item 7), so a job whose first ticket is skipped could not get started.
+
+> **M13 am3.** While a ticket job's schedule is off (waiting for its first green run, item 7), `Run it anyway` on a skipped ticket starts that ticket's run at once, by hand, with the job's normal cap, instead of queuing it (the queue only runs once the schedule is on). The reason box and its words do not change (M12 ruling, 2026-10-29). If that run goes green, the schedule turns on by item 7's rule; a skipped run never turns it on. Once the schedule is on, `Run it anyway` queues as before (M12). Nothing else changes.
+
+**M13 EXIT SIGNED — hamr, 2026-11-01 ("sign m13 exit").** Evidence: hamr's real panel, DeepSeek V4.1 Flash via Fireworks, test repo hamr0/hol-guard, GitHub MCP server. MCP: `~/.claude.json` added, barebrowse tools checked (mcp-checks.jsonl, ok). Tickets job `ticket-triage-5` set up from the New job card (Tickets MCP, github, filter `priority P1`, schedule signed with the job): run-1 by hand skipped #15 `priority P3, not P1` $0; Run it anyway (am3) on #15 started at once, run-2 accepted, green $0.002781; schedule turned on (#13–#15 baseline, never ran); #16 (P3) arrived, run-3 skipped `priority P3, not P1` $0. `ticket-triage-4`: after its first green, #13 started one run (run-2), green $0.003135. Waits through red: `ticket-triage-6` run-2 (#16, Run it anyway) red `struck-out` on its word guardrail (3 tries) $0.0062568; 0 `armed` rows after. Generic MCP job `browse-check` run-1 by hand, green $0.0035904. Books: every paid run's audit `usd` sum equals its spend ledger and history `spentUsd`; skipped runs 0. Live bugs found and fixed before sign-off: d18d65b (real panel's config home read as never checked), 47a774b (ticket filter optional to the drafter, F121), e89196e (ticket read not granted, F122), am2 (grid on non-ticket jobs, F123), am3 d5e4944 (Run it anyway dead while the schedule waits, F124). Open, not built: a filter guardrail the drafter drops is not flagged on the readout; `ticket-triage-4` (drafted before 47a774b) has no filter.
+
+**M13 amendment 4 — SIGNED by hamr 2026-11-01 ("sign m13 am4"), the text exactly as shown.** Why: on the live walk hamr found that Reuse workflow neither shows nor lets him change an MCP job's Flow type and MCP, and the Job tab shows no MCP details.
+
+> **M13 am4.** (1) `Reuse workflow` shows the job's `Flow type` and `MCP` picks, filled in, like every other box. Changing either one is a changed job: the button reads `Start drafting`, a new plan is drafted, and signing makes a new workflow `<name>-N`; the reused workflow is not touched. Left unchanged, Reuse works as before. (2) The Job tab shows, for an MCP or Tickets MCP job: the flow type, the MCP server, and the signed tools (name and hint); for a Tickets MCP job also the ticket filter and the watched field. A plain job's Job tab does not change. Nothing else changes.
+
+**M13 amendment 5 — SIGNED by hamr 2026-11-01 ("sign m13 am5"), the text exactly as shown.** Why: on the live walk hamr found optional Inputs confusing and asked that the required fields be marked; Inputs stays optional for an MCP job (item 4).
+
+> **M13 am5.** On the New job card, `Flow name`, `The job`, `Inputs` and `Cap $` carry a small grey `required` after their caption, and the main button stays off until each is filled. `Inputs` is required for a plain and a Tickets MCP job; for an MCP job it shows `optional for MCP` and may stay empty (item 4). The mark follows the Flow type pick. On `Run a signed flow`, the input paths and `Cap $` carry the same `required`. Jobs already signed are not changed. Nothing else changes.

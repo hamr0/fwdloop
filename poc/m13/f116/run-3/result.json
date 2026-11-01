@@ -1,0 +1,44 @@
+{
+ "runN": 3,
+ "wallMs": 9892,
+ "ok": true,
+ "red": null,
+ "closeOk": true,
+ "artifactChars": 1788,
+ "done": true,
+ "blocker": null,
+ "textHead": "Recall for \"f111b\" returned pointers (paths + chunk locators), not bodies. No read/get tool was available to open the referenced sections, so this reports the located hits, not their contents.\n\nCODE h",
+ "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+ "modelMatch": "match",
+ "rounds": 4,
+ "costUsd": 0.00641385,
+ "meteredFromDiary": 0.00641385,
+ "priorSpend": 0.021085,
+ "totalSoFar": 0.02749885,
+ "toolsTally": {
+  "litectx_recall": 2
+ },
+ "refused": [],
+ "toolRows": [
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 1
+  },
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 2
+  }
+ ],
+ "directRemember": "denied rule=tools.allowlist.exclusive",
+ "rememberReached": 0,
+ "fsUnderAllowlist": "deny",
+ "bridgeChildren": [
+  109887,
+  109902
+ ],
+ "aliveAfterClose": []
+}

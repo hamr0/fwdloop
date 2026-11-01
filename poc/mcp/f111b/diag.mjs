@@ -1,0 +1,16 @@
+import { createRequire } from 'node:module';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+const req = createRequire(process.env.F111_SCRATCH + '/x.js');
+const { createMCPBridge } = req('bare-agent/mcp');
+const cj = JSON.parse(readFileSync(homedir() + '/.claude.json', 'utf8')).mcpServers;
+const cfg = process.env.F111_SCRATCH + '/d.json'; writeFileSync(cfg, JSON.stringify({ mcpServers: { f111: cj.barebrowse } }));
+console.log('candidates present:', ['DISPLAY','XDG_RUNTIME_DIR','TMPDIR','LANG'].filter(n=>n in process.env).join(','));
+const pe = ['PATH','HOME', ...(process.env.EXTRA ? process.env.EXTRA.split(',') : [])];
+const t0 = Date.now();
+const b = await createMCPBridge({ configPaths:[cfg], timeout:60000, callTimeout:60000, confirmServer:()=>true, allow:{f111:['browse']}, passEnv: pe });
+const r = await b.tools.find(x=>x.name==='f111_browse').execute({url:'https://example.com'});
+const txt = typeof r==='string'?r:JSON.stringify(r);
+console.log('passEnv', pe.join(','), 'ms', Date.now()-t0, 'len', txt.length, 'example-domain', /example domain/i.test(txt));
+if (txt.length < 300) console.log('TEXT', txt);
+await b.close();

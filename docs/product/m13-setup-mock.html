@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fwdloop setup redesign mock</title>
+<style>
+/* Tokens, job card, fields, buttons, hint, badge copied from fwdloop src/panel/index.html. Grid/cell/fold from the Audit grid mock (variant A) and m12-ticket-results-mock. */
+:root{
+  --bg:#1a1b26; --panel:#1f2335; --panel2:#24283b; --border:#292e42; --border-strong:#3b4261;
+  --text:#c0caf5; --text-dim:#a9b1d6; --text-faint:#565f89; --plan:#7aa2f7;
+  --green:#9ece6a; --green-bg:#1c2b23; --red:#f7768e; --red-bg:#2b1822; --amber:#e0af68; --amber-bg:#2b2416;
+  --grey-dot:#878eac; --grey-bg:#20242f; --cyan:#7dcfff; --cyan-bg:#182634; --magenta:#bb9af7;
+  --accent:#7aa2f7; --btn-bg:#1f2335; --btn-text:#c0caf5;
+  --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
+  font:14px/1.5 "Courier Prime","Courier New",Courier,ui-monospace,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+    --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
+    --green:#567238; --green-bg:#dfe7d4; --red:#c92353; --red-bg:#fbe0e8; --amber:#82643a; --amber-bg:#f0e6d3;
+    --grey-dot:#626887; --grey-bg:#e2e2e8; --cyan:#007197; --cyan-bg:#d6ecf1; --magenta:#9854f1;
+    --accent:#2668c2; --btn-bg:#e9e9ed; --btn-text:#3760bf;
+    --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#e1e2e7; --panel:#d0d5e3; --panel2:#e9e9ed; --border:#c4c8da; --border-strong:#a8b0cc;
+  --text:#3760bf; --text-dim:#58679f; --text-faint:#848cb5; --plan:#2668c2;
+  --green:#567238; --green-bg:#dfe7d4; --red:#c92353; --red-bg:#fbe0e8; --amber:#82643a; --amber-bg:#f0e6d3;
+  --grey-dot:#626887; --grey-bg:#e2e2e8; --cyan:#007197; --cyan-bg:#d6ecf1; --magenta:#9854f1;
+  --accent:#2668c2; --btn-bg:#e9e9ed; --btn-text:#3760bf;
+  --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{overflow-x:hidden}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{color:var(--text-dim)}
+.lab{max-width:1100px;margin:0 auto;padding:12px 16px 48px}
+.lab-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+h1{font-size:16px;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.06em}
+h2.part{font-size:15px;margin:28px 0 4px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border-strong);padding-bottom:4px}
+.theme-toggle{padding:4px 9px;min-height:32px;border:1px solid var(--border-strong);background:var(--btn-bg)}
+.brief{color:var(--text-dim);margin:4px 0 8px;overflow-wrap:anywhere;font-size:13px}
+.vtag{color:var(--accent);font-weight:700}
+.vbox{border:1px solid var(--border-strong);background:var(--panel);padding:12px;margin:14px 0;min-width:0}
+.why{font-size:12px;color:var(--text-dim);margin:2px 0 10px;overflow-wrap:anywhere}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:18px;align-items:start}
+.cap{font-size:11px;color:var(--text-faint);margin:0 0 -4px;text-transform:uppercase;letter-spacing:.05em}
+/* panel: job card */
+.job-card{position:relative;border:1px solid var(--border-strong);padding:14px 8px 8px;background:var(--panel2);margin-top:10px;margin-bottom:10px;min-width:0}
+.job-card h4{margin:0 0 8px;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px}
+.job-card h4::before{content:"┤ ";color:var(--text-faint)} .job-card h4::after{content:" ├";color:var(--text-faint)}
+.field{margin-bottom:6px;min-width:0}
+label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{width:100%;font:inherit;padding:5px 7px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text)}
+.field textarea{resize:vertical}
+::placeholder{color:var(--text-faint)}
+.hint{font-size:11px;color:var(--text-faint);margin-top:4px;overflow-wrap:anywhere}
+.radio-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:10px}
+.radio-row label{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);margin:0;text-transform:none;font-weight:400;letter-spacing:0}
+.radio-row input{width:auto}
+.link{color:var(--text-faint);text-decoration:underline;font-size:11px}
+.btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);position:relative;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.btn::before{content:"[ ";color:var(--text-faint)} .btn::after{content:" ]";color:var(--text-faint)}
+.btn.small{padding:0 9px;min-height:32px;font-size:12px}
+@media (max-width:520px){.btn.small{min-height:44px}}
+.btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;width:100%}
+.btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:.6}
+/* unsettled word: dashed outline + ? */
+.q{display:inline-block;outline:1px dashed var(--amber);outline-offset:1px;color:var(--amber);padding:0 3px;margin-left:4px;font-weight:700;text-transform:none;letter-spacing:0;font-size:11px}
+.unset{outline:1px dashed var(--amber);outline-offset:2px}
+.where-hint{border-left:2px solid var(--border-strong);padding-left:8px;margin:6px 0 6px}
+.badge{display:inline-block;font-size:11px;padding:1px 4px;font-weight:700;color:var(--text-dim)}
+.badge.green{color:var(--green)} .badge.red{color:var(--red)} .badge.amber{color:var(--amber)} .badge.grey{color:var(--grey-dot)}
+/* result */
+.ro-value{font-size:13px;overflow-wrap:anywhere}
+.audit-group{position:relative;border:1px solid var(--border-strong);padding:14px 10px 10px;background:var(--panel2);margin:10px 0;min-width:0}
+.audit-group h4{margin:0;font-size:13px;position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px}
+.audit-group h4::before{content:"┤ ";color:var(--text-faint)} .audit-group h4::after{content:" ├";color:var(--text-faint)}
+.stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere}
+.stats b{font-weight:700}
+.fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font-size:13px;padding:4px 0;min-height:32px}
+.fold:hover{color:var(--accent)}
+.grid-wrap{overflow:auto;max-width:100%;margin:2px 0 8px;border:1px solid var(--border)}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px dotted var(--border-strong);font-size:12px}
+th{color:var(--text-dim);font-weight:700;background:var(--panel2);text-transform:uppercase;letter-spacing:.04em;font-size:11px;border-bottom:1px solid var(--border-strong)}
+td{border-right:1px dotted var(--border)} td:last-child{border-right:none}
+table.grid th.t,table.grid td.c{text-align:center;min-width:84px;white-space:nowrap}
+table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0}
+table.grid th.r,table.grid td.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;border-right:1px solid var(--border-strong)}
+button.q-fold{border:0;background:none;font-size:12px;text-align:left;padding:0;min-height:32px;width:100%;font-weight:700;color:var(--accent)}
+button.q-fold::before{content:"\25B8  ";color:var(--text-faint);white-space:pre}
+button.q-fold[aria-expanded="true"]::before{content:"\25BE  "}
+.mark{font-weight:700;font-size:14px}
+.mark.green{color:var(--green)} .mark.red{color:var(--red)} .mark.grey{color:var(--grey-dot)} .mark.q{color:var(--magenta);outline:0;padding:0;margin:0;font-size:14px;display:inline}
+.mark.dot{color:var(--text-faint)}
+.val{font-size:11px;color:var(--text-faint);margin-left:4px}
+tr.sub td{background:var(--bg);padding:6px 10px;color:var(--text-dim);font-size:12px;border-right:0;white-space:normal;overflow-wrap:anywhere}
+tr.sub td .inner{position:sticky;left:0;width:min(560px,calc(100vw - 80px));max-width:100%}
+.sub-line{margin:2px 0}
+tr.grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px}
+tr.grp button{border:0;background:none;color:var(--text);font-size:13px;font-weight:700;min-height:34px;text-align:left;width:100%}
+.skipwhy{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:640px){.lab{padding:8px 16px 40px}.vbox{padding:8px}}
+</style>
+</head>
+<body>
+<main class="lab">
+<div class="lab-top"><h1>One setup for outside sources: mock</h1><button type="button" class="theme-toggle" id="theme-toggle">theme: auto</button></div>
+<p class="brief">Unsigned mock for hamr to look at; fake data. Amber dashed boxes with <span class="q">?</span> mark a word nobody has settled. Folds and the theme button work; the dropdowns are real selects.</p>
+
+<h2 class="part">Part 1 &middot; Setup (the New job box)</h2>
+<p class="brief">Same New job box as today; the Flow type dropdown, an MCP pick for two modes, and Schedule are the only new rows. Five cards. The dropdowns are live: change a mode and the rest follows.</p>
+<div class="cards" id="cards"></div>
+
+<h2 class="part">Part 2 &middot; Run card while the schedule waits</h2>
+<div id="runcard"></div>
+<h2 class="part">Part 3 &middot; Result tab of a ticket job</h2>
+<p class="brief">One page, the same for every ticket (the one grid, buckets as fold rows). Rows are runs named by ticket number; columns are the checks; cells are &#10003; &#10007; &middot; ?. Click a run to open its detail.</p>
+
+<section class="vbox"><div><span class="vtag">Result tab</span> &middot; one grid for all tickets</div>
+<div class="why">Bucket names are group header rows inside the one grid; each folds.</div>
+<div id="vB"></div></section>
+</main>
+
+<script>
+function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var Q='<span class="q">?</span>';
+/* ---------- Part 1 ---------- */
+var MODES=["plain","MCP (generic)","Tickets","Tickets URL","Search"];
+var SCH={"plain":["By hand","Every day at HH:MM"],"MCP (generic)":["By hand","Every day at HH:MM"],"Tickets":["By hand","When a new ticket arrives","Every day at HH:MM"],"Tickets URL":["By hand","When a new ticket arrives","Every day at HH:MM"],"Search":["By hand","Every day at HH:MM"]};
+var CARDS=[
+ {mode:"MCP (generic)",server:"my-mail",inputs:"",sched:"By hand"},
+ {mode:"Tickets",server:"github",inputs:"issues: https://github.com/example-org/example-repo/issues",sched:"When a new ticket arrives"},
+ {mode:"Tickets URL",server:"",inputs:"tickets: https://tracker.example.test/issues",sched:"When a new ticket arrives"},
+ {mode:"Search",server:"",inputs:"search: https://google.com",sched:"By hand"},
+ {mode:"plain",server:"",inputs:"report: /home/user/data/report.csv",sched:"By hand"}];
+function hostOf(t){var m=/https?:\/\/([^\/\s]+)/.exec(t);return m?m[1]:"the Inputs URL"}
+function card(i,s){
+ var mo=MODES.map(function(x){return '<option'+(x===s.mode?' selected':'')+'>'+e(x)+'</option>'}).join("");
+ var hasSrv=s.mode==="MCP (generic)"||s.mode==="Tickets";
+ var isSrc=s.mode!=="plain";
+ var h='<div><div class="cap">card '+(i+1)+' &middot; '+e(s.mode)+'</div><div class="job-card compact"><h4>Job card</h4>'+
+ '<div class="radio-row"><label><input type="radio" name="m'+i+'" checked> New job</label><label><input type="radio" name="m'+i+'"> Run a signed flow</label></div>'+
+ '<div class="field"><label>Flow name</label><input type="text" placeholder="lowercase letters, digits, - or _" value="'+(s.mode==='Search'?'price-check':isSrc?'new-tickets':'weekly-report')+'"></div>'+
+ '<div class="field"><label>The job</label><textarea rows="3">'+(s.mode==='Search'?'Search for the item\n~list the three cheapest\nWrite it out':isSrc?'Read what comes in\n~say which area it is in\nWrite it out':'Read my report\n~keep it under 600 words\nWrite it out')+'</textarea></div>'+
+ '<div class="field"><label>Inputs</label><textarea rows="2" data-i="'+i+'" data-f="inputs" placeholder="report: /full/path/to/report.csv">'+e(s.inputs)+'</textarea>'+
+  '<div class="hint">'+(isSrc?'The Inputs line says what to read; it may be empty for a generic MCP job.':'One line per file: a name, a colon, its full path or a web address.')+'</div></div>'+
+ '<div class="field"><label>Flow type</label><select data-i="'+i+'" data-f="mode">'+mo+'</select></div>';
+ if(hasSrv){
+  var sv=["my-mail","github"].map(function(x){return '<option'+(x===s.server?' selected':'')+'>'+x+'</option>'}).join("");
+  h+='<div class="field"><label>MCP</label><select data-i="'+i+'" data-f="server">'+sv+'</select>'+
+   '<div class="hint"><a class="link" href="#" onclick="return false">manage in Settings &gt; MCP</a></div></div>'}
+ if(s.mode==="Tickets URL")h+='<div class="hint">read by barebrowse, locked to '+e(hostOf(s.inputs))+'</div>';
+ if(s.mode==="Search")h+='<div class="hint">read by barebrowse; site lock: settled later'+Q+'</div>';
+ var so=SCH[s.mode].map(function(x){return '<option'+(x===s.sched?' selected':'')+'>'+e(x)+'</option>'}).join("");
+ h+='<div class="field"><label>Schedule</label><select data-i="'+i+'" data-f="sched">'+so+'</select>';
+ if(s.sched!=="By hand"){
+  h+='<div class="hint">off until the first green run, then turns on</div>';
+  if(s.mode==="Tickets"||s.mode==="Tickets URL")h+='<div class="hint">the first run reads the newest ticket at the time it starts; older tickets never run</div>'}
+ h+='</div><button class="btn primary" type="button">Start drafting</button></div></div>';
+ return h}
+function renderCards(){document.getElementById("cards").innerHTML=CARDS.map(function(s,i){return card(i,s)}).join("")}
+document.addEventListener("change",function(ev){var t=ev.target,f=t.getAttribute&&t.getAttribute("data-f");if(!f)return;
+ var c=CARDS[+t.getAttribute("data-i")];c[f]=t.value;
+ if(f==="mode"){if(SCH[c.mode].indexOf(c.sched)<0)c.sched="By hand";if(c.mode==="MCP (generic)"||c.mode==="Tickets"){if(!c.server)c.server="my-mail"}else c.server=""}
+ renderCards()});
+renderCards();
+document.getElementById("runcard").innerHTML='<div class="cards"><div class="job-card"><h4>Run card</h4><div class="ro-value">new-tickets (run-1) &middot; <span class="badge red">red</span></div><div class="hint" style="color:var(--grey-dot)">Schedule waiting for a green run</div></div></div>';
+
+/* ---------- Part 2 ---------- */
+/* checks: ex=every step exists+done, oj=output judged, cost, time ; values g=✓ r=✗ n=· q=? */
+var BK=[["need","Needs you",true],["stop","Stopped",false],["pass","Passed",false],["skip","Skipped",false]];
+var R=[
+ {n:12,b:"need",ex:"g",oj:"n",cost:["g","$0.04"],time:["g","1m12"],d:["step 1 read the ticket: exists, done","step 2 write the note: exists, done","waiting at the ask since 09:12"]},
+ {n:14,b:"need",ex:"g",oj:"n",cost:["g","$0.05"],time:["g","1m40"],d:["step 1 read the ticket: exists, done","waiting at the ask since 08:05"]},
+ {n:15,b:"need",ex:"g",oj:"q",cost:["q","at least $0.03"],time:["g","0m58"],d:["step 1 read the ticket: exists, done","output judged: unchecked","cost unknown, not shown as $0"]},
+ {n:9,b:"stop",ex:"r",oj:"r",cost:["g","$0.07"],time:["g","2m05"],d:["step 2 write the note: done false","output judged: 812 words, limit 600"]},
+ {n:8,b:"stop",ex:"g",oj:"r",cost:["g","$0.06"],time:["g","1m51"],d:["step 2 write the note: missing section"]},
+ {n:13,b:"pass",ex:"g",oj:"g",cost:["g","$0.04"],time:["g","1m09"],d:["step 1 read the ticket: exists, done","step 2 write the note: exists, done","output judged: 214 words"]},
+ {n:11,b:"pass",ex:"g",oj:"g",cost:["g","$0.03"],time:["g","0m47"],d:["step 1 read the ticket: exists, done","output judged: 160 words"]},
+ {n:10,b:"pass",ex:"g",oj:"g",cost:["g","$0.02"],time:["g","0m39"],d:["step 1 read the ticket: exists, done","output judged: 98 words"]},
+ {n:7,b:"skip",ex:"n",oj:"n",cost:["g","$0"],time:["n","0m00"],why:"no P1 or P2 label"},
+ {n:6,b:"skip",ex:"n",oj:"n",cost:["g","$0"],time:["n","0m00"],why:"closed"}];
+var st={};
+function open(k,def){return st[k]===undefined?def:st[k]}
+function mk(c){var m={g:["green","✓"],r:["red","✗"],n:["dot","·"],q:["q","?"]}[c];return '<span class="mark '+m[0]+'">'+m[1]+'</span>'}
+function cell(c){return '<td class="c">'+mk(c)+'</td>'}
+function cellv(a){return '<td class="c">'+mk(a[0])+'<span class="val">'+e(a[1])+'</span></td>'}
+function head(){return '<tr><th class="r">run</th><th class="t">every step<span class="hint">exists, done</span></th><th class="t">output judged</th><th class="t">cost</th><th class="t">time</th></tr>'}
+function runRows(id,r){
+ var k=id+"|r|"+r.n,sk=r.b==="skip",o=sk||open(k,false);
+ var h='<tr><td class="r">'+(sk?'<span style="color:var(--accent);font-weight:700">#'+r.n+'</span>':'<button class="q-fold" aria-expanded="'+o+'" data-k="'+k+'" data-def="0">#'+r.n+'</button>')+'</td>'+cell(r.ex)+cell(r.oj)+cellv(r.cost)+cellv(r.time)+'</tr>';
+ if(sk)h+='<tr class="sub"><td colspan="5"><div class="inner skipwhy"><span class="badge grey">skipped</span><span>'+e(r.why)+' &middot; $0</span><button class="btn small" type="button">Run it anyway</button></div></td></tr>';
+ else if(o)h+='<tr class="sub"><td colspan="5"><div class="inner">'+r.d.map(function(x){return '<div class="sub-line">'+e(x)+'</div>'}).join("")+'</div></td></tr>';
+ return h}
+function stats(){
+ var c={};R.forEach(function(r){c[r.b]=(c[r.b]||0)+1});
+ return '<p class="stats"><b>'+c.need+'</b> needs you &middot; <b>'+c.stop+'</b> stopped &middot; <b>'+c.pass+'</b> passed &middot; <b>'+c.skip+'</b> skipped &middot; spent <b>at least $0.42</b></p>'}
+function wrap(inner){return '<div id="result-body"><div class="audit-group"><h4><span class="badge grey">tickets</span></h4>'+stats()+inner+'<div class="hint">fake data &middot; newest first inside each bucket</div></div></div>'}
+function viewB(){
+ var h='<div class="grid-wrap"><table class="grid">'+head();
+ BK.forEach(function(g){
+  var rows=R.filter(function(r){return r.b===g[0]}),k="B|"+g[0],o=open(k,g[2]);
+  h+='<tr class="grp"><td colspan="5"><button class="fold" data-k="'+k+'" data-def="'+(g[2]?1:0)+'" aria-expanded="'+o+'"><span class="inner" style="position:sticky;left:8px">'+(o?"▾":"▸")+' '+g[1]+' ('+rows.length+')</span></button></td></tr>';
+  if(o)h+=rows.map(function(r){return runRows("B",r)}).join("")});
+ return wrap(h+'</table></div>')}
+function render(){document.getElementById("vB").innerHTML=viewB()}
+document.addEventListener("click",function(ev){var b=ev.target.closest("[data-k]");if(!b)return;
+ var k=b.getAttribute("data-k");st[k]=!open(k,b.getAttribute("data-def")==="1");render()});
+render();
+var tt=document.getElementById("theme-toggle"),modes=["auto","light","dark"],mi=0;
+tt.onclick=function(){mi=(mi+1)%3;var m=modes[mi];if(m==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",m);tt.textContent="theme: "+m};
+</script>
+</body>
+</html>

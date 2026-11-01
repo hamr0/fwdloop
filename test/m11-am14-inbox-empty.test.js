@@ -19,8 +19,8 @@ function run(rows) {
   const mk = (id) => (els[id] ??= { id, hidden: false, innerHTML: '', textContent: '', appendChild() {} });
   const doc = { getElementById: mk };
   const src = `${fnSrc('buildInbox')}\nreturn buildInbox;`;
-  const buildInbox = new Function('document', 'inboxTotal', 'textDiv', 'renderStopRow', 'inboxHeadText', src)(
-    doc, rows.length, () => ({}), () => ({}), () => '');
+  const buildInbox = new Function('document', 'inboxTotal', 'textDiv', 'renderStopRow', 'inboxHeadText', 'INBOX_HEADS', src)(
+    doc, rows.length, () => ({ setAttribute() {} }), () => ({}), () => '', {});
   const el = mk('inbox-list');
   buildInbox(el, rows, 0);
   return { el, filters: mk('inbox-filters') };

@@ -82,11 +82,11 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
   const { h, home } = await world();
   await chrome.open(`http://127.0.0.1:${h.port}/`, 1280);
   await chrome.ev('document.getElementById("settings-open").click()');
-  assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 3'), 'one parent row per key');
+  assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 3'), 'one parent row per key');
   assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent.includes("3 models")'), 'B listed');
   const q = (expr) => chrome.ev(expr);
   // fold default (hamr ruling 2026-10-30): every key starts folded, A (a ticked model) too; the geometry below needs A's rows, so the test unfolds A
-  assert.deepEqual(await q('[...document.querySelectorAll(".pv-key")].map(k => [k.dataset.slot, k.dataset.open])'), [['A_KEY', '0'], ['B_KEY', '0'], ['C_KEY', '0']]);
+  assert.deepEqual(await q('[...document.querySelectorAll("#pv-rows .pv-key")].map(k => [k.dataset.slot, k.dataset.open])'), [['A_KEY', '0'], ['B_KEY', '0'], ['C_KEY', '0']]);
   await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] [data-act=fold]\').click()');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent'), '3 models · none ticked');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-sum\').textContent'), '2 models · 1 ticked');
@@ -138,7 +138,7 @@ test('browser: layout F geometry, fold default, shape / Base URL save on change,
   assert.equal(await q('document.querySelectorAll(".pv-sum").length'), 3, 'one summary per key, no duplicate');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-krow [data-f=sum]\') !== null'), true, 'the summary sits inside the key row');
   await q('document.querySelector(\'.pv-key[data-slot="B_KEY"] [data-act=fold]\').click()');
-  assert.equal(await q('(function(){var k=document.querySelector(\'.pv-key[data-slot="B_KEY"]\');return k.querySelector(".pv-krow").getBoundingClientRect().height < 60 && getComputedStyle(k.querySelector(".pv-sum")).display !== "none";})()'), true);
+  assert.equal(await q('(function(){var k=document.querySelector(\'.pv-key[data-slot="B_KEY"]\');return k.querySelector("#pv-rows .pv-krow").getBoundingClientRect().height < 60 && getComputedStyle(k.querySelector(".pv-sum")).display !== "none";})()'), true);
   await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-act=fold]\').click()');
   assert.equal(await q('document.querySelectorAll(\'.pv-key[data-slot="C_KEY"] .pv-failed\').length'), 1, 'one failed row');
   assert.equal(await q('document.querySelector(\'.pv-key[data-slot="C_KEY"] [data-f=typed]\').hidden'), true, 'the typed box is closed until its link is clicked');
@@ -184,7 +184,7 @@ test('browser: between the phone stack and 1280 nothing in a key row or a model 
   const measure = `(function(){
     var vw = document.documentElement.clientWidth, bad = [], cut = [];
     document.querySelectorAll('#spanel-providers *').forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width && (r.right > vw + 0.5 || r.left < -0.5)) bad.push(e.className || e.tagName); });
-    document.querySelectorAll('.pv-krow > .pv-cell, .pv-mrow > .pv-cell').forEach(function(c){
+    document.querySelectorAll('#pv-rows .pv-krow > .pv-cell, #pv-rows .pv-mrow > .pv-cell').forEach(function(c){
       if(c.getBoundingClientRect().width === 0) return;
       var inner = c.querySelector('select, input[type=text]');
       if(c.scrollWidth > c.clientWidth + 1 || c.getBoundingClientRect().height > 50) cut.push(c.className + ' ' + c.scrollWidth + '/' + c.clientWidth + ' h' + Math.round(c.getBoundingClientRect().height) + ' ' + c.textContent.slice(0, 30));
@@ -205,13 +205,13 @@ test('browser: between the phone stack and 1280 nothing in a key row or a model 
   for (const w of [1920, 1280, 1279, 1180, 1024, 900, 780, 721, 390, 320]) {
     await chrome.open(`http://127.0.0.1:${h.port}/`, w);
     await chrome.ev('document.getElementById("settings-open").click()');
-    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 3 && document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent.includes("3 models")'));
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 3 && document.querySelector(\'.pv-key[data-slot="B_KEY"] .pv-sum\').textContent.includes("3 models")'));
     // real-length names and addresses (the fixture's are short)
-    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ k.querySelector("code").textContent = "SYNTHETIC_API_KEY"; k.querySelector("[data-prov=baseUrl]").value = "https://api.synthetic.new/openai/v1"; })');
-    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ if(k.dataset.open === "0") k.querySelector("[data-act=fold]").click(); })');
-    assert.equal(await chrome.ev('getComputedStyle(document.querySelector(".pv-krow")).display'), w > 1279 ? 'grid' : 'block', `grid from 1280px, stacked label:value lines at ${w}`);
+    await chrome.ev('document.querySelectorAll("#pv-rows .pv-key").forEach(function(k){ k.querySelector("code").textContent = "SYNTHETIC_API_KEY"; k.querySelector("[data-prov=baseUrl]").value = "https://api.synthetic.new/openai/v1"; })');
+    await chrome.ev('document.querySelectorAll("#pv-rows .pv-key").forEach(function(k){ if(k.dataset.open === "0") k.querySelector("[data-act=fold]").click(); })');
+    assert.equal(await chrome.ev('getComputedStyle(document.querySelector("#pv-rows .pv-krow")).display'), w > 1279 ? 'grid' : 'block', `grid from 1280px, stacked label:value lines at ${w}`);
     const open = await chrome.ev(measure);
-    await chrome.ev('document.querySelectorAll(".pv-key").forEach(function(k){ k.querySelector("[data-act=fold]").click(); })');
+    await chrome.ev('document.querySelectorAll("#pv-rows .pv-key").forEach(function(k){ k.querySelector("[data-act=fold]").click(); })');
     const folded = await chrome.ev(measure);
     for (const m of [open, folded]) {
       assert.equal(m.sw, m.vw, `no sideways scroll at ${w}`);

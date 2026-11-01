@@ -54,7 +54,7 @@ import {
   writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
 } from './ask.js';
 import {
-  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findUnusedMcpTool, unusedMcpToolRed,
+  findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findMcpPlanRed,
 } from './canrun.js'; // M4e am7 item 7: the ONE decider (F46 refusal lives there)
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
@@ -77,7 +77,9 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
-import { readTicketMcp } from './ticket-mcp.js';
+import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
+import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
+import { mcpToolName } from './primitives.js';
 import { decideTicket, readTicketFields } from './ticket-labels.js';
 import {
   readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
@@ -478,6 +480,20 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
   return { ok: true, manifest, skip };
 }
 
+/**
+ * The sources a rerun re-freezes: each input's original source. M13 item 9.1: a ticket input's source is the ticket's own address; it goes back as its LIST address with the
+ * ticket mark, so the rerun reads the ticket through the job's MCP tools and the signed filter, not as a web page.
+ * @param {Array<{id: string, source: string, ticket?: {number: number}, filter?: {outcome?: string}}>} manifest
+ */
+export function rerunSourcesOf(manifest) {
+  return (manifest ?? []).map((entry) => {
+    const n = entry.ticket?.number;
+    const tail = `/${n}`;
+    if (!Number.isInteger(n) || !entry.source.endsWith(tail)) return { id: entry.id, path: entry.source };
+    return { id: entry.id, path: entry.source.slice(0, -tail.length), ticket: { number: n, ...(entry.filter?.outcome === 'anyway' ? { anyway: /** @type {const} */ (true) } : {}) } };
+  });
+}
+
 /** realpath of a path that may not exist (falls back to the lexical resolve). */
 function realOrResolved(p) {
   try { return realpathSync(p); } catch { return resolve(p); }
@@ -859,9 +875,10 @@ function makeAuditRow({
  * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
+ * @param {Record<string, any>} [opts.mcpGranted] - M13 item 5: this step's signed MCP tools, already bound to its bridge (`runStepRalph` builds them); handed to the model with the verbs
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
-export async function runStepRalph({
+async function runStepTries({
   step, primitivesMap, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd, recordAudit, initialGap = null, attemptOffset = 0,
   // M4d am25: the job's "Thinking on" box as the run's own copy keeps it; read once by the caller (`readJobThinking`), decided per try below by `stepThinkingMode`.
   thinkingBox = false,
@@ -881,6 +898,7 @@ export async function runStepRalph({
   runDir = null,
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
+  mcpGranted = {},
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -921,7 +939,7 @@ export async function runStepRalph({
       };
     }
 
-    const grantedTools = Object.fromEntries((step.primitives ?? []).map((verb) => [verb, primitivesMap?.[verb]]));
+    const grantedTools = { ...Object.fromEntries((step.primitives ?? []).map((verb) => [verb, primitivesMap?.[verb]])), ...mcpGranted };
     // M8 am7: the earlier runs' block for THIS try only - a retry, a redo or a rerun (`stepHintsWanted`; the Chat box never decides it). It is the drafter's one block
     // function asked again now. What it handed is kept in memory and rides EVERY audit row this try writes (the row is written after the call, so the record exists once the
     // try's row does); any failure hands nothing and rides the row as `hintsError`.
@@ -1149,6 +1167,52 @@ export async function runStepRalph({
   return { ok: false, outcome: 'attempt-fallback', red: `attempt-fallback: step "${step.goal}" — exhausted attempts` };
 }
 
+/** M13 item 5: the bridge's start deadline per round-trip (bare-agent applies a total ceiling over connect + list) and one tool call's own limit */
+const MCP_START_MS = 30000;
+const MCP_CALL_MS = 120000;
+
+/**
+ * One step's tries (`runStepTries`), with the step's signed MCP tools (M13 items 3 and 5): the bridge starts ONCE here, before the first try, with `allow` = exactly
+ * the step's `mcpTools` (any other tool does not exist for the run), and closes in a `finally` after the last. A server that is not configured, will not start or lacks a signed
+ * tool refuses by name at $0 before any provider call, in `readTicketMcp`'s own words (src/ticket-mcp.js). Each tool the model sees is the bridge's, bound to the run's gated entry
+ * (`resolvePrimitives`), so every call is the Gate's decision and the model step's diary row. A step with no `mcpTools` takes the plain path, untouched.
+ * @param {Parameters<typeof runStepTries>[0] & {mcpServer?: string|null}} opts - `mcpServer`: the job's signed `mcp.server`
+ * @returns {ReturnType<typeof runStepTries>}
+ */
+export async function runStepRalph({ mcpServer = null, ...opts }) {
+  const signed = opts.step?.mcpTools ?? [];
+  if (signed.length === 0 || !mcpServer) return runStepTries(opts);
+  const refuse = (/** @type {string} */ red) => ({ ok: /** @type {const} */ (false), outcome: 'preflight-red', red });
+  const { file: config, remote } = configForServer(mcpServer);
+  if (!discoverServers([config]).has(mcpServer)) return refuse(`${mcpServer} is not in ~/.mcp.json`);
+  if (remote) return refuse(remoteRefusal(mcpServer));
+  /** @type {any} */
+  let bridge;
+  try {
+    bridge = await createMCPBridge({ configPaths: [config], ...mcpStartOpts(), timeout: MCP_START_MS, callTimeout: MCP_CALL_MS, confirmServer: () => true, allow: { [mcpServer]: signed } });
+  } catch (/** @type {any} */ e) {
+    return refuse(startRefusal(mcpServer, e));
+  }
+  try {
+    const failed = bridge.errors.find((/** @type {any} */ e) => e.server === mcpServer);
+    if (failed) return refuse(`${mcpServer} did not start: ${firstLine(failed.error)}`);
+    const lacking = bridge.missing?.[0];
+    if (lacking) return refuse(`${mcpServer} does not offer ${lacking.tool}`);
+    const mcpGranted = {};
+    for (const tool of signed) {
+      const name = mcpToolName(mcpServer, tool);
+      const real = bridge.tools.find((/** @type {any} */ t) => t.name === name);
+      const gated = opts.primitivesMap?.[name];
+      if (!real) return refuse(`${mcpServer} does not offer ${tool}`);
+      if (!gated?.gatedCall) return refuse(`${name} has no gate in this run's tools (the run's primitives were not built with the job's mcp)`);
+      mcpGranted[name] = { name, description: real.description, parameters: real.parameters, gateSeen: gated.gateSeen, execute: (/** @type {any} */ args) => gated.gatedCall(args, real.execute) };
+    }
+    return await runStepTries({ ...opts, mcpGranted });
+  } finally {
+    try { await bridge.close(); } catch { /* already closed */ }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // runFlow — the entry point.
 // ---------------------------------------------------------------------------
@@ -1255,11 +1319,11 @@ export async function runFlow({
     });
   }
 
-  // M12 piece 1a (F105): a job tool no step grants is refused at $0, by name
-  const unusedTool = findUnusedMcpTool(declaration);
-  if (unusedTool) {
+  // M12 piece 1a (F105), M13 piece 4: a step tool the job does not list, or a generic MCP job whose steps call none, is refused at $0, by name
+  const mcpRed = findMcpPlanRed(declaration);
+  if (mcpRed) {
     return haltRun({
-      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: unusedMcpToolRed(unusedTool), spent: { value: 0 },
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: mcpRed, spent: { value: 0 },
     });
   }
 
@@ -1372,6 +1436,7 @@ export async function runFlow({
   const acceptedAskEmitsThisRun = new Map();
 
   const result = await foldFromStep({
+    mcpServer: declaration.mcp?.server ?? null,
     i0: 0,
     steps,
     askLines,
@@ -1502,6 +1567,8 @@ async function runAskSlot({
   // state.json on every park/re-park so a later resume can restore it
   // instead of substituting its own process's start.
   runStartedAt,
+  // M13 item 5: the job's signed `mcp.server`; a redo of the step before the ask runs it again with its signed MCP tools
+  mcpServer = /** @type {string|null} */ (null),
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -1678,7 +1745,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1736,6 +1803,8 @@ async function foldFromStep({
   resumeTries = { numbered: 0, done: 0 },
   // Amendment 13: the redo count a stop-at-ask carried in its halt record, restored for the ask step it re-enters (`i0`).
   resumeRedone = 0,
+  // M13 item 5: the job's signed `mcp.server`, for a step that grants MCP tools (`runStepRalph` starts its bridge)
+  mcpServer = /** @type {string|null} */ (null),
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1861,6 +1930,7 @@ async function foldFromStep({
 
       // eslint-disable-next-line no-await-in-loop
       const askResult = await runAskSlot({
+        mcpServer,
         step,
         stepIndex: i,
         askSlot,
@@ -1933,7 +2003,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
@@ -2152,8 +2222,8 @@ export async function resumeRun({
         red: unwiredRed(unwiredVerb),
       };
     }
-    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
-    if (unusedTool) return { outcome: 'refused', red: unusedMcpToolRed(unusedTool) };
+    const mcpRed = findMcpPlanRed(preflightRead.declaration);
+    if (mcpRed) return { outcome: 'refused', red: mcpRed };
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return { outcome: 'refused', red: unbuildableRed(unbuildable), detail: unbuildable.why };
   }
@@ -2448,7 +2518,7 @@ export async function resumeRun({
       // `inputsManifest[].source` since `freezeInputs` first wrote it (M3
       // scope item 7's own note: "persist those in state.json at park if
       // they aren't already" — they already are, via this field).
-      const rerunSources = (state.inputsManifest ?? []).map((entry) => ({ id: entry.id, path: entry.source }));
+      const rerunSources = rerunSourcesOf(state.inputsManifest);
 
       if (typeof onRerunStart === 'function') onRerunStart(newRunDir);
       const newRun = await runFlow({
@@ -2534,6 +2604,7 @@ export async function resumeRun({
     const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason, artifactSha256: answer.artifactSha256 });
 
     const askResult = await runAskSlot({
+      mcpServer: declaration.mcp?.server ?? null,
       step,
       stepIndex: state.stepIndex,
       askSlot,
@@ -2588,6 +2659,7 @@ export async function resumeRun({
     acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
 
     const result = await foldFromStep({
+      mcpServer: declaration.mcp?.server ?? null,
       i0: state.stepIndex + 1,
       steps,
       askLines,
@@ -2685,8 +2757,8 @@ export async function continueRun({
   if (preflightRead.ok) {
     const unwiredVerb = findUnwiredVerbStep(preflightRead.declaration);
     if (unwiredVerb) return refused(unwiredRed(unwiredVerb));
-    const unusedTool = findUnusedMcpTool(preflightRead.declaration);
-    if (unusedTool) return refused(unusedMcpToolRed(unusedTool));
+    const mcpRed = findMcpPlanRed(preflightRead.declaration);
+    if (mcpRed) return refused(mcpRed);
     const unbuildable = findUnbuildableCheckStep(preflightRead.declaration);
     if (unbuildable) return refused(unbuildableRed(unbuildable), unbuildable.why);
   }
@@ -2795,6 +2867,7 @@ export async function continueRun({
     }
 
     const result = await foldFromStep({
+      mcpServer: declaration.mcp?.server ?? null,
       i0: halt.stepIndex,
       resumeTries,
       steps,

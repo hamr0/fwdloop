@@ -1,0 +1,6 @@
+(a) T0 2026-10-31T06:48:02.315Z pages 1 found [10,9,8,7,6,5,4,3,2,1] N 10 ms 1812
+(b) ok true textLen 631 url https://github.com/hamr0/hol-guard/issues/10 state open labels ["P1"] ms 2407
+(b) record {"server":"github","exposed":["github_issue_read"],"calls":[{"tool":"issue_read","owner":"hamr0","repo":"hol-guard","issue_number":10}]}
+(c) run.json input entry shape: {"path":"https://github.com/hamr0/hol-guard/issues","ticket":{"number":10,"title":"fwdloop test: P1 walk 5"}} ; baseline cut = inputs[].ticket.number = 10 ; new file: none
+(d) wall ms (a)+(b): 4219
+(d) children of this process after close: 104057 ps

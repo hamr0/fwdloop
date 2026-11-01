@@ -1,0 +1,74 @@
+{
+ "runN": 2,
+ "wallMs": 11741,
+ "ok": true,
+ "red": null,
+ "closeOk": false,
+ "artifactChars": 1419,
+ "done": false,
+ "blocker": "litectx_remember refused both attempts with: \"\" is outside the sandbox — refused (bareguard rule: tools.allowlist.exclusive), so no memory line about f111b could be saved.",
+ "textHead": "RECALL on \"f111b\" — 8 hits (5 code, 3 doc); no fact/episode hits.\n\nCode (poc/mcp/f111b/, all 1 commit, lastCommit 1793429240):\n- poc/mcp/f111b/marker.mjs (score 1.0, keyword)\n- poc/mcp/f111b/diag.mjs ",
+ "model": "accounts/fireworks/models/deepseek-v4p1-flash",
+ "modelMatch": "match",
+ "rounds": 6,
+ "costUsd": 0.01099395,
+ "meteredFromDiary": 0.01099395,
+ "priorSpend": 0.010091,
+ "totalSoFar": 0.021084949999999998,
+ "toolsTally": {
+  "litectx_recall": 3,
+  "litectx_remember": 2
+ },
+ "refused": [
+  {
+   "verb": "litectx_remember",
+   "path": "",
+   "rule": "tools.allowlist.exclusive"
+  },
+  {
+   "verb": "litectx_remember",
+   "path": "",
+   "rule": "tools.allowlist.exclusive"
+  }
+ ],
+ "toolRows": [
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 1
+  },
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 2
+  },
+  {
+   "tool": "litectx_recall",
+   "decision": "allow",
+   "rule": null,
+   "round": 2
+  },
+  {
+   "tool": "litectx_remember",
+   "decision": "deny",
+   "rule": "tools.allowlist.exclusive",
+   "round": 3
+  },
+  {
+   "tool": "litectx_remember",
+   "decision": "deny",
+   "rule": "tools.allowlist.exclusive",
+   "round": 4
+  }
+ ],
+ "directRemember": "denied rule=tools.allowlist.exclusive",
+ "rememberReached": 0,
+ "fsUnderAllowlist": "deny",
+ "bridgeChildren": [
+  109020,
+  109031
+ ],
+ "aliveAfterClose": []
+}

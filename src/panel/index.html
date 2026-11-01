@@ -31,6 +31,11 @@
     --grey-dot:#878eac; --grey-bg:#20242f;
     --cyan:#7dcfff; --cyan-bg:#182634;
     --magenta:#bb9af7;
+    --cap-w:#b7791f; --cap-w-bg:#3a2e17; --cap-w-ink:#f0c987;
+    --cap-s:#3d59a1; --cap-s-bg:#1f2a4d; --cap-s-ink:#a9c1f5;
+    --cap-j:#6b7396; --cap-j-bg:#2a2f45; --cap-j-ink:#c0caf5;
+    --cap-r:#2b8a7e; --cap-r-bg:#17332f; --cap-r-ink:#8fdccf;
+    --req:#c9a85f;
     --accent:#7aa2f7;
     --btn-bg:#1f2335; --btn-text:#c0caf5;
     --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
@@ -73,6 +78,10 @@
       --grey-dot:#626887; --grey-bg:#e2e2e8;
       --cyan:#007197; --cyan-bg:#d6ecf1;
       --magenta:#9854f1;
+      --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
+      --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
+      --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
+      --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a; --req:#8a6d2a;
       --accent:#2668c2;
       --btn-bg:#e9e9ed; --btn-text:#3760bf;
       --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -88,6 +97,10 @@
     --grey-dot:#626887; --grey-bg:#e2e2e8;
     --cyan:#007197; --cyan-bg:#d6ecf1;
     --magenta:#9854f1;
+    --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
+    --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
+    --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
+    --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a; --req:#8a6d2a;
     --accent:#2668c2;
     --btn-bg:#e9e9ed; --btn-text:#3760bf;
     --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -136,13 +149,11 @@
   .left-pane{width:630px;flex:none;border-right:1px solid var(--border-strong);display:flex;flex-direction:column;background:var(--panel);}
   .right-pane{flex:1;min-width:0;display:flex;flex-direction:column;}
 
-  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:tabnum;}
+  .tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);}
   .tabrow button{
     flex:1;padding:10px 6px;min-height:44px;background:transparent;border:none;
     border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);
-    counter-increment:tabnum;
   }
-  .tabrow button::before{content:"[" counter(tabnum) "] ";color:var(--text-faint);font-weight:700;}
   .tabrow button:last-child{border-right:none;}
 
   .pane-body{padding:12px;overflow:auto;flex:1;min-height:0;}
@@ -189,6 +200,17 @@
      treatment; section 3 (answered/expired) is dimmed. Tokens only. */
   .rl-sect,.inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
   .rl-sect:first-child,.inbox-h:first-child{margin-top:0;}
+  /* Runs captions (hamr 2026-11-01, variant A, no caps): a full-width bar per section, colour tokens above. */
+  .rl-cap{display:flex;align-items:center;gap:8px;font-size:15px;margin:18px 0 8px;padding:7px 12px;border-left:5px solid var(--cap-c);background:var(--cap-bg);color:var(--cap-ink);}
+  .rl-cap.rl-cap-w{--cap-c:var(--cap-w);--cap-bg:var(--cap-w-bg);--cap-ink:var(--cap-w-ink);}
+  .rl-cap.rl-cap-s{--cap-c:var(--cap-s);--cap-bg:var(--cap-s-bg);--cap-ink:var(--cap-s-ink);}
+  .rl-cap.rl-cap-j{--cap-c:var(--cap-j);--cap-bg:var(--cap-j-bg);--cap-ink:var(--cap-j-ink);}
+  .rl-cap.rl-cap-r{--cap-c:var(--cap-r);--cap-bg:var(--cap-r-bg);--cap-ink:var(--cap-r-ink);}
+  .rl-cap .rl-n{font-size:12px;line-height:1.4;padding:1px 8px;border-radius:10px;background:var(--cap-c);color:#fff;}
+  .rl-cap .rl-p{font-size:0;}
+  .rl-cap .rl-note{font-size:11px;font-weight:400;}
+  .rl-jobcard{position:relative;margin:14px 0 0;padding:10px;}
+  .rl-jobcard::before{content:"";position:absolute;left:-1px;right:-1px;top:-9px;height:2px;background:var(--border-strong);}
   .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
   .inbox-row.s3{opacity:.6;}
   .inbox-row .wf-line1{min-width:0;}
@@ -304,11 +326,9 @@
      are already both on screen there, nothing to jump back to). */
   .back-to-list-link{display:none;font-size:12px;color:var(--accent);text-decoration:underline;background:none;border:none;padding:0;cursor:pointer;}
   @media (max-width: 899px){ .back-to-list-link{display:inline-block;} }
-  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);counter-reset:rtabnum;}
-  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);counter-increment:rtabnum;}
-  .rp-tabrow button::before{content:"[" counter(rtabnum) "] ";color:var(--text-faint);font-weight:700;}
+  .rp-tabrow{display:flex;border-bottom:1px solid var(--border-strong);background:var(--panel2);}
+  .rp-tabrow button{padding:10px 14px;min-height:44px;background:transparent;border:none;border-right:1px dotted var(--border-strong);font-size:13px;color:var(--text-dim);}
   .tabrow button[aria-selected="true"],.rp-tabrow button[aria-selected="true"]{background:var(--panel);color:var(--accent);font-weight:700;box-shadow:inset 0 -2px 0 var(--accent);}
-  .tabrow button[aria-selected="true"]::before,.rp-tabrow button[aria-selected="true"]::before{color:var(--accent);}
 
   .counters{display:block;padding:9px 12px;border:none;border-bottom:2px solid var(--border-strong);background:var(--panel2);color:var(--text-dim);margin:-12px -12px 14px;font-size:12px;font-weight:700;white-space:normal;overflow-wrap:break-word;}
   .counters b,.counters span{color:var(--accent);}
@@ -318,6 +338,7 @@
   .ended-block.magenta{border-color:var(--magenta);}
   .ended-block.red{border-color:var(--red);}
   .ended-text.is-red,.ended-label.is-red{color:var(--red);}
+  .ended-text.is-grey{color:var(--grey-dot);}
   .ended-block.green{border-color:var(--green);}
   .ended-block.grey,.ended-block.stopped,.ended-block.skipped{border-color:var(--grey-dot);}
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
@@ -495,6 +516,7 @@
   table.grid th.q,table.grid td.q{min-width:170px;max-width:340px;white-space:normal;overflow-wrap:anywhere;font-size:12px;}
   table.grid th.t,table.grid td.c{text-align:center;width:64px;min-width:56px;white-space:nowrap;}
   table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0;}
+  table.grid td.c .tg-none{margin:0;}
   table.grid td.c{padding:2px;}
   .cell{border:1px solid transparent;background:none;min-width:44px;min-height:32px;color:var(--text-faint);font-size:14px;font-weight:700;}
   .cell.fail{color:var(--red);border-color:var(--border-strong);background:var(--red-bg);}
@@ -572,20 +594,29 @@
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
   /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
   /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
-  .tk-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
-  .tk-fold:hover{color:var(--accent);}
-  .tk-fold:focus-visible,.tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0;}
-  .tk:last-child{border-bottom:0;}
-  .tk-1{display:flex;gap:6px;align-items:baseline;min-width:0;}
-  .tk-n{color:var(--accent);font-weight:700;flex:none;}
-  .tk-t{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere;}
-  .tk-when{color:var(--text-faint);font-size:12px;flex:none;}
-  .tk-2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;}
-  .tk-state.green{color:var(--green);} .tk-state.red{color:var(--red);} .tk-state.amber{color:var(--amber);} .tk-state.grey{color:var(--text-faint);}
+  /* M13 piece 6: the job's Result grid (mock docs/product/m13-setup-mock.html Part 3). The table, cells, q-fold and step-sub are the Audit grid's own; these are the bucket fold rows, the stats line and the run column. */
+  #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
+  table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
+  table.grid.tg td.c{min-width:84px;}
+  .tg-rowname{display:flex;align-items:center;max-width:min(240px,60vw);}
+  table.grid.tg button.tg-name{flex:0 1 auto;min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:none;padding:0;min-height:32px;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;}
+  table.grid.tg button.tg-name:hover{text-decoration:underline;}
+  table.grid.tg button.tg-name:focus-visible,table.grid.tg button.tg-arrow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  table.grid.tg button.tg-arrow{flex:0 0 auto;width:auto;color:var(--accent);font-weight:700;}
+  .tg-unsure{flex:0 0 auto;margin-left:6px;}
+  .tg-val{font-size:11px;color:var(--text-faint);margin-left:4px;}
+  tr.tg-grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px;}
+  .tg-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;min-height:34px;cursor:pointer;}
+  .tg-fold:hover{color:var(--accent);}
+  .tg-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tg-foldin{position:sticky;left:8px;}
+  .tg-skipwhy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  table.grid.tg tr.step-sub td{white-space:normal;overflow-wrap:anywhere;}
+  table.grid.tg tr.step-sub td>*{position:sticky;left:8px;width:min(560px,calc(100vw - 80px));max-width:100%;box-sizing:border-box;}
+  .tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
-  .tk-chg{font-size:12px;color:var(--amber);}
   .tk-anyway{margin-top:6px;}
+  .tk-anyway button{display:block;width:100%;box-sizing:border-box;}
   .tk-anyway textarea{width:100%;min-height:52px;margin:4px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;font-size:16px;padding:6px;box-sizing:border-box;}
   .tk-msg{font-size:12px;overflow-wrap:anywhere;}
   #result-door-card{border-color:var(--amber);}
@@ -648,6 +679,9 @@
   @media (max-width:400px){.job-card .radio-row{padding-right:76px;}}
   .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
   .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
+  /* hamr 2026-11-01 (variant A): the Chat card's field captions are normal case, 14px bold, ink, with the Runs captions' blue left mark; `required` is small and grey */
+  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label,#chat-job-card .jf-waitrow > label{font-size:14px;font-weight:700;color:var(--cap-s-ink);text-transform:none;letter-spacing:0;margin:6px 0 6px;padding-left:8px;border-left:4px solid var(--cap-s);}
+  #chat-job-card .req{font-size:11px;font-weight:400;color:var(--req);margin-left:8px;}
   .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
   .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
   .btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:0.6;}
@@ -728,7 +762,7 @@
   #details-schedule{overflow-wrap:anywhere;}   /* M10: a page input's full address in the Schedule field wraps, never spills */
   .jf-inrow .jf-path{text-overflow:ellipsis;}   /* M10: a web page's address is cut with an ellipsis (the whole is the title) */
   .jf-inrow .jf-err{grid-column:1 / -1;}
-  .jf-ticket{width:11ch;min-width:0;}   /* M12 p3: the ticket # box */
+  .link{color:var(--text-faint);text-decoration:underline;font-size:11px;cursor:pointer;}   /* M13 p4: from the setup mock */
   /* M4e amendment 4/5: what a Run or a Resume cannot change shows dimmed (the signature fixes it); only the open boxes are bright */
   .field.dimmed{opacity:.6;}
   /* borrowed-from: bareloop src/panel/index.html@b5e37b8 — the Reuse workflow picker (search box + list, then the picked box) */
@@ -954,6 +988,47 @@
     .pv-knote,.pv-more{padding-left:8px;}
     .pv-m-msg{padding-left:8px;}
   }
+  /* M13 piece 3: Settings > MCP, from docs/product/m13-settings-mcp-mock.html; reuses .pv-key/.pv-krow/.pv-mrow with other columns */
+  .mc-sect{font-size:12px;color:var(--text-dim);font-weight:700;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.06em;}
+  .mc-sect:first-child{margin-top:0;}
+  .mc-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:6px 10px;border-top:1px solid var(--border-strong);min-height:40px;overflow-wrap:anywhere;}
+  .mc-row:first-child{border-top:none;}
+  .mc-row.faint{color:var(--text-faint);}
+  .mc-row .mc-grow{flex:1 1 220px;min-width:0;}
+  .mc-row .btn{margin-left:auto;}
+  .mc-add{padding:6px 10px;}
+  .pv-head.mc-k,.pv-krow.mc-k{--pv-cols:minmax(0,1.6fr) minmax(0,1.5fr) minmax(0,.8fr) 150px;}
+  .mc-grp{border-top:1px solid var(--border-strong);}
+  .mc-grp:first-of-type{border-top:none;}
+  .mc-prow{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:4px 8px;min-height:40px;background:var(--panel2);overflow-wrap:anywhere;}
+  .mc-prow .mc-grow{flex:1 1 100px;min-width:0;}
+  .mc-prow .btn{margin-left:auto;}
+  .mc-prow.faint{color:var(--text-faint);}
+  .mc-grp[data-open="0"] .mc-kids{display:none;}
+  .mc-grp .pv-key:first-child{border-top:1px solid var(--border-strong);}
+  .mc-k .pv-name{padding-left:26px;}
+  .mc-grp .pv-more{padding-left:60px;}
+  .mc-grp .mc-use{padding-left:60px;}
+  .mc-use{padding:0 8px 6px 34px;margin:0;}
+  .mc-use .bad{color:var(--red);}
+  /* M13 piece 3: the tool rows use the SAME columns as the MCP row above them (the mock gave them their own, so HINT and USED sat under no header) */
+  .pv-mrow.mc-t,.pv-mhead.mc-t{--pv-cols:minmax(0,1.6fr) minmax(0,1.5fr) minmax(0,.8fr) 150px;}
+  .pv-mrow.mc-t{display:grid;padding:0 8px;}
+  .mc-t .pv-m-name{padding-left:52px;}
+  .mc-t .n{text-align:left;font-variant-numeric:tabular-nums;}
+  .pv-key.faint{color:var(--text-faint);}
+  @media (max-width:1279px){
+    .pv-mhead.mc-t{display:grid;}
+    .pv-mrow.mc-t{display:grid;padding:0 8px;}
+    .mc-use{padding-left:8px;}
+    .mc-kids{margin-left:14px;border-left:2px solid var(--border-strong);}
+    .mc-k .pv-name{padding-left:0;}
+    .mc-grp .pv-more,.mc-grp .mc-use{padding-left:8px;}
+    .pv-mrow.mc-t,.pv-mhead.mc-t{--pv-cols:minmax(0,2fr) minmax(0,1fr) minmax(0,.6fr);}
+    .mc-t .n{text-align:right;}
+    .mc-t .pv-m-name{padding-left:0;}
+    .pv-refcell:empty{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -987,6 +1062,7 @@
     </div>
     <div class="tabrow" role="tablist" aria-label="Settings views">
       <button role="tab" id="stab-providers" aria-controls="spanel-providers" aria-selected="true" data-testid="settings-tab-providers">Providers</button>
+      <button role="tab" id="stab-mcp" aria-controls="spanel-mcp" aria-selected="false" data-testid="settings-tab-mcp">MCP</button>
       <button role="tab" id="stab-money" aria-controls="spanel-money" aria-selected="false" data-testid="settings-tab-money">Money &amp; limits</button>
     </div>
     <div class="pane-body">
@@ -1009,6 +1085,20 @@
           </div>
         </div>
         <div class="hint" id="pv-note" data-testid="pv-note" style="margin-top:6px;">⟳ refresh models (free) · old max_tokens: tick if the server wants the old field name</div>
+      </section>
+      <section id="spanel-mcp" class="tabpanel" role="tabpanel" aria-labelledby="stab-mcp" hidden>
+        <div class="mc-sect">Path and MCP</div>
+        <div class="table-wrap" data-testid="mcp-table-wrap">
+          <div id="mcp-paths" data-testid="mcp-paths"></div>
+          <div class="pv-more" style="padding-left:10px;border-top:1px solid var(--border-strong)">
+            <button class="btn small" type="button" id="mcp-add-open" data-testid="mcp-add-open">+ add a path</button>
+            <div class="pv-typed" id="mcp-add-box" hidden></div>
+          </div>
+        </div>
+        <div class="hint" id="mcp-problem" data-testid="mcp-problem"></div>
+        <div class="hint" style="margin-top:6px;">Read only. fwdloop never edits these files and never shows keys. A project folder's .mcp.json is never read.</div>
+        <div class="hint">check tools starts the server once, only when pressed.</div>
+        <div class="hint">&mdash; = no hint; shown, not blocked. Hints are info only.</div>
       </section>
       <section id="spanel-money" class="tabpanel" role="tabpanel" aria-labelledby="stab-money" hidden>
         <div class="money-strip" data-testid="money-strip">
@@ -1075,12 +1165,12 @@
                 <div class="jf-err" id="jf-err-model" data-testid="jf-err-model"></div>
               </div>
               <div class="field">
-                <label for="jf-name">Flow name</label>
+                <label for="jf-name">Flow name <span class="req" data-testid="jf-req-name">required</span></label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
                 <div class="jf-err" id="jf-err-flowName" data-testid="jf-err-flowName"></div>
               </div>
               <div class="field">
-                <label for="jf-job">The job</label>
+                <label for="jf-job">The job <span class="req" data-testid="jf-req-job">required</span></label>
                 <div class="jf-gutbox">
                   <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
@@ -1089,13 +1179,42 @@
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
               </div>
               <div class="field">
-                <label for="jf-inputs">Inputs</label>
+                <label for="jf-inputs">Inputs <span class="req" id="jf-req-inputs" data-testid="jf-req-inputs">required</span></label>
                 <div class="jf-gutbox">
                   <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
                 </div>
-                <div class="hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
+                <div class="hint" id="jf-inputs-hint" data-testid="jf-inputs-hint">One line per file: a name, a colon, its full path starting with /, or a web address (http:// or https://). The page never reads the file.</div>
                 <div class="jf-err" id="jf-err-inputs" data-testid="jf-err-inputs"></div>
+              </div>
+              <div class="field" id="jf-flowtype-field" data-testid="jf-flowtype-field">
+                <label for="jf-flowtype">Flow type</label>
+                <select id="jf-flowtype" data-testid="jf-flowtype" aria-label="Flow type">
+                  <option value="plain">plain</option>
+                  <option value="mcp">MCP</option>
+                  <option value="tickets">Tickets MCP</option>
+                </select>
+                <div class="jf-err" id="jf-err-flowType" data-testid="jf-err-flowType"></div>
+              </div>
+              <div class="field" id="jf-mcp-field" data-testid="jf-mcp-field" hidden>
+                <label for="jf-mcp">MCP</label>
+                <select id="jf-mcp" data-testid="jf-mcp" aria-label="MCP"></select>
+                <div class="hint"><a class="link" id="jf-mcp-manage" data-testid="jf-mcp-manage" href="#">manage in Settings &gt; MCP</a></div>
+                <div class="jf-err" id="jf-err-mcp" data-testid="jf-err-mcp"></div>
+              </div>
+              <div class="field" id="jf-sched-field" data-testid="jf-sched-field">
+                <label for="jf-sched">Schedule</label>
+                <select id="jf-sched" data-testid="jf-sched" aria-label="Schedule">
+                  <option value="hand">By hand</option>
+                  <option value="new-ticket">When a new ticket arrives</option>
+                  <option value="daily">Every day at HH:MM</option>
+                </select>
+                <div class="when-sub" id="jf-sched-clock" hidden>
+                  <input id="jf-sched-time" type="time" value="09:00" data-testid="jf-sched-time" aria-label="Time, HH:MM">
+                </div>
+                <div class="hint" id="jf-sched-hint" data-testid="jf-sched-hint" hidden>off until the first green run, then turns on</div>
+                <div class="hint" id="jf-sched-ticket-hint" data-testid="jf-sched-ticket-hint" hidden>the first run reads the newest ticket at the time it starts; older tickets never run</div>
+                <div class="jf-err" id="jf-err-schedule" data-testid="jf-err-schedule"></div>
               </div>
               <div class="field">
                 <label for="jf-dest-folder">Destination</label>
@@ -1105,7 +1224,7 @@
               </div>
               <div class="cap-row" data-testid="cap-row">
                 <div class="cap-field">
-                  <label for="jf-cap-money">Cap $</label>
+                  <label for="jf-cap-money">Cap $ <span class="req" data-testid="jf-req-cap">required</span></label>
                   <input id="jf-cap-money" type="text" inputmode="decimal" placeholder="per run" data-testid="jf-cap-money">
                   <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
                   <div class="hint" id="jf-cap-job-note" data-testid="jf-cap-job-note"></div>
@@ -1145,6 +1264,19 @@
                 <div class="jf-err" id="jf-err-run-job" data-testid="jf-err-run-job"></div>
                 <div class="hint" id="jf-run-job-hint" data-testid="jf-run-job-hint">Change anything here. A changed job line, guardrail, ask or step drafts a new workflow; a changed destination, cap, wait or model signs a new run; new files just run.</div>
               </div>
+              <div class="field" id="jf-run-flowtype-field" data-testid="jf-run-flowtype-field">
+                <label for="jf-run-flowtype">Flow type</label>
+                <select id="jf-run-flowtype" data-testid="jf-run-flowtype" aria-label="Flow type">
+                  <option value="plain">plain</option>
+                  <option value="mcp">MCP</option>
+                  <option value="tickets">Tickets MCP</option>
+                </select>
+              </div>
+              <div class="field" id="jf-run-mcp-field" data-testid="jf-run-mcp-field" hidden>
+                <label for="jf-run-mcp">MCP</label>
+                <select id="jf-run-mcp" data-testid="jf-run-mcp" aria-label="MCP"></select>
+                <div class="hint"><a class="link" id="jf-run-mcp-manage" data-testid="jf-run-mcp-manage" href="#">manage in Settings &gt; MCP</a></div>
+              </div>
               <div class="field" id="jf-run-newname-field" data-testid="jf-run-newname-field" hidden>
                 <label for="jf-run-newname">Name of the new workflow</label>
                 <input id="jf-run-newname" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-newname">
@@ -1158,7 +1290,7 @@
                 <div class="jf-err" id="jf-err-run-destination" data-testid="jf-err-run-destination"></div>
               </div>
               <div class="field">
-                <label>Inputs</label>
+                <label>Inputs <span class="req" id="jf-run-req-inputs" data-testid="jf-run-req-inputs" hidden>required</span></label>
                 <div id="jf-run-inputs" data-testid="jf-run-inputs"></div>
                 <div class="jf-err" id="jf-err-run-inputs" data-testid="jf-err-run-inputs"></div>
               </div>
@@ -1189,7 +1321,7 @@
               </div>
               <div class="cap-row">
                 <div class="cap-field">
-                  <label for="jf-run-cap">Cap $</label>
+                  <label for="jf-run-cap">Cap $ <span class="req" data-testid="jf-run-req-cap">required</span></label>
                   <input id="jf-run-cap" type="text" inputmode="decimal" autocomplete="off" data-testid="jf-run-cap">
                   <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
                   <div class="jf-err" id="jf-err-run-capUsd" data-testid="jf-err-run-capUsd"></div>
@@ -1260,8 +1392,6 @@
                action handlers, never cleared by the poll (the poll owns #chat-card-error instead) -->
           <div class="hint" id="chat-action-error" data-testid="chat-action-error"></div>
 
-          <!-- M12 piece 3: a green ticket job takes its ticket number here, beside Sign & run (the Run card's ticket # box, same class) -->
-          <input type="text" class="jf-ticket" id="chat-sign-ticket" data-testid="jf-sign-ticket" inputmode="numeric" placeholder="ticket #" aria-label="Ticket number to run" autocomplete="off" spellcheck="false" hidden>
           <button class="btn primary wide" type="button" id="chat-main-btn" data-testid="chat-main" disabled>Draft</button>
           <div class="hint" id="chat-main-hint" data-testid="chat-main-hint"></div>
           <!-- M4e amendment 14 item 2: on a green plan, Revise opens every card field (the main button then reads Draft) -->
@@ -1411,6 +1541,7 @@
             <div id="job-grid" data-testid="job-grid">
               <div id="details-prose"></div>
               <div id="details-plan-tail"></div>
+              <div class="field" id="details-mcp-field" data-testid="details-mcp-field" hidden><div id="details-mcp"></div></div>
               <div class="field"><label>Ask</label><div id="details-asks"></div></div>
               <div class="field"><label>Destination</label><div id="details-sends"></div></div>
               <div class="field"><label>$ cap</label><div class="ro-value" id="details-cap">—</div></div>
@@ -2081,7 +2212,8 @@
       noRows: data.rows.length === 0,
     };
   }
-  function rlSectHtml(label, n, note){
+  function rlSectHtml(label, n, note, cap){
+    if(cap) return '<div class="rl-sect rl-cap rl-cap-' + cap + '" data-testid="rl-cap-' + cap + '">' + label + ' <span class="rl-p">(</span><span class="rl-n">' + n + '</span><span class="rl-p">)</span>' + (note ? ' <span class="rl-note">' + note + '</span>' : '') + '</div>';
     return '<div class="rl-sect">' + label + ' (' + n + ')' + (note ? ' ' + note : '') + '</div>';
   }
   // line 1 and 2 of a Running now / Needs you card; both jump to the run (rlJump). The tag is a label (a span), never a button.
@@ -2107,8 +2239,8 @@
   // M11 am20: Running now and Needs you only (never filtered); they sit above the search box. Scheduled is drawn by rlSchedHtml, below it.
   function rlTopHtml(m, filters){
     var h = "";
-    if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
-    if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
+    if(m.running.length) h += rlSectHtml("Running now", m.running.length, "", "r") + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
+    if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length, "", "w") + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
     return h;
   }
   // the Scheduled cards the search leaves (the ONE place that narrows them); the count line and rlSchedHtml both read it
@@ -2120,7 +2252,7 @@
   }
   function rlSchedHtml(m, filters){
     var shown = rlSchedShown(m.scheduled, filters && filters.search ? filters.search : "");
-    if(shown.length) return rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
+    if(shown.length) return rlSectHtml("Scheduled", shown.length, "", "s") + shown.map(rlScheduledCardHtml).join("");
     if(filters && filters.scheduled === true) return '<div class="rl-hint">no scheduled job matches</div>';
     return "";
   }
@@ -2135,7 +2267,7 @@
   // a job card: `[sign] job  k runs` / `word · why` of its newest run, highlighted when the selected run is one of its runs; not clickable. Inside: the newest run's card, then the older-runs fold.
   function rlJobCardHtml(c){
     var h = c.head;
-    var top = '<div class="rl-card' + (c.selected ? ' rl-sel' : '') + '" id="rl-job-' + escapeXml(c.flow) + '" data-testid="rl-job-' + escapeXml(c.flow) + '">';
+    var top = '<div class="rl-card rl-jobcard' + (c.selected ? ' rl-sel' : '') + '" id="rl-job-' + escapeXml(c.flow) + '" data-testid="rl-job-' + escapeXml(c.flow) + '">';
     if(c.empty){
       return top + '<span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span></span><span class="rl-l2">' + escapeXml(h.why || "no runs yet") + '</span></div>';
     }
@@ -2178,7 +2310,7 @@
   }
   function rlJobsHtml(m){
     var h = "";
-    if(m.jobs.length) h += rlSectHtml("Jobs", m.jobs.length, "· run in the last " + m.limits.quietDays + " days") + m.jobs.map(rlJobCardHtml).join("");
+    if(m.jobs.length) h += rlSectHtml("Jobs", m.jobs.length, "· run in the last " + m.limits.quietDays + " days", "j") + m.jobs.map(rlJobCardHtml).join("");
     if(m.quiet.length){
       h += '<button class="rl-fold" type="button" data-rl-fold="__quiet" data-testid="rl-fold-quiet" aria-expanded="' + (m.quietOpen ? 'true' : 'false') + '">' + (m.quietOpen ? '▾' : '▸') + ' quiet jobs (' + m.quiet.length + ') · no run in ' + m.limits.quietDays + ' days</button>';
       if(m.quietOpen) h += m.quiet.map(rlJobCardHtml).join("");
@@ -2495,16 +2627,20 @@
     document.getElementById("result-body").innerHTML = "";
     document.getElementById("result-empty").hidden = false;
   }
-  // called by renderRun for every detail it draws: shows or removes the tab button
+  // called by renderRun for every detail it draws. M13 piece 6: the tab is there for every run (the job's grid); the run's own cards only when `detail.hasResult`.
   function syncResultTab(detail){
     var btn = document.getElementById("tab-result");
-    var show = detail.hasResult === true;
+    var show = detail.resultTab === true;
     if(!show && resultTabShown()) document.getElementById("tab-run").click();
     btn.hidden = !show;
     var same = !!resultData && resultData.flow === detail.flow && resultData.runId === detail.runId;
     if(!show || !same) clearResult();   // another run's rows never stay on screen
+    if(!show || detail.hasGrid !== true || (gridData && gridData.flow !== detail.flow)){ gridData = null; gridSeenGlyph = null; }
     resultDetail = show ? detail : null;
-    if(show && same) renderResult();
+    if(show && (same || gridData)) renderResult();
+    // a run that changed its sign (it ended, it asked) changes its row: the grid is read again, once per change
+    if(show && detail.hasGrid === true && gridSeenGlyph !== null && gridSeenGlyph !== detail.runId + detail.glyph && resultTabShown()) loadGrid(detail.flow, detail.runId);
+    gridSeenGlyph = detail.runId + detail.glyph;
   }
   function loadResult(flow, runId){
     return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/result").then(function(data){
@@ -2513,7 +2649,11 @@
       renderResult();
     }).catch(function(){ /* the tab keeps what it last drew */ });
   }
-  document.getElementById("tab-result").addEventListener("click", function(){ if(currentRunId !== null) loadResult(currentFlow, currentRunId); });
+  document.getElementById("tab-result").addEventListener("click", function(){
+    if(currentRunId === null) return;
+    if(resultDetail && resultDetail.hasGrid === true) loadGrid(currentFlow, currentRunId);
+    if(resultDetail && resultDetail.hasResult === true) loadResult(currentFlow, currentRunId);
+  });
 
   // a RED run's own file words (the last file its check judged: "the file is gone" / "the file changed after the check") and the one note that says
   // what those rows are. A DELIVERED file's gone/changed words are said once, in the Saved card, never here.
@@ -2639,107 +2779,141 @@
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
-  // ---- M12 piece 3: the ticket list (item 9, mockup E). The server decides every group, row, reason and sentence (src/panel/tickets.js); this only draws,
-  // filters by the chips and the search, and posts "Run it anyway" with its reason. The filter bar is the panel's own markup (.filterbar, .search-input, .chips, .chip.fchip).
-  var ticketUi = { chips: {}, q: "", open: {}, anyway: null, msg: "" };
-  var TICKET_STATE = { "[✓]": ["green", "passed"], "[–]": ["grey", "skipped"], "[✗]": ["red", "stopped"], "[■]": ["red", "stopped"], "[?]": ["red", "stopped"], "[·]": ["amber", "waiting"], "[▶]": ["amber", "running"], "[II]": ["amber", "stuck"], "[!]": ["amber", "expired"] };
-  function ticketWhen(ms){ return rlShortDate(new Date(ms).toISOString()); }
-  function ticketRowHTML(r, flow){
-    var st = TICKET_STATE[r.glyph] || ["grey", ""];
-    var h = '<div class="tk" data-testid="ticket-row" data-number="' + r.number + '"><div class="tk-1"><span class="tk-when">' + escapeXml(ticketWhen(r.at)) + '</span><span class="tk-n">#' + r.number + '</span><span class="tk-t">' + escapeXml(r.title || "") + '</span></div><div class="tk-2">';
-    if(r.changed) h += '<span class="tk-chg" data-testid="ticket-changed">' + escapeXml(r.changed) + '</span><br>';
-    h += '<span class="tk-state ' + st[0] + '"><b>' + escapeXml(r.glyph) + '</b> ' + escapeXml(st[1]) + '</span>';
-    if(r.group === "skip"){
-      h += ' \u00b7 <span data-testid="ticket-reason">' + escapeXml(r.reason || "") + ' \u00b7 $0</span> <button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>';
-    } else {
-      h += ' \u00b7 <button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button>';
-    }
-    h += '</div>';
-    if(r.group === "skip" && ticketUi.anyway && ticketUi.anyway.number === r.number){
-      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
-        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
-    }
-    return h + '</div>';
-  }
-  function ticketGroupsHTML(t, flow){
-    var any = t.groups.some(function(g){ return ticketUi.chips[g.key]; });
-    var q = ticketUi.q.trim().toLowerCase();
-    return t.groups.map(function(g){
-      if(any && !ticketUi.chips[g.key]) return "";
-      var rows = g.rows.filter(function(r){ return !q || ("#" + r.number + " " + r.number + " " + (r.title || "")).toLowerCase().indexOf(q) !== -1; });
-      var open = ticketUi.open[g.key] === undefined ? g.open : ticketUi.open[g.key];
-      return '<button class="tk-fold" type="button" data-testid="ticket-fold-' + g.key + '" data-group="' + g.key + '" aria-expanded="' + open + '">' + (open ? "\u25be" : "\u25b8") + " " + escapeXml(g.label) + " (" + rows.length + ")</button>" +
-        (open ? rows.map(function(r){ return ticketRowHTML(r, flow); }).join("") : "");
-    }).join("");
-  }
-  function ticketCardHTML(t, flow){
-    return '<div class="field"><label>Schedule</label><div class="ro-value" data-testid="ticket-schedule">' + escapeXml(t.line) + '</div></div>' +
-      '<div class="audit-group" data-testid="result-tickets"><h4><span class="badge grey">tickets</span></h4>' +
-      '<div class="filterbar" data-scope="tickets" data-testid="tickets-filters"><input type="text" class="search-input" id="tickets-filter-search" data-testid="tickets-filter-search" placeholder="ticket number or title" autocomplete="off" value="' + escapeXml(ticketUi.q) + '">' +
-      '<div class="chips" role="group" aria-label="Filter">' + t.groups.map(function(g){
-        return '<button class="chip fchip" type="button" aria-pressed="' + (ticketUi.chips[g.key] ? "true" : "false") + '" data-ticket-chip="' + g.key + '" data-testid="chip-tickets-' + g.key + '">' + escapeXml(g.label) + '</button>';
-      }).join("") + '</div></div>' +
-      '<div id="ticket-groups" data-testid="ticket-groups">' + ticketGroupsHTML(t, flow) + '</div>' +
-      '<div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(ticketUi.msg) + '</div>' +
-      '<div class="hint">newest first inside each group \u00b7 each ticket opens its own run</div></div>';
-  }
-  function wireTickets(body, data){
-    var t = data.tickets;
-    var host = body.querySelector("#ticket-groups");
-    if(!t || !host) return;
-    function repaint(){ host.innerHTML = ticketGroupsHTML(t, data.flow); wireRows(); }
-    function wireRows(){
-      host.querySelectorAll(".tk-fold").forEach(function(b){
-        b.addEventListener("click", function(){ var k = b.getAttribute("data-group"); var g = t.groups.filter(function(x){ return x.key === k; })[0]; var cur = ticketUi.open[k] === undefined ? g.open : ticketUi.open[k]; ticketUi.open[k] = !cur; repaint(); });
-      });
-      host.querySelectorAll("[data-testid=ticket-run]").forEach(function(b){
-        b.addEventListener("click", function(){ var id = b.getAttribute("data-run"); selectRun(data.flow, id, null, ".hist-row"); document.getElementById("tab-run").click(); });
-      });
-      host.querySelectorAll("[data-testid=ticket-anyway-open]").forEach(function(b){
-        b.addEventListener("click", function(){ var n = Number(b.getAttribute("data-number")); ticketUi.anyway = (ticketUi.anyway && ticketUi.anyway.number === n) ? null : { number: n, text: "" }; ticketUi.msg = ""; repaint(); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta) ta.focus(); });
-      });
-      var ta = host.querySelector("[data-testid=ticket-anyway-text]");
-      var go = host.querySelector("[data-testid=ticket-anyway-go]");
-      if(ta && go){
-        ta.addEventListener("input", function(){ ticketUi.anyway.text = ta.value; go.disabled = ta.value.trim() === ""; });
-        go.addEventListener("click", function(){
-          var a = ticketUi.anyway;
-          if(!a || a.text.trim() === ""){ ticketUi.msg = "Please write a reason to run it anyway."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
-          go.disabled = true;
-          postJSON("/api/author/ticket-anyway", { flow: data.flow, runId: data.runId, number: a.number, reason: a.text.trim() }).then(function(r){
-            var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
-            ticketUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
-            if(ok) ticketUi.anyway = null;
-            repaint(); document.getElementById("ticket-msg").textContent = ticketUi.msg;
-          }).catch(function(){ ticketUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; go.disabled = false; });
-        });
+  // ---- M13 piece 6 (item 8): the job's ONE Result grid (mock docs/product/m13-setup-mock.html Part 3, variant B). It replaces M12's ticket list (the same four
+  // buckets, now fold rows inside the grid). The server decides every bucket, mark, name, reason and number (src/panel/jobgrid.js); this only draws, folds, and posts
+  // "Run it anyway" with its reason. The cells are the Audit grid's own (gridGlyph, .cell colours, q-fold, step-sub).
+  var gridData = null;
+  var gridSeenGlyph = null;
+  var gridUi = { open: {}, rows: {}, anyway: null, msg: "" };
+  function gridMarkOf(c){ return gridGlyph(c === "g" ? "✓" : (c === "r" ? "✗" : (c === "q" ? "?" : "·"))); }
+  function tgCell(c){ return '<td class="c">' + gridMarkOf(c) + '</td>'; }
+  function tgCellOJ(c){ return c === "none" ? '<td class="c"><span class="hint tg-none" data-testid="grid-none" title="this job has no output checks">none</span></td>' : tgCell(c); }
+  function tgCellV(c, val){ return '<td class="c">' + gridMarkOf(c) + '<span class="tg-val">' + escapeXml(val) + '</span></td>'; }
+  function tgRowHTML(r, g){
+    var skip = r.bucket === "skip";
+    var open = skip || !!gridUi.rows[r.runId];
+    var label = r.title ? r.name + " \u00b7 " + r.title : r.name;
+    var nameBtn = '<button class="tg-name" type="button" data-testid="grid-name" data-run="' + escapeXml(r.runId) + '" title="' + escapeXml(label) + '">' + escapeXml(label) + '</button>';
+    var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r"><div class="tg-rowname">' + (skip ? "" :
+      '<button class="q-fold tg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn +
+      (r.unsure ? '<span class="badge grey tg-unsure" data-testid="grid-unsure">unsure</span>' : "") + '</div></td>' +
+      tgCell(r.ex) + tgCellOJ(r.oj) + tgCellV(r.cost.mark, r.cost.value) + tgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
+    if(skip){
+      h += '<tr class="step-sub"><td colspan="5"><div class="tg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
+        (r.anyway && !(gridUi.anyway && gridUi.anyway.number === r.number) ? '<button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>' : "") + '</div>';
+      if(r.anyway && gridUi.anyway && gridUi.anyway.number === r.number){
+        h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(gridUi.anyway.text) + '</textarea>' +
+          '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (gridUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
       }
+      h += '</td></tr>';
+    } else if(open){
+      h += '<tr class="step-sub"><td colspan="5">' + r.lines.map(function(x){ return '<div class="sub-line">' + escapeXml(x) + '</div>'; }).join("") +
+        '<div class="sub-line"><button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button></div></td></tr>';
     }
-    wireRows();
-    body.querySelectorAll("[data-ticket-chip]").forEach(function(c){
-      c.addEventListener("click", function(){ var k = c.getAttribute("data-ticket-chip"); ticketUi.chips[k] = !ticketUi.chips[k]; c.setAttribute("aria-pressed", ticketUi.chips[k] ? "true" : "false"); repaint(); });
+    return h;
+  }
+  function tgStatsHTML(st){
+    var c = st.counts;
+    return '<p class="tg-stats" data-testid="grid-stats"><b>' + c.wait + '</b> needs you · <b>' + c.stop + '</b> stopped · <b>' + c.done + '</b> passed · <b>' + c.skip + '</b> skipped · spent <b>' + escapeXml(st.spent === null ? "unknown" : st.spent) + '</b></p>';
+  }
+  function tgTableHTML(g){
+    var h = '<div class="grid-wrap"><table class="grid tg" data-testid="grid-table"><thead><tr><th class="r">run</th><th class="t">every step<span class="hint">exists, done</span></th><th class="t">output judged</th><th class="t">cost</th><th class="t">time</th></tr></thead><tbody>';
+    g.groups.forEach(function(b){
+      var open = gridUi.open[b.key] === undefined ? b.open : gridUi.open[b.key];
+      h += '<tr class="tg-grp"><td colspan="5"><button class="tg-fold" type="button" data-testid="grid-fold-' + b.key + '" data-group="' + b.key + '" aria-expanded="' + open + '"><span class="tg-foldin">' + (open ? "▾" : "▸") + " " + escapeXml(b.label) + " (" + b.rows.length + ")</span></button></td></tr>";
+      if(open) h += b.rows.map(function(r){ return tgRowHTML(r, g); }).join("");
     });
-    var search = body.querySelector("#tickets-filter-search");
-    if(search) search.addEventListener("input", function(){ ticketUi.q = search.value; repaint(); });
+    return h + '</tbody></table></div>';
+  }
+  function gridCardHTML(g, tickets){
+    return '<div class="audit-group" data-testid="result-grid"><h4><span class="badge grey">' + escapeXml(tickets ? "tickets" : g.flow) + '</span></h4>' + tgStatsHTML(g.stats) +
+      '<div id="grid-host" data-testid="grid-host">' + tgTableHTML(g) + '</div><div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(gridUi.msg) + '</div>' +
+      '<div class="hint">newest first inside each bucket</div></div>';
+  }
+  function wireGrid(body){
+    var g = gridData;
+    var host = body.querySelector("#grid-host");
+    if(!g || !host) return;
+    function repaint(){ host.innerHTML = tgTableHTML(g); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta && gridUi.focusAnyway){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+    host.addEventListener("click", function(ev){
+      var t = ev.target.closest("button");
+      if(!t || !host.contains(t)) return;
+      var tid = t.getAttribute("data-testid") || "";
+      if(t.hasAttribute("data-group")){
+        var k = t.getAttribute("data-group");
+        var cur = g.groups.filter(function(x){ return x.key === k; })[0];
+        gridUi.open[k] = !(gridUi.open[k] === undefined ? cur.open : gridUi.open[k]);
+        repaint();
+      } else if(tid === "grid-open"){
+        var id = t.getAttribute("data-run");
+        gridUi.rows[id] = !gridUi.rows[id];
+        repaint();
+      } else if(tid === "grid-name"){
+        selectRun(g.flow, t.getAttribute("data-run"), null, ".hist-row"); document.getElementById("tab-run").click();
+      } else if(tid === "ticket-run"){
+        selectRun(g.flow, t.getAttribute("data-run"), null, ".hist-row"); document.getElementById("tab-run").click();
+      } else if(tid === "ticket-anyway-open"){
+        var n = Number(t.getAttribute("data-number"));
+        gridUi.anyway = (gridUi.anyway && gridUi.anyway.number === n) ? null : { number: n, text: "" };
+        gridUi.msg = ""; gridUi.focusAnyway = true; repaint();
+      } else if(tid === "ticket-anyway-go"){
+        var a = gridUi.anyway;
+        var msg = document.getElementById("ticket-msg");
+        if(!a || a.text.trim() === ""){ gridUi.msg = "Please write a reason to run it anyway."; msg.textContent = gridUi.msg; return; }
+        t.disabled = true;
+        postJSON("/api/author/ticket-anyway", { flow: g.flow, runId: g.anywayRunId, number: a.number, reason: a.text.trim() }).then(function(r){
+          var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
+          gridUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
+          if(ok) gridUi.anyway = null;
+          repaint(); document.getElementById("ticket-msg").textContent = gridUi.msg;
+        }).catch(function(){ gridUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = gridUi.msg; t.disabled = false; });
+      }
+    });
+    host.addEventListener("input", function(ev){
+      var ta = ev.target;
+      if(!ta || ta.getAttribute("data-testid") !== "ticket-anyway-text" || !gridUi.anyway) return;
+      gridUi.anyway.text = ta.value;
+      var go = host.querySelector("[data-testid=ticket-anyway-go]");
+      if(go) go.disabled = ta.value.trim() === "";
+    });
+    host.addEventListener("keydown", function(ev){
+      if(ev.key !== "Escape" || !ev.target || !ev.target.getAttribute || ev.target.getAttribute("data-testid") !== "ticket-anyway-text") return;
+      gridUi.anyway = null; gridUi.focusAnyway = false; gridUi.msg = ""; repaint();
+    });
+    host.addEventListener("focusout", function(ev){ if(ev.target && ev.target.getAttribute && ev.target.getAttribute("data-testid") === "ticket-anyway-text") gridUi.focusAnyway = false; });
+    host.addEventListener("focusin", function(ev){ if(ev.target && ev.target.getAttribute && ev.target.getAttribute("data-testid") === "ticket-anyway-text") gridUi.focusAnyway = true; });
+  }
+  function loadGrid(flow, runId){
+    return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/grid").then(function(g){
+      if(currentFlow !== flow || currentRunId !== runId || !resultDetail) return;
+      g.flow = flow;
+      gridData = g;
+      renderResult();
+    }).catch(function(){ /* the tab keeps what it last drew */ });
   }
   function renderResult(){
     var detail = resultDetail, data = resultData;
     var body = document.getElementById("result-body");
-    if(!detail || !data || data.flow !== detail.flow || data.runId !== detail.runId){ return; }
+    if(!detail){ return; }
+    // M13 piece 6: the grid is for every job; the run's own cards below it only for a job that has them (detail.hasResult) and once they are loaded
+    if(!data || data.flow !== detail.flow || data.runId !== detail.runId) data = null;
+    if(!data && !gridData){ return; }
     document.getElementById("result-empty").hidden = true;
     body.hidden = false;
+    var grid = gridData && gridData.flow === detail.flow ? gridData : null;
+    var h = grid ? gridCardHTML(grid, grid.flowType === "tickets") : "";
+    if(!data){ body.innerHTML = h; wireGrid(body); return; }
     // keep what the person is typing (and the box they opened) across a poll-driven redraw
     var keepText = body.querySelector("#result-rerun-text");
     var typed = keepText ? keepText.value : "";
     var rerunOpen = !!body.querySelector("#result-rerun-box:not([hidden])");
     var counters = document.getElementById("run-counters").textContent.split(" \u00b7 ");
-    var h = '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
+    h += '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
       resultField("Status", '<div class="ro-value">' + stateDotHTML(glyphClass(detail.glyph), detail.word || "", "result-status") +
         ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
       ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
-    if(data.tickets) h += ticketCardHTML(data.tickets, data.flow);
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){
@@ -2760,7 +2934,7 @@
       }).join("") + '</div>';
     }
     body.innerHTML = h;
-    wireTickets(body, data);
+    wireGrid(body);
     var ta = body.querySelector("#result-rerun-text");
     if(ta){
       ta.value = typed;
@@ -2806,8 +2980,8 @@
   // src/summary-words.js); this only paints them. ENDED / NEXT while a finished run; SCHEDULED / NEXT for a job with a trigger.
   // borrowed-from: bareloop src/panel/index.html@f845ee7 (renderEnded)
   // M9 am13: ONE framed box, rows `label | value`. Frame: red on a SCHEDULE problem (sm.schedule.red, the one owner is scheduleBlockOf), else the colour of the run's card (glyphClass; M9 am14). ENDED and NEXT text are never red; only a problem reddens SCHEDULE.
-  function summaryRow(label, value, testid, red){
-    var c = red ? ' is-red' : '';
+  function summaryRow(label, value, testid, red, grey){
+    var c = red ? ' is-red' : (grey ? ' is-grey' : '');
     return '<div class="ended-row"><span class="ended-label' + c + '">' + label + '</span><span class="ended-text' + c + '"' + (testid ? ' data-testid="' + testid + '"' : '') + '>' + escapeXml(value) + '</span></div>';
   }
   // M9 am24: `next` is one string; `rows` ([label, instruction] pairs, from summary-words.js) is there only when it holds several instructions
@@ -2827,7 +3001,7 @@
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");
       box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
-        (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true) : "") : "");
+        (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true, sc.grey === true) : "") : "");
     } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;
     note.textContent = sm.catchUp || "";
@@ -4152,6 +4326,20 @@
       });
     }
     paintJobPlan(job, placed);
+    // M13 am4 item 2: an MCP or Tickets MCP job also shows its flow type, MCP server, signed tools (name and hint), and for Tickets the ticket filter and watched field; a plain job shows none of it
+    var mcpRows = [];
+    if(job.flowType === "mcp" || job.flowType === "tickets"){
+      mcpRows.push("flow type · " + (job.flowType === "tickets" ? "Tickets MCP" : "MCP"));
+      mcpRows.push("MCP · " + job.mcp);
+      (job.tools || []).forEach(function(t){ mcpRows.push("tools · " + t.name + (t.hint ? " (" + t.hint + ")" : "")); });
+      if(job.flowType === "tickets"){
+        mcpRows.push("ticket filter · " + JSON.stringify(job.ticketFilter));
+        mcpRows.push("watched field · " + (Array.isArray(job.ticketWatch) ? job.ticketWatch.join(", ") : JSON.stringify(job.ticketWatch)));
+      }
+    }
+    document.getElementById("details-mcp-field").hidden = mcpRows.length === 0;
+    document.getElementById("details-mcp").innerHTML = "";
+    if(mcpRows.length) renderRowsField("details-mcp", mcpRows, "", function(t){ return t; });
     // review #5: "Ask" — one row per signed ask line.
     renderRowsField("details-asks", job.asks, "no signed asks", function(ak){
       return "line " + ak.line + " · \"" + ak.question + "\" · waits " + plainWait(ak.waitMs);
@@ -4284,7 +4472,7 @@
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
     // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
+    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasGrid === true) loadGrid(flow, runId); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
@@ -4617,7 +4805,12 @@
       var into = row.section === 3 ? old : el;
       if(row.section !== lastSection){
         lastSection = row.section;
-        into.appendChild(textDiv("inbox-h", inboxHeadText(row.section, counts[row.section])));
+        // captions ruling 2026-11-01: the same colour bars as Runs (waiting = Needs you amber, working = Running now teal, answered = Jobs grey), count in the pill
+        var head = textDiv("inbox-h rl-cap rl-cap-" + { 1: "w", 2: "r", 3: "j" }[row.section], "");
+        head.setAttribute("data-testid", "ib-cap-" + row.section);
+        head.setAttribute("aria-label", inboxHeadText(row.section, counts[row.section]));
+        head.innerHTML = INBOX_HEADS[row.section] + ' <span class="rl-p">(</span><span class="rl-n">' + counts[row.section] + '</span><span class="rl-p">)</span>';
+        into.appendChild(head);
       }
       into.appendChild(renderStopRow(row));
     });
@@ -5136,6 +5329,7 @@
     body.hidden = !expanded;
     var statusBlock = askStatusBlock(ask);
     if(statusBlock) body.appendChild(statusBlock);
+    if(ask.filterUnsure){ var fu = textDiv("hint", "the filter was unsure about this ticket"); fu.setAttribute("data-testid", "ask-filter-unsure"); body.appendChild(fu); }
     body.appendChild(renderAskEvidenceBlock(ask, ctx));
     body.appendChild(renderAnswersSoFar(block));
     // M4b piece 4: the answer doors (or the reason there are none) — for the CURRENT draft.
@@ -5239,10 +5433,20 @@
     var jobEl = document.getElementById("jf-job");
     var jobBoxEl = document.getElementById("jf-run-jobbox");   // the Reuse card's job box: the SAME component as #jf-job
     var inputsBox = document.getElementById("jf-inputs");        // the New-job inputs textarea (`name: path` per line)
+    var flowTypeEl = document.getElementById("jf-flowtype");     // M13 p4: Flow type (plain | MCP | Tickets), signed with the job
+    var schedEl = document.getElementById("jf-sched");           // M13 p5: Schedule (By hand | When a new ticket arrives | Every day at HH:MM), signed with the job; off until the first green run
+    var schedTimeEl = document.getElementById("jf-sched-time");
+    var mcpEl = document.getElementById("jf-mcp");               // M13 p4: the MCP pick, shown for the last two
+    var mcpFieldEl = document.getElementById("jf-mcp-field");
+    var runFlowTypeEl = document.getElementById("jf-run-flowtype");   // M13 am4: the Reuse box's own Flow type and MCP picks (new ids; same options and MCP list)
+    var runMcpEl = document.getElementById("jf-run-mcp");
+    var runMcpFieldEl = document.getElementById("jf-run-mcp-field");
+    var inputsHintEl = document.getElementById("jf-inputs-hint");
+    var INPUTS_HINT_PLAIN = inputsHintEl.textContent;
+    var mcpServers = [];                                         // the startable MCPs (Settings > MCP; winners only, remote left out)
     var destEl = document.getElementById("jf-dest-folder");
     var askWaitEl = document.getElementById("jf-ask-wait");
     var mainBtn = document.getElementById("chat-main-btn");
-    var signTicketEl = document.getElementById("chat-sign-ticket");   // M12 p3: the ticket # box of a green ticket job
     var mainHint = document.getElementById("chat-main-hint");
     var startOverBtn = document.getElementById("chat-startover-btn");
     var reviseBtn = document.getElementById("chat-revise-btn");
@@ -5623,13 +5827,6 @@
         var pathEl = makeInput("jf-path", "/full/path/to/file", sources ? sources[role] : "");
         if(f && f.pages && f.pages[role]){ pathEl.value = f.pages[role]; pathEl.readOnly = true; pathEl.setAttribute("data-page", "1"); pathEl.title = "A web page: its address is signed with the job and can't be changed here."; }   // M10 am3
         row.appendChild(pathEl);
-        // M12 piece 3 (hamr 2026-10-29): a ticket-list input takes ONE ticket per hand run, picked by number; Run stays off until it is filled
-        if(f && f.tickets && f.tickets.indexOf(role) !== -1){
-          var tk = makeInput("jf-ticket", "ticket #", "");
-          tk.inputMode = "numeric"; tk.setAttribute("data-testid", "jf-run-ticket"); tk.setAttribute("aria-label", "Ticket number to run");
-          tk.addEventListener("input", function(){ clearFieldErrors(); refreshStartEnabled(); });
-          row.appendChild(tk);
-        }
         row.appendChild(makeErr());
         runInputsEl.appendChild(row);
       });
@@ -5642,6 +5839,67 @@
         return {role: role, path: row.querySelector(".jf-path").value.trim()};
       });
     }
+    // M13 piece 4: Flow type and MCP (mock docs/product/m13-setup-mock.html, Part 1). The MCP list is Settings > MCP's winners; the page only READS it (never a command or a key).
+    function paintMcpInto(el, want){
+      var names = mcpServers.slice();
+      if(want && names.indexOf(want) === -1) names.push(want);   // a reused job's server that is no longer listed stays pickable by name; the card refuses it with the cause
+      el.innerHTML = "";
+      names.forEach(function(n){ var o = document.createElement("option"); o.value = n; o.textContent = n; el.appendChild(o); });
+      if(want) el.value = want;
+    }
+    function paintMcpOptions(keep){
+      paintMcpInto(mcpEl, keep === undefined ? mcpEl.value : keep);
+      paintMcpInto(runMcpEl, runMcpEl.value);   // M13 am4: the Reuse box lists the same MCPs
+    }
+    // M13 p5 (signed item 7, the mock's Schedule row): "When a new ticket arrives" only for Tickets; the time box and the two hints follow the pick
+    function paintSchedule(){
+      var tk = schedEl.querySelector('option[value="new-ticket"]');
+      tk.hidden = tk.disabled = flowTypeEl.value !== "tickets";
+      if(schedEl.value === "new-ticket" && tk.disabled) schedEl.value = "hand";
+      byId("jf-sched-clock").hidden = schedEl.value !== "daily";
+      byId("jf-sched-hint").hidden = schedEl.value === "hand";
+      byId("jf-sched-ticket-hint").hidden = schedEl.value !== "new-ticket";
+    }
+    function scheduleOfCard(){
+      if(schedEl.value === "new-ticket") return {kind: "new-ticket"};
+      if(schedEl.value !== "daily") return null;
+      var t = /^(\d{2}):(\d{2})$/.exec(schedTimeEl.value || "");
+      return {kind: "daily", hour: t ? Number(t[1]) : NaN, minute: t ? Number(t[2]) : NaN};
+    }
+    function paintFlowType(){
+      var generic = flowTypeEl.value === "mcp", tickets = flowTypeEl.value === "tickets";
+      paintSchedule();
+      mcpFieldEl.hidden = !(generic || tickets);
+      paintRequired();
+      inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
+    }
+    // M13 am5: the one writer of the required marks. Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
+    function paintRequired(){
+      byId("jf-req-inputs").textContent = flowTypeEl.value === "mcp" ? "optional for MCP" : "required";
+      byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
+    }
+    function setFlow(type, server, sched){
+      flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
+      paintMcpOptions(server || "");
+      schedEl.value = sched && sched.kind === "daily" ? "daily" : (sched && sched.kind === "new-ticket" ? "new-ticket" : "hand");
+      if(sched && sched.kind === "daily" && Number.isInteger(sched.hour) && Number.isInteger(sched.minute)) schedTimeEl.value = ("0" + sched.hour).slice(-2) + ":" + ("0" + sched.minute).slice(-2);
+      paintFlowType();
+    }
+    function loadMcpServers(){
+      return getJSON("/api/settings/mcp").then(function(d){
+        var names = [];
+        ((d && d.places) || []).forEach(function(p){ (p.servers || []).forEach(function(sv){ if(!sv.remote && !sv.shadowedBy && names.indexOf(sv.name) === -1) names.push(sv.name); }); });
+        mcpServers = names; paintMcpOptions();
+      }, function(){ /* the list stays as it was; a pick the server cannot start is refused with its cause */ });
+    }
+    flowTypeEl.addEventListener("change", function(){ paintFlowType(); byId("jf-err-flowType").textContent = ""; byId("jf-err-mcp").textContent = ""; refreshStartEnabled(); });
+    mcpEl.addEventListener("change", function(){ byId("jf-err-mcp").textContent = ""; });
+    schedEl.addEventListener("change", function(){ paintSchedule(); byId("jf-err-schedule").textContent = ""; });
+    schedTimeEl.addEventListener("input", function(){ byId("jf-err-schedule").textContent = ""; });
+    runFlowTypeEl.addEventListener("change", function(){ runMcpFieldEl.hidden = runFlowTypeEl.value === "plain"; });
+    byId("jf-run-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
+    byId("jf-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
+    paintFlowType(); loadMcpServers();
     function currentCard(){
       return {
         flowName: byId("jf-name").value.trim(),
@@ -5653,6 +5911,8 @@
         provider: modelPick().provider,
         model: modelPick().model,
         thinking: thinkingEl.checked && !thinkingNone,
+        ...(flowTypeEl.value !== "plain" ? {flowType: flowTypeEl.value, mcp: mcpEl.value} : {}),
+        ...(scheduleOfCard() ? {schedule: scheduleOfCard()} : {}),
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
@@ -5661,14 +5921,8 @@
       runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
       return waits;
     }
-    // M12 piece 3: the ticket number box of a ticket-list input; one function reads it, "" = none given (and no box = null)
-    function ticketBoxValue(){
-      var el = runInputsEl.querySelector(".jf-ticket");
-      return el ? el.value.trim() : null;
-    }
     function currentRun(){
       return {
-        ...(ticketBoxValue() === null ? {} : { ticket: ticketBoxValue() }),
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
         destination: runDestEl.value.trim(), capUsd: runCapEl.value.trim(), askWaits: runWaits(),
         // a flow with no recorded model runs with the pick (am7b); a flow with one sends none
@@ -5702,14 +5956,15 @@
     function startReady(){
       if(moneyRed) return false;   // amendment 4 item 1: a cap that does not fit this month stops you before the click (the server still refuses)
       if(mode === "run"){
-        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && (ticketBoxValue() === null || /^[1-9][0-9]{0,8}$/.test(ticketBoxValue())) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
+        return !!selectedFlow() && readRows(runInputsEl).every(function(r){ return r.path !== ""; }) && capValid(runCapEl.value.trim()) && (reuseKind !== "draft" || reuseRunOf || newNameEl.value.trim() !== "");
       }
       if(mode === "resume"){
         return !!resumeCtx && capValid(resumeCapEl.value.trim());
       }
       var c = currentCard();
       var v = Number(c.capUsd);
-      return c.flowName !== "" && c.job.trim() !== "" && c.capUsd !== "" && isFinite(v) && v > 0;
+      // M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
+      return c.flowName !== "" && c.job.trim() !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
     }
 
     // ---- the money note under Cap (M4e amendment 4 items 1-2) ----
@@ -5807,6 +6062,9 @@
       var on = cardLocked();
       whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
+      flowTypeEl.disabled = on; mcpEl.disabled = on; schedEl.disabled = on; schedTimeEl.disabled = on;
+      flowTypeEl.classList.toggle("locked", on); mcpEl.classList.toggle("locked", on); schedEl.classList.toggle("locked", on); schedTimeEl.classList.toggle("locked", on);
+      runFlowTypeEl.disabled = on; runMcpEl.disabled = on;
       runFlowSel.disabled = on;
       runFlowSel.classList.toggle("locked", on);
       rwPickedEl.classList.toggle("locked", on);
@@ -5823,6 +6081,7 @@
       clearBtn.disabled = b.disabled;
     }
     function refreshStartEnabled(){
+      paintRequired();
       startOk = startReady();
       syncCardLock();
       renderMain();
@@ -5858,6 +6117,9 @@
       delete b.runId;
       b.job = jobBoxEl.hidden ? undefined : jobBoxEl.value;
       b.fromRun = pickedRun ? pickedRun.runId : undefined;
+      // M13 am4: the Reuse box's Flow type and MCP; the server compares them with the signed job
+      b.flowType = runFlowTypeEl.value;
+      b.mcp = runFlowTypeEl.value === "plain" ? "" : runMcpEl.value;
       return b;
     }
     function paintReuseKind(){
@@ -5896,6 +6158,7 @@
       setMode("new");
       setVal("jf-name", reuseRunOf ? f.flow : newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
       setVal("jf-dest-folder", runDestEl.value.trim()); setVal("jf-inputs", rows.map(function(r){ return r.role + ": " + r.path; }).join("\n")); setVal("jf-ask-wait", firstWait);
+      setFlow(runFlowTypeEl.value, runFlowTypeEl.value === "plain" ? "" : runMcpEl.value);   // M13 am4: the Reuse box's picks (unchanged = the job's own)
       if(pk.provider !== "") setModelPick(pk.provider, pk.model);
       editBannerEl.textContent = reuseRunOf
         ? "Reusing \u201c" + f.flow + "\u201d after a failed run. Draft a new plan, read it, then sign: it becomes the next run of \u201c" + f.flow + "\u201d, which is not changed."
@@ -5908,7 +6171,7 @@
     // the card stops reusing: the name box is free again. ONE owner: reuseOf and the boxes startReuseDraft filled go together, so a card that
     // left Reuse (a refused signed start too) can never be drafted as a plain new job carrying the old job and name
     function leaveReuse(){
-      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); askWaitEl.value = "1h"; }
+      if(reuseOf !== null){ ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; }); setFlow("plain", ""); askWaitEl.value = "1h"; }
       reuseOf = null;
       editBannerEl.hidden = true; editBannerEl.textContent = "";
     }
@@ -5923,6 +6186,9 @@
       jobBoxEl.hidden = !jobOpen; byId("jf-run-jobwrap").hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
       jobBoxEl.value = jobOpen ? f.edit.card.job : "";
       fitCardBoxes();
+      runFlowTypeEl.value = f && (f.flowType === "mcp" || f.flowType === "tickets") ? f.flowType : "plain";
+      paintMcpInto(runMcpEl, f && f.mcp ? f.mcp : "");
+      runMcpFieldEl.hidden = runFlowTypeEl.value === "plain";
       byId("jf-err-run-job").textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
       byId("jf-run-job-hint").hidden = !jobOpen;
       byId("jf-run-model").textContent = f && f.model ? "Model: " + f.model.label + ". Pick another to run it with that model (signed with the run)." : (f ? "No model is recorded for this job. Pick the one to run it with; it is then remembered for this job." : "");
@@ -6004,7 +6270,7 @@
     // M10: a file trigger watches a FILE; a web-page input is never offered. M12: a ticket trigger offers the page inputs that are a GitHub issues list.
     var TICKET_LIST = /^https:\/\/github\.com\/[^\/\s]+\/[^\/\s]+\/issues\/?$/;
     function whenFileRoles(f){ return ((f && f.roles) || []).filter(function(r){ return !(f.pages && f.pages[r]); }); }
-    function whenTicketRoles(f){ return ((f && f.roles) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }
+    function whenTicketRoles(f){ return ((f && f.tickets) || []).filter(function(r){ return f.pages && f.pages[r] && TICKET_LIST.test(String(f.pages[r]).trim()); }); }   // M13 p4: only a Tickets job has a ticket list
     function whenFillRoles(){
       var f = selectedFlow(), roleSel = byId("jf-when-role"), keep = roleSel.value;
       var roles = byId("jf-when").value === "new-ticket" ? whenTicketRoles(f) : whenFileRoles(f);
@@ -6020,8 +6286,11 @@
       byId("jf-err-when").textContent = "";
       var roleSel = byId("jf-when-role");
       var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
-      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = fileRoles.length === 0; });
-      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a job with a ticket-list input offers it
+      // M13 p4 (signed item 5): MCP offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
+      var generic = !!f && f.flowType === "mcp";
+      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic || fileRoles.length === 0; });
+      ["weekdays", "weekly"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic; });
+      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = generic || ticketRoles.length === 0;   // M12: only a Tickets job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
@@ -6033,7 +6302,7 @@
       var refused = !f || !c || !!c.refusal;
       sel.disabled = refused;
       byId("jf-when-day").disabled = byId("jf-when-time").disabled = roleSel.disabled = byId("jf-when-path").disabled = refused;
-      byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.words ? "Now: " + c.words : ""));
+      byId("jf-when-now").textContent = !c ? "" : (c.refusal ? c.refusal : (c.waitingSay ? c.waitingSay : (c.words ? "Now: " + c.words : "")));   // M13 p5: a schedule signed with the job says its grey words until the first green run
       whenShowSubs(); whenSyncButton();
     }
     function whenEdited(){ whenHash = null; byId("jf-err-when").textContent = ""; if(this && this.id === "jf-when") whenFillRoles(); whenShowSubs(); whenSyncButton(); }
@@ -6333,12 +6602,8 @@
         st.capUsd = lastState.card.capUsd;
       }
       var b = mainButtonFor(st);
-      // M12 piece 3: the ticket # box shows on a green plan whose job reads a ticket list; Sign & run stays off until it holds a whole number from 1
-      var needTicket = mode === "new" && sessionLive && !!lastState && lastState.phase === "green" && !!lastState.ticketRole;
-      signTicketEl.hidden = !needTicket;
-      if(!needTicket) signTicketEl.value = "";
       mainBtn.textContent = b.text;
-      mainBtn.disabled = b.disabled || (needTicket && (b.action === "sign-prepare" || b.action === "sign") && !/^[1-9][0-9]{0,8}$/.test(signTicketEl.value.trim()));
+      mainBtn.disabled = b.disabled;
       mainAction = b.action; mainStartOver = !!b.startOver;
       // amendment 14 item 3: the count shows while a draft has revises to count; at 0 the way on is Start over
       mainHint.textContent = (mode === "new" && sessionLive && st.revisable && st.phase !== "signed" && st.phase !== "questions-open") ? (st.left > 0 ? revisesLeftText(st.left) : "No revises left: Start over keeps the fields and gives 2 new ones.") : "";
@@ -6402,6 +6667,7 @@
       if(mode === "resume"){ resumeCtx = null; setMode(modeBeforeResume === "resume" ? "new" : modeBeforeResume); }
       leaveReuse();
       ["jf-name", "jf-job", "jf-cap-money", "jf-dest-folder", "jf-inputs"].forEach(function(id){ byId(id).value = ""; });
+      setFlow("plain", "");
       askWaitEl.value = "1h";
       thinkingEl.checked = false; // per job: unticked for the next one
       clearPick(); // a flow picked in Run a signed flow (Run again too) goes with the rest
@@ -6646,7 +6912,7 @@
       // click 2: the ONLY call that signs. It carries the hash this page showed; the server signs only if it is still the draft's hash on disk.
       busy = true;
       refreshStartEnabled();
-      authorPost("/api/author/" + id + "/sign", signTicketEl.hidden ? {hash: signInfo.hash} : {hash: signInfo.hash, ticket: signTicketEl.value.trim()}).then(function(r){
+      authorPost("/api/author/" + id + "/sign", {hash: signInfo.hash}).then(function(r){
         var o = chatPostOutcome(r);
         if(!o.ok){
           busy = false;
@@ -6703,6 +6969,7 @@
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
+      setFlow(c.flowType, c.mcp, c.schedule);
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -6741,7 +7008,6 @@
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     qSend.addEventListener("click", doAnswer);
     qAnswer.addEventListener("keydown", function(e){ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); doAnswer(); } });
-    signTicketEl.addEventListener("input", function(){ renderMain(); });   // M12 p3
     mainBtn.addEventListener("click", function(){
       if(mainBtn.disabled) return;
       if(mainAction === "draft") doDraft(mainStartOver ? sessionId : null);
@@ -6832,12 +7098,11 @@
   var PV_NOTE_DEFAULT = pvNote.textContent;
   document.getElementById("settings-open").addEventListener("click", function(){
     mainView.hidden = true; settingsView.hidden = false;
-    loadProviders(true); loadMoney();
+    loadProviders(true); loadMoney(); loadMcp();
   });
   document.getElementById("settings-back").addEventListener("click", function(){
     settingsView.hidden = true; mainView.hidden = false;
   });
-  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-money")]);
   document.getElementById("stab-money").addEventListener("click", function(){ loadMoney(); });
   document.getElementById("stab-providers").addEventListener("click", function(){ loadProviders(); });
 
@@ -7181,6 +7446,136 @@
       } else setNote(msg, true, settingsRefusal(r));
     }, function(){ setNote(msg, true, networkText()); });
   });
+
+
+  // ---- M13 piece 3: Settings > MCP (mock docs/product/m13-settings-mcp-mock.html). One list "Path and MCP": a path is a header, its MCPs sit under it.
+  // The page only READS: GET /api/settings/mcp (names, flags, counts; never a command or a key) and, on a press, POST .../mcp-check for that one MCP.
+  var mcpRoot = document.getElementById("mcp-paths");
+  var mcpData = null;
+  var mcpPathFold = {};   // path -> false when folded (paths start open)
+  var mcpSrvOpen = {};    // path + tab + name -> true when open (MCPs start folded)
+  var mcpMoreOpen = {};
+  var mcpBusy = {};
+  var mcpFail = {};       // path + tab + name -> the sentence of a press that was refused
+  var MCP_TOOLS_SHOWN = 5;
+  function loadMcp(){
+    return getJSON("/api/settings/mcp").then(function(d){ mcpData = d; setNote(document.getElementById("mcp-problem"), true, d.problem || ""); paintMcp(); }, function(e){
+      setNote(document.getElementById("mcp-problem"), true, loadFailureText(e));
+    });
+  }
+  function mcpClock(iso){
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    var two = function(n){ return ("0" + n).slice(-2); };
+    var hm = two(d.getHours()) + ":" + two(d.getMinutes());
+    var now = new Date();
+    if(d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) return { today: true, text: hm };
+    return { today: false, text: d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate()) + " " + hm };
+  }
+  function mcpUseLine(u){
+    if(!u || (u.calls === 0 && u.denied === 0)) return "never used";
+    var t = "used " + u.calls + (u.calls === 1 ? " time" : " times") + (u.calls > 0 ? " in " + u.runs + (u.runs === 1 ? " run" : " runs") : "");
+    var c = u.last ? mcpClock(u.last) : "";
+    if(c) t += " · last used " + (c.today ? "today " : "") + c.text;
+    return '<span>' + escapeXml(t) + ' · <span class="' + (u.denied > 0 ? "bad" : "") + '">' + u.denied + ' denied</span></span>';
+  }
+  function mcpSrvHtml(s, pi, si, place){
+    var key = place.path + "\t" + s.name;
+    var open = mcpSrvOpen[key] === true;
+    var ok = s.check && s.check.ok === true;
+    var idle = s.remote || s.shadowedBy !== null;
+    var tools = s.remote ? '<span class="hint">remote server, not supported yet</span>' : s.shadowedBy !== null ? '<span class="hint">same name as above, not used</span>' : idle ? "—" : ok ? s.check.tools.length + (s.check.tools.length === 1 ? " tool" : " tools") : s.check ? "—" : "never checked";
+    var at = s.check ? mcpClock(s.check.at) : "";
+    var checked = idle ? "—" : s.check ? "checked " + (at ? at.text : "") : "never checked";
+    var busy = mcpBusy[key] === true;
+    var btn = idle ? "" : (busy ? '<button class="btn small pv-refbtn" type="button" disabled>checking…</button>' : '<button class="btn small pv-refbtn' + (s.check ? "" : " primary") + '" type="button" data-chk="' + pi + "-" + si + '" data-testid="mcp-check">check tools</button>');
+    var use = idle ? "" : mcpUseLine(s.use);
+    var list = "";
+    if(ok){
+      var more = mcpMoreOpen[key] === true;
+      var shown = more ? s.check.tools : s.check.tools.slice(0, MCP_TOOLS_SHOWN);
+      list = '<div class="pv-mhead mc-t" aria-hidden="true"><span>TOOL</span><span>HINT</span><span class="n">USED</span></div>' +
+        shown.map(function(t){
+          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && s.use.tools[t.name]) || 0) + '</span></div>';
+        }).join("") +
+        (s.check.tools.length > shown.length ? '<div class="pv-more"><button class="pv-add" type="button" data-more="' + pi + "-" + si + '">+' + (s.check.tools.length - shown.length) + ' more</button></div>' : "");
+    } else if(s.check) list = '<div class="pv-more"><span class="hint bad">' + escapeXml(s.check.error || "") + '</span></div>';
+    else if(!idle) list = '<div class="pv-more"><span class="hint">Press check tools to list its tools.</span></div>';
+    if(mcpFail[key]) list += '<div class="pv-more"><span class="hint bad">' + escapeXml(mcpFail[key]) + '</span></div>';
+    return '<div class="pv-key' + (s.shadowedBy !== null ? " faint" : "") + '" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-row">' +
+      '<div class="pv-krow mc-k">' +
+        '<div class="pv-cell pv-name nolbl"><button class="pv-fold" type="button" data-fold="' + pi + "-" + si + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><code>' + escapeXml(s.name) + '</code></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Tools</span><span>' + tools + (busy ? ' <span class="mc-spin">…</span>' : "") + '</span></div>' +
+        '<div class="pv-cell"><span class="pv-lbl">Checked</span><span>' + escapeXml(checked) + '</span></div>' +
+        '<div class="pv-cell pv-refcell nolbl">' + btn + '</div>' +
+      '</div>' +
+      (use ? '<div class="hint mc-use">' + use + '</div>' : "") +
+      '<div class="pv-models">' + list + '</div>' +
+    '</div>';
+  }
+  function paintMcp(){
+    if(!mcpData) return;
+    var h = '<div class="pv-head mc-k" aria-hidden="true"><span>PATH / MCP</span><span>TOOLS</span><span>CHECKED</span><span></span></div>';
+    mcpData.places.forEach(function(g, pi){
+      var found = g.status === "found", n = g.servers.length, open = mcpPathFold[g.path] !== false;
+      var note = found ? " — " + (g.added ? "(added) — " : "") + n + " server" + (n === 1 ? "" : "s") : " — " + (g.added ? "(added) — " : "") + (g.status === "not-json" ? "can't be read" : "not found");
+      h += '<div class="mc-grp" data-open="' + (open ? 1 : 0) + '" data-testid="mcp-path"><div class="mc-prow' + (found ? "" : " faint") + '">' +
+        (found ? '<button class="pv-fold" type="button" data-pfold="' + pi + '" aria-expanded="' + open + '">' + (open ? "▾" : "▸") + '</button><span class="pv-ok">✓</span>' : '<span class="pv-fold" style="display:inline-block">&nbsp;</span><span>–</span>') +
+        '<span class="mc-grow"><code>' + escapeXml(g.path) + '</code>' + escapeXml(note) + '</span>' +
+        (g.added ? '<button class="btn small" type="button" data-rm="' + pi + '" data-testid="mcp-remove">remove</button>' : "") + '</div>' +
+        (found ? '<div class="mc-kids">' + g.servers.map(function(s, si){ return mcpSrvHtml(s, pi, si, g); }).join("") + '</div>' : "") + '</div>';
+    });
+    mcpRoot.innerHTML = h;
+  }
+  function mcpAt(id){ var a = id.split("-"); var g = mcpData.places[+a[0]]; return { place: g, srv: g.servers[+a[1]] }; }
+  mcpRoot.addEventListener("click", function(e){
+    if(!mcpData) return;
+    var pf = e.target.closest("[data-pfold]");
+    if(pf){ var g = mcpData.places[+pf.getAttribute("data-pfold")]; mcpPathFold[g.path] = mcpPathFold[g.path] === false; paintMcp(); return; }
+    var r = e.target.closest("[data-rm]");
+    if(r){
+      var path = mcpData.places[+r.getAttribute("data-rm")].path;
+      postJSON("/api/settings/mcp-path-remove", { path: path }).then(function(res){
+        if(res.body && res.body.ok) loadMcp(); else setNote(document.getElementById("mcp-problem"), true, settingsRefusal(res));
+      }, function(){ setNote(document.getElementById("mcp-problem"), true, networkText()); });
+      return;
+    }
+    var f = e.target.closest("[data-fold]");
+    if(f){ var x = mcpAt(f.getAttribute("data-fold")); var k = x.place.path + "\t" + x.srv.name; mcpSrvOpen[k] = mcpSrvOpen[k] !== true; paintMcp(); return; }
+    var m = e.target.closest("[data-more]");
+    if(m){ var y = mcpAt(m.getAttribute("data-more")); mcpMoreOpen[y.place.path + "\t" + y.srv.name] = true; paintMcp(); return; }
+    var c = e.target.closest("[data-chk]");
+    if(c){
+      var z = mcpAt(c.getAttribute("data-chk")); var key = z.place.path + "\t" + z.srv.name;
+      mcpBusy[key] = true; delete mcpFail[key]; paintMcp();
+      postJSON("/api/settings/mcp-check", { server: z.srv.name }).then(function(res){
+        mcpBusy[key] = false;
+        if(res.body && res.body.ok) mcpSrvOpen[key] = true; else mcpFail[key] = settingsRefusal(res);
+        loadMcp();
+      }, function(){ mcpBusy[key] = false; mcpFail[key] = networkText(); paintMcp(); });
+    }
+  });
+  // the typed-path box is built on the first press of "+ add a path" (like the Providers tab's typed-model box: the page has no static input but the monthly limit)
+  document.getElementById("mcp-add-open").addEventListener("click", function(){
+    var b = document.getElementById("mcp-add-box");
+    if(!b.firstChild){
+      b.innerHTML = '<input type="text" id="mcp-add-in" data-testid="mcp-add-in" autocomplete="off" spellcheck="false" aria-label="path" placeholder="type a path to an MCP config file"> <button class="btn small" type="button" id="mcp-add-go" data-testid="mcp-add-go">Add</button><div class="hint pv-msg" id="mcp-add-msg" data-testid="mcp-add-msg"></div>';
+      document.getElementById("mcp-add-go").addEventListener("click", mcpAddPath);
+    }
+    b.hidden = !b.hidden; if(!b.hidden) document.getElementById("mcp-add-in").focus();
+  });
+  function mcpAddPath(){
+    var inp = document.getElementById("mcp-add-in"), msg = document.getElementById("mcp-add-msg");
+    var v = inp.value.trim();
+    var say = function(bad, text){ setNote(msg, bad, text); msg.className += " pv-msg"; };
+    if(!v){ say(true, "Type a path first."); return; }
+    postJSON("/api/settings/mcp-path", { path: v }).then(function(res){
+      if(res.body && res.body.ok){ inp.value = ""; say(false, "added"); loadMcp(); }
+      else say(true, settingsRefusal(res));
+    }, function(){ say(true, networkText()); });
+  }
+  wireTabs([document.getElementById("stab-providers"), document.getElementById("stab-mcp"), document.getElementById("stab-money")]);
+  document.getElementById("stab-mcp").addEventListener("click", function(){ loadMcp(); });
 
   // theme toggle
   (function(){

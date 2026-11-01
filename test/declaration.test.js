@@ -182,6 +182,10 @@ const FIELD_META = {
   mcpTools: {
     level: 'step', required: false, needle: 'mcpTools', retype: () => 'issue_read', invalid: () => ['issue_read'],
   },
+  // M13 piece 4: the job's flow type (top), optional (a job signed before M13 has none)
+  flowType: {
+    level: 'top', required: false, needle: 'flowType', retype: () => 42, invalid: () => 'chat',
+  },
   // M12 piece 3: the signed label filter (top), optional
   ticketFilter: {
     level: 'top', required: false, needle: 'ticketFilter', retype: () => 'P2', invalid: () => ({ priority: [] }),
@@ -299,6 +303,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'picks', level: 'step' },
   { field: 'mcp', level: 'top' },
   { field: 'mcpTools', level: 'step' },
+  { field: 'flowType', level: 'top' },
   { field: 'ticketFilter', level: 'top' },
   { field: 'ticketWatch', level: 'top' },
   { field: 'class', level: 'close' },
@@ -506,6 +511,7 @@ describe('negative scenarios', () => {
     const result = run(decl);
     assert.equal(result.ok, false);
     assert.ok(result.reds.some((r) => r.includes('steps[3]') && /pause/.test(r) && /unsigned line/.test(r)));
+    assert.ok(result.reds.some((r) => /unsigned line: grant it "read" \(or the verb it needs\), or make the line an Ask/.test(r)));
   });
 
   // M1 amendment 3 item 4: "A marked line is only the stop: exactly one step

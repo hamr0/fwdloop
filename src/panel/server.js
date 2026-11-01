@@ -60,7 +60,7 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { ticketAnyway, arriveAnywayOf } from './tickets.js';
 import { createResumer } from './resume.js';
@@ -68,6 +68,7 @@ import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
 import { keysForDoor } from '../keysfile.js';
 import { configDoorHome } from '../config.js';
+import { newestMcpChecks } from '../mcp-checks.js';
 import { createSettings } from './settings.js';
 import { removeOldLock } from './lock.js';
 
@@ -391,7 +392,7 @@ function ticketAnywayRoute(res, body, opts) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue: {arriveAnyway: Function} }} opts
+ * @param {{ root: string, port: number, checksHome: { skip: boolean, home: string|undefined }, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue: {arriveAnyway: Function} }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -574,8 +575,8 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  // /api/runs/:flow/:runId(/audit|/job|/asks|/result|/download)?
-  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks|result|download))?$/.exec(pathname);
+  // /api/runs/:flow/:runId(/audit|/job|/asks|/result|/grid|/download)?
+  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks|result|grid|download))?$/.exec(pathname);
   if (runMatch) {
     let flow;
     let runId;
@@ -604,6 +605,7 @@ export function handleRequest(req, res, opts) {
     if (sub === 'job') {
       const result = getRunJob({
         root: opts.root, flow, runId, catalogue, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null,
+        mcpChecks: () => (opts.checksHome.skip ? new Map() : newestMcpChecks(opts.checksHome.home)),
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
@@ -622,6 +624,13 @@ export function handleRequest(req, res, opts) {
         root: opts.root, flow, runId, catalogue, resumeAttempt, now: opts.now,
       });
       if (!result) { sendText(res, 404, 'no such run, or it has no result tab'); return; }
+      send(200, result);
+      return;
+    }
+    if (sub === 'grid') {
+      // M13 piece 6 (item 8): the job's one Result grid (every run of the flow); the run in the URL only names the flow's run the person is looking at
+      const result = getJobGrid({ root: opts.root, flow, catalogue, now: opts.now });
+      if (!result) { sendText(res, 404, 'no such job'); return; }
       send(200, result);
       return;
     }
@@ -724,7 +733,7 @@ export function createPanelServer(opts) {
   // Settings reads and writes only under the one config home: an injected one (tests), else the door's — under a test
   // process with no FWDLOOP_CONFIG_HOME, Settings is switched off rather than touch the real ~/.config/fwdloop.
   const settings = createSettings({
-    home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now, openFolderSpawn: opts.settings?.openFolderSpawn, platform: opts.settings?.platform,
+    root, home: opts.settings?.home ?? door.home, skip: opts.settings?.home === undefined && door.skip, env: opts.settings?.env, fetch: opts.settings?.fetch, now: opts.settings?.now, openFolderSpawn: opts.settings?.openFolderSpawn, platform: opts.settings?.platform,
   });
   return new Promise((resolve, reject) => {
     // Bound port is resolved from the live socket (`server.address().port`)
@@ -736,7 +745,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), now: opts.author?.now ?? Date.now }),
+          root, port: boundPort, resumer, settings, checksHome: { skip: opts.settings?.home === undefined && door.skip, home: opts.settings?.home ?? door.home }, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), startAnyway: (a) => author.trigger.startAnyway(a), now: opts.author?.now ?? Date.now }),
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

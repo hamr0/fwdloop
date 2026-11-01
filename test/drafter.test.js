@@ -234,3 +234,15 @@ test('(f2) a structure retry with no prior validator reds carries none, and a re
   const retryUser = p.calls[1].messages.find((m) => m.role === 'user').content;
   assert.ok(!/refused by the validator/.test(retryUser));
 });
+
+test('(log) each try keeps the raw answer: parsed args per try, raw arguments when unparseable', async () => {
+  const bad = validArgs();
+  bad.steps[2].primitives = ['forget'];
+  const p = fakeProvider([malformedReply(), toolReply(bad), toolReply(validArgs())]);
+  const r = await run(p);
+  assert.equal(r.ok, true);
+  assert.equal(r.log[0].rawArguments, '{"steps":[}');
+  assert.equal(r.log[0].args, undefined);
+  assert.deepEqual(r.log[1].args.steps[2].primitives, ['forget'], 'the model\'s own declaration, not the code-overwritten one');
+  assert.deepEqual(r.log[2].args, validArgs());
+});

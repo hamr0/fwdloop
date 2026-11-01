@@ -75,6 +75,18 @@ export function killChildrenAfter() {
   after(() => reapChildren());
 }
 
+/**
+ * Point the HOME of BOTH the panel (this process: os.homedir() reads process.env.HOME at each call) and its children (`w.env`) at `fakeHome`.
+ * Setting only `w.env.HOME` leaves the in-process MCP discovery on the developer's real home: green there, red on CI.
+ * @param {{env: Record<string,string>}} w @param {string} fakeHome
+ */
+export function useHome(w, fakeHome) {
+  const old = process.env.HOME;
+  w.env.HOME = fakeHome;
+  process.env.HOME = fakeHome;
+  after(() => { if (old === undefined) delete process.env.HOME; else process.env.HOME = old; });
+}
+
 export function rq(port, {
   method = 'GET', url = '/', headers = {}, body,
 } = {}) {

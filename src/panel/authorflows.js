@@ -14,7 +14,8 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scrub } from '../authoring.js';
-import { ticketNumberOf, ticketRefusals, ticketSourcesOf } from '../ticket-draft.js';
+import { ticketSourcesOf } from '../ticket-draft.js';
+import { flowTypeOf } from '../declaration.js';
 import { endRow, readHistory } from '../books.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
@@ -45,7 +46,7 @@ export const editBlockedSay = (runId) => `finish or stop ${runId} first`;
 export const EDIT_STARTING_SAY = 'a run is starting';
 const NO_LIMIT = 'no monthly limit set';
 /** The body keys a run start takes (amendment 5 item 2): the open boxes plus the hash of the second click. Any other key is refused by name. */
-const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf', 'ticket'];
+const RUN_KEYS = ['flow', 'inputs', 'runId', 'destination', 'capUsd', 'askWaits', 'hash', 'provider', 'model', 'planOf'];
 
 /**
  * What the Run / Resume forms show of a signed flow (read from its own files, never from a model): the job lines as the signed text has them
@@ -230,10 +231,6 @@ export function createFlowsDoor(opts) {
     if (Object.hasOwn(pages, r.role) && r.path !== pages[r.role]) refusals.push({ field: `inputs.${n}`, say: pageAddressRefusal(r.role, pages[r.role]) });
     });
     const declared = (read.arbiter.sources ?? []).map((s) => s.role);
-    // M12 piece 3 (hamr 2026-10-29): a by-hand Run on a job with a ticket list picks ONE ticket by number; any other job takes none
-    const ticketRole = ticketSourcesOf(read.arbiter.sources)[0]?.role ?? null;
-    const ticket = ticketNumberOf(body?.ticket);
-    refusals.push(...ticketRefusals(ticketRole, body));
     for (const role of declared) {
     if (!Object.hasOwn(pages, role) && !rows.some((r) => r.role === role)) refusals.push({ field: 'inputs', say: `This flow needs an input named "${role}". Add it.` });
     }
@@ -251,7 +248,7 @@ export function createFlowsDoor(opts) {
     flow, flowSignatureHash: read.signature.flow, runId: null, version: 0, values,
     });
     return {
-    ok: /** @type {true} */ (true), flow, read, declared, rows: declared.map((role) => rows.find((r) => r.role === role) ?? { role, path: pages[role] }), ticketRole, ticket, runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
+    ok: /** @type {true} */ (true), flow, read, declared, rows: declared.map((role) => rows.find((r) => r.role === role) ?? { role, path: pages[role] }), runId, values, differs: checked.differs || runModel !== null, hash, newPick, flowDir: join(realRoot, flow), planFrom,
     };
   }
 
@@ -303,11 +300,11 @@ export function createFlowsDoor(opts) {
     const last = lastSources(flowDir, roles, pageAddressesOf(read.arbiter));
     const { passed, stats } = runsOf(flowDir, name, read, roles);
     return {
-      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), tickets: ticketSourcesOf(read.arbiter.sources).map((x) => x.role), nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
+      flow: name, capUsd: read.arbiter.capUsd, roles, pages: pageAddressesOf(read.arbiter), tickets: flowTypeOf(read.declaration) === 'tickets' ? ticketSourcesOf(read.arbiter.sources).map((x) => x.role) : [], flowType: flowTypeOf(read.declaration), mcp: read.declaration?.mcp?.server ?? null, nextRunId: nextRunId(flowDir), lastRunId: last.runId, lastSources: last.sources, leftThisMonth: left,
       runs: passed, stats,
       ...formFacts(read, home, flowDir),
       // M6 am5/am6: the job as the card Reuse workflow opens (`ok:true, card`), or why the card cannot hold it (`ok:false, say`). Nothing blocks it: a reuse never changes the job it is opened from.
-      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: c.card } : c; })(),
+      edit: (() => { const c = cardFromSigned(read); return c.ok ? { ok: true, card: { ...c.card, ...(flowTypeOf(read.declaration) === 'plain' ? {} : { flowType: flowTypeOf(read.declaration), mcp: read.declaration?.mcp?.server ?? '' }) } } : c; })(),
     };
   }
 
@@ -325,7 +322,7 @@ export function createFlowsDoor(opts) {
     },
 
     /**
-     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not)? The server decides this itself,
+     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not; M13 9b.2: not a run that failed preflight)? The server decides this itself,
      * never from the page's word. False for a run that does not resolve.
      * @param {string} flow @param {unknown} runId
      */
@@ -334,7 +331,10 @@ export function createFlowsDoor(opts) {
       if (realRoot === null || !checkFlowName(flow).ok || typeof runId !== 'string' || runId === '') return false;
       const cat = loadCatalogue();
       if (!cat.ok) return false;
-      return getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph === '[✗]';
+      if (getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph !== '[✗]') return false;
+      // M13 item 9b.2: a run that failed preflight never ran its plan (no step, $0), so its plan did not fail: reusing it unchanged is Run now, not a paid redraft
+      const end = endRow(readHistory(join(realRoot, flow)), join(realRoot, flow, 'runs', runId), runId);
+      return end?.outcome !== 'preflight-red';
     },
 
     /**
@@ -356,11 +356,15 @@ export function createFlowsDoor(opts) {
      * @param {any} body
      */
     reuseCheck(body) {
-      const { job, fromRun, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
+      // M13 am4 item 1: `flowType` and `mcp` are job fields like the lines; read here, never reach the run door. An absent field = unchanged; plain has no server.
+      const { job, fromRun, flowType, mcp, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
       const realRoot = realRootOrNull();
       if (realRoot !== null && typeof job === 'string' && typeof rest.flow === 'string' && checkFlowName(rest.flow).ok) {
         const read = readSigned(realRoot, rest.flow);
-        if (read.ok && jobKeyOfCard(job) !== jobKeyOfSigned(read)) {
+        const signedType = read.ok ? flowTypeOf(read.declaration) : 'plain';
+        const typeChanged = typeof flowType === 'string' && flowType !== signedType;
+        const mcpChanged = typeof mcp === 'string' && (flowType ?? signedType) !== 'plain' && mcp !== (read.ok ? read.declaration?.mcp?.server ?? '' : '');
+        if (read.ok && (jobKeyOfCard(job) !== jobKeyOfSigned(read) || typeChanged || mcpChanged)) {
           return { status: 200, body: { ok: true, kind: 'draft', suggestedName: suggestFlowName(realRoot, rest.flow) } };
         }
         // M6 am9: a RED run always drafts. The job is unchanged here, so the new plan is the next run of the SAME workflow (no new name). Only `[✗]` is red.
@@ -467,7 +471,7 @@ export function createFlowsDoor(opts) {
         };
       }
       const started = starter.start({
-        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path, ...(role === s.ticketRole ? { ticket: /** @type {number} */ (s.ticket) } : {}) })), values, pick: s.newPick, planOf: s.planFrom,
+        kind: 'run', flow: s.flow, runId: s.runId, sources: s.declared.map((role) => ({ role, path: /** @type {{path: string}} */ (s.rows.find((r) => r.role === role)).path })), values, pick: s.newPick, planOf: s.planFrom,
       }, loaded);
       // M4d amendment 7b: the pick of a flow that had no record is written only once the start succeeded (a refused start leaves none), beside the signed files, never in them
       if (started.status === 202 && s.newPick !== null) {

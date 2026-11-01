@@ -18,9 +18,10 @@ const fixture = (n) => readFileSync(path.join(HERE, 'fixtures', n), 'utf8');
 const cat = loadCatalogue();
 
 /** job2 signed with a typed MCP field: the job lists `tools`, and the first step grants `granted`. */
-function mcpFlow(root, name, tools, granted) {
+function mcpFlow(root, name, tools, granted, flowType) {
   const declaration = JSON.parse(fixture('job2.m1.declaration.json'));
   declaration.mcp = { server: 'github', tools };
+  if (flowType) declaration.flowType = flowType;
   declaration.steps[0].mcpTools = granted;
   const w = writeFlow({
     root, name, proseText: sandboxSend(fixture('job2-with-sources.signed.txt')), declaration, signedBy: 'hamr', signedAt: '2026-10-29T12:00:00Z', catalogue: cat.primitives,
@@ -29,16 +30,16 @@ function mcpFlow(root, name, tools, granted) {
 }
 const lastHistory = (root, name) => readFileSync(path.join(root, name, 'history.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).at(-1);
 
-test('1a: a run of a job that lists a tool no step grants is refused at $0 by name; no step ran', async (t) => {
+test('1a (M13 p4): a run of a generic MCP job whose steps call no tool is refused at $0 by name; no step ran', async (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m12p1-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  mcpFlow(root, 'tick', ['issue_read', 'list_issues'], ['issue_read']);
+  mcpFlow(root, 'tick', ['issue_read', 'list_issues'], [], 'mcp');
   const r = await runFlow({
     root, name: 'tick', runId: 'run-1', catalogue: cat.primitives, primitives: {}, businessDate: '2026-06-01', sources: [],
     modelStep: async () => { throw new Error('a model step ran'); }, askStep: async () => { throw new Error('ask'); }, sendStep: async () => { throw new Error('send'); },
   });
   assert.equal(r.outcome, 'preflight-red');
-  assert.match(r.red, /job tool "list_issues" \(server "github"\) is granted to no step/);
+  assert.match(r.red, /MCP job \(server "github"\) has no step that calls one of its tools/);
   const h = lastHistory(root, 'tick');
   assert.equal(h.outcome, 'preflight-red');
   assert.equal(h.spentUsd, 0);
