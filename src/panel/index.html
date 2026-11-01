@@ -675,13 +675,13 @@
   .job-card.compact select{padding:5px 7px;}
   .radio-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:10px;}
   .radio-row label{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);margin:0;text-transform:none;}
-  /* hamr 2026-11-01 (variant A): the Chat card's field captions are normal case, 14px bold, ink, with the Runs captions' blue left mark; `required` is small and grey */
-  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label{font-size:14px;font-weight:700;color:var(--cap-s-ink);text-transform:none;letter-spacing:0;margin:6px 0 6px;padding-left:8px;border-left:4px solid var(--cap-s);}
-  #chat-job-card .req{font-size:11px;font-weight:400;color:var(--req);margin-left:8px;}
   .radio-row input{width:auto;}
   @media (max-width:400px){.job-card .radio-row{padding-right:76px;}}
   .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
   .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
+  /* hamr 2026-11-01 (variant A): the Chat card's field captions are normal case, 14px bold, ink, with the Runs captions' blue left mark; `required` is small and grey */
+  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label{font-size:14px;font-weight:700;color:var(--cap-s-ink);text-transform:none;letter-spacing:0;margin:6px 0 6px;padding-left:8px;border-left:4px solid var(--cap-s);}
+  #chat-job-card .req{font-size:11px;font-weight:400;color:var(--req);margin-left:8px;}
   .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
   .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
   .btn.primary::before,.btn.primary::after{color:var(--primary-text);opacity:0.6;}
