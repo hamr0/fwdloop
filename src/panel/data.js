@@ -52,6 +52,7 @@ import { buildJobGrid } from './jobgrid.js';
 import { readChecks } from '../diary.js';
 import { readRunInputs } from '../runfile.js';
 import { readSchedule } from '../schedule.js';
+import { flowTypeOf } from '../declaration.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readLearningsRecord } from '../flowmodel.js';
 import { readRunThinking } from '../runfile.js';
@@ -2283,10 +2284,12 @@ export function getJobGrid({
   if (!fd.ok || !existsSync(fd.flowDir)) return null;
   const { flowDir } = fd;
   const runs = [];
+  let flowType = null;
   for (const runId of listRunIds(flowDir)) {
     const run = resolveRunPath(root, flow, runId);
     if (!run.ok || !existsSync(run.runDir)) continue; // eslint-disable-line no-continue
     const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+    if (flowType === null && ctx.flowRead.ok) flowType = flowTypeOf(ctx.flowRead.declaration);
     const g = computeGlyph(ctx);
     const inputs = readRunInputs(run.runDir);
     const entry = inputs.ok ? inputs.entries.find((e) => e && e.ticket && Number.isInteger(e.ticket.number)) : null;
@@ -2304,7 +2307,7 @@ export function getJobGrid({
     root, flow, runId: from, catalogue,
   }) : null;
   const numbers = new Set((list?.groups.find((x) => x.key === 'skip')?.rows ?? []).map((r) => r.number));
-  return buildJobGrid({ runs, anyway: from !== null ? { runId: from, numbers } : null, now: now() });
+  return { flowType, ...buildJobGrid({ runs, anyway: from !== null ? { runId: from, numbers } : null, now: now() }) };
 }
 
 /**

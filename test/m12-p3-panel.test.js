@@ -1,4 +1,4 @@
-// M12 piece 3 (item 9, mockup E): the ticket list in the REAL Result tab, in a real headless browser, on the real panel, over REAL skipped ticket runs ($0).
+// M12 piece 3 (item 9) as M13 piece 6 (item 8, mock Part 3 variant B) draws it: the ticket runs in the job's ONE Result grid, in the REAL Result tab, in a real headless browser, on the real panel, over REAL skipped ticket runs ($0).
 // Groups, fold, chips, search, Run it anyway (a reason first), and the page not wider than the screen at 1280, 390 and 320 (per-box numbers printed).
 // Set FWDLOOP_WALK_OUT=<dir> to save one screenshot per width. Skips only when no chromium is installed.
 import assert from 'node:assert/strict';
@@ -32,33 +32,31 @@ async function open(t, width, extra = {}) {
   assert.ok(await chrome.waitFor('document.getElementById("active-wf-name").textContent.indexOf("run-1") !== -1'), 'run-1 is selected');
   assert.ok(await chrome.waitFor('!document.getElementById("tab-result").hidden'), 'the Result tab shows');
   await chrome.ev('document.getElementById("tab-result").click()');
-  assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=result-tickets]")'), 'the ticket list drew');
+  assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=result-grid]")'), 'the grid drew');
   return { chrome, w };
 }
 const MEASURE = `(function(){
   var vw = document.documentElement.clientWidth, over = [], worst = 0;
-  document.querySelectorAll("#result-body *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; if(r.right - vw > worst) worst = r.right - vw; if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right)); });
-  return { vw: vw, scrollW: document.documentElement.scrollWidth, worst: Math.round(worst), over: over.slice(0, 5) };
+  document.querySelectorAll("#result-body *").forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width === 0 && r.height === 0) return; var w = e.closest(".grid-wrap"); if(w && w !== e) return; if(r.right - vw > worst) worst = r.right - vw; if(r.right > vw + 0.5 || r.left < -0.5) over.push(e.tagName + "." + e.className + " right=" + Math.round(r.right)); });
+  var gw = document.querySelector("#result-body .grid-wrap");
+  return { vw: vw, scrollW: document.documentElement.scrollWidth, worst: Math.round(worst), over: over.slice(0, 5), gridBox: gw ? gw.clientWidth : null, gridInner: gw ? gw.scrollWidth : null };
 })()`;
 
-test('groups, fold, chips and search work; skipped rows show reason and $0', { skip: SKIP && 'no browser' }, async (t) => {
+test('the four buckets are fold rows of one grid, Skipped folded at first; skipped rows are named #<n> with reason and $0; the stats line counts them', { skip: SKIP && 'no browser' }, async (t) => {
   const o = await open(t, 1280);
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  const folds = await c.ev('Array.from(document.querySelectorAll(".tk-fold")).map(function(b){ return b.textContent.trim(); })');
+  const folds = await c.ev('Array.from(document.querySelectorAll(".jg-fold")).map(function(b){ return b.textContent.trim(); })');
   assert.deepEqual(folds, ['▾ Needs you (0)', '▾ Stopped (0)', '▸ Passed (0)', '▸ Skipped (2)']);
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 0, 'Skipped is folded at first');
-  await c.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
-  const rows = await c.ev('Array.from(document.querySelectorAll("[data-testid=ticket-row]")).map(function(r){ return r.getAttribute("data-number") + "|" + r.querySelector("[data-testid=ticket-reason]").textContent; })');
-  assert.deepEqual(rows.sort(), ['102|priority P3, not P1 or P2 · $0', '103|closed · $0']);
-  // chips pick groups; search narrows rows
-  await c.ev('document.querySelector("[data-testid=chip-tickets-done]").click()');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 0, 'only Passed is shown, and it is empty');
-  await c.ev('document.querySelector("[data-testid=chip-tickets-done]").click(); document.querySelector("[data-testid=chip-tickets-skip]").click()');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 2);
-  await c.ev('var s = document.getElementById("tickets-filter-search"); s.value = "docs"; s.dispatchEvent(new Event("input", {bubbles: true}))');
-  assert.equal(await c.ev('document.querySelectorAll("[data-testid=ticket-row]").length'), 1);
-  assert.equal(await c.ev('document.getElementById("tickets-filter-search") === document.activeElement || true'), true);
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=grid-row]").length'), 0, 'Skipped is folded at first');
+  assert.equal(await c.ev('document.querySelector("[data-testid=grid-stats]").textContent'), '0 needs you · 0 stopped · 0 passed · 2 skipped · spent $0');
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+  const rows = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-row]")).map(function(r){ return r.querySelector("[data-testid=grid-name]").textContent + "|" + r.nextElementSibling.querySelector("[data-testid=ticket-reason]").textContent; })');
+  assert.deepEqual(rows.sort(), ['#102|priority P3, not P1 or P2 · $0', '#103|closed · $0']);
+  const heads = await c.ev('Array.from(document.querySelectorAll("[data-testid=grid-table] thead th")).map(function(h){ return h.textContent; })');
+  assert.deepEqual(heads, ['run', 'every stepexists, done', 'output judged', 'cost', 'time']);
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
+  assert.equal(await c.ev('document.querySelectorAll("[data-testid=grid-row]").length'), 0, 'a fold row folds again');
 });
 
 test('the Result head wears [–] for a skipped run, the sign the ticket list uses', { skip: SKIP && 'no browser' }, async (t) => {
@@ -74,7 +72,7 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
   const o = await open(t, 1280, { ticketQueue: { arriveAnyway: (a) => { calls.push(a); return { ok: true }; } } });
   if (!o) { t.skip('no chromium installed'); return; }
   const c = o.chrome;
-  await c.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
+  await c.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
   await c.ev('document.querySelector("[data-testid=ticket-anyway-open][data-number=\\"102\\"]").click()');
   assert.equal(await c.ev('document.querySelector("[data-testid=ticket-anyway-go]").disabled'), true, 'no reason, no Run it anyway');
   assert.deepEqual(calls, []);
@@ -94,10 +92,10 @@ test('Run it anyway asks for a reason first: the button stays off without one, a
 });
 
 for (const width of [1280, 390, 320]) {
-  test(`browser ${width}: the ticket list does not spill past the screen`, { skip: SKIP && 'no browser' }, async (t) => {
+  test(`browser ${width}: the Result grid does not spill past the screen`, { skip: SKIP && 'no browser' }, async (t) => {
     const o = await open(t, width);
     if (!o) { t.skip('no chromium installed'); return; }
-    await o.chrome.ev('document.querySelector("[data-testid=ticket-fold-skip]").click()');
+    await o.chrome.ev('document.querySelector("[data-testid=grid-fold-skip]").click()');
     await o.chrome.ev('document.querySelector("[data-testid=ticket-anyway-open]").click()');
     await o.chrome.ev('var ta = document.querySelector("[data-testid=ticket-anyway-text]"); ta.value = "a long reason ".repeat(12); ta.dispatchEvent(new Event("input", {bubbles: true}))');
     const m = await o.chrome.ev(MEASURE);

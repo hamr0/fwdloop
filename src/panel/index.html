@@ -573,19 +573,23 @@
   .rs-warn{color:var(--amber);overflow-wrap:anywhere;}
   /* M10 am5 item 2: the Your-call card. borrowed-from: bareloop src/panel/index.html@2959217 :401-403 :407 */
   /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
-  .tk-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text-dim);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;min-height:32px;}
-  .tk-fold:hover{color:var(--accent);}
-  .tk-fold:focus-visible,.tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  .tk{padding:6px 0;border-bottom:1px dotted var(--border-strong);min-width:0;}
-  .tk:last-child{border-bottom:0;}
-  .tk-1{display:flex;gap:6px;align-items:baseline;min-width:0;}
-  .tk-n{color:var(--accent);font-weight:700;flex:none;}
-  .tk-t{color:var(--text);min-width:0;flex:1 1 0;overflow-wrap:anywhere;}
-  .tk-when{color:var(--text-faint);font-size:12px;flex:none;}
-  .tk-2{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;}
-  .tk-state.green{color:var(--green);} .tk-state.red{color:var(--red);} .tk-state.amber{color:var(--amber);} .tk-state.grey{color:var(--text-faint);}
+  /* M13 piece 6: the job's Result grid (mock docs/product/m13-setup-mock.html Part 3). The table, cells, q-fold and step-sub are the Audit grid's own; these are the bucket fold rows, the stats line and the run column. */
+  #result-body .jg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
+  table.grid.jg td.r,table.grid.jg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
+  table.grid.jg td.c{min-width:84px;}
+  .jg-name{color:var(--accent);font-weight:700;font-size:12px;}
+  table.grid.jg button.q-fold{color:var(--accent);font-weight:700;}
+  .jg-val{font-size:11px;color:var(--text-faint);margin-left:4px;}
+  tr.jg-grp td{background:var(--panel);border-bottom:1px solid var(--border-strong);padding:0 8px;}
+  .jg-fold{display:block;width:100%;text-align:left;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:700;min-height:34px;cursor:pointer;}
+  .jg-fold:hover{color:var(--accent);}
+  .jg-fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .jg-foldin{position:sticky;left:8px;}
+  .jg-skipwhy{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  table.grid.jg tr.step-sub td{white-space:normal;overflow-wrap:anywhere;}
+  table.grid.jg tr.step-sub td>*{position:sticky;left:8px;width:min(560px,calc(100vw - 80px));max-width:100%;box-sizing:border-box;}
+  .tk-rl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .tk-rl{color:var(--accent);text-decoration:underline;cursor:pointer;background:none;border:0;padding:0;font:inherit;}
-  .tk-chg{font-size:12px;color:var(--amber);}
   .tk-anyway{margin-top:6px;}
   .tk-anyway textarea{width:100%;min-height:52px;margin:4px 0;background:var(--bg);color:var(--text);border:1px solid var(--text-dim);font:inherit;font-size:16px;padding:6px;box-sizing:border-box;}
   .tk-msg{font-size:12px;overflow-wrap:anywhere;}
@@ -2579,16 +2583,18 @@
     document.getElementById("result-body").innerHTML = "";
     document.getElementById("result-empty").hidden = false;
   }
-  // called by renderRun for every detail it draws: shows or removes the tab button
+  // called by renderRun for every detail it draws. M13 piece 6: the tab is there for every run (the job's grid); the run's own cards only when `detail.hasResult`.
   function syncResultTab(detail){
     var btn = document.getElementById("tab-result");
-    var show = detail.hasResult === true;
-    if(!show && resultTabShown()) document.getElementById("tab-run").click();
-    btn.hidden = !show;
+    btn.hidden = false;
     var same = !!resultData && resultData.flow === detail.flow && resultData.runId === detail.runId;
-    if(!show || !same) clearResult();   // another run's rows never stay on screen
-    resultDetail = show ? detail : null;
-    if(show && same) renderResult();
+    if(!same) clearResult();   // another run's rows never stay on screen
+    if(gridData && gridData.flow !== detail.flow){ gridData = null; gridSeenGlyph = null; }
+    resultDetail = detail;
+    if(same || gridData) renderResult();
+    // a run that changed its sign (it ended, it asked) changes its row: the grid is read again, once per change
+    if(gridSeenGlyph !== null && gridSeenGlyph !== detail.runId + detail.glyph && resultTabShown()) loadGrid(detail.flow, detail.runId);
+    gridSeenGlyph = detail.runId + detail.glyph;
   }
   function loadResult(flow, runId){
     return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/result").then(function(data){
@@ -2597,7 +2603,11 @@
       renderResult();
     }).catch(function(){ /* the tab keeps what it last drew */ });
   }
-  document.getElementById("tab-result").addEventListener("click", function(){ if(currentRunId !== null) loadResult(currentFlow, currentRunId); });
+  document.getElementById("tab-result").addEventListener("click", function(){
+    if(currentRunId === null) return;
+    loadGrid(currentFlow, currentRunId);
+    if(resultDetail && resultDetail.hasResult === true) loadResult(currentFlow, currentRunId);
+  });
 
   // a RED run's own file words (the last file its check judged: "the file is gone" / "the file changed after the check") and the one note that says
   // what those rows are. A DELIVERED file's gone/changed words are said once, in the Saved card, never here.
@@ -2723,107 +2733,132 @@
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
       resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
   }
-  // ---- M12 piece 3: the ticket list (item 9, mockup E). The server decides every group, row, reason and sentence (src/panel/tickets.js); this only draws,
-  // filters by the chips and the search, and posts "Run it anyway" with its reason. The filter bar is the panel's own markup (.filterbar, .search-input, .chips, .chip.fchip).
-  var ticketUi = { chips: {}, q: "", open: {}, anyway: null, msg: "" };
-  var TICKET_STATE = { "[✓]": ["green", "passed"], "[–]": ["grey", "skipped"], "[✗]": ["red", "stopped"], "[■]": ["red", "stopped"], "[?]": ["red", "stopped"], "[·]": ["amber", "waiting"], "[▶]": ["amber", "running"], "[II]": ["amber", "stuck"], "[!]": ["amber", "expired"] };
-  function ticketWhen(ms){ return rlShortDate(new Date(ms).toISOString()); }
-  function ticketRowHTML(r, flow){
-    var st = TICKET_STATE[r.glyph] || ["grey", ""];
-    var h = '<div class="tk" data-testid="ticket-row" data-number="' + r.number + '"><div class="tk-1"><span class="tk-when">' + escapeXml(ticketWhen(r.at)) + '</span><span class="tk-n">#' + r.number + '</span><span class="tk-t">' + escapeXml(r.title || "") + '</span></div><div class="tk-2">';
-    if(r.changed) h += '<span class="tk-chg" data-testid="ticket-changed">' + escapeXml(r.changed) + '</span><br>';
-    h += '<span class="tk-state ' + st[0] + '"><b>' + escapeXml(r.glyph) + '</b> ' + escapeXml(st[1]) + '</span>';
-    if(r.group === "skip"){
-      h += ' \u00b7 <span data-testid="ticket-reason">' + escapeXml(r.reason || "") + ' \u00b7 $0</span> <button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>';
-    } else {
-      h += ' \u00b7 <button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button>';
-    }
-    h += '</div>';
-    if(r.group === "skip" && ticketUi.anyway && ticketUi.anyway.number === r.number){
-      h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(ticketUi.anyway.text) + '</textarea>' +
-        '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (ticketUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
-    }
-    return h + '</div>';
-  }
-  function ticketGroupsHTML(t, flow){
-    var any = t.groups.some(function(g){ return ticketUi.chips[g.key]; });
-    var q = ticketUi.q.trim().toLowerCase();
-    return t.groups.map(function(g){
-      if(any && !ticketUi.chips[g.key]) return "";
-      var rows = g.rows.filter(function(r){ return !q || ("#" + r.number + " " + r.number + " " + (r.title || "")).toLowerCase().indexOf(q) !== -1; });
-      var open = ticketUi.open[g.key] === undefined ? g.open : ticketUi.open[g.key];
-      return '<button class="tk-fold" type="button" data-testid="ticket-fold-' + g.key + '" data-group="' + g.key + '" aria-expanded="' + open + '">' + (open ? "\u25be" : "\u25b8") + " " + escapeXml(g.label) + " (" + rows.length + ")</button>" +
-        (open ? rows.map(function(r){ return ticketRowHTML(r, flow); }).join("") : "");
-    }).join("");
-  }
-  function ticketCardHTML(t, flow){
-    return '<div class="field"><label>Schedule</label><div class="ro-value" data-testid="ticket-schedule">' + escapeXml(t.line) + '</div></div>' +
-      '<div class="audit-group" data-testid="result-tickets"><h4><span class="badge grey">tickets</span></h4>' +
-      '<div class="filterbar" data-scope="tickets" data-testid="tickets-filters"><input type="text" class="search-input" id="tickets-filter-search" data-testid="tickets-filter-search" placeholder="ticket number or title" autocomplete="off" value="' + escapeXml(ticketUi.q) + '">' +
-      '<div class="chips" role="group" aria-label="Filter">' + t.groups.map(function(g){
-        return '<button class="chip fchip" type="button" aria-pressed="' + (ticketUi.chips[g.key] ? "true" : "false") + '" data-ticket-chip="' + g.key + '" data-testid="chip-tickets-' + g.key + '">' + escapeXml(g.label) + '</button>';
-      }).join("") + '</div></div>' +
-      '<div id="ticket-groups" data-testid="ticket-groups">' + ticketGroupsHTML(t, flow) + '</div>' +
-      '<div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(ticketUi.msg) + '</div>' +
-      '<div class="hint">newest first inside each group \u00b7 each ticket opens its own run</div></div>';
-  }
-  function wireTickets(body, data){
-    var t = data.tickets;
-    var host = body.querySelector("#ticket-groups");
-    if(!t || !host) return;
-    function repaint(){ host.innerHTML = ticketGroupsHTML(t, data.flow); wireRows(); }
-    function wireRows(){
-      host.querySelectorAll(".tk-fold").forEach(function(b){
-        b.addEventListener("click", function(){ var k = b.getAttribute("data-group"); var g = t.groups.filter(function(x){ return x.key === k; })[0]; var cur = ticketUi.open[k] === undefined ? g.open : ticketUi.open[k]; ticketUi.open[k] = !cur; repaint(); });
-      });
-      host.querySelectorAll("[data-testid=ticket-run]").forEach(function(b){
-        b.addEventListener("click", function(){ var id = b.getAttribute("data-run"); selectRun(data.flow, id, null, ".hist-row"); document.getElementById("tab-run").click(); });
-      });
-      host.querySelectorAll("[data-testid=ticket-anyway-open]").forEach(function(b){
-        b.addEventListener("click", function(){ var n = Number(b.getAttribute("data-number")); ticketUi.anyway = (ticketUi.anyway && ticketUi.anyway.number === n) ? null : { number: n, text: "" }; ticketUi.msg = ""; repaint(); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta) ta.focus(); });
-      });
-      var ta = host.querySelector("[data-testid=ticket-anyway-text]");
-      var go = host.querySelector("[data-testid=ticket-anyway-go]");
-      if(ta && go){
-        ta.addEventListener("input", function(){ ticketUi.anyway.text = ta.value; go.disabled = ta.value.trim() === ""; });
-        go.addEventListener("click", function(){
-          var a = ticketUi.anyway;
-          if(!a || a.text.trim() === ""){ ticketUi.msg = "Please write a reason to run it anyway."; document.getElementById("ticket-msg").textContent = ticketUi.msg; return; }
-          go.disabled = true;
-          postJSON("/api/author/ticket-anyway", { flow: data.flow, runId: data.runId, number: a.number, reason: a.text.trim() }).then(function(r){
-            var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
-            ticketUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
-            if(ok) ticketUi.anyway = null;
-            repaint(); document.getElementById("ticket-msg").textContent = ticketUi.msg;
-          }).catch(function(){ ticketUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = ticketUi.msg; go.disabled = false; });
-        });
+  // ---- M13 piece 6 (item 8): the job's ONE Result grid (mock docs/product/m13-setup-mock.html Part 3, variant B). It replaces M12's ticket list (the same four
+  // buckets, now fold rows inside the grid). The server decides every bucket, mark, name, reason and number (src/panel/jobgrid.js); this only draws, folds, and posts
+  // "Run it anyway" with its reason. The cells are the Audit grid's own (gridGlyph, .cell colours, q-fold, step-sub).
+  var gridData = null;
+  var gridSeenGlyph = null;
+  var gridUi = { open: {}, rows: {}, anyway: null, msg: "" };
+  function gridMarkOf(c){ return gridGlyph(c === "g" ? "✓" : (c === "r" ? "✗" : (c === "q" ? "?" : "·"))); }
+  function jgCell(c){ return '<td class="c">' + gridMarkOf(c) + '</td>'; }
+  function jgCellV(c, val){ return '<td class="c">' + gridMarkOf(c) + '<span class="jg-val">' + escapeXml(val) + '</span></td>'; }
+  function jgRowHTML(r, g){
+    var skip = r.bucket === "skip";
+    var open = skip || !!gridUi.rows[r.runId];
+    var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r">' + (skip
+      ? '<span class="jg-name" data-testid="grid-name">' + escapeXml(r.name) + '</span>'
+      : '<button class="q-fold" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-expanded="' + open + '"><span data-testid="grid-name">' + escapeXml(r.name) + '</span></button>') + '</td>' +
+      jgCell(r.ex) + jgCell(r.oj) + jgCellV(r.cost.mark, r.cost.value) + jgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
+    if(skip){
+      h += '<tr class="step-sub"><td colspan="5"><div class="jg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
+        (r.anyway ? '<button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>' : "") + '</div>';
+      if(r.anyway && gridUi.anyway && gridUi.anyway.number === r.number){
+        h += '<div class="tk-anyway" data-testid="ticket-anyway-box"><textarea data-testid="ticket-anyway-text" aria-label="reason (needed to run it anyway)" placeholder="reason (needed to run it anyway)">' + escapeXml(gridUi.anyway.text) + '</textarea>' +
+          '<button class="btn small" type="button" data-testid="ticket-anyway-go"' + (gridUi.anyway.text.trim() === "" ? " disabled" : "") + '>Run it anyway</button></div>';
       }
+      h += '</td></tr>';
+    } else if(open){
+      h += '<tr class="step-sub"><td colspan="5">' + r.lines.map(function(x){ return '<div class="sub-line">' + escapeXml(x) + '</div>'; }).join("") +
+        '<div class="sub-line"><button class="tk-rl" type="button" data-testid="ticket-run" data-run="' + escapeXml(r.runId) + '">' + escapeXml(r.runId) + '</button></div></td></tr>';
     }
-    wireRows();
-    body.querySelectorAll("[data-ticket-chip]").forEach(function(c){
-      c.addEventListener("click", function(){ var k = c.getAttribute("data-ticket-chip"); ticketUi.chips[k] = !ticketUi.chips[k]; c.setAttribute("aria-pressed", ticketUi.chips[k] ? "true" : "false"); repaint(); });
+    return h;
+  }
+  function jgStatsHTML(st){
+    var c = st.counts;
+    return '<p class="jg-stats" data-testid="grid-stats"><b>' + c.wait + '</b> needs you · <b>' + c.stop + '</b> stopped · <b>' + c.done + '</b> passed · <b>' + c.skip + '</b> skipped · spent <b>' + escapeXml(st.spent === null ? "unknown" : st.spent) + '</b></p>';
+  }
+  function jgTableHTML(g){
+    var h = '<div class="grid-wrap"><table class="grid jg" data-testid="grid-table"><thead><tr><th class="r">run</th><th class="t">every step<span class="hint">exists, done</span></th><th class="t">output judged</th><th class="t">cost</th><th class="t">time</th></tr></thead><tbody>';
+    g.groups.forEach(function(b){
+      var open = gridUi.open[b.key] === undefined ? b.open : gridUi.open[b.key];
+      h += '<tr class="jg-grp"><td colspan="5"><button class="jg-fold" type="button" data-testid="grid-fold-' + b.key + '" data-group="' + b.key + '" aria-expanded="' + open + '"><span class="jg-foldin">' + (open ? "▾" : "▸") + " " + escapeXml(b.label) + " (" + b.rows.length + ")</span></button></td></tr>";
+      if(open) h += b.rows.map(function(r){ return jgRowHTML(r, g); }).join("");
     });
-    var search = body.querySelector("#tickets-filter-search");
-    if(search) search.addEventListener("input", function(){ ticketUi.q = search.value; repaint(); });
+    return h + '</tbody></table></div>';
+  }
+  function gridCardHTML(g, tickets){
+    return '<div class="audit-group" data-testid="result-grid"><h4><span class="badge grey">' + escapeXml(tickets ? "tickets" : g.flow) + '</span></h4>' + jgStatsHTML(g.stats) +
+      '<div id="grid-host" data-testid="grid-host">' + jgTableHTML(g) + '</div><div class="tk-msg" id="ticket-msg" data-testid="ticket-msg">' + escapeXml(gridUi.msg) + '</div>' +
+      '<div class="hint">newest first inside each bucket</div></div>';
+  }
+  function wireGrid(body){
+    var g = gridData;
+    var host = body.querySelector("#grid-host");
+    if(!g || !host) return;
+    function repaint(){ host.innerHTML = jgTableHTML(g); var ta = host.querySelector("[data-testid=ticket-anyway-text]"); if(ta && gridUi.focusAnyway){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
+    host.addEventListener("click", function(ev){
+      var t = ev.target.closest("button");
+      if(!t || !host.contains(t)) return;
+      var tid = t.getAttribute("data-testid") || "";
+      if(t.hasAttribute("data-group")){
+        var k = t.getAttribute("data-group");
+        var cur = g.groups.filter(function(x){ return x.key === k; })[0];
+        gridUi.open[k] = !(gridUi.open[k] === undefined ? cur.open : gridUi.open[k]);
+        repaint();
+      } else if(tid === "grid-open"){
+        var id = t.getAttribute("data-run");
+        gridUi.rows[id] = !gridUi.rows[id];
+        repaint();
+      } else if(tid === "ticket-run"){
+        selectRun(g.flow, t.getAttribute("data-run"), null, ".hist-row"); document.getElementById("tab-run").click();
+      } else if(tid === "ticket-anyway-open"){
+        var n = Number(t.getAttribute("data-number"));
+        gridUi.anyway = (gridUi.anyway && gridUi.anyway.number === n) ? null : { number: n, text: "" };
+        gridUi.msg = ""; gridUi.focusAnyway = true; repaint();
+      } else if(tid === "ticket-anyway-go"){
+        var a = gridUi.anyway;
+        var msg = document.getElementById("ticket-msg");
+        if(!a || a.text.trim() === ""){ gridUi.msg = "Please write a reason to run it anyway."; msg.textContent = gridUi.msg; return; }
+        t.disabled = true;
+        postJSON("/api/author/ticket-anyway", { flow: g.flow, runId: g.anywayRunId, number: a.number, reason: a.text.trim() }).then(function(r){
+          var ok = r.status >= 200 && r.status < 300 && r.body && r.body.ok === true;
+          gridUi.msg = (r.body && r.body.say) || (ok ? "Queued." : "Not queued. Nothing started.");
+          if(ok) gridUi.anyway = null;
+          repaint(); document.getElementById("ticket-msg").textContent = gridUi.msg;
+        }).catch(function(){ gridUi.msg = "Could not reach the panel. Nothing started."; document.getElementById("ticket-msg").textContent = gridUi.msg; t.disabled = false; });
+      }
+    });
+    host.addEventListener("input", function(ev){
+      var ta = ev.target;
+      if(!ta || ta.getAttribute("data-testid") !== "ticket-anyway-text" || !gridUi.anyway) return;
+      gridUi.anyway.text = ta.value;
+      var go = host.querySelector("[data-testid=ticket-anyway-go]");
+      if(go) go.disabled = ta.value.trim() === "";
+    });
+    host.addEventListener("focusout", function(ev){ if(ev.target && ev.target.getAttribute && ev.target.getAttribute("data-testid") === "ticket-anyway-text") gridUi.focusAnyway = false; });
+    host.addEventListener("focusin", function(ev){ if(ev.target && ev.target.getAttribute && ev.target.getAttribute("data-testid") === "ticket-anyway-text") gridUi.focusAnyway = true; });
+  }
+  function loadGrid(flow, runId){
+    return getJSON("/api/runs/" + encodeURIComponent(flow) + "/" + encodeURIComponent(runId) + "/grid").then(function(g){
+      if(currentFlow !== flow || currentRunId !== runId || !resultDetail) return;
+      g.flow = flow;
+      gridData = g;
+      renderResult();
+    }).catch(function(){ /* the tab keeps what it last drew */ });
   }
   function renderResult(){
     var detail = resultDetail, data = resultData;
     var body = document.getElementById("result-body");
-    if(!detail || !data || data.flow !== detail.flow || data.runId !== detail.runId){ return; }
+    if(!detail){ return; }
+    // M13 piece 6: the grid is for every job; the run's own cards below it only for a job that has them (detail.hasResult) and once they are loaded
+    if(!data || data.flow !== detail.flow || data.runId !== detail.runId) data = null;
+    if(!data && !gridData){ return; }
     document.getElementById("result-empty").hidden = true;
     body.hidden = false;
+    var grid = gridData && gridData.flow === detail.flow ? gridData : null;
+    var h = grid ? gridCardHTML(grid, grid.flowType === "tickets") : "";
+    if(!data){ body.innerHTML = h; wireGrid(body); return; }
     // keep what the person is typing (and the box they opened) across a poll-driven redraw
     var keepText = body.querySelector("#result-rerun-text");
     var typed = keepText ? keepText.value : "";
     var rerunOpen = !!body.querySelector("#result-rerun-box:not([hidden])");
     var counters = document.getElementById("run-counters").textContent.split(" \u00b7 ");
-    var h = '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
+    h += '<div class="job-card" data-testid="result-head"><h4>Result</h4>' +
       resultField("Status", '<div class="ro-value">' + stateDotHTML(glyphClass(detail.glyph), detail.word || "", "result-status") +
         ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
       ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
-    if(data.tickets) h += ticketCardHTML(data.tickets, data.flow);
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){
@@ -2844,7 +2879,7 @@
       }).join("") + '</div>';
     }
     body.innerHTML = h;
-    wireTickets(body, data);
+    wireGrid(body);
     var ta = body.querySelector("#result-rerun-text");
     if(ta){
       ta.value = typed;
@@ -4368,7 +4403,7 @@
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
     // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
+    getJSON(base).then(function(d){ if(still()){ paintRun(d); loadGrid(flow, runId); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;
