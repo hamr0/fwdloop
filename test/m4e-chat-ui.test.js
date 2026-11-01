@@ -89,7 +89,7 @@ test('field set: the New job card has exactly the signed boxes (+ the Model menu
   for (const id of ['jf-name', 'jf-job', 'jf-job-gut', 'jf-cap-money', 'jf-ask-wait', 'jf-dest-folder', 'jf-inputs', 'jf-inputs-gut', 'jf-run-flow', 'jf-run-cap', 'jf-run-left', 'jf-run-inputs', 'jf-run-id', 'chat-main-btn', 'chat-action-error', 'chat-card-error', 'chat-clear-btn']) {
     assert.ok(SECTION.includes(`id="${id}"`), `#${id} missing`);
   }
-  const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
+  const labels = [...SECTION.matchAll(/<label[^>]*>([\s\S]*?)<\/label>/g)].map((m) => m[1].replace(/<span class="req"[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').trim());   // M13 am5: the caption words only; the grey `required` mark after them is not part of the caption
   for (const cap of ['Model', 'Thinking on', 'Flow name', 'The job', 'Cap $', 'Ask wait', 'Destination', 'Inputs', 'New job', 'Run a signed flow']) assert.ok(labels.includes(cap), `caption "${cap}" missing`);
   assert.doesNotMatch(SECTION, />\s*Send to\s*</);
   for (const gone of ['jf-goal', 'jf-source', 'jf-success', 'jf-guardrails', 'jf-judge', 'jf-verdict', 'jf-cap-time', 'startfrom', 'Check type', 'Time cap', 'Judge examples']) {   // M6 am7: 'Reuse' left this list: Reuse workflow is the one door and the Run card's script names it

@@ -1165,12 +1165,12 @@
                 <div class="jf-err" id="jf-err-model" data-testid="jf-err-model"></div>
               </div>
               <div class="field">
-                <label for="jf-name">Flow name</label>
+                <label for="jf-name">Flow name <span class="req" data-testid="jf-req-name">required</span></label>
                 <input id="jf-name" type="text" placeholder="lowercase letters, digits, - or _" autocomplete="off" spellcheck="false" data-testid="jf-name">
                 <div class="jf-err" id="jf-err-flowName" data-testid="jf-err-flowName"></div>
               </div>
               <div class="field">
-                <label for="jf-job">The job</label>
+                <label for="jf-job">The job <span class="req" data-testid="jf-req-job">required</span></label>
                 <div class="jf-gutbox">
                   <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
@@ -1179,7 +1179,7 @@
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
               </div>
               <div class="field">
-                <label for="jf-inputs">Inputs</label>
+                <label for="jf-inputs">Inputs <span class="req" id="jf-req-inputs" data-testid="jf-req-inputs">required</span></label>
                 <div class="jf-gutbox">
                   <div class="jf-gut" id="jf-inputs-gut" data-testid="jf-inputs-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-inputs" rows="3" data-testid="jf-inputs" autocomplete="off" spellcheck="false" placeholder="resume: /full/path/to/resume.md"></textarea>
@@ -1224,7 +1224,7 @@
               </div>
               <div class="cap-row" data-testid="cap-row">
                 <div class="cap-field">
-                  <label for="jf-cap-money">Cap $</label>
+                  <label for="jf-cap-money">Cap $ <span class="req" data-testid="jf-req-cap">required</span></label>
                   <input id="jf-cap-money" type="text" inputmode="decimal" placeholder="per run" data-testid="jf-cap-money">
                   <div class="hint" id="jf-cap-note" data-testid="cap-note"></div>
                   <div class="hint" id="jf-cap-job-note" data-testid="jf-cap-job-note"></div>
@@ -1290,7 +1290,7 @@
                 <div class="jf-err" id="jf-err-run-destination" data-testid="jf-err-run-destination"></div>
               </div>
               <div class="field">
-                <label>Inputs</label>
+                <label>Inputs <span class="req" id="jf-run-req-inputs" data-testid="jf-run-req-inputs" hidden>required</span></label>
                 <div id="jf-run-inputs" data-testid="jf-run-inputs"></div>
                 <div class="jf-err" id="jf-err-run-inputs" data-testid="jf-err-run-inputs"></div>
               </div>
@@ -1321,7 +1321,7 @@
               </div>
               <div class="cap-row">
                 <div class="cap-field">
-                  <label for="jf-run-cap">Cap $</label>
+                  <label for="jf-run-cap">Cap $ <span class="req" data-testid="jf-run-req-cap">required</span></label>
                   <input id="jf-run-cap" type="text" inputmode="decimal" autocomplete="off" data-testid="jf-run-cap">
                   <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
                   <div class="jf-err" id="jf-err-run-capUsd" data-testid="jf-err-run-capUsd"></div>
@@ -5870,7 +5870,13 @@
       var generic = flowTypeEl.value === "mcp", tickets = flowTypeEl.value === "tickets";
       paintSchedule();
       mcpFieldEl.hidden = !(generic || tickets);
+      paintRequired();
       inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
+    }
+    // M13 am5: the one writer of the required marks. Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
+    function paintRequired(){
+      byId("jf-req-inputs").textContent = flowTypeEl.value === "mcp" ? "optional for MCP" : "required";
+      byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
     }
     function setFlow(type, server, sched){
       flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
@@ -5886,7 +5892,7 @@
         mcpServers = names; paintMcpOptions();
       }, function(){ /* the list stays as it was; a pick the server cannot start is refused with its cause */ });
     }
-    flowTypeEl.addEventListener("change", function(){ paintFlowType(); byId("jf-err-flowType").textContent = ""; byId("jf-err-mcp").textContent = ""; renderMain(); });
+    flowTypeEl.addEventListener("change", function(){ paintFlowType(); byId("jf-err-flowType").textContent = ""; byId("jf-err-mcp").textContent = ""; refreshStartEnabled(); });
     mcpEl.addEventListener("change", function(){ byId("jf-err-mcp").textContent = ""; });
     schedEl.addEventListener("change", function(){ paintSchedule(); byId("jf-err-schedule").textContent = ""; });
     schedTimeEl.addEventListener("input", function(){ byId("jf-err-schedule").textContent = ""; });
@@ -5957,7 +5963,8 @@
       }
       var c = currentCard();
       var v = Number(c.capUsd);
-      return c.flowName !== "" && c.job.trim() !== "" && c.capUsd !== "" && isFinite(v) && v > 0;
+      // M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
+      return c.flowName !== "" && c.job.trim() !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
     }
 
     // ---- the money note under Cap (M4e amendment 4 items 1-2) ----
@@ -6074,6 +6081,7 @@
       clearBtn.disabled = b.disabled;
     }
     function refreshStartEnabled(){
+      paintRequired();
       startOk = startReady();
       syncCardLock();
       renderMain();
