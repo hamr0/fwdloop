@@ -61,11 +61,11 @@ test('browser: Test per key row; no Base URL = text and no call; ok = "OK · N m
   const { h, calls } = await world(gateA);
   await chrome.open(`http://127.0.0.1:${h.port}/`, 1280);
   await chrome.ev('document.getElementById("settings-open").click()');
-  assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+  assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 5'));
   assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-sum\').textContent.includes("model")'));
-  assert.deepEqual(await chrome.ev('[...document.querySelectorAll(".pv-key")].map(k => k.querySelector("[data-act=test-key]").getAttribute("aria-label"))'),
+  assert.deepEqual(await chrome.ev('[...document.querySelectorAll("#pv-rows .pv-key")].map(k => k.querySelector("[data-act=test-key]").getAttribute("aria-label"))'),
     ['Test A_KEY', 'Test B_KEY', 'Test C_KEY', 'Test D_KEY', 'Test E_KEY']);
-  assert.equal(await chrome.ev('(function(){var b=document.querySelector(".pv-krow [data-act=test-key]");return b.textContent+"|"+getComputedStyle(b,"::before").content+getComputedStyle(b,"::after").content+"|"+(b.nextElementSibling===document.querySelector(".pv-krow [data-act=refresh-models]"));})()'), 'Test|"[ "" ]"|true');
+  assert.equal(await chrome.ev('(function(){var b=document.querySelector("#pv-rows .pv-krow [data-act=test-key]");return b.textContent+"|"+getComputedStyle(b,"::before").content+getComputedStyle(b,"::after").content+"|"+(b.nextElementSibling===document.querySelector(".pv-krow [data-act=refresh-models]"));})()'), 'Test|"[ "" ]"|true');
   const msg = (s) => chrome.ev(`document.querySelector('.pv-key[data-slot="${s}"] [data-f=msg-test]').textContent`);
   const click = (s) => chrome.ev(`document.querySelector('.pv-key[data-slot="${s}"] [data-act=test-key]').click()`);
   const before = calls.length;
@@ -112,7 +112,7 @@ test('browser: grid keeps one set of column edges; the last track fits both butt
   for (const w of [1920, 1280, 1279, 1024, 780, 390, 320]) {
     await chrome.open(`http://127.0.0.1:${h.port}/`, w);
     await chrome.ev('document.getElementById("settings-open").click()');
-    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 5'));
     assert.ok(await chrome.waitFor('document.querySelector(\'.pv-key[data-slot="A_KEY"] .pv-mrow\') !== null'));
     await chrome.ev(`(function(){var k=document.querySelector('.pv-key[data-slot="A_KEY"]');if(k.dataset.open!=='1')k.querySelector('[data-act=fold]').click();})()`);
     const g = await chrome.ev(probe);
@@ -131,7 +131,7 @@ test('browser: the KEYS strip text is never crushed: at every width it has >= 60
   for (const w of [1920, 1280, 1024, 780, 390, 320]) {
     await chrome.open(`http://127.0.0.1:${h.port}/`, w);
     await chrome.ev('document.getElementById("settings-open").click()');
-    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 5'));
     const g = await chrome.ev(`(function(){
       var s=document.querySelector('.keyfile-strip'), m=s.querySelector('.keyfile-strip-main'), a=s.querySelector('.keyfile-strip-actions');
       var cs=getComputedStyle(s), inner=s.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
@@ -152,7 +152,7 @@ test('browser: a Test result sits directly BELOW the [ Test ] button, inside the
   for (const [w, slot, expect] of [[1280, 'A_KEY', /^OK/], [1280, 'B_KEY', /refused/], [390, 'A_KEY', /^OK/], [390, 'B_KEY', /refused/]]) {
     await chrome.open(`http://127.0.0.1:${h.port}/`, w);
     await chrome.ev('document.getElementById("settings-open").click()');
-    assert.ok(await chrome.waitFor('document.querySelectorAll(".pv-key").length === 5'));
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#pv-rows .pv-key").length === 5'));
     await chrome.ev(`document.querySelector('.pv-key[data-slot="${slot}"] [data-act=test-key]').click()`);
     assert.ok(await chrome.waitFor(`document.querySelector('.pv-key[data-slot="${slot}"] [data-f=msg-test]').textContent.length > 0 && !document.querySelector('.pv-key[data-slot="${slot}"] [data-act=test-key]').disabled`));
     const g = await chrome.ev(`(function(){
