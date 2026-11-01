@@ -42,11 +42,12 @@ const model = (filters) => lib.rlModel(data, lib.filterWorkflows(lib.groupRunsBy
 test('am20 item 1: rlTopHtml draws only Running now and Needs you; rlSchedHtml draws Scheduled', () => {
   const m = model(F());
   const top = lib.rlTopHtml(m, F());
-  assert.match(top, /Running now \(1\)/);
-  assert.match(top, /Needs you \(1\)/);
+  const txt = top.replace(/<[^>]*>/g, '');   // the count sits in a pill span (captions ruling 2026-11-01)
+  assert.match(txt, /Running now \(1\)/);
+  assert.match(txt, /Needs you \(1\)/);
   assert.doesNotMatch(top, /Scheduled|rl-sched-/, 'Scheduled is not in the box above the search');
   const sched = lib.rlSchedHtml(m, F());
-  assert.match(sched, /Scheduled \(3\)/);
+  assert.match(sched.replace(/<[^>]*>/g, ''), /Scheduled \(3\)/);
   assert.doesNotMatch(sched, /Running now|Needs you/);
   assert.match(lib.rlSchedHtml(model(F({ scheduled: true, search: 'zzz' })), F({ scheduled: true, search: 'zzz' })), /no scheduled job matches/);
   assert.equal(lib.rlSchedHtml(model(F({ search: 'zzz' })), F({ search: 'zzz' })), '');
