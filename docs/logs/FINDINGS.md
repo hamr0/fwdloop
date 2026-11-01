@@ -5077,3 +5077,25 @@ Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket fil
 **Criteria (PASS / FAIL on the letter).** A draft PASSES when `fwdloop draft` exits 0 and its `declaration.json` has a top-level `ticketFilter` whose `priority` list contains `P1` or whose `labels` list contains `P1` (case-insensitive). **Pass bar: 6 of 6 drafts pass** (3 of 3 per wording). 5 of 6 or fewer is FAIL, with no refit of the bar, the wordings or the counting. A draft that exits non-zero, is red, or has no `ticketFilter` is a FAIL, never skipped or re-run. Recorded, not judged: each draft's `ticketFilter`, cost, and the exit code.
 **Baseline expectation (today's drafter text, `src/ticket-draft.js` lines 32 to 33: "ONLY for a guardrail that names a priority or a label (for example "priority P2 only", ...)"): wording B may FAIL**, which is the walk's finding. If B passes 3 of 3 today, the walk's miss was model variance, and no drafter change is made.
 **If it FAILS:** the drafter line is widened in one place (`ticketFactsLines`, the "You may SUGGEST a top-level ticketFilter" line) to say the guardrail may name a priority in any wording, and this script is run again on a new work folder; both runs are recorded. Not covered: other models, other wordings than these two, a real GitHub read, whether the filter then skips the right tickets (tests at $0 cover that).
+
+## F121 RESULT (2026-11-01, [MEASURED], run by the orchestrator; FAIL, 2 of 6)
+
+**Setup.** `poc/mcp/f121/f121.mjs` as pre-registered. Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks (key `FIREWORKS_API_KEY` from hamr's keys file). List `https://github.com/hamr0/hol-guard/issues`. Total spent $0.0322 of the $0.10 guard. The results file is in the orchestrator's scratchpad, not in the tree.
+
+| draft | wording | exit | cost | ticketFilter | verdict |
+|---|---|---|---|---|---|
+| a1 | `priority P1 only` | 0 | $0.0026424 | null | FAIL |
+| a2 | `priority P1 only` | 1 | $0.00806985 | null | FAIL |
+| a3 | `priority P1 only` | 0 | $0.0026514 | null | FAIL |
+| b1 | `only tickets with priority P1 count` | 1 | $0.0081117 | null | FAIL |
+| b2 | `only tickets with priority P1 count` | 0 | $0.00541305 | `{"priority":["P1"]}` | PASS |
+| b3 | `only tickets with priority P1 count` | 0 | $0.0053091 | `{"priority":["P1"]}` | PASS |
+
+**Verdict: FAIL, 2 of 6** (bar was 6 of 6). No refit.
+
+**Observations.**
+- a1 drafted green with the guardrail `~ priority P1 only` under line 1 but no `ticketFilter`. The guardrail is not in `not-checked.json` either (notChecked: accuracy of the diagnosis, usefulness of the plan, tone). The filter guardrail was silently dropped, so a signed job would run every ticket.
+- The two exit-1 drafts (a2, b1) were validator reds: "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line". That is a separate drafter failure, not the filter.
+- The prompt today says "You may SUGGEST a top-level ticketFilter ... ONLY for a guardrail that names a priority or a label" (`src/ticket-draft.js`, `ticketFactsLines`). Memory fact: deepseek-flash rarely uses an optional field.
+
+**Next step (registered):** widen that one line so the filter is required when a guardrail names a priority or a label; rerun as F121b on a new work folder.
