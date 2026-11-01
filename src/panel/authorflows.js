@@ -322,7 +322,7 @@ export function createFlowsDoor(opts) {
     },
 
     /**
-     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not)? The server decides this itself,
+     * M6 am9: is this run red, as the panel's glyph rule reads it (`[✗]` and nothing else; stopped `[■]` and waiting are not; M13 9b.2: not a run that failed preflight)? The server decides this itself,
      * never from the page's word. False for a run that does not resolve.
      * @param {string} flow @param {unknown} runId
      */
@@ -331,7 +331,10 @@ export function createFlowsDoor(opts) {
       if (realRoot === null || !checkFlowName(flow).ok || typeof runId !== 'string' || runId === '') return false;
       const cat = loadCatalogue();
       if (!cat.ok) return false;
-      return getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph === '[✗]';
+      if (getRunGlyph({ root: realRoot, flow, runId, catalogue: cat.primitives })?.glyph !== '[✗]') return false;
+      // M13 item 9b.2: a run that failed preflight never ran its plan (no step, $0), so its plan did not fail: reusing it unchanged is Run now, not a paid redraft
+      const end = endRow(readHistory(join(realRoot, flow)), join(realRoot, flow, 'runs', runId), runId);
+      return end?.outcome !== 'preflight-red';
     },
 
     /**
