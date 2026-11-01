@@ -97,7 +97,9 @@ export function createScheduler(opts) {
     const out = Promise.resolve(look({
       listUrl: trigger.list, mcp: { server: trigger.server, tool: trigger.tool }, ...(mcpConfig ? { configPath: mcpConfig } : {}),
       seen: first ? null : seenNumbers(ledger, sig), last: first ? new Map() : lastSeen(ledger, sig), watch, ...(cut === undefined ? {} : { cut }),
-    })).then((r) => { recordLook(ledger, sig, r, now()); }, (e) => { recordLook(ledger, sig, { ok: false, error: String(e?.message ?? e) }, now()); })
+    })).catch((e) => ({ ok: /** @type {const} */ (false), error: String(e?.message ?? e) }))
+      // M13 item 9.3: a save that throws (ledger path unwritable, disk full) is told once as a refusal and never leaves the look's promise rejected, so the panel stays up
+      .then((r) => { try { recordLook(ledger, sig, r, now()); } catch (e) { try { door.refuse(job, `ticket look: its result could not be saved: ${String(/** @type {any} */ (e)?.message ?? e).split('\n')[0]}`); } catch { /* telling is best effort */ } } })
       .finally(() => { /** @type {any} */ (st).out = null; });
     st.out = out;
   }
