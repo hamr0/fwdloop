@@ -74,6 +74,21 @@ const ALLOWED = [
     why: 'the hint that a Base URL must start with http:// or https:// (the shape of an address, not an address)',
   },
   {
+    file: 'src/mcp-sources.js',
+    re: /'\.claude'|'Claude'|'claude_desktop_config\.json'/g,
+    why: 'the file places bare-agent reads MCP servers from (.claude/mcp_servers.json, Claude/claude_desktop_config.json), M13 p3. Folder and file names, not a provider.',
+  },
+  {
+    file: 'src/panel/authorcard.js',
+    re: /https:\/\/github\.com\/owner\/repo\/issues/g,
+    why: 'the example form in the Tickets refusal sentence (M12/M13): a placeholder address shown to the person, never requested.',
+  },
+  {
+    file: 'src/ticket-draft.js',
+    re: /https:\/\/github\.com\/owner\/repo\/issues/g,
+    why: 'the example form in the Tickets refusal sentence (M12/M13): a placeholder address shown to the person, never requested.',
+  },
+  {
     file: 'src/config.js',
     re: /http\(s\):\/\/…?|http\(s\) address/g,
     why: 'the same hint in config validation (the shape of an address, not an address)',
