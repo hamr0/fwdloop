@@ -47,7 +47,11 @@ import {
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
-import { ticketListOf } from './tickets.js';
+import { ticketListOf, ticketScheduleOf } from './tickets.js';
+import { buildJobGrid } from './jobgrid.js';
+import { readChecks } from '../diary.js';
+import { readRunInputs } from '../runfile.js';
+import { readSchedule } from '../schedule.js';
 import { thinkingRuleWords, thinkingTryWords } from '../thinking.js';
 import { readLearningsRecord } from '../flowmodel.js';
 import { readRunThinking } from '../runfile.js';
@@ -2264,6 +2268,43 @@ export function getTicketList({
   return ticketListOf({
     flowDir: run.flowDir, runId, runIdsOf: listRunIds, glyphOf: (id) => getRunGlyph({ root, flow, runId: id, catalogue }), atOf: (id) => getRunEndedAt({ root, flow, runId: id, catalogue }),
   });
+}
+
+/**
+ * M13 piece 6 (item 8): the Result tab's ONE grid of a job, all its runs (`buildJobGrid`, src/panel/jobgrid.js). Each run is read once through `loadRunContext`
+ * (the glyph is `computeGlyph`'s, the money the history row's), a ticket run is named by the ticket number its `run.json` recorded. `Run it anyway` is offered
+ * only for a ticket the ticket list (M12) puts in Skipped. `null` = the flow does not resolve.
+ * @param {{root: string, flow: string, catalogue: any, now?: () => number}} a
+ */
+export function getJobGrid({
+  root, flow, catalogue, now = Date.now,
+}) {
+  const fd = resolveFlowDir(root, flow);
+  if (!fd.ok || !existsSync(fd.flowDir)) return null;
+  const { flowDir } = fd;
+  const runs = [];
+  for (const runId of listRunIds(flowDir)) {
+    const run = resolveRunPath(root, flow, runId);
+    if (!run.ok || !existsSync(run.runDir)) continue; // eslint-disable-line no-continue
+    const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+    const g = computeGlyph(ctx);
+    const inputs = readRunInputs(run.runDir);
+    const entry = inputs.ok ? inputs.entries.find((e) => e && e.ticket && Number.isInteger(e.ticket.number)) : null;
+    const at = typeof ctx.historyRow?.at === 'string' ? Date.parse(ctx.historyRow.at) : NaN;
+    runs.push({
+      runId, glyph: g.glyph, ticket: entry ? entry.ticket.number : null, at: Number.isFinite(at) ? at : null,
+      history: ctx.historyRow ?? null, spendRows: ctx.spendRows, diary: readChecks(run.runDir),
+      steps: ctx.flowRead.ok ? (ctx.flowRead.declaration?.steps ?? []) : [],
+      reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,
+    });
+  }
+  const sched = readSchedule(flowDir);
+  const from = sched && sched.trigger?.kind === 'new-ticket' && typeof sched.from === 'string' ? sched.from : null;
+  const list = from !== null && ticketScheduleOf(flowDir, from) !== null ? getTicketList({
+    root, flow, runId: from, catalogue,
+  }) : null;
+  const numbers = new Set((list?.groups.find((x) => x.key === 'skip')?.rows ?? []).map((r) => r.number));
+  return buildJobGrid({ runs, anyway: from !== null ? { runId: from, numbers } : null, now: now() });
 }
 
 /**

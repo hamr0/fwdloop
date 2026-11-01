@@ -60,7 +60,7 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { ticketAnyway, arriveAnywayOf } from './tickets.js';
 import { createResumer } from './resume.js';
@@ -574,8 +574,8 @@ export function handleRequest(req, res, opts) {
     return;
   }
 
-  // /api/runs/:flow/:runId(/audit|/job|/asks|/result|/download)?
-  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks|result|download))?$/.exec(pathname);
+  // /api/runs/:flow/:runId(/audit|/job|/asks|/result|/grid|/download)?
+  const runMatch = /^\/api\/runs\/([^/]+)\/([^/]+)(\/(audit|job|asks|result|grid|download))?$/.exec(pathname);
   if (runMatch) {
     let flow;
     let runId;
@@ -622,6 +622,13 @@ export function handleRequest(req, res, opts) {
         root: opts.root, flow, runId, catalogue, resumeAttempt, now: opts.now,
       });
       if (!result) { sendText(res, 404, 'no such run, or it has no result tab'); return; }
+      send(200, result);
+      return;
+    }
+    if (sub === 'grid') {
+      // M13 piece 6 (item 8): the job's one Result grid (every run of the flow); the run in the URL only names the flow's run the person is looking at
+      const result = getJobGrid({ root: opts.root, flow, catalogue, now: opts.now });
+      if (!result) { sendText(res, 404, 'no such job'); return; }
       send(200, result);
       return;
     }

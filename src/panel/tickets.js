@@ -18,7 +18,7 @@ export const TICKET_GROUPS = Object.freeze([
 ]);
 
 /** a run's sign -> its group. Running / stuck / expired / waiting all need a person or are still going: Needs you. */
-const GROUP_OF = Object.freeze({
+export const GROUP_OF = Object.freeze({
   '[·]': 'wait', '[▶]': 'wait', '[II]': 'wait', '[!]': 'wait', '[✓]': 'done', '[–]': 'skip', '[✗]': 'stop', '[■]': 'stop', '[?]': 'stop',
 });
 
