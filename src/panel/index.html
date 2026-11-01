@@ -34,6 +34,7 @@
     --cap-w:#b7791f; --cap-w-bg:#3a2e17; --cap-w-ink:#f0c987;
     --cap-s:#3d59a1; --cap-s-bg:#1f2a4d; --cap-s-ink:#a9c1f5;
     --cap-j:#6b7396; --cap-j-bg:#2a2f45; --cap-j-ink:#c0caf5;
+    --cap-r:#2b8a7e; --cap-r-bg:#17332f; --cap-r-ink:#8fdccf;
     --accent:#7aa2f7;
     --btn-bg:#1f2335; --btn-text:#c0caf5;
     --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
@@ -79,6 +80,7 @@
       --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
       --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
       --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
+      --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a;
       --accent:#2668c2;
       --btn-bg:#e9e9ed; --btn-text:#3760bf;
       --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -97,6 +99,7 @@
     --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
     --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
     --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
+    --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a;
     --accent:#2668c2;
     --btn-bg:#e9e9ed; --btn-text:#3760bf;
     --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -203,6 +206,7 @@
   .rl-cap.rl-cap-w{--cap-c:var(--cap-w);--cap-bg:var(--cap-w-bg);--cap-ink:var(--cap-w-ink);}
   .rl-cap.rl-cap-s{--cap-c:var(--cap-s);--cap-bg:var(--cap-s-bg);--cap-ink:var(--cap-s-ink);}
   .rl-cap.rl-cap-j{--cap-c:var(--cap-j);--cap-bg:var(--cap-j-bg);--cap-ink:var(--cap-j-ink);}
+  .rl-cap.rl-cap-r{--cap-c:var(--cap-r);--cap-bg:var(--cap-r-bg);--cap-ink:var(--cap-r-ink);}
   .rl-cap .rl-n{font-size:12px;line-height:1.4;padding:1px 8px;border-radius:10px;background:var(--cap-c);color:#fff;}
   .rl-cap .rl-p{font-size:0;}
   .rl-cap .rl-note{font-size:11px;font-weight:400;}
@@ -2221,7 +2225,7 @@
   // M11 am20: Running now and Needs you only (never filtered); they sit above the search box. Scheduled is drawn by rlSchedHtml, below it.
   function rlTopHtml(m, filters){
     var h = "";
-    if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
+    if(m.running.length) h += rlSectHtml("Running now", m.running.length, "", "r") + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
     if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length, "", "w") + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
     return h;
   }

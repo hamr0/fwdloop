@@ -99,7 +99,7 @@ test('am17 item 3/5: with the scheduled chip pressed the search narrows Schedule
 test('am17 item 4: Running now and Needs you are never filtered or searched, chip or not', () => {
   for (const f of [F({ search: 'zzz' }), F({ results: ['[✗]'], time: '7d' }), F({ scheduled: true, search: 'zzz' }), F({ scheduled: true })]) {
     const html = top(f);
-    assert.match(html, /Running now \(1\)/, JSON.stringify(f));
+    assert.match(html.replace(/<[^>]*>/g, ""), /Running now \(1\)/, JSON.stringify(f));
     assert.match(html.replace(/<[^>]*>/g, ''), /Needs you \(1\)/, JSON.stringify(f));   // the count sits in a pill span (captions ruling 2026-11-01)
     assert.match(html, /rl-live-busy|data-rl-jump="busy\|run-4"/);
   }

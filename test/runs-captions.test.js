@@ -23,11 +23,14 @@ test('captions: the three section captions carry their section class and keep th
   assert.equal(txt(j), 'Jobs (31) · run in the last 30 days');
   assert.match(j, /<span class="rl-note">· run in the last 30 days<\/span>/);
   assert.match(w, /<span class="rl-n">2<\/span>/);
-  assert.doesNotMatch(sect('Running now', 1), /rl-cap/, 'Running now is untouched');
+  const r = sect('Running now', 1, '', 'r');
+  assert.match(r, /class="rl-sect rl-cap rl-cap-r" data-testid="rl-cap-r"/);
+  assert.equal(r.replace(/<[^>]*>/g, ''), 'Running now (1)');
+  assert.match(PAGE, /rlSectHtml\("Running now", m\.running\.length, "", "r"\)/, 'Running now is drawn with the bar');
 });
 
 test('captions: each section colour is a token with a dark and a light value; no caps, no letter-spacing; job cards have a divider', () => {
-  for (const t of ['w', 's', 'j']) {
+  for (const t of ['w', 's', 'j', 'r']) {
     assert.match(PAGE, new RegExp(`\\.rl-cap\\.rl-cap-${t}\\{--cap-c:var\\(--cap-${t}\\)`));
     assert.equal(PAGE.split(`--cap-${t}:`).length - 1, 3, `--cap-${t} defined in dark, light and light-attr blocks`);
   }
