@@ -104,6 +104,13 @@ test('browser: on a plain job the run-<n> name opens its run and does not fold; 
   delete process.env.FWDLOOP_CONFIG_HOME;
   const h = await createPanelServer({ port: 0, root: w.root, settings: { home: w.home, env: {} }, scheduler: { intervalMs: 0 } });
   CLOSERS.push(async () => h.close());
+  // M13 am2: the grid is only for a Tickets MCP job and this world is a plain one, so its run detail is answered as a ticket job's; the grid renderer under test is the same
+  await chrome.send('Page.enable');
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `(function(){ var f = window.fetch; window.fetch = function(u){ var s = String(u);
+      if(/\\/api\\/runs\\/[^/]+\\/[^/]+$/.test(s)) return f.apply(this, arguments).then(function(r){ return r.json().then(function(d){ return new Response(JSON.stringify(Object.assign(d, {hasGrid: true, resultTab: true})), {status: 200, headers: {"content-type": "application/json"}}); }); });
+      return f.apply(this, arguments); }; })()`,
+  });
   await chrome.open(`http://127.0.0.1:${h.port}/`, 1280);
   assert.ok(await chrome.waitFor('!document.getElementById("tab-result").hidden', 20000));
   await chrome.ev('document.getElementById("tab-result").click()');

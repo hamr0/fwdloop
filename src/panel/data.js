@@ -1796,6 +1796,7 @@ export function getRunDetail({
   const model = deriveRunModel(ctx.auditRows);
   const modelWhy = model === null ? 'no audit.jsonl row in this run has ever named a model (no model step has run yet)' : null;
   const spendSummary = summarizeSpendRows(ctx.spendRows);
+  const hasGrid = ctx.flowRead.ok && flowTypeOf(ctx.flowRead.declaration) === 'tickets';
 
   return {
     flow,
@@ -1814,6 +1815,9 @@ export function getRunDetail({
     })),
     // M10 am4: the Result tab shows for a job that reads a page, a CSV or a .docx; `checkType` is its distinct close classes (the tab's top card)
     hasResult: isResultRun(ctx.arbiter),
+    // M13 am2 item 2: the ONE decider of the Result tab. The tab shows for a job that has M10's Result page (`hasResult`) or for a Tickets MCP job (the grid, `hasGrid`); a plain or MCP job keeps what it had before M13
+    hasGrid,
+    resultTab: isResultRun(ctx.arbiter) || hasGrid,
     checkType: ctx.flowRead.ok ? checkTypeOf(ctx.flowRead.declaration) : '\u2014',
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),

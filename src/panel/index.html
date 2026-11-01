@@ -2591,14 +2591,16 @@
   // called by renderRun for every detail it draws. M13 piece 6: the tab is there for every run (the job's grid); the run's own cards only when `detail.hasResult`.
   function syncResultTab(detail){
     var btn = document.getElementById("tab-result");
-    btn.hidden = false;
+    var show = detail.resultTab === true;
+    if(!show && resultTabShown()) document.getElementById("tab-run").click();
+    btn.hidden = !show;
     var same = !!resultData && resultData.flow === detail.flow && resultData.runId === detail.runId;
-    if(!same) clearResult();   // another run's rows never stay on screen
-    if(gridData && gridData.flow !== detail.flow){ gridData = null; gridSeenGlyph = null; }
-    resultDetail = detail;
-    if(same || gridData) renderResult();
+    if(!show || !same) clearResult();   // another run's rows never stay on screen
+    if(!show || detail.hasGrid !== true || (gridData && gridData.flow !== detail.flow)){ gridData = null; gridSeenGlyph = null; }
+    resultDetail = show ? detail : null;
+    if(show && (same || gridData)) renderResult();
     // a run that changed its sign (it ended, it asked) changes its row: the grid is read again, once per change
-    if(gridSeenGlyph !== null && gridSeenGlyph !== detail.runId + detail.glyph && resultTabShown()) loadGrid(detail.flow, detail.runId);
+    if(show && detail.hasGrid === true && gridSeenGlyph !== null && gridSeenGlyph !== detail.runId + detail.glyph && resultTabShown()) loadGrid(detail.flow, detail.runId);
     gridSeenGlyph = detail.runId + detail.glyph;
   }
   function loadResult(flow, runId){
@@ -2610,7 +2612,7 @@
   }
   document.getElementById("tab-result").addEventListener("click", function(){
     if(currentRunId === null) return;
-    loadGrid(currentFlow, currentRunId);
+    if(resultDetail && resultDetail.hasGrid === true) loadGrid(currentFlow, currentRunId);
     if(resultDetail && resultDetail.hasResult === true) loadResult(currentFlow, currentRunId);
   });
 
@@ -4413,7 +4415,7 @@
     // separately-fetched copy of the audit rows to cross-reference (fix #6).
     // same guard as reloadRun: a late reply for a run the user already left paints nothing and writes no polling flag
     var still = function(){ return currentFlow === flow && currentRunId === runId; };
-    getJSON(base).then(function(d){ if(still()){ paintRun(d); loadGrid(flow, runId); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
+    getJSON(base).then(function(d){ if(still()){ paintRun(d); if(d.hasGrid === true) loadGrid(flow, runId); if(d.hasResult === true) loadResult(flow, runId); } }).catch(function(e){
       if(!still()) return;
       openRunLive = false;   // unreadable books: the list rate, not 2 s forever
       document.getElementById("run-empty").hidden = false;

@@ -97,12 +97,12 @@ test('browser 1280: the Result tab sits fifth (Run, Audit / logs, Job, Ask, Resu
   assert.deepEqual(tabs, ['right-tab-run|Run', 'right-tab-audit|Audit / logs', 'right-tab-details|Job', 'right-tab-ask|Ask', 'right-tab-result|Result']);
 });
 
-test('browser: a run that is not an M10 job still has the Result tab (M13 item 8: the grid is for every job)', { skip: SKIP && 'no browser' }, async (t) => {
-  const o = await open(1280, { detailPatch: { hasResult: false } });
+test('browser: a run that is not an M10 job has no Result tab', { skip: SKIP && 'no browser' }, async (t) => {
+  const o = await open(1280, { detailPatch: { hasResult: false, resultTab: false, hasGrid: false } });
   if (!o) { t.skip('no chromium installed'); return; }
-  assert.equal(await o.chrome.ev('document.getElementById("tab-result").hidden'), false);
+  assert.equal(await o.chrome.ev('document.getElementById("tab-result").hidden'), true);
   const tabs = await o.chrome.ev('Array.from(document.querySelectorAll(".rp-tabrow button")).filter(function(b){ return !b.hidden; }).map(function(b){ return b.getAttribute("data-testid"); })');
-  assert.deepEqual(tabs, ['right-tab-run', 'right-tab-audit', 'right-tab-details', 'right-tab-ask', 'right-tab-result']);
+  assert.deepEqual(tabs, ['right-tab-run', 'right-tab-audit', 'right-tab-details', 'right-tab-ask']);
 });
 
 test('browser: empty states use bareloop\'s words ("select a run first"; the panel is empty before a run is chosen)', () => {
