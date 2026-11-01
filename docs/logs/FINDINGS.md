@@ -5173,3 +5173,18 @@ Old panel = `7d15791^` (81f04ab, in a worktree), new = this branch after the am2
 Per run, all 84 matched the bar: every plain and MCP job has the same tab decision and the same `/result` status and key set as the old code; every Tickets job has the grid. Not seen on this data: a plain job with no M10 page (only browse-check, an MCP job, is such a job); that case is covered by test/m13-am2-result-tab.test.js (a signed MCP job with a plain text input: no tab, no grid) and test/m10-am4-result-page.test.js.
 
 **Verdict against the pre-registered bar: PASS.**
+
+## F124 PRE-REGISTRATION (2026-11-01, $0, no model call, no network, no pass; written before any run, NOT yet run)
+
+**Question.** For M13 am3: while a ticket job's schedule is off, can the EXISTING real start path (`createStarter().start`, the function the panel's by-hand Run uses, spawning the real `bin/fwdloop run ... --ticket N --anyway` through `freezeInputs`) start a run of a NAMED skipped ticket with `anyway: true`, with no new plumbing in the start path itself?
+
+**Method.** `poc/mcp/f124/f124.mjs`. A `cp -a` COPY of `~/.config/fwdloop/flows/ticket-triage-5` (signed job, schedule.json present and unarmed, run-1 = skipped #15 `priority P3, not P1`) into a mkdtemp panel root (the original is never written; only the copy's `model.json` is pointed at the test world's ticked fake model). HOME is a mkdtemp dir holding a `.mcp.json` whose `github` server is the repo's fake issue server (`test/fixtures/fake-mcp-issue.mjs`, answers #15 as an open P3 ticket). The model step is a test stub (`FWDLOOP_TEST_MODEL_STEP`) that books $0.001 and answers `done:false` with a blocker (the run ends fast, not skipped). The start is `createStarter({root, bin: bin/fwdloop}).start({kind:'run', flow, runId:'', sources:[{role:'issues', path:<the signed list>, ticket:15, anyway:true}]}, loaded)`. The scheduler is the panel's own (`world()` with `scheduler:{intervalMs:0}`, ticked by hand). Also recorded as a baseline, before the start: `author.trigger.scan()` is empty and `POST /api/author/ticket-anyway` for #15 is refused (the problem am3 fixes).
+
+**Pass bar (fixed now, no refit; any miss on a letter = FAIL of that letter).**
+- (a) `start` returns 202; the new run's `run.json` `inputs[0].ticket.number === 15`; `inputs[0].sha256` is 64 hex and equals the sha256 of the bytes of the frozen file on disk (non-empty); `inputs[0].source` is the signed list address plus `/15`.
+- (b) `inputs[0].filter` deep-equals `{outcome:'anyway', was:{outcome:'skip', reason:'priority P3, not P1'}}`; the run's history outcome is not `skipped`; the stub model step was reached (the run's spend ledger holds >= 1 row).
+- (c) After the run ended and 3 scheduler ticks, with no green run yet: the schedule ledger holds 0 `armed` rows; `author.trigger.read(flow)` says `armed:false` and `waiting:true`; the earlier skipped run-1 did not arm it either.
+- (d) After a `complete` history row for that same run is appended (synthetic: the existing arming path is what is tested, F120 precedent; this is NOT a green model run) and one tick: exactly 1 `armed` row, carrying `ticketN === 15`, and `read(flow).armed === true`.
+- (baseline, informational, not part of the bar) scan() empty and the Run it anyway POST refused today.
+
+If (a) or (b) cannot pass because the start path lacks something, the result names exactly what.
