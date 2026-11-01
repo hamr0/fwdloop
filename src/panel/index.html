@@ -31,6 +31,9 @@
     --grey-dot:#878eac; --grey-bg:#20242f;
     --cyan:#7dcfff; --cyan-bg:#182634;
     --magenta:#bb9af7;
+    --cap-w:#b7791f; --cap-w-bg:#3a2e17; --cap-w-ink:#f0c987;
+    --cap-s:#3d59a1; --cap-s-bg:#1f2a4d; --cap-s-ink:#a9c1f5;
+    --cap-j:#6b7396; --cap-j-bg:#2a2f45; --cap-j-ink:#c0caf5;
     --accent:#7aa2f7;
     --btn-bg:#1f2335; --btn-text:#c0caf5;
     --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
@@ -73,6 +76,9 @@
       --grey-dot:#626887; --grey-bg:#e2e2e8;
       --cyan:#007197; --cyan-bg:#d6ecf1;
       --magenta:#9854f1;
+      --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
+      --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
+      --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
       --accent:#2668c2;
       --btn-bg:#e9e9ed; --btn-text:#3760bf;
       --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -88,6 +94,9 @@
     --grey-dot:#626887; --grey-bg:#e2e2e8;
     --cyan:#007197; --cyan-bg:#d6ecf1;
     --magenta:#9854f1;
+    --cap-w:#b7791f; --cap-w-bg:#f6e7c8; --cap-w-ink:#7a4c0c;
+    --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
+    --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
     --accent:#2668c2;
     --btn-bg:#e9e9ed; --btn-text:#3760bf;
     --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
@@ -189,6 +198,16 @@
      treatment; section 3 (answered/expired) is dimmed. Tokens only. */
   .rl-sect,.inbox-h{font-size:12px;color:var(--text-dim);font-weight:700;margin:12px 0 6px;}
   .rl-sect:first-child,.inbox-h:first-child{margin-top:0;}
+  /* Runs captions (hamr 2026-11-01, variant A, no caps): a full-width bar per section, colour tokens above. */
+  .rl-cap{display:flex;align-items:center;gap:8px;font-size:15px;margin:18px 0 8px;padding:7px 12px;border-left:5px solid var(--cap-c);background:var(--cap-bg);color:var(--cap-ink);}
+  .rl-cap.rl-cap-w{--cap-c:var(--cap-w);--cap-bg:var(--cap-w-bg);--cap-ink:var(--cap-w-ink);}
+  .rl-cap.rl-cap-s{--cap-c:var(--cap-s);--cap-bg:var(--cap-s-bg);--cap-ink:var(--cap-s-ink);}
+  .rl-cap.rl-cap-j{--cap-c:var(--cap-j);--cap-bg:var(--cap-j-bg);--cap-ink:var(--cap-j-ink);}
+  .rl-cap .rl-n{font-size:12px;line-height:1.4;padding:1px 8px;border-radius:10px;background:var(--cap-c);color:#fff;}
+  .rl-cap .rl-p{font-size:0;}
+  .rl-cap .rl-note{font-size:11px;font-weight:400;}
+  .rl-jobcard{position:relative;margin:14px 0 0;padding:10px;}
+  .rl-jobcard::before{content:"";position:absolute;left:-1px;right:-1px;top:-9px;height:2px;background:var(--border-strong);}
   .inbox-row.s1{border-left:4px solid var(--amber);background:var(--amber-bg);}
   .inbox-row.s3{opacity:.6;}
   .inbox-row .wf-line1{min-width:0;}
@@ -2174,7 +2193,8 @@
       noRows: data.rows.length === 0,
     };
   }
-  function rlSectHtml(label, n, note){
+  function rlSectHtml(label, n, note, cap){
+    if(cap) return '<div class="rl-sect rl-cap rl-cap-' + cap + '" data-testid="rl-cap-' + cap + '">' + label + ' <span class="rl-p">(</span><span class="rl-n">' + n + '</span><span class="rl-p">)</span>' + (note ? ' <span class="rl-note">' + note + '</span>' : '') + '</div>';
     return '<div class="rl-sect">' + label + ' (' + n + ')' + (note ? ' ' + note : '') + '</div>';
   }
   // line 1 and 2 of a Running now / Needs you card; both jump to the run (rlJump). The tag is a label (a span), never a button.
@@ -2201,7 +2221,7 @@
   function rlTopHtml(m, filters){
     var h = "";
     if(m.running.length) h += rlSectHtml("Running now", m.running.length) + m.running.map(function(r){ return rlJumpCardHtml(r, false); }).join("");
-    if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length) + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
+    if(m.needs.length) h += rlSectHtml("Needs you", m.needs.length, "", "w") + m.needs.map(function(r){ return rlJumpCardHtml(r, true); }).join("");
     return h;
   }
   // the Scheduled cards the search leaves (the ONE place that narrows them); the count line and rlSchedHtml both read it
@@ -2213,7 +2233,7 @@
   }
   function rlSchedHtml(m, filters){
     var shown = rlSchedShown(m.scheduled, filters && filters.search ? filters.search : "");
-    if(shown.length) return rlSectHtml("Scheduled", shown.length) + shown.map(rlScheduledCardHtml).join("");
+    if(shown.length) return rlSectHtml("Scheduled", shown.length, "", "s") + shown.map(rlScheduledCardHtml).join("");
     if(filters && filters.scheduled === true) return '<div class="rl-hint">no scheduled job matches</div>';
     return "";
   }
@@ -2228,7 +2248,7 @@
   // a job card: `[sign] job  k runs` / `word · why` of its newest run, highlighted when the selected run is one of its runs; not clickable. Inside: the newest run's card, then the older-runs fold.
   function rlJobCardHtml(c){
     var h = c.head;
-    var top = '<div class="rl-card' + (c.selected ? ' rl-sel' : '') + '" id="rl-job-' + escapeXml(c.flow) + '" data-testid="rl-job-' + escapeXml(c.flow) + '">';
+    var top = '<div class="rl-card rl-jobcard' + (c.selected ? ' rl-sel' : '') + '" id="rl-job-' + escapeXml(c.flow) + '" data-testid="rl-job-' + escapeXml(c.flow) + '">';
     if(c.empty){
       return top + '<span class="rl-l1"><span class="dot grey"></span><span class="rl-nm" title="' + escapeXml(c.flow) + '">' + escapeXml(c.flow) + '</span></span><span class="rl-l2">' + escapeXml(h.why || "no runs yet") + '</span></div>';
     }
@@ -2271,7 +2291,7 @@
   }
   function rlJobsHtml(m){
     var h = "";
-    if(m.jobs.length) h += rlSectHtml("Jobs", m.jobs.length, "· run in the last " + m.limits.quietDays + " days") + m.jobs.map(rlJobCardHtml).join("");
+    if(m.jobs.length) h += rlSectHtml("Jobs", m.jobs.length, "· run in the last " + m.limits.quietDays + " days", "j") + m.jobs.map(rlJobCardHtml).join("");
     if(m.quiet.length){
       h += '<button class="rl-fold" type="button" data-rl-fold="__quiet" data-testid="rl-fold-quiet" aria-expanded="' + (m.quietOpen ? 'true' : 'false') + '">' + (m.quietOpen ? '▾' : '▸') + ' quiet jobs (' + m.quiet.length + ') · no run in ' + m.limits.quietDays + ' days</button>';
       if(m.quietOpen) h += m.quiet.map(rlJobCardHtml).join("");
