@@ -81,6 +81,7 @@ test('the card sends the schedule it shows: Every day at 07:05 is {kind daily, h
   const set = (id, v) => c.ev(`var e = document.getElementById(${JSON.stringify(id)}); e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event("input", {bubbles: true}))`);
   await set('jf-name', 'sched-card');
   await set('jf-job', 'Read what comes in\nWrite it out');
+  await set('jf-inputs', 'resume: /full/path/to/resume.md');
   await set('jf-cap-money', '0.25');
   await setSel(c, 'jf-sched', 'daily');
   await set('jf-sched-time', '07:05');
