@@ -4777,7 +4777,12 @@
       var into = row.section === 3 ? old : el;
       if(row.section !== lastSection){
         lastSection = row.section;
-        into.appendChild(textDiv("inbox-h", inboxHeadText(row.section, counts[row.section])));
+        // captions ruling 2026-11-01: the same colour bars as Runs (waiting = Needs you amber, working = Running now teal, answered = Jobs grey), count in the pill
+        var head = textDiv("inbox-h rl-cap rl-cap-" + { 1: "w", 2: "r", 3: "j" }[row.section], "");
+        head.setAttribute("data-testid", "ib-cap-" + row.section);
+        head.setAttribute("aria-label", inboxHeadText(row.section, counts[row.section]));
+        head.innerHTML = INBOX_HEADS[row.section] + ' <span class="rl-p">(</span><span class="rl-n">' + counts[row.section] + '</span><span class="rl-p">)</span>';
+        into.appendChild(head);
       }
       into.appendChild(renderStopRow(row));
     });

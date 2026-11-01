@@ -42,3 +42,24 @@ test('captions: each section colour is a token with a dark and a light value; no
   assert.match(PAGE, /\.rl-jobcard::before\{[^}]*height:2px/);
   assert.match(PAGE, /class="rl-card rl-jobcard/);
 });
+
+test('captions: the three Inbox headers are the same bars (waiting amber, working teal, answered grey) with the count in the pill', () => {
+  const mkDiv = (cls) => { const d = { className: cls, attrs: {}, innerHTML: '', setAttribute(k, v) { this.attrs[k] = v; } }; return d; };
+  const doc = { getElementById: () => ({ hidden: false, innerHTML: '', textContent: '', appendChild(c) { heads.push(c); } }) };
+  const heads = [];
+  const build = new Function('document', 'inboxTotal', 'textDiv', 'renderStopRow', 'inboxHeadText', `${PAGE.match(/ {2}var INBOX_HEADS = [^\n]*/)[0]}\n${cutFn(PAGE, 'buildInbox', '  ')}\nreturn buildInbox;`)(
+    doc, 3, mkDiv, () => ({}), (s, n) => `head ${s} (${n})`);
+  const mkEl = () => ({ id: 'inbox-list', innerHTML: '', appendChild(c) { heads.push(c); } });
+  build(mkEl(), [{ section: 1 }, { section: 1 }, { section: 2 }, { section: 3 }], 0);
+  const want = { 1: ['w', 'waiting on you', 2], 2: ['r', 'working on your answer', 1], 3: ['j', 'answered and expired', 1] };
+  const hs = heads.filter((h) => h.attrs && h.attrs['data-testid']);
+  assert.equal(hs.length, 3);
+  for (const h of hs) {
+    const sec = Number(h.attrs['data-testid'].slice(-1));
+    const [c, word, n] = want[sec];
+    assert.equal(h.className, `inbox-h rl-cap rl-cap-${c}`);
+    assert.equal(h.innerHTML.replace(/<[^>]*>/g, ''), `${word} (${n})`);
+    assert.match(h.innerHTML, new RegExp(`<span class="rl-n">${n}</span>`));
+    assert.equal(h.attrs['aria-label'], `head ${sec} (${n})`);
+  }
+});
