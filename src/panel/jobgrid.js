@@ -61,10 +61,10 @@ function newestTries(diary) {
 
 /**
  * The two check columns of one run, from the run's own check record (the Audit grid's rows, by the same identities: #1 and #2 are `every step`, #3 and up are the
- * close's checks, `try-checks.js`). `g` passed, `r` failed, `n` nothing ran or nothing was judged (a human's yes is not a check), `q` no verdict (the run ended
+ * close's checks, `try-checks.js`). `g` passed, `r` failed, `n` nothing ran or only a human's yes judged it (a human's yes is not a check), `none` steps ran but the job has no output check at all (only #1 and #2), `q` no verdict (the run ended
  * red and its record holds no check at all). Also the detail lines the row opens to.
  * @param {{diary: any[], steps: any[], ended: boolean, red: boolean, skipped: boolean}} a
- * @returns {{ex: 'g'|'r'|'n'|'q', oj: 'g'|'r'|'n'|'q', lines: string[]}}
+ * @returns {{ex: 'g'|'r'|'n'|'q', oj: 'g'|'r'|'n'|'none'|'q', lines: string[]}}
  */
 export function checkCells({ diary, steps, ended, red, skipped }) {
   if (skipped) return { ex: 'n', oj: 'n', lines: [] };
@@ -88,7 +88,7 @@ export function checkCells({ diary, steps, ended, red, skipped }) {
       lines.push(`output judged: ${c.text}${c.result ? ` (${c.result})` : ''}${c.ok ? '' : ' - failed'}`);
     }
   }
-  return { ex: exBad ? 'r' : 'g', oj: ojBad ? 'r' : (ojAny ? 'g' : 'n'), lines };
+  return { ex: exBad ? 'r' : 'g', oj: ojBad ? 'r' : (ojAny ? 'g' : 'none'), lines };
 }
 
 /**

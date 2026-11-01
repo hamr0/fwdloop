@@ -4,7 +4,7 @@
 // Must fail when: the tab is hidden for a plain job; the row is not named run-<n>; the stats money is not the run's total; a row does not open; the page spills sideways.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
@@ -17,11 +17,12 @@ const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const CLOSERS = [];
 after(() => Promise.all(CLOSERS.map((c) => c())));
 
-async function open(width) {
+async function open(width, mutate) {
   const chrome = await launchChrome();
   if (!chrome) return null;
   CLOSERS.push(async () => chrome.close());
   const w = await buildWorld();
+  if (mutate) mutate(w);
   delete process.env.FWDLOOP_CONFIG_HOME;
   const h = await createPanelServer({ port: 0, root: w.root, settings: { home: w.home, env: {} }, scheduler: { intervalMs: 0 } });
   CLOSERS.push(async () => h.close());
@@ -73,5 +74,33 @@ for (const width of [1280, 390, 320]) {
     assert.deepEqual(m.over, [], JSON.stringify(m));
     const dup = await o.chrome.ev('(function(){ var seen = {}, d = []; document.querySelectorAll("[id]").forEach(function(e){ if(seen[e.id]) d.push(e.id); seen[e.id] = 1; }); return d; })()');
     assert.deepEqual(dup, [], `repeated ids: ${dup}`);
+  });
+}
+
+// every diary.jsonl under the world's root, with every check from #3 up taken out (so the job has no output check at all)
+function stripClosers(w) {
+  const walk = (d) => readdirSync(d).flatMap((n) => { const f = path.join(d, n); return statSync(f).isDirectory() ? walk(f) : (n === 'diary.jsonl' ? [f] : []); });
+  const files = walk(w.root);
+  assert.ok(files.length > 0, 'the world has a diary to strip');
+  for (const f of files) {
+    const rows = readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    for (const r of rows) if (r.kind === 'checks') r.checks = r.checks.filter((c) => c.n <= 2);
+    writeFileSync(f, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  }
+}
+
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}: a job with no output check reads "none" (tooltip) in output judged, every step stays a tick, and the grid does not spill`, { skip: SKIP && 'no browser' }, async (t) => {
+    const o = await open(width, stripClosers);
+    if (!o) { t.skip('no chromium installed'); return; }
+    await o.chrome.ev('document.querySelector("[data-testid=grid-fold-done]").click()');
+    const cells = await o.chrome.ev('Array.from(document.querySelector("[data-testid=grid-row]").querySelectorAll("td.c")).map(function(td){ return td.textContent; })');
+    assert.equal(cells[0], '✓', 'every step is unchanged');
+    assert.equal(cells[1], 'none');
+    assert.equal(await o.chrome.ev('document.querySelector("[data-testid=grid-none]").getAttribute("title")'), 'this job has no output checks');
+    await o.chrome.ev('document.querySelector("[data-testid=grid-open]").click()');
+    const m = await o.chrome.ev(MEASURE);
+    assert.ok(m.scrollW <= m.vw, JSON.stringify(m));
+    assert.deepEqual(m.over, [], JSON.stringify(m));
   });
 }

@@ -496,6 +496,7 @@
   table.grid th.q,table.grid td.q{min-width:170px;max-width:340px;white-space:normal;overflow-wrap:anywhere;font-size:12px;}
   table.grid th.t,table.grid td.c{text-align:center;width:64px;min-width:56px;white-space:nowrap;}
   table.grid th.t .hint{display:block;text-transform:none;letter-spacing:0;font-weight:400;margin:0;}
+  table.grid td.c .jg-none{margin:0;}
   table.grid td.c{padding:2px;}
   .cell{border:1px solid transparent;background:none;min-width:44px;min-height:32px;color:var(--text-faint);font-size:14px;font-weight:700;}
   .cell.fail{color:var(--red);border-color:var(--border-strong);background:var(--red-bg);}
@@ -2744,6 +2745,7 @@
   var gridUi = { open: {}, rows: {}, anyway: null, msg: "" };
   function gridMarkOf(c){ return gridGlyph(c === "g" ? "✓" : (c === "r" ? "✗" : (c === "q" ? "?" : "·"))); }
   function jgCell(c){ return '<td class="c">' + gridMarkOf(c) + '</td>'; }
+  function jgCellOJ(c){ return c === "none" ? '<td class="c"><span class="hint jg-none" data-testid="grid-none" title="this job has no output checks">none</span></td>' : jgCell(c); }
   function jgCellV(c, val){ return '<td class="c">' + gridMarkOf(c) + '<span class="jg-val">' + escapeXml(val) + '</span></td>'; }
   function jgRowHTML(r, g){
     var skip = r.bucket === "skip";
@@ -2752,7 +2754,7 @@
     var nameBtn = '<button class="jg-name" type="button" data-testid="grid-name" data-run="' + escapeXml(r.runId) + '" title="' + escapeXml(label) + '">' + escapeXml(label) + '</button>';
     var h = '<tr data-testid="grid-row" data-run="' + escapeXml(r.runId) + '"><td class="r"><div class="jg-rowname">' + (skip ? "" :
       '<button class="q-fold jg-arrow" type="button" data-testid="grid-open" data-run="' + escapeXml(r.runId) + '" aria-label="show the steps of ' + escapeXml(r.name) + '" aria-expanded="' + open + '"></button>') + nameBtn + '</div></td>' +
-      jgCell(r.ex) + jgCell(r.oj) + jgCellV(r.cost.mark, r.cost.value) + jgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
+      jgCell(r.ex) + jgCellOJ(r.oj) + jgCellV(r.cost.mark, r.cost.value) + jgCellV(r.time.mark, duration(r.time.value)) + '</tr>';
     if(skip){
       h += '<tr class="step-sub"><td colspan="5"><div class="jg-skipwhy"><span class="badge grey">skipped</span><span data-testid="ticket-reason">' + escapeXml((r.reason ? r.reason + " · " : "") + r.cost.value) + '</span>' +
         (r.anyway ? '<button class="btn small" type="button" data-testid="ticket-anyway-open" data-number="' + r.number + '">Run it anyway</button>' : "") + '</div>';

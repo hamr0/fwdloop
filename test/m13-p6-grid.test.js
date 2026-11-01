@@ -68,6 +68,10 @@ test('check cells: green when every step\'s newest try passed; red on a failed c
   assert.deepEqual([red.ex, red.oj], ['g', 'r']);
   const older = checkCells({ diary: [d('b', 1, [bad(2, 'the model said done: true', 'every step')]), d('b', 2, [ok(1, 'exists', 'every step'), ok(2, 'done', 'every step')])], steps, ended: true, red: false, skipped: false });
   assert.equal(older.ex, 'g', 'only the newest try of a step counts');
+  const only12 = checkCells({ diary: [d('a', 1, [ok(1, 'exists', 'every step'), ok(2, 'done', 'every step')]), d('b', 1, [ok(1, 'exists', 'every step'), ok(2, 'done', 'every step')])], steps, ended: true, red: false, skipped: false });
+  assert.deepEqual([only12.ex, only12.oj], ['g', 'none'], 'steps ran with only #1 and #2: the job has no output check');
+  const mixed = checkCells({ diary: [d('a', 1, [ok(1, 'exists', 'every step'), ok(2, 'done', 'every step')]), d('b', 1, [ok(1, 'exists', 'every step'), ok(3, 'words', 'line 2 ~')])], steps, ended: true, red: false, skipped: false });
+  assert.equal(mixed.oj, 'g', 'one #3 anywhere means the job has an output check');
   assert.deepEqual(checkCells({ diary: [], steps, ended: false, red: false, skipped: false }), { ex: 'n', oj: 'n', lines: [] });
   assert.deepEqual(checkCells({ diary: [], steps, ended: true, red: true, skipped: false }), { ex: 'q', oj: 'q', lines: [] });
   assert.deepEqual(checkCells({ diary: [], steps, ended: true, red: false, skipped: true }), { ex: 'n', oj: 'n', lines: [] });
