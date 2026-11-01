@@ -356,11 +356,15 @@ export function createFlowsDoor(opts) {
      * @param {any} body
      */
     reuseCheck(body) {
-      const { job, fromRun, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
+      // M13 am4 item 1: `flowType` and `mcp` are job fields like the lines; read here, never reach the run door. An absent field = unchanged; plain has no server.
+      const { job, fromRun, flowType, mcp, ...rest } = body && typeof body === 'object' ? body : /** @type {any} */ ({});
       const realRoot = realRootOrNull();
       if (realRoot !== null && typeof job === 'string' && typeof rest.flow === 'string' && checkFlowName(rest.flow).ok) {
         const read = readSigned(realRoot, rest.flow);
-        if (read.ok && jobKeyOfCard(job) !== jobKeyOfSigned(read)) {
+        const signedType = read.ok ? flowTypeOf(read.declaration) : 'plain';
+        const typeChanged = typeof flowType === 'string' && flowType !== signedType;
+        const mcpChanged = typeof mcp === 'string' && (flowType ?? signedType) !== 'plain' && mcp !== (read.ok ? read.declaration?.mcp?.server ?? '' : '');
+        if (read.ok && (jobKeyOfCard(job) !== jobKeyOfSigned(read) || typeChanged || mcpChanged)) {
           return { status: 200, body: { ok: true, kind: 'draft', suggestedName: suggestFlowName(realRoot, rest.flow) } };
         }
         // M6 am9: a RED run always drafts. The job is unchanged here, so the new plan is the next run of the SAME workflow (no new name). Only `[✗]` is red.

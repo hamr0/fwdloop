@@ -68,6 +68,7 @@ import { createScheduler } from './scheduler.js';
 import { createAuthor } from './author.js';
 import { keysForDoor } from '../keysfile.js';
 import { configDoorHome } from '../config.js';
+import { newestMcpChecks } from '../mcp-checks.js';
 import { createSettings } from './settings.js';
 import { removeOldLock } from './lock.js';
 
@@ -391,7 +392,7 @@ function ticketAnywayRoute(res, body, opts) {
  * real listening socket where that is simpler.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
- * @param {{ root: string, port: number, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue: {arriveAnyway: Function} }} opts
+ * @param {{ root: string, port: number, checksHome: { skip: boolean, home: string|undefined }, version?: string|null, startedAt?: string, packagePath?: string, resumer: ReturnType<typeof createResumer>, settings: ReturnType<typeof createSettings>, author: ReturnType<typeof createAuthor>, now?: () => number, ticketQueue: {arriveAnyway: Function} }} opts
  */
 export function handleRequest(req, res, opts) {
   const method = req.method ?? 'GET';
@@ -604,6 +605,7 @@ export function handleRequest(req, res, opts) {
     if (sub === 'job') {
       const result = getRunJob({
         root: opts.root, flow, runId, catalogue, scheduleRead: (f) => opts.author?.trigger?.facts(f) ?? null,
+        mcpChecks: () => (opts.checksHome.skip ? new Map() : newestMcpChecks(opts.checksHome.home)),
       });
       if (!result) { sendText(res, 404, 'no such run'); return; }
       send(200, result);
@@ -743,7 +745,7 @@ export function createPanelServer(opts) {
     const server = createServer((req, res) => {
       try {
         handleRequest(req, res, {
-          root, port: boundPort, resumer, settings, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), startAnyway: (a) => author.trigger.startAnyway(a), now: opts.author?.now ?? Date.now }),
+          root, port: boundPort, resumer, settings, checksHome: { skip: opts.settings?.home === undefined && door.skip, home: opts.settings?.home ?? door.home }, author, version, startedAt, packagePath: opts.packagePath, now: opts.author?.now, ticketQueue: /** @type {any} */ (opts.ticketQueue) ?? arriveAnywayOf({ scan: () => author.trigger.scan(), startAnyway: (a) => author.trigger.startAnyway(a), now: opts.author?.now ?? Date.now }),
         });
       } catch (e) {
         sendText(res, 500, 'internal error');

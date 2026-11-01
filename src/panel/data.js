@@ -2104,6 +2104,32 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
 }
 
 /**
+ * M13 am4 item 2: the Job tab's MCP keys, read off the run's own declaration; `{}` for a plain job. The hint of a tool is the newest OK check of this server that names it
+ * (`read-only` or null); no check, or a tool it does not name, is null (the page shows the name alone).
+ * @param {any} declaration @param {(() => Map<string, any>)|undefined} mcpChecks
+ */
+function mcpJobFields(declaration, mcpChecks) {
+  const flowType = flowTypeOf(declaration);
+  if (flowType === 'plain') return {};
+  const server = declaration.mcp?.server ?? null;
+  /** @type {any|null} */
+  let newest = null;
+  for (const r of (mcpChecks ? mcpChecks().values() : [])) {
+    if (r.server === server && r.ok === true && Array.isArray(r.tools) && (newest === null || String(r.at) > String(newest.at))) newest = r;
+  }
+  const names = Array.isArray(declaration.mcp?.tools) ? declaration.mcp.tools : [];
+  const tools = names.map((/** @type {any} */ t) => {
+    const name = typeof t === 'string' ? t : String(t?.name);
+    const hit = newest?.tools.find((/** @type {any} */ x) => x?.name === name);
+    return { name, hint: hit?.hint === 'read-only' ? 'read-only' : null };
+  });
+  return {
+    flowType, mcp: server, tools,
+    ...(flowType === 'tickets' ? { ticketFilter: declaration.ticketFilter ?? null, ticketWatch: declaration.ticketWatch ?? null } : {}),
+  };
+}
+
+/**
  * `GET /api/runs/:flow/:runId/job` — the Job tab (hamr's 2026-09-27
  * exit-check review #5: bareloop-style one-field-per-piece layout,
  * replacing the old split asks/sends/sources/signed-lines blocks). Every
@@ -2112,11 +2138,13 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
  * name carries its own why, never a blank or a guess. Field order (server
  * order matches the page's own render order): prose, asks, model, cap
  * (+redo cap), sources, sends, guardrails, plan (one row per step, amendment 34), signature.
- * @param {{root: string, flow: string, runId: string, catalogue: any, scheduleRead?: (flow: string) => any, home?: string}} opts
+ * M13 am4 item 2: an MCP or Tickets MCP job also carries `flowType`, `mcp` (the server) and `tools` (`{name, hint}`; the hint is the newest OK check's, else null);
+ * a Tickets job adds `ticketFilter` and `ticketWatch`. A plain job's payload has none of these keys. `mcpChecks` reads the newest-check map (unsigned, config home).
+ * @param {{root: string, flow: string, runId: string, catalogue: any, scheduleRead?: (flow: string) => any, home?: string, mcpChecks?: () => Map<string, any>}} opts
  * @returns {any|null}
  */
 export function getRunJob({
-  root, flow, runId, catalogue, scheduleRead, home,
+  root, flow, runId, catalogue, scheduleRead, home, mcpChecks,
 }) {
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
@@ -2155,6 +2183,7 @@ export function getRunJob({
     flow,
     runId,
     resolved: true,
+    ...mcpJobFields(flowRead.declaration, mcpChecks),
     // M9 am6 items 1-2 / am7 item 5: how this run began and the workflow's schedule now; words from src/summary-words.js, the same owner as the Run tab's SCHEDULE block
     started: startedWords(readTriggerRecord(run.runDir), (() => { const at = firstPidStartedAt(run.runDir); return at === null ? null : Date.parse(at); })(), home),
     schedule: (() => {
