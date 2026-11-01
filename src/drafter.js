@@ -752,6 +752,9 @@ export async function draft({
         : malformed ? `the tool call's arguments were not valid JSON (${malformed.error})`
           : 'no usable tool call (text instead of the tool)';
       entry.outcome = `structure: ${why}`;
+      // the raw answer is kept (log.json): the unparseable arguments as sent, else the model's text
+      if (typeof malformed?.rawArguments === 'string') entry.rawArguments = malformed.rawArguments;
+      else if (typeof result?.text === 'string' && result.text !== '') entry.rawText = result.text;
       log.push(entry);
       lastReds = [why];
       // M4d am3 A3: a round cut off at the output cap before tries 1 and 2 are spent is a FAILED TRY, advancing the same counter a
@@ -813,6 +816,8 @@ export async function draft({
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
+    // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
+    entry.args = captured;
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);
