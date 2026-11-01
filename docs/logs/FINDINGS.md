@@ -5099,3 +5099,13 @@ Target: signed M13 item 9b.4 ("the drafter is told every wording of a ticket fil
 - The prompt today says "You may SUGGEST a top-level ticketFilter ... ONLY for a guardrail that names a priority or a label" (`src/ticket-draft.js`, `ticketFactsLines`). Memory fact: deepseek-flash rarely uses an optional field.
 
 **Next step (registered):** widen that one line so the filter is required when a guardrail names a priority or a label; rerun as F121b on a new work folder.
+
+## F121b PRE-REGISTRATION (2026-11-01, PAID, a few cents; same script `poc/mcp/f121/f121.mjs`; written before any run, NOT yet run)
+
+**What changed since F121.** One line in `ticketFactsLines` (`src/ticket-draft.js`): the ticketFilter is no longer optional. It now says that when a guardrail names a priority or a label, the drafter MUST add a top-level `ticketFilter`; it may leave it out only when no guardrail names one. Nothing else changed.
+
+**Method.** Same script, same model (`accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks), same two wordings (A `priority P1 only`, B `only tickets with priority P1 count`), N=3 each, 6 drafts, a NEW work folder (the F121 folder is not reused). Same $0.10 spend guard.
+
+**Criteria (unchanged).** A draft PASSES when `fwdloop draft` exits 0 and `declaration.json` has a top-level `ticketFilter` whose `priority` contains `P1` or whose `labels` contains `P1` (case-insensitive). **Pass bar: 6 of 6.** 5 of 6 or fewer is FAIL; no refit of the bar, the wordings or the counting. A non-zero exit, a red, or a missing `ticketFilter` is a FAIL, never skipped or re-run.
+
+**Recorded, not judged.** Per draft: exit code, cost, `ticketFilter`, and whether it exited 1 with the validator red "steps[0] (line 1) is a pause (no primitives, hitl) at an unsigned line". That red was seen in F121 (a2, b1), is a separate drafter failure, and is reported here but is not what this change fixes; it still counts as a FAIL against the bar.
