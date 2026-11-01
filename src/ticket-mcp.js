@@ -1,6 +1,6 @@
 // M12 piece 1b/1c (docs/wiki/the-module-ladder.md, "M12 scope (restart)" items 1-3, 11): read ONE ticket through the user's own MCP server, nothing else.
 // The tool source is the user's `~/.mcp.json` (an explicit path; a repo's .mcp.json is never read). The bridge starts ONLY the server the job names, with
-// `allow` = exactly the job's tools, so any other tool does not exist for the run. A tool the server does not mark `readOnlyHint: true` is refused by name.
+// `allow` = exactly the job's tools, so any other tool does not exist for the run. M13 item 3: a hint (`readOnlyHint`) is info only; no tool is refused for lacking one.
 // Every refusal names its real cause (F101), at $0; none ever reads as empty content (F103). Proven by F100 (a ticket as a frozen input), F101, F103.
 // Borrowed shape: fwdloop poc/mcp/f100/scratch.diff (`src/ticket-mcp.js`), re-shaped: job-typed tools, explicit config, the three causes kept apart.
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
@@ -66,9 +66,6 @@ export async function readTicketMcp({ listUrl, number, mcp, configPath: explicit
     const lacking = bridge.missing?.[0];
     if (lacking) return { ok: false, error: `${server} does not offer ${lacking.tool}` };
     const prefix = `${server}_`;
-    for (const t of bridge.tools) {
-      if (t.annotations?.readOnlyHint !== true) return { ok: false, error: `${server} does not mark ${t.name.slice(prefix.length)} read-only (readOnlyHint is not true)` };
-    }
     const tool = bridge.tools.find((t) => t.name === `${prefix}issue_read`);
     if (!tool) return { ok: false, error: `${server} does not offer issue_read` };
     const call = { tool: 'issue_read', owner, repo, issue_number: number };

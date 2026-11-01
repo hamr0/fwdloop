@@ -101,14 +101,13 @@ describe('1c: refusals that name the real cause', () => {
     const r = await w.read();
     assert.deepEqual([r.ok, r.error], [false, 'github does not offer issue_read']);
   });
-  test('a tool the server does not mark readOnlyHint:true is refused by name: no mark, a false mark, a junk mark', async (t) => {
+  test('M13 item 3: hints are info only: a tool with no mark, a false mark or a junk mark is read and called like any other', async (t) => {
     for (const annotations of [undefined, { readOnlyHint: false }, { readOnlyHint: 'true' }, { destructiveHint: false }]) {
       const w = world(t, { env: { FAKE_TOOLS: JSON.stringify([{ name: 'issue_read', ...(annotations ? { annotations } : {}) }]) } });
       // eslint-disable-next-line no-await-in-loop
       const r = await w.read();
-      assert.equal(r.ok, false, JSON.stringify(annotations));
-      assert.equal(r.error, 'github does not mark issue_read read-only (readOnlyHint is not true)');
-      assert.deepEqual(w.callsMade(), [], 'a tool not marked read-only is never called');
+      assert.equal(r.ok, true, JSON.stringify(annotations) + (r.ok ? '' : ` ${r.error}`));
+      assert.deepEqual(w.callsMade().map((c) => c.name), ['issue_read'], 'the signed tool is called');
     }
   });
   test('the server answers with the device-login text: GitHub token unavailable, never content', async (t) => {

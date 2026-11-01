@@ -62,7 +62,6 @@ export async function lookTickets({
     const failed = bridge.errors.find((/** @type {any} */ e) => e.server === server);
     if (failed) return { ok: false, error: `${server} did not start: ${firstLine(failed.error)}` };
     if (bridge.missing?.[0]) return { ok: false, error: `${server} does not offer ${bridge.missing[0].tool}` };
-    for (const t of bridge.tools) if (t.annotations?.readOnlyHint !== true) return { ok: false, error: `${server} does not mark ${t.name.slice(`${server}_`.length)} read-only (readOnlyHint is not true)` };
     const list = bridge.tools.find((/** @type {any} */ t) => t.name === `${server}_${tool}`);
     if (!list) return { ok: false, error: `${server} does not offer ${tool}` };
 

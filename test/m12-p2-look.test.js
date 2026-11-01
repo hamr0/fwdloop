@@ -105,11 +105,13 @@ describe('Must fail: an unreadable list is never "0 new" (item 5)', () => {
       assert.match(r.error, /came back empty/);
     }
   });
-  test('the server lacks the signed tool, or does not mark it read-only -> unreadable, by name', async (t) => {
+  test('the server lacks the signed tool -> unreadable, by name; a tool with no read-only mark still looks (M13 item 3)', async (t) => {
     const a = world(t, { env: { FAKE_TOOLS: JSON.stringify([{ name: 'issue_read', annotations: { readOnlyHint: true } }]) } });
     assert.match((await a.look({ seen })).error, /github does not offer list_issues/);
     const b = world(t, { env: { FAKE_TOOLS: JSON.stringify([{ name: 'list_issues' }]) } });
-    assert.match((await b.look({ seen })).error, /does not mark list_issues read-only/);
+    // M13 item 3: a tool with no read-only mark is read like any other (hints are info only)
+    const r = await b.look({ seen });
+    assert.equal(r.ok, true, r.ok ? '' : r.error);
   });
   test('a server that is not in ~/.mcp.json, and an address that is not a GitHub issues list -> unreadable', async (t) => {
     const w = world(t);
