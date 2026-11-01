@@ -32,7 +32,8 @@ import {
 } from '../flow.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
-import { checkTarget, createFileTrigger } from '../trigger-files.js';
+import { checkTarget, createFileTrigger, readSeen } from '../trigger-files.js';
+import { lookProblemOf } from '../trigger-tickets.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { LOOK_TOOL } from '../ticket-draft.js';
 import { flowTypeOf } from '../declaration.js';
@@ -603,6 +604,8 @@ export function createTriggerDoor(opts) {
         nextSlotMs: clockKind && armedRow ? nextSlot(/** @type {any} */ (trigger), now()) : null,
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
         hasGreenRun,
+        // M13 item 9b.3: the cause when the newest look of a ticket schedule could not read (pass locked, a server error), else null
+        lookProblem: sc !== null && trigger !== null && trigger.kind === 'new-ticket' ? lookProblemOf(readSeen(ledgerOf(flowDir), sc.sig)) : null,
         // M13 piece 5: signed with the job and still off, because no run has been green yet (a green run not yet turned on by the next check is not waiting for one)
         waiting: sc !== null && armedRow === undefined && !hasGreenRun,
       };

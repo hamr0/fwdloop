@@ -147,6 +147,14 @@ export function lastSeen(ledger, sig) {
   return m;
 }
 /** Has this signing had its first look (its baseline written)? @param {string} ledger @param {string} sig */
+/**
+ * M13 item 9b.3: the cause of the newest look when it could not read, else null. The newest look row decides: an `unreadable` row is the problem until a later look reads
+ * (its `looked`, `baseline` or `arrived` row). @param {import('./trigger-files.js').SeenRow[]} rows @returns {{at: number, why: string}|null}
+ */
+export function lookProblemOf(rows) {
+  const last = rows.findLast((r) => r.kind === 'unreadable' || r.kind === 'looked' || r.kind === 'baseline' || r.kind === 'arrived');
+  return last?.kind === 'unreadable' ? { at: last.at, why: String(/** @type {any} */ (last).why ?? 'it could not read the list') } : null;
+}
 export const hasBaseline = (ledger, sig) => readSeen(ledger, sig).some((r) => r.kind === 'baseline');
 
 /**
@@ -160,6 +168,8 @@ export function recordLook(ledger, sig, look, at) {
     appendSeen(ledger, /** @type {any} */ ({ id: `unreadable:${at}`, kind: 'unreadable', sha: `unreadable:${at}`, name: '', size: 0, at, why: look.error }), sig);
     return { arrived: [], unreadable: look.error };
   }
+  // a look that read, after one that could not: one `looked` row ends the problem even when nothing is new (the only look row that is not found tickets)
+  if (lookProblemOf(readSeen(ledger, sig))) appendSeen(ledger, /** @type {any} */ ({ id: `looked:${at}`, kind: 'looked', sha: `looked:${at}`, name: '', size: 0, at }), sig);
   const arrived = [];
   const watch = (/** @type {{state: string, labels: string[]}} */ w) => ({ state: w.state, labels: w.labels });
   if (look.first) {
