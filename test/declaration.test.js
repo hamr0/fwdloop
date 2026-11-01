@@ -511,6 +511,7 @@ describe('negative scenarios', () => {
     const result = run(decl);
     assert.equal(result.ok, false);
     assert.ok(result.reds.some((r) => r.includes('steps[3]') && /pause/.test(r) && /unsigned line/.test(r)));
+    assert.ok(result.reds.some((r) => /unsigned line: grant it "read" \(or the verb it needs\), or make the line an Ask/.test(r)));
   });
 
   // M1 amendment 3 item 4: "A marked line is only the stop: exactly one step

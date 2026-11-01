@@ -1047,7 +1047,7 @@ export function validateDeclaration(declaration, context = {}) {
   stepInfo.forEach((st, i) => {
     const isSignedAskLine = st.fromLine !== null && signedAskLines.has(st.fromLine);
     if (st.primitives.length === 0 && st.effectiveClass === 'hitl' && !isSignedAskLine) {
-      reds.push(`declaration: steps[${i}] (line ${st.fromLine}) is a pause (no primitives, hitl) at an unsigned line`);
+      reds.push(`declaration: steps[${i}] (line ${st.fromLine}) is a pause (no primitives, hitl) at an unsigned line: grant it "read" (or the verb it needs), or make the line an Ask`);
     }
   });
 

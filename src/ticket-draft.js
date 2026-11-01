@@ -28,6 +28,7 @@ export function userMcpServers(configPath) {
 export function ticketFactsLines(role) {
   return [
     `- ${role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${role}" in a step's reads, do not fetch it)`,
+    `  A step that reads "${role}" still lists "read" in its primitives: the ticket is frozen, but reading it is a grant.`,
     `  Flow type: Tickets. The ticket is already frozen under "${role}" by the job's own tools ("${TICKET_TOOL}" reads it, "${LOOK_TOOL}" looks for new ones); no step needs them. A step lists a tool in "mcpTools" ONLY if that step calls the tool live; leave "mcpTools" out of every other step. The job's server and tool list are set by the program, not by you.`,
     '  When a guardrail names a priority or a label (for example "priority P1 only", "only tickets with priority P1 count", "only issues labelled bug"), you MUST add a top-level "ticketFilter": {"priority": [P0 to P3 values], "labels": [label names]} for it; leave it out only when no guardrail names a priority or a label, and such a guardrail stays hitl. A human signs it and code decides at run; never invent a label.',
     '  You may SUGGEST a top-level "ticketWatch": ["state", "labels"] (one or both) ONLY for a guardrail that says to run a ticket again when its state or its labels change. Any other thing to watch cannot be put there: leave it out and it stays hitl.',

@@ -47,6 +47,7 @@ test('Tickets: the drafter is told the flow type, that the ticket is frozen, the
   for (const line of ticketFactsLines('issues')) assert.ok(system.includes(line), line);
   assert.match(system, /Flow type: Tickets\. The ticket is already frozen under "issues"/);
   assert.match(system, /A step lists a tool in "mcpTools" ONLY if that step calls the tool live/);
+  assert.ok(system.includes('A step that reads "issues" still lists "read" in its primitives'));
   assert.deepEqual(r.declaration.ticketFilter, { priority: ['P1', 'P2'] });
 });
 
