@@ -184,6 +184,16 @@ test('API: the grid row and the ask carry the unsure flag; a sure ticket carries
   assert.equal(asks.asks.length > 0 && asks.asks.every((a) => a.filterUnsure === true), true);
 });
 
+// M13 am2: the grid is only for a Tickets MCP job and these worlds are plain ones, so their run detail is answered as a ticket job's; the grid renderer under test is the same
+async function asTicketJob(chrome) {
+  await chrome.send('Page.enable');
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `(function(){ var f = window.fetch; window.fetch = function(u){ var s = String(u);
+      if(/\\/api\\/runs\\/[^/]+\\/[^/]+$/.test(s)) return f.apply(this, arguments).then(function(r){ return r.json().then(function(d){ return new Response(JSON.stringify(Object.assign(d, {hasGrid: true, resultTab: true})), {status: 200, headers: {"content-type": "application/json"}}); }); });
+      return f.apply(this, arguments); }; })()`,
+  });
+}
+
 for (const width of [1280, 390, 320]) {
   test(`browser ${width}: the grey unsure mark is on the unsure row only, the ask page says the one line, nothing spills sideways`, { skip: SKIP && 'no browser' }, async (t) => {
     const chrome = await launchChrome();
@@ -192,6 +202,7 @@ for (const width of [1280, 390, 320]) {
     const w = parked();
     setVerdict(w.runDir, 9999999999, { outcome: 'run', unsure: 'x' });
     const h = await panel(w.root, w.home);
+    await asTicketJob(chrome);
     await chrome.open(`http://127.0.0.1:${h.port}/`, width);
     assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden', 20000));
     await chrome.ev('document.getElementById("tab-result").click()');
@@ -222,6 +233,7 @@ test('browser: a job with NO ask shows the grid mark and no ask line', { skip: S
   const h = await panel(w.root, w.home);
   const asks = await j(h, `/api/runs/${w.flow ?? 'job2'}/run-1/asks`);
   assert.equal(asks.asks.some((a) => a.filterUnsure), false, 'a run with no ask carries no ask line');
+  await asTicketJob(chrome);
   await chrome.open(`http://127.0.0.1:${h.port}/`, 1280);
   assert.ok(await chrome.waitFor('!document.getElementById("tab-result").hidden', 20000));
   await chrome.ev('document.getElementById("tab-result").click()');
