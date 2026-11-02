@@ -236,7 +236,7 @@
   /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
      action bar (a row of `.btn`s with a hint line under it), redo is ours. */
   .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
-  .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
+  .answer-doors label{display:block;font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
   .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
   .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .answer-doors .btn{min-width:44px;}
@@ -626,12 +626,13 @@
   /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
   #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
-  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  /* hamr 2026-11-02: captions on every page 1px bigger, bold, accent (Chat card keeps its pills) */
+  label{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
   /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
      bold/uppercase weight `label` already gives the Job tab's own fields,
      applied to "draft under review" and each unjudged input's own label
      ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
-  .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
+  .evidence-heading{font-size:12px;font-weight:700;color:var(--accent);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
   .evidence-heading:first-child{margin-top:0;}
   /* review #3: the ask's own question, a real heading under the "step ·
      draft N · asked · status" meta line — reuses the box-drawing h4 look
@@ -892,7 +893,7 @@
   .settings-header h2::after{content:" ├";color:var(--text-faint);}
   .money-strip{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;align-items:end;padding:10px;border:1px solid var(--border-strong);background:var(--panel2);}
   .money-item{min-width:0;}
-  .money-item label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;}
+  .money-item label{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;}
   .money-value{font-size:16px;font-weight:700;padding:6px 0;overflow-wrap:anywhere;}
   .money-item input{width:100%;height:44px;box-sizing:border-box;}
   .keyfile-strip{position:relative;border:1px solid var(--border-strong);padding:12px 12px 8px;background:var(--panel2);margin:14px 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
@@ -921,7 +922,7 @@
   .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:0 4px 0 0;min-width:22px;min-height:24px;cursor:pointer;text-align:left;}
   .pv-krow select,.pv-krow input[type=text]{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;}
   .pv-grid select,.pv-grid input[type=text]{font-size:12px;height:28px;padding:2px 6px;}
-  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;color:var(--text-dim);text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
   .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
   .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
   .pv-refcell{display:flex;justify-content:flex-end;}
@@ -960,7 +961,7 @@
   .pv-typed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;}
   .pv-typed input{flex:1 1 160px;min-width:0;max-width:260px;min-height:28px;box-sizing:border-box;}
   .pv-typed .hint{flex:1 1 100%;margin:0;}
-  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
+  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;color:var(--text-dim);text-transform:none;letter-spacing:0;}
   .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
   .hint.bad{color:var(--red);}
   .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
