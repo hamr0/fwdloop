@@ -189,7 +189,7 @@ function addMeter(cumulative, metered) {
   // faulted — caught live: `toolFields` threw on `cumulative.ungranted`
   // being undefined the very first time a transport fault hit round 1.
   return {
-    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused, thinking: cumulative.thinking,
+    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused, thinking: cumulative.thinking, badCalls: cumulative.badCalls,
   };
 }
 
@@ -244,6 +244,8 @@ function toolFields(cumulative) {
     // absence can never be confused with "none".
     refused: cumulative.refused,
     ...(cumulative.ungranted.length > 0 ? { ungranted: cumulative.ungranted } : {}),
+    // M14 item 10: bare-agent's facts about calls that went wrong (`r.badCalls`, whole attempt, in order); left off once empty, like `ungranted`
+    ...(cumulative.badCalls.length > 0 ? { badCalls: cumulative.badCalls } : {}),
   };
 }
 
@@ -286,6 +288,19 @@ function toolRowPath(args) {
 const STOP_RULE = 'stop-requested';
 
 /** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
+/**
+ * M14 item 9: the retry's gap for a try cut off at the output limit, from bare-agent's own facts (`r.cutOff`): the output tokens, how many of them were thinking, and the limit.
+ * A fact bare-agent did not report is said so, never a number. `null` when the run carries no `cutOff` (the caller keeps its older words).
+ * @param {{outputTokens: number|null, reasoningTokens: number|null, maxTokensRequested: number|null}|undefined} c
+ */
+function cutOffRed(c) {
+  if (!c || typeof c !== 'object') return null;
+  const out = Number.isFinite(c.outputTokens) ? `${c.outputTokens} output tokens` : 'an output size that was not reported';
+  const thinking = Number.isFinite(c.reasoningTokens) ? `${c.reasoningTokens} of them thinking` : 'thinking tokens not reported';
+  const limit = Number.isFinite(c.maxTokensRequested) ? `the limit was ${c.maxTokensRequested}` : 'no limit was reported';
+  return `truncated: cut off at the output limit with no tool call — ${out}, ${thinking}; ${limit}`;
+}
+
 function stoppedResult(cumulative, modelId, modelMatch) {
   return {
     ok: false, stopped: true, red: 'stopped by you', costUsd: cumulative.costUsd, tokens: cumulative.tokens, ...toolFields(cumulative), model: modelId, modelMatch,
@@ -414,6 +429,7 @@ export function makeLiveModelStep({
       tokens: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
       tools: /** @type {Record<string, number>} */ ({}),
       ungranted: /** @type {string[]} */ ([]),
+      badCalls: /** @type {any[]} */ ([]),
       refused,
       // M4d am25 item 4: what this attempt asked of thinking (the runner's decision, `stepMeta.thinkingMode`; null = it asked nothing) and the WORST status
       // bareagent reported across its rounds (null = none reported). The ONE place this record is built; `toolFields` hands it to every return.
@@ -463,7 +479,8 @@ export function makeLiveModelStep({
           }
         }
       };
-      const loop = new Loop({ provider: watchCalls(provider, (r) => { lastCall = r; }), rates, onLlmResult, ...stopSeam });
+      // M14 item 10: `checkArgs` - a call whose top-level arguments do not fit the tool's declared parameters (a wrong type, a missing required value) never runs the tool; bare-agent hands the model the refusal and reports it in `badCalls`
+      const loop = new Loop({ provider: watchCalls(provider, (r) => { lastCall = r; }), rates, onLlmResult, checkArgs: true, ...stopSeam });
 
       const startedAt = Date.now();
       let result;
@@ -537,6 +554,7 @@ export function makeLiveModelStep({
       const metered = sumMeterings(roundMeterings);
       cumulative = addMeter(cumulative, metered);
       cumulative = { ...cumulative, ...addToolCounts(cumulative, result.metrics?.byTool, grantedNames) };
+      if (Array.isArray(result.badCalls)) cumulative = { ...cumulative, badCalls: [...cumulative.badCalls, ...result.badCalls] };
       if (result.thinkingStatus !== undefined) cumulative.thinking = { asked: cumulative.thinking.asked, status: worstThinkingStatus([cumulative.thinking.status, result.thinkingStatus]) };
       appendSpendRow(spendPath, {
         provider: slot ?? null,
@@ -561,7 +579,7 @@ export function makeLiveModelStep({
         // bigger cap), never a transient fault a retry could fix.
         return {
           ok: false,
-          red: `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call`,
+          red: cutOffRed(result.cutOff) ?? `truncated: ${metered.tokens?.outputTokens ?? '?'} tokens, no tool call`,
           costUsd: cumulative.costUsd,
           tokens: cumulative.tokens,
           ...toolFields(cumulative),

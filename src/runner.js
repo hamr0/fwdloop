@@ -822,6 +822,7 @@ function makeAuditRow({
   hintIds = /** @type {string[]|undefined} */ (undefined),
   hintsError = /** @type {string|undefined} */ (undefined),
   memoText = /** @type {string|undefined} */ (undefined),
+  badCalls = /** @type {any[]|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -849,6 +850,8 @@ function makeAuditRow({
   if (hintsError !== undefined) row.hintsError = hintsError;
   // M14 item 7: the exact memo text this try was handed (what happened so far in the run); the key is absent when the try got none. The ONE place the text is kept.
   if (memoText !== undefined) row.memoText = memoText;
+  // M14 item 10: bare-agent's facts about this try's calls that went wrong (`badCalls`), as the model step returned them; the key is absent when there were none. The ONE writer.
+  if (Array.isArray(badCalls) && badCalls.length > 0) row.badCalls = badCalls;
   return row;
 }
 
@@ -963,9 +966,13 @@ async function runStepTries({
     // every row this try writes from here on carries how many hints it was handed, which, and what (none handed = no field)
     // M14 items 2 and 7: the memo is built fresh from the run's files before EVERY try (src/memo.js), handed whole, and kept on every row this try writes
     const memo = buildMemo(runDir, { step: step?.emits ?? step?.goal ?? null });
+    // M14 item 10: this try's `badCalls` come back with the model step's result; every row the try writes carries them
+    /** @type {any[]|undefined} */
+    let badCalls;
     const rowOf = (/** @type {any} */ a) => makeAuditRow({
       ...a,
       ...(memo !== '' ? { memoText: memo } : {}),
+      ...(badCalls !== undefined ? { badCalls } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
     });
@@ -1013,10 +1020,12 @@ async function runStepTries({
         const tools = first.tools || result.tools ? { ...(first.tools ?? {}) } : null;
         if (tools) for (const [k, v] of Object.entries(result.tools ?? {})) tools[k] = (tools[k] ?? 0) + v;
         const ungranted = [...new Set([...(first.ungranted ?? []), ...(result.ungranted ?? [])])].sort();
-        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}) };
+        const bad = [...(first.badCalls ?? []), ...(result.badCalls ?? [])];
+        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}), ...(bad.length > 0 ? { badCalls: bad } : {}) };
       }
     }
     const wallMs = Date.now() - startedAt;
+    badCalls = Array.isArray(result?.badCalls) ? result.badCalls : undefined;
 
     // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
     // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.
