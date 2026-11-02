@@ -1,0 +1,260 @@
+{
+ "results": [
+  {
+   "bar": 1,
+   "name": "writeRunStart is handed the fact for the new run (patched copy)",
+   "pass": true,
+   "detail": "[{\"run\":\"run-1-rerun-1\",\"fact\":{\"decision\":\"rerun\",\"words\":\"wrong answer\",\"afterStep\":3}}]"
+  },
+  {
+   "bar": "2a",
+   "name": "new run folder file names identical to the unpatched rerun",
+   "pass": true,
+   "detail": "16 vs 16 files"
+  },
+  {
+   "bar": "2b",
+   "name": "run.json differs from the unpatched one only by the `rerun` key",
+   "pass": true,
+   "detail": "keys patched=thinking,inputs,rerun plain=thinking,inputs"
+  },
+  {
+   "bar": 3,
+   "name": "after the rerun's own park, answer and resume: run.json byte-identical and still holds the fact",
+   "pass": true,
+   "detail": "resume outcome complete; sha 3ad8fec19be5; files after 19"
+  },
+  {
+   "bar": "4a",
+   "name": "no pass-through from resumeRun: hook does NOT see the fact (bar 1 red)",
+   "pass": true,
+   "detail": "[{\"run\":\"run-1-rerun-1\"}]"
+  },
+  {
+   "bar": "4b",
+   "name": "writeRunStart drops it: file lacks the fact (bar 2b/3 red) while the hook still saw it",
+   "pass": true,
+   "detail": "file keys thinking,inputs"
+  },
+  {
+   "bar": "4c",
+   "name": "unpatched src: no `rerun` key in the rerun's run.json",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "bar": "4d",
+   "name": "unpatched src and copies resumed the rerun the same way",
+   "pass": true,
+   "detail": "complete / complete"
+  }
+ ],
+ "out": {
+  "plain": {
+   "before": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-plain/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-plain/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-plain/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-plain/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "after": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-plain/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-plain/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-plain/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-plain/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "filesAtPark": [
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "filesAfter": [
+    "answer.<uuid>.consumed.json",
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary-approved.json",
+    "artifacts/resume-summary-output.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "resumeOutcome": "complete",
+   "seen": [],
+   "seenAll": 0
+  },
+  "full": {
+   "before": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-full/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-full/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-full/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-full/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ],\n  \"rerun\": {\n    \"decision\": \"rerun\",\n    \"words\": \"wrong answer\",\n    \"afterStep\": 3\n  }\n}\n",
+   "after": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-full/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-full/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-full/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-full/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ],\n  \"rerun\": {\n    \"decision\": \"rerun\",\n    \"words\": \"wrong answer\",\n    \"afterStep\": 3\n  }\n}\n",
+   "filesAtPark": [
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "filesAfter": [
+    "answer.<uuid>.consumed.json",
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary-approved.json",
+    "artifacts/resume-summary-output.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "resumeOutcome": "complete",
+   "seen": [
+    {
+     "run": "run-1-rerun-1",
+     "fact": {
+      "decision": "rerun",
+      "words": "wrong answer",
+      "afterStep": 3
+     }
+    }
+   ],
+   "seenAll": 2
+  },
+  "nopass": {
+   "before": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-nopass/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-nopass/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-nopass/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-nopass/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "after": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-nopass/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-nopass/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-nopass/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-nopass/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "filesAtPark": [
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "filesAfter": [
+    "answer.<uuid>.consumed.json",
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary-approved.json",
+    "artifacts/resume-summary-output.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "resumeOutcome": "complete",
+   "seen": [
+    {
+     "run": "run-1-rerun-1"
+    }
+   ],
+   "seenAll": 2
+  },
+  "dropwrite": {
+   "before": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-dropwrite/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-dropwrite/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-dropwrite/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-dropwrite/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "after": "{\n  \"thinking\": false,\n  \"inputs\": [\n    {\n      \"id\": \"resume\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-dropwrite/resume.docx\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-dropwrite/job2/runs/run-1-rerun-1/inputs/resume.docx\",\n      \"sha256\": \"e567cdf7c0459f235c0c356dd30954aa7705c4250e4d011a6ef5ea055794a8c4\",\n      \"bytes\": 22\n    },\n    {\n      \"id\": \"jd\",\n      \"source\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/src-dropwrite/jd.md\",\n      \"frozen\": \"/home/hamr/PycharmProjects/fwdloop/poc/f132-rerun-reason/.scratch-l8SGYW/root-dropwrite/job2/runs/run-1-rerun-1/inputs/jd.md\",\n      \"sha256\": \"c18a9237dea12e248fd30685c4340b7bf5f5ade78dfe3b4d6073972b856dbc13\",\n      \"bytes\": 18\n    }\n  ]\n}\n",
+   "filesAtPark": [
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "filesAfter": [
+    "answer.<uuid>.consumed.json",
+    "artifacts/jd-text.json",
+    "artifacts/resume-summary-approved.json",
+    "artifacts/resume-summary-output.json",
+    "artifacts/resume-summary.json",
+    "artifacts/resume-text.json",
+    "ask.json",
+    "asks/<uuid>.json",
+    "audit.jsonl",
+    "diary.jsonl",
+    "inputs/jd.md",
+    "inputs/resume.docx",
+    "job/declaration.json",
+    "job/prose.txt",
+    "job/signature.json",
+    "log.json",
+    "pids.jsonl",
+    "run.json",
+    "state.json"
+   ],
+   "resumeOutcome": "complete",
+   "seen": [
+    {
+     "run": "run-1-rerun-1",
+     "fact": {
+      "decision": "rerun",
+      "words": "wrong answer",
+      "afterStep": 3
+     }
+    }
+   ],
+   "seenAll": 2
+  }
+ }
+}
