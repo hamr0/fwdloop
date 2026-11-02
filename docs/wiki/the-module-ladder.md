@@ -3332,6 +3332,10 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 >    - a repeated failure ends with `(x3)`,
 >    - a cut shows `(older lines cut to fit)`.
 
+**M14 amendment 2 — SIGNED by hamr 2026-11-02 ("sign m14 am2"), the text exactly as shown.** Why: the M14 build (p4) put two sets of on-screen words in the Audit that the signed text did not name; shown to hamr with screenshots (`audit-memo-390-light.png`, `rerun-1280.png`, `rerun-390.png`).
+
+> **M14 am2.** In the Audit grid, each `told in this run` button reads the memo's line count as `[ N lines ]`, like `[ N hints ]`. A rerun's reason shows in the first step's rounds as `you said rerun: "…"`, the same shape as `you said redo`.
+
 - *Built after signing — not signed text (2026-11-02), M14 (branch `chore/fix-ledger`):*
   - p1 (am1 item 1): `resumeRun`'s rerun path passes `rerunOf: {decision:'rerun', words, afterStep}` through `runFlow` to `writeRunStart`, which writes the `rerun` section of the new run's `run.json` (`afterStep` is the step NAME the old ask followed, `null` when the ask was first). No new file.
   - p2 (items 1-6, am1 item 2): `src/memo.js` `buildMemo(runDir, {step})`. Line forms the signed text left open: `rerun — user says "…"`, `last try: step S try N — result: V`, `earlier try: …`, `earlier failure: …` (each with ` — <gap>` cut at 300 characters; the last-try line drops its gap when the same step retries). The learnings fold rule is `foldCards` with the step and verdict as the "job". The last-try line is never cut; if the heading, human lines and that line alone pass 4,000 characters the memo stays over the cap.
