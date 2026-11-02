@@ -1233,6 +1233,7 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
  * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run.json) and kept by every resume/continue.
+ * @param {{decision: 'rerun', words: string, afterStep: string|null}} [opts.rerunOf] - M14 am1 item 1: only `resumeRun`'s rerun path passes it; kept in the new run's run.json
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1244,6 +1245,8 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
  */
 export async function runFlow({
   root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap, fetchPage,
+  // M14 am1 item 1: set only by `resumeRun`'s rerun path ({decision, words, afterStep}); written once into run.json by `writeRunStart`
+  rerunOf,
   // M4d am33: the model this run STARTED on ({ slot, model }); recorded once beside the run, kept by every resume/continue. Absent = nothing recorded.
   runModel,
   // F45 finding 3's test needs to advance wall time across a park/resume
@@ -1374,7 +1377,7 @@ export async function runFlow({
     });
   }
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
-  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest) });
+  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
   if (frozen.skip) {
     return haltRun({
@@ -2540,6 +2543,8 @@ export async function resumeRun({
         runModel,
         // Item 7: the reason becomes the new run's FIRST step's starting gap.
         initialGap: reason,
+        // M14 am1 item 1: the new run keeps the reason in its own run.json (decision, words, the step the old run's ask followed; null = the ask was first)
+        rerunOf: { decision: 'rerun', words: reason, afterStep: steps[state.stepIndex - 1]?.emits ?? null },
       });
 
       return {
