@@ -5461,7 +5461,7 @@ result F133 (2026-11-02, [MEASURED], $0, stand-in on 127.0.0.1, no pass, no real
 
 **PASS (candidate, on the letter).** 0 of 10 drafts carry the F134 red (`reads artifact "<notes>" that no earlier step declared` for role notes) in ANY round, AND at least 8 of 10 drafts green (a draft that ends ok with a signable hash). Baseline must show the F134 red in at least 3 of 4 drafts; else the POC cannot fail, and that is recorded. Not refit afterwards. Thinking off. Per draft recorded: model, verdict, rounds, reds per round, cost.
 
-### F136 RESULT (2026-11-02, run after the pre-registration above; fix commit cf5ea7b, baseline = pre-fix 87d7392)
+### F136 RESULT (2026-11-02, run after the pre-registration above; fix commit 62f2abb, baseline = pre-fix 87d7392)
 
 Total spend $0.1003 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off). Per draft: model, verdict, rounds, reds, cost.
 
@@ -5481,3 +5481,18 @@ Total spend $0.1003 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<
 **Baseline.** F134 red in 2 of 4 drafts (deepseek-flash 2/2, muse 0/2). The pre-registered precondition (at least 3 of 4) is NOT met: on this job (without the F135 clash) muse drafts green on the old code, so the POC cannot fail on muse. It can on deepseek-flash, which hit the red in 2 of 2 and ended RED after 5 rounds.
 
 **Candidate.** F134 red in 0 of 10 drafts in any round; 10 of 10 green. Letter of the pre-registered candidate bar: PASS. Verdict stands as: candidate PASS; baseline precondition not met (2/4), recorded, not refit. The evidence for the fix is the deepseek-flash arm (2/2 RED before, 5/5 green after, all rounds free of the F134 red). Not checked: that the green plans actually read the notes at run time (this POC drafts only).
+
+## F137 (2026-11-02, recorded, unsigned, NOT built): a softgreen close invented a heading the job never asked for; the bullet count was lost
+
+Live run `~/.config/fwdloop/flows/m14-walk-3-2/runs/run-1` (model Muse `meta-models/muse-spark-open-1026`, result not-done, $0.0374). Line 3 is "List 3 jobs for this week from the notes" with the guardrail "exactly 3 bullets" (`job/prose.txt` line 4).
+
+**What happened.** The drafter closed step `weekly_jobs` as softgreen with shape `{sections:["Jobs for this week"]}` (`job/declaration.json`). That heading is taken from the job words and was never asked for, and the close carries no bullet count at all. So the guardrail "exactly 3 bullets" lost its intent, and the step gained a check it cannot know about (a step never sees its close).
+
+**Reds (exact, `runs/run-1/audit.jsonl`).**
+- try 1: red, `no line is exactly the heading "Jobs for this week" (a heading is a line that is only that text, optionally after #)`
+- try 2: red, same text
+- try 3: not-done, `step "weekly_jobs" reports done: false — Blocked: no line is exactly the heading "Jobs for this week" in the notes at ask1_check.`
+
+**What worked live.** The step read the notes through `read` (F134 fix: audit rows show `tools:{read:2}` / `{read:1}`). The memo reached the step (`memoText` on the rows, including the ask 1 `accept` line). Books balance: audit rows sum to $0.0374015, equal to spend and history.
+
+**Cost of leaving it.** A job whose guardrail is a count goes red on a heading nobody asked for. Not built: recorded for hamr's ruling.
