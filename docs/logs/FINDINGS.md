@@ -5440,3 +5440,23 @@ result F133 (2026-11-02, [MEASURED], $0, stand-in on 127.0.0.1, no pass, no real
 **Cause.** src/declaration.js:892: a `.md` / `.txt` / `.docx` input (`docRoles`, line 679) may be listed in `reads` only by a step whose `close.cited.source` names it (M10 piece 5). A hitl or plain written step has no declared way to read a document input; it falls to line 893-895 and is refused. CSV inputs (cellsRoles, line 890) and web pages (pageRoles, line 891) are exempt; document inputs are not.
 
 **Not checked.** Whether a fix should allow a plain read of a document role, or the drafter should refuse the job at draft time naming the line. Not built, not signed; no amendment without hamr's word.
+
+## F135 — a send line that also has a shape guardrail cannot be drafted (live, m14-walk-2; 2026-11-02)
+
+**Status** recorded, unsigned, not built. **Grounded in** hamr's panel drafts of `m14-walk-2` (`~/.config/fwdloop/flows/.drafts/d-00mvzqki2p-2cac`, `d-00mvzqosmh-328b`; and the logs of the other m14-walk-2 drafts).
+
+**What happened.** Job line 5 "Write a short closing note to my neighbour" with `~ exactly 3 bullets` is also the send line (destination set; the card adds `send at line 5`). Two rules conflict: the send step must be granted a write-class primitive, and a softgreen step (one whose check reads its reply) is never granted `write`. Exact reds seen live: `declaration: send at line 5 (steps[4]) is not granted a catalogue primitive of class "write"` (d-00mvzqosmh-328b) and, in round 3 of the log, the drafter's own words `step 5's check reads its reply, so it can't write files. The send step writes the result out.` Other reds in d-00mvzqki2p-2cac: `line 5 is marked unjudgeable but guardrailClasses proposes "softgreen"`; `steps[4].close.class "hitl" does not match "softgreen"`. m14-walk-1 passed only by dropping the guardrail to hitl (`guardrailClasses {}`).
+
+**Not checked.** Whether the fix is a rule change (a separate send step), a refusal at draft time naming the line, or advice to the drafter. Not built, not signed; separate from F134.
+
+## F136 PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $0.40 total; F134 fix POC; written before any paid call, NOT yet run)
+
+**Question.** Does telling the drafter that a .md/.txt/.docx input (other than a cited step's source) is never listed in `reads` (grant `read`, or `readDocx` for .docx; read it by its role through that tool), and making the refusal say the same, stop the F134 red on a real draft? hamr ruled option 1 (tell the drafter the right way + the refusal says the same); no rule change.
+
+**Job (both arms).** The card in `.drafts/d-00mvzqki2p-2cac/card.json` (m14-walk-2: garden lines, two asks 1h, `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, cap $0.5) with the last line's `~ exactly 3 bullets` REMOVED (that clash is F135), destination `/home/hamr/fwdloop-out`. Prose built by `cardToProse`. Drafted through `node bin/fwdloop draft` with HOME=<tmp> and a copied config; flows root in the tmp.
+
+**Models.** `deepseek-flash` (DEEPSEEK_API_KEY) and Baseten muse `meta-models/muse-spark-open-1026` (BASETEN_API_KEY).
+
+**Baseline.** Current code (pre-fix commit, in a git worktree): 2 drafts per model = 4. **Candidate.** Fixed code: 5 drafts per model = 10.
+
+**PASS (candidate, on the letter).** 0 of 10 drafts carry the F134 red (`reads artifact "<notes>" that no earlier step declared` for role notes) in ANY round, AND at least 8 of 10 drafts green (a draft that ends ok with a signable hash). Baseline must show the F134 red in at least 3 of 4 drafts; else the POC cannot fail, and that is recorded. Not refit afterwards. Thinking off. Per draft recorded: model, verdict, rounds, reds per round, cost.
