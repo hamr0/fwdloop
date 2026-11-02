@@ -3323,3 +3323,11 @@ same run. Scope is stated when its turn comes.
 **Negative case:** a run with no asks gets no human lines; a blank Accept adds nothing; the memo never shows money; a good tool call is never flagged.
 
 Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row; learnings and the memo show in the Audit wherever they are handed on; the memo row reads `told in this run`. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
+
+**M14 amendment 1 — SIGNED by hamr 2026-11-02 ("sign m14 am1"), the text exactly as shown.** Why: F130 bar 6 — a rerun's reason is not in the rerun run's own files (only in the parent run's consumed answer), so the memo cannot carry it and the Audit cannot show it (item 11 survey, gap 7); and the signed text named no words for the memo heading, fold marker or cut note. Shown with a real memo rendered from m7-walk-2 run-6 (F130).
+
+> 1. A rerun saves its reason in its own `run.json`: the decision, your words, and which step the old run's ask came after. The memo and the Audit tab read it from there. No new file.
+> 2. The memo's fixed words:
+>    - heading `What happened so far in this run (written by code, from the record)`,
+>    - a repeated failure ends with `(x3)`,
+>    - a cut shows `(older lines cut to fit)`.
