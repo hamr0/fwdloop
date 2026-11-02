@@ -53,9 +53,10 @@ test('cardFromSigned: a job the card wrote comes back as a card that writes the 
 
 test('cardFromSigned: no destination, no inputs, a long wait in hours, a guardrail joined with "; " stays one ~ line', () => {
   const s = scene();
-  const prose = proseOf(s.card({
+  // an old signed job with no destination (M13 am6: a new card cannot write one, so the prose is written without the card check)
+  const prose = cardToProse(s.card({
     destination: '', inputs: '', job: 'Read it\n~a; b\nAsk 2h: ok?\nWrite it', capUsd: '0.5',
-  }), s.root);
+  }));
   const back = cardFromSigned(parseSignedText(prose));
   assert.equal(back.ok, true, JSON.stringify(back));
   assert.equal(back.card.destination, '');

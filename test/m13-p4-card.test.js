@@ -2,7 +2,7 @@
 // never checked = the card refuses before drafting with one sentence.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,12 +15,14 @@ function world(t, { checked = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p4-card-'));
   const cfg = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p4-cfg-'));
   const home = mkdtempSync(path.join(tmpdir(), 'fwdloop-m13p4-home-'));
+  const out = path.join(home, 'out'); // M13 am6: Destination is required, so a card carries one
+  mkdirSync(out);
   const oldHome = process.env.HOME;
   process.env.HOME = home;
   t.after(() => { process.env.HOME = oldHome; for (const d of [root, cfg, home]) rmSync(d, { recursive: true, force: true }); });
   writeFileSync(path.join(home, '.mcp.json'), JSON.stringify({ mcpServers: { github: { command: '/nonexistent/never-started' }, hosted: { url: 'https://x.test/mcp' } } }));
   if (checked) appendMcpCheck(cfg, { server: 'github', path: '~/.mcp.json', at: '2026-10-31T10:00:00Z', ok: true, tools: [{ name: 'issue_read', hint: 'read-only' }, { name: 'list_issues', hint: null }] });
-  const card = (over = {}) => cardFields({ flowName: 'tick', job: 'Read the ticket\nWrite it out', inputs: '', destination: '', capUsd: '5', askWait: '1h', provider: 'x', model: 'y', ...over });
+  const card = (over = {}) => cardFields({ flowName: 'tick', job: 'Read the ticket\nAsk 1h: ok?\nWrite it out', inputs: '', destination: out, capUsd: '5', askWait: '1h', provider: 'x', model: 'y', ...over });
   const check = (over) => checkCard(card(over), { root, home: cfg, keys: [] });
   return { check, card };
 }

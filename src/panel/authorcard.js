@@ -393,9 +393,10 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     }
   } else no('capUsd', 'The cap must be a number above 0 (dollars per run).');
 
-  // destination: one folder, or empty for no send (it is sent at the last step)
+  // destination: one folder, required (M13 am6); the accepted result is sent there at the last step
   const dest = card.destination;
-  if (dest !== '') {
+  if (dest === '') no('destination', 'Destination is empty. Name the folder the accepted result is sent to, at the last step.');
+  else {
     const why = destinationRefusal(dest, root);
     if (why !== null) no('destination', why);
   }

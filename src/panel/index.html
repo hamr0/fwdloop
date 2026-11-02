@@ -1221,9 +1221,9 @@
                 <div class="jf-err" id="jf-err-schedule" data-testid="jf-err-schedule"></div>
               </div>
               <div class="field">
-                <label for="jf-dest-folder">Destination</label>
+                <label for="jf-dest-folder">Destination <span class="req" id="jf-req-destination" data-testid="jf-req-destination">required</span></label>
                 <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
-                <div class="hint">Where the accepted result is placed, at the last step. Leave empty for no send.</div>
+                <div class="hint">Where the accepted result is placed, at the last step.</div>
                 <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
               </div>
               <div class="cap-row" data-testid="cap-row">
@@ -5924,9 +5924,10 @@
       paintRequired();
       inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
     }
-    // M13 am5: the one writer of the required marks. Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
+    // M13 am5/am6: the one writer of the required marks. Destination is required for every flow type (am6). Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
     function paintRequired(){
       byId("jf-req-inputs").textContent = flowTypeEl.value === "mcp" ? "optional for MCP" : "required";
+      byId("jf-req-destination").textContent = "required";
       byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
     }
     function setFlow(type, server, sched){
@@ -6014,8 +6015,8 @@
       }
       var c = currentCard();
       var v = Number(c.capUsd);
-      // M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
-      return c.flowName !== "" && c.job.trim() !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
+      // M13 am6: Destination is required for every flow type. M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
+      return c.flowName !== "" && c.job.trim() !== "" && c.destination !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
     }
 
     // ---- the money note under Cap (M4e amendment 4 items 1-2) ----

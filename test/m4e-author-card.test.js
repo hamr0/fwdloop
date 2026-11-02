@@ -59,13 +59,11 @@ test('(1) round trip: the card becomes the prose shape and the existing parser r
   assert.equal(readProseFile(f).ok, true);
 });
 
-test('(1) no destination = no send line; a cap that would print as an exponent is spelled as a plain decimal', () => {
+test('(1) a cap that would print as an exponent is spelled as a plain decimal', () => {
   const s = scene();
-  const r = checkCard(s.card({ destination: '', capUsd: 0.0000001, job: 'Ask: is this ok?' }), { root: s.root }); // only an ask: it funds no model round, so no cap floor (amendment 4 item 2)
+  const r = checkCard(s.card({ capUsd: 0.0000001, job: 'Ask: is this ok?\nAsk: really?' }), { root: s.root }); // only an ask: it funds no model round, so no cap floor (amendment 4 item 2)
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.ok(!/send at/.test(r.prose));
   assert.match(r.prose, /guardrail: cap \$0\.0000001 per run/);
-  assert.equal(parseSignedText(r.prose).arbiter.sends.length, 0);
 });
 
 test('(xii) cap, destination, ask TTL and input paths come ONLY from the card: whatever the job text says, the block is the card\'s', () => {
@@ -143,7 +141,7 @@ test('(2) cap must be a number above 0; the destination is one folder (never a l
   assert.deepEqual(dest(path.join(s.work, 'no-such-folder')), ['destination']);
   assert.deepEqual(dest(path.join(s.inDir, 'resume.md')), ['destination'], 'a file is not a folder');
   assert.deepEqual(dest(s.root), ['destination'], 'the flow root is refused by the one send-destination check');
-  assert.deepEqual(dest(''), [], 'empty = no send');
+  assert.deepEqual(dest(''), ['destination'], 'M13 am6: empty is refused');
 });
 
 test('(d) a destination is sent at the LAST step and the prose says so; an empty destination writes no send line; the line is never typed', () => {

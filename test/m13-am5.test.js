@@ -22,7 +22,7 @@ function card({ flow = 'plain', inputs = 'resume: /a.md', name = 'tick', job = '
   const src = ['currentCard', 'startReady', 'paintRequired'].map((n) => fnSrc(CHAT, n, '    ')).join('\n');
   const fns = new Function('byId', 'jobEl', 'destEl', 'inputsBox', 'askWaitEl', 'modelPick', 'thinkingEl', 'thinkingNone', 'flowTypeEl', 'mcpEl', 'scheduleOfCard', 'reuseOf', 'moneyRed', 'mode', 'runInputsEl',
     `${src}\nreturn { startReady, paintRequired };`)(
-    el, { value: job }, { value: '' }, { value: inputs }, { value: '1h' }, () => ({ provider: 'x', model: 'y' }), { checked: false }, false, flowTypeEl, { value: 'github' }, () => null, null, false, 'new', runInputsEl);
+    el, { value: job }, { value: '/out' }, { value: inputs }, { value: '1h' }, () => ({ provider: 'x', model: 'y' }), { checked: false }, false, flowTypeEl, { value: 'github' }, () => null, null, false, 'new', runInputsEl);
   return { ...fns, els, flowTypeEl };
 }
 
@@ -69,6 +69,6 @@ test('am5: the marks are in the markup, after the caption, on the four New card 
   const run = body('jf-run', 'jf-resume');
   assert.match(run, /<label>Inputs <span class="req" id="jf-run-req-inputs"/);
   assert.match(run, /for="jf-run-cap">Cap \$ <span class="req"/);
-  assert.equal((nu.match(/class="req"/g) ?? []).length, 4);
+  assert.equal((nu.match(/class="req"/g) ?? []).length, 5); // M13 am6 added Destination
   assert.doesNotMatch(body('jf-resume', 'zz-none-zz'), /class="req"/, 'the Resume card is not changed');
 });
