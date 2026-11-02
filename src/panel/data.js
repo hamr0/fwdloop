@@ -51,7 +51,7 @@ import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } fr
 import { ticketListOf, ticketScheduleOf } from './tickets.js';
 import { buildJobGrid } from './jobgrid.js';
 import { readChecks } from '../diary.js';
-import { readRunInputs } from '../runfile.js';
+import { readRunInputs, readRunRecord } from '../runfile.js';
 import { filterUnsure } from '../ticket-labels.js';
 import { readSchedule } from '../schedule.js';
 import { flowTypeOf } from '../declaration.js';
@@ -1995,11 +1995,16 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
     const job = readRunJob({ root, name: flow, catalogue, runDir }).read;
     if (job.ok) steps = job.declaration.steps ?? [];
   }
+  // M14 am1 item 1: a rerun's own run.json holds the reason it started with; the Audit shows it on the first step, where that reason was handed
+  const rec = readRunRecord(runDir);
+  const rr = rec.ok ? rec.rec.rerun : null;
+  let rerun = rr && typeof rr === 'object' && rr.decision === 'rerun' && typeof rr.words === 'string' ? { words: rr.words } : null;
   for (const g of groups) {
     if (g.run) continue;
     const decl = steps?.find((x) => x.emits === g.step);
     const read = Array.isArray(decl?.reads) ? decl.reads[0] : null;
-    const fold = deriveFold(g, d, { about: typeof read === 'string' ? `artifacts/${read}.json` : null });
+    const fold = deriveFold(g, d, { about: typeof read === 'string' ? `artifacts/${read}.json` : null, rerun });
+    rerun = null;
     if (fold) g.fold = fold;
   }
 }

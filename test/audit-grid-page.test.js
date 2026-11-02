@@ -75,7 +75,7 @@ for (const width of [1280, 320]) {
     assert.equal(await chrome.ev(`${G}.querySelectorAll("button.fx-rowhead").length`), 0, 'no clickable row: the only red try has no verdict');
     assert.equal(await chrome.ev(`${G}.querySelectorAll("button.cell.fail").length`), 0);
     assert.match(await chrome.ev(`${G}.querySelector(".fx-row-q").innerText`), /^try 1\s+\?\s+705 words, limit 600/);
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("td.c")).filter(function(c, i) { return i % 3 === 0; }).map(function(c){ return c.textContent + "|" + c.querySelector(".cell").title; })`), Array(4).fill('?|try 1: no verdict'));
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr:not(.memo-row) td.c")).filter(function(c, i) { return i % 3 === 0; }).map(function(c){ return c.textContent + "|" + c.querySelector(".cell").title; })`), Array(4).fill('?|try 1: no verdict'));
     assert.match(await chrome.ev(`${G}.querySelector("thead th.t").textContent`), /^try 1 \?/);
   });
 }
@@ -105,9 +105,9 @@ test('a check the done check halted before reads "not run" (·), a pass reads �
     writeFileSync(path.join(w.runDir, DIARY_FILE), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
   });
   if (!chrome) { t.skip('no chromium installed'); return; }
-  assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.step-sub)")).map(function(tr){ return tr.querySelectorAll("td.c")[0].textContent; })`), ['✗', '·', '·', '·']);
-  assert.equal(await chrome.ev(`${G}.querySelectorAll("td.c")[1].querySelector(".cell").title.indexOf("passed: ") === 0`), true, 'a pass of the try 2 column says its number');
-  assert.equal(await chrome.ev(`${G}.querySelectorAll("tbody tr:not(.step-sub)")[1].querySelector("td.c .cell").title`), 'not run (first-red-wins stopped the close)');
+  assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.step-sub):not(.memo-row)")).map(function(tr){ return tr.querySelectorAll("td.c")[0].textContent; })`), ['✗', '·', '·', '·']);
+  assert.equal(await chrome.ev(`${G}.querySelectorAll("tr:not(.memo-row) td.c")[1].querySelector(".cell").title.indexOf("passed: ") === 0`), true, 'a pass of the try 2 column says its number');
+  assert.equal(await chrome.ev(`${G}.querySelectorAll("tbody tr:not(.step-sub):not(.memo-row)")[1].querySelector("td.c .cell").title`), 'not run (first-red-wins stopped the close)');
 });
 
 // M4d am36 item 3: a scratch config home with learningHints ON and one real ledger row, so the retry tries are handed a block the product itself writes
@@ -133,7 +133,7 @@ for (const width of [1280, 320]) {
     assert.ok(handed.length >= 2, `hints on two tries or more: ${handed.map((h) => h.n)}`);
     const word = (h) => `${h.count} ${h.count === 1 ? 'hint' : 'hints'}`;
     // one button per handed try, in its own column; the others read a dash; no hints text is open on load
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr.hint-row td.c")).map(function(c){ var b = c.querySelector("button.btn.small"); return b ? b.getAttribute("data-hint") + ":" + b.textContent : c.textContent; })`),
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr.hint-row:not(.memo-row) td.c")).map(function(c){ var b = c.querySelector("button.btn.small"); return b ? b.getAttribute("data-hint") + ":" + b.textContent : c.textContent; })`),
       Array.from({ length: 5 }, (_, i) => { const h = handed.find((x) => x.n === i + 1); return h ? `${h.n}:${word(h)}` : '\u2014'; }));
     assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-row.hintrow").length`), 0, 'closed on load');
     assert.equal(await chrome.ev(`${G}.querySelectorAll("button[data-hint][aria-expanded=true]").length`), 0);

@@ -51,6 +51,9 @@ export function humanWords(r) {
   return null;
 }
 
+/** M14 am1 item 1: the words for the reason a rerun started with, shaped like the redo words above. @param {string} words */
+export const rerunWords = (words) => `you said rerun: "${words}"`;
+
 /** The short answer for a card: `accepted`, `redo: "<text>"`, `cancelled`. @param {any} r */
 function answerShort(r) {
   const w = humanWords(r);
@@ -61,7 +64,7 @@ function answerShort(r) {
  * The fold of one step, or `null` for a step with nothing new to show (an old run, or a step that is neither a model step with records nor an ask).
  * @param {{rows:any[], tryMarks:string[], closeClass:string|null}} group `deriveAuditGroups`' group for the step
  * @param {ReturnType<typeof loadDiaries>} d
- * @param {{about?: string|null}} [info] `about`: the file an ask is about
+ * @param {{about?: string|null, rerun?: {words: string}|null}} [info] `about`: the file an ask is about; `rerun`: this run's reason for starting (run.json), given for its first step only
  */
 export function deriveFold(group, d, info = {}) {
   const step = group.rows[0]?.step ?? null;
@@ -116,6 +119,8 @@ export function deriveFold(group, d, info = {}) {
         n: r.attempt, mark: group.tryMarks[i] ?? '·', thinking: r.thinkingPhrase ?? null, gap: r.gap || null, answer: null, about: null, checks: rec?.checks ?? [], output: rec?.output ?? null,
         // M8 am7 item 4: the exact text this try was handed, from its own audit row (`hints` count + `hintsText`); null (no line) when nothing was handed
         hints: typeof r.hintsText === 'string' && r.hintsText !== '' && Number.isInteger(r.hints) ? { n: r.hints, text: r.hintsText } : null,
+        // M14 item 7: the exact memo text (what happened so far in this run) this try was handed, from its own audit row (`memoText`); null (no button) when none was
+        memo: typeof r.memoText === 'string' && r.memoText !== '' ? { text: r.memoText } : null,
       });
     });
     // rounds count on through all of a step's tries, so they order the calls and tool calls; a try's check row goes after the last round it saw
@@ -123,6 +128,9 @@ export function deriveFold(group, d, info = {}) {
     calls.forEach((c, i) => items.push({ k: c.round * 2, i, row: { round: c.round, try: c.try, action: 'model call', path: null, decision: callDecision(c), at: c.at } }));
     tools.forEach((t, i) => items.push({ k: t.round * 2 + 1, i: 1e6 + i, row: { round: t.round, try: t.try, action: `model · ${t.tool}`, path: t.path ?? null, decision: toolDecision(t), at: t.at } }));
     checkRows.forEach((c, i) => items.push({ k: (c.lastRound ?? 0) * 2 + 1.5, i: 2e6 + i, row: { round: null, try: c.try, action: 'check', path: c.output?.file ?? null, decision: checkDecision(c.checks), at: c.at } }));
+    // M14 am1 item 1 / item 11: a rerun's reason was handed to its first step (as its gap and in its memo) and is kept in the run's own run.json; it shows, in the shape of
+    // the redo words (`humanWords`), as the first row of that step's first try
+    if (info.rerun && tryRows.length > 0) items.push({ k: -1, i: -1, row: { round: null, try: tryRows[0].attempt, action: 'human', path: null, decision: rerunWords(info.rerun.words), at: null } });
     items.sort((a, b) => a.k - b.k || a.i - b.i);
     for (const it of items) rows.push(it.row);
   }
