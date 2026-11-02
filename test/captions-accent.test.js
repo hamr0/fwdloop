@@ -38,3 +38,9 @@ test('hamr 2026-11-02: Run tab ended/next/schedule labels accent bold; Summary a
   assert.match(body('.next-label{'), /color:var\(--accent\);font-weight:700/, 'next instruction labels match the NEXT label');
   assert.doesNotMatch(body('.tg-val{'), /accent/, 'values untouched');
 });
+
+test('hamr 2026-11-02: Run summary row captions are accent, same size, same weight; values untouched', () => {
+  const r = body('.sum-label{');
+  assert.match(r, /color:var\(--accent\)/); assert.doesNotMatch(r, /text-faint|text-dim|font-size|font-weight/);
+  assert.doesNotMatch(body('.sum-val{'), /accent/, 'values untouched');
+});
