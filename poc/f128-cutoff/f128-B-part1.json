@@ -1,0 +1,199 @@
+{
+ "arm": "B",
+ "version": "0.59.0",
+ "model": "meta-models/muse-spark-open-1026",
+ "results": [
+  {
+   "run": 1,
+   "arm": "B",
+   "version": "0.59.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": {
+      "outputTokens": 400,
+      "reasoningTokens": 397,
+      "maxTokensRequested": 400
+     },
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": true,
+     "complete": true
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.04545525,
+    "plain": 0.04545525,
+    "recomputed": 0.04257525,
+    "tokens": {
+     "inputTokens": 1495,
+     "outputTokens": 9578,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": false
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": true,
+   "finalComplete": true
+  },
+  {
+   "run": 2,
+   "arm": "B",
+   "version": "0.59.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": {
+      "outputTokens": 400,
+      "reasoningTokens": 397,
+      "maxTokensRequested": 400
+     },
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.027966,
+    "plain": 0.027966,
+    "recomputed": 0.025086,
+    "tokens": {
+     "inputTokens": 206,
+     "outputTokens": 5842,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": false
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": true,
+   "finalComplete": false
+  },
+  {
+   "run": 3,
+   "arm": "B",
+   "version": "0.59.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": {
+      "outputTokens": 400,
+      "reasoningTokens": 397,
+      "maxTokensRequested": 400
+     },
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.0358455,
+    "plain": 0.0358455,
+    "recomputed": 0.0329655,
+    "tokens": {
+     "inputTokens": 206,
+     "outputTokens": 7696,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": false
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": true,
+   "finalComplete": false
+  },
+  {
+   "run": 4,
+   "arm": "B",
+   "version": "0.59.0",
+   "tries": [],
+   "metering": {
+    "events": 0,
+    "generateCalls": 0,
+    "sumMeterings": null,
+    "plain": 0,
+    "recomputed": 0,
+    "tokens": null,
+    "balanced": true
+   },
+   "firstTryCut": false,
+   "cutOffPopulated": false,
+   "finalComplete": false
+  }
+ ],
+ "halted": "budget $0.2 reached",
+ "unpriced": true
+}

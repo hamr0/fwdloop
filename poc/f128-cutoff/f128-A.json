@@ -1,0 +1,283 @@
+{
+ "arm": "A",
+ "version": "0.57.0",
+ "model": "meta-models/muse-spark-open-1026",
+ "results": [
+  {
+   "run": 1,
+   "arm": "A",
+   "version": "0.57.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": true,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 4,
+    "generateCalls": 4,
+    "sumMeterings": 0.029602500000000004,
+    "plain": 0.029602500000000004,
+    "recomputed": 0.029602500000000004,
+    "tokens": {
+     "inputTokens": 465,
+     "outputTokens": 5925,
+     "cacheReadTokens": 3072,
+     "cacheCreationTokens": 0
+    },
+    "balanced": true
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": false,
+   "finalComplete": false
+  },
+  {
+   "run": 2,
+   "arm": "A",
+   "version": "0.57.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": true,
+     "complete": true
+    }
+   ],
+   "metering": {
+    "events": 4,
+    "generateCalls": 4,
+    "sumMeterings": 0.048974750000000004,
+    "plain": 0.048974750000000004,
+    "recomputed": 0.048974750000000004,
+    "tokens": {
+     "inputTokens": 3158,
+     "outputTokens": 9277,
+     "cacheReadTokens": 4480,
+     "cacheCreationTokens": 0
+    },
+    "balanced": true
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": false,
+   "finalComplete": true
+  },
+  {
+   "run": 3,
+   "arm": "A",
+   "version": "0.57.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.02784375,
+    "plain": 0.02784375,
+    "recomputed": 0.02784375,
+    "tokens": {
+     "inputTokens": 183,
+     "outputTokens": 5820,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": true
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": false,
+   "finalComplete": false
+  },
+  {
+   "run": 4,
+   "arm": "A",
+   "version": "0.57.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.04167325000000001,
+    "plain": 0.04167325000000001,
+    "recomputed": 0.04167325,
+    "tokens": {
+     "inputTokens": 183,
+     "outputTokens": 9074,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": true
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": false,
+   "finalComplete": false
+  },
+  {
+   "run": 5,
+   "arm": "A",
+   "version": "0.57.0",
+   "tries": [
+    {
+     "k": 1,
+     "maxTokens": 400,
+     "stopReason": "max_tokens",
+     "error": "truncated:max_tokens",
+     "cut": true,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 2,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    },
+    {
+     "k": 3,
+     "maxTokens": 16000,
+     "stopReason": "end_turn",
+     "error": null,
+     "cut": false,
+     "cutOff": null,
+     "badCalls": null,
+     "captured": false,
+     "complete": false
+    }
+   ],
+   "metering": {
+    "events": 3,
+    "generateCalls": 3,
+    "sumMeterings": 0.03271425,
+    "plain": 0.03271425,
+    "recomputed": 0.03271425,
+    "tokens": {
+     "inputTokens": 183,
+     "outputTokens": 6966,
+     "cacheReadTokens": 2304,
+     "cacheCreationTokens": 0
+    },
+    "balanced": true
+   },
+   "firstTryCut": true,
+   "cutOffPopulated": false,
+   "finalComplete": false
+  }
+ ],
+ "halted": null,
+ "unpriced": false
+}

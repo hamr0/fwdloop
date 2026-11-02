@@ -1,0 +1,43 @@
+{
+ "bareAgent": "0.59.0",
+ "part": "free",
+ "calls": [
+  {
+   "text": "ok",
+   "done": true
+  }
+ ],
+ "badCalls": [
+  {
+   "kind": "arg-type",
+   "tool": "emit_artifact",
+   "param": "text",
+   "expected": "string",
+   "got": "number",
+   "round": 0,
+   "hasAppend": false
+  },
+  {
+   "kind": "arg-missing",
+   "tool": "emit_artifact",
+   "param": "text",
+   "expected": "string",
+   "got": "undefined",
+   "round": 1,
+   "hasAppend": false
+  }
+ ],
+ "rounds": 4,
+ "error": null,
+ "toolMessages": null,
+ "bars": {
+  "b1_notExecutedOnBad": true,
+  "b2_badCalls": true,
+  "b3_continuedAndCorrectedExecuted": true
+ },
+ "control": {
+  "checkArgsOff_executedCalls": 3,
+  "badCalls": null,
+  "wouldFailB1": true
+ }
+}

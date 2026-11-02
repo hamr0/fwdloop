@@ -1,0 +1,88 @@
+{
+ "bareAgent": "0.59.0",
+ "part": "smoke",
+ "runs": [
+  {
+   "checkArgs": true,
+   "i": 0,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": [
+    "blocker",
+    "done",
+    "text"
+   ],
+   "usd": 0.006229999999999999
+  },
+  {
+   "checkArgs": true,
+   "i": 1,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": [
+    "blocker",
+    "done",
+    "text"
+   ],
+   "usd": 0.004873250000000001
+  },
+  {
+   "checkArgs": true,
+   "i": 2,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": [
+    "blocker",
+    "done",
+    "text"
+   ],
+   "usd": 0.00538525
+  },
+  {
+   "checkArgs": false,
+   "i": 0,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": [
+    "blocker",
+    "done",
+    "text"
+   ],
+   "usd": 0.0057725
+  },
+  {
+   "checkArgs": false,
+   "i": 1,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": null,
+   "usd": 0.0021665
+  },
+  {
+   "checkArgs": false,
+   "i": 2,
+   "error": null,
+   "hasBadCallsKey": false,
+   "badCalls": null,
+   "artifactKeys": [
+    "blocker",
+    "done",
+    "text"
+   ],
+   "usd": 0.004737999999999999
+  }
+ ],
+ "spent": 0.029165499999999997,
+ "unpriced": false,
+ "halted": null,
+ "bar4": {
+  "noFalseBadCalls": true,
+  "allCaptured": true,
+  "sameShape": false
+ }
+}
