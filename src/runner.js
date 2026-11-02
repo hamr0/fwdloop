@@ -76,6 +76,7 @@ import {
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
+import { buildMemo } from './memo.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
@@ -226,9 +227,9 @@ const holdOf = (ceilingUsd) => (Number.isFinite(ceilingUsd) && /** @type {number
 // WITHOUT the cap (M2 scope item 3, the load-bearing invariant).
 // ---------------------------------------------------------------------------
 
-const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap', 'hints']);
+const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap', 'hints', 'memo']);
 
-/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null, hints?:string|null}} opts  `hints` (M8 am7): the earlier runs' block, text only, for a retry / redo / rerun try */
+/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null, hints?:string|null, memo?:string|null}} opts  `hints` (M8 am7): the earlier runs' block, text only, for a retry / redo / rerun try; `memo` (M14): what happened so far in this run, text only, every try */
 export function buildExecutorContext(opts) {
   for (const key of Object.keys(opts ?? {})) {
     if (!EXECUTOR_FIELDS.includes(key)) {
@@ -236,7 +237,7 @@ export function buildExecutorContext(opts) {
     }
   }
   const {
-    goal, primitives = [], reads = {}, gap = null, hints = null,
+    goal, primitives = [], reads = {}, gap = null, hints = null, memo = null,
   } = opts ?? {};
   return Object.freeze({
     goal,
@@ -244,6 +245,7 @@ export function buildExecutorContext(opts) {
     reads: Object.freeze({ ...reads }),
     gap: gap ?? null,
     hints: hints ?? null,
+    memo: memo ?? null,
   });
 }
 
@@ -819,6 +821,7 @@ function makeAuditRow({
   hintsText = /** @type {string|undefined} */ (undefined),
   hintIds = /** @type {string[]|undefined} */ (undefined),
   hintsError = /** @type {string|undefined} */ (undefined),
+  memoText = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -844,6 +847,8 @@ function makeAuditRow({
   // (this row, written after the call from what the try held in memory); a failed ask for the block is `hintsError`, the first line, secrets redacted.
   if (hints !== undefined) { row.hints = hints; row.hintsText = hintsText; row.hintIds = hintIds; }
   if (hintsError !== undefined) row.hintsError = hintsError;
+  // M14 item 7: the exact memo text this try was handed (what happened so far in the run); the key is absent when the try got none. The ONE place the text is kept.
+  if (memoText !== undefined) row.memoText = memoText;
   return row;
 }
 
@@ -956,13 +961,16 @@ async function runStepTries({
       }
     }
     // every row this try writes from here on carries how many hints it was handed, which, and what (none handed = no field)
+    // M14 items 2 and 7: the memo is built fresh from the run's files before EVERY try (src/memo.js), handed whole, and kept on every row this try writes
+    const memo = buildMemo(runDir, { step: step?.emits ?? step?.goal ?? null });
     const rowOf = (/** @type {any} */ a) => makeAuditRow({
       ...a,
+      ...(memo !== '' ? { memoText: memo } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
     });
     const executorContext = buildExecutorContext({
-      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text,
+      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text, memo: memo === '' ? null : memo,
     });
 
     // `stepMeta` is a SEPARATE argument from `executorContext` — never a
