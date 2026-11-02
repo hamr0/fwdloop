@@ -684,7 +684,7 @@
   .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
   .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
   /* hamr 2026-11-02 picked variant C: the Chat card's field captions are pill captions (accent text on a tinted pill), no left bar; `required` is small and grey */
-  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label,#chat-job-card .jf-waitrow > label{font-size:13px;font-weight:700;color:var(--accent);text-transform:none;letter-spacing:0;margin:8px 0 6px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 16%,transparent);display:inline-block;}
+  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label{font-size:13px;font-weight:700;color:var(--accent);text-transform:none;letter-spacing:0;margin:8px 0 6px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 16%,transparent);display:inline-block;}
   #chat-job-card .req{font-size:11px;font-weight:400;color:var(--req);margin-left:8px;}
   .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
   .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
@@ -784,7 +784,6 @@
   .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;overflow-y:auto;}
   .ro-lines .ro-line{display:flex;gap:8px;}
   .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
-  .jf-waitrow{margin-bottom:4px;}
   .jf-err{font-size:11px;color:var(--red);margin-top:2px;overflow-wrap:anywhere;}
   .jf-err:empty{display:none;}
   .dest-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px;}
@@ -1330,11 +1329,14 @@
                   <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
                   <div class="jf-err" id="jf-err-run-capUsd" data-testid="jf-err-run-capUsd"></div>
                 </div>
-                <div class="cap-field" id="jf-run-waits" data-testid="jf-run-waits"></div>
+                <div class="cap-field" id="jf-run-waits" data-testid="jf-run-waits" hidden>
+                  <label for="jf-run-wait">Ask wait</label>
+                  <input id="jf-run-wait" class="jf-wait" type="text" placeholder="e.g. 30m" autocomplete="off" spellcheck="false" data-testid="jf-run-wait">
+                </div>
               </div>
               <div class="jf-err" id="jf-err-run-askWaits" data-testid="jf-err-run-askWaits"></div>
               <div class="hint" id="jf-run-sign-hint" data-testid="jf-run-sign-hint">A different destination, cap or ask wait is signed for this run only: two clicks. The flow's own values never change.</div>
-              <div class="field">
+              <div class="field" id="jf-run-id-field" data-testid="jf-run-id-field">
                 <label for="jf-run-id">Run id</label>
                 <input id="jf-run-id" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-id">
                 <div class="jf-err" id="jf-err-runId" data-testid="jf-err-runId"></div>
@@ -5523,7 +5525,9 @@
     var capNoteEl = document.getElementById("jf-cap-note");
     var runDestEl = document.getElementById("jf-run-dest");         // Run a signed flow: the open Destination box (amendment 5)
     var runCapEl = document.getElementById("jf-run-cap");           // ... and the open Cap $ box
-    var runWaitsEl = document.getElementById("jf-run-waits");       // ... and one wait box per ask
+    var runWaitsEl = document.getElementById("jf-run-waits");       // ... and its one Ask wait box (M13 am7)
+    var runWaitEl = document.getElementById("jf-run-wait");
+    var runSignedWaits = {};   // the signed wait of each ask line of the picked job, line -> "1h"; ONE writer: paintRunFlow
     var resumeBox = document.getElementById("jf-resume");           // the "Resume run-<n>" form (amendment 4 item 4): only Cap $ is open
     var resumeCapEl = document.getElementById("jf-resume-cap");
     var modeRow = document.getElementById("jf-mode-row");
@@ -5968,11 +5972,21 @@
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
-    function runWaits(){
-      var waits = {};
-      runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
-      return waits;
+    // M13 am7: the one Ask wait box is the wait of every ask that does not set its own. The job's shared wait is its commonest signed wait (first ask on a
+    // tie); an ask signed with a different wait sets its own and keeps it. An empty box changes nothing.
+    function sharedAskWait(signed){
+      var count = {}, best = "";
+      Object.keys(signed).forEach(function(l){ count[signed[l]] = (count[signed[l]] || 0) + 1; });
+      Object.keys(signed).forEach(function(l){ if(best === "" || count[signed[l]] > count[best]) best = signed[l]; });
+      return best;
     }
+    function askWaitsFrom(signed, text){
+      var t = String(text).trim(), out = {}, base = sharedAskWait(signed);
+      if(t === "") return out;
+      Object.keys(signed).forEach(function(l){ if(signed[l] === base) out[l] = t; });
+      return out;
+    }
+    function runWaits(){ return askWaitsFrom(runSignedWaits, runWaitEl.value); }
     function currentRun(){
       return {
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
@@ -6175,7 +6189,9 @@
       return b;
     }
     function paintReuseKind(){
+      // M13 am7: the name that will be true. The server's answer (the one that picks the button) shows the new name OR the Run id, never both
       newNameField.hidden = !(mode === "run" && reuseKind === "draft" && !reuseRunOf);
+      byId("jf-run-id-field").hidden = !newNameField.hidden;
     }
     function checkReuse(){
       if(mode !== "run" || !selectedFlow()){ reuseKind = null; reuseBusy = false; paintReuseKind(); return; }
@@ -6204,8 +6220,7 @@
       if(!f || mode !== "run" || cardLocked() || sessionLive) return;
       reuseOf = reuseRunOf ? {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : ""} : {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : undefined};
       var rows = readRows(runInputsEl);
-      var waits = runWaits();
-      var firstWait = Object.keys(waits).map(function(k){ return waits[k]; }).filter(function(w){ return w !== ""; })[0] || "1h";
+      var firstWait = runWaitEl.value.trim() || "1h";
       var pk = runPickChoice();
       setMode("new");
       setVal("jf-name", reuseRunOf ? f.flow : newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
@@ -6254,18 +6269,9 @@
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
       byId("jf-run-dest-hint").textContent = !f ? "" : (f.hasSend ? "Where the accepted result is placed, at the last step. A different folder is signed for this run only." : "This flow has no send step, so there is no destination to set.");
       runCapEl.value = f ? String(f.values.capUsd) : "";   // M6 am11: the job's SIGNED cap, never what an earlier run was capped at after drafting (v)
-      runWaitsEl.innerHTML = "";
-      Object.keys((v && v.askWaits) || {}).forEach(function(line){
-        var row = document.createElement("div");
-        row.className = "jf-waitrow";
-        var lab = document.createElement("label");
-        lab.textContent = "Ask wait \u00b7 line " + line;
-        var inp = makeInput("jf-wait", "e.g. 30m", v.askWaits[line]);
-        inp.setAttribute("data-line", line);
-        inp.setAttribute("data-testid", "jf-run-wait-" + line);
-        row.appendChild(lab); row.appendChild(inp);
-        runWaitsEl.appendChild(row);
-      });
+      runSignedWaits = (v && v.askWaits) || {};
+      runWaitsEl.hidden = Object.keys(runSignedWaits).length === 0;
+      runWaitEl.value = sharedAskWait(runSignedWaits);
       paintRunRows(f, pickedRun ? pickedRun.sources : (f ? f.lastSources : null));
       autoRunId = f && f.nextRunId ? f.nextRunId : "";
       byId("jf-run-id").value = autoRunId;
