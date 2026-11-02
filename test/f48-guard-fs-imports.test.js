@@ -503,10 +503,6 @@ const ALLOWLIST = {
     reason: 'M4e amendment 5 item 3 / amendment 4 item 6: the run\'s signed values version files — ONE write-once writer (`writeFileSync` with flag wx, mode 0600) and ONE remover (`unlinkSync` of a lone signed-values.json in a run folder whose start was refused before the run began). Every read goes through readFileInside/readdirInside.',
     names: { unlinkSync: 1, writeFileSync: 1 },
   },
-  'src/attemptdiff.js': {
-    reason: "M8 (copied from bareloop v0.46.0): records what a try changed in a work folder through git. fs use is a throwaway temp dir for a temporary git index (mkdtemp, removed with rm in a finally) and an existsSync on the fence folders. It reads no run/flow book.",
-    names: { existsSync: 1, mkdtemp: 1, rm: 1 },
-  },
   'src/mcp-sources.js': {
     reason: "M13 piece 3: READS the MCP config files (one existsSync to tell a missing file from an unreadable one, one readFileSync + JSON.parse to tell an unreadable file from an empty one). Read-only: no write, no remove; a project folder's .mcp.json is never in the list. Nothing read is passed on but server names and a remote flag.",
     names: { existsSync: 1, readFileSync: 1 },
