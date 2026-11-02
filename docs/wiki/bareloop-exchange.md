@@ -7,7 +7,7 @@ sources: [CHANGELOG.md, docs/wiki/the-module-ladder.md, docs/logs/FINDINGS.md]
 
 # bareloop exchange
 
-Written 2026-11-02 from fwdloop `chore/fix-ledger` (tag `v0.28.0` = 1138f32). bareloop was checked at
+Written 2026-11-02 from fwdloop `chore/fix-ledger` (tag `v0.28.0` = 0db1736, a lightweight tag on the PR #39 merge; 1138f32 is the release commit one before it, and the only difference is d814449, tests only). bareloop was checked at
 v0.52.0 (CHANGELOG head, `../bareloop/src`, read-only). Nothing on this page is signed text. Ladder
 headings are pointers, not quotes.
 
