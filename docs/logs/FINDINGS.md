@@ -5460,3 +5460,24 @@ result F133 (2026-11-02, [MEASURED], $0, stand-in on 127.0.0.1, no pass, no real
 **Baseline.** Current code (pre-fix commit, in a git worktree): 2 drafts per model = 4. **Candidate.** Fixed code: 5 drafts per model = 10.
 
 **PASS (candidate, on the letter).** 0 of 10 drafts carry the F134 red (`reads artifact "<notes>" that no earlier step declared` for role notes) in ANY round, AND at least 8 of 10 drafts green (a draft that ends ok with a signable hash). Baseline must show the F134 red in at least 3 of 4 drafts; else the POC cannot fail, and that is recorded. Not refit afterwards. Thinking off. Per draft recorded: model, verdict, rounds, reds per round, cost.
+
+### F136 RESULT (2026-11-02, run after the pre-registration above; fix commit cf5ea7b, baseline = pre-fix 87d7392)
+
+Total spend $0.1003 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off). Per draft: model, verdict, rounds, reds, cost.
+
+| arm | model | n | verdict | rounds | F134 red | other reds (round) | cost |
+|---|---|---|---|---|---|---|---|
+| base | deepseek-flash | 1 | RED | 5 | yes (r2,r4,r5) | send does not read a signed ask's emits (r2) | 0.0141 |
+| base | deepseek-flash | 2 | RED | 5 | yes (r2,r3,r5) | pause at unsigned line 3 (r2,r5) | 0.0142 |
+| base | muse | 1 | green | 1 | no | none | 0.0064 |
+| base | muse | 2 | green | 1 | no | none | 0.0065 |
+| cand | deepseek-flash | 1 | green | 1 | no | none | 0.0028 |
+| cand | deepseek-flash | 2 | green | 3 | no | guardrailClasses keys, pause at line 3 (r1) | 0.0087 |
+| cand | deepseek-flash | 3 | green | 1 | no | none | 0.0028 |
+| cand | deepseek-flash | 4 | green | 2 | no | pause at line 3 (r1) | 0.0057 |
+| cand | deepseek-flash | 5 | green | 2 | no | guardrailClasses shape, pause at line 3 (r1) | 0.0057 |
+| cand | muse | 1-5 | green x5 | 1 each | no | none | 0.0066-0.0068 each |
+
+**Baseline.** F134 red in 2 of 4 drafts (deepseek-flash 2/2, muse 0/2). The pre-registered precondition (at least 3 of 4) is NOT met: on this job (without the F135 clash) muse drafts green on the old code, so the POC cannot fail on muse. It can on deepseek-flash, which hit the red in 2 of 2 and ended RED after 5 rounds.
+
+**Candidate.** F134 red in 0 of 10 drafts in any round; 10 of 10 green. Letter of the pre-registered candidate bar: PASS. Verdict stands as: candidate PASS; baseline precondition not met (2/4), recorded, not refit. The evidence for the fix is the deepseek-flash arm (2/2 RED before, 5/5 green after, all rounds free of the F134 red). Not checked: that the green plans actually read the notes at run time (this POC drafts only).
