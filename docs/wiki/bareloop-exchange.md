@@ -30,18 +30,23 @@ Not given: came from bareloop (M4d am36 Audit check grid, the Providers page cha
 | 1 | MCP source in the job + ticket reader | v0.27.0 | bare-agent bridge | no |
 | 2 | Ticket filter + `skipped` outcome | v0.27.0 | 1 | no |
 | 3 | Ticket look + schedule (15 min, baseline, watch) | v0.27.0 | 1, 2 | schedules yes, tickets no |
-| 4 | Ticket Result list + Run it anyway (as first built) | v0.27.0 | 2, 3 | no |
+| 4 | Ticket Result list + Run it anyway (list UI replaced by 10; `tickets.js` + anyway route kept and needed by 10) | v0.27.0 | 2, 3 | no |
 | 5 | Online dot (M4d am35) | v0.27.0 | none | yes, skip |
 | 6 | MCP passEnv + steps call signed MCP tools | v0.28.0 | 1 | no |
 | 7 | Settings > MCP tab (sources, check tools, use counts) | v0.28.0 | 6 | no (has Settings page) |
 | 8 | Flow type + MCP pick on the New job card (+ am2, am4) | v0.28.0 | 6, 7 | no |
 | 9 | Schedule on the card, waits for green (+ am3) | v0.28.0 | 3, 8 | similar (schedule needs a green) |
-| 10 | Result grid (replaces piece 4's list) | v0.28.0 | 2, 3, 8 | no |
+| 10 | Result grid (replaces piece 4's list UI) | v0.28.0 | 2, 3, 4 (`tickets.js` + anyway route), 8 | no |
 | 11 | Ticket fixes 9.x + required marks (am5) + caption looks | v0.28.0 | 3, 8, 10 | partly unchecked |
 
-Order note: piece 4 is superseded by piece 10 (the list becomes the grid, the `ticket #` box is
-removed). If bareloop takes tickets at all, taking 1-3, 6-11 and skipping 4 is likely cleaner. That is
-bareloop's call. Unchecked: whether 10 still lands cleanly without 4.
+Order note: piece 10 replaces only piece 4's list UI (chips, search) and the `ticket #` box was
+removed. Piece 4's `src/panel/tickets.js` and the anyway route are still required by piece 10 and must
+come with it: `src/panel/jobgrid.js:8` imports `GROUP_OF` and `TICKET_GROUPS` from `tickets.js`
+(`GROUP_OF` is the one decider of a run's bucket); `getJobGrid` in `src/panel/data.js` uses
+`ticketScheduleOf` and `getTicketList`/`ticketListOf` to pick which skipped numbers get Run it anyway;
+`src/panel/server.js` keeps `ticketAnyway`, `arriveAnywayOf` and `POST /api/author/ticket-anyway`;
+`src/panel/index.html` reuses the `.tk-anyway`/`.tk-rl` CSS. Checked by grep against tag v0.28.0. Take
+piece 4's `tickets.js` and the anyway route with piece 10; skip only its list UI. That is bareloop's call.
 
 Versions: fwdloop runs bare-agent `^0.57.0` (`passEnv` needs 0.56+); bareloop pins `^0.55.0`,
 bareguard `^0.27.0`. Piece 6 needs the bare-agent bump. bareguard `carriesAny` is NOT used yet
@@ -136,8 +141,9 @@ mapping to that. Unchecked in detail.
   `m12-p3-anyway-run.test.js`, `m12-p3-run-door.test.js`, `m12-p3-signrun.test.js`,
   `m12-p3-panel.test.js`.
 - POCs: F104; walk evidence on hamr0/hol-guard (see ladder M12 exit note).
-- Fits as: adapt; bareloop's Result/Ended page differs. Piece 10 replaces the list and the `ticket #`
-  box was removed in v0.28.0. Consider skipping this piece.
+- Fits as: adapt; bareloop's Result/Ended page differs. Piece 10 replaces the list UI (chips, search)
+  and the `ticket #` box was removed in v0.28.0. Do not skip the whole piece: `src/panel/tickets.js`
+  and the anyway route are required by piece 10.
 - Depends on: 2, 3.
 
 ### Piece 5 - Online dot (M4d am35)
@@ -193,6 +199,8 @@ mapping to that. Unchecked in detail.
 - Fits as: adapt. bareloop has `src/panel/settingsroutes.js` and its own Settings page; add the tab
   there. fwdloop copied the Providers layout from bareloop, so the markup should match.
 - Depends on: piece 6 (same MCP starter).
+- After v0.28.0 (this branch, not in the tag, wait for the next tag): 4a06ae7 fixes the Settings > MCP
+  use count to read `hasOwnProperty`, so a tool named like an object key shows 0, not a prototype value.
 
 ### Piece 8 - Flow type + MCP pick on the New job card (M13 p4, am2, am4)
 
@@ -243,7 +251,7 @@ mapping to that. Unchecked in detail.
 
 ### Piece 10 - Result grid (M13 p6, am2 part 2)
 
-- Source: M13 item 8, am2. v0.28.0. POC F123.
+- Source: M13 item 8, am2. v0.28.0. POC F123. Needs piece 4's `tickets.js` and anyway route.
 - Commits: 81f04ab (grid on the server, `GET /api/runs/:flow/:runId/grid`), 7d15791 (Result tab draws
   it; replaces piece 4's list), 25bb00f, bf05c11 (row reads `#<n> - <title>`; name opens the run),
   f2781cc (`output judged` reads `none`), 899e9e8 (Run it anyway is one button that swaps for the
@@ -258,7 +266,7 @@ mapping to that. Unchecked in detail.
   `m10-am4-result-page.test.js`, `m10-am4-result-walk.test.js`.
 - POCs: F123.
 - Fits as: adapt. Reuses bareloop's own grid CSS/markup, so the look should drop in. Unchecked.
-- Depends on: pieces 2, 3, 8.
+- Depends on: pieces 2, 3, 4 (`tickets.js` + anyway route), 8.
 
 ### Piece 11 - Ticket fixes 9.x, required marks (am5), caption looks
 
@@ -275,7 +283,7 @@ mapping to that. Unchecked in detail.
   for MCP). Test `test/m13-am5.test.js`.
 - Looks (all `src/panel/index.html`): aea2e1d, 5bd929a, 9d3690c (section captions as colour bars with a
   count pill), 7d251eb (Chat card captions 14px bold, blue left mark), c4201a9, d71846c (Ask wait caption
-  matches), 3b37e1b (tab rows lose `[n]`), 112f702 (this branch: caption text uses `--accent`; test
+  matches), 3b37e1b (tab rows lose `[n]`), 112f702 (after v0.28.0, not in the tag, wait for the next tag: caption text uses `--accent`; test
   `test/m13-chat-captions.test.js`). Element ids to match: `#chat-job-card .field > label`,
   `.cap-field > label`, `.jf-waitrow > label`.
 - Tests: `test/m13-p7-fixes.test.js`, `m13-p7-look-card.test.js`, `m13-p7-reuse.test.js`,
@@ -318,7 +326,7 @@ when we decide.
 
 ## Unchecked on this page
 
-- Whether piece 10 lands without piece 4.
+- A whole ticket rerun end to end was not run (proven on the function and freezeInputs with a stub reader).
 - Exact element ids of the New job card controls (piece 8).
 - Whether bareloop already has the colour-bar captions, npm env cut, or run-folder husk fix.
 - Whether bareloop's outcome model can take a `skipped` end state.
