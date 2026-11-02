@@ -5308,3 +5308,35 @@ result (2026-11-02, [MEASURED], PAID; bar 1 PASS, bar 2 FAIL on the letter for 3
 **Budget.** $0.05 for the smoke; partial reads "at least $X".
 
 result (2026-11-02, [MEASURED]; bars 1-3 PASS at $0; bar 4 FAIL on the letter, on the control arm): $0 part, 0.59.0, scripted provider: (1) `execute` not called on the number-for-string call or the missing-param call; (2) `r.badCalls` = [{arg-type, emit_artifact, text, expected string, got number, round 0}, {arg-missing, emit_artifact, text, round 1}]; (3) loop went on, the corrected call of round 3 executed once with text "ok". Negative control with checkArgs off executes all 3 calls and has no `badCalls`, so the check can fail. Smoke on muse, total $0.029: the 3 checkArgs:true runs had no `badCalls` key, 3/3 captured an artifact, keys [blocker, done, text]. Bar 4 as written also compares with the 3 checkArgs-off runs: 2 of those had the same keys and 1 made no tool call at all (muse text reply, unrelated to checkArgs), so the shape comparison is FAIL on the letter. What it means: checkArgs does what it says and left good calls alone in 3/3. Raw: `poc/f129-checkargs/{f129-free.json,f129-smoke.json}`.
+
+## F127b PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $6.00; written before any paid call, NOT yet run)
+
+**Why a redo.** F127 did not discriminate: ask 1 (British spelling) was an answer about step A, so A was redone and the spelling rode into step C through the redone A/B artifacts; the memo had nothing to carry. Reading the code again (runner.js 1748, `initialGap: reason`): a human answer reaches only the redo of the step it judged; later steps never see it unless an earlier artifact carries it. F127b makes the answers be about LATER work only, so no redo happens and no artifact can carry them.
+
+**Question.** When a human gives later-work instructions at ask 1 and ask 2, and a later step C has up to 3 tries, does one carry block (every human answer verbatim, with which ask; every earlier try of C with check result and gap whole) get the human facts into C and C green sooner/cheaper than today's shape (goal + reads + NEWEST gap only)?
+
+**What a real step sees** (confirmed against src/model-step.js `userContent`, lines 350-361: `{goal, reads, gap}` plus optional hints/quoting/answering, none used here): goal + reads + gap. `reads.carryMemo` is the memo's slot, as in F127.
+
+**Setup.** `poc/f127b-carry/f127b.mjs` (reuses poc/f127-carry code), real `makeLiveModelStep` (slot BASETEN_API_KEY, model `meta-models/muse-spark-open-1026`, $1.25/$4.25 per M from Settings), bare-agent 0.57.0, softgreen `{text, done}`, no thinking switch. Throwaway job, model steps only, topic a project with a provided facts file (`reads.facts`).
+- Step A: write a 3-line project summary from the facts. ASK 1 (scripted human, accepts A; no redo): "For the closing note: address it to Mrs Okafor and sign it 'Kind regards, Tom'."
+- Step B: list 3 risks from the facts. ASK 2 (accepts B; no redo): "The closing note must say the deadline is 14 March."
+- Step C: write the closing note. Goal states only the guardrails: exactly 3 bullets (lines starting "- "), each under 15 words, no word "very". It does NOT name Okafor, Tom or 14 March.
+- Validity assert in code: the A and B artifacts must not contain `Okafor`, `\bTom\b` or `14 March`. If they do, that prefix is INVALID: reported, and regenerated (at most 2 regenerations over the whole batch; a further invalid prefix ends the batch partial). Denominators count valid runs only.
+- Checker (code only, no LLM) judges C: exactly 3 bullet lines (`-`, `*`, bullet glyph, `N.`); each bullet under 15 words (<=14); no word `very` (case-insensitive); text contains `Mrs Okafor`, `Kind regards, Tom`, `14 March` (exact substrings, case-sensitive). Up to 3 tries; retry gap = the checker's red text whole (it names what is missing, so arm A can learn the human facts ONLY from the gap: recorded per run, per fact, on which try it first appears). A no-answer try (the step returns not-ok, e.g. text instead of the tool twice) is a red try with gap = the step's red text.
+- Arm A (today): C's try k sees goal + reads (facts, A artifact, B artifact) + newest gap.
+- Arm B (memo, adapted from bareloop v0.53.0 carry memo, section 1: one block written by code, facts from the run's own record, never a model's words, capped): same plus `reads.carryMemo`, max 4000 chars: every human answer verbatim with which ask it came from, every earlier try of C with its answer text, check result and gap whole. Over 4000: oldest tries' answer text cut with the cut said; human answers never cut.
+- Prefix (A, B) generated once per run index; both arms run C from the same prefix (paired). Arm order alternates by run index (even: A first; odd: B first) so time of day hits both.
+
+**N.** 12 valid runs per arm. No additional runs if budget remains; spend left is reported.
+
+**Pass bars (fixed now, no refit).**
+1. Arm B green within 3 tries in >= 10/12.
+2. Arm B try 1 contains all three human facts (the three substrings) in >= 10/12.
+3. Arm A try 1 contains all three human facts in <= 2/12 (proves today's gap exists).
+4. The checker is proven able to fail: a hand-written bad answer red; a hand-written good answer green; each rule broken once (disabled) lets a bad answer pass; then restored (selftest, $0).
+
+**Win rule.** B passes bars 1 and 2 AND (B green rate > A green rate OR B mean $ per green < A's OR B mean tries per green < A's). $ per green = total metered cost of C's tries in that arm / greens in that arm (prefix cost reported apart). Tries per green = mean tries over green runs.
+
+**Reported.** Per arm: green rate, try-1 green rate, tries per green, $ per green, human-fact presence per try (each of the 3 facts, tries 1-3), the try on which each fact first appears, count of text-instead-of-tool replies (the muse habit; counted separately, never excluded), memo cuts.
+
+**Budget.** HARD CAP $6.00 for F127b, every round metered through `onLlmResult` inside `makeLiveModelStep`; the script refuses to start a call at or above the cap; unpriced renders "at least $X"; a partial batch is reported partial. Key from `pass amr/baseten_api` first line, never printed; refused if empty.
