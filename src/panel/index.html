@@ -344,11 +344,12 @@
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
-  .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
+  /* hamr 2026-11-02: Run tab ended/next/schedule and Result tab captions accent bold; Run summary/map +1px */
+  .ended-label{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
   /* M9 am24: a NEXT with several instructions is one per line, label muted, instructions in a second column (shape: bareloop 8cad363, with labels in the muted colour) */
   .next-rows{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;row-gap:2px;}
-  .next-label{color:var(--text-faint);}
+  .next-label{color:var(--accent);font-weight:700;}
   .next-text{min-width:0;overflow-wrap:anywhere;}
   .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
@@ -360,7 +361,7 @@
   .summary-box.grey,.summary-box.stopped,.summary-box.skipped{border-color:var(--grey-dot);}
   .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
   .summary-box.magenta{border-color:var(--magenta);}
-  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.08em;}
   .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
   .summary-row{display:flex;gap:0;padding:2px 0;}
   .sum-label{flex:none;width:66px;color:var(--text-faint);}
@@ -371,7 +372,7 @@
      wrapping; a name is never cut. A box + its trailing arrow are ONE unit (the arrow never wraps alone); the lead arrow
      of a wrapped line hangs in the container's left padding (absolute, zero layout impact — toggling it moves nothing). */
   .map-box{border:1px solid var(--border-strong);padding:10px;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
-  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.08em;margin:-2px 0 8px 0;}
   .map-chips{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start;padding-left:1.4em;}
   .map-item{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;}
   .map-arrow{color:var(--text-dim);font-size:13px;flex:none;}
@@ -598,6 +599,7 @@
   #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
   table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
   table.grid.tg td.c{min-width:84px;}
+  table.grid.tg th{color:var(--accent);font-weight:700;}
   .tg-rowname{display:flex;align-items:center;max-width:min(240px,60vw);}
   table.grid.tg button.tg-name{flex:0 1 auto;min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:none;padding:0;min-height:32px;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;}
   table.grid.tg button.tg-name:hover{text-decoration:underline;}

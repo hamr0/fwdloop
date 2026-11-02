@@ -24,3 +24,17 @@ test('checkbox and radio labels are not captions: they keep their own colour; th
   assert.match(body('.radio-row label{'), /color:var\(--text\)/);
   assert.match(body('#chat-job-card .field > label:not(.jf-thinking)'), /font-size:13px;font-weight:700;color:var\(--accent\);text-transform:none/);
 });
+
+test('hamr 2026-11-02: Run tab ended/next/schedule labels accent bold; Summary and Map captions accent bold 12px; Result grid headings accent bold', () => {
+  const lab = body('.ended-label{');
+  assert.match(lab, /color:var\(--accent\)/); assert.match(lab, /font-weight:700/); assert.match(lab, /font-size:11px/);
+  assert.match(body('.ended-text.is-red,.ended-label.is-red{'), /color:var\(--red\)/, 'red stays red');
+  for (const sel of ['.summary-box::before{', '.map-box::before{']) {
+    const r = body(sel);
+    assert.match(r, /font-size:12px/, sel); assert.match(r, /font-weight:700/, sel); assert.match(r, /color:var\(--accent\)/, sel);
+  }
+  const th = body('table.grid.tg th{');
+  assert.match(th, /color:var\(--accent\)/); assert.match(th, /font-weight:700/);
+  assert.match(body('.next-label{'), /color:var\(--accent\);font-weight:700/, 'next instruction labels match the NEXT label');
+  assert.doesNotMatch(body('.tg-val{'), /accent/, 'values untouched');
+});
