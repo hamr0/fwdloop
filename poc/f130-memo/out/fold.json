@@ -1,0 +1,26 @@
+{
+ "text": "What has happened so far in this run (written by code from the run's own record):\nlast try: step b try 1 — result: hitl\nearlier failure: step a try 1 — result: red — too long (x3)",
+ "human": [],
+ "work": [
+  {
+   "kind": "last",
+   "rowIdx": 3,
+   "step": "b",
+   "ord": 1,
+   "verdict": "hitl",
+   "gap": null
+  },
+  {
+   "kind": "fail",
+   "rowIdx": 0,
+   "step": "a",
+   "ord": 1,
+   "verdict": "red",
+   "gap": "too long",
+   "n": 3
+  }
+ ],
+ "cutLog": [],
+ "overCap": false,
+ "chars": 179
+}
