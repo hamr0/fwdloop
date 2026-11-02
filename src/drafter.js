@@ -157,7 +157,7 @@ export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
               description: 'verbs this step is granted, from the menu only; [] for a pure stop',
             },
             ...(ticketParts ? ticketParts.step : {}),
-            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only (an ask step lists the earlier output to be checked FIRST), or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here)' },
+            reads: { type: 'array', items: { type: 'string' }, description: 'artifact ids emitted by EARLIER steps only (an ask step lists the earlier output to be checked FIRST), or the role of a CSV input (a step whose line has a green guardrail must list a CSV input role here); never a .docx/.md/.txt input role unless the step quotes it (close.cited.source), otherwise grant read/readDocx instead' },
             emits: { type: 'string', minLength: 1, description: 'the ONE new artifact id this step declares (unique)' },
             fromLine: { type: ['integer', 'null'], description: 'the ONE numbered job line this step serves' },
             picks: {
@@ -324,6 +324,9 @@ function greenReadRule(sources) {
   const out = [csvRoles.length
     ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. A step that has close.sheet is not held to close.columns by a word that merely matches a header (such as a bucket name); but when a line carries a rule "use the column 'X' for ...", at least one of that line's close.sheet checks must use that column. Leave close.columns out when the line names no column.`
     : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
+  if (docRoles.length) {
+    out.push(`- A document input (${docRoles.join(', ')}) is never listed in reads by a step that does not quote it (only a green step with close.cited.source = that role lists it). A step that needs the document is granted "read" ("readDocx" for a .docx) and reads it by its role through that tool; its reads stay empty or hold only earlier outputs.`);
+  }
   if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   if (pageRoles.length || docRoles.length) {
     out.push(

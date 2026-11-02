@@ -890,7 +890,9 @@ export function validateDeclaration(declaration, context = {}) {
         if (cellsRoles.includes(readId) && !declaredEmits.has(readId)) continue; // an input with cells, frozen at run start (M4d amendment 8)
         if (pageRoles.includes(readId) && !declaredEmits.has(readId)) continue; // a web page, frozen at run start (M10 am7 item 3)
         if (docRoles.includes(readId) && !declaredEmits.has(readId) && step.close?.cited?.source === readId) continue; // a document the step quotes (M10 piece 5)
-        if (readId === emits || !declaredEmits.has(readId)) {
+        if (docRoles.includes(readId) && !declaredEmits.has(readId)) {
+          reds.push(`declaration: ${label} reads document input "${readId}" — leave it out of reads and grant "read" ("readDocx" for .docx); only a step that quotes it lists it`);
+        } else if (readId === emits || !declaredEmits.has(readId)) {
           reds.push(`declaration: ${label} reads artifact "${readId}" that no earlier step declared`);
         }
       }
