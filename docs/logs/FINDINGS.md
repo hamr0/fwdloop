@@ -5430,3 +5430,13 @@ result F133 (2026-11-02, [MEASURED], $0, stand-in on 127.0.0.1, no pass, no real
 - Bar 4 PASS: forced arm, 3 of the model tries got a memo (try 1 of step 1 none, as item 2 says): `memoText` on those 3 audit rows (114, 295, 291 chars) is byte-equal to the 3 distinct `fromThisRun` strings the server received, and every request of a try carried the same string (requests of try 2: 3, all 114 chars); the request with no memo has no `fromThisRun` and its row no `memoText`. Good arm: 2 memos, 2 equal strings.
 - Bar 5 PASS (the check can fail): the good arm has no cut-off gap and no `badCalls` anywhere (bars 1 and 2 red, as pre-registered), while bar 3 still balances.
 - Unchecked: the panel's Audit tab rendering of these rows (no browser); a real provider's `length` reply shape (the stand-in copies bare-agent's own parsing of `finish_reason`/`usage`, not a real vendor body); a bad call with a missing (not wrong-typed) value (F129 covered that at $0); a cut-off with no reasoning tokens reported (the "not reported" words, src/model-step.js `cutOffRed`).
+
+## F134 — a plain step cannot read a document input (live, m14-walk-1; 2026-11-02)
+
+**Date** 2026-11-02. **Status** recorded, unsigned — not built. **Class** live failure on hamr's real panel; model-independent (the validator refuses before any model matters). **Grounded in** hamr's walk, flow `m14-walk-1` run-1 (~$0.04 total; files `~/.config/fwdloop/flows/m14-walk-1/{setup.jsonl,declaration.json}`, `runs/run-1/log.json`), model Baseten muse.
+
+**What happened.** Job line 1 "Write 3 lines about my garden from the notes" (hitl), then asks; Inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`. Draft try 1 had `steps[0].reads ["notes"]` (the right plan). The validator refused it: `declaration: steps[0] reads artifact "notes" that no earlier step declared` (same for steps[2]). Try 3 passed only with `reads []`, so step 1 had nothing to read; at run time it halted `done:false` "no garden notes file was provided in reads". That halt is correct; the job cannot be done on any model.
+
+**Cause.** src/declaration.js:892: a `.md` / `.txt` / `.docx` input (`docRoles`, line 679) may be listed in `reads` only by a step whose `close.cited.source` names it (M10 piece 5). A hitl or plain written step has no declared way to read a document input; it falls to line 893-895 and is refused. CSV inputs (cellsRoles, line 890) and web pages (pageRoles, line 891) are exempt; document inputs are not.
+
+**Not checked.** Whether a fix should allow a plain read of a document role, or the drafter should refuse the job at draft time naming the line. Not built, not signed; no amendment without hamr's word.
