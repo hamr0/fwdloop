@@ -5260,3 +5260,51 @@ Unchecked by design: the page in a browser, the marks' look, Run a signed flow.
 - **5 FAIL on the letter.** Differing cells are plain/empty, plain/blank and tickets/file; the third is the one above.
 
 Verdict: the assumption holds for what matters (nothing the server accepts is newly blocked except a plain card with empty Inputs, which am5 asks for; Tickets empty is refused by both; MCP stays open). I mis-specified the matrix by including tickets/file in "every file cell passes"; stays FAIL on the letter, no refit. The build takes the candidate rule as is (page checks "filled"; the server keeps judging content).
+
+## F127 PRE-REGISTRATION (2026-11-02, PAID, cap $1.00 of a $1.50 total for F127-F129; written before any run, NOT yet run)
+
+**Question.** hamr: longer runs with several human asks need a carry memo. Does handing a later step one carry block (every earlier try of THIS step with its check result and gap whole, plus the human answers verbatim) make it honour an early human answer and go green in fewer tries than today's shape (goal + reads + NEWEST gap only)?
+
+**What a real step sees (read from the code before this text, src/runner.js 229-246, 965, src/model-step.js `userContent`).** The step is handed exactly `{goal, primitives, reads, gap, hints}`; the model sees goal + reads + gap (+ `fromEarlierRuns` hints on a retry/redo/rerun try of a RERUN, not within a run). A human's answer reaches a step only as the `initialGap` of the redo of the step the ask judged (runner.js 1748: `initialGap: reason`); a LATER step sees it only if the earlier artifact it lists in `reads` carries it. So after two asks, step C sees: its goal, `reads` = the artifacts of A and B (as redone), and the newest checker red. The two answers are NOT in C's prompt. Arm A mirrors that exactly.
+
+**Setup.** `poc/f127-carry/f127.mjs`, model `meta-models/muse-spark-open-1026` on provider row `BASETEN_API_KEY` (shape openai-api, $1.25 in / $4.25 out per M, from Settings), through the REAL `makeLiveModelStep` (src/model-step.js, softgreen schema `{text, done}`), maxTokens 16000, hard deadline from `LIVE_PROVIDER_OPTIONS`, no thinking switch sent (stepMeta.thinkingMode absent), bare-agent 0.57.0 (main repo). Job, model steps only, no panel, topic a bakery loyalty card. Step A writes a short intro; ASK 1 (scripted human, redo with the answer as the redo's `initialGap`, as the runner does): "use British spelling and never use the word 'very'"; A is redone once. Step B (reads A) writes a second section; ASK 2 answer, B redone once: "keep each section under 120 words". Step C (reads A and B) writes a closing section; its goal states only the SIZES (exactly 4 bullets, each under 15 words); British spelling and no 'very' are NOT in its goal (they are the checker's rules and the human's ask-1 answer; a step never sees its close). The goal also carries the cue words `color`, `organize`, `center`, `favorite` spelled the US way (the topic invites US spelling, so the test can fail). C gets up to 3 tries; the retry gap is the checker's red text, whole. Mechanical checker, code only, no LLM: exactly 4 bullet lines (`-`, `*`, a bullet glyph or `N.`), each under 15 words, none of {color, organize, center, favorite, analyze, behavior} (any word starting with one, either case), no word `very`. The prefix (A, A-redo, B, B-redo) is generated ONCE per run index and both arms run step C from the same prefix (paired).
+- **Arm A** (today's shape): C's try k sees goal + reads + the newest gap.
+- **Arm B** (memo): the same plus one carry block, max 4000 chars, in `reads.carryMemo`: both human answers verbatim and every earlier try of step C with its check result and gap whole (answer text of the try included). Over 4000 chars is recorded and the oldest try's answer text is cut with the cut said.
+
+**N.** 8 runs per arm (8 prefixes, 16 C-runs, up to 48 C calls plus 32 prefix calls).
+
+**Pass bars (fixed now, no refit).** (1) Arm B green within 3 tries in >= 7/8. (2) Arm B honours ask-1 (the spelling-and-'very' part of the checker) in >= 7/8 of its FINAL answers, green or not. (3) The checker is proven able to fail: run once on a hand-written bad answer and see red (plus the reverse, a hand-written good answer green, and one deliberate break of a checker rule seen to let a bad answer through, then restored).
+
+**Win rule.** B passes (1)(2)(3) AND (B green-rate > A green-rate OR B's mean $ per green < A's). $ = the metered cost of step C's tries only (the shared prefix is the same for both and reported apart). Reported: green rate, tries per green, $ per green, ask-1 honour rate, A vs B.
+
+**Budget.** F127 stops at $1.00 cumulative (every round metered through `new Loop({onLlmResult})` inside `makeLiveModelStep`); an unpriced call renders "at least $X", never 0; a partial batch is reported partial.
+
+result: pending
+
+## F128 PRE-REGISTRATION (2026-11-02, PAID, cap $0.20 of the $1.50 total; written before any run, NOT yet run)
+
+**Question.** bare-agent 0.59 (BA-29) returns `r.cutOff = {outputTokens, reasoningTokens, maxTokensRequested}` when a run ends `truncated:max_tokens`. Does it work on fwdloop's path, can the retry gap carry its facts, and does fwdloop's per-round metering still sum on 0.59? Preventive (hamr will take it): the POC proves it works, no win rule beyond the bars.
+
+**Setup.** `poc/f128-cutoff/f128.mjs`, same model/row/prices as F127, provider via `makeProvider` and a Loop built like src/model-step.js (`new Loop({provider, rates, onLlmResult})`, one `emit_artifact` tool, softgreen schema), messages as the real step builds them (system prompt, user = JSON `{goal, reads, gap}`). The goal asks for a numbered list of 60 lines, each at least 12 words, in `text`. Try 1 `maxTokens: 400` (forces a cut-off); a retry (up to 2) with `maxTokens: 16000`.
+- **Arm A** (bare-agent 0.57.0, main repo): the retry gap is today's text from src/model-step.js, `truncated: <outputTokens> tokens, no tool call`.
+- **Arm B** (bare-agent 0.59.0 in a scratch worktree, `npm i bare-agent@0.59.0 --no-save`): the retry gap holds the facts read from `r.cutOff` (outputTokens, reasoningTokens, maxTokensRequested) as plain facts.
+
+**N.** 5 runs per arm.
+
+**Pass bars (fixed now).** (1) On 0.59, `r.cutOff` is populated on every forced cut-off (try 1 ending `truncated:max_tokens`), >= 5/5 (a try 1 that is not cut off does not count as forced and leaves the bar unmet). (2) On 0.59 the metering still sums every round: for each run, fwdloop's `sumMeterings` over the `onLlmResult` events equals the plain sum of the events' `costUsd` and equals tokens x the row's prices recomputed (tolerance 1e-9 USD); events count equals rounds made. (3) Arm B's retry ends with a complete `emit_artifact` call (60 numbered lines in `text`, `done` present) in >= 4/5. Arm A's retry rate is reported for comparison, not a bar.
+
+**Budget.** $0.20 cumulative, metered per round; partial reads "at least $X".
+
+result: pending
+
+## F129 PRE-REGISTRATION (2026-11-02, $0 first, then PAID smoke cap $0.05 of the $1.50 total; written before any run, NOT yet run)
+
+**Question.** bare-agent 0.59 `new Loop({checkArgs: true})` refuses a tool call whose top-level args are the wrong type or missing before the tool runs. Does it hold on our path, and does it leave good calls alone?
+
+**Setup.** `poc/f129-checkargs/f129.mjs`, bare-agent 0.59.0 (scratch worktree). Part 1, $0: a scripted fake provider (`generate` returns scripted `{text, toolCalls, usage}`), a tool `emit_artifact` with `parameters` `{text: string (required), done: boolean (required)}` and an `execute` that records its calls. Round 1: `{text: 42, done: true}` (number for a string); round 2: `{done: true}` (text missing); round 3: a corrected `{text: "ok", done: true}`; round 4: no tool calls. Part 2, PAID smoke: N=3 real steps on muse (same row/prices as F127) through the real `makeLiveModelStep` path's Loop shape with `checkArgs: true` on a normal step (a 3-line summary), and the same 3 goals with `checkArgs` off for comparison of behaviour.
+
+**Pass bars (all four must hold, fixed now).** (1) On the two bad calls the tool's `execute` is NOT called. (2) `r.badCalls` holds an `arg-type` entry (tool `emit_artifact`, param `text`) and an `arg-missing` entry (tool `emit_artifact`, param `text`). (3) The loop continues and the corrected call of round 3 executes (recorded once, with `text: "ok"`). (4) Paid smoke: in the 3 `checkArgs:true` runs no `badCalls` key (no false badCalls on good calls), each ends with a captured artifact, and the artifact shape (keys) equals that of the `checkArgs` off runs.
+
+**Budget.** $0.05 for the smoke; partial reads "at least $X".
+
+result: pending
