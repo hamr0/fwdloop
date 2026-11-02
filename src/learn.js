@@ -234,7 +234,7 @@ export function cardKey(c) {
 }
 
 /** the check name inside a gap text */
-const nameOf = (/** @type {string} */ g) => (g.match(/check "([^"]+)"/)?.[1] ?? g.match(/close stage "([^"]+)"/)?.[1] ?? 'close');
+export const nameOf = (/** @type {string} */ g) => (g.match(/check "([^"]+)"/)?.[1] ?? g.match(/close stage "([^"]+)"/)?.[1] ?? 'close');
 const CODE = /\bTS\d+\b|\[[a-z][a-z-]+\]|\bE[A-Z]{2,}\b|\bERR_[A-Z_0-9]+\b/g;
 
 /**
