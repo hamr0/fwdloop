@@ -343,24 +343,27 @@ undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 4. Work lines: the last try and how it ended, then earlier tries of this step with each check result, then earlier steps' failures. Repeated failures fold into one line (the learnings fold rule). A try's result is taken from its check, never guessed.
 5. Cap 4,000 characters. When too long, cut the oldest tries first, then the oldest failures. The heading and the human lines are never cut.
 6. Left out: money and time, and the newest failure when the retry already gets it as its gap.
-7. The text the AI saw is saved per try, on that try's audit row.
+7. The text the AI saw is saved per try, on that try's audit row. The Audit tab shows it: in each step's grid, a `told in this run` row under `told from earlier runs`, with one button per try that opens the exact memo text, the same way the hints open.
 
 **B. bare-agent 0.59: cut-offs and bad tool calls.**
 8. bare-agent goes from `^0.57.0` to `^0.59.0`.
 9. A cut-off retry's gap names bare-agent's facts: output tokens, how many were thinking, and the limit.
 10. `checkArgs` is on. A wrong or missing tool value never runs the tool. `badCalls` go on the audit row.
 
-**C. What stays the same:** learnings stay separate and unchanged; in-run memory still lasts one run.
+**C. The Audit shows every hand-over.**
+11. Every place learnings or the memo are handed to the AI has its Audit row. A place that hands text with no Audit row is a gap.
 
-**Not in M14:** a screen view of the memo (its own small scope later), memory across runs from Accept notes, and anything bareloop marked as not proven (the notebook, readMap, seed note).
+**D. What stays the same:** learnings stay separate and unchanged; in-run memory still lasts one run.
+
+**Not in M14:** memory across runs from Accept notes, and anything bareloop marked as not proven (the notebook, readMap, seed note).
 
 **POCs before build** (each small, on the real run path): (a) the memo built from real audit rows of an old run with 2 asks, at $0: is everything there and in order? (b) one live run with the memo and the 0.59 upgrade: do the books balance?
 
-**Done when:** a live run with 2 asks where the Accept text and the Redo reason both appear in a later step's first-try memo, the saved memo matches what was sent, a forced cut-off and a forced bad call both show on the audit row, the books balance, and the suite is green on 0.59.
+**Done when:** a live run with 2 asks where the Accept text and the Redo reason both appear in a later step's first-try memo, the saved memo matches what was sent and the `told in this run` row opens that exact text, a forced cut-off and a forced bad call both show on the audit row, the books balance, and the suite is green on 0.59.
 
 **Negative case:** a run with no asks gets no human lines; a blank Accept adds nothing; the memo never shows money; a good tool call is never flagged.
 
-Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
+Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row; learnings and the memo show in the Audit wherever they are handed on; the memo row reads `told in this run`. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
 
 ## Guiding principles — borrowed from bareloop, reminders not features
 
