@@ -3286,3 +3286,40 @@ same run. Scope is stated when its turn comes.
 **M13 amendment 5 — SIGNED by hamr 2026-11-01 ("sign m13 am5"), the text exactly as shown.** Why: on the live walk hamr found optional Inputs confusing and asked that the required fields be marked; Inputs stays optional for an MCP job (item 4).
 
 > **M13 am5.** On the New job card, `Flow name`, `The job`, `Inputs` and `Cap $` carry a small grey `required` after their caption, and the main button stays off until each is filled. `Inputs` is required for a plain and a Tickets MCP job; for an MCP job it shows `optional for MCP` and may stay empty (item 4). The mark follows the Flow type pick. On `Run a signed flow`, the input paths and `Cap $` carry the same `required`. Jobs already signed are not changed. Nothing else changes.
+
+## M14 — memory improvements
+
+**M14 scope — SIGNED by hamr 2026-11-02 ("sign m14"), the text exactly as shown (the PRD draft, `docs/product/PRD.md` lines 335-366 at 00b5ecd, shown in chat the same day).**
+
+**M14 — memory improvements, borrowed from bareloop's shape (DRAFT, not signed).**
+
+**Why:** today a human's words at an ask reach one place only. Accept text is saved and thrown away; a Redo reason reaches only that step's redo; a Rerun reason reaches only the first step. F127b: later steps never learn them (0 of 12 today, 12 of 12 with a memo).
+
+**A. The carry memo: what happened so far in this run, for every fresh worker.**
+1. Plain code writes it, no AI. It is built fresh before each try from what the run already keeps. No new run-folder file. It survives a pause, resume or restart.
+2. Every model step gets it on every try, including the first try of a later step. If nothing has happened yet, it is left out.
+3. Human lines, in order, never cut: `ask N (after step X): accept / redo / rerun — user says "…"`. Accept text is now used. A blank answer adds no "user says" line.
+4. Work lines: the last try and how it ended, then earlier tries of this step with each check result, then earlier steps' failures. Repeated failures fold into one line (the learnings fold rule). A try's result is taken from its check, never guessed.
+5. Cap 4,000 characters. When too long, cut the oldest tries first, then the oldest failures. The heading and the human lines are never cut.
+6. Left out: money and time, and the newest failure when the retry already gets it as its gap.
+7. The text the AI saw is saved per try, on that try's audit row. The Audit tab shows it: in each step's grid, a `told in this run` row under `told from earlier runs`, with one button per try that opens the exact memo text, the same way the hints open.
+
+**B. bare-agent 0.59: cut-offs and bad tool calls.**
+8. bare-agent goes from `^0.57.0` to `^0.59.0`.
+9. A cut-off retry's gap names bare-agent's facts: output tokens, how many were thinking, and the limit.
+10. `checkArgs` is on. A wrong or missing tool value never runs the tool. `badCalls` go on the audit row.
+
+**C. The Audit shows every hand-over.**
+11. Every place learnings or the memo are handed to the AI has its Audit row. A place that hands text with no Audit row is a gap.
+
+**D. What stays the same:** learnings stay separate and unchanged; in-run memory still lasts one run.
+
+**Not in M14:** memory across runs from Accept notes, and anything bareloop marked as not proven (the notebook, readMap, seed note).
+
+**POCs before build** (each small, on the real run path): (a) the memo built from real audit rows of an old run with 2 asks, at $0: is everything there and in order? (b) one live run with the memo and the 0.59 upgrade: do the books balance?
+
+**Done when:** a live run with 2 asks where the Accept text and the Redo reason both appear in a later step's first-try memo, the saved memo matches what was sent and the `told in this run` row opens that exact text, a forced cut-off and a forced bad call both show on the audit row, the books balance, and the suite is green on 0.59.
+
+**Negative case:** a run with no asks gets no human lines; a blank Accept adds nothing; the memo never shows money; a good tool call is never flagged.
+
+Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row; learnings and the memo show in the Audit wherever they are handed on; the memo row reads `told in this run`. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
