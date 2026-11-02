@@ -1,5 +1,5 @@
 // borrowed-from: bareloop src/learnstore.js@v0.47.0 (66dc2b0)
-// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's diary.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. F83 bug 2: learnAtRunEnd (the one run-end and seed path) folds with specHash null, so a lesson matches by workflow name alone, the same as the read side (M8 am7 item 1; a redraft's new plan hash no longer opens a new row); its `specHash` argument is accepted and unused. Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
+// Adaptations: M8 item 3: the ledger home is fwdloop's configHome() (src/config.js) in place of bareloop's keysHome, so the file is <configHome>/learn/ledger.json (mode 600, as bareloop); with no explicit home under a test process and no FWDLOOP_CONFIG_HOME, ledgerPath throws, so a test can never reach the real ~/.config/fwdloop; hintsForRun is copied at the bottom (M8 item 5a) with a ledger problem THROWN (the caller records why and hands nothing), and with `path.resolve` for the place in place of bareloop's realpathSync (the F48 guard keeps realpathSync out of this file), the same place learnAtRunEnd records; stageQuestionsByName is not copied (see learnAtRunEnd: a card's `meaning` is the failing check's own text from the run's diary.jsonl); learnAtRunEnd reads fwdloop's run folder through eventsOfRun (adapted from fwdloop poc/learn/adapter.mjs, F79) because fwdloop has no bareloop spine; imports trimmed to match. F83 bug 2: learnAtRunEnd (the one run-end and seed path) folds with specHash null, so a lesson matches by workflow name alone, the same as the read side (M8 am7 item 1; a redraft's new plan hash no longer opens a new row). Nothing else changed. Known gap, kept on purpose (M8 item 7): foldRunIntoLedger and releaseRun read, change and replace the file, so two runs ending together can lose a note.
 // The thin reader/writer around src/learn.js (cross-run learnings, ITEM33-BUILD.md rev 2). All file IO lives here and
 // the pure rules live in learn.js; nothing in either file can reach a model.
 //
@@ -263,10 +263,10 @@ export function eventsOfRun(runDir, workflow) {
  * with a signed ask included; there is no hold. It runs whether `learningHints` is on or off. `questions` (bareloop's stageQuestionsByName) is, here, the failing check's own text from
  * the run's diary.jsonl, so a check with no checks row there (a run from before am29) has no `meaning`.
  * Borrowed-from: bareloop src/learnstore.js@v0.47.0:124 (learnAtRunEnd).
- * @param {{home?: string, workflow: string, runId: string, runDir: string, specHash: string|null, now?: Date}} o
+ * @param {{home?: string, workflow: string, runId: string, runDir: string, now?: Date}} o
  * @returns {{wrote: boolean, counted: number, held: number, problem: string|null, noise: string|null, cards: number}}
  */
-export function learnAtRunEnd({ home, workflow, runId, runDir, specHash, now = new Date() }) {
+export function learnAtRunEnd({ home, workflow, runId, runDir, now = new Date() }) {
   const rec = eventsOfRun(runDir, workflow);
   if (!rec) return { wrote: false, counted: 0, held: 0, problem: null, noise: 'no-tries', cards: 0 };
   const runid = `${workflow}/${runId}`;
@@ -296,7 +296,7 @@ export function seedLedger({ root, home }) {
     if (door.skip) return { ...out, skippedNoDoor: true };
     home = door.home;
   }
-  /** @type {{workflow: string, runId: string, runDir: string, end: Date, specHash: string|null}[]} */
+  /** @type {{workflow: string, runId: string, runDir: string, end: Date}[]} */
   const todo = [];
   for (const workflow of listFlowNames(root)) {
     const flowDir = join(root, workflow);
@@ -313,7 +313,7 @@ export function seedLedger({ root, home }) {
         const endRow = history.findLast((r) => r?.runId === runId && !NOT_A_RUN_END.has(r.outcome) && Number.isFinite(Date.parse(r.at)));
         if (!endRow) { out.skipped['no-end'] += 1; continue; }
         if (!log) { out.skipped.unreadable += 1; continue; }
-        todo.push({ workflow, runId, runDir, end: new Date(endRow.at), specHash: typeof endRow.signatureHash === 'string' ? endRow.signatureHash : null });
+        todo.push({ workflow, runId, runDir, end: new Date(endRow.at) });
       } catch { out.skipped.unreadable += 1; }
     }
   }
@@ -323,7 +323,7 @@ export function seedLedger({ root, home }) {
     if (cur.problem) { out.problem = cur.problem; return out; }
     if (Object.hasOwn(cur.ledger.health, `${t.workflow}/${t.runId}`)) { out.skipped['already-in'] += 1; continue; }
     try {
-      const r = learnAtRunEnd({ home, workflow: t.workflow, runId: t.runId, runDir: t.runDir, specHash: t.specHash, now: t.end });
+      const r = learnAtRunEnd({ home, workflow: t.workflow, runId: t.runId, runDir: t.runDir, now: t.end });
       if (r.problem) { out.problem = r.problem; return out; }
       if (r.noise) out.skipped.noise += 1;
       else out.added += r.counted;

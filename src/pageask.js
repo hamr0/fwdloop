@@ -22,7 +22,7 @@ export const DROP_IT = 'drop it';
 /** @param {unknown} text @returns {boolean} */
 export const isDropIt = (text) => String(text ?? '').trim().replace(/\.$/, '').toLowerCase() === DROP_IT;
 /** the answers that accept the code's reading of a rule; anything else the person types is their own reading */
-const AGREE_WORDS = ['agree', 'yes'];
+export const AGREE_WORDS = ['agree', 'yes'];
 /** @param {unknown} text @returns {boolean} */
 export const isAgree = (text) => AGREE_WORDS.includes(String(text ?? '').trim().replace(/[.!]$/, '').toLowerCase());
 

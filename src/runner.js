@@ -738,17 +738,17 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
 /**
- * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, now: () => string}} o
+ * @param {{flowName: string, runId: string, runDir: string, outcome: string, now: () => string}} o
  */
 function recordRunNotes({
-  flowName, runId, runDir, outcome, specHash, now,
+  flowName, runId, runDir, outcome, now,
 }) {
   if (NOT_A_RUN_END.has(outcome)) return;
   const door = configDoorHome();
   if (door.skip) return;
   try {
     const r = learnAtRunEnd({
-      home: door.home, workflow: flowName, runId, runDir, specHash, now: new Date(now()),
+      home: door.home, workflow: flowName, runId, runDir, now: new Date(now()),
     });
     if (r.problem) throw new Error(r.problem);
   } catch (/** @type {any} */ e) {
@@ -1478,7 +1478,7 @@ export async function runFlow({
     firstStepGap: initialGap ?? null,
   });
   recordRunNotes({
-    flowName: name, runId, runDir, outcome: result.outcome, specHash: signature.flow, now,
+    flowName: name, runId, runDir, outcome: result.outcome, now,
   });
 
   if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2463,7 +2463,7 @@ export async function resumeRun({
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
       recordRunNotes({
-        flowName: name, runId, runDir, outcome: 'ask-expired', specHash: state.signatureHash, now,
+        flowName: name, runId, runDir, outcome: 'ask-expired', now,
       });
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
@@ -2500,7 +2500,7 @@ export async function resumeRun({
       }
       // M8 am4: a rerun ends THIS run, so its notes count now (the new run, started below, makes its own).
       recordRunNotes({
-        flowName: name, runId, runDir, outcome: 'rerun', specHash: state.signatureHash, now,
+        flowName: name, runId, runDir, outcome: 'rerun', now,
       });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
@@ -2696,7 +2696,7 @@ export async function resumeRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: state.signatureHash, now,
+      flowName: name, runId, runDir, outcome: result.outcome, now,
     });
 
     if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2905,7 +2905,7 @@ export async function continueRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: halt.signatureHash, now,
+      flowName: name, runId, runDir, outcome: result.outcome, now,
     });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;

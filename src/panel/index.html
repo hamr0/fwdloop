@@ -7496,7 +7496,7 @@
       var shown = more ? s.check.tools : s.check.tools.slice(0, MCP_TOOLS_SHOWN);
       list = '<div class="pv-mhead mc-t" aria-hidden="true"><span>TOOL</span><span>HINT</span><span class="n">USED</span></div>' +
         shown.map(function(t){
-          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && s.use.tools[t.name]) || 0) + '</span></div>';
+          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && Object.prototype.hasOwnProperty.call(s.use.tools, t.name) && s.use.tools[t.name]) || 0) + '</span></div>';
         }).join("") +
         (s.check.tools.length > shown.length ? '<div class="pv-more"><button class="pv-add" type="button" data-more="' + pi + "-" + si + '">+' + (s.check.tools.length - shown.length) + ' more</button></div>' : "");
     } else if(s.check) list = '<div class="pv-more"><span class="hint bad">' + escapeXml(s.check.error || "") + '</span></div>';

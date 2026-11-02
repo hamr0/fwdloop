@@ -338,7 +338,7 @@ async function cmdRun(rest) {
   const env = keyedEnv();
 
   const flowName = positionals[0];
-  if (!flowName) fail('run: a flow name is required — fwdloop run <flow> --root <dir> --source <role>=<path> ...');
+  if (!flowName) fail('run: a flow name is required — fwdloop run <flow> [--root <dir>] --source <role>=<path> ...');
 
   const root = resolveRoot('run', values.root);
   const nameCheck = checkFlowName(flowName);
@@ -583,7 +583,7 @@ function cmdShow(rest) {
     allowPositionals: true,
   });
   const [askId] = positionals;
-  if (!askId) fail('show: an askId is required — fwdloop show <askId> --root <dir>');
+  if (!askId) fail('show: an askId is required — fwdloop show <askId> [--root <dir>]');
 
   const root = resolveRoot('show', values.root);
   const runDir = findRunDirByAskId(root, askId);
@@ -670,7 +670,7 @@ async function cmdResume(rest) {
   });
   const env = keyedEnv();
   const runId = positionals[0];
-  if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> --root <dir>');
+  if (!runId) fail('resume: a runId is required — fwdloop resume <runId> --flow <name> [--root <dir>]');
   if (!values.flow) fail('resume: --flow <name> is required');
 
   const root = resolveRoot('resume', values.root);
@@ -769,7 +769,7 @@ async function cmdContinue(rest) {
   });
   const env = keyedEnv();
   const runId = positionals[0];
-  if (!runId) fail('continue: a runId is required — fwdloop continue <runId> --flow <name> --root <dir>');
+  if (!runId) fail('continue: a runId is required — fwdloop continue <runId> --flow <name> [--root <dir>]');
   if (!values.flow) fail('continue: --flow <name> is required');
 
   const root = resolveRoot('continue', values.root);
@@ -1024,7 +1024,7 @@ async function cmdSign(rest) {
   });
   if (!result.ok) fail(`sign refused — ${result.reds.join('; ')}`);
   if (result.runId) {
-    process.stdout.write(`signed: ${result.runDir} as ${result.runId} of ${values['run-of']} (by ${result.signature.signedBy})\nrun it: fwdloop run ${values['run-of']} --root <dir> --run-id ${result.runId} --source <role>=<path> ...\n`);
+    process.stdout.write(`signed: ${result.runDir} as ${result.runId} of ${values['run-of']} (by ${result.signature.signedBy})\nrun it: fwdloop run ${values['run-of']} [--root <dir>] --run-id ${result.runId} --source <role>=<path> ...\n`);
     return;
   }
   process.stdout.write(`signed: ${result.flowDir} (by ${result.signature.signedBy})\n`);

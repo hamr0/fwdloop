@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { lookAtPage } from '../src/pagelook.js';
 import {
-  askableFromLook, isAgree, stripAgreeLead, ruleOfAnswer, isDropIt, DROP_IT, readingOfQuestion, tooManyAsksText, MAX_LOOK_ASKS, ruleWords,
+  askableFromLook, AGREE_WORDS, isAgree, stripAgreeLead, ruleOfAnswer, isDropIt, DROP_IT, readingOfQuestion, tooManyAsksText, MAX_LOOK_ASKS, ruleWords,
 } from '../src/pageask.js';
 import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
 
@@ -93,6 +93,14 @@ test('F240 stripAgreeLead: only a comma or colon right after yes/agree drops the
   assert.equal(stripAgreeLead('AGREE: departs by 7am'), 'departs by 7am');
   assert.equal(stripAgreeLead('Yes,drop it'), 'drop it');
   for (const a of ['yes', 'Yes', 'agree', 'yes.', 'agree!', 'yes,', 'say yes to a window seat', 'yesterday it left at 7am', 'agreed, departs by 7am', 'yes departs by 7am', 'yes under 300', 'agree with the shown price', 'yes or no questions only', 'yes-no questions only', 'agree-ment on price', 'yes - departs by 7am', 'yes \u2014 the outbound', 'yes\u2013the outbound', 'yesterday, the price']) assert.equal(stripAgreeLead(a), a, a);
+});
+
+test('every AGREE_WORDS word is both an agree answer and a lead stripAgreeLead drops (the literal regex stays in step with the list)', () => {
+  for (const w of AGREE_WORDS) {
+    assert.equal(isAgree(w), true, w);
+    assert.equal(stripAgreeLead(`${w}, departs by 7am`), 'departs by 7am', w);
+    assert.equal(stripAgreeLead(`${w.toUpperCase()}: departs by 7am`), 'departs by 7am', w);
+  }
 });
 
 test('F240 ruleOfAnswer: a typed "yes, under 300" on a look ask signs "under 300"; a non-look answer is never stripped', () => {
