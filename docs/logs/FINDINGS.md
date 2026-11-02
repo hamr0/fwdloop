@@ -5348,3 +5348,25 @@ result F127b (2026-11-02, [MEASURED], PAID; bars 1, 3, 4 PASS, bar 2 FAIL on the
 - Win rule: B passed bar 1 but failed bar 2, so NOT met on the letter, although B green 12/12 vs A 0/12.
 - What it means: with later-work human answers, today's shape cannot get step C green on this model (0/36 tries held a fact, even with the gap naming each missing one); the memo got C green in 12/12 within 3 tries. The bar-2 miss is the muse text-instead-of-tool habit eating try 1, not the memo failing to carry the facts. Unchecked: whether the gap reached the model as I read the code (no raw prompt captured); one model, one job, N=12; a cheaper fix of the text-instead habit (not tried).
 - Raw: `poc/f127b-carry/out/{results.json,calls.jsonl,spend.jsonl}`, `poc/f127b-carry/run.log`, code `poc/f127b-carry/{f127b,checker,selftest,report}.mjs`.
+
+## F130 PRE-REGISTRATION (2026-11-02, $0, no model call, no network, no pass; M14 POC a; written before any run, NOT yet run)
+
+**Question.** M14 items 1-6 and 11: is every fact the carry memo needs already in a run's existing files, in order, and can plain code build the memo from them without writing into the run folder?
+
+**Setup.** `poc/f130-memo/` (throwaway renderer + checks, never imported by src; reads only, writes nothing into any run folder, copies results into `poc/f130-memo/out/`). Real runs under `~/.config/fwdloop/flows` with at least 2 asks and at least one answer that carries text: `aging-live-4/run-24` (redo "yes", accept "yes"), `m7-walk-2/run-2` (redo "redo again", accept blank), `m7-walk-2/run-6` (redo "try again", accept blank), plus `m10b-aging/run-1-rerun-1` (the only rerun on disk; one ask, reason "wrong answer" lives in the parent run). Sources: `audit.jsonl`, `answer.*.consumed.json`, `asks/<askId>.json` (which step the ask is on), `job/declaration.json` (step order, to say which step an ask follows), `run.json`. For every audit row of a model step (model not null) the memo is built from what had happened before that try started (answer files by `answeredAt` and the ask's decision row by file order; both must agree).
+
+**Pass bars (fixed now).** (1) Every human answer appears as `ask N (after step X): accept|redo|rerun — user says "…"` in run order, with the right step, in the memo of every later try. (2) A blank answer adds no `user says` line. (3) Each try's check result in the memo equals that try's audit row verdict. (4) No money or time string in any memo (case-insensitive grep: `$`, `usd`, `cost`, `\bms\b`, `\d\s?ms`, `second`, `wallMs`, `minute`). (5) Cap 4000 respected; with a tiny cap the heading and human lines are never cut, and the cut order is oldest tries first, then oldest failures. (6) Every fact the memo needs is found in the run's existing files; any missing fact is a FAIL naming the file it would need. (7) Item 11 survey: every place in `src/` that hands learnings or earlier-run / earlier-try text to a model, with whether today's Audit tab shows it, file:line both sides (a report, no bar on count).
+
+**Checks proven able to fail** by breaking each once (drop a human line, shuffle order, render a wrong verdict, inject `$0.01`, lift the cut): red, then restored; recorded.
+
+**Wording choices of the POC, not signed** (the signed text does not give the words): heading text, the folded line form `xN`, a last-try line that names its verdict but not its gap text (the retry gets the gap, item 6). Reported as read, never refit.
+
+## F131 PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $2.00; M14 POC b; written before any paid call, NOT yet run)
+
+**Question.** Does bare-agent 0.59.0 run one of hamr's own signed flows on the real CLI path (`node bin/fwdloop run`) with no crash, balanced books, the same run-folder file names as 0.57, and no surprise `badCalls` / `cutOff`?
+
+**Setup.** `poc/f131-ba059/`. A scratch worktree of HEAD under `.claude/worktrees/`, `npm ci`, then `npm i bare-agent@0.59.0 --no-save` (0.57 arm: the lockfile's version, untouched). One existing flow of hamr's that ran green, 1-2 model steps, no asks, cheap, copied (not moved) into a mkdtemp root inside `.claude/worktrees/`; HOME pointed at a temp dir holding a copy of `.config/fwdloop/config.json`; hamr's real flows and runs.jsonl untouched. Model `meta-models/muse-spark-open-1026` via BASETEN_API_KEY row, key from `pass amr/baseten_api | head -n1 | tr -d '\r\n'` exported in the same command, refused if empty, never printed. The flow's own signed values; one run on 0.57, then one on 0.59.
+
+**Pass bars (fixed now).** (1) The run ends (any outcome) with no crash on 0.59. (2) Books balance: sum of audit-row `usd` = the run's history total = sum of `spend.jsonl` rounds (tolerance 1e-9). (3) The 0.59 run folder holds the same file names as the 0.57 run folder. (4) No `badCalls` / `cutOff` on a normal run (reported if present). A bar is judged on the letter; an outcome of red is fine for bar 1 but is reported.
+
+**Budget.** $2.00 total for both runs, metered; unpriced reads "at least $X".
