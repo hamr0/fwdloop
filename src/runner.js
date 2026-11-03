@@ -824,6 +824,7 @@ function makeAuditRow({
   memoText = /** @type {string|undefined} */ (undefined),
   badCalls = /** @type {any[]|undefined} */ (undefined),
   sentSha256 = /** @type {string|undefined} */ (undefined),
+  savedBy = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -855,6 +856,8 @@ function makeAuditRow({
   if (Array.isArray(badCalls) && badCalls.length > 0) row.badCalls = badCalls;
   // M15 item 4: the sha256 of the plain-text file a send wrote; the key is only on a green send row. The ONE writer; the Result tab reads it to tell the file changed.
   if (typeof sentSha256 === 'string') row.sentSha256 = sentSha256;
+  // M4d am37 item 5: which way the model step saved its artifact - `first` (round 1), `forced` (the forced call after the fixed line), `fallback` (the unforced call); absent when it did not save. The ONE writer.
+  if (savedBy === 'first' || savedBy === 'forced' || savedBy === 'fallback') row.savedBy = savedBy;
   return row;
 }
 
@@ -972,10 +975,13 @@ async function runStepTries({
     // M14 item 10: this try's `badCalls` come back with the model step's result; every row the try writes carries them
     /** @type {any[]|undefined} */
     let badCalls;
+    // M4d am37: how this try's model step saved, as it returned it
+    let savedBy;
     const rowOf = (/** @type {any} */ a) => makeAuditRow({
       ...a,
       ...(memo !== '' ? { memoText: memo } : {}),
       ...(badCalls !== undefined ? { badCalls } : {}),
+      ...(savedBy !== undefined ? { savedBy } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
     });
@@ -1029,6 +1035,7 @@ async function runStepTries({
     }
     const wallMs = Date.now() - startedAt;
     badCalls = Array.isArray(result?.badCalls) ? result.badCalls : undefined;
+    savedBy = typeof result?.savedBy === 'string' ? result.savedBy : undefined;
 
     // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
     // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.

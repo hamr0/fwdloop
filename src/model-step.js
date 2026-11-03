@@ -385,6 +385,7 @@ export function makeLiveModelStep({
       // M10b piece 2: a step that reads a sheet is told the shape of each claim box (bareguard's worked example), never the check
       ...(stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? { answering: sheetBrief(stepMeta.sheet) } : {}),
     });
+    /** @type {any[]} */
     let messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
