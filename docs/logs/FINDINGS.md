@@ -5798,3 +5798,16 @@ Today's two run-2 files on disk equal today's `renderSentMd` of their artifacts 
 22. Can-fail control: one temporary wrong expectation in the script must show red, then be restored; the result says so.
 
 **Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit of expectations or fixtures to pass.
+
+### F143 RESULT (2026-11-03, $0)
+
+Script `.claude/scratch/f143/poc.mjs` (gitignored), imported through `index.js` (`createRubric` + `checkStep` + `rubricVocabulary`) of the `git archive e5ecc5f` export; bareguard repo untouched (HEAD e5ecc5f, branch feat/list-items verified first). Results: `.claude/scratch/f143/result-2026-11-03T14-57-56-369Z.json`. 32 checks (case 11 is 9 checks, case 4 also run at value 2 to read measured 3).
+
+**FAIL on the letter: 31 of 32 checks PASS, 1 miss.**
+
+- Cases 1-17 and 19-21: PASS exactly as pre-registered. Both hamr examples, numbered `1.` and `1)`, 4 items over at-most, all-indented, stray nested (2), mixed tab/space (1), all 9 non-items measured 0, `* * *` = 1, `- [ ] task` = 1, NBSP `- x` = 0, missing and wrong-type carry limit 3 and no `direction` key, `value: 0` throws, and the three real files (counts only, no text printed) all green.
+- **Case 18 MISS.** `rubricVocabulary.rules.listItems.fields` is `field`, `value` and an optional `text` (type `explanation`, "the signer's explanation; never decides"). Pre-registered: exactly `field` and `value`. Not refit. This is the same optional `text` that every other rule (`maxLines` checked) lists; the gap is in my pre-registration, not a bareguard defect, and it changes no verdict.
+
+**Can-fail control.** With `F143_BREAK=1` one expectation was made wrong (case 7 expecting measured 5 instead of 4): it went red (2 fails with case 18), then the real run restored it (1 fail, case 18). The break file is `result-…-BREAK.json`.
+
+**API facts that differ from the spec:** only the optional `text` explanation field above. Gap kinds are `under` / `over` / `missing` / `wrong-type`, as signed.
