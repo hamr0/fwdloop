@@ -185,3 +185,14 @@ test('a malformed tool call on round 1 keeps today\'s path: a fresh retry, no li
   assert.ok(prov.calls.every((c) => c.options.toolChoice === undefined));
   assert.ok(prov.calls.every((c) => !c.messages.some((m) => m.content === NUDGE)));
 });
+
+test('a provider that says it ignores toolChoice: round 2 sends the line unforced, and a save there is the fallback', async () => {
+  const p = scripted((n) => (n === 1 ? textRound() : saveRound()));
+  p.honoursToolChoice = false;
+  const { modelStep } = setup(p);
+  const r = await modelStep(CTX, {}, { class: 'hitl' });
+  assert.equal(r.ok, true);
+  assert.equal(r.savedBy, 'fallback');
+  assert.ok(p.calls.every((c) => c.options.toolChoice === undefined));
+  assert.deepEqual(p.calls[1].messages[p.calls[1].messages.length - 1], { role: 'user', content: NUDGE });
+});

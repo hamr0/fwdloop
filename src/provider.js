@@ -443,6 +443,9 @@ export function makeProvider(slotName, options = {}) {
         exposeMalformedArgs: true,
       });
 
+  // M4d am37: only the OpenAI-shaped provider sends `toolChoice`; the other shapes ignore it, so a forced call there would be a force that was never sent
+  /** @type {any} */ (provider).honoursToolChoice = slot.shape === DEFAULT_SHAPE;
+
   return {
     provider, rates, modelId, slot: slotName, prices,
   };

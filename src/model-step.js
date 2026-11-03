@@ -26,7 +26,6 @@
 
 import { dirname } from 'node:path';
 import { Loop, HaltError } from 'bare-agent';
-import { Anthropic, Gemini } from 'bare-agent/providers';
 import { GateRefusal } from './primitives.js';
 import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
@@ -294,8 +293,8 @@ const STOP_RULE = 'stop-requested';
 /** M4d am37: the one fixed line a step that answered in text is sent, from code; the model never writes it and it never changes. */
 export const NUDGE = 'You answered in text. Call emit_artifact now with that answer; do not reply in text.';
 
-/** M4d am37: a provider class bare-agent gives no `toolChoice` ignores a forced call; round 2 then sends the line unforced and a save there is the fallback. */
-const IGNORES_TOOL_CHOICE = (provider) => provider instanceof Anthropic || provider instanceof Gemini;
+/** M4d am37: a provider that says it does not send `toolChoice` (`makeProvider` sets the flag from the row's shape) ignores a forced call; round 2 then sends the line unforced and a save there is the fallback. */
+const IGNORES_TOOL_CHOICE = (provider) => provider?.honoursToolChoice === false;
 
 /** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
 /**
