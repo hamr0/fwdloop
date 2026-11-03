@@ -5529,3 +5529,12 @@ Live run `~/.config/fwdloop/flows/m14-walk-3-2/runs/run-1` (model Muse `meta-mod
 **Not checked.** Whether a `linesPerInvoice` shape for a bullet count is acceptable under item 2 as signed (it satisfies the letter of item 2, not the Done-when's "line 3 shown Not checked"); that is hamr's to rule.
 
 **$0 rescan with the built code (35 signed flows under ~/.config/fwdloop/flows).** 33 good signed jobs: 0 refused. Refused: m14-walk-1 (guardrail on the send line, F135) and m14-walk-3-2 (line 3 sections-only shape, F137) only, both the intended catches. The 77 saved drafts: the same F135/F137 drafts refused, plus one old draft (d-00muwjz2nt-2fd3) for a sections red that predates am14.
+
+## F139 — M15 POC: can every sent artifact become a plain `.md`? (pre-registered 2026-11-03, $0, read-only)
+
+Spec: signed M15 items 2, 3, 5. No src edits, no paid calls; scripts in the scratchpad `m15-poc/`; flows read from `~/.config/fwdloop/flows`, files from `~/fwdloop-out`.
+
+**Riskiest assumptions and bars (fixed before the run).**
+- **(a) Every real sent artifact turns into a `.md` per item 3.** Corpus: every file in `~/fwdloop-out` whose run folder still exists, plus that run's accepted artifact (found via the ask's artifact sha256 / the send step's ask emit, matched to `artifacts/*.json`). Rule under test: an artifact that is `{text: string}` becomes the text itself; any other flat shape becomes one `name: value` line per field. **PASS** = every artifact in the corpus is either `{text}` (round-trip: `.md` equals the text field byte for byte) or flat scalar fields, and no `.md` holds `{`, `}`, a quote used as syntax, or a check mark. **FAIL** = any artifact with a nested object or array value, or a non-string text field; each is listed with flow/run, since those are the real open question. Counted by job type (plain, page/flights, CSV, docx, MCP, Tickets).
+- **(b) `buildResult` for a plain run.** Call `buildResult` on m14-walk-5 run-1 with `isResultRun` bypassed (read-only scratch script importing the repo module). **PASS** = returns per-line data with no throw. Recorded either way: what item 2 needs that is missing (where a text step's text would come from).
+- **(c) Tickets and flights.** Record what the sent file holds today for ticket-triage-4 run-6 and m10-walk-flights-5 run-1, and what the `.md` would be. **PASS** = the Tickets artifact fits the item 3 rule without loss of the grid's data (the grid stays; only the sent file changes).
