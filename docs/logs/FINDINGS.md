@@ -6137,3 +6137,25 @@ Every other guardrail (jobs with only text/markdown/.docx inputs, or none) is IN
 **Report also.** Cost per call and total (every round metered, books = sum of rounds, unknown never 0), every dropped suggestion with its reason, stray entries, thinking status per call (F144 saw `applied` with thinking off; unexplained, still not claimed).
 
 **$0 self-check (`--dry`, 2026-11-03, before any paid call).** Scope by code vs hand: 63 of 63 agree (code in 8 / out 55). All hand labels kept by the filter (0 dropped, 10 label instances, `listItems 3` kept). Eight can-fail controls behave (off-list rule, a number or word not named, wrong section count, an extra field all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT, the filter cannot judge meaning, scored `wrong`). The scope rule can fail: with the word-number test removed, a temporary copy disagreed on 2 guardrails (m7-walk-3 l3 g1, ticket-triage-6 l2 g3). Paid command (key from env): `FIREWORKS_API_KEY=$(pass amr/fireworks_api | head -n1 | tr -d '\r\n') node .claude/scratch/f144b/poc.mjs`.
+
+### F144b RESULT (2026-11-03, run after the pre-registration above; code = 3df2cc2)
+
+**Verdict: FAIL on the letter (mark b: 12 of 24 = 50%, needs 20).** Result file `.claude/scratch/f144b/result-2026-11-03T16-15-02-873Z.json`. deepseek-flash via Fireworks, bareguard 0.31.0, 18 calls, 6 jobs x 3, total spend $0.013532 (cap $0.15; every call 1 round, $0.00071 to $0.00081), no early stop.
+
+| Mark | Verdict | Evidence |
+|---|---|---|
+| (a) 0 kept off-list / unnamed number or word; second reader agrees | PASS | 12 kept checks, all `verifyKept` null (agrees on every one); 0 kept off-list. |
+| (b) 0 wrong kept and match >= 20 of 24 | FAIL | 0 wrong kept, but match 12, dropped 10, none 2 (24 pairs). |
+| (c) cantCheck per call never above 3 | PASS (recorded, cannot fail) | max 1 per call. |
+| (d) no provider/structure error, no early stop | PASS | 18 of 18 `tool_use`, 0 non-tool stops, 0 early stop, thinking status `applied` on all (as in F144, still unexplained). |
+| (e) scope by code = hand scope, 63 of 63 | PASS | `scopeDisagreements` 0. |
+
+**Per job (3 calls each).** m14-walk-3-2 3/3 match and ticket-triage-6 3/3 match (listItems was not needed there; both clean). am29-walk-2: line 4 `under 100 words` 3/3 match; line 3 ("3 sections, about 180 words each, under 600 words") 0/3: one `none`, one `sections` with a stray `wordsPerSection`, one `sectionWords` with an invented section name (dropped). m14-walk-5 `under 80 words`: 0/3 (all three suggested `maxWords 80` but also sent a stray field: `size: 80` once, `phrases: []` twice; the filter dropped each). m7-walk-2 ("3 sections: ... all under 600 words"): 0/3 (two `sectionWords` wordsPerSection 600, dropped; one `none`). m7-walk-3 same guardrail: 0/3 (all `sectionWords` 600, dropped).
+
+**Compared with F144 (18/24, 0 wrong kept, $0.070 over 99 calls):** the two prompt rules and scope by code cost 5x less and kept the safety (still 0 wrong kept) but did not lift the match count, it fell from 18 to 12. The only new loss is m14-walk-5, which F144 matched.
+
+**Two causes, named plainly.**
+1. The tool schema offers every optional field to every rule, so the model fills fields the rule does not take (`size`, `phrases`, `wordsPerSection`) and the strict extra-field drop throws out an otherwise right check. This is a shape of OUR tool, not a judgment miss: in all 3 m14-walk-5 calls the model chose the right rule and the right number. It cost 3 of the 12 missing matches (m14-walk-5), plus the am29-walk-2 call-2 `sections` + `wordsPerSection` drop.
+2. The prompt rule "all under N words is about the whole answer: use maxWords N" did not change the model's per-section reading: for "3 sections: ..., all under 600 words" 5 of 6 calls still suggested `sectionWords` with wordsPerSection 600 (m7-walk-2 2 of 3, m7-walk-3 3 of 3). The am29-walk-2 line-3 guardrail ("about 180 words each") still invents section names or answers none (3/3 miss).
+
+**Not checked:** whether a per-rule schema (each rule's exact fields only, so a stray field cannot be sent) fixes cause 1; whether any prompt wording fixes cause 2. No label, filter, scope rule or mark was refit.
