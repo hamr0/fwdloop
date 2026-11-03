@@ -46,15 +46,59 @@ test('{text} alone: the file is the text exactly, no JSON, no check marks', asyn
 });
 
 test('another flat object: one name: value line per field, in order', () => {
-  assert.equal(renderSentMd({ text: 'hi', count: 3, ok: true }), 'text: hi\ncount: 3\nok: true');
+  assert.equal(renderSentMd({ text: 'hi', count: 3, ok: true }), 'Text: hi\nCount: 3\nOk: true');
 });
 
-test('am1: a list of results is one "## Result k" block per result, values in order, quote not written', async () => {
+test('am1+am2: a list of results is one "## Result k" block per result, values in order, then the quote as a last line', async () => {
   const r = await sendOf('f-1.md', FLIGHTS);
   assert.equal(r.ok, true, r.red);
   const got = readFileSync(join(dest, 'f-1.md'), 'utf8');
-  assert.equal(got, '## Result 1\nprice: $120\nairline: Acme\ndeparture: 08:00\n\n## Result 2\nprice: $99\nairline: Bolt\ndeparture: 09:30');
-  assert.ok(!got.includes('Q1 words') && !/[{}[\]✓✗]/.test(got));
+  assert.equal(got, '## Result 1\nPrice: $120\nAirline: Acme\nDeparture: 08:00\nfrom the page: "Q1 words"\n\n## Result 2\nPrice: $99\nAirline: Bolt\nDeparture: 09:30\nfrom the page: "Q2 words"');
+  assert.ok(!/[{}[\]✓✗]/.test(got));
+});
+
+// --- M15 am2: names as words, the quote written ---
+const EXPENSES = { expenseRows: { rows: [3, 6, 9] }, expenseCount: { value: 17 }, expenseTotal: { value: 12719.59 } };
+
+test('am2 (1): nested names become words, a last name of value or rows is left out', () => {
+  assert.equal(renderSentMd(EXPENSES), 'Expense rows: 3, 6, 9\nExpense count: 17\nExpense total: 12719.59');
+  assert.equal(renderSentMd({ ID: 'x', user_name: 'a', 'first-seen': 'b', ticketID: { value: 1 } }), 'Id: x\nUser name: a\nFirst seen: b\nTicket id: 1');
+});
+
+test('am2 (2): each result block ends with from the page: "<quote>" byte for byte', () => {
+  const quote = 'From 39 US dollars.\nSelect "flight" {x} \\ ✓';
+  const got = renderSentMd({ results: [{ quote, values: { price: 39 } }, { quote: 'two', values: { price: 40 } }] });
+  assert.equal(got, `## Result 1\nPrice: 39\nfrom the page: "${quote}"\n\n## Result 2\nPrice: 40\nfrom the page: "two"`);
+});
+
+test('am2 (3): two lines with the same words both keep today\'s form, judged per block', () => {
+  assert.equal(renderSentMd({ rows: { value: 1, rows: 2 }, other: 3 }), 'rows.value: 1\nrows.rows: 2\nOther: 3');
+  assert.equal(renderSentMd({ expenseTotal: 1, expense_total: 2 }), 'expenseTotal: 1\nexpense_total: 2');
+  const got = renderSentMd({ results: [{ quote: 'q', values: { a: { value: 1 }, A: 2 } }, { quote: 'q', values: { a: { value: 1 } } }] });
+  assert.equal(got, '## Result 1\na.value: 1\nA: 2\nfrom the page: "q"\n\n## Result 2\nA: 1\nfrom the page: "q"');
+});
+
+test('am2 (4): a {text}-only artifact is byte-identical to today', () => {
+  for (const text of ['', 'a\nb', '{"x":1} ✓ expenseTotal.value: 1']) assert.equal(renderSentMd({ text }), text);
+});
+
+test('am2 (5): every value is present, in order, none changed', () => {
+  const content = { totals: { value: 12.5 }, tags: ['a', 'b'], nested: { deepOne: { x: 'y', ok: true }, gone: null }, list: [{ n: 1 }, { n: 2 }],
+    results: [{ quote: 'q1', values: { price: 5, seatMap: { rows: [1, 2] } } }] };
+  const got = renderSentMd(content).split('\n');
+  const want = [];
+  const walk = (v) => {
+    if (v === null || v === undefined) want.push('');
+    else if (Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')) want.push(v.join(', '));
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (typeof v === 'object') Object.values(v).forEach(walk);
+    else want.push(String(v));
+  };
+  for (const [k, v] of Object.entries(content)) {
+    if (k === 'results') v.forEach((r) => { Object.values(r.values).forEach(walk); want.push(`"${r.quote}"`); }); else walk(v);
+  }
+  const vals = got.filter((l) => !l.startsWith('## ') && l !== '').map((l) => l.replace(/^[^:]*: ?/, ''));
+  assert.deepEqual(vals, want);
 });
 
 test('the hash binding stays: a changed accepted artifact is refused and nothing is written', async () => {
