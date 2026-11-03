@@ -5811,3 +5811,208 @@ Script `.claude/scratch/f143/poc.mjs` (gitignored), imported through `index.js` 
 **Can-fail control.** With `F143_BREAK=1` one expectation was made wrong (case 7 expecting measured 5 instead of 4): it went red (2 fails with case 18), then the real run restored it (1 fail, case 18). The break file is `result-…-BREAK.json`.
 
 **API facts that differ from the spec:** only the optional `text` explanation field above. Gap kinds are `under` / `over` / `missing` / `wrong-type`, as signed.
+
+## F144 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.25; M10 am16 suggestion call + code keep-or-drop; written before any paid call, NOT yet run)
+
+**Question.** Riskiest assumption of M10 am16: one AI call at draft time, shown a job's step lines + guardrails and bareguard's installed `rubricVocabulary` (0.26.0, read through the package export), suggests per guardrail one check from that list or none; code's keep-or-drop (am16 (2)) then leaves only honest checks, with few `I can't check this` asks.
+
+**Setup.** Script `.claude/scratch/f144/poc.mjs` (gitignored; `--dry` = $0, prints corpus, labels, prompt, schema, and runs keep-or-drop on the hand labels). Model deepseek-flash via the Settings Fireworks row `accounts/fireworks/models/deepseek-v4p1-flash`, slot `FIREWORKS_API_KEY` (rates in 0.45 / out 1.8 per M, read from `~/.config/fwdloop/config.json` by `makeProvider`; unpriced = stop, never 0). Thinking off (`thinkingMode: 'off'`), forced tool call `suggest_checks`, maxTokens 16000, timeout and deadline 300 s, metered per round through `new Loop({ onLlmResult })` as the drafter does. N = 3 calls per job, sequential, no retry. Hold per call = `ceilingCostUsd` (about $0.043); the run stops before spent + hold would cross $0.25. Key from env only, refused at $0 when empty. Results to `.claude/scratch/f144/result-<ISO>.json` (opened `wx`, never overwritten).
+
+**Code's keep-or-drop (am16 (2)), in the script.** A suggestion is kept only if (1) its rule is a key of `rubricVocabulary.rules` and it carries exactly that rule's own fields (id, field, strict, text are code's); (2) every number in it is a number the guardrail names: `guardrailWordNumbers` for maxWords/minWords `value`, `guardrailWordsPerSection` for `wordsPerSection`, `guardrailStandaloneNumbers` for the others (all from src/declaration.js, the am14/am15 readers); (3) every name/phrase is, after the same lowercase + whitespace-collapse that `checkShapeFitsJobLine` uses, a substring of the guardrail, and every word of it is a word of the guardrail; (4) for sections rules, the count of names equals `guardrailSectionCount` when the guardrail states one (the am14 test). `checkShapeFitsJobLine` itself is not called (it would also red "180 words each, no wordsPerSection" and drop an honest maxWords 600); its normalisation is not exported, so the script repeats two lines of it (a build would export it). Nothing in src/ is touched.
+
+**Corpus.** Every signed job under `~/.config/fwdloop/flows/*/prose.txt` (36 signed jobs) with at least one guardrail under a step line (not the arbiter block, not a send line, not an ask line): **33 jobs**. A line's guardrail is split on "; " into guardrails (same-line duplicates merged): **63 guardrails, 8 in scope, 55 out of scope**. Only prose.txt is read. Only 6 jobs carry an in-scope guardrail (am29-walk-2, m14-walk-3-2, m14-walk-5, m7-walk-2, m7-walk-3, ticket-triage-6), 5 distinct guardrail texts: scored pairs = 8 x 3 = **24**. The out-of-scope guardrails are still shown to the model (the real call cannot know scope); they are not scored, but any check kept on one is reported. All 33 jobs get N = 3 calls: 99 calls.
+
+Hand labels (written now, before the run). `none` = no honest check on bareguard 0.26. Label text is exact. "Accept" lists every check that counts as equal to the label.
+- "every invoice appears exactly once" -> out of scope (cells (a per-row claim on a sheet))
+
+  - in: aging-live-1 (l2 g1), aging-live-4 (l2 g1), m10b-aging (l2 g1), m10b-aging-2 (l2 g1), m10b-aging-3 (l2 g1), m10b-aging-5 (l2 g1)
+- "3 sections, about 180 words each, under 600 words" -> {"rule":"maxWords","value":600}
+
+  - in: am29-walk-2 (l3 g1)
+- "under 100 words" -> {"rule":"maxWords","value":100}
+
+  - in: am29-walk-2 (l4 g1)
+- "every customer appears exactly once" -> out of scope (cells)
+
+  - in: exit-walk-1 (l2 g1), thinking-check-1 (l2 g1)
+- "under $40" -> out of scope (page source (flights, M10 items 1-3))
+
+  - in: flights-learn-1 (l2 g1), flights-learn-2 (l2 g1), flights-learn-3 (l2 g1)
+- "nonstop" -> out of scope (page source)
+
+  - in: flights-learn-1 (l2 g2), flights-learn-2 (l2 g2), flights-learn-3 (l2 g2), m10-walk-flights (l2 g2), m10-walk-flights-2 (l2 g2), m10-walk-flights-3 (l2 g2), m10-walk-flights-4 (l2 g2), m10-walk-flights-5 (l2 g2)
+- "Price over 500" -> out of scope (cells)
+
+  - in: m10-walk-csv (l2 g1), m10-walk-csv-2 (l2 g1), m10-walk-csv-3 (l2 g1), m10-walk-csv-4 (l2 g1)
+- "use the column 'Amount' for 'Price'" -> out of scope (cells/source)
+
+  - in: m10-walk-csv-2 (l2 g2), m10-walk-csv-3 (l2 g2), m10-walk-csv-4 (l2 g2)
+- "under $150" -> out of scope (page source)
+
+  - in: m10-walk-flights (l2 g1), m10-walk-flights-2 (l2 g1), m10-walk-flights-3 (l2 g1), m10-walk-flights-4 (l2 g1), m10-walk-flights-5 (l2 g1)
+- "days past due = days since 'Due date' as of 2026-10-11" -> out of scope (cells)
+
+  - in: m10b-aging (l2 g2), m10b-aging-2 (l2 g3), m10b-aging-3 (l2 g3), m10b-aging-5 (l2 g3)
+- "each invoice is in one bucket" -> out of scope (cells)
+
+  - in: m10b-aging-2 (l2 g2), m10b-aging-3 (l2 g2), m10b-aging-5 (l2 g2)
+- "there is no days past due column" -> out of scope (cells/source)
+
+  - in: m10b-aging-5 (l2 g4)
+- "work it out as days since 'Due date' as of 2026-10-11" -> out of scope (cells)
+
+  - in: m10b-aging-5 (l2 g5)
+- "Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+" -> out of scope (cells/source (column names))
+
+  - in: m10b-aging-5 (l2 g6)
+- "Amount over 500" -> out of scope (cells)
+
+  - in: m10b-expenses (l2 g1), m10b-expenses-a (l2 g1)
+- "exactly 3 bullets" -> none (no exact-count rule in 0.26; maxLines 3 is a WRONG kept)
+
+  - in: m14-walk-3-2 (l3 g1), m14-walk-5 (l3 g1)
+- "under 80 words" -> {"rule":"maxWords","value":80}
+
+  - in: m14-walk-5 (l5 g1)
+- "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words" -> {"rule":"maxWords","value":600} OR {"rule":"sections","names":["Work History","Professional Skills","Soft Skills"]}
+
+  - in: m7-walk-2 (l3 g1), m7-walk-3 (l3 g1)
+- "priority P1 only" -> out of scope (ticket filter (M12))
+
+  - in: ticket-triage (l2 g1), ticket-triage-2 (l2 g1), ticket-triage-3 (l2 g1), ticket-triage-4 (l2 g1), ticket-triage-5 (l2 g1), ticket-triage-6 (l2 g1)
+- "run a ticket again when its state changes" -> out of scope (ticket watch (M12))
+
+  - in: ticket-triage (l2 g2), ticket-triage-2 (l2 g2), ticket-triage-3 (l2 g2), ticket-triage-4 (l2 g2), ticket-triage-5 (l2 g2), ticket-triage-6 (l2 g2)
+- "at most 3 words" -> {"rule":"maxWords","value":3}
+
+  - in: ticket-triage-6 (l2 g3)
+Decisions on the two judgment calls: (1) `exactly 3 bullets` is labelled `none`: bareguard 0.26 has no exact-count rule, and `maxLines 3` is only "at most 3 lines" (it also counts a lead-in line), weaker than the words. A kept `maxLines 3` there is a WRONG kept, not an acceptable one. (2) `3 sections: Work History, Professional Skills, Soft Skills, all under 600 words` accepts either `maxWords 600` or `sections [Work History, Professional Skills, Soft Skills]` (both honest, one pick per guardrail); `3 sections, about 180 words each, under 600 words` names no section, so only `maxWords 600` (`sectionWords` would need names the guardrail never states).
+
+**Prompt (verbatim; vocabulary block generated from `rubricVocabulary.rules[r].description` for the 9 text rules nonEmpty, maxWords, minWords, maxLines, sections, sectionOrder, sectionWords, mustCarry, blockLines; the cells, cited, command, file and pipeline rules do not read a text field and are not offered).**
+
+System:
+
+```
+You help a person turn the guardrails written under the lines of a job into mechanical checks.
+You are given the job's lines. Under a line, its guardrails are numbered g1, g2, ... You are also given the checks the checker can run.
+
+For EACH guardrail, call suggest_checks with one entry: the one check from the list that checks exactly what that guardrail says, or the rule "none".
+
+Rules:
+- Use only a rule from the list below, with only the fields that rule takes. Do not set id, field, strict or text: code sets them.
+- Use only numbers the guardrail itself states, and only words the guardrail itself contains. Never add a section name, phrase or number the guardrail does not state.
+- If no check on the list checks exactly what the guardrail says (it is about content, sources, prices, columns, or a count the list cannot check exactly), answer "none". A check that is weaker than, or different from, the guardrail is worse than "none".
+- Answer for every guardrail once, using the line number and the guardrail number shown.
+
+Checks the checker can run (rule({ fields })):
+- nonEmpty({ id, field: non-blank string, max 128 chars, text?: string (the signer's explanation; never decides) })
+- maxWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- minWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- maxLines({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- sections({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionOrder({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionWords({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, wordsPerSection: integer >= 1, text?: string (the signer's explanation; never decides) })
+- mustCarry({ id, field: non-blank string, max 128 chars, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- blockLines({ id, field: non-blank string, max 128 chars, size: integer >= 1, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+```
+
+User (one per job; shown for m14-walk-5; ask lines show their question text only; guardrails numbered g1.. under their line):
+
+```
+The job:
+1. Write 3 lines about my garden from the notes
+2. check it with me
+3. List 3 jobs for this week from the notes
+   g1: exactly 3 bullets
+4. check it with me
+5. Write a short closing note to my neighbour
+   g1: under 80 words
+6. check it with me
+7. Write it out
+```
+
+Tool `suggest_checks` (forced via `toolChoice`; typed fields only, no prose is parsed; the answer is read from the tool arguments; the model's `rule` is an enum of the 9 rules + `none`; code still checks the rule against the full vocabulary list):
+
+```json
+{
+ "name": "suggest_checks",
+ "parameters": {
+  "type": "object",
+  "properties": {
+   "checks": {
+    "type": "array",
+    "description": "One entry per guardrail.",
+    "items": {
+     "type": "object",
+     "properties": {
+      "line": {
+       "type": "integer",
+       "description": "the job line number"
+      },
+      "guardrail": {
+       "type": "integer",
+       "description": "the guardrail number under that line (g1 = 1)"
+      },
+      "rule": {
+       "type": "string",
+       "enum": [
+        "nonEmpty",
+        "maxWords",
+        "minWords",
+        "maxLines",
+        "sections",
+        "sectionOrder",
+        "sectionWords",
+        "mustCarry",
+        "blockLines",
+        "none"
+       ]
+      },
+      "value": {
+       "type": "integer"
+      },
+      "size": {
+       "type": "integer"
+      },
+      "wordsPerSection": {
+       "type": "integer"
+      },
+      "names": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "phrases": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "line",
+      "guardrail",
+      "rule"
+     ]
+    }
+   }
+  },
+  "required": [
+   "checks"
+  ]
+ }
+}
+```
+
+**Scoring per (guardrail, call) pair, in-scope only.** A suggestion with no entry, or rule `none`, = `none`. Code's keep-or-drop gives kept or dropped (with the reason). Per pair: `match` = kept check is in the label's accept list, or the label is `none` and nothing was kept; `wrong` = a check was kept that is not in the accept list (any kept check on a `none` label); `dropped` / `none` on a labelled check = a miss that falls to an ask, never a wrong kept.
+
+**Pass marks (all four; any miss = FAIL, no refit of labels, filter or marks).**
+- (a) 0 kept checks, across ALL 99 calls (in and out of scope), whose rule is not on the list or that carry a number or word the guardrail never named. Re-verified after the run by a second, independently written reader in the script (raw numbers and word tokens, no src helper); a disagreement between the two readers is itself a FAIL.
+- (b) On in-scope pairs: 0 `wrong` kept, and `match` >= 80% of the 24 pairs (>= 20 of 24).
+- (c) Per call, the number of in-scope guardrails with nothing kept (the `I can't check this` asks, am16 (3)/(5)) never exceeds am1's 3. Honest note: this corpus has at most 2 in-scope guardrails per job, so (c) cannot fail here; it is recorded, not a test of anything. The count over all guardrails is also reported, for information.
+- (d) No provider error, and no structure error (no tool call, unreadable arguments); a call without a usable answer also scores its pairs as `none`. A run stopped early by the cap or an unpriced round is not a pass.
+
+**Report also:** cost per call and total (every round metered; books = sum of rounds), which suggestions were dropped and why, checks kept on out-of-scope guardrails (informational, unscored), stray entries (line/guardrail numbers that do not exist), thinking status per call.
+
+**$0 self-check (before any paid call; `--dry`, 2026-11-03).** All hand labels are kept by code's filter (0 dropped of 8 label instances, 5 distinct). Eight can-fail controls behave as written: an off-list rule, a number not named (99 for "under 80 words", 180 for the "180 words each" line), an unnamed word ("Summary"), a wrong section count, an extra field are all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT by the filter, which shows the filter judges only rule, number and word, so that mistake must be avoided by the prompt, and would score `wrong`.
