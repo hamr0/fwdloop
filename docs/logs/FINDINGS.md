@@ -5669,3 +5669,25 @@ The log shows bare-agent reported Muse's thinkingMode `off` as `ignored` ("the s
 - B on deepseek-flash or any other model: only Muse was run.
 - B with thinking on: on DeepSeek a forced call with thinking on 400s per bare-agent's doc, and bare-agent sends thinking disabled there; unchecked live.
 - B's known limit: after a read, the next call is forced to `emit_artifact`, so a step that needs a second read cannot make it.
+
+## F141c PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.40 total; hamr: arm D = text answer -> forced emit_artifact in the same conversation, nudge reply as fallback; written before any paid call, NOT yet run)
+
+**Question.** hamr's design: "force the tool, and use the tool reply as fallback", only when the model answered in text. Does it save every try on Muse, and not regress deepseek-flash (thinking off and on)?
+
+**Arm D, per step attempt** (same step as F141: run-3 `weekly_jobs` try 1, `makeLiveModelStep` shape, a whole-line-commented copy of model-step's round construction in the scratch script; `src/` untouched).
+- Round 1: exactly as today, toolChoice unset. If `emit_artifact` is called: done (path `r1`).
+- If round 1 ends in text with no `emit_artifact`: round 2 CONTINUES the same conversation (round-1 msgs incl. the model's text) + user message `You answered in text. Call emit_artifact now with that answer; do not reply in text.` (the F141 NUDGE string), with `toolChoice: { name: 'emit_artifact' }` on that round's first call. Saved here = path `forced`.
+- Fallback: if round 2 throws a provider error that names tool_choice or is a 4xx on the forced call, OR still ends without `emit_artifact`, round 3 = same conversation + the NUDGE again, toolChoice unset (pure C). Saved here = path `fallback`. Otherwise `red`.
+
+**Cells, N=5 each, fresh samples (F141/F141b tries do not count).**
+1. Muse `meta-models/muse-spark-open-1026` (slot BASETEN_API_KEY), thinking off, arm D.
+2. deepseek-flash via Fireworks `accounts/fireworks/models/deepseek-v4p1-flash` (slot FIREWORKS_API_KEY; Settings provider row read in `~/.config/fwdloop/config.json`: present, use=true, in 0.45 / out 1.8 per M), thinking off, arm D.
+3. Same Fireworks deepseek-flash, thinking ON (as a retry attempt runs), arm D.
+
+**Pass marks.** Each cell PASSES at 5 of 5 valid artifacts (`done` true, non-empty `text`) with no unhandled provider error. Cell 1 must reach round 2 on at least 3 of 5 tries (proves the forced path is exercised, since Muse answers in text in round 1). Cells 2-3: no regression: a try that saves in round 1 counts as a pass; any 400 on the forced call that the fallback does not recover is FAIL. Unpriced -> stop, never 0. Stopping before the cap is crossed -> FAIL on the letter.
+
+**Report per try:** path, calls, usd, stopReasons, thinking status.
+
+**Cost.** HARD CAP $0.40 total across the three cells; the script stops before any try whose worst seen cost would cross it. Keys: env only, never printed. Results: `.claude/scratch/f141/result-<tag>-<timestamp>.json` (never overwritten).
+
+**Fallback proof at $0.** A `--fake-reject` run of arm D against an in-script fake provider (round 1 ends in text; a forced call throws a 400 "tool_choice not supported") proves the fallback reaches round 3 and saves. A fake cannot prove a real provider; noted.
