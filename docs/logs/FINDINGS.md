@@ -5691,3 +5691,41 @@ The log shows bare-agent reported Muse's thinkingMode `off` as `ignored` ("the s
 **Cost.** HARD CAP $0.40 total across the three cells; the script stops before any try whose worst seen cost would cross it. Keys: env only, never printed. Results: `.claude/scratch/f141/result-<tag>-<timestamp>.json` (never overwritten).
 
 **Fallback proof at $0.** A `--fake-reject` run of arm D against an in-script fake provider (round 1 ends in text; a forced call throws a 400 "tool_choice not supported") proves the fallback reaches round 3 and saves. A fake cannot prove a real provider; noted.
+
+### F141c RESULT (2026-11-03, run after the pre-registration above; code = 45fa919)
+
+Results: `.claude/scratch/f141/result-f141c-{muse,fw-off,fw-on}-2026-11-03T10-5*.json`. Per try: path, calls, usd, valid.
+
+**Cell 1, Muse `meta-models/muse-spark-open-1026`, thinking off: PASS 5 of 5.** All 5 took the `forced` path (round 1 text, round 2 forced `emit_artifact` saved), 0 fallback. Cell $0.0823 (0.08227575).
+
+| try | path | calls | usd | valid |
+|---|---|---|---|---|
+| 1 | forced | 9 | 0.0297 | yes |
+| 2 | forced | 4 | 0.0091 | yes |
+| 3 | forced | 6 | 0.0165 | yes |
+| 4 | forced | 6 | 0.0175 | yes |
+| 5 | forced | 4 | 0.0095 | yes |
+
+bare-agent reported Muse's thinking `off` as `ignored` (it thinks anyway); the forced call itself reported `applied`.
+
+**Cell 2, Fireworks deepseek-flash, thinking off: FAIL on the letter, 4 of 5 valid.** All 5 saved in round 1 (path `r1`, today's code path, nothing forced; 3 calls each). Cell $0.0088 (0.00883665).
+
+| try | path | calls | usd | valid |
+|---|---|---|---|---|
+| 1 | r1 | 3 | 0.0017 | yes |
+| 2 | r1 | 3 | 0.0021 | NO |
+| 3 | r1 | 3 | 0.0017 | yes |
+| 4 | r1 | 3 | 0.0017 | yes |
+| 5 | r1 | 3 | 0.0017 | yes |
+
+Try 2 called `emit_artifact` with `done:false` and this blocker: "The notes contain only garden tasks (raised bed, apple tree, compost bin, water butt, seeds, path stones) — there are no jobs listed for this week, so the requested list of 3 jobs cannot be grounded in the notes." This is the model's own judgment on round 1, untouched by arm D. It is recorded; the criteria are not refit.
+
+**Cell 3, Fireworks deepseek-flash, thinking on: PASS 5 of 5.** All path `r1`, 3 calls each, all valid. Cell $0.0100 (0.01004265); per try 0.0020, 0.0019, 0.0019, 0.0021, 0.0021.
+
+**`--fake-reject` ($0):** a fake provider that 400s on `tool_choice` reached the fallback round (round 3) and saved. A fake cannot prove a real provider.
+
+**Total paid $0.1012** (0.08227575 + 0.00883665 + 0.01004265 = 0.10115505), under the $0.40 cap; no cell stopped at cap.
+
+**Not checked.**
+- The forced call with thinking ON on DeepSeek never ran (no DeepSeek try reached round 2), so bare-agent's "DeepSeek 400s on thinking + forced tool_choice" case is unproven live.
+- The fallback against a real provider's refusal of `tool_choice` is unproven live (only the fake).
