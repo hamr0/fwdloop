@@ -825,6 +825,7 @@ function makeAuditRow({
   badCalls = /** @type {any[]|undefined} */ (undefined),
   sentSha256 = /** @type {string|undefined} */ (undefined),
   savedBy = /** @type {string|undefined} */ (undefined),
+  forcedRefused = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -858,6 +859,8 @@ function makeAuditRow({
   if (typeof sentSha256 === 'string') row.sentSha256 = sentSha256;
   // M4d am37 item 5: which way the model step saved its artifact - `first` (round 1), `forced` (the forced call after the fixed line), `fallback` (the unforced call); absent when it did not save. The ONE writer.
   if (savedBy === 'first' || savedBy === 'forced' || savedBy === 'fallback') row.savedBy = savedBy;
+  // M4d am37, ruling A: the fixed say of a try whose forced call the provider refused with no usage returned (it booked $0); absent otherwise. The ONE writer.
+  if (typeof forcedRefused === 'string') row.forcedRefused = forcedRefused;
   return row;
 }
 
@@ -977,11 +980,13 @@ async function runStepTries({
     let badCalls;
     // M4d am37: how this try's model step saved, as it returned it
     let savedBy;
+    let forcedRefused;
     const rowOf = (/** @type {any} */ a) => makeAuditRow({
       ...a,
       ...(memo !== '' ? { memoText: memo } : {}),
       ...(badCalls !== undefined ? { badCalls } : {}),
       ...(savedBy !== undefined ? { savedBy } : {}),
+      ...(forcedRefused !== undefined ? { forcedRefused } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
     });
@@ -1036,6 +1041,7 @@ async function runStepTries({
     const wallMs = Date.now() - startedAt;
     badCalls = Array.isArray(result?.badCalls) ? result.badCalls : undefined;
     savedBy = typeof result?.savedBy === 'string' ? result.savedBy : undefined;
+    forcedRefused = typeof result?.forcedRefused === 'string' ? result.forcedRefused : undefined;
 
     // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
     // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.

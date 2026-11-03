@@ -189,7 +189,7 @@ function addMeter(cumulative, metered) {
   // faulted — caught live: `toolFields` threw on `cumulative.ungranted`
   // being undefined the very first time a transport fault hit round 1.
   return {
-    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused, thinking: cumulative.thinking, badCalls: cumulative.badCalls,
+    costUsd, rounds, tokens, tools: cumulative.tools, ungranted: cumulative.ungranted, refused: cumulative.refused, thinking: cumulative.thinking, badCalls: cumulative.badCalls, forcedRefused: cumulative.forcedRefused,
   };
 }
 
@@ -246,6 +246,8 @@ function toolFields(cumulative) {
     ...(cumulative.ungranted.length > 0 ? { ungranted: cumulative.ungranted } : {}),
     // M14 item 10: bare-agent's facts about calls that went wrong (`r.badCalls`, whole attempt, in order); left off once empty, like `ungranted`
     ...(cumulative.badCalls.length > 0 ? { badCalls: cumulative.badCalls } : {}),
+    // ruling A: a forced call refused before anything was metered is said on the row, never silently dropped
+    ...(cumulative.forcedRefused ? { forcedRefused: FORCED_REFUSED_SAY } : {}),
   };
 }
 
@@ -294,6 +296,9 @@ const STOP_RULE = 'stop-requested';
 export const NUDGE = 'You answered in text. Call emit_artifact now with that answer; do not reply in text.';
 
 /** M4d am37: a provider that says it does not send `toolChoice` (`makeProvider` sets the flag from the row's shape) ignores a forced call; round 2 then sends the line unforced and a save there is the fallback. */
+/** Ruling A (hamr 2026-11-03): the fixed say on the audit row of a try whose forced call was refused with no usage returned; it books $0. */
+export const FORCED_REFUSED_SAY = 'refused, no bill returned';
+
 const IGNORES_TOOL_CHOICE = (provider) => provider?.honoursToolChoice === false;
 
 /** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
@@ -440,6 +445,7 @@ export function makeLiveModelStep({
       tools: /** @type {Record<string, number>} */ ({}),
       ungranted: /** @type {string[]} */ ([]),
       badCalls: /** @type {any[]} */ ([]),
+      forcedRefused: false,
       refused,
       // M4d am25 item 4: what this attempt asked of thinking (the runner's decision, `stepMeta.thinkingMode`; null = it asked nothing) and the WORST status
       // bareagent reported across its rounds (null = none reported). The ONE place this record is built; `toolFields` hands it to every return.
@@ -509,6 +515,7 @@ export function makeLiveModelStep({
       } catch (err) {
         // M4d am37: the same refused forced call, when the Loop threw it instead of reporting it (see below)
         if (forcedAsked && round === 2 && roundMeterings.length === 0 && !isTransportFailure(err) && err?.code !== 'EDEADLINE') {
+          cumulative.forcedRefused = true;
           // eslint-disable-next-line no-continue
           continue;
         }
@@ -574,6 +581,7 @@ export function makeLiveModelStep({
       // M4d am37: a forced call the provider refused before it answered anything (no call metered) is not the end: round 3 sends the same line unforced. It books nothing - the
       // request was refused, no answer was priced - so it adds no unknown to the step's cost. Anything metered, a Stop, and a thrown transport fault or deadline stay as they were.
       if (forcedAsked && round === 2 && roundMeterings.length === 0 && result.error && !stoppedByYou) {
+        cumulative.forcedRefused = true;
         // eslint-disable-next-line no-continue
         continue;
       }
