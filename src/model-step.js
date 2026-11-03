@@ -458,6 +458,9 @@ export function makeLiveModelStep({
     const force = { on: false };
     /** @type {'first'|'forced'|'fallback'} */
     let savedBy = 'first';
+    // hamr's ask 2026-11-03: the text round 1 ended with, kept so a later round's save can be compared with what the model said (bounded like raw arguments)
+    /** @type {string|undefined} */
+    let firstText;
 
     for (let round = 1; round <= 3; round += 1) {
       let capturedArtifact;
@@ -659,6 +662,7 @@ export function makeLiveModelStep({
             modelMatch,
           };
         }
+        if (round === 1 && !result.error && typeof result.text === 'string' && result.text !== '') firstText = boundRaw(result.text);
         // round 1 ended in text (round 2 then continues it, forced) or round 2 ended unsaved (round 3 sends the line again); a round that ended in an error continues from the messages it was sent
         if (!result.error) messages = [...result.msgs, { role: 'user', content: NUDGE }];
         // eslint-disable-next-line no-continue
@@ -675,7 +679,7 @@ export function makeLiveModelStep({
       if (!freshRetry && round === 2) savedBy = forcedAsked ? 'forced' : 'fallback';
       if (round === 3) savedBy = 'fallback';
       return {
-        ok: true, artifact: capturedArtifact, savedBy, costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
+        ok: true, artifact: capturedArtifact, savedBy, ...(savedBy !== 'first' && firstText !== undefined ? { firstText } : {}), costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
       };
     }
 

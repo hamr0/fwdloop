@@ -981,7 +981,8 @@ async function runStepTries({
     // M4d am37: how this try's model step saved, as it returned it
     let savedBy;
     let forcedRefused;
-    const rowOf = (/** @type {any} */ a) => makeAuditRow({
+    let firstText;
+    const rowOf = (/** @type {any} */ a) => withFirstText(makeAuditRow({
       ...a,
       ...(memo !== '' ? { memoText: memo } : {}),
       ...(badCalls !== undefined ? { badCalls } : {}),
@@ -989,7 +990,7 @@ async function runStepTries({
       ...(forcedRefused !== undefined ? { forcedRefused } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
-    });
+    }), firstText);
     const executorContext = buildExecutorContext({
       goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text, memo: memo === '' ? null : memo,
     });
@@ -1042,6 +1043,7 @@ async function runStepTries({
     badCalls = Array.isArray(result?.badCalls) ? result.badCalls : undefined;
     savedBy = typeof result?.savedBy === 'string' ? result.savedBy : undefined;
     forcedRefused = typeof result?.forcedRefused === 'string' ? result.forcedRefused : undefined;
+    firstText = typeof result?.firstText === 'string' ? result.firstText : undefined;
 
     // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
     // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.
@@ -1444,9 +1446,7 @@ export async function runFlow({
     appendAudit(runDir, fullRow);
     if (row.spendComplete === false) spendComplete.value = false;
     if (modelOutput !== undefined) {
-      attemptsLog.push({
-        step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-      });
+      attemptsLog.push(attemptEntry(row, modelOutput));
     }
   };
   const spent = { value: 0 };
@@ -2621,9 +2621,7 @@ export async function resumeRun({
       appendAudit(runDir, fullRow);
       if (row.spendComplete === false) spendComplete.value = false;
       if (modelOutput !== undefined) {
-        attemptsLog.push({
-          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-        });
+        attemptsLog.push(attemptEntry(row, modelOutput));
       }
     };
 
@@ -2888,9 +2886,7 @@ export async function continueRun({
       appendAudit(runDir, fullRow);
       if (row.spendComplete === false) spendComplete.value = false;
       if (modelOutput !== undefined) {
-        attemptsLog.push({
-          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-        });
+        attemptsLog.push(attemptEntry(row, modelOutput));
       }
     };
     const runStartedAt = typeof halt.startedAt === 'number' ? halt.startedAt : startedAt;
@@ -3046,6 +3042,23 @@ export async function stopParkedRun({
     releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
   }
+}
+
+/** hamr's ask 2026-11-03: the round-1 text of a try a later round saved. Held beside the audit row (rows stay small), read by `attemptEntry` only. */
+const FIRST_TEXT = new WeakMap();
+
+/** Registers a try's round-1 text against its audit row (the row itself is unchanged). */
+function withFirstText(row, firstText) {
+  if (firstText !== undefined) FIRST_TEXT.set(row, firstText);
+  return row;
+}
+
+/** The ONE builder of a try's log.json entry (what the model said, per try), for the three `recordAudit`s; `firstText` is there only when a later round saved. */
+function attemptEntry(row, modelOutput) {
+  const firstText = FIRST_TEXT.get(row);
+  return {
+    step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput, ...(firstText !== undefined ? { firstText } : {}),
+  };
 }
 
 /** log.json's one writer, called from every exit path (complete + every
