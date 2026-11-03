@@ -5749,3 +5749,24 @@ Spec: signed M15 am2 items (1) and (2). No src edits, no paid calls. Scripts in 
 - (c) a forced same-words case (a fixture with `rows.value` and `rows.rows`, and one with `expenseTotal` and `expense_total`) keeps today's form for both colliding lines.
 - (d) today's m10b-expenses run-2 file reads exactly `Expense rows: 3, 6, 9, 12, 13, 14, 15, 17, 20, 21, 22, 25, 26, 27, 29, 32, 38` / `Expense count: 17` / `Expense total: 12719.59`.
 - (e) `{text}`-only artifacts are byte-identical to today's output (the real `renderSentMd`).
+
+### F142 RESULT (2026-11-03, $0; `.claude/scratch/f142/run.mjs` + `candidate.mjs`, result `.claude/scratch/f142/result-2026-11-03T14-19-50-809Z.json`; repo at 1d9b1cd)
+
+**Verdict: PASS on all five marks, 0 failures.** 61 artifacts (the F139 59 by sha256 identity, plus the artifacts behind today's m10b-expenses run-2 and m10-walk-flights-5 run-2). The candidate was proven able to fail: with the quote line removed and the first-letter capital removed in a temporary copy, (b) went 0 of 4 and (d) 0 of 1; restored, then the run below. No src edit, no refit.
+
+| Mark | Result |
+|---|---|
+| (a) every value, in order, none dropped/changed/reordered (checker walks the JSON) | PASS, 37 of 37 non-text artifacts, 0 failures |
+| (b) each quote exactly once as `from the page: "<quote>"`, last line of its block | PASS, 12 of 12 quotes in 4 of 4 results-list artifacts (flights-learn-1/run-1, m10-walk-flights-4/run-1, -5/run-1, -5/run-2) |
+| (c) forced same-words fixtures keep today's form for both lines | PASS, 3 of 3 (`rows.value`+`rows.rows`; `expenseTotal`+`expense_total` as boxes; as scalars) |
+| (d) m10b-expenses run-2 reads `Expense rows: 3, 6, …` / `Expense count: 17` / `Expense total: 12719.59` | PASS, byte for byte |
+| (e) `{text}`-only artifacts byte-identical to today's renderer | PASS, 24 of 24 (equal to the real `renderSentMd` and to the text field) |
+
+Today's two run-2 files on disk equal today's `renderSentMd` of their artifacts (checked).
+
+**Samples (before → after).**
+- CSV nested (m10b-expenses run-2): `expenseRows.rows: 3, 6, …, 38` / `expenseCount.value: 17` / `expenseTotal.value: 12719.59` → `Expense rows: 3, 6, …, 38` / `Expense count: 17` / `Expense total: 12719.59`.
+- Flights (flights-learn-1 run-1): `## Result 1` / `price: 39` → `## Result 1` / `Price: 39` / `from the page: "From 39 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. …Select flight"`. These flights artifacts hold only `price`: the airline and times were never in the sent file, so the quote is where they appear.
+- Plain text (am29-walk-2 run-1): identical, byte for byte.
+
+**Seen, not a mark.** A top-level scalar's name is changed too: a retired cite-form `{text, cells}` artifact writes `Text: …` where today it writes `text: …` (the rule reads every name in a box or beside one; none of the live jobs send this shape). Camel-case acronyms stay one word (`ID` stays `id`, lowercased by the signed example's rule); not exercised by any file in the set.
