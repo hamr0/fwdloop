@@ -5812,6 +5812,20 @@ Script `.claude/scratch/f143/poc.mjs` (gitignored), imported through `index.js` 
 
 **API facts that differ from the spec:** only the optional `text` explanation field above. Gap kinds are `under` / `over` / `missing` / `wrong-type`, as signed.
 
+## F143b PRE-REGISTRATION (2026-11-03, $0; bareguard listItems on the published npm package 0.31.0; written before the run, NOT yet run)
+
+**Question.** Does the published `bareguard@0.31.0` (listItems code unchanged since e5ecc5f, which F143 tested) behave as agreed, through its public API only (`createRubric` / `checkStep` / `rubricVocabulary`), imported from a fresh install?
+
+**Setup.** Fresh `npm init -y` + `npm install bareguard@0.31.0` in `.claude/scratch/f143b/pkg/` (gitignored, no other packages). fwdloop's package.json, package-lock.json and node_modules are untouched. Script `.claude/scratch/f143b/poc.mjs` is F143's poc.mjs adapted to import from that install. No paid call, no key.
+
+**Cases.** All F143 cases 1-21 exactly as pre-registered in F143 (same fixtures, same expectations; case 14 written with an explicit `\u00a0`), except case 18, which is replaced by (ii). Plus:
+- (i) The installed `node_modules/bareguard/package.json` version is exactly `0.31.0`.
+- (ii) `rubricVocabulary.rules.listItems.fields` keys are exactly `field`, `value` and optional `text` (known from F143 case 18; this is a new pre-registration, not a refit: F143 stays FAIL on the letter).
+- (iii) Documented limits, value 3 unless stated: (a) a line inside a ``` fence counts if it is an item (fence lines plus `- a`/`- b`/`- c`: green, measured 3); (b) `> - a`, value 1: red under, measured 0; (c) `\r\n` splits like `\n` (`- a\r\n- b\r\n- c` green; with a 4th item red over, measured 4, at-most).
+- Can-fail control: one temporary wrong expectation (`F143B_BREAK=1`) must show red, then be restored.
+
+**Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit.
+
 ## F144 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.25; M10 am16 suggestion call + code keep-or-drop; written before any paid call, NOT yet run)
 
 **Question.** Riskiest assumption of M10 am16: one AI call at draft time, shown a job's step lines + guardrails and bareguard's installed `rubricVocabulary` (0.26.0, read through the package export), suggests per guardrail one check from that list or none; code's keep-or-drop (am16 (2)) then leaves only honest checks, with few `I can't check this` asks.
