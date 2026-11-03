@@ -43,7 +43,7 @@ test('(1) round trip: the card becomes the prose shape and the existing parser r
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok(r.prose.includes(`\n\n${ARBITER_HEADING}\nguardrail: cap $0.25 per run\nguardrail: send at line 5 to file:${s.outDir}\n`));
   assert.ok(r.prose.startsWith('1. Read my resume,'), 'the job lines come first, as typed');
-  assert.ok(r.prose.includes('   guardrail: 3 sections, all under 600 words'), 'the per-line guardrails are kept as typed');
+  assert.ok(r.prose.includes('   guardrail: nothing goes out before I accept'), 'the per-line guardrails are kept as typed');
   assert.ok(r.prose.includes('4. ask 30m: check it with me,'), 'the ask mark is kept as typed');
   const p = parseSignedText(r.prose);
   assert.equal(p.ok, true, JSON.stringify(p.reds));

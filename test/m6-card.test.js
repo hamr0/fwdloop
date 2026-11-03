@@ -47,7 +47,7 @@ test('cardFromSigned: a job the card wrote comes back as a card that writes the 
   assert.equal(back.card.capUsd, '0.25');
   assert.equal(back.card.destination, s.outDir);
   assert.match(back.card.job, /^Ask 30m: check it with me,$/m, 'an ask comes back with its own wait');
-  assert.match(back.card.job, /^~ 3 sections, all under 600 words$/m, 'one ~ line per guardrail');
+  assert.match(back.card.job, /^~ nothing goes out before I accept$/m, 'one ~ line per guardrail');
   assert.match(back.card.inputs, /^resume: .*resume\.md$/m);
 });
 

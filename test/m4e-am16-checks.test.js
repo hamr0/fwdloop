@@ -18,13 +18,13 @@ async function draft(guardrail, mutate) {
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am16c-'));
   works.push(work);
   const proseFile = path.join(work, 'prose.txt');
-  assert.ok(fx.prose.includes(G_OLD));
-  writeFileSync(proseFile, fx.prose.replace(G_OLD, `guardrail: ${guardrail}`));
+  assert.ok(fx.proseG.includes(G_OLD));
+  writeFileSync(proseFile, fx.proseG.replace(G_OLD, `guardrail: ${guardrail}`));
   const args = validArgs();
   mutate?.(args);
   const p = fakeProvider([toolReply(args), toolReply(args), toolReply(args)]);
   const dir = path.join(work, 'draft');
-  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {} });
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
   return { r, p, dir, work };
 }
 const readDecl = (dir) => JSON.parse(readFileSync(path.join(dir, 'declaration.json'), 'utf8'));
@@ -83,7 +83,7 @@ test('C13 sign: a draft whose guardrail was edited to size-without-count (re-has
 test('C13 sign: a check with wordsPerSection and no section names is red by step and key', async () => {
   const { r, dir } = await draft('~3 sections, about 180 words each, under 600 words');
   assert.equal(r.ok, true);
-  editDecl(dir, (d) => { delete d.steps[2].close.shape.sections; });
+  editDecl(dir, (d) => { d.steps[2].close.shape.wordsPerSection = 180; });
   const s = signDraft({ dir, approve: rehash(dir), signedBy: 'alice' });
   assert.equal(s.ok, false);
   assert.ok(s.reds.some((x) => /steps\[2\]\.close\.shape has wordsPerSection but no sections/.test(x)), JSON.stringify(s.reds));

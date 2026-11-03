@@ -1,5 +1,5 @@
-// M4e amendment 29 (docs/wiki/the-module-ladder.md, "Amendment 29"; builds on 28): the AI picks the whole-output word limit (maxWords);
-// code only checks the pick is one of the guardrail's whole-output numbers. wordsPerSection stays code-read (am15 item 1). $0, fake provider.
+// M4e amendment 29 (builds on 28): code only checks a maxWords is one of the guardrail's whole-output numbers. M10 am16 replaced "the AI picks": the drafter writes no check,
+// so these rules now judge a shape by direct call (a signed plan edited by hand is still held to them) and the $0 sum gate still runs before any call. $0, fake provider.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,13 +17,13 @@ async function draft(guardrail, mutate) {
   const fx = job2Fixture();
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am29-'));
   const proseFile = path.join(work, 'prose.txt');
-  assert.ok(fx.prose.includes(G_OLD));
-  writeFileSync(proseFile, fx.prose.replace(G_OLD, `guardrail: ${guardrail}`));
+  assert.ok(fx.proseG.includes(G_OLD));
+  writeFileSync(proseFile, fx.proseG.replace(G_OLD, `guardrail: ${guardrail}`));
   const args = validArgs();
   mutate?.(args);
   const p = fakeProvider([toolReply(args)]);
   const dir = path.join(work, 'draft');
-  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {} });
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {}, noQuestions: true });
   return { r, p, dir };
 }
 const readDecl = (dir) => JSON.parse(readFileSync(path.join(dir, 'declaration.json'), 'utf8'));
@@ -38,30 +38,16 @@ test('reader: guardrailWordNumbers lists every whole-output "N words", never an 
   assert.deepEqual(D.guardrailWordNumbers(undefined), []);
 });
 
-test('smallest no longer wins: the AI picks 600 on "under 600 words, each heading at most 3 words" and the plan is green', async () => {
-  const { r, dir } = await draft(G, (a) => { a.steps[2].close.shape.maxWords = 600; });
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(readDecl(dir).steps[2].close.shape.maxWords, 600);
-});
-test('an AI maxWords that is not in the guardrail (700) is red with the signed wording', async () => {
-  const { r, dir } = await draft(G, (a) => { a.steps[2].close.shape.maxWords = 700; });
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes("line 3's check says 700 words; the guardrail has no 700.")), JSON.stringify(r.reds));
-  assert.equal(existsSync(path.join(dir, SPEC_HASH_FILE)), false);
-});
-test('an AI maxWords of 3 is in the guardrail (no "has no 3" red), but M10 am14 reds it for dropping the 600', async () => {
-  const { r } = await draft(G, (a) => { a.steps[2].close.shape.maxWords = 3; });
-  assert.equal(r.ok, false);
-  assert.ok(!r.reds.some((x) => x.includes('the guardrail has no 3')), JSON.stringify(r.reds));
-  assert.ok(r.reds.some((x) => x.includes("line 3's guardrail names 600, but the check does not carry 600")), JSON.stringify(r.reds));
-});
+const reds = (guardrail, shape) => { const out = []; D.checkShapeFitsJobLine({ fromLine: 3, goal: 'x y', close: { class: 'softgreen', shape } }, 2, [{ n: 3, guardrail }], out); return out; };
 
-test('a guardrail with no word number: a maxWords is a number it never names (M10 am14, red); a check with no maxWords and the 3 sections carried is green', async () => {
-  const a = await draft('3 sections', (x) => { x.steps[2].close.shape.maxWords = 450; });
-  assert.equal(a.r.ok, false);
-  assert.ok(a.r.reds.some((x) => x.includes('maxWords 450, a number the guardrail never names')), JSON.stringify(a.r.reds));
-  const b = await draft('3 sections', (x) => { delete x.steps[2].close.shape.maxWords; });
-  assert.equal(b.r.ok, true, JSON.stringify(b.r.reds));
+test('smallest no longer wins: a maxWords of 600 on "under 600 words, each heading at most 3 words" has no red', () => {
+  assert.deepEqual(reds(G, { maxWords: 600 }), []);
+});
+test('a maxWords that is not in the guardrail (700) is red with the signed wording', () => {
+  assert.ok(reds(G, { maxWords: 700 }).some((x) => x.includes("line 3's check says 700 words; the guardrail has no 700.")));
+});
+test('a maxWords of 3 is in the guardrail (no "has no 3" red)', () => {
+  assert.ok(!reds(G, { maxWords: 3 }).some((x) => x.includes('the guardrail has no 3')));
 });
 
 test('am15 (a) stays red at $0 before any model call, naming 750 and 600', async () => {
@@ -73,24 +59,26 @@ test('am15 (a) stays red at $0 before any model call, naming 750 and 600', async
 test('$0 sum check compares against the LARGEST candidate: 540 fits 600, so no red before the draft', () => {
   assert.deepEqual(D.checkGuardrailSums([{ n: 3, guardrail: '3 sections, 180 words each, under 600 words; under 400 words' }]), []);
 });
-test('am15 (b): "3 sections, about 180 words each, under 600 words" is green with wordsPerSection 180', async () => {
-  const { r, dir } = await draft('~3 sections, about 180 words each, under 600 words');
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(readDecl(dir).steps[2].close.shape.wordsPerSection, 180);
-});
-
-test('after the draft the sum uses the AI pick: maxWords 400 < 180 x 3 is red (model was called), maxWords 600 is green', async () => {
+test('after a sections check the sum uses the maxWords: 400 < 180 x 3 is red, 600 is not', () => {
   const g = '3 sections, about 180 words each, under 600 words; under 400 words';
-  const bad = await draft(g, (a) => { a.steps[2].close.shape.maxWords = 400; });
-  assert.equal(bad.r.ok, false);
-  assert.ok(bad.p.calls.length >= 1, 'passed the $0 gate, so the model was called');
-  assert.ok(bad.r.reds.some((x) => x.includes("line 3's guardrail asks about 180 words for each of 3 sections (540) but the check says 400 words in total.")), JSON.stringify(bad.r.reds));
-  const ok = await draft('3 sections, about 180 words each, under 600 words', (a) => { a.steps[2].close.shape.maxWords = 600; }); // M10 am14: one word number, so the check can carry it
-  assert.equal(ok.r.ok, true, JSON.stringify(ok.r.reds));
+  assert.ok(reds(g, { maxWords: 400, sections: ['a', 'b', 'c'], wordsPerSection: 180 }).some((x) => x.includes("line 3's guardrail asks about 180 words for each of 3 sections (540) but the check says 400 words in total.")));
+  assert.ok(!reds('3 sections, about 180 words each, under 600 words', { maxWords: 600, sections: ['a', 'b', 'c'], wordsPerSection: 180 }).some((x) => x.includes('in total')));
+});
+test('a drafted job whose guardrail has a per-section size is green with a picked check (M10 am16)', async () => {
+  const fx = job2Fixture();
+  const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am29b-'));
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, fx.proseG.replace(G_OLD, 'guardrail: ~3 sections, about 180 words each, under 600 words'));
+  const p = fakeProvider([toolReply(validArgs())]);
+  const dir = path.join(work, 'draft');
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(readDecl(dir).steps[2].close.shape, { picked: [{ rule: 'maxWords', value: 600 }] });
 });
 
-test('the AI schema never carries wordsPerSection', async () => {
+test('the AI schema never carries wordsPerSection (nor any shape)', async () => {
   const { buildDeclarationSchema } = await import('../src/drafter.js');
-  const shape = buildDeclarationSchema([{ verb: 'read' }]).properties.steps.items.properties.close.properties.shape;
-  assert.equal(Object.keys(shape.properties).includes('wordsPerSection'), false);
+  const close = buildDeclarationSchema([{ verb: 'read' }]).properties.steps.items.properties.close;
+  assert.equal(close.properties.shape, undefined);
+  assert.equal(JSON.stringify(close).includes('wordsPerSection'), false);
 });

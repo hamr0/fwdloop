@@ -124,9 +124,13 @@ test('23 the panel run door and Run again say the same plain sentence', async ()
   const w = await world();
   const bad = await w.signedFlow({ flowName: 'bad' });
   w.seedPassed('bad', 'seed');
+  { const pf = path.join(bad.flowDir, 'prose.txt'); writeFileSync(pf, readFileSync(pf, 'utf8').replace('\n4. ask', '\n   guardrail: 3 sections, all under 600 words\n4. ask')); }
   resign(bad.flowDir, CASES[0][1] && ((d) => {
-    const st = d.steps.find((x) => x.close?.shape?.sections);
-    if (st) CASES[0][1](st.close.shape);
+    // (M10 am16: a drafted flow carries no section check of its own; this flow is signed as an old one that does)
+    const st = d.steps.find((x) => x.fromLine === 3);
+    st.close = { class: 'softgreen', shape: { sections: ['summary of work history blurb', 'professional skills', 'soft skills'] } };
+    d.guardrailClasses['3'] = 'softgreen';
+    CASES[0][1](st.close.shape);
   }));
   const again = await w.get('/api/author/run-again?flow=bad&runId=seed');
   assert.equal(again.status, 409, again.text);

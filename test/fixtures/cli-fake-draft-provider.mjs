@@ -14,6 +14,7 @@
 //   FWDLOOP_TEST_DRAFT_OFFERED_LOG=<file> -> one line per provider call: "offered" or "not-offered" (was `questions` in the tool schema).
 // FWDLOOP_TEST_DRAFT_THINKING_STATUS=<applied|unsupported|ignored|unknown> -> every reply carries that bareagent `thinkingStatus` (M4d am7).
 // FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
+// FWDLOOP_TEST_DRAFT_SUGGEST=<json> -> the M10 am16 suggestion call answers that ({"checks":[{line,guardrail,rule,...}]}; default: no check for any guardrail).
 // FWDLOOP_TEST_DRAFT_MAP=<json> -> the page-map call answers that map (default: every ~ rule tied to its own word of the default page, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_SHEET=<json> -> the sheet-word call (M10 piece 5; a CSV job with a ~ rule) answers that (default: no word, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_PAGE=<file> -> the fetched page's text (default: a small Boston-Chicago results page).
@@ -25,6 +26,7 @@ import { RATES, MODEL, validArgs, fakeProvider, toolReply, textReply } from '../
 import { pageText } from './m10-page-server.mjs';
 import { MAP_SYSTEM } from '../../src/pagemap.js';
 import { SHEET_MARK } from '../../src/sheetlook.js';
+import { SUGGEST_SYSTEM } from '../../src/checkpick.js';
 
 // M10: a job that signs a web page is fetched at drafting. The test provider hands the drafter a fetch seam (any address -> a fixed results page, no network)
 // and answers the page-map call (recognised by its system words) with an empty map: no word kept, none dropped.
@@ -95,6 +97,7 @@ export default function make() {
   provider.generate = async (messages, ...rest) => {
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM && String(messages.find((m) => m.role === 'user')?.content).includes(SHEET_MARK)) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_SHEET ?? '{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the sheet-word call
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_MAP ?? tiedMap(messages.find((m) => m.role === 'user')?.content)), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round (FWDLOOP_TEST_DRAFT_MAP=<json> replaces the empty map)
+    if (messages.find((m) => m.role === 'system')?.content === SUGGEST_SYSTEM) return { text: '', toolCalls: [{ id: 'sg', name: 'suggest_checks', arguments: JSON.parse(process.env.FWDLOOP_TEST_DRAFT_SUGGEST ?? '{"checks":[]}') }], usage: { inputTokens: 900, outputTokens: 100 }, stopReason: 'tool_calls', model: MODEL }; // the am16 suggestion call, not a drafting round
     const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
     if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
     if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);

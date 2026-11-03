@@ -448,8 +448,6 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const { shape } = step.close;
   const label = `steps[${i}]`;
   const redsBefore = reds.length;
-  // M10 am16: a shape of picked checks was kept by code (keep-or-drop, src/checkpick.js) and chosen by the person: the older shape rules, which judged the drafter's own check, do not apply to it.
-  if (Array.isArray(shape.picked)) { checkShapeBuilds(shape, label, reds, redsBefore); return; }
   const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
   if (Array.isArray(shape.sections) && shape.sections.every((n) => typeof n === 'string' && n.length > 0) && typeof step.goal === 'string') {
     const goal = step.goal.toLowerCase().replace(/\s+/g, ' ');
@@ -491,7 +489,8 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const wantPer = guardrailWordsPerSection(line?.guardrail);
   if (shape.wordsPerSection !== undefined && shape.wordsPerSection !== wantPer) {
     reds.push(`declaration: ${label} the check has wordsPerSection ${shape.wordsPerSection}; the guardrail says ${wantPer === null ? 'no size for each section' : `${wantPer} words each`} — change the guardrail on the card to change it`);
-  } else if (shape.wordsPerSection === undefined && wantPer !== null) {
+  } else if (shape.wordsPerSection === undefined && wantPer !== null && !Array.isArray(shape.picked)) {
+    // (a shape of picked checks, M10 am16, was kept by code and chosen by the person: the guardrail's size is a check only if it was picked)
     reds.push(`declaration: ${label} the guardrail says ${wantPer} words each; the check has no wordsPerSection`);
   }
   // M4e amendment 16 C13: a size for each section needs the section names to be checked against.

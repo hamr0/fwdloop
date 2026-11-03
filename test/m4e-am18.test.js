@@ -114,16 +114,16 @@ test('refuse at sign: signDraft refuses a draft edited to name a section "Skills
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am18-'));
   works.push(work);
   const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, fx.prose);
+  writeFileSync(proseFile, fx.proseG);
   const args = validArgs();
   const dir = path.join(work, 'draft');
-  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(args), toolReply(args), toolReply(args)]), rates: RATES, modelId: MODEL, env: {} });
+  // (M10 am16: the plan's check is the person's pick; the sections are added to it by hand below, as a re-hashed edit would)
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(args), toolReply(args), toolReply(args)]), rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const dp = path.join(dir, 'declaration.json');
   const d = JSON.parse(readFileSync(dp, 'utf8'));
-  const i = d.steps.findIndex((s) => Array.isArray(s.close?.shape?.sections));
-  assert.ok(i >= 0, 'fixture has a step with sections');
-  d.steps[i].close.shape.sections[0] += ':';
+  const i = d.steps.findIndex((s) => s.fromLine === 3);
+  d.steps[i].close.shape.sections = ['Skills:', 'Experience', 'Summary'];
   writeFileSync(dp, JSON.stringify(d));
   const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
   const h = specHash({ proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'), targetText: rd('target.json') }).hash;
