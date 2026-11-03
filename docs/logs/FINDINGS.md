@@ -5770,3 +5770,31 @@ Today's two run-2 files on disk equal today's `renderSentMd` of their artifacts 
 - Plain text (am29-walk-2 run-1): identical, byte for byte.
 
 **Seen, not a mark.** A top-level scalar's name is changed too: a retired cite-form `{text, cells}` artifact writes `Text: …` where today it writes `text: …` (the rule reads every name in a box or beside one; none of the live jobs send this shape). Camel-case acronyms stay one word (`ID` stays `id`, lowercased by the signed example's rule); not exercised by any file in the set.
+
+## F143 PRE-REGISTRATION (2026-11-03, $0; bareguard listItems on feat/list-items e5ecc5f, before release; written before the run, NOT yet run)
+
+**Question.** Does bareguard's new `listItems {field, value}` rule (exactly `value` outer list items; rulings A and B, hamr 2026-11-03) behave as agreed, through the public API (`createRubric` + `checkStep`), on fixtures and on three real m14-walk-5 artifacts?
+
+**Setup.** The bareguard repo is read only (HEAD e5ecc5f on feat/list-items, verified before the run). The tree is exported with `git archive e5ecc5f` into `.claude/scratch/f143/bareguard-e5ecc5f/` and imported from there. fwdloop's node_modules and package.json are untouched. Output is `{text: <fixture>}`, one `listItems` check on field `text`, value 3 unless stated. No paid call, no key.
+
+**Spec under test.** Item line: trimmed both ends, starts with `-` `*` `+` `•` then space/tab then non-empty text, or ASCII digits then `.`/`)` then space/tab then non-empty text. Outer = item lines whose indent (leading whitespace chars; space, tab, NBSP each 1, tabs not expanded) equals the smallest indent among item lines; non-item lines never set it. Fewer: kind `under`, `{measured, limit, direction: "at-least"}`. More: kind `over`, direction `"at-most"`. Missing or wrong-type field: kind `missing` / `wrong-type`, `limit` present, NO `direction` key. `value` 0: `createRubric` throws.
+
+**Cases (expected verdict / measured, value 3 unless stated).**
+1. Lead-in plus 3 bullets: green.
+2. Lead-in plus 2 bullets: red under, measured 2.
+3. One sentence, no marks: red under, measured 0.
+4. hamr's B example (`Jobs this week:` / `- Prune the apple tree` / `  - before the frost` / `- Turn the compost bin` / `- Fix the tap`): green (measured 3).
+5. Numbered `1.` list of 3: green. 6. Numbered `1)` list of 3: green.
+7. 4 bullets: red over, measured 4, direction at-most.
+8. All 3 items indented 2 spaces: green.
+9. Stray nested before outer (`  - a` / `- b` / `- c`), value 2: green (measured 2).
+10. Mixed tab/space (`\t- a` / `  - b`), value 1: green (measured 1).
+11. Non-items, each alone, value 1, expected red under measured 0: `1.Work`, `1.5 x`, `2024 results`, `**bold**`, `---`, `***`, `-x`, lone `-`, lone `1.`.
+12. `* * *`, value 1: green (counts 1). 13. `- [ ] task`, value 1: green. 14. `- x` with NBSP right after the mark, value 1: red under measured 0.
+15. Missing field: red, kind `missing`, limit 3, no `direction` key. 16. Non-string field (number): red, kind `wrong-type`, limit 3, no `direction` key.
+17. `value: 0`: `createRubric` throws.
+18. `rubricVocabulary.rules.listItems` exists and its fields are exactly `field` and `value`.
+19-21. Real files, field `text`, value 3, expected green (counts only; text never printed): `~/.config/fwdloop/flows/m14-walk-5/runs/run-1/artifacts/week_jobs.json`, `run-4/artifacts/weekly_jobs.json`, `run-5/artifacts/week_jobs.json`.
+22. Can-fail control: one temporary wrong expectation in the script must show red, then be restored; the result says so.
+
+**Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit of expectations or fixtures to pass.
