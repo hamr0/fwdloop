@@ -5729,3 +5729,23 @@ Try 2 called `emit_artifact` with `done:false` and this blocker: "The notes cont
 **Not checked.**
 - The forced call with thinking ON on DeepSeek never ran (no DeepSeek try reached round 2), so bare-agent's "DeepSeek 400s on thinking + forced tool_choice" case is unproven live.
 - The fallback against a real provider's refusal of `tool_choice` is unproven live (only the fake).
+
+## F142 PRE-REGISTRATION (2026-11-03, $0; M15 am2 friendly .md; written before the run, NOT yet run)
+
+Spec: signed M15 am2 items (1) and (2). No src edits, no paid calls. Scripts in `.claude/scratch/f142/` (gitignored): `candidate.mjs` (a scratch copy of `renderSentMd`/`valueLines`, src/send.js:47, changed per am2 (1) and (2) only), `run.mjs` (a separate checker that walks the artifact JSON; it does not use the renderer's code).
+
+**Input.** The F139 set: every file in `~/fwdloop-out` with a run folder on disk, whose bytes equal one of that run's `artifacts/*.json` (F139's sha256 identity method; 59 files), with that artifact as input; plus the artifacts behind today's `m10b-expenses-run-2-large_expenses_out.md` and `m10-walk-flights-5-run-2-flights_written.md` (the run's `artifacts/<name>.json`).
+
+**Candidate rules (as read from the signed text).**
+- Name words: each name in the path (`expenseTotal.value` is `expenseTotal`, `value`) is split at a lowercase/digit-to-capital boundary, `_` and `-`; the words are joined by a space; the first letter of the first word is made capital and the later words are lowercased. The lowercasing is not stated in the signed words; it is read from the signed example `expenseTotal.value` becomes `Expense total` (lowercase t). A run of capitals (`ID`) stays one word.
+- A last name of `value` or `rows` is left out (only when something remains; else the name is kept). A list is joined with ", " as today.
+- Two lines in the same block (the flat part of the file, or one `## Result k` block) that would get the same words both keep today's form.
+- A result in a list of results writes its `quote` as a last line `from the page: "<quote>"`, word for word.
+- Nothing else changes: `{text}` alone is the text; `## Result k` headings, blank-line joins, null as `name: `, nested objects and lists as today.
+
+**Pass marks (any miss = FAIL, no refitting).**
+- (a) every value in the artifact JSON appears in the new .md exactly (string form as today's renderer prints it), in the same order, none dropped, changed or reordered; checked by a separate checker that walks the JSON.
+- (b) for every results-list artifact, each result's quote appears exactly once, byte for byte, as `from the page: "<quote>"` after its values.
+- (c) a forced same-words case (a fixture with `rows.value` and `rows.rows`, and one with `expenseTotal` and `expense_total`) keeps today's form for both colliding lines.
+- (d) today's m10b-expenses run-2 file reads exactly `Expense rows: 3, 6, 9, 12, 13, 14, 15, 17, 20, 21, 22, 25, 26, 27, 29, 32, 38` / `Expense count: 17` / `Expense total: 12719.59`.
+- (e) `{text}`-only artifacts are byte-identical to today's output (the real `renderSentMd`).
