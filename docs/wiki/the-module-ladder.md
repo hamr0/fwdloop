@@ -3386,3 +3386,7 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 **M10 amendment 15 — SIGNED by hamr 2026-11-03 ("sign m10 am15"), the text exactly as shown.** Why: F138 (the M10 am14 exit drafts) failed on the letter, 1 of 10: deepseek-flash draft 2 turned `~ exactly 3 bullets` into `{linesPerInvoice:3, mustCarry:["job"]}`, which carries the 3 but makes up "invoice" and the word "job".
 
 > **M10 am15.** A shape check uses only what its line's guardrail names: every `mustCarry` word is a word of that guardrail, and `linesPerInvoice` is used only when the guardrail speaks of lines per invoice. A plan that breaks this is refused at $0, naming the line and the word; that guardrail is left `Not checked: <reason>` (M10 item 5). The drafter is told. **Done when:** F138's walk job, 5 drafts each on deepseek-flash and Muse, all green with line 3 `Not checked`; a test for each refusal fails first; the $0 rescan still refuses none of the good signed jobs. Nothing else changes.
+
+**M15 amendment 1 — SIGNED by hamr 2026-11-03 ("sign m15 am1"), the text exactly as shown.** Why: F139 bar (a) — the 3 flights sends are a list (`results:[{quote, values:{…}}]`), which has no flat `name: value` form under item 3.
+
+> **M15 am1.** An answer that is a list of results (such as flights' `results`) is written as one block per result: a heading `## Result k`, then one `name: value` line per value, in the order the answer holds them. The quote is not written; it stays on the Result tab as the proof. Nothing else changes.
