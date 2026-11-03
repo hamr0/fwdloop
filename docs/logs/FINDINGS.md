@@ -6016,3 +6016,40 @@ Tool `suggest_checks` (forced via `toolChoice`; typed fields only, no prose is p
 **Report also:** cost per call and total (every round metered; books = sum of rounds), which suggestions were dropped and why, checks kept on out-of-scope guardrails (informational, unscored), stray entries (line/guardrail numbers that do not exist), thinking status per call.
 
 **$0 self-check (before any paid call; `--dry`, 2026-11-03).** All hand labels are kept by code's filter (0 dropped of 8 label instances, 5 distinct). Eight can-fail controls behave as written: an off-list rule, a number not named (99 for "under 80 words", 180 for the "180 words each" line), an unnamed word ("Summary"), a wrong section count, an extra field are all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT by the filter, which shows the filter judges only rule, number and word, so that mistake must be avoided by the prompt, and would score `wrong`.
+
+### F144 RESULT (2026-11-03, run after the pre-registration above; code = 5fc7650)
+
+Run `.claude/scratch/f144/result-2026-11-03T15-42-57-087Z.json` (gitignored): 99/99 calls, `stoppedEarly` null, spent **$0.070207** (cap $0.25), deepseek-flash via the Fireworks row, forced tool call `suggest_checks`, every call 1 round, stop `tool_use`. Scored exactly against the marks above; no label, filter or mark changed.
+
+**Verdict: FAIL on the letter (mark b).**
+
+| Mark | Verdict | Numbers |
+|---|---|---|
+| (a) no kept check with an off-list rule or a number/word the guardrail never named, across all 99 calls; second reader agrees | **PASS** | 18 kept checks in all (12 in scope, 6 out of scope). Script reader: 0 violations. The independent second reader in the script (`verifyKept`, raw numbers and word tokens) returned null (no problem) on all 18; I re-ran an equivalent reader on the result file by hand: 0 violations. No disagreement between the readers. |
+| (b) in scope: 0 `wrong` kept AND match >= 20 of 24 | **FAIL** | 0 wrong kept (passes that half). match **18 of 24 = 75%** (< 80%): 18 match, 5 dropped, 1 none. |
+| (c) per call, in-scope guardrails with nothing kept never above 3 | **PASS** (cannot fail here, as pre-registered) | max 1 per call. For information only, over all guardrails: 171 of 189 rows have nothing kept, max 6 in one call. |
+| (d) no provider error, no structure error, no early stop | **PASS** | 0 errors, 0 non-tool stops, 0 unreadable arguments, 99/99 calls. |
+
+Breakdown of the 24 in-scope pairs (8 guardrails x 3 calls): am29-walk-2 "under 100 words" 3/3 match (maxWords 100); m14-walk-5 "under 80 words" 3/3 (maxWords 80); ticket-triage-6 "at most 3 words" 3/3 (maxWords 3); m14-walk-5 and m14-walk-3-2 "exactly 3 bullets" 6/6 match as `none` (nothing kept; no `maxLines 3` was suggested, the wrong-kept trap did not fire); m7-walk-2 / m7-walk-3 "3 sections: ... all under 600 words" 3/6 (kept `sections [Work History, Professional Skills, Soft Skills]`, an accepted label); am29-walk-2 "3 sections, about 180 words each, under 600 words" **0/3**.
+
+**Every in-scope miss (6, all fall to an ask; none is a wrong kept).**
+- am29-walk-2, call 1, line 3 g1 ("3 sections, about 180 words each, under 600 words"): suggested `sectionWords` names [how it matches the JD, work history, skills] wordsPerSection 180. Dropped: name "how it matches the JD" is not in the guardrail's words (the guardrail names no section; the model took the names from the job's other lines or invented them).
+- am29-walk-2, call 2, same guardrail: suggested `sections` with the same three names. Dropped for the same reason.
+- am29-walk-2, call 3, same guardrail: `none`. Not kept; the label wanted `maxWords 600` and the model never suggested it in any of the 3 calls.
+- m7-walk-2, call 1, line 3 g1 ("3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"): suggested `sectionWords` names [Work History, Professional Skills, Soft Skills] wordsPerSection 600. Dropped: "wordsPerSection 600 is not a number the guardrail names (it names none)".
+- m7-walk-2, call 2, same guardrail: same suggestion, same drop.
+- m7-walk-3, call 1, same guardrail: same suggestion, same drop.
+
+**The "all under 600 words" reading.** The three m7 drops are the code's filter working as designed: the guardrail names no per-section number, so `wordsPerSection 600` has no number to stand on (`guardrailWordsPerSection` reads none), and the filter refuses it. The model's reading is that each section is under 600 words; that is a different, stricter check than the signer's "all under 600 words" (which also reads as one total of 600). The right outcome for a reading the guardrail does not state is an ask to the human (what this check means), not a silent keep. Whether that ask, rather than a kept `sections`/`maxWords`, is the wanted outcome is a design question for am16; the filter made no mistake here. The am29-walk-2 miss is of a different kind: the model never offered the label's `maxWords 600`, and its names were not the guardrail's.
+
+**The 18 strays** (entries whose line/guardrail number does not exist), in 7 calls, all rule `none`: aging-live-1 call 3 (1: line 1 g1), m10b-aging-3 call 1 (3: lines 1, 3, 4 g1) and call 3 (2: lines 3, 4 g1), m10b-expenses call 1 (3), m10b-expenses-a calls 2 and 3 (3 each), ticket-triage-4 call 3 (3: line 1 g1, g2, g3). They are answers for the job's lines that carry no guardrail (the source line, ask lines, the write-out line) or for a guardrail number that is not there; each says `none`, code ignored them, none was kept, and no scored pair was affected. Cost of leaving them: nothing in this run; a build must keep ignoring an entry that matches no real (line, guardrail).
+
+**Out-of-scope kept checks (6; informational, unscored; a BUILD question).** The model was shown these guardrails (the real call cannot know scope) and code kept a check on them:
+- mustCarry ["nonstop"] on "nonstop" (m10-walk-flights-3 call 3, m10-walk-flights-4 call 1, m10-walk-flights-5 call 2): a page-source (flights) guardrail that M10 items 1-3 already settle.
+- sections [Current, 1-30, 31-60, 61-90, 90+] (m10b-aging-5 call 1) and sections [Customer, Invoice #, ..., 90+] (call 2) on "Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+": a cells (column names) guardrail; both pass the filter because every word is in the guardrail.
+- mustCarry ["priority P1"] on "priority P1 only" (ticket-triage-3 call 1): a ticket filter that M12 already settles.
+Each is honest by the filter's three tests (rule, number, words) but sits on a guardrail another module's check already covers. Build question for hamr, not judged here: am16 must not add a shape check on top of a cells/page/ticket guardrail that M10 items 1-3 and M12 already settle; keep-or-drop alone does not know the scope, so scope has to be decided before or beside it.
+
+**Cost.** $0.070207 for 99 calls, books = sum of rounds (every call 1 round). Per call mean $0.000709, min $0.000653, max $0.000978 (against the ~$0.043 hold per call; the hold is a ceiling, not spend). Input about 1.2k tokens and output about 60 tokens on the smallest job.
+
+**Not checked / odd.** `thinkingStatus` is `applied` on all 99 calls although the script passes `thinkingMode: 'off'`; I did not look into why (the audit-row meaning of that string is not read here), so I make no claim about thinking for this run. Anything about the human ask UI is not checked here.
