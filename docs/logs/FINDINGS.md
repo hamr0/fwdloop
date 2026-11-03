@@ -6080,3 +6080,60 @@ Each is honest by the filter's three tests (rule, number, words) but sits on a g
 **Cost.** $0.070207 for 99 calls, books = sum of rounds (every call 1 round). Per call mean $0.000709, min $0.000653, max $0.000978 (against the ~$0.043 hold per call; the hold is a ceiling, not spend). Input about 1.2k tokens and output about 60 tokens on the smallest job.
 
 **Not checked / odd.** `thinkingStatus` is `applied` on all 99 calls although the script passes `thinkingMode: 'off'`; I did not look into why (the audit-row meaning of that string is not read here), so I make no claim about thinking for this run. Anything about the human ask UI is not checked here.
+
+## F144b PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.15; F144 rerun with two prompt rules, scope decided by code before the call, and bareguard 0.31.0 `listItems`; written before any paid call, NOT yet run)
+
+**Question.** F144 failed on the letter (mark b: 18 of 24 = 75%) and showed am16 must not put a shape check on a guardrail another signed part already settles. Does the same one-call suggestion, with (1) two prompt rules, (2) scope decided by CODE before the call, and (3) the published bareguard 0.31.0 vocabulary (`listItems`), pass the marks F144 missed?
+
+**What stays exactly as F144.** Same corpus (every signed job under `~/.config/fwdloop/flows/*/prose.txt` with a step guardrail: 33 jobs, 63 guardrails split on "; "), model deepseek-flash via the Fireworks row `accounts/fireworks/models/deepseek-v4p1-flash` (slot `FIREWORKS_API_KEY`, key from env only, refused at $0 when empty), thinking off, N = 3 sequential calls per job, forced typed tool `suggest_checks`, same tool schema except the `rule` enum also lists `listItems`, maxTokens 16000, deadline 300 s, metered per round through `new Loop({ onLlmResult })`, same code keep-or-drop (am16 (2): rule on the list, own fields only, numbers the guardrail names, words the guardrail contains, section count), same independent second reader (`verifyKept`), hold per call = `ceilingCostUsd` (~$0.043). Script `.claude/scratch/f144b/poc.mjs` = copy of f144 plus the three changes below (gitignored; `--dry` = $0). Results to `.claude/scratch/f144b/result-<ISO>.json` (opened `wx`).
+
+**Change 1: two prompt rules.** Added to the Rules list, exactly: "Suggest `sections` or `sectionWords` only when the guardrail itself names the sections." and "A guardrail like 'all under N words' or 'under N words' is about the whole answer: use maxWords N." Nothing else in the prompt text is edited (the "none" rule still says "a count the list cannot check exactly"; left as in F144). Final system prompt, verbatim (the vocabulary block is generated from the installed 0.31.0 `rubricVocabulary.rules[r].description`):
+
+```
+You help a person turn the guardrails written under the lines of a job into mechanical checks.
+You are given the job's lines. Under a line, its guardrails are numbered g1, g2, ... You are also given the checks the checker can run.
+
+For EACH guardrail, call suggest_checks with one entry: the one check from the list that checks exactly what that guardrail says, or the rule "none".
+
+Rules:
+- Use only a rule from the list below, with only the fields that rule takes. Do not set id, field, strict or text: code sets them.
+- Use only numbers the guardrail itself states, and only words the guardrail itself contains. Never add a section name, phrase or number the guardrail does not state.
+- Suggest `sections` or `sectionWords` only when the guardrail itself names the sections.
+- A guardrail like 'all under N words' or 'under N words' is about the whole answer: use maxWords N.
+- If no check on the list checks exactly what the guardrail says (it is about content, sources, prices, columns, or a count the list cannot check exactly), answer "none". A check that is weaker than, or different from, the guardrail is worse than "none".
+- Answer for every guardrail once, using the line number and the guardrail number shown.
+
+Checks the checker can run (rule({ fields })):
+- nonEmpty({ id, field: non-blank string, max 128 chars, text?: string (the signer's explanation; never decides) })
+- maxWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- minWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- maxLines({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- listItems({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- sections({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionOrder({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionWords({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, wordsPerSection: integer >= 1, text?: string (the signer's explanation; never decides) })
+- mustCarry({ id, field: non-blank string, max 128 chars, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- blockLines({ id, field: non-blank string, max 128 chars, size: integer >= 1, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+```
+
+User text: as F144 (the job's lines, guardrails numbered under their line), except that only the guardrails code scopes IN are shown (original g-numbers kept; a line with none shows no g-line).
+
+**Change 3: vocabulary from the published bareguard 0.31.0.** Read from the fresh install at `.claude/scratch/f143b/pkg/node_modules/bareguard` (version checked in the script, refuses if not 0.31.0), not the repo's `node_modules`. Offered rules: the F144 nine plus `listItems` (a text rule: `listItems({ field, value >= 1 })` = exactly `value` outer list items), ten in all, in the vocabulary's own order; `carriesAny` and `allowedKeys` (also in 0.31.0) are not offered, as before (not asked for). Hand label for "exactly 3 bullets" becomes `{"rule":"listItems","value":3}` (written now); a kept `maxLines 3` there stays a WRONG kept. Every other hand label is as in F144 (the "3 sections: Work History, ..., all under 600 words" guardrail still accepts `maxWords 600` OR `sections [Work History, Professional Skills, Soft Skills]`; "3 sections, about 180 words each, under 600 words" accepts only `maxWords 600`).
+
+**Change 2: scope by CODE, before the call (not the hand labels).** A guardrail is settled by another signed part, is NOT sent to the model, and gets no am16 check, when BOTH hold:
+1. the job signs an input that routes its guardrails to another reader: a CSV file source (cells close: `src/drafter.js:319` `csvRoles` by `isCellsPath` `src/closers.js:53`; the cells reader numbers every line rule `src/drafter.js:363-367` and looks at the sheet `:628`) or a page source (cited close: `src/drafter.js:320,331`; page fetch `:523`); a ticket list is a page source (`src/ticket-draft.js:16`), and its priority/label filter and state/labels watch are the drafter's reading of those guardrails (`src/ticket-draft.js:35-36`);
+2. the guardrail names no whole-output word number: `guardrailWordNumbers(g).length === 0` (`src/declaration.js:375`, the reader `checkShapeFitsJobLine` uses for `maxWords`, `src/declaration.js:441`, am28/am29). A guardrail that names one is the one thing the shape reader still takes in such a job ("at most 3 words" under a ticket line).
+Every other guardrail (jobs with only text/markdown/.docx inputs, or none) is IN. The script implements this as `codeScope(sources, g)` (the signed `arbiter.sources` of the job). It reads no label. **Pass mark (e): code's scope equals F144's hand scope on all 63 guardrails (in 8 / out 55); any disagreement, listed, = FAIL.** Honest note: the page and ticket arms read one regex plus the source kind, so a page job whose guardrail has a word number would be IN while the model-side meaning is "about the page"; none exists in this corpus, and this is a build question, not judged here.
+
+**Paid plan.** Only jobs with at least one guardrail code scopes IN are called: 6 jobs (am29-walk-2, m14-walk-3-2, m14-walk-5, m7-walk-2, m7-walk-3, ticket-triage-6) x 3 = **18 calls** (F144 was 99), 24 scored pairs (8 guardrails x 3). Out-of-scope guardrails are never shown, so no kept check on one can occur.
+
+**Pass marks (all; any miss = FAIL, no refit of labels, filter, scope rule or marks).**
+- (a) 0 kept checks, across all 18 calls, whose rule is not on the list or that carry a number or word the guardrail never named; the second reader (`verifyKept`) agrees on every kept check (a disagreement is itself a FAIL).
+- (b) On the 24 in-scope pairs: 0 `wrong` kept and `match` >= 20 of 24. `match` = kept check is in the label's accept list; `wrong` = any other kept check; no label is `none` now.
+- (c) Per call, in-scope guardrails with nothing kept (the `I can't check this` asks) never above 3 (am1). Cannot fail on this corpus (at most 2 per job); recorded, not a test.
+- (d) No provider error, no structure error (no tool call, unreadable arguments), no early stop (cap or unpriced round).
+- (e) Scope by code = hand scope, 63 of 63 (above).
+
+**Report also.** Cost per call and total (every round metered, books = sum of rounds, unknown never 0), every dropped suggestion with its reason, stray entries, thinking status per call (F144 saw `applied` with thinking off; unexplained, still not claimed).
+
+**$0 self-check (`--dry`, 2026-11-03, before any paid call).** Scope by code vs hand: 63 of 63 agree (code in 8 / out 55). All hand labels kept by the filter (0 dropped, 10 label instances, `listItems 3` kept). Eight can-fail controls behave (off-list rule, a number or word not named, wrong section count, an extra field all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT, the filter cannot judge meaning, scored `wrong`). The scope rule can fail: with the word-number test removed, a temporary copy disagreed on 2 guardrails (m7-walk-3 l3 g1, ticket-triage-6 l2 g3). Paid command (key from env): `FIREWORKS_API_KEY=$(pass amr/fireworks_api | head -n1 | tr -d '\r\n') node .claude/scratch/f144b/poc.mjs`.
