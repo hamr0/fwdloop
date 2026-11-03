@@ -6197,3 +6197,33 @@ Tool schema, verbatim (variants one per line; eleven: ten offered rules plus `no
 **Report also (not deciding).** Entries that carried a field the form does not offer (`fieldNotOffered` per call; should be 0 if the provider enforces the form), entries that fail the schema check (`schemaErrors`), cost per call and total, every dropped suggestion with its reason, thinking status per call. Not claimed in advance: that this lifts cause 2 (the per-section reading of "all under 600 words"; 5 of 6 calls in F144b); it is not what this run changes, so a (b) miss from m7-walk-2/3 and am29-walk-2 line 3 is expected to remain possible, and is reported as such, not refit.
 
 **$0 self-check (`--dry`, 2026-11-03, before any paid call; exit 0).** Scope by code vs hand: 63 of 63 agree (code in 8 / out 55). All hand labels kept by the filter (0 dropped). Every hand label (with `line`, `guardrail` added) validates against the new schema (10 of 10 valid, `none` valid), checked by a small in-script JSON-schema validator (keywords used: type, const, anyOf, properties, required, additionalProperties, items, minItems, minimum; no dependency). Seven can-fail controls are REJECTED by the schema (`maxWords` + `phrases: []`, `maxWords` + `size`, `sections` + `wordsPerSection`, `none` + `value`, an off-list rule, `maxWords` without `value`, a model-set `id`); the eight F144b filter controls still behave (7 dropped, `maxLines 3` for "exactly 3 bullets" kept and scored `wrong`). Hold per call (ceiling) $0.0432; 18 calls at the F144b rate (about $0.0008) is about $0.015; the script stops before a call whose hold would cross the cap. Paid command (key from env): `FIREWORKS_API_KEY=$(pass amr/fireworks_api | head -n1 | tr -d '\r\n') node .claude/scratch/f144c/poc.mjs`.
+
+### F144c RESULT (2026-11-03, run after the pre-registration above; code = ed9bdde)
+
+Run: `.claude/scratch/f144c/result-2026-11-03T19-00-47-854Z.json`, bareguard 0.31.0, deepseek-v4p1-flash via Fireworks, thinking `applied` on every call, 18 of 18 calls, 1 round each, spent $0.021926 (cap $0.10), `stoppedEarly` null. Scored exactly against the pre-registered marks, no refit.
+
+**Verdict: FAIL on (b), 15 of 24 (bar >= 20).**
+
+- (a) PASS. 0 kept checks off the list or carrying a number or word the guardrail never named (0 kept outside scope); the second reader (`verifyKept`) agrees on all 15 kept checks.
+- (b) FAIL. In-scope 24 pairs: 15 match, 7 dropped, 2 none, 0 wrong kept. 15 < 20.
+- (c) Recorded: max in-scope guardrails with nothing kept per call = 1 (`cantCheck` 1 on the am29-walk-2, m7-walk-2 and m7-walk-3 calls; 0 elsewhere). Never above 3.
+- (d) PASS. 0 provider errors, 0 non-tool stops (every `stopReason` tool_use), 0 schema errors, no early stop.
+- (e) PASS. Scope by code = hand scope, 63 of 63 (`scopeDisagreements` 0).
+
+Report (not deciding): `fieldNotOffered` 0 on all 18 calls and `schemaErrors` 0, so the form held (unknown before the run whether Fireworks enforces it, or the model simply obeyed it; not separated here). `strays` 6 in total (m14-walk-3-2 calls 2 and 3, out of scope), none kept.
+
+Per in-scope guardrail (3 calls each):
+- am29-walk-2 line 3 "3 sections, about 180 words each, under 600 words": 0 of 3. `sections` (calls 1-2) and `sectionWords` wordsPerSection 180 (call 3), names ["how it matches the JD","work history","skills"]; all dropped, the name "how it matches the JD" is not in the guardrail's words. An invented section name.
+- m7-walk-2 line 3 "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words": 0 of 3. Calls 1-2 `sectionWords` wordsPerSection 600 with the three named sections (per-section reading), dropped "600 is not a number the guardrail names" (the filter reads it as naming none); call 3 `none`.
+- m7-walk-3 line 3 (same guardrail text): 0 of 3. Calls 1 and 3 the same dropped `sectionWords` 600; call 2 `none`.
+- am29-walk-2 line 4 "under 100 words": 3 of 3 match.
+- m14-walk-3-2 line 3 "exactly 3 bullets": 3 of 3 match (`listItems` 3).
+- m14-walk-5 line 3 "exactly 3 bullets": 3 of 3 match (`listItems` 3).
+- m14-walk-5 line 5 "under 80 words": 3 of 3 match (`maxWords` 80).
+- ticket-triage-6 line 2 g3 "at most 3 words": 3 of 3 match.
+
+All 9 misses are the two resume-section guardrails (am29-walk-2 line 3: 3; m7-walk-2 and m7-walk-3 line 3: 6).
+
+Reading. The per-rule form fixed F144b cause 1: stray fields are 0 and `maxWords 80` and `listItems 3` now pass. Cause 2 remains (the model reads "all under 600 words" per section, 4 of 6 m7 calls), and am29-walk-2 line 3 shows an invented section name. Across F144, F144b and F144c, 0 wrong kept in 141 calls. Every miss becomes a code ask ("I can't check this"), never a wrong check.
+
+Standing of the bar: the >= 20 of 24 mark was this POC's own pre-registered bar, not signed am16 text. am16's Done-when is the m14-walk-5 5-draft walk plus the $0 rescan. The next step is hamr's to rule.
