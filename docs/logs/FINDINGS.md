@@ -5565,3 +5565,11 @@ Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the w
 **(c)** ticket-triage-4/run-6: the sent file is `{text}` (802 bytes), the `.md` would be that paragraph. That run is a page source, so it already passes the gate and shows the Result tab; its `tickets` grid key is absent on this run (not the schedule-source run), so the grid is untouched by item 3, which changes only the sent file. m10-walk-flights-5/run-1: sent file is `results` with 3 entries (1549 bytes); under item 3 as signed that has no flat form.
 
 **Risk to Tickets.** None found: all 14 Tickets artifacts are `{text}` and round-trip. Unchecked: the schedule-source run with the `tickets` grid (not run here), and that the `.md` rename keeps the by-number re-arrival (name-based dedupe was not read).
+
+## F140 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.40 total; M10 am15 exit walk; written before any paid call, NOT yet run)
+
+**Riskiest assumption.** Told the am15 rule and refused at $0 when a check uses a `mustCarry` word the guardrail never named, or `linesPerInvoice` without "per invoice" in the guardrail, the drafter leaves line 3 (`~ exactly 3 bullets`) `Not checked` in every draft.
+
+**Job.** The same card as F138 (inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, destination `/home/hamr/fwdloop-out`, cap 0.5, ask wait 1h; job box verbatim as in F138), drafted through `node bin/fwdloop draft` with HOME=<mkdtemp>, a copy of the config, thinking off, prose by `cardToProse`. Models: `deepseek-flash` and Baseten Muse `meta-models/muse-spark-open-1026`, 5 drafts each = 10.
+
+**PASS (signed Done-when, on the letter).** All 10 drafts green; in every green draft line 3 is `Not checked`. Any red final draft, or line 3 carrying any shape, = FAIL. Not refit afterwards. Plus: a test per refusal fails first; the $0 rescan (scratchpad/scan.mjs from F138) refuses none of the 33 good signed jobs. Per draft recorded: model, verdict, rounds, line 3 and line 5 closes, cost.
