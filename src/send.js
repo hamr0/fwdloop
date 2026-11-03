@@ -25,6 +25,7 @@ if (!FOUND_WRITE_TOOL) throw new Error('send: bare-agent/tools does not export a
 const WRITE_TOOL = FOUND_WRITE_TOOL;
 
 /** one value as a line's text: a string as it is, a number or boolean written out; a list of plain values joined by ", "; a nested object as `name.key` lines (never braces) */
+/** @param {string} name @param {any} v @returns {string[]} */
 function valueLines(name, v) {
   if (v === null || v === undefined) return [`${name}: `];
   if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return [`${name}: ${v}`];
@@ -34,13 +35,14 @@ function valueLines(name, v) {
 }
 
 /** a list of results: every item an object holding a `values` object (flights' `results`, with a `quote` that is not written) */
+/** @param {any} v */
 const isResultList = (v) => Array.isArray(v) && v.length > 0 && v.every((r) => r && typeof r === 'object' && !Array.isArray(r) && r.values && typeof r.values === 'object' && !Array.isArray(r.values));
 
 /**
  * M15 items 3 and am1: the accepted answer as the plain-text file the send writes. `{text}` alone is the text exactly; any other flat object is one
  * `name: value` line per field; a list of results is one `## Result k` block per result with one `name: value` line per value, in the order the answer holds
  * them (the quote is not written). Never JSON braces, never check marks. What it throws away: a result's `quote`.
- * @param {Record<string, unknown>} content @returns {string}
+ * @param {Record<string, any>} content @returns {string}
  */
 export function renderSentMd(content) {
   const keys = Object.keys(content);
@@ -112,7 +114,7 @@ export async function sendViaPrimitive(target, filename, content, acceptedSha256
   let present = true;
   try { lstatSync(path); } catch (err) { if (err.code === 'ENOENT') present = false; }
   if (present) return { ok: false, red: `send: "${path}" already exists — never overwritten (nothing shipped)` };
-  await WRITE_TOOL.execute({ path, content: renderSentMd(content) });
+  await WRITE_TOOL.execute({ path, content: renderSentMd(/** @type {Record<string, unknown>} */ (content)) });
 
   const bytes = readFileSync(path);
   if (bytes.byteLength === 0) {

@@ -2780,6 +2780,14 @@
     return resultField("Page read", '<div class="ro-value" data-testid="' + testid + '" style="overflow-wrap:anywhere"><a href="' + escapeXml(url) +
       '" target="_blank" rel="noopener noreferrer">' + escapeXml(url) + '</a><div class="hint" data-testid="result-page-note">' + escapeXml(note || "") + '</div></div>');
   }
+  // M15 item 5: the sent file(s), at the top: a link that opens the file, or the server's words (gone / changed) in its place. A run that sent nothing draws nothing.
+  function resultFileLinks(data){
+    return (data.delivered || []).map(function(d){
+      return resultField("Saved", d.words ? '<div class="rs-warn" data-testid="result-file-top-gone">' + escapeXml(d.name) + ' \u2014 ' + escapeXml(d.words) + '</div>'
+        : '<div class="ro-value" data-testid="result-file-top" style="overflow-wrap:anywhere"><a href="/api/runs/' + encodeURIComponent(data.flow) + '/' + encodeURIComponent(data.runId) +
+          '/download?i=' + d.i + '&view=1" target="_blank" rel="noopener noreferrer">' + escapeXml(d.name) + '</a></div>');
+    }).join("");
+  }
   // `own` = the Result tab read 2+ pages, so this line's box shows its own page
   function resultLineCard(line, own, note){
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
@@ -2921,7 +2929,7 @@
         ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
-      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + resultFileLinks(data) + '</div>';
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){

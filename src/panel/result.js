@@ -15,7 +15,8 @@ import { readFileInside } from '../flow.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { NOT_CHECKED_LABEL } from '../checked.js';
-import { checkSendDestination } from '../runner.js';
+import { checkSendDestination, readArtifactResult } from '../runner.js';
+import { flowTypeOf } from '../declaration.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
 import { readLineSection, LINE_CHECKS_FILE } from '../line-checks.js';
@@ -47,6 +48,15 @@ const isStr = (x) => typeof x === 'string';
 export function isResultRun(arbiter) {
   const sources = Array.isArray(arbiter?.sources) ? arbiter.sources : [];
   return sources.some((s) => s && (s.kind === 'page' || (isStr(s.path) && (isCellsPath(s.path) || s.path.toLowerCase().endsWith('.docx')))));
+}
+
+/**
+ * M15 item 1: the ONE decider of the Result tab and of its cards. Every job has it; a Tickets MCP job keeps what it had (M13 am2: the grid, and M10's cards only when
+ * it reads a page, a CSV or a .docx). Read off the signed declaration and arbiter.
+ * @param {any} arbiter @param {any} declaration @returns {boolean}
+ */
+export function hasResultCards(arbiter, declaration) {
+  return flowTypeOf(declaration) === 'tickets' ? isResultRun(arbiter) : true;
 }
 
 /** The run's check type: its distinct close classes, in step order (`hitl + softgreen`). `—` for a declaration with none.
@@ -245,6 +255,14 @@ export function buildResult({
       checks: checksOfLine((declaration?.steps ?? []).filter((st) => st.fromLine === l.n), diary),
       sheet: sheetBlocks.find((b) => b.line === l.n) ?? null,
     };
+    // M15 item 2: a line whose step wrote text (no facts) shows that text, from the step's own artifact (`{text}`); a sheet line keeps its block
+    if (!c && out.sheet === null) {
+      const written = (declaration?.steps ?? []).filter((st) => st.fromLine === l.n).map((st) => {
+        const a = readArtifactResult(runDir, st.emits);
+        return a.ok && isStr(a.value?.text) && a.value.text !== '' ? a.value.text : null;
+      }).filter((x) => x !== null);
+      if (written.length > 0) out.answer = written.join('\n\n');
+    }
     if (c) {
       out.source = c.source;
       out.page = urls.get(c.source) ?? null;

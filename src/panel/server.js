@@ -644,7 +644,8 @@ export function handleRequest(req, res, opts) {
       res.writeHead(200, {
         'content-type': `${got.type}; charset=utf-8`,
         'content-length': got.buf.length,
-        'content-disposition': `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(got.name)}`,
+        // M15 item 5: `?view=1` (the top card's file link) opens the saved file in the tab; its type is text/plain or a download type, nosniff stays
+        'content-disposition': `${url.searchParams.get('view') === '1' && /^(text\/plain|text\/csv|application\/json)$/.test(got.type) ? 'inline' : 'attachment'}; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(got.name)}`,
         'x-content-type-options': 'nosniff',
       });
       if (method === 'HEAD') res.end(); else res.end(got.buf);

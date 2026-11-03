@@ -19,7 +19,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
-import { answerAsk, writeAskArchive } from '../src/ask.js';
+import { answerAsk, serializeArtifact, writeAskArchive } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { sandboxSend, SEND_DIR } from './send-sandbox.js';
 
@@ -31,6 +31,7 @@ assert.equal(catalogueLoaded.ok, true, catalogueLoaded.ok ? '' : catalogueLoaded
 const CATALOGUE = catalogueLoaded.primitives;
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
+// M15 item 3: the shipped file is the accepted answer's text, not its JSON; the accepted artifact is `{text}`, so its JSON hash is the hash of the text put back in it
 const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
 
@@ -108,7 +109,7 @@ test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after l
     assert.equal(done.outcome, 'complete', done.red);
     const files = shippedFiles(runId);
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), a.recordedAtAsk1);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.recordedAtAsk1);
   } finally { cleanShipped(runId); }
 });
 
@@ -200,7 +201,7 @@ test('M4b am2: reject -> re-park -> accept at ask 1, then ask 2, send in a later
     assert.equal(readFileSync(rejectedArchive, 'utf8'), before, 'existing archive not rewritten');
     const files = shippedFiles(runId);
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), a.acceptedHash);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.acceptedHash);
     assert.equal(readJson(markerOf(a.runDir, a.acceptedAskId)).artifactSha256, a.acceptedHash);
   } finally { cleanShipped(runId); }
 });
@@ -228,7 +229,7 @@ test('M4b am2: a REJECTED ask\'s marker never supplies the hash, even if it carr
     assert.equal(done.outcome, 'complete', done.red);
     const files = shippedFiles(runId);
     assert.equal(files.length, 1);
-    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), a.acceptedHash);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.acceptedHash);
   } finally { cleanShipped(runId); }
 });
 

@@ -47,7 +47,7 @@ import {
   NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
-import { isResultRun, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
+import { hasResultCards, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { ticketListOf, ticketScheduleOf } from './tickets.js';
 import { buildJobGrid } from './jobgrid.js';
 import { readChecks } from '../diary.js';
@@ -1813,11 +1813,11 @@ export function getRunDetail({
     needsYou: (({ tag, removable }) => ({ tag, removable }))(needsYouOf({
       runDir: run.runDir, ctx, glyph, controls: runControls(ctx, glyph, label), nowMs: now(), reopenAt: reopenableAt(run.runDir, ctx),
     })),
-    // M10 am4: the Result tab shows for a job that reads a page, a CSV or a .docx; `checkType` is its distinct close classes (the tab's top card)
-    hasResult: isResultRun(ctx.arbiter),
+    // M10 am4 / M15 item 1: the Result tab shows for every job but a Tickets MCP one (that keeps the grid, and M10's cards when it reads a page); `checkType` is its distinct close classes (the tab's top card)
+    hasResult: ctx.flowRead.ok && hasResultCards(ctx.arbiter, ctx.flowRead.declaration),
     // M13 am2 item 2: the ONE decider of the Result tab. The tab shows for a job that has M10's Result page (`hasResult`) or for a Tickets MCP job (the grid, `hasGrid`); a plain or MCP job keeps what it had before M13
     hasGrid,
-    resultTab: isResultRun(ctx.arbiter) || hasGrid,
+    resultTab: (ctx.flowRead.ok && hasResultCards(ctx.arbiter, ctx.flowRead.declaration)) || hasGrid,
     checkType: ctx.flowRead.ok ? checkTypeOf(ctx.flowRead.declaration) : '\u2014',
     // M9 piece 6: the block at the top of the run page (ENDED / NEXT, SCHEDULED / NEXT), words set by code
     summary: runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }),
@@ -2250,7 +2250,7 @@ function resultContext({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok || !readdirInside(run.flowDir, 'runs').includes(runId)) return null; // the gateway lists real, non-symlink run folders only
   const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue);
-  if (!ctx.flowRead.ok || !isResultRun(ctx.arbiter)) return null;
+  if (!ctx.flowRead.ok || !hasResultCards(ctx.arbiter, ctx.flowRead.declaration)) return null;
   return { run, ctx };
 }
 

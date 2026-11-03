@@ -83,7 +83,9 @@ async function open(width, {
 //  1. fwdloop's Run tab words its money line "<spend> of <cap> cap" (its own caption); bareloop's has no " cap".
 //  2. fwdloop's routes are /api/runs/<flow>/<runId>/..., bareloop's /api/runs/<runid>/...
 const norm = (h) => h.replace(/\s+/g, ' ').replace(/> </g, '><').replace(/ open=""/g, '').trim();
-const ours = (h) => norm(h).replace('$0.04 of $1.00 cap<', '$0.04 of $1.00<').replace('/api/runs/flight-revised/run-3/download', '/api/runs/mvfphtwl/download');
+// M15 item 5 adds the sent file's link to the top card (bareloop's top card has none): the one deviation from bareloop's DOM, taken out before the compare (tested in m15-result.test.js)
+const M15_TOP_FILE = /<div class="field"><label>Saved<\/label><div class="ro-value" data-testid="result-file-top[^"]*"[^>]*>.*?<\/div><\/div>/;
+const ours = (h) => norm(h).replace(M15_TOP_FILE, '').replace('$0.04 of $1.00 cap<', '$0.04 of $1.00<').replace('/api/runs/flight-revised/run-3/download', '/api/runs/mvfphtwl/download');
 
 const DETAIL = { hasResult: true, word: 'passed', glyph: '[✓]', checkType: 'rubric', flow: 'flight-revised', runId: 'run-3', spend: '$0.04', capUsd: 1, wallMs: 91000 };
 // the label rides the payload (am41 item 3: the page holds no copy of these words); bareloop's page has it in the source, the text drawn is the same
