@@ -6224,6 +6224,6 @@ Per in-scope guardrail (3 calls each):
 
 All 9 misses are the two resume-section guardrails (am29-walk-2 line 3: 3; m7-walk-2 and m7-walk-3 line 3: 6).
 
-Reading. The per-rule form fixed F144b cause 1: stray fields are 0 and `maxWords 80` and `listItems 3` now pass. Cause 2 remains (the model reads "all under 600 words" per section, 4 of 6 m7 calls), and am29-walk-2 line 3 shows an invented section name. Across F144, F144b and F144c, 0 wrong kept in 141 calls. Every miss becomes a code ask ("I can't check this"), never a wrong check.
+Reading. The per-rule form fixed F144b cause 1: stray fields are 0 and `maxWords 80` and `listItems 3` now pass. Cause 2 remains (the model reads "all under 600 words" per section, 4 of 6 m7 calls), and am29-walk-2 line 3 shows an invented section name. Across F144, F144b and F144c, 0 wrong kept in 135 calls (corrected from 141, orchestrator's miscount). Every miss becomes a code ask ("I can't check this"), never a wrong check.
 
 Standing of the bar: the >= 20 of 24 mark was this POC's own pre-registered bar, not signed am16 text. am16's Done-when is the m14-walk-5 5-draft walk plus the $0 rescan. The next step is hamr's to rule.
