@@ -5573,3 +5573,23 @@ Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the w
 **Job.** The same card as F138 (inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, destination `/home/hamr/fwdloop-out`, cap 0.5, ask wait 1h; job box verbatim as in F138), drafted through `node bin/fwdloop draft` with HOME=<mkdtemp>, a copy of the config, thinking off, prose by `cardToProse`. Models: `deepseek-flash` and Baseten Muse `meta-models/muse-spark-open-1026`, 5 drafts each = 10.
 
 **PASS (signed Done-when, on the letter).** All 10 drafts green; in every green draft line 3 is `Not checked`. Any red final draft, or line 3 carrying any shape, = FAIL. Not refit afterwards. Plus: a test per refusal fails first; the $0 rescan (scratchpad/scan.mjs from F138) refuses none of the 33 good signed jobs. Per draft recorded: model, verdict, rounds, line 3 and line 5 closes, cost.
+
+### F140 RESULT (2026-11-03, run after the pre-registration above; code = cd9b0f0, M10 am15)
+
+**Verdict: FAIL on the letter** (8 of 10 green with line 3 Not checked; deepseek-flash 1 and 2 ended RED after 3 rounds). Spend $0.0804 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off, `--provider/--model` named), the F138 prose. No patch made after the run. (A first attempt had no key because `pass` ran under the overridden HOME: refused at $0, nothing spent.)
+
+| model | n | verdict | rounds | line 3 | line 5 | cost |
+|---|---|---|---|---|---|---|
+| deepseek-flash | 1 | RED | 3 | final try `softgreen {mustCarry:["bullets"]}` | n/a | 0.0097 |
+| deepseek-flash | 2 | RED | 3 | final try `softgreen {mustCarry:["bullets"]}` | n/a | 0.0097 |
+| deepseek-flash | 3 | green | 1 | hitl, Not checked | softgreen maxWords 80 | 0.0031 |
+| deepseek-flash | 4 | green | 2 | hitl, Not checked | softgreen maxWords 80 | 0.0063 |
+| deepseek-flash | 5 | green | 2 | hitl, Not checked | softgreen maxWords 80 | 0.0062 |
+| muse | 1 | green | 2 | hitl, Not checked | hitl, Not checked | 0.0147 |
+| muse | 2-5 | green x4 | 1 | hitl, Not checked x4 | hitl, Not checked x4 | 0.0077, 0.0077, 0.0074, 0.0079 |
+
+**Why the two reds.** Neither final shape was refused by the am15 rule: "bullets" IS a word of the guardrail `exactly 3 bullets`, so `mustCarry ["bullets"]` is legal under am15 as signed. They ended red on the older rules (`mustCarry` without `linesPerInvoice`; the guardrail's 3 not carried; line 3 marked unjudgeable beside a softgreen class), 3 rounds used. The am15 refusal itself did not fire in these 10 drafts; its two tests prove it at $0. Also seen: a line 5 `79 words` red and a send-line red in rounds 1-2 (older rules), recovered or not.
+
+**Not checked.** Whether am15 should also forbid a `mustCarry` word that is the guardrail's own noun (a word-count form of the same invention); that is hamr's to rule.
+
+**$0 rescan with the built code (36 signed flows, 78 saved drafts).** The 33 good signed jobs: 0 refused. Refused: m14-walk-1 (send-line guardrail, F135) and m14-walk-3-2 (line 3 count, F137) only, the intended catches, same as F138; plus the same 5 old drafts.
