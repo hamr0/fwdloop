@@ -5538,3 +5538,30 @@ Spec: signed M15 items 2, 3, 5. No src edits, no paid calls; scripts in the scra
 - **(a) Every real sent artifact turns into a `.md` per item 3.** Corpus: every file in `~/fwdloop-out` whose run folder still exists, plus that run's accepted artifact (found via the ask's artifact sha256 / the send step's ask emit, matched to `artifacts/*.json`). Rule under test: an artifact that is `{text: string}` becomes the text itself; any other flat shape becomes one `name: value` line per field. **PASS** = every artifact in the corpus is either `{text}` (round-trip: `.md` equals the text field byte for byte) or flat scalar fields, and no `.md` holds `{`, `}`, a quote used as syntax, or a check mark. **FAIL** = any artifact with a nested object or array value, or a non-string text field; each is listed with flow/run, since those are the real open question. Counted by job type (plain, page/flights, CSV, docx, MCP, Tickets).
 - **(b) `buildResult` for a plain run.** Call `buildResult` on m14-walk-5 run-1 with `isResultRun` bypassed (read-only scratch script importing the repo module). **PASS** = returns per-line data with no throw. Recorded either way: what item 2 needs that is missing (where a text step's text would come from).
 - **(c) Tickets and flights.** Record what the sent file holds today for ticket-triage-4 run-6 and m10-walk-flights-5 run-1, and what the `.md` would be. **PASS** = the Tickets artifact fits the item 3 rule without loss of the grid's data (the grid stays; only the sent file changes).
+
+### F139 RESULT (2026-11-03, $0, read-only; scripts `scratchpad/m15-poc/corpus.mjs`, `br2.mjs`; repo at a6ddbb1)
+
+**(a) Corpus.** 104 files in `~/fwdloop-out`; 59 have a run folder still on disk. In all 59 the sent file is byte-identical (sha256) to one file in that run's `artifacts/`, so identity holds. The other 45 files (aging-live-4, am29, m7-walk, new-close*, run-muw*) have no run folder and are counted only for shape.
+
+| Type (59 with a run folder) | Count | Shape sent today |
+|---|---|---|
+| Plain (m7-walk 7, am29 1, browse-check 1, m14-walk-5 1) | 10 | `{text}` |
+| Tickets (ticket-triage*, runs 1-8) | 14 | `{text}` |
+| Page / flights (flights-learn-1, m10-walk-flights-4 and -5) | 3 | `{results:[{quote, values:{price,airline,departure,arrival,duration}}]}` |
+| CSV, cite-form era (aging-live 21, m10b-aging 4, m10b-expenses 2, m10-walk-csv 2, exit-walk-1 1, thinking-check-1 2) | 32 | nested objects, listed below |
+| docx, MCP-tool | 0 | none in the corpus |
+
+Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the would-be `.md` exactly (0 round-trip failures), with no braces and no check marks in any text.
+
+**Shapes that do not fit "text only, or one `name: value` line per field" (35 of 59 with a run folder):**
+- Flights, `results: array` of objects each holding `quote` plus a nested `values` object: flights-learn-1/run-1, m10-walk-flights-4/run-1, m10-walk-flights-5/run-1. This is the one that matters: the signed example (flights' facts) is not flat.
+- Cite-form CSV, all retired and refused at start now: `text:string + cells:object` (aging-live-4 runs 1, 10-13 etc., exit-walk-1/run-1, thinking-check-1/run-1 and run-2), `fields:object` (m10-walk-csv/run-1), `expenses:object` (m10-walk-csv-4/run-1), and the m10b-* ones (`daysPastDue`, `bucketByRow`, `buckets`, `daysOverdue`, `invoiceCount`, `over500*`, `expense*`: each an object).
+- Old `text:string + lines:array` (new-close1, new-close2; no run folder).
+
+**(a) FAIL on the letter** (35 nested). Every `{text}` artifact passes. The 32 CSV ones are retired forms; only the 3 flights artifacts are a live open question.
+
+**(b) PASS.** `getRunResult` returns `null` for m14-walk-5 run-1 today (the `isResultRun` gate: no page, CSV or docx source). With the gate removed in a scratch copy of `src` (repo untouched) `buildResult` returns without throwing: 3 lines (1, 3, 5), each `kind:"text"`, `facts`/`rows` absent, `file:null`, per-line `checks` of 2, 2 and 4, rule `exactly 3 bullets` on line 3 and `under 80 words` on line 5, the top-level Not checked list with 5 items, and `delivered` = the `.json` (431 bytes, state ok). Missing for item 2: the text itself. Line to step to artifact is `steps[].fromLine -> emits` (line 1 -> `garden_lines.json`, 3 -> `week_jobs.json`, 5 -> `neighbour_note.json`, each `{text}`). Line-level `notChecked` is `[]` for text lines (only the top-level list is filled). `delivered` must switch to the `.md` and carry its recorded sha (item 4/5). Also: only line 5's text is what the send ships (`final_out` is a copy of the closing note), lines 1 and 3 appear only on the card.
+
+**(c)** ticket-triage-4/run-6: the sent file is `{text}` (802 bytes), the `.md` would be that paragraph. That run is a page source, so it already passes the gate and shows the Result tab; its `tickets` grid key is absent on this run (not the schedule-source run), so the grid is untouched by item 3, which changes only the sent file. m10-walk-flights-5/run-1: sent file is `results` with 3 entries (1549 bytes); under item 3 as signed that has no flat form.
+
+**Risk to Tickets.** None found: all 14 Tickets artifacts are `{text}` and round-trip. Unchecked: the schedule-source run with the `tickets` grid (not run here), and that the `.md` rename keeps the by-number re-arrival (name-based dedupe was not read).
