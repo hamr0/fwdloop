@@ -502,7 +502,7 @@
   .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
   .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
   .audit-judged{color:var(--text-faint);}
-  .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
+  .audit-fold-label{color:var(--accent);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
   .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
   .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
   .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
@@ -528,14 +528,14 @@
   .fold-list{margin-top:10px;}
   .fgrid .cell.fail[aria-expanded="true"]{outline:2px solid var(--red);outline-offset:1px;}
   .fx-errors{margin:8px 0 4px;min-width:0;}
-  .fx-label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
+  .fx-label{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
   .fx-row{min-width:0;}
   .fx-rowhead{display:flex;align-items:baseline;gap:8px;width:100%;min-width:0;min-height:32px;padding:3px 4px;border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;}
   button.fx-rowhead{cursor:pointer;}
   button.fx-rowhead:hover{background:var(--panel2);}
   button.fx-rowhead:focus-visible,.fx-more:focus-visible,.cell.fail:focus-visible{outline:2px solid var(--red);outline-offset:1px;}
   .fx-caret{flex:none;width:12px;color:var(--text-faint);}
-  .fx-try{flex:none;font-weight:700;}
+  .fx-try{flex:none;font-weight:700;color:var(--accent);}
   .fx-chk{flex:none;white-space:nowrap;}
   .fx-first{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);}
   .fx-faint,.fx-count{color:var(--text-faint);}
@@ -552,6 +552,8 @@
   .btn.hints:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .cell.none{color:var(--text-faint);cursor:default;font-weight:400;}
   tr.hint-row td{color:var(--text-faint);}
+  tr.hint-row td.q{color:var(--accent);}
+  .audit-group th{color:var(--accent);}
   .fx-row.hintrow.open>.fx-rowhead{background:var(--panel2);}
   .fx-row.hintrow .fx-body{border-left-color:var(--accent);background:var(--panel2);}
   .fx-row.hintrow .fx-try{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}

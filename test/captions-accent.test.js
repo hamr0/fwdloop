@@ -44,3 +44,13 @@ test('hamr 2026-11-02: Run summary row captions are accent, same size, bold 700;
   assert.match(r, /color:var\(--accent\)/); assert.doesNotMatch(r, /text-faint|text-dim|font-size/); assert.match(r, /font-weight:\s*700/, 'hamr 2026-11-03: labels bold');
   assert.doesNotMatch(body('.sum-val{'), /accent/, 'values untouched');
 });
+
+test('hamr 2026-11-03: Audit tab captions are accent, size and weight kept; values and state colours untouched', () => {
+  for (const sel of ['.audit-fold-label{', '.fx-label{', 'tr.hint-row td.q{', '.fx-try{', '.audit-group th{']) {
+    assert.match(body(sel), /color:var\(--accent\)/, sel);
+  }
+  assert.match(body('.fx-try{'), /font-weight:700/, 'try label weight kept');
+  assert.match(body('.audit-fold-label{'), /font-size:10px/); assert.match(body('.fx-label{'), /font-size:11px/);
+  assert.match(body('.cell.fail{'), /color:var\(--red\)/); assert.match(body('.cell.pass{'), /color:var\(--green\)/);
+  assert.doesNotMatch(body('.fx-first{'), /accent/); assert.doesNotMatch(body('.audit-tally{'), /accent/);
+});
