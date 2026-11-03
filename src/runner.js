@@ -253,7 +253,7 @@ export function buildExecutorContext(opts) {
  *  construction test, negative vi). Walks any depth, any key, any array
  *  entry; also catches a bare function value anywhere in the tree. */
 const FORBIDDEN_CONTEXT_KEYS = Object.freeze([
-  'close', 'shape', 'cap', 'strike', 'maxWords', 'sections', 'linesPerInvoice', 'mustCarry',
+  'close', 'shape', 'cap', 'strike', 'maxWords', 'sections', 'linesPerInvoice', 'mustCarry', 'picked',
 ]);
 
 /**

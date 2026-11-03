@@ -15,14 +15,14 @@ const finish = async (w, over = {}) => {
 };
 const lines = (l) => l.map((s) => `${s.id}:${s.status}`);
 
-test('C1: a green draft carries its list: thinking, inputs, drafted, plan checks, rubrics (line 3 is shape-checked); no tries', async () => {
+test('C1: a green draft carries its list: thinking, inputs, drafted, plan checks; no rubrics (no line carries a picked check, M10 am16); no tries', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_THINKING_STATUS: 'applied' } });
   const { j } = await finish(w);
   assert.equal(j.phase, 'green');
-  assert.deepEqual(lines(j.stepList), ['thinking:done', 'inputs:done', 'drafted:done', 'checks:done', 'rubrics:done']);
+  assert.deepEqual(lines(j.stepList), ['thinking:done', 'inputs:done', 'drafted:done', 'checks:done']);
   assert.equal(j.stepList[0].label, 'thinking off');
   assert.equal(j.stepList[1].label, 'inputs · resume: 1 heading · jd: 1 heading');
-  assert.equal(j.stepList.at(-1).label, 'rubrics · line 3');
+  assert.equal(j.stepList.some((s) => s.id === 'rubrics'), false);
   assert.ok(j.stepList.every((s) => s.details.length === 0));
 });
 

@@ -884,6 +884,8 @@ async function cmdDraft(rest) {
       'no-questions': { type: 'boolean' },
       // M10 piece 3: the rules the person left Not checked ("drop it"), as `<line>.<rule>` pairs, e.g. `1.2,3.1` (the panel passes this to the redraft after the answers)
       left: { type: 'string' },
+      // M10 am16: the checks the person picked and the answers that were not a pick, as JSON (the panel passes this to the redraft after the answers)
+      picks: { type: 'string' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
@@ -907,6 +909,13 @@ async function cmdDraft(rest) {
     const m = /^(\d+)\.(\d+)$/.exec(pair.trim());
     if (m === null || Number(m[1]) < 1 || Number(m[2]) < 1) fail(`draft: --left takes <line>.<rule> pairs like 1.2,3.1, got "${values.left}"`);
     leftRules.push({ line: Number(m[1]), rule: Number(m[2]) });
+  }
+
+  /** @type {any[]|undefined} */
+  let checkPicks;
+  if (values.picks !== undefined) {
+    try { checkPicks = JSON.parse(values.picks); } catch { checkPicks = undefined; }
+    if (!Array.isArray(checkPicks) || checkPicks.some((x) => !x || !Number.isInteger(x.line) || !Number.isInteger(x.rule))) fail('draft: --picks takes a JSON list of {line, rule, check|null, added?, own?}');
   }
 
   let injected = {};
@@ -967,6 +976,7 @@ async function cmdDraft(rest) {
     name: values.name,
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
+    ...(checkPicks === undefined ? {} : { checkPicks }),
     draftThinking: values.thinking === true ? 'on' : 'off',
     flowType,
     ...(values.mcp ? { mcpServer: values.mcp } : {}),

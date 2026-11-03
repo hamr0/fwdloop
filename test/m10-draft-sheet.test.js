@@ -124,12 +124,12 @@ const withDocx = async (fn) => {
 };
 test('a word that is a .docx heading is kept; one that is not is Not checked with its reason and nothing is asked', () => withDocx(async (docx) => {
   const kept = fakeProvider([ans(W('fees', 'line 1 rule 1', 'other')), textReply()]);
-  const a = await run(kept, docx);
+  const a = await run(kept, docx, { offerQuestions: false });
   assert.equal(a.stop === 'look-asks', false);
   assert.ok(kept.calls[0].messages[1].content.includes('- Fees') && kept.calls[0].messages[1].content.includes(SHEET_MARK));
   assert.ok(kept.calls[1].messages[0].content.includes("heading 'Fees'"), 'the drafter is told the kept heading');
   const p = fakeProvider([ans(W('Price', 'line 1 rule 1', 'number')), textReply()]);
-  const r = await run(p, docx);
+  const r = await run(p, docx, { offerQuestions: false });
   assert.notEqual(r.stop, 'look-asks');
   assert.deepEqual(r.questions, []);
   assert.ok(r.notChecked.includes('line 1: "under 5000" — there is no heading \'Price\''), r.notChecked.join('|'));

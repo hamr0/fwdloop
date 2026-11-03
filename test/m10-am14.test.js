@@ -1,5 +1,4 @@
-// M10 amendment 14: (1) a guardrail on the send line is refused at $0 (card and drafter pre-flight); (2) a shape check carries every standalone
-// number its line's guardrail names, and none it never named; (3) the drafter is told both rules.
+// M10 amendment 14: (1) a guardrail on the send line is refused at $0 (card and drafter pre-flight). (2) is replaced by M10 am16.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -8,8 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { cardFields, checkCard, cardToProse } from '../src/panel/authorcard.js';
-import { parseSignedText } from '../src/signed-text.js';
-import { checkShapeFitsJobLine, checkSendLineGuardrail, guardrailStandaloneNumbers } from '../src/declaration.js';
+import { checkSendLineGuardrail, guardrailStandaloneNumbers } from '../src/declaration.js';
 import { draft } from '../src/drafter.js';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
@@ -48,21 +46,8 @@ test('drafter pre-flight: a prose file with a guardrail on the send line stops a
   assert.match(r.reds.join(' '), /line 7 is the send line/);
 });
 
-const lines = (() => { const p = parseSignedText(cardToProse(cardFields({ flowName: 'g', job: JOB, inputs: '', destination: '/tmp/x', capUsd: '5', askWait: '1h' }))); return p.lines; })();
-const red = (step) => { const reds = []; checkShapeFitsJobLine(step, 0, lines, reds); return reds; };
-const mk = (fromLine, shape) => ({ fromLine, goal: lines.find((l) => l.n === fromLine).text, close: { class: 'softgreen', shape } });
-
-test('shape check: line 3 "exactly 3 bullets" with a sections-only shape (F137) is red, naming the line and the number', () => {
-  const r = red(mk(3, { sections: ['Jobs for this week'] }));
-  assert.match(r.join(' '), /line 3's guardrail names 3, but the check does not carry 3/);
-});
-
-test('shape check: a shape carrying 3 passes; maxWords 80 on line 5 passes; a number the guardrail never named is red', () => {
-  assert.deepEqual(red(mk(3, { sections: ['List', 'jobs', 'notes'] })), []); // 3 sections carry the 3 (am15: linesPerInvoice/mustCarry need the guardrail's own words)
-  assert.deepEqual(red(mk(5, { maxWords: 80 })), []);
-  assert.match(red(mk(3, { maxWords: 80 })).join(' '), /does not carry 3[\s\S]*maxWords 80, a number the guardrail never names/);
-  assert.match(red(mk(5, { maxWords: 80, linesPerInvoice: 7, mustCarry: ['x'] })).join(' '), /linesPerInvoice 7, a number the guardrail never names/);
-});
+// M10 am16 replaced (2) and am15: the drafter no longer writes a check, so its check cannot carry a made-up number or word. The same refusals now live in code's
+// keep-or-drop (test/m10-am16-checkpick.test.js: "a number the guardrail never names", "a word the guardrail never names").
 
 test('numbers: digits joined to letters are not standalone; commas and decimals read as one number; send-line check is pure', () => {
   assert.deepEqual(guardrailStandaloneNumbers('P1 tickets, 250ish each, under 1,000 words, 2.5 times, 3 bullets'), [1000, 2.5, 3]);
@@ -70,34 +55,12 @@ test('numbers: digits joined to letters are not standalone; commas and decimals 
   assert.equal(checkSendLineGuardrail([{ n: 2, text: 'x', guardrail: 'g' }], { sends: [{ line: 2 }] }).length, 1);
 });
 
-test('the drafter system prompt tells both rules', async (t) => {
+test('the drafter system prompt tells the am16 rule: it writes no check, and the send line has no guardrail', async (t) => {
   const w = world(t);
   const p = fakeProvider([toolReply(validArgs())]);
-  await draft({ proseText: cardToProse(w.card()), provider: p, rates: RATES, modelId: MODEL });
+  await draft({ proseText: cardToProse(w.card({ job: JOB.replace('~ exactly 3 bullets\n', '').replace('~ under 80 words\n', '') })), provider: p, rates: RATES, modelId: MODEL });
   const system = p.calls[0].messages.find((m) => m.role === 'system').content;
-  assert.match(system, /must carry every standalone number[^\n]*leave that line Not checked/i);
+  assert.match(system, /You write no check[^\n]*the human picks each check from a list/i);
   assert.match(system, /send line[^\n]*no guardrail/i);
-});
-
-// M10 amendment 15: a check uses only what its guardrail names (mustCarry words, linesPerInvoice).
-test('am15: a mustCarry word the guardrail never names is red, naming the line and the word (F138 draft 2)', () => {
-  const r = red(mk(3, { linesPerInvoice: 3, mustCarry: ['job'] }));
-  assert.match(r.join(' '), /line 3's check carries the word "job", which the guardrail never names/);
-  assert.match(r.join(' '), /linesPerInvoice, but the guardrail never speaks of lines per invoice/);
-});
-
-test('am15: mustCarry words of the guardrail pass (word edges, any case); a part of a word does not; linesPerInvoice passes with "per invoice"', () => {
-  const ls = [{ n: 2, text: 'Write it', guardrail: 'Each invoice has 3 lines per invoice, with a Total and a due date' }];
-  const run = (shape) => { const reds = []; checkShapeFitsJobLine({ fromLine: 2, goal: 'Write it', close: { class: 'softgreen', shape } }, 0, ls, reds); return reds; };
-  assert.deepEqual(run({ linesPerInvoice: 3, mustCarry: ['total', 'Due Date'] }), []);
-  assert.match(run({ linesPerInvoice: 3, mustCarry: ['tot'] }).join(' '), /word "tot"/);
-  assert.match(run({ linesPerInvoice: 3, mustCarry: ['totals'] }).join(' '), /word "totals"/);
-});
-
-test('am15: the drafter system prompt tells the rule', async (t) => {
-  const w = world(t);
-  const p = fakeProvider([toolReply(validArgs())]);
-  await draft({ proseText: cardToProse(w.card()), provider: p, rates: RATES, modelId: MODEL });
-  const system = p.calls[0].messages.find((m) => m.role === 'system').content;
-  assert.match(system, /mustCarry word must be a word of that guardrail[^\n]*per invoice/i);
+  assert.doesNotMatch(system, /must carry every standalone number|mustCarry word must be a word/);
 });

@@ -744,7 +744,7 @@ export function createAuthor(opts) {
       if (last) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo };
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo, ask: x.ask };
         });
         const adds = all.filter((x) => x.rule !== null);
         const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', adds.map((x) => ({ line: x.line, answer: /** @type {string} */ (x.rule) })));
@@ -756,7 +756,9 @@ export function createAuthor(opts) {
           const ov = view(other, keys);
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
-        redraft = { vet, all, left: all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo })) };
+        // M10 am16 (4): what a shape guardrail's answers picked, for the redraft: the check an agree took, or the person's own words (a `~` rule, no check). A rule left Not checked rides `left`.
+        const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left).map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, added: x.rule, ...(x.own ? { own: true } : {}) }));
+        redraft = { vet, all, picks, left: all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo })) };
       }
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
@@ -778,7 +780,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });

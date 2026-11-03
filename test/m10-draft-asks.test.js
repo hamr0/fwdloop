@@ -94,7 +94,8 @@ test('the redraft after the answers (offerQuestions false) never asks', async ()
 
 test('no page input, no look ask (a CSV-only job is unchanged)', async () => {
   const r = await draft({ proseText: prose().replace(/guardrail: source flights = page:.*\n/, ''), provider: fakeProvider([textReply()]), rates: RATES, modelId: MODEL });
-  assert.notEqual(r.stop, 'look-asks');
+  // (M10 am16: a shape guardrail now asks too, but never as a page look ask)
+  assert.ok((r.questions ?? []).every((q) => q.ask === 'check' || q.ask === 'no-check'), JSON.stringify(r.questions));
 });
 
 // must fail (signed): a guardrail dropped with no reason

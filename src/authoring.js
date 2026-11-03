@@ -23,6 +23,7 @@ import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { factRows } from './citedcheck.js';
+import { plainWords } from './checkwords.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -88,7 +89,7 @@ export function specHash({
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
  * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -113,7 +114,7 @@ export function readQuestions(planDir) {
     }
     return {
       k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }),
-      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null } : {}),
+      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}) } : {}),
     };
   });
   return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
@@ -223,6 +224,8 @@ export function buildReadout({
     if (Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
+    // M10 am16: the checks the person picked, signed with the readout, each in the one set of plain words (typed fields, never model prose)
+    if (Array.isArray(st.close?.shape?.picked)) for (const c of st.close.shape.picked) out.push(`     you picked: ${plainWords(c)}`);
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
@@ -294,7 +297,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, checkPicks, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
@@ -372,7 +375,7 @@ export async function draftToDir({
   // M13 piece 4 (R1): the job's MCP is every tool of that server's newest OK check, read here by code (the server is never started); never checked = a $0 refusal in the drafter's pre-flight
   const mcp = flowType === 'plain' ? null : (mcpPick ?? (typeof mcpServer === 'string' ? mcpPickHere(mcpServer) : { ok: false, say: 'pick an MCP for this flow type' }));
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }),
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }),
     flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }),
   });
   if (result.stop === 'pre-flight') {

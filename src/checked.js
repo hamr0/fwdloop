@@ -12,6 +12,7 @@
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 import { factRows } from './citedcheck.js';
+import { plainWords } from './checkwords.js';
 import { sheetCheckRows } from './sheetchecks.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { splitReadNotes, signedFactNames } from './pagedropwords.js';
@@ -53,6 +54,8 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       if (Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) && shape.sections.length > 0) out.push(`Each of those sections is about ${shape.wordsPerSection} words.`);
       if (Number.isInteger(shape.linesPerInvoice)) out.push(`The output comes in blocks of ${shape.linesPerInvoice} lines.`);
       if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(`Every block carries: ${list(shape.mustCarry)}.`);
+      // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
+      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(`You picked: ${plainWords(c)}.`);
     } else {
       if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
       else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');

@@ -27,6 +27,9 @@ export function validArgs() {
   const d = JSON.parse(readFileSync(new URL('./fixtures/job2.m1.declaration.json', import.meta.url), 'utf8'));
   delete d.inputFacts;
   d.steps[0].primitives = ['read'];
+  // M10 am16: a line-3 guardrail is settled by the person's pick, so the fixture job carries none and the drafter's plan carries no check of its own
+  delete d.guardrailClasses['3'];
+  d.steps[2].close = { class: 'hitl' };
   return d;
 }
 

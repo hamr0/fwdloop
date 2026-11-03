@@ -42,6 +42,7 @@ import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
 import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
 import { lineRules } from './pagebits.js';
+import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
@@ -217,9 +218,14 @@ function checkOwnKeys(obj, allowed, path, reds) {
 export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
 
 /** Shape keys only the MACHINE sets (M4e amendment 15): read from the line's guardrail, never offered to the drafter's model. */
-export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection']);
+export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection', 'picked']);
 
 const SHAPE_TYPE_CHECKS = Object.freeze({
+  // M10 am16: the checks the person picked, set by code (src/checkpick.js applyPicks), each one a bareguard rule with only that rule's own fields
+  picked: {
+    expected: 'a non-empty array of checks, each an object with a text rule of bareguard\'s list',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((c) => isPlainObject(c) && typeof c.rule === 'string' && OFFERED_RULES.includes(c.rule)),
+  },
   wordsPerSection: {
     expected: 'a positive integer',
     check: (v) => Number.isInteger(v) && v > 0,
@@ -442,6 +448,8 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const { shape } = step.close;
   const label = `steps[${i}]`;
   const redsBefore = reds.length;
+  // M10 am16: a shape of picked checks was kept by code (keep-or-drop, src/checkpick.js) and chosen by the person: the older shape rules, which judged the drafter's own check, do not apply to it.
+  if (Array.isArray(shape.picked)) { checkShapeBuilds(shape, label, reds, redsBefore); return; }
   const line = Number.isInteger(step.fromLine) ? lines.find((l) => l.n === step.fromLine) : undefined;
   if (Array.isArray(shape.sections) && shape.sections.every((n) => typeof n === 'string' && n.length > 0) && typeof step.goal === 'string') {
     const goal = step.goal.toLowerCase().replace(/\s+/g, ' ');
@@ -503,43 +511,6 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   } else if (wantPer !== null && shape.maxWords !== undefined && Array.isArray(shape.sections) && shape.sections.length > 0 && wantPer * shape.sections.length > shape.maxWords) {
     // am29: after the draft the sum uses the AI's pick (the $0 check before the draft can only use the largest candidate).
     reds.push(`declaration: line ${line.n}'s guardrail asks about ${wantPer} words for each of ${shape.sections.length} sections (${wantPer * shape.sections.length}) but the check says ${shape.maxWords} words in total. Change the guardrail.`);
-  }
-  // M10 amendment 14 item 2: the check carries every standalone number the line's guardrail names, and no number it never named.
-  if (line) {
-    const carried = new Set();
-    for (const v of Object.values(shape)) if (typeof v === 'number' && Number.isFinite(v)) carried.add(v);
-    if (Array.isArray(shape.sections)) carried.add(shape.sections.length);
-    const wantNums = [...new Set(guardrailStandaloneNumbers(line.guardrail))];
-    for (const n of wantNums) {
-      if (!carried.has(n)) {
-        reds.push(`declaration: line ${line.n}'s guardrail names ${n}, but the check does not carry ${n}. Leave that guardrail Not checked (unjudgeable with a reason) so the human judges it at the Ask.`);
-      }
-    }
-    const named = new Set([...wantNums, ...guardrailWordNumbers(line.guardrail)]);
-    if (wantPer !== null) named.add(wantPer);
-    for (const key of ['maxWords', 'linesPerInvoice']) {
-      const v = shape[key];
-      if (typeof v !== 'number' || named.has(v)) continue;
-      if (key === 'maxWords' && nums.length > 0) continue; // already red above
-      reds.push(`declaration: line ${line.n}'s check carries ${key} ${v}, a number the guardrail never names. Leave that guardrail Not checked (unjudgeable with a reason) if no check can carry it.`);
-    }
-  }
-  // M10 amendment 15: a check uses only what its line's guardrail names: every mustCarry word is a word of that guardrail,
-  // and linesPerInvoice only when the guardrail speaks of lines per invoice. Reads the guardrail text only.
-  if (line) {
-    const gWords = String(line.guardrail ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-    if (Array.isArray(shape.mustCarry)) {
-      for (const entry of shape.mustCarry) {
-        if (typeof entry !== 'string') continue;
-        const eWords = entry.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-        if (eWords.length === 0) continue;
-        const found = gWords.some((_, at) => eWords.every((w, k) => gWords[at + k] === w));
-        if (!found) reds.push(`declaration: line ${line.n}'s check carries the word "${entry}", which the guardrail never names. Leave that guardrail Not checked (unjudgeable with a reason, class hitl) if no check can carry it.`);
-      }
-    }
-    if (shape.linesPerInvoice !== undefined && !/\bper\s+invoice\b/i.test(String(line.guardrail ?? ''))) {
-      reds.push(`declaration: line ${line.n}'s check carries linesPerInvoice, but the guardrail never speaks of lines per invoice. Leave that guardrail Not checked (unjudgeable with a reason, class hitl).`);
-    }
   }
   // M4e amendment 18 item 3: a shape bareguard will not build is red here, by name, not a crash at run time.
   checkShapeBuilds(shape, label, reds, redsBefore);
