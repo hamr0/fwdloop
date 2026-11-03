@@ -84,8 +84,7 @@ for (const [what, mutate, re] of [
 test('(b) a revise that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
   const w = await firstDraft();
   const ok = validArgs();
-  ok.steps[2].close.shape.linesPerInvoice = 3; // am16 C12: mustCarry comes with linesPerInvoice; 3 is a number the guardrail names (M10 am14: no invented number)
-  ok.steps[2].close.shape.mustCarry = ['JD'];
+  ok.steps[2].close.shape.sections[0] = 'summary of work history'; // M10 am15: mustCarry/linesPerInvoice need the guardrail's own words, so the revise changes a section name still found in the line
   const r = await change(w, ok).run();
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.notEqual(r.hash, w.first.hash);

@@ -524,6 +524,23 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
       reds.push(`declaration: line ${line.n}'s check carries ${key} ${v}, a number the guardrail never names. Leave that guardrail Not checked (unjudgeable with a reason) if no check can carry it.`);
     }
   }
+  // M10 amendment 15: a check uses only what its line's guardrail names: every mustCarry word is a word of that guardrail,
+  // and linesPerInvoice only when the guardrail speaks of lines per invoice. Reads the guardrail text only.
+  if (line) {
+    const gWords = String(line.guardrail ?? '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    if (Array.isArray(shape.mustCarry)) {
+      for (const entry of shape.mustCarry) {
+        if (typeof entry !== 'string') continue;
+        const eWords = entry.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+        if (eWords.length === 0) continue;
+        const found = gWords.some((_, at) => eWords.every((w, k) => gWords[at + k] === w));
+        if (!found) reds.push(`declaration: line ${line.n}'s check carries the word "${entry}", which the guardrail never names. Leave that guardrail Not checked (unjudgeable with a reason, class hitl) if no check can carry it.`);
+      }
+    }
+    if (shape.linesPerInvoice !== undefined && !/\bper\s+invoice\b/i.test(String(line.guardrail ?? ''))) {
+      reds.push(`declaration: line ${line.n}'s check carries linesPerInvoice, but the guardrail never speaks of lines per invoice. Leave that guardrail Not checked (unjudgeable with a reason, class hitl).`);
+    }
+  }
   // M4e amendment 18 item 3: a shape bareguard will not build is red here, by name, not a crash at run time.
   checkShapeBuilds(shape, label, reds, redsBefore);
 }

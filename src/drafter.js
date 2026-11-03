@@ -383,6 +383,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     ...greenReadRule(arbiter.sources),
     '- A shape check must carry every standalone number its line\'s guardrail names (for example "exactly 3 bullets" needs a 3 in the shape). If no shape key can carry such a number, leave that line Not checked: put it in "unjudgeable" with a reason, class hitl. Never put a number in a shape that the guardrail never names.',
+    '- A shape check uses only what its line\'s guardrail names: every mustCarry word must be a word of that guardrail, and linesPerInvoice only when the guardrail says "per invoice". Otherwise leave that line Not checked (unjudgeable, class hitl).',
     '- The send line (the last line, when a Destination is set) writes out what the human accepted; it has no guardrail and no check of its own.',
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',

@@ -53,6 +53,8 @@ function validatorReds(shape) {
     Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '',
     shape.maxWords !== undefined ? `under ${shape.maxWords} words` : '',
     shape.linesPerInvoice !== undefined ? `${shape.linesPerInvoice} lines per invoice` : '',
+    // M10 am15: every mustCarry word is a word of the guardrail
+    Array.isArray(shape.mustCarry) ? shape.mustCarry.filter((w) => typeof w === 'string').join(' ') : '',
   ].filter(Boolean).join(', ');
   const LINES = [{ n: 3, guardrail }];
   const step = { fromLine: 3, goal: 'write the summary and the skills and the a and the soft skills', close: { shape } };

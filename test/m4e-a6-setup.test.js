@@ -41,8 +41,7 @@ async function session() {
   // the revise's card (as submitted) carries the key (a hand-planted leak); the plan dir's prose is clean so sign's own plan-dir sweep passes and ONLY the setup scrub is under test
   writeFileSync(path.join(dir, 'card-1.json'), `${JSON.stringify({ ...card, job: `read my resume and the JD ${KEY}` }, null, 2)}\n`);
   const change = validArgs();
-  change.steps[2].close.shape.linesPerInvoice = 3; // am16 C12: mustCarry comes with linesPerInvoice; 3 is named by the guardrail (M10 am14)
-  change.steps[2].close.shape.mustCarry = ['JD'];
+  change.steps[2].close.shape.sections[0] = 'summary of work history'; // M10 am15: mustCarry/linesPerInvoice need the guardrail's own words, so the revise changes a section name still found in the line
   const second = await draftToDir({
     proseFile, dir: path.join(dir, 'draft-1'), root, name: 'job2', provider: fakeProvider([toolReply(change)]), rates: RATES, modelId: MODEL, env: {},
   });

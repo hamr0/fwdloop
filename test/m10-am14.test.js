@@ -58,7 +58,7 @@ test('shape check: line 3 "exactly 3 bullets" with a sections-only shape (F137) 
 });
 
 test('shape check: a shape carrying 3 passes; maxWords 80 on line 5 passes; a number the guardrail never named is red', () => {
-  assert.deepEqual(red(mk(3, { linesPerInvoice: 3, mustCarry: ['x'] })), []);
+  assert.deepEqual(red(mk(3, { sections: ['List', 'jobs', 'notes'] })), []); // 3 sections carry the 3 (am15: linesPerInvoice/mustCarry need the guardrail's own words)
   assert.deepEqual(red(mk(5, { maxWords: 80 })), []);
   assert.match(red(mk(3, { maxWords: 80 })).join(' '), /does not carry 3[\s\S]*maxWords 80, a number the guardrail never names/);
   assert.match(red(mk(5, { maxWords: 80, linesPerInvoice: 7, mustCarry: ['x'] })).join(' '), /linesPerInvoice 7, a number the guardrail never names/);
@@ -77,4 +77,27 @@ test('the drafter system prompt tells both rules', async (t) => {
   const system = p.calls[0].messages.find((m) => m.role === 'system').content;
   assert.match(system, /must carry every standalone number[^\n]*leave that line Not checked/i);
   assert.match(system, /send line[^\n]*no guardrail/i);
+});
+
+// M10 amendment 15: a check uses only what its guardrail names (mustCarry words, linesPerInvoice).
+test('am15: a mustCarry word the guardrail never names is red, naming the line and the word (F138 draft 2)', () => {
+  const r = red(mk(3, { linesPerInvoice: 3, mustCarry: ['job'] }));
+  assert.match(r.join(' '), /line 3's check carries the word "job", which the guardrail never names/);
+  assert.match(r.join(' '), /linesPerInvoice, but the guardrail never speaks of lines per invoice/);
+});
+
+test('am15: mustCarry words of the guardrail pass (word edges, any case); a part of a word does not; linesPerInvoice passes with "per invoice"', () => {
+  const ls = [{ n: 2, text: 'Write it', guardrail: 'Each invoice has 3 lines per invoice, with a Total and a due date' }];
+  const run = (shape) => { const reds = []; checkShapeFitsJobLine({ fromLine: 2, goal: 'Write it', close: { class: 'softgreen', shape } }, 0, ls, reds); return reds; };
+  assert.deepEqual(run({ linesPerInvoice: 3, mustCarry: ['total', 'Due Date'] }), []);
+  assert.match(run({ linesPerInvoice: 3, mustCarry: ['tot'] }).join(' '), /word "tot"/);
+  assert.match(run({ linesPerInvoice: 3, mustCarry: ['totals'] }).join(' '), /word "totals"/);
+});
+
+test('am15: the drafter system prompt tells the rule', async (t) => {
+  const w = world(t);
+  const p = fakeProvider([toolReply(validArgs())]);
+  await draft({ proseText: cardToProse(w.card()), provider: p, rates: RATES, modelId: MODEL });
+  const system = p.calls[0].messages.find((m) => m.role === 'system').content;
+  assert.match(system, /mustCarry word must be a word of that guardrail[^\n]*per invoice/i);
 });

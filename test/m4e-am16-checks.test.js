@@ -113,6 +113,6 @@ for (const [have, miss, val] of [['linesPerInvoice', 'mustCarry', 3], ['mustCarr
 }
 test('C12: the pair together is still fine', () => {
   const reds = [];
-  D.checkShapeFitsJobLine({ fromLine: 3, goal: 'x y', close: { shape: { linesPerInvoice: 3, mustCarry: ['total'] } } }, 0, [{ n: 3, guardrail: '3 lines per invoice' }], reds); // M10 am14: the guardrail names the 3
+  D.checkShapeFitsJobLine({ fromLine: 3, goal: 'x y', close: { shape: { linesPerInvoice: 3, mustCarry: ['total'] } } }, 0, [{ n: 3, guardrail: '3 lines per invoice, with a total' }], reds); // M10 am14: the guardrail names the 3
   assert.deepEqual(reds, []);
 });
