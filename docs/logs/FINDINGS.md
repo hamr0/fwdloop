@@ -5496,3 +5496,15 @@ Live run `~/.config/fwdloop/flows/m14-walk-3-2/runs/run-1` (model Muse `meta-mod
 **What worked live.** The step read the notes through `read` (F134 fix: audit rows show `tools:{read:2}` / `{read:1}`). The memo reached the step (`memoText` on the rows, including the ask 1 `accept` line). Books balance: audit rows sum to $0.0374015, equal to spend and history.
 
 **Cost of leaving it.** A job whose guardrail is a count goes red on a heading nobody asked for. Not built: recorded for hamr's ruling.
+
+## F138 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.60 total; M10 am14 exit walk; written before any paid call, NOT yet run)
+
+**Riskiest assumption.** Told the two am14 rules, the drafter leaves line 3 (`~ exactly 3 bullets`) as `Not checked` (unjudgeable with a reason, class hitl) instead of looping on the new red or inventing a shape that carries a number it was not given.
+
+**Job (all drafts).** Card: inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, destination `/home/hamr/fwdloop-out`, cap 0.5, ask wait 1h. Job box, verbatim: `Write 3 lines about my garden from the notes` / `Ask: check it with me` / `List 3 jobs for this week from the notes` / `~ exactly 3 bullets` / `Ask: check it with me` / `Write a short closing note to my neighbour` / `~ under 80 words` / `Ask: check it with me` / `Write it out`. Drafted through `node bin/fwdloop draft` with HOME=<mkdtemp>, a copy of the config, thinking off; prose built by `cardToProse`.
+
+**Models.** `deepseek-flash` (DEEPSEEK_API_KEY) and Baseten Muse `meta-models/muse-spark-open-1026` (BASETEN_API_KEY). 5 drafts each = 10.
+
+**PASS (signed Done-when, on the letter).** All 10 drafts green (ok with a signable hash); in every green draft line 3 is shown `Not checked` (unjudgeable, hitl) and NO shape on line 3 lacks the number 3 (no sections-only shape); line 5 carries `maxWords` 80 OR is `Not checked`. Which of the two line 5 chose is recorded; either is legal, an invented number is not. Any red draft, any line-3 shape, or any shape number the guardrail never named = FAIL. Not refit afterwards. Per draft recorded: model, verdict, rounds, reds per round, line 3 and line 5 closes, cost.
+
+**Must-fail (tests, red first).** A send-line guardrail reaches drafting (card, and draft pre-flight); a check drops a number its guardrail named; a check carries a number the guardrail never named; a good signed job from the $0 scan is refused (scan re-run with the built code: 0 refused).
