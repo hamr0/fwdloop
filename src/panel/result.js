@@ -166,9 +166,9 @@ export function readDelivered(rec) {
 }
 
 /**
- * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<flow>-<runId>-<emits>.json`
- * in the signed folder, with the sha256 the human's accept recorded for the ask that send reads (`readAcceptedHashesByEmits`, the same record the
- * send itself checked). No accepted hash = recorded as null, which reads as "changed", never as ok.
+ * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<flow>-<runId>-<emits>.md`
+ * in the signed folder with the sha256 the send recorded for it (M15), or, for a send older than M15, `.json` with the sha256 the human's accept recorded for the ask that
+ * send reads (`readAcceptedHashesByEmits`, the same record the send itself checked). No accepted hash = recorded as null, which reads as "changed", never as ok.
  * @returns {{path: string, dir: string|null, name: string, sha256: string|null}[]}
  */
 export function deliveredOf({
@@ -181,13 +181,16 @@ export function deliveredOf({
   const out = [];
   for (const send of arbiter?.sends ?? []) {
     const step = steps.find((s) => s.fromLine === send.line);
-    if (!step || !auditRows.some((r) => r.step === step.emits && r.verdict === 'green')) continue; // eslint-disable-line no-continue
-    const name = `${flow}-${runId}-${step.emits}.json`;
+    const sentRow = step ? auditRows.findLast((r) => r.step === step.emits && r.verdict === 'green') : undefined;
+    if (!step || !sentRow) continue; // eslint-disable-line no-continue
+    // M15 item 4: a send since M15 wrote `<emits>.md` and recorded that file's own sha256 on its green audit row; an older send wrote the JSON, bound to the accept's hash
+    const plain = isStr(sentRow.sentSha256) && sentRow.sentSha256 !== '';
+    const name = `${flow}-${runId}-${step.emits}.${plain ? 'md' : 'json'}`;
     const dest = checkSendDestination(`${send.target.kind}:${send.target.path}`, { root, runDir });
     const [askId] = (step.reads ?? []).filter((id) => askEmits.has(id));
     out.push({
       path: join(dest.ok ? dest.dir : send.target.path, name), dir: dest.ok ? dest.dir : null, name,
-      sha256: hashes.ok && askId !== undefined ? (hashes.byEmits.get(askId) ?? null) : null,
+      sha256: plain ? sentRow.sentSha256 : (hashes.ok && askId !== undefined ? (hashes.byEmits.get(askId) ?? null) : null),
     });
   }
   return out;

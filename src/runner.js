@@ -823,6 +823,7 @@ function makeAuditRow({
   hintsError = /** @type {string|undefined} */ (undefined),
   memoText = /** @type {string|undefined} */ (undefined),
   badCalls = /** @type {any[]|undefined} */ (undefined),
+  sentSha256 = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -852,6 +853,8 @@ function makeAuditRow({
   if (memoText !== undefined) row.memoText = memoText;
   // M14 item 10: bare-agent's facts about this try's calls that went wrong (`badCalls`), as the model step returned them; the key is absent when there were none. The ONE writer.
   if (Array.isArray(badCalls) && badCalls.length > 0) row.badCalls = badCalls;
+  // M15 item 4: the sha256 of the plain-text file a send wrote; the key is only on a green send row. The ONE writer; the Result tab reads it to tell the file changed.
+  if (typeof sentSha256 === 'string') row.sentSha256 = sentSha256;
   return row;
 }
 
@@ -1243,7 +1246,7 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
  * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'redo'|'rerun'|'timeout'|'park', reason?:string, artifactSha256?:string}>} opts.askStep
- * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
@@ -1900,11 +1903,12 @@ async function foldFromStep({
         });
       }
       const content = contentResult.value;
-      const filename = `${flowName}-${runId}-${step.emits}.json`;
+      const filename = `${flowName}-${runId}-${step.emits}.md`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
+        ...(sendResult.ok && typeof sendResult.sha256 === 'string' ? { sentSha256: sendResult.sha256 } : {}),
       });
       recordAudit(sendRow);
       if (!sendResult.ok) {
@@ -2193,7 +2197,7 @@ function sameRoot(recorded, requested) {
  * @param {string} opts.runId
  * @param {unknown} opts.catalogue
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
  * @param {string[]} [opts.primitiveReds] - see `runFlow`'s own.
  * @param {() => string} [opts.clock]
@@ -2754,7 +2758,7 @@ export function auditSpend(runDir) {
  * @param {string} opts.runId
  * @param {unknown} opts.catalogue
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
  * @param {string[]} [opts.primitiveReds]
  * @param {() => string} [opts.clock]

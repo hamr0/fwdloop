@@ -11,6 +11,7 @@
 // in-memory content handed in — so a write that silently truncates to 0
 // bytes reds here, not upstream).
 
+import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createShellTools } from 'bare-agent/tools';
@@ -23,15 +24,49 @@ const FOUND_WRITE_TOOL = SHELL_TOOLS.find((t) => t.name === 'shell_write');
 if (!FOUND_WRITE_TOOL) throw new Error('send: bare-agent/tools does not export a "shell_write" tool');
 const WRITE_TOOL = FOUND_WRITE_TOOL;
 
+/** one value as a line's text: a string as it is, a number or boolean written out; a list of plain values joined by ", "; a nested object as `name.key` lines (never braces) */
+function valueLines(name, v) {
+  if (v === null || v === undefined) return [`${name}: `];
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return [`${name}: ${v}`];
+  if (Array.isArray(v) && v.every((x) => x === null || ['string', 'number', 'boolean'].includes(typeof x))) return [`${name}: ${v.join(', ')}`];
+  if (Array.isArray(v)) return v.flatMap((x, i) => valueLines(`${name}.${i + 1}`, x));
+  return Object.entries(v).flatMap(([k, x]) => valueLines(`${name}.${k}`, x));
+}
+
+/** a list of results: every item an object holding a `values` object (flights' `results`, with a `quote` that is not written) */
+const isResultList = (v) => Array.isArray(v) && v.length > 0 && v.every((r) => r && typeof r === 'object' && !Array.isArray(r) && r.values && typeof r.values === 'object' && !Array.isArray(r.values));
+
+/**
+ * M15 items 3 and am1: the accepted answer as the plain-text file the send writes. `{text}` alone is the text exactly; any other flat object is one
+ * `name: value` line per field; a list of results is one `## Result k` block per result with one `name: value` line per value, in the order the answer holds
+ * them (the quote is not written). Never JSON braces, never check marks. What it throws away: a result's `quote`.
+ * @param {Record<string, unknown>} content @returns {string}
+ */
+export function renderSentMd(content) {
+  const keys = Object.keys(content);
+  if (keys.length === 1 && keys[0] === 'text' && typeof content.text === 'string') return content.text;
+  const parts = [];
+  let flat = [];
+  const flush = () => { if (flat.length) parts.push(flat.join('\n')); flat = []; };
+  for (const [k, v] of Object.entries(content)) {
+    if (isResultList(v)) {
+      flush();
+      v.forEach((r, i) => parts.push([`## Result ${i + 1}`, ...Object.entries(r.values).flatMap(([n, x]) => valueLines(n, x))].join('\n')));
+    } else flat.push(...valueLines(k, v));
+  }
+  flush();
+  return parts.join('\n\n');
+}
+
 /**
  * @param {string} target - a signed arbiter target, e.g. `file:poc/m0/out`.
  * @param {string} filename
- * @param {unknown} content - JSON-serialised before writing.
+ * @param {unknown} content - the accepted artifact; hash-checked as its JSON, written as plain text (`renderSentMd`).
  * @param {string|null} [acceptedSha256] - the sha256 the human's accept recorded
  *   (`answerAsk`, M4b piece 3). Required: none recorded (an answer written by an
  *   older version, or no accept in this process) refuses by name.
  * @param {{root?: string, runDir?: string}} [ctx] the flow root and this run's folder, for the destination refusals
- * @returns {Promise<{ok:true, path:string, bytes:number} | {ok:false, red:string}>}
+ * @returns {Promise<{ok:true, path:string, bytes:number, sha256:string} | {ok:false, red:string}>}
  */
 export async function sendViaPrimitive(target, filename, content, acceptedSha256, ctx = {}) {
   const destination = checkSendDestination(target, ctx);
@@ -77,11 +112,11 @@ export async function sendViaPrimitive(target, filename, content, acceptedSha256
   let present = true;
   try { lstatSync(path); } catch (err) { if (err.code === 'ENOENT') present = false; }
   if (present) return { ok: false, red: `send: "${path}" already exists — never overwritten (nothing shipped)` };
-  await WRITE_TOOL.execute({ path, content: serialised });
+  await WRITE_TOOL.execute({ path, content: renderSentMd(content) });
 
   const bytes = readFileSync(path);
   if (bytes.byteLength === 0) {
     return { ok: false, red: `send: "${path}" wrote 0 bytes` };
   }
-  return { ok: true, path, bytes: bytes.byteLength };
+  return { ok: true, path, bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
