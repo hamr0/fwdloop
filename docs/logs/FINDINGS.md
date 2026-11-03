@@ -5508,3 +5508,24 @@ Live run `~/.config/fwdloop/flows/m14-walk-3-2/runs/run-1` (model Muse `meta-mod
 **PASS (signed Done-when, on the letter).** All 10 drafts green (ok with a signable hash); in every green draft line 3 is shown `Not checked` (unjudgeable, hitl) and NO shape on line 3 lacks the number 3 (no sections-only shape); line 5 carries `maxWords` 80 OR is `Not checked`. Which of the two line 5 chose is recorded; either is legal, an invented number is not. Any red draft, any line-3 shape, or any shape number the guardrail never named = FAIL. Not refit afterwards. Per draft recorded: model, verdict, rounds, reds per round, line 3 and line 5 closes, cost.
 
 **Must-fail (tests, red first).** A send-line guardrail reaches drafting (card, and draft pre-flight); a check drops a number its guardrail named; a check carries a number the guardrail never named; a good signed job from the $0 scan is refused (scan re-run with the built code: 0 refused).
+
+### F138 RESULT (2026-11-03, run after the pre-registration above; code = the M10 am14 commit)
+
+**Verdict: FAIL on the letter** (9 of 10 meet the bar; deepseek-flash draft 2 does not). Spend $0.0945 (cap $0.60). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off, `--provider/--model` named), prose from `cardToProse` of the walk job. No patch made after the run.
+
+| model | n | verdict | rounds | line 3 close | line 5 close | cost |
+|---|---|---|---|---|---|---|
+| deepseek-flash | 1 | green | 3 | hitl, Not checked (unjudgeable with reason) | hitl, Not checked | 0.0094 |
+| deepseek-flash | 2 | green | 3 | **softgreen `{linesPerInvoice:3, mustCarry:["job"]}`, no unjudgeable** | softgreen maxWords 80 | 0.0095 |
+| deepseek-flash | 3 | green | 3 | hitl, Not checked | softgreen maxWords 80 | 0.0093 |
+| deepseek-flash | 4 | green | 3 | hitl, Not checked | softgreen maxWords 80 | 0.0096 |
+| deepseek-flash | 5 | green | 1 | hitl, Not checked | hitl, Not checked | 0.0031 |
+| muse | 1-5 | green x5 | 1,3,1,1,1 | hitl, Not checked x5 | hitl, Not checked x5 | 0.0077, 0.0227, 0.0077, 0.0078, 0.0077 |
+
+**Reds seen (not final).** The new rule fired and was recovered from: deepseek-flash 3 round 2 (`line 3's guardrail names 3, but the check does not carry 3. Leave that guardrail Not checked ...`) and muse 2 round 1 (same red). Other reds in rounds 1-2 were older ones (class mismatch: unjudgeable with a softgreen class; linesPerInvoice without mustCarry; pause at an unsigned line). No made-up heading (`sections`) on line 3 in any draft. No shape number the guardrail never named in a final plan.
+
+**Why FAIL.** The bar says line 3 is `Not checked` in every green draft. deepseek-flash draft 2 ended green with line 3 as a softgreen check (`linesPerInvoice 3` plus `mustCarry ["job"]`): it carries the 3 (the validator is satisfied, as written) but is not left Not checked, and `mustCarry "job"` is a word the guardrail never named. Not refit. Line 5: 6 of 10 chose `Not checked`, 4 of 10 chose `maxWords 80`; both legal.
+
+**Not checked.** Whether a `linesPerInvoice` shape for a bullet count is acceptable under item 2 as signed (it satisfies the letter of item 2, not the Done-when's "line 3 shown Not checked"); that is hamr's to rule.
+
+**$0 rescan with the built code (35 signed flows under ~/.config/fwdloop/flows).** 33 good signed jobs: 0 refused. Refused: m14-walk-1 (guardrail on the send line, F135) and m14-walk-3-2 (line 3 sections-only shape, F137) only, both the intended catches. The 77 saved drafts: the same F135/F137 drafts refused, plus one old draft (d-00muwjz2nt-2fd3) for a sections red that predates am14.
