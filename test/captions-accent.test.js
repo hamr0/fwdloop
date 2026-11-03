@@ -39,8 +39,8 @@ test('hamr 2026-11-02: Run tab ended/next/schedule labels accent bold; Summary a
   assert.doesNotMatch(body('.tg-val{'), /accent/, 'values untouched');
 });
 
-test('hamr 2026-11-02: Run summary row captions are accent, same size, same weight; values untouched', () => {
+test('hamr 2026-11-02: Run summary row captions are accent, same size, bold 700; values untouched', () => {
   const r = body('.sum-label{');
-  assert.match(r, /color:var\(--accent\)/); assert.doesNotMatch(r, /text-faint|text-dim|font-size|font-weight/);
+  assert.match(r, /color:var\(--accent\)/); assert.doesNotMatch(r, /text-faint|text-dim|font-size/); assert.match(r, /font-weight:\s*700/, 'hamr 2026-11-03: labels bold');
   assert.doesNotMatch(body('.sum-val{'), /accent/, 'values untouched');
 });
