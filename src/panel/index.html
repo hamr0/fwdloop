@@ -306,6 +306,13 @@
   .rl-pill-need{border-color:var(--accent);color:var(--accent);}
   .rl-dash{border-top:1px dashed var(--border-strong);margin:10px 0 6px;}
   #panel-runs .rl-faint{margin-bottom:4px;}
+  /* Runs tab: the search block is its own boxed section (hamr 2026-11-03) */
+  #panel-runs .rl-dash{border-top:2px solid var(--accent);margin:14px 0 8px;}
+  #panel-runs .rl-faint[data-testid="rl-filter-note"]{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.02em;}
+  #panel-runs .rl-faint[data-testid="rl-filter-note"]::before{content:"SEARCH  ";letter-spacing:.08em;}
+  #runs-filterbar-anchor input[type="search"],#runs-filterbar-anchor input[type="text"]{border:2px solid var(--accent) !important;background:var(--bg,#fff);font-size:14px;padding:8px 10px;}
+  #runs-filterbar-anchor input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  #runs-filterbar-anchor{padding-bottom:10px;border-bottom:2px solid var(--accent);margin-bottom:10px;}
   @media (max-width:899px){ .rl-fold{min-height:44px;} }
 
   .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
