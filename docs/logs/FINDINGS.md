@@ -5826,6 +5826,19 @@ Script `.claude/scratch/f143/poc.mjs` (gitignored), imported through `index.js` 
 
 **Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit.
 
+### F143b RESULT (2026-11-03, $0)
+
+Script `.claude/scratch/f143b/poc.mjs` (gitignored), run with `timeout 120` against a fresh install in `.claude/scratch/f143b/pkg/` (`npm install bareguard@0.31.0`, nothing else requested). Results: `.claude/scratch/f143b/result-2026-11-03T16-10-46-015Z.json`. 35 checks.
+
+**PASS: 35 of 35, every case exactly as pre-registered.**
+
+- (i) installed version read from `node_modules/bareguard/package.json`: `0.31.0`.
+- Cases 1-17 and 19-21: PASS (same fixtures and expectations as F143; the three real m14-walk-5 files green, counts only, no text printed).
+- (ii) case 18: `rubricVocabulary.rules.listItems.fields` is exactly `field`, `text`, `value`: PASS.
+- (iii) (a) items inside a ``` fence count (measured 3, green); (b) `> - a` is not an item (red under, measured 0); (c) CRLF counts like LF (3 items green; 4 items red over, measured 4, at-most): all PASS.
+
+**Can-fail control.** With `F143B_BREAK=1` case 7 expected measured 5 instead of 4: 1 fail (red); the real run restored it, 0 fails. Break file `result-2026-11-03T16-10-45-737Z-BREAK.json`.
+
 ## F144 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.25; M10 am16 suggestion call + code keep-or-drop; written before any paid call, NOT yet run)
 
 **Question.** Riskiest assumption of M10 am16: one AI call at draft time, shown a job's step lines + guardrails and bareguard's installed `rubricVocabulary` (0.26.0, read through the package export), suggests per guardrail one check from that list or none; code's keep-or-drop (am16 (2)) then leaves only honest checks, with few `I can't check this` asks.
