@@ -26,6 +26,7 @@
 
 import { dirname } from 'node:path';
 import { Loop, HaltError } from 'bare-agent';
+import { Anthropic, Gemini } from 'bare-agent/providers';
 import { GateRefusal } from './primitives.js';
 import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
@@ -265,12 +266,15 @@ function thinkingStatusOf(r) {
 /**
  * The provider with one addition: each `generate` result is handed to `seen` before the Loop meters that call, so the call's diary row can say what bare-agent
  * reported for THAT call (thinking status, the tool names it asked for); the Loop's own `onLlmResult` payload carries neither. Everything else reads through.
- * @param {any} provider @param {(result: any) => void} seen
+ * @param {any} provider @param {(result: any) => void} seen @param {{on: boolean}|null} [force] - M4d am37: while `on`, the next call carries `toolChoice: {name: 'emit_artifact'}`
  */
-function watchCalls(provider, seen) {
+function watchCalls(provider, seen, force = null) {
   const watched = Object.create(provider);
-  watched.generate = async (...a) => {
-    const r = await provider.generate(...a);
+  watched.generate = async (messages, tools, options = {}) => {
+    // M4d am37: the forced round forces `emit_artifact` on its FIRST call only (forcing every call would make the Loop save again and again)
+    const forced = force !== null && force.on;
+    if (forced) force.on = false;
+    const r = await provider.generate(messages, tools, forced ? { ...options, toolChoice: { name: 'emit_artifact' } } : options);
     seen(r);
     return r;
   };
@@ -286,6 +290,12 @@ function toolRowPath(args) {
 }
 
 const STOP_RULE = 'stop-requested';
+
+/** M4d am37: the one fixed line a step that answered in text is sent, from code; the model never writes it and it never changes. */
+export const NUDGE = 'You answered in text. Call emit_artifact now with that answer; do not reply in text.';
+
+/** M4d am37: a provider class bare-agent gives no `toolChoice` ignores a forced call; round 2 then sends the line unforced and a save there is the fallback. */
+const IGNORES_TOOL_CHOICE = (provider) => provider instanceof Anthropic || provider instanceof Gemini;
 
 /** The attempt result for a Stop that landed mid-attempt: every call made is already summed into `cumulative`. */
 /**
@@ -375,7 +385,7 @@ export function makeLiveModelStep({
       // M10b piece 2: a step that reads a sheet is told the shape of each claim box (bareguard's worked example), never the check
       ...(stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? { answering: sheetBrief(stepMeta.sheet) } : {}),
     });
-    const messages = [
+    let messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
     ];
@@ -435,9 +445,15 @@ export function makeLiveModelStep({
       // bareagent reported across its rounds (null = none reported). The ONE place this record is built; `toolFields` hands it to every return.
       thinking: /** @type {{asked: string|null, status: string|null}} */ ({ asked: thinkingMode ?? null, status: null }),
     };
-    let noToolCallStreak = 0;
+    // M4d am37: round 1 runs as today. A round 1 that ended in text (no save, no malformed call) sends round 2 the conversation so far plus the fixed line, with
+    // `emit_artifact` forced on its first call; a refused or unsaved round 2 sends round 3 the same line unforced. A malformed tool call keeps today's one fresh retry.
+    let freshRetry = false;
+    let forcedAsked = false;
+    const force = { on: false };
+    /** @type {'first'|'forced'|'fallback'} */
+    let savedBy = 'first';
 
-    for (let round = 1; round <= 2; round += 1) {
+    for (let round = 1; round <= 3; round += 1) {
       let capturedArtifact;
       const emitTool = {
         name: 'emit_artifact',
@@ -480,15 +496,22 @@ export function makeLiveModelStep({
         }
       };
       // M14 item 10: `checkArgs` - a call whose top-level arguments do not fit the tool's declared parameters (a wrong type, a missing required value) never runs the tool; bare-agent hands the model the refusal and reports it in `badCalls`
-      const loop = new Loop({ provider: watchCalls(provider, (r) => { lastCall = r; }), rates, onLlmResult, checkArgs: true, ...stopSeam });
+      const loop = new Loop({ provider: watchCalls(provider, (r) => { lastCall = r; }, force), rates, onLlmResult, checkArgs: true, ...stopSeam });
 
       const startedAt = Date.now();
       let result;
+      force.on = round === 2 && !freshRetry && !IGNORES_TOOL_CHOICE(provider);
+      forcedAsked = force.on;
       try {
         // eslint-disable-next-line no-await-in-loop
         // M4d am25: the thinking switch is the runner's decision (`stepMeta.thinkingMode`, 'on' | 'off'); bareagent sends it. Absent = send none (a caller that decides nothing).
         result = await loop.run(messages, tools, { maxTokens: 16000, ...(thinkingMode ? { thinkingMode } : {}) });
       } catch (err) {
+        // M4d am37: the same refused forced call, when the Loop threw it instead of reporting it (see below)
+        if (forcedAsked && round === 2 && roundMeterings.length === 0 && !isTransportFailure(err) && err?.code !== 'EDEADLINE') {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
         const wallMs = Date.now() - startedAt;
         const partial = sumMeterings(roundMeterings);
         cumulative = addMeter(cumulative, partial);
@@ -548,6 +571,12 @@ export function makeLiveModelStep({
 
       const wallMs = Date.now() - startedAt;
       const stoppedByYou = result.error === `halt:${STOP_RULE}`;
+      // M4d am37: a forced call the provider refused before it answered anything (no call metered) is not the end: round 3 sends the same line unforced. It books nothing - the
+      // request was refused, no answer was priced - so it adds no unknown to the step's cost. Anything metered, a Stop, and a thrown transport fault or deadline stay as they were.
+      if (forcedAsked && round === 2 && roundMeterings.length === 0 && result.error && !stoppedByYou) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
       // A Stop read before this Loop's first call: no call ran, so there is nothing to meter or book — and an empty metering
       // must never be added as "cost unknown" onto the calls an earlier round already made.
       if (stoppedByYou && roundMeterings.length === 0) return stoppedResult(cumulative, modelId, null);
@@ -589,9 +618,14 @@ export function makeLiveModelStep({
       }
 
       if (capturedArtifact === undefined) {
-        noToolCallStreak += 1;
-        if (noToolCallStreak >= 2) {
-          const malformed = provider?.lastMalformedToolCall ?? null;
+        const malformed = provider?.lastMalformedToolCall ?? null;
+        // today's path: a malformed tool call on round 1 is retried once fresh; a second round without a save ends the step
+        if (round === 1 && (malformed || result.error)) {
+          freshRetry = true;
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+        if (freshRetry || round === 3) {
           if (malformed) {
             // bare-agent >=0.50 delivers the FULL `rawArguments` (verbatim, uncapped; `rawTruncated` is never set), and only when the provider was
             // built with `exposeMalformedArgs: true`. We bound what is logged and shown, with the cut said out loud. Absent -> no "; raw:" suffix.
@@ -606,9 +640,10 @@ export function makeLiveModelStep({
               modelMatch,
             };
           }
+          const tried = freshRetry ? 'twice in a row' : 'after the forced save and the fallback were tried';
           return {
             ok: false,
-            red: `a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool twice in a row. Text: ${JSON.stringify(result.text)}`,
+            red: `a FINISHED round (stopReason=${result.stopReason}) returned text instead of the tool ${tried}. Text: ${JSON.stringify(result.text)}`,
             costUsd: cumulative.costUsd,
             tokens: cumulative.tokens,
             ...toolFields(cumulative),
@@ -616,8 +651,10 @@ export function makeLiveModelStep({
             modelMatch,
           };
         }
+        // round 1 ended in text (round 2 then continues it, forced) or round 2 ended unsaved (round 3 sends the line again); a round that ended in an error continues from the messages it was sent
+        if (!result.error) messages = [...result.msgs, { role: 'user', content: NUDGE }];
         // eslint-disable-next-line no-continue
-        continue; // retry once, same attempt
+        continue;
       }
 
       if (cumulative.costUsd === null) {
@@ -626,8 +663,11 @@ export function makeLiveModelStep({
         };
       }
 
+      // M4d am37: which way it saved - round 1 (or the malformed-call retry, as today), the forced call, or the unforced fallback
+      if (!freshRetry && round === 2) savedBy = forcedAsked ? 'forced' : 'fallback';
+      if (round === 3) savedBy = 'fallback';
       return {
-        ok: true, artifact: capturedArtifact, costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
+        ok: true, artifact: capturedArtifact, savedBy, costUsd: cumulative.costUsd, model: modelId, modelMatch, tokens: cumulative.tokens, ...toolFields(cumulative),
       };
     }
 
