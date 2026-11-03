@@ -5638,3 +5638,34 @@ Direction only, not deciding: A reproduces the live red every time; B and C save
 **Pass mark.** An arm PASSES at 5 of 5 tool-saved valid artifacts with no provider error. If both B and C pass, the lower total usd wins; tie -> B. If one passes, that one. If neither, neither; nothing is built. A is reported, not deciding. If the cap stops the run early, it is FAIL on the letter again.
 
 **Cost.** HARD CAP $0.30 total; the script stops before any try whose worst seen cost would cross the cap. Key: env `BASETEN_API_KEY` only, never printed or written. Results: `.claude/scratch/f141/result-f141b-<timestamp>.json` (never overwritten).
+
+### F141b RESULT (2026-11-03, run after the pre-registration above; code = b94bf92)
+
+**Verdict: A FAIL 0 of 5, B PASS 5 of 5, C PASS 5 of 5. By the pre-registered rule B wins (cheaper).** All 15 tries ran; total $0.1488 under the $0.30 cap (not stopped at cap). Model Muse `meta-models/muse-spark-open-1026`. Per try (`.claude/scratch/f141/result-f141b-2026-11-03T10-48-14-757Z.json`, log `run-f141b.log`):
+
+| try | ended by | valid | calls | usd |
+|---|---|---|---|---|
+| A1 | text (red) | no | 4 | 0.00874025 |
+| B1 | tool | yes | 3 | 0.006349 |
+| C1 | tool | yes | 4 | 0.01026525 |
+| A2 | text (red) | no | 4 | 0.00906325 |
+| B2 | tool | yes | 3 | 0.00635 |
+| C2 | tool | yes | 5 | 0.01233275 |
+| A3 | text (red) | no | 4 | 0.0079965 |
+| B3 | tool | yes | 3 | 0.00603275 |
+| C3 | tool | yes | 9 | 0.02773025 |
+| A4 | text (red) | no | 4 | 0.008549 |
+| B4 | tool | yes | 3 | 0.0064085 |
+| C4 | tool | yes | 4 | 0.01041825 |
+| A5 | text (red) | no | 4 | 0.00875725 |
+| B5 | tool | yes | 3 | 0.00681675 |
+| C5 | tool | yes | 5 | 0.01297725 |
+
+Totals: A $0.0431 (5 text reds; reproduces the live run-3 red every time), B $0.0320 (3 calls every try), C $0.0737 (4 to 9 calls; C3 took 9 calls, $0.0277). B is cheaper than C, so B wins; nothing is refit.
+
+The log shows bare-agent reported Muse's thinkingMode `off` as `ignored` ("the switch was accepted but the reply shows thinking happened anyway"); Muse thought anyway. Reasoning text was not visible in any try.
+
+**Not checked.**
+- B on deepseek-flash or any other model: only Muse was run.
+- B with thinking on: on DeepSeek a forced call with thinking on 400s per bare-agent's doc, and bare-agent sends thinking disabled there; unchecked live.
+- B's known limit: after a read, the next call is forced to `emit_artifact`, so a step that needs a second read cannot make it.
