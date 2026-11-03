@@ -5628,3 +5628,13 @@ Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the w
 Totals: A 0/2 tool (2 text), B 2/2, C 1/1. Total $0.0396 (cap $0.05). Muse's thinking-off was reported `ignored` by bare-agent. No arm reached 3 of 3, so neither B nor C passes; the criteria are not refit.
 
 Direction only, not deciding: A reproduces the live red every time; B and C saved every time they ran.
+
+## F141b PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.30 total; hamr: "expand the money"; written before any paid call, NOT yet run)
+
+**Question, step, arms.** The same as F141 (pre-registration above): same step (run-3 `weekly_jobs` try 1 on Muse `meta-models/muse-spark-open-1026`, built by `makeLiveModelStep`), same arms A (today), B (forced `{ name: 'emit_artifact' }` right after a non-emit tool result, same B forcing rule) and C (told in the same conversation, same NUDGE string: `You answered in text. Call emit_artifact now with that answer; do not reply in text.`). Same validity rule (`emit_artifact` called within the step's 2 rounds, typed `done` true, `text` a non-empty string, no provider error, every round priced).
+
+**Sample.** N=5 per arm, interleaved A1 B1 C1 A2 B2 C2 ... A5 B5 C5 (15 tries). The F141 tries do NOT count toward F141b: fresh samples.
+
+**Pass mark.** An arm PASSES at 5 of 5 tool-saved valid artifacts with no provider error. If both B and C pass, the lower total usd wins; tie -> B. If one passes, that one. If neither, neither; nothing is built. A is reported, not deciding. If the cap stops the run early, it is FAIL on the letter again.
+
+**Cost.** HARD CAP $0.30 total; the script stops before any try whose worst seen cost would cross the cap. Key: env `BASETEN_API_KEY` only, never printed or written. Results: `.claude/scratch/f141/result-f141b-<timestamp>.json` (never overwritten).
