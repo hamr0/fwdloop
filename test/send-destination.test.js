@@ -50,7 +50,7 @@ after(() => {
 test('(a) an absolute folder outside the install folder is written with the accepted answer as plain text (M15 item 3)', async () => {
   const r = await send(`file:${dest}`);
   assert.equal(r.ok, true, r.red);
-  assert.equal(readFileSync(join(dest, 'run1-out.json'), 'utf8'), 'answer: accepted');
+  assert.equal(readFileSync(join(dest, 'run1-out.json'), 'utf8'), 'Answer: accepted');
   unlinkSync(join(dest, 'run1-out.json'));
 });
 
@@ -131,7 +131,7 @@ test('(g) a plain folder under the root (not a flow) is allowed at sign and the 
   assert.equal(signTime.ok, true, signTime.red);
   const r = await send(`file:${folder}`);
   assert.equal(r.ok, true, r.red);
-  assert.equal(readFileSync(join(folder, 'run1-out.json'), 'utf8'), 'answer: accepted');
+  assert.equal(readFileSync(join(folder, 'run1-out.json'), 'utf8'), 'Answer: accepted');
   unlinkSync(join(folder, 'run1-out.json'));
 });
 
