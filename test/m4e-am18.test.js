@@ -48,7 +48,12 @@ for (const [label, shape] of [
 function validatorReds(shape) {
   const reds = [];
   // wordsPerSection is the guardrail's own number (amendment 15), so the line states the same one.
-  const guardrail = Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '';
+  // M10 am14: a shape number the guardrail never names is red, so the line names every number the shape carries.
+  const guardrail = [
+    Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '',
+    shape.maxWords !== undefined ? `under ${shape.maxWords} words` : '',
+    shape.linesPerInvoice !== undefined ? `${shape.linesPerInvoice} lines per invoice` : '',
+  ].filter(Boolean).join(', ');
   const LINES = [{ n: 3, guardrail }];
   const step = { fromLine: 3, goal: 'write the summary and the skills and the a and the soft skills', close: { shape } };
   const sh = D.checkShapes({ steps: [step] });

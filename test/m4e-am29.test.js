@@ -49,16 +49,18 @@ test('an AI maxWords that is not in the guardrail (700) is red with the signed w
   assert.ok(r.reds.some((x) => x.includes("line 3's check says 700 words; the guardrail has no 700.")), JSON.stringify(r.reds));
   assert.equal(existsSync(path.join(dir, SPEC_HASH_FILE)), false);
 });
-test('an AI maxWords of 3 is in the guardrail, so it is green (the human sees it in Checked at sign)', async () => {
-  const { r, dir } = await draft(G, (a) => { a.steps[2].close.shape.maxWords = 3; });
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(readDecl(dir).steps[2].close.shape.maxWords, 3);
+test('an AI maxWords of 3 is in the guardrail (no "has no 3" red), but M10 am14 reds it for dropping the 600', async () => {
+  const { r } = await draft(G, (a) => { a.steps[2].close.shape.maxWords = 3; });
+  assert.equal(r.ok, false);
+  assert.ok(!r.reds.some((x) => x.includes('the guardrail has no 3')), JSON.stringify(r.reds));
+  assert.ok(r.reds.some((x) => x.includes("line 3's guardrail names 600, but the check does not carry 600")), JSON.stringify(r.reds));
 });
 
-test('kept: a guardrail with no word number does not red any maxWords; a check with no maxWords does not red', async () => {
+test('a guardrail with no word number: a maxWords is a number it never names (M10 am14, red); a check with no maxWords and the 3 sections carried is green', async () => {
   const a = await draft('3 sections', (x) => { x.steps[2].close.shape.maxWords = 450; });
-  assert.equal(a.r.ok, true, JSON.stringify(a.r.reds));
-  const b = await draft(G, (x) => { delete x.steps[2].close.shape.maxWords; });
+  assert.equal(a.r.ok, false);
+  assert.ok(a.r.reds.some((x) => x.includes('maxWords 450, a number the guardrail never names')), JSON.stringify(a.r.reds));
+  const b = await draft('3 sections', (x) => { delete x.steps[2].close.shape.maxWords; });
   assert.equal(b.r.ok, true, JSON.stringify(b.r.reds));
 });
 
@@ -83,7 +85,7 @@ test('after the draft the sum uses the AI pick: maxWords 400 < 180 x 3 is red (m
   assert.equal(bad.r.ok, false);
   assert.ok(bad.p.calls.length >= 1, 'passed the $0 gate, so the model was called');
   assert.ok(bad.r.reds.some((x) => x.includes("line 3's guardrail asks about 180 words for each of 3 sections (540) but the check says 400 words in total.")), JSON.stringify(bad.r.reds));
-  const ok = await draft(g, (a) => { a.steps[2].close.shape.maxWords = 600; });
+  const ok = await draft('3 sections, about 180 words each, under 600 words', (a) => { a.steps[2].close.shape.maxWords = 600; }); // M10 am14: one word number, so the check can carry it
   assert.equal(ok.r.ok, true, JSON.stringify(ok.r.reds));
 });
 

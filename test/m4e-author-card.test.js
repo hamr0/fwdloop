@@ -68,7 +68,9 @@ test('(1) a cap that would print as an exponent is spelled as a plain decimal', 
 
 test('(xii) cap, destination, ask TTL and input paths come ONLY from the card: whatever the job text says, the block is the card\'s', () => {
   const s = scene();
-  const sneaky = `${JOB}\n~cap $99 per run`; // a line-guardrail that LOOKS like a cap is only the line's own free text
+  const jobLines = JOB.split('\n');
+  jobLines.splice(1, 0, '~cap $99 per run'); // on line 1: M10 am14 refuses a guardrail on the send line (the last)
+  const sneaky = jobLines.join('\n'); // a line-guardrail that LOOKS like a cap is only the line's own free text
   const r = checkCard(s.card({ job: sneaky }), { root: s.root });
   assert.equal(r.ok, true, JSON.stringify(r));
   const p = parseSignedText(r.prose);

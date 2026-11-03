@@ -18,7 +18,7 @@
 import { Loop, HaltError } from 'bare-agent';
 import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
-import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, guardrailWordsPerSection } from './declaration.js';
+import { validateDeclaration, SHAPE_KEYS, checkGuardrailSums, checkSendLineGuardrail, guardrailWordsPerSection } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
@@ -382,6 +382,8 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must be checkable against its source: a sheet figure by the bareguard checks of the sheet), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     ...greenReadRule(arbiter.sources),
+    '- A shape check must carry every standalone number its line\'s guardrail names (for example "exactly 3 bullets" needs a 3 in the shape). If no shape key can carry such a number, leave that line Not checked: put it in "unjudgeable" with a reason, class hitl. Never put a number in a shape that the guardrail never names.',
+    '- The send line (the last line, when a Destination is set) writes out what the human accepted; it has no guardrail and no check of its own.',
     '- close.shape only on a softgreen step; it is the human\'s declared shape in structured form.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,
@@ -462,6 +464,9 @@ export async function draft({
   // M4e amendment 15 item 2: a guardrail that fights itself on words is red at $0, before any provider is built or called.
   const sumReds = checkGuardrailSums(lines);
   if (sumReds.length) return fail(sumReds);
+  // M10 amendment 14 item 1: a guardrail on the send line is refused at $0 (the card says it first; a prose file straight to `fwdloop draft` is caught here).
+  const sendReds = checkSendLineGuardrail(lines, arbiter);
+  if (sendReds.length) return fail(sendReds);
   const menu = wiredMenu(skills);
   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
   const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));

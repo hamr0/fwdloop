@@ -377,6 +377,25 @@ export function guardrailWordNumbers(guardrail) {
   return [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumber(m[1]));
 }
 
+/** M10 amendment 14 item 2: every standalone number in a guardrail's own text (digits not joined to letters: "P1" and "250ish" are not one; "1,000" and "2.5" are one number each). */
+export function guardrailStandaloneNumbers(guardrail) {
+  if (typeof guardrail !== 'string') return [];
+  return [...guardrail.matchAll(/(?<![A-Za-z0-9_.,])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?![A-Za-z0-9_])/g)].map((m) => Number(m[1].replace(/,/g, '')));
+}
+
+/** M10 amendment 14 item 1: the send line (a signed send) is where the accepted result is written out and no AI runs, so a guardrail under it is refused at $0, naming the line.
+ *  Pure; the card (src/panel/authorcard.js checkCard) and the drafter's pre-flight both call it. @param {any[]} lines `parseSignedText`'s lines @param {{sends?: {line: number}[]}} arbiter */
+export function checkSendLineGuardrail(lines, arbiter) {
+  const reds = [];
+  for (const s of Array.isArray(arbiter?.sends) ? arbiter.sends : []) {
+    const l = (Array.isArray(lines) ? lines : []).find((x) => x?.n === s.line);
+    if (l && typeof l.guardrail === 'string' && l.guardrail.trim() !== '') {
+      reds.push(`line ${s.line} is the send line (it writes out what you accepted at the Ask before it, and no AI runs there), so it cannot carry the guardrail "${l.guardrail.trim()}". Put the guardrail on the line that makes the result.`);
+    }
+  }
+  return reds;
+}
+
 /** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
 export function guardrailWordsPerSection(guardrail) {
   const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
@@ -484,6 +503,26 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   } else if (wantPer !== null && shape.maxWords !== undefined && Array.isArray(shape.sections) && shape.sections.length > 0 && wantPer * shape.sections.length > shape.maxWords) {
     // am29: after the draft the sum uses the AI's pick (the $0 check before the draft can only use the largest candidate).
     reds.push(`declaration: line ${line.n}'s guardrail asks about ${wantPer} words for each of ${shape.sections.length} sections (${wantPer * shape.sections.length}) but the check says ${shape.maxWords} words in total. Change the guardrail.`);
+  }
+  // M10 amendment 14 item 2: the check carries every standalone number the line's guardrail names, and no number it never named.
+  if (line) {
+    const carried = new Set();
+    for (const v of Object.values(shape)) if (typeof v === 'number' && Number.isFinite(v)) carried.add(v);
+    if (Array.isArray(shape.sections)) carried.add(shape.sections.length);
+    const wantNums = [...new Set(guardrailStandaloneNumbers(line.guardrail))];
+    for (const n of wantNums) {
+      if (!carried.has(n)) {
+        reds.push(`declaration: line ${line.n}'s guardrail names ${n}, but the check does not carry ${n}. Leave that guardrail Not checked (unjudgeable with a reason) so the human judges it at the Ask.`);
+      }
+    }
+    const named = new Set([...wantNums, ...guardrailWordNumbers(line.guardrail)]);
+    if (wantPer !== null) named.add(wantPer);
+    for (const key of ['maxWords', 'linesPerInvoice']) {
+      const v = shape[key];
+      if (typeof v !== 'number' || named.has(v)) continue;
+      if (key === 'maxWords' && nums.length > 0) continue; // already red above
+      reds.push(`declaration: line ${line.n}'s check carries ${key} ${v}, a number the guardrail never names. Leave that guardrail Not checked (unjudgeable with a reason) if no check can carry it.`);
+    }
   }
   // M4e amendment 18 item 3: a shape bareguard will not build is red here, by name, not a crash at run time.
   checkShapeBuilds(shape, label, reds, redsBefore);

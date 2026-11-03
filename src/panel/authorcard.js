@@ -18,6 +18,7 @@ import { checkFlowName } from '../flow.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
+import { checkSendLineGuardrail } from '../declaration.js';
 import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
@@ -448,5 +449,8 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     }
     return { ok: false, refusals };
   }
+  // M10 am14 item 1: a guardrail on the send line is refused at $0, before drafting, naming the line
+  for (const r of checkSendLineGuardrail(parsed.lines, parsed.arbiter)) no('job', r);
+  if (refusals.length > 0) return { ok: false, refusals };
   return { ok: true, prose };
 }
