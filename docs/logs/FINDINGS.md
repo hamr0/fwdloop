@@ -5612,3 +5612,19 @@ Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the w
 
 **Recorded per try.** arm, try, endedBy (tool / text / error), rounds, stopReason per call, usd (per call and total), tokens, whether Muse thought (reasoning tokens or text if the provider shows it, else "not visible"), artifact validity, red text.
 **Cost.** Metered per round through `onLlmResult` (A and B via `makeLiveModelStep`, C via its copy). Expected about $0.003 per round on this model; HARD CAP $0.05 total: the script stops before any try whose worst seen cost would cross the cap. Key: env `BASETEN_API_KEY` only; empty -> refuse at $0 naming the variable; never printed or written. Results: `.claude/scratch/f141/result-<timestamp>.json` (never overwritten).
+
+### F141 RESULT (2026-11-03, run after the pre-registration above; code = 928a65e)
+
+**Verdict: FAIL on the letter.** The run stopped at the $0.05 cap after 5 of 9 tries (Muse cost about $0.006-0.0095 per try, more than guessed). Per try (`.claude/scratch/f141/result-2026-11-03T10-42-15-196Z.json`):
+
+| try | ended by | valid | calls | usd |
+|---|---|---|---|---|
+| A1 | text (red) | no | 4 | 0.0086085 |
+| B1 | tool | yes | 3 | 0.0065225 |
+| C1 | tool | yes | 4 | 0.0095165 |
+| A2 | text (red) | no | 4 | 0.00880825 |
+| B2 | tool | yes | 3 | 0.00613 |
+
+Totals: A 0/2 tool (2 text), B 2/2, C 1/1. Total $0.0396 (cap $0.05). Muse's thinking-off was reported `ignored` by bare-agent. No arm reached 3 of 3, so neither B nor C passes; the criteria are not refit.
+
+Direction only, not deciding: A reproduces the live red every time; B and C saved every time they ran.
