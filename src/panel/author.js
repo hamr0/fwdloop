@@ -521,6 +521,8 @@ export function createAuthor(opts) {
       // an earlier draft that is gone is never counted as $0: refused here, at $0, in words
       const startedFrom = body?.startedOverFrom;
       let priorUsd = 0;
+      /** @type {string[]} */
+      let carryFrom = [];
       if (startedFrom !== undefined && startedFrom !== null && startedFrom !== '' && typeof startedFrom !== 'string') {
         return { status: 400, body: { ok: false, refused: 'started-over-from', say: 'startedOverFrom must be the id of an earlier draft (a string).' } };
       }
@@ -529,6 +531,8 @@ export function createAuthor(opts) {
         const spent = draftingSpent(join(dd, startedFrom), { ceilingUsd: capFloorFor(true, home, cardFields(body)) });
         if (spent.missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
         priorUsd = spent.usd;
+        // M10 am20: a Start over carries the picks of the plan it starts over from, through the same record path as a Revise
+        carryFrom = carryArgv(join(dd, startedFrom), (view(startedFrom, keys)?.revises ?? []).map((x) => x.n));
       }
       const vet = vetCard(body, loaded, priorUsd, runOf?.flow);
       if (!vet.ok) return vet.reply;
@@ -555,7 +559,7 @@ export function createAuthor(opts) {
       let child;
       try {
         child = spawnDetached({
-          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
+          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...carryFrom, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
         });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The draft could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
