@@ -49,7 +49,8 @@ test('(1) the Signed-flow list offers each job as a card: its lines, guardrails,
   assert.equal(c.capUsd, '0.25');
   assert.equal(c.destination, w.outDir);
   assert.match(c.job, /^Ask 30m: check it with me,$/m);
-  assert.match(c.job, /^~ 3 sections, all under 600 words$/m);
+  // (M10 am16: line 3 carries no shape guardrail in the fixture job; the guardrail left is line 4's)
+  assert.match(c.job, /^~ ?nothing goes out before I accept$/m);
   assert.match(c.inputs, /^resume: .*resume\.md$/m);
 });
 

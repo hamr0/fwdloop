@@ -54,7 +54,7 @@ test('reuse-check: ANY job field changed = draft, with the next free name; the l
   const r = await check(w, await reuseBody(w, { job: `${e.edit.card.job}\nand one more step`, capUsd: '0.30' }));
   assert.equal(r.json().kind, 'draft', r.text);
   assert.equal(r.json().suggestedName, 'job2-2');
-  const g = e.edit.card.job.replace('3 sections, all under 600 words', '2 sections');
+  const g = e.edit.card.job.replace('nothing goes out before I accept', 'nothing goes out before I accept it twice');
   assert.notEqual(g, e.edit.card.job);
   assert.equal((await check(w, await reuseBody(w, { job: g }))).json().kind, 'draft', 'a guardrail');
   // undo flips back
