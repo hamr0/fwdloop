@@ -176,3 +176,31 @@ test('am17 (6) a kept pick is marked `kept from last draft` on the plan card row
   assert.ok((r.notChecked ?? []).some((l) => l.includes(`(${KEPT_WORDS})`)), JSON.stringify(r.notChecked));
   assert.equal(KEPT_WORDS, 'kept from last draft');
 });
+
+test('am18 (3)(4) a line whose own words changed, its agreed `~` line and source both still there: ONE folded ask, the old check is not kept', async (t) => {
+  const rec = await recordAfterAnswers(t);
+  const x = await revise(t, ANSWERED.map((l) => l.replace('Write a short closing note to my neighbour', 'Write a short closing note to my cousin')), rec.picks);
+  assert.equal(x.r.stop, 'look-asks');
+  assert.deepEqual(x.asked, [[5, 'under 80 words']]);
+  assert.deepEqual(x.keptLines, [3]);
+  assert.equal(x.rec.kept.some((k) => k.check?.value === 80), false);
+});
+
+test('am17 (6) a kept pick is a human row of the setup record, the same shape as an answered pick, its answer `kept from last draft`', async (t) => {
+  const { mkdirSync: mk, writeFileSync: wf } = await import('node:fs');
+  const { buildSetupRows } = await import('../src/setup.js');
+  const rec = await recordAfterAnswers(t);
+  const x = await revise(t, ANSWERED, rec.picks);
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-am17row-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mk(path.join(dir, 'draft')); mk(path.join(dir, 'draft-2'));
+  wf(path.join(dir, 'card.json'), '{}');
+  wf(path.join(dir, 'card-2.json'), '{}');
+  wf(path.join(dir, 'draft-2', 'picks-record.json'), JSON.stringify(x.rec));
+  const rows = buildSetupRows({ sessionDir: dir, planDir: path.join(dir, 'draft-2'), hash: 'h', signedBy: 's', signedAt: 'x' }).filter((r) => r.kind === 'human');
+  assert.deepEqual(rows.map((r) => [r.line, r.ask, r.answer, r.ruleNo, r.ruleText, r.proposal, r.rule]), [
+    [3, 'check', KEPT_WORDS, 1, 'exactly 3 bullets', 'exactly 3 list items', 'exactly 3 list items'],
+    [5, 'check', KEPT_WORDS, 1, 'under 80 words', 'at most 80 words', 'at most 80 words'],
+  ]);
+  assert.match(rows[0].question, /^Line 3, guardrail "exactly 3 bullets": I propose exactly 3 list items\./);
+});

@@ -661,7 +661,7 @@ export async function draft({
   const shapeRules = scopedRules(lines, arbiter).filter((r) => ![...look.facts, ...sheetFacts].some((f) => f.line === r.line && f.forRule === r.rule));
   // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
   const carried = matchRecord(carriedPicks, lines, shapeRules);
-  const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check }));
+  const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, added: k.entry.added, left: k.entry.left }));
   onPickRecord?.({ picks: carried.kept.map((k) => k.entry), kept: keptView });
   const askRules = carried.askRules;
   /** @type {ReturnType<typeof checkAsks>} */
