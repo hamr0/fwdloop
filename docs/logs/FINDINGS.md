@@ -6352,3 +6352,20 @@ Recorded, not deciding (signed text unchanged):
 3. A line with a typo-level change in its words is a new line and loses its picks (signed (3) says so; it costs one re-ask).
 4. Equal-word lines match in order only: swapping two equal-word lines swaps nothing (picks stay with position). Signed (3) says "matched in their order"; moving one of two identical lines cannot be followed.
 5. F146 findings 5 and 6 (one `shapeRules` set feeds both the suggestion call and `settleRules`; the am1 counter) are untouched by this POC.
+
+## F147 PRE-REGISTRATION (2026-11-04, $0; M10 am19 riskiest assumption; written before the POC result is recorded)
+
+What is tested: am19's rule, before any build: every Inputs line's name must be granted to at least one model step (not an ask step, not the send step), through its tool or in its `reads`; else `Input "notes" is read by no step.` No `src/` change, no provider, no key, no `pass`, `~/.config/fwdloop` read only. The rule is POC code only (`poc/m10-am19/unreached-input.mjs`), run over a signed plan's `declaration.json` + the arbiter parsed from its `prose.txt` (`parseSignedText`). Two forms are run and both recorded: the exact one (the tool that serves that input's kind: `read`/`grep` for .md/.txt and pages/tickets, `readDocx` for .docx, `addressCells` for .csv; or the role in `reads`) and the literal one (`read` tool or `reads` only, as signed).
+
+Disclosure: before this pre-registration I ran the script once to see how the signed flows are laid out (exploration, no marks decided from it).
+
+Pass marks, on the letter:
+- (a) `m14-walk-7` signed declaration: red, naming `notes`.
+- (b) `m14-walk-6` signed plan: green.
+- (c) the good signed jobs under `~/.config/fwdloop/flows/*/signed` (the 33 of the M10 am16 rescan: all signed flows minus the 4 cite-form jobs and minus `m14-walk-1` and `m14-walk-3-2`, refused earlier by F135/F137): 0 refused. For each refusal: is the input truly unreachable, or does it reach a step another way (CSV roles via `reads`, page/sheet facts, ticket/MCP inputs, readDocx, picks, send step)? A refusal of a job that works live is a FAIL of the rule as written; not fitted.
+- (d) recorded, not a mark: where an Inputs line becomes a role and how each input kind reaches a step at run time, so the build tests "granted" exactly.
+- (e) must-fail: (a) shown red, then the check broken -> green, then restored -> red.
+
+Recorded either way: anything am19 cannot do as written (signed text unchanged).
+
+Cost: $0.
