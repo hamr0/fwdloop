@@ -41,15 +41,15 @@ test('item 2: Revise opens the card; the main button reads Draft and posts the c
   assert.equal(greenOpen({ ...green, reviseOpen: true }), true);
   // the card is locked only while it must be: cardLocked asks greenFieldsOpenFor on a green plan
   assert.match(fnSrc('cardLocked'), /greenFieldsOpenFor\(\{revisable: Array\.isArray\(lastState\.revises\), reviseOpen: reviseOpen, left: lastState\.revisesLeft\}\)/);
-  // wiring: the click only opens; the revise action posts currentCard() to the revise route
-  assert.match(CODE, /reviseBtn\.addEventListener\("click", function\(\)\{ if\(reviseBtn\.disabled\) return; reviseOpen = true; refreshStartEnabled\(\); \}\);/);
+  // wiring: the click fills the boxes once from the newest card (am14 item 2, "filled in as last drafted"), then opens; it sends nothing; the revise action posts currentCard() to the revise route
+  assert.match(CODE, /reviseBtn\.addEventListener\("click", function\(\)\{ if\(reviseBtn\.disabled\) return; if\(lastState && lastState\.card\) fillCardFields\(lastState\.card\); reviseOpen = true; refreshStartEnabled\(\); fitCardBoxes\(\); \}\);/);
   const doRevise = fnSrc('doRevise');
   assert.match(doRevise, /var body = currentCard\(\);/);
   assert.match(doRevise, /authorPost\("\/api\/author\/" \+ id \+ "\/revise", body\)/);
   assert.doesNotMatch(doRevise, /\{text:|\.note\b/);
   assert.match(CODE, /mainAction === "revise"\) doRevise\(\)/);
-  // a refusal keeps every field as typed: the fields are written only by attachSession / resetCard, never by doRevise or the poll
-  assert.doesNotMatch(doRevise, /setVal|\.value =/);
+  // a refusal keeps every field as typed: the fields are written only by fillCardFields (attach, and the Revise click once), resetCard; never by doRevise or the poll
+  assert.doesNotMatch(doRevise, /setVal|fillCardFields|\.value =/);
   assert.match(doRevise, /if\(!o\.ok\)\{ failFrom\(r\); refreshStartEnabled\(\); return; \}[\s\S]*reviseOpen = false;/, 'closes only after the call was accepted');
 });
 
@@ -106,12 +106,13 @@ test('item 4: a red revise lists its reds, keeps the edits, and has no Sign & ru
 });
 
 test('(g) a refresh brings back the newest plan or reds, the count, and the last submitted card; the poll never writes the fields', () => {
-  const at = fnSrc('attachSession');
+  assert.match(fnSrc('attachSession'), /fillCardFields\(d\.card \|\| \{\}\)/);
+  const at = fnSrc('fillCardFields');
   for (const id of ['jf-name', 'jf-job', 'jf-cap-money', 'jf-dest-folder', 'jf-inputs', 'jf-ask-wait']) assert.match(at, new RegExp(`setVal\\("${id}"`), id);
-  assert.match(at, /renderThread\(d\);\s*renderActions\(d\);/);
+  assert.match(fnSrc('attachSession'), /renderThread\(d\);\s*renderActions\(d\);/);
   // only these functions assign a card box's value; none is on the poll path
   for (const name of ['poll', 'renderThread', 'renderActions', 'renderProgress', 'renderMain', 'doRevise']) {
-    assert.doesNotMatch(fnSrc(name), /setVal\(|jobEl\.value =|inputsBox\.value =|destEl\.value =|askWaitEl\.value =/, `${name} must not write the card boxes`);
+    assert.doesNotMatch(fnSrc(name), /fillCardFields\(|setVal\(|jobEl\.value =|inputsBox\.value =|destEl\.value =|askWaitEl\.value =/, `${name} must not write the card boxes`);
   }
   // a revise being drafted leaves the shown plan alone; a green view replaces it; a red one shows no plan
   const prelude = `var threadKey = ""; var thread = { innerHTML: "" };
