@@ -6419,3 +6419,10 @@ No provider, no key, no `pass`, no write to the draft dir. Script `poc/m10-am21/
 - (b) An `agree` to that ask gives a card whose closing-note lines are `~ under 80 words` and `~ at most 60 words` only (no `at most 80 words`), and the plan pick on line 6 is `maxWords 60` only, with no Not-checked note for line 6.
 - (c) The edited line is never `no-pick` without an ask: with no answer given, the edited rule is among the asked rules (control: with the record's `added` line unchanged, no ask and the line is covered).
 Pass bar is mine, not signed text. No refit: a miss stays FAIL on the letter.
+
+### F150 RESULT (2026-11-04, $0; script `poc/m10-am21/edited-pair.mjs`; the draft dir was only read)
+
+Verdict: (a) PASS, (b) PASS, (c) PASS (control PASS). Spend $0; no provider, no key, no `pass`.
+- Before the fix (same script on the code as it stood): (a) FAIL (the one ask was about "under 80 words"), (b) FAIL (no answer path that replaces the edited line), (c) FAIL (asked rule 6.1 "under 80 words", the edited rule 6.2 was folded).
+- After: (a) one ask, line 6 "at most 60 words"; (b) the closing-note `~` lines are `under 80 words` and `at most 60 words` only, line 6 carries `maxWords 60` once, no Not-checked note; (c) the edited rule 6.2 is asked; the control (added line unchanged) asks 0.
+- Built: `matchRecord` returns the edited added line as the asked rule with `pairRule` (its source's number) and folds the source; `applyAnswers` (src/panel/authorcard.js) is the one writer of what answers do to the job box and picks (replace, not append, for a `pairRule` ask). The am18 (4) test that pinned the old target was updated to the am21 target.
