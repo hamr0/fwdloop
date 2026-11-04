@@ -6396,3 +6396,17 @@ What is tested: am20, before any build. On hamr's real walk-9 draft dir `~/.conf
 Disclosure: the script was run once, with both outputs seen, before this text was committed (the bars above were fixed before I wrote the script; they were not changed after the run).
 
 Cost: $0.
+
+### F148 RESULT (2026-11-04, $0; script `poc/m10-am20/startover-carry.mjs`; the draft dir was only read)
+
+Verdict: (a) PASS, (b) PASS, (c) PASS. Spend $0; no provider, no key, no `pass`, no `src/` change.
+- (a) The record Start over can carry is `draft-3/picks-record.json`, field `picks` (2 entries: "exactly 3 bullets", "under 80 words"), the newest plan folder holding one (draft-3 is the red revise-2 plan; `draft` holds none, `draft-1` and `draft-2` hold the same two). Found by the rule `carryArgv` applies to a Revise.
+- (b) The job as it stands minus the weather line (the unchanged card): `matchRecord` -> 0 asks, 2 kept.
+- (c) `BREAK=1` (line words damaged in memory) -> 2 asks, 0 kept, exit 1; unbroken -> exit 0.
+- Recorded: the Start-over start path (`start`, src/panel/author.js) passes no `--carry`; the earlier draft's id is already in the body as `startedOverFrom`, so the plan folders to look in are known there.
+
+## F149 (2026-11-04, finding only, unsigned, no fix): a misleading sentence on a red plan (walk-9 revise 2)
+
+Seen on hamr's walk-9 revise 2 (`d-00mw23a969-7629`, `draft-3`): the job's last line was "Write one line about the weather from the notes", after "Write it out", so the last line was not the send line. The validator reds were right: `declaration: unjudgeable names line 8, which has no guardrail to be unjudgeable about; declaration: send at line 8 (steps[7]) is not granted a catalogue primitive of class "write"; declaration: send at line 8 (steps[7]) does not read the emits of any earlier signed a...` (log in `revise-3.log`).
+The page showed "The AI's notes on which lines it can check are not in a form the checker accepts." Cause: `PLAN_CHECK_RULES` in `src/plain-checks.js` maps by the FIRST matching rule over the first red; the first red holds the word `unjudgeable`, so the rule `/guardrailClasses|unjudgeable|refused/` wins. That rule blames the AI's notes; the real cause is that line 8 is the send line by position (the last line with the Destination) while the job puts a work line there, which is the second and third reds (the `send at line N` rule's sentence).
+A clean fix would touch: (1) `src/plain-checks.js`: an earlier rule for `unjudgeable names line \d+, which has no guardrail` (or ordering the `send at line` rule first) with a sentence naming the last line; or (2) the order of the reds in `src/declaration.js` so the root red (send slot) comes before its consequence; (3) the page's pick of which red to show (first red). Not built: `plain-checks.js` and `declaration.js` are under the am19 build on this branch; costs if left: a user sees a wrong cause and "Draft again", which repeats the red.
