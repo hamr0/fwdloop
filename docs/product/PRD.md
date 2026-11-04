@@ -367,6 +367,8 @@ undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
 
 Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row; learnings and the memo show in the Audit wherever they are handed on; the memo row reads `told in this run`. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
 
+*Built after signing — not signed text: the draft above is kept as written. M14 was signed by hamr 2026-11-02 (with its amendments 1 and 2) and its exit 2026-11-03; M15 (one result for every job) was signed 2026-11-03. The signed text and what was built are in docs/wiki/the-module-ladder.md under M14 and M15.*
+
 ## Guiding principles — borrowed from bareloop, reminders not features
 
 Signed by hamr 2026-09-15. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
