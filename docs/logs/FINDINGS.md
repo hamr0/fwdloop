@@ -6256,3 +6256,20 @@ The two other parts of the Done-when are not re-run here:
 - "A test for each drop fails first": the build's evidence (test/m10-am16-checkpick.test.js, written red first).
 
 Expected cost: about 5 x $0.004 to $0.01 (one suggestion round plus one drafting round each). Unchecked until run: whether the model proposes `listItems 3` / `maxWords 80` every time (F144c: 3 of 3 each on this job); a "can't check" ask is a pass on (a).
+
+### F145 RESULT (2026-11-04, run after the pre-registration above; code = 6787f10)
+
+Verdict: PASS, 5 of 5 drafts on the pre-registered marks (a), (b), (c). Source: `.claude/scratch/f145/result-2026-11-04T06-32-44-673Z.json` (`code` chore/fix-ledger@6787f10, `stoppedEarly` null, 06:32:44 to 06:33:32). Model: Fireworks `accounts/fireworks/models/deepseek-v4p1-flash`. Spent $0.0194 (file: 0.0193779) against the $0.30 cap.
+
+Per draft (cost complete, 1 first round + 1 redraft round, 1 call each): draft 1 $0.003806, draft 2 $0.003925, draft 3 $0.003794, draft 4 $0.003891, draft 5 $0.003963 (about $0.0038 to $0.0040 each). All five phases `green`.
+
+(a) Asks. Every draft asked exactly 2 am16 asks, both the kept-check ("I propose") form, none "I can't check". Full text, identical in all five:
+- `Line 3, guardrail "exactly 3 bullets": I propose exactly 3 list items. Answer "agree" to use it, or type your own words (your answer is added as a new ~ rule on line 3), or answer "drop it" to leave it Not checked.`
+- `Line 5, guardrail "under 80 words": I propose at most 80 words. Answer "agree" to use it, or type your own words (your answer is added as a new ~ rule on line 5), or answer "drop it" to leave it Not checked.`
+Both answered `agree` in every draft.
+
+(b) Final plans. In every draft: line 3 `softgreen` with `shape.picked [{rule:listItems, value:3}]`; line 5 `softgreen` with `shape.picked [{rule:maxWords, value:80}]`; lines 1, 2, 4, 6, 7 `hitl` with no shape. Scan: over all 5 plans, the only key under any `shape` is `picked`; no heading, section, mustCarry or other shape key anywhere. Plan card sentences, every draft: line 3 "The reply is checked as plain text only." + "You picked: exactly 3 list items."; line 5 "The reply is checked as plain text only." + "You picked: at most 80 words."; the hitl lines read "No machine check of the content: you check it at the ask."
+
+The suggestion call (`check-suggest`, outcome `answered`) typed answer, draft 1 args: `{"checks":[{"line":3,"guardrail":1,"rule":"listItems","value":3},{"line":5,"guardrail":1,"rule":"maxWords","value":80}]}`. Drafts 2, 3 and 5 returned the same args. Draft 4 also returned `{"line":1,"guardrail":1,"rule":"maxLines","value":3}` (line 1 has no guardrail on it to check); no ask was made for it and it is in no plan, so the scope step dropped it (spend/rows: still 2 asks, line 1 `hitl`).
+
+Not checked: hamr's own look at the asks on his panel. The drafts ran in isolated homes (mkdtemp), nothing was written to hamr's flows. The $0 rescan and the red-first drop tests are not re-run here (see the pre-registration).
