@@ -5,6 +5,61 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-11-04
+
+M14 (the carry memo), M15 (one `.md` result for every job), and the check-picks redesign (M10 am16 to
+am21), with M4d am37, M13 am6 and am7, and M10 am14 (1). Walked on the real panel (M14 exit, M10 am16
+exit and am17-am21 exit signed 2026-11-03 and 2026-11-04). The POCs behind them (F127-F150) are in
+`docs/logs/FINDINGS.md`.
+
+### Added
+- Carry memo (M14): before every model try, code writes what happened so far in the run from the run's own
+  files (your Accept, Redo and Rerun words in order, then the last try, earlier tries and earlier
+  failures, capped at 4,000 characters, no money) and hands it to the step. It is left out when nothing
+  has happened yet. A rerun keeps its reason in its own `run.json`.
+- Audit tab: a `told in this run` row under `told from earlier runs`, with one `[ N lines ]` button per try
+  that opens the exact memo text. A rerun's reason shows in the first step's rounds as `you said rerun:
+  "..."`. The audit row also keeps the tool calls bare-agent refused (`badCalls`).
+- Result tab for every job except `Tickets MCP`: a text line shows its text, and the top card links the
+  sent `.md` (M15).
+- The send writes the accepted answer as plain `<flow>-run-<n>-<name>.md`: the text only, no JSON, no
+  checks. A flat answer is one `name: value` line per field; a list of results is `## Result k` blocks,
+  quote not written. The `.md`'s sha256 rides the green send row; the JSON stays in the run folder for the
+  Audit and the send is still bound to its hash (M15, am1, am2).
+- Check picks (M10 am16): while drafting, one AI call suggests a check for each guardrail from bareguard's
+  list; code keeps it only if every number and word in it is the guardrail's own. You are asked per
+  guardrail (use it, your own words, or Not checked), and the plan uses only the checks you picked. The
+  drafter writes no check of its own. A pick is recorded in the draft log, the plan card and the Audit.
+- A Revise keeps your check picks (M10 am17): an unchanged guardrail is not asked again, a new or changed
+  one is. A kept pick follows its line's words, not its number, so adding, removing or moving lines does
+  not re-ask (am18). Kept picks read `kept from last draft`. Start over keeps them the same way (am20).
+- An edited agreed `~` line is asked once in its own words; `agree` replaces the old line and the old
+  line never comes back (M10 am21).
+- A plan where an input is reached by no step is red at $0: `Input "<role>" is read by no step.` (M10 am19).
+- A job with a guardrail under its send line is refused at $0, naming the line (M10 am14 (1)).
+- A model step that answers in text instead of saving is told so by one fixed line and made to save: round
+  2 forces `emit_artifact`, round 3 sends the line unforced. The audit row records `savedBy` (`first`,
+  `forced` or `fallback`); a forced call the provider refuses books $0 and says so (M4d am37). `log.json`
+  keeps the round-1 text as `firstText` when a later round saves.
+- README: a new walkthrough GIF from the current panel.
+
+### Changed
+- bare-agent `^0.59.0` with `checkArgs` on: a tool call missing a required value never runs the tool and
+  the model gets another turn. A cut-off gap now names bare-agent's facts (tokens, thinking, the limit).
+- bareguard `^0.31.0`.
+- `Destination` is required on the New job card: the mark, the button and a $0 refusal (M13 am6).
+- Reuse workflow card: one `Ask wait` box for all asks, and it shows either `Run id` or `Name of the new
+  workflow`, never both (M13 am7).
+- A plain step that cannot read a document input is told the input is read by grant, not listed in
+  `reads`, and the refusal says the same.
+- Revise fills every card field from the newest card.
+- Panel looks: captions are blue and bold (Runs, Run summary, Audit, Chat pills), and the Runs tab search
+  is a light card.
+
+### Removed
+- `src/attemptdiff.js` (a bareloop copy never wired in), and the `poc/m8-step` and `poc/am28-word-limit`
+  harnesses (broken by M10 am16; their results stay in `docs/logs/FINDINGS.md`).
+
 ## [0.28.0] - 2026-11-01
 
 M13 (one setup for outside sources) with amendments 1 to 5. The M13 exit was walked on the real panel
