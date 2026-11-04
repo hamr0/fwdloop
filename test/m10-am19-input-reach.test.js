@@ -77,6 +77,7 @@ test('ask and send steps are not model steps: a grant on them does not count', (
 
 test('plain words: the shown sentence names the input', () => {
   assert.match(plainPlanCheck(red('notes')).say, /notes/);
+  assert.equal(plainPlanCheck(red('notes')).fix, 'Draft again.');
 });
 
 test('draft: refused on try 1, the red told to try 2, fixed on try 2 -> green', async () => {
