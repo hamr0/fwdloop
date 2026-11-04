@@ -651,6 +651,15 @@ function checkSheetKey(step, label, c, reds) {
   for (const r of sheetCheckReds(list, step.fromLine, tables)) reds.push(r);
 }
 
+/** M10 am19: the tools that serve an input's kind (src/primitives.js rolePrimitiveFor): a page or ticket is frozen as text. */
+function inputReachVerbs(source) {
+  if (source?.kind === 'page') return ['read', 'grep'];
+  const p = String(source?.path ?? '').toLowerCase();
+  if (p.endsWith('.docx')) return ['readDocx'];
+  if (isCellsPath(source?.path)) return ['addressCells'];
+  return ['read', 'grep'];
+}
+
 /**
  * Validate a drafter declaration against the M1 closed schema. `arbiter`
  * and `lines` are `parseSignedText`'s output; `catalogue` is a plain array
@@ -1187,6 +1196,19 @@ export function validateDeclaration(declaration, context = {}) {
   for (const line of safeLines) {
     if (!claimedLines.has(line.n) && !refusedLines.has(line.n)) {
       reds.push(`declaration: job line ${line.n} ("${line.text}") is neither served by any step's fromLine nor refused with a reason`);
+    }
+  }
+
+  // --- check 7 (M10 am19): every input must be reachable by a model step (not an ask step, not the send step).
+  // Ruling A, hamr 2026-11-04: md/txt/page/ticket -> read or grep; docx -> readDocx; a sheet -> addressCells; or the role in the step's `reads`.
+  // `picks` / `inputFacts` name headings only and are not a grant. Plan-fit check: draft, revise and sign turn `fitJobLine` on; signed flows keep running.
+  if (fitJobLine === true) {
+    const modelSteps = stepInfo.filter((st) => st.fromLine === null || (!askLines.includes(st.fromLine) && !sendLines.includes(st.fromLine)));
+    for (const s of Array.isArray(safeArbiter.sources) ? safeArbiter.sources : []) {
+      const verbs = inputReachVerbs(s);
+      if (!modelSteps.some((st) => st.reads.includes(s.role) || st.primitives.some((v) => verbs.includes(v)))) {
+        reds.push(`Input "${s.role}" is read by no step.`);
+      }
     }
   }
 
