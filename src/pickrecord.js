@@ -2,8 +2,8 @@
 // and to its guardrail's exact words, never to a line or rule number: both are recomputed on the new card. This file is the only writer of a record's entries
 // (`entriesFromAnswers`) and the only reader that decides keep-or-ask (`matchRecord`); the logic is the one F146 / F146b proved (poc/m10-am17/keep-picks-am18.mjs).
 // Throws away: line and rule numbers (recomputed), the model's words (it never sees a pick), a pick whose line or guardrail words no longer match.
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { readFileInside } from './flow.js';
 
 /** the record's file, inside a drafting folder only (never a run folder) */
 export const RECORD_FILE = 'picks-record.json';
@@ -132,7 +132,9 @@ export function matchRecord(entries, lines, rules) {
  */
 export function readRecordFile(file) {
   try {
-    const j = JSON.parse(readFileSync(file, 'utf8'));
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
     return Array.isArray(j?.picks) ? j.picks.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string') : null;
   } catch { return null; }
 }

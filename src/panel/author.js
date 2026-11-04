@@ -29,7 +29,7 @@
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
 import { randomBytes } from 'node:crypto';
 import {
-  existsSync, mkdirSync, realpathSync, rmSync, writeFileSync,
+  mkdirSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -298,7 +298,7 @@ export function createAuthor(opts) {
    */
   function carryArgv(dir, ns, only) {
     const rels = only === undefined ? [...ns].sort((a, b) => b - a).map((x) => `draft-${x}`).concat('draft') : [only];
-    const rel = rels.find((r) => existsSync(recordPath(join(dir, r))));
+    const rel = rels.find((r) => readFileInside(join(dir, r), RECORD_FILE).ok);
     return rel === undefined ? [] : ['--carry', recordPath(join(dir, rel))];
   }
 
