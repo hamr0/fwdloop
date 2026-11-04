@@ -1,0 +1,350 @@
+{
+ "arm": "forced",
+ "port": 34689,
+ "results": [
+  {
+   "bar": 1,
+   "name": "cut-off facts on the audit gap",
+   "pass": true,
+   "detail": "row step=resume-text attempt=1: truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000"
+  },
+  {
+   "bar": 2,
+   "name": "badCalls on the audit row; bad tool never ran",
+   "pass": true,
+   "detail": "row step=resume-text attempt=2 badCalls=[{\"kind\":\"arg-type\",\"tool\":\"emit_artifact\",\"param\":\"text\",\"expected\":\"string\",\"got\":\"number\",\"round\":0,\"hasAppend\":false}]; artifact has 42: false; artifact has the good text: true"
+  },
+  {
+   "bar": 3,
+   "name": "books balance",
+   "pass": true,
+   "detail": "audit 0.023280000000000002 / history 0.023280000000000002 / spend 0.023280000000000002 (4 rounds, 7 audit rows, unpriced 0)"
+  },
+  {
+   "bar": 4,
+   "name": "memoText equals what the server received",
+   "pass": true,
+   "detail": "rows with memoText 3; distinct fromThisRun strings received 3; requests 8; per-request fromThisRun present: -,114,114,114,295,295,291,291"
+  }
+ ],
+ "requests": 8,
+ "sent": [
+  null,
+  "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 1 — result: red",
+  "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 1 — result: red",
+  "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 1 — result: red",
+  "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 2 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000",
+  "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 2 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000",
+  "What happened so far in this run (written by code, from the record)\nlast try: step jd-text try 1 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000",
+  "What happened so far in this run (written by code, from the record)\nlast try: step jd-text try 1 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000"
+ ],
+ "audit": [
+  {
+   "step": "resume-text",
+   "attempt": 1,
+   "class": "hitl",
+   "verdict": "red",
+   "gap": "truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000",
+   "usd": 0.0195,
+   "spendComplete": true,
+   "wallMs": 103,
+   "model": "mock-model",
+   "modelMatch": "match",
+   "strike": false,
+   "at": "2026-11-02T19:28:31.848Z",
+   "tokens": {
+    "inputTokens": 1000,
+    "outputTokens": 16000,
+    "cacheReadTokens": 0
+   },
+   "tools": {},
+   "refused": [],
+   "thinking": {
+    "asked": "off",
+    "status": "ignored"
+   }
+  },
+  {
+   "step": "resume-text",
+   "attempt": 2,
+   "class": "hitl",
+   "verdict": "hitl",
+   "gap": null,
+   "usd": 0.00162,
+   "spendComplete": true,
+   "wallMs": 28,
+   "model": "mock-model",
+   "modelMatch": "match",
+   "strike": false,
+   "at": "2026-11-02T19:28:31.887Z",
+   "tokens": {
+    "inputTokens": 3000,
+    "outputTokens": 600,
+    "cacheReadTokens": 0
+   },
+   "tools": {},
+   "refused": [],
+   "thinking": {
+    "asked": "on",
+    "status": "applied"
+   },
+   "memoText": "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 1 — result: red",
+   "badCalls": [
+    {
+     "kind": "arg-type",
+     "tool": "emit_artifact",
+     "param": "text",
+     "expected": "string",
+     "got": "number",
+     "round": 0,
+     "hasAppend": false
+    }
+   ]
+  },
+  {
+   "step": "jd-text",
+   "attempt": 1,
+   "class": "hitl",
+   "verdict": "hitl",
+   "gap": null,
+   "usd": 0.00108,
+   "spendComplete": true,
+   "wallMs": 14,
+   "model": "mock-model",
+   "modelMatch": "match",
+   "strike": false,
+   "at": "2026-11-02T19:28:31.911Z",
+   "tokens": {
+    "inputTokens": 2000,
+    "outputTokens": 400,
+    "cacheReadTokens": 0
+   },
+   "tools": {},
+   "refused": [],
+   "thinking": {
+    "asked": "off",
+    "status": "applied"
+   },
+   "memoText": "What happened so far in this run (written by code, from the record)\nlast try: step resume-text try 2 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000"
+  },
+  {
+   "step": "resume-summary",
+   "attempt": 1,
+   "class": "softgreen",
+   "verdict": "green",
+   "gap": null,
+   "usd": 0.00108,
+   "spendComplete": true,
+   "wallMs": 19,
+   "model": "mock-model",
+   "modelMatch": "match",
+   "strike": false,
+   "at": "2026-11-02T19:28:31.948Z",
+   "tokens": {
+    "inputTokens": 2000,
+    "outputTokens": 400,
+    "cacheReadTokens": 0
+   },
+   "tools": {},
+   "refused": [],
+   "thinking": {
+    "asked": "off",
+    "status": "applied"
+   },
+   "memoText": "What happened so far in this run (written by code, from the record)\nlast try: step jd-text try 1 — result: hitl\nearlier failure: step resume-text try 1 — result: red — truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000"
+  },
+  {
+   "step": "resume-summary-approved",
+   "attempt": 1,
+   "class": "hitl",
+   "verdict": "paused",
+   "gap": null,
+   "usd": 0,
+   "spendComplete": true,
+   "wallMs": 0,
+   "model": null,
+   "modelMatch": null,
+   "strike": false,
+   "at": "2026-11-02T19:28:31.953Z",
+   "tokens": null,
+   "tools": null,
+   "refused": [],
+   "unjudgedCount": 2
+  },
+  {
+   "step": "resume-summary-approved",
+   "attempt": 1,
+   "class": "hitl",
+   "verdict": "green",
+   "gap": null,
+   "usd": 0,
+   "spendComplete": true,
+   "wallMs": 0,
+   "model": null,
+   "modelMatch": null,
+   "strike": false,
+   "at": "2026-11-02T19:28:38.466Z",
+   "tokens": null,
+   "tools": null,
+   "refused": [],
+   "unjudgedCount": 2
+  },
+  {
+   "step": "resume-summary-output",
+   "attempt": 1,
+   "class": "hitl",
+   "verdict": "green",
+   "gap": null,
+   "usd": 0,
+   "spendComplete": true,
+   "wallMs": 0,
+   "model": null,
+   "modelMatch": null,
+   "strike": false,
+   "at": "2026-11-02T19:28:38.488Z",
+   "tokens": null,
+   "tools": null,
+   "refused": []
+  }
+ ],
+ "spend": [
+  {
+   "provider": "MOCK_API_KEY",
+   "price": {
+    "inPerM": 0.3,
+    "cachedInPerM": 0.3,
+    "outPerM": 1.2,
+    "source": {
+     "in": "model",
+     "cachedIn": "input",
+     "out": "model"
+    }
+   },
+   "model": "mock-model",
+   "modelReturned": "mock-model",
+   "tokens": {
+    "inputTokens": 1000,
+    "outputTokens": 16000,
+    "cacheReadTokens": 0,
+    "cacheCreationTokens": 0
+   },
+   "costUsd": 0.0195,
+   "rounds": 1,
+   "wallMs": 93,
+   "stopReason": "max_tokens",
+   "at": "2026-11-02T19:28:31.846Z",
+   "modelMatch": "match"
+  },
+  {
+   "provider": "MOCK_API_KEY",
+   "price": {
+    "inPerM": 0.3,
+    "cachedInPerM": 0.3,
+    "outPerM": 1.2,
+    "source": {
+     "in": "model",
+     "cachedIn": "input",
+     "out": "model"
+    }
+   },
+   "model": "mock-model",
+   "modelReturned": "mock-model",
+   "tokens": {
+    "inputTokens": 3000,
+    "outputTokens": 600,
+    "cacheReadTokens": 0,
+    "cacheCreationTokens": 0
+   },
+   "costUsd": 0.00162,
+   "rounds": 3,
+   "wallMs": 26,
+   "stopReason": "end_turn",
+   "at": "2026-11-02T19:28:31.883Z",
+   "modelMatch": "match"
+  },
+  {
+   "provider": "MOCK_API_KEY",
+   "price": {
+    "inPerM": 0.3,
+    "cachedInPerM": 0.3,
+    "outPerM": 1.2,
+    "source": {
+     "in": "model",
+     "cachedIn": "input",
+     "out": "model"
+    }
+   },
+   "model": "mock-model",
+   "modelReturned": "mock-model",
+   "tokens": {
+    "inputTokens": 2000,
+    "outputTokens": 400,
+    "cacheReadTokens": 0,
+    "cacheCreationTokens": 0
+   },
+   "costUsd": 0.00108,
+   "rounds": 2,
+   "wallMs": 13,
+   "stopReason": "end_turn",
+   "at": "2026-11-02T19:28:31.909Z",
+   "modelMatch": "match"
+  },
+  {
+   "provider": "MOCK_API_KEY",
+   "price": {
+    "inPerM": 0.3,
+    "cachedInPerM": 0.3,
+    "outPerM": 1.2,
+    "source": {
+     "in": "model",
+     "cachedIn": "input",
+     "out": "model"
+    }
+   },
+   "model": "mock-model",
+   "modelReturned": "mock-model",
+   "tokens": {
+    "inputTokens": 2000,
+    "outputTokens": 400,
+    "cacheReadTokens": 0,
+    "cacheCreationTokens": 0
+   },
+   "costUsd": 0.00108,
+   "rounds": 2,
+   "wallMs": 19,
+   "stopReason": "end_turn",
+   "at": "2026-11-02T19:28:31.937Z",
+   "modelMatch": "match"
+  }
+ ],
+ "hist": [
+  {
+   "runId": "run-1",
+   "at": "2026-11-02T19:28:38.490Z",
+   "outcome": "complete",
+   "spentUsd": 0.023280000000000002,
+   "spendComplete": true,
+   "capUsd": 0.25,
+   "wallMs": 6780,
+   "signatureHash": "8961a6e848ca007a99bec82ee0d33562b96ee3403e5cf3612a47a6c13541f48b"
+  }
+ ],
+ "log": {
+  "run": {
+   "code": 0,
+   "out": "[OpenAIProvider] thinkingMode 'off' for mock-model: thinkingStatus 'ignored' — the switch was accepted but the reply shows thinking happened anyway. The result is kept. Further 'ignored' occurrences from this provider instance are silent.\n[Loop] a round stopped at the output cap (stopReason='max_tokens') with no completed tool call — the response was cut off (often reasoning billed as output). Raise maxTokens or lower reasoning effort. Further truncations from this Loop are silent.\nparked: askId=37f45ab0-17ba-4c70-9c09-cb3f1958f421 expiresAt=2026-11-02T19:58:31.952Z spentUsd=0.023280000000000002\nfwdloop answer 37f45ab0-17ba-4c70-9c09-cb3f1958f421 accept|redo \"<reason>\"|rerun \"<reason>\" --root /tmp/f133-5WoFSP/root\n"
+  },
+  "inbox": {
+   "code": 0,
+   "out": "37f45ab0-17ba-4c70-9c09-cb3f1958f421  flow=job2 run=run-1 [open] 1798s left — check it with me,\n"
+  },
+  "answer": {
+   "code": 0,
+   "out": "answered: askId=37f45ab0-17ba-4c70-9c09-cb3f1958f421 decision=accept\n"
+  },
+  "resume": {
+   "code": 0,
+   "out": "complete: spentUsd=0.023280000000000002\n"
+  }
+ }
+}

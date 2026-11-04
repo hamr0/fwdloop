@@ -41,7 +41,7 @@ import { OpenAI, Anthropic, Gemini } from 'bare-agent/providers';
  * marker on the instance (`this.lastMalformedToolCall`, reset at the top of
  * every `generate()` call) — the one channel `runModelStepOnPrimitives`
  * (same provider reference) can read after `loop.run()` returns. We require
- * bare-agent >=0.50 (package.json `^0.52.0`) and never patch around its
+ * bare-agent >=0.50 (package.json `^0.57.0`) and never patch around its
  * private response internals.
  */
 class MalformedToolCallTolerantOpenAI extends OpenAI {
@@ -442,6 +442,9 @@ export function makeProvider(slotName, options = {}) {
         // bounds it, RAW_ARGS_BOUND). Not exposeErrorBody.
         exposeMalformedArgs: true,
       });
+
+  // M4d am37: only the OpenAI-shaped provider sends `toolChoice`; the other shapes ignore it, so a forced call there would be a force that was never sent
+  /** @type {any} */ (provider).honoursToolChoice = slot.shape === DEFAULT_SHAPE;
 
   return {
     provider, rates, modelId, slot: slotName, prices,

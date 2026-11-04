@@ -7,7 +7,7 @@ import path from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
-import { killChildrenAfter, world } from './m4e-world.mjs';
+import { killChildrenAfter, tmp, world } from './m4e-world.mjs';
 
 killChildrenAfter();
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
@@ -81,6 +81,7 @@ test('Draft with an MCP nobody has checked is refused on the MCP field with the 
   const set = (id, v) => c.ev(`var e = document.getElementById(${JSON.stringify(id)}); e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event("input", {bubbles: true}))`);
   await set('jf-name', 'mail-check');
   await set('jf-job', 'Read what comes in\nWrite it out');
+  await set('jf-dest-folder', tmp('dest'));
   await set('jf-cap-money', '0.25');
   assert.ok(await c.waitFor('document.getElementById("chat-main-btn").disabled === false'));
   await c.ev('document.getElementById("chat-main-btn").click()');

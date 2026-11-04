@@ -247,7 +247,7 @@ test('B4: answering every question drafts again with a fresh child that never as
   // the card: each answer a ~ line under line 3, after that line's own ~ line, word for word
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   const steps = parseJobBox(card.job).steps;
-  assert.deepEqual([steps[0].guardrails, steps[1].guardrails, steps[2].guardrails], [[a1], [a2], ['3 sections, all under 600 words']]);
+  assert.deepEqual([steps[0].guardrails, steps[1].guardrails, steps[2].guardrails], [[a1], [a2], []]);
   assert.equal(steps.length, 5);
   // the prose, then the signed flow, carry them; the goal is still the line verbatim
   const prose = readFileSync(path.join(w.dir(id), 'prose-1.txt'), 'utf8');
@@ -365,8 +365,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   assert.deepEqual(g.notChecked.readNotes, [], 'no code note on this plan: the list is there and empty');
   assert.equal(g.checked.length, 5, 'one entry per step');
   assert.ok(g.checked.every((c) => c.sentences.length > 0));
-  assert.equal(g.checked[2].class, 'softgreen');
-  assert.match(g.checked[2].sentences.join(' '), /under 600 words/);
+  assert.equal(g.checked[2].class, 'hitl', 'line 3 carries no shape guardrail now (M10 am16: a shape check is only one the person picked)');
   const sp = (await w.post(`/api/author/${id}/sign-prepare`, {})).json();
   assert.equal(sp.ok, true);
   assert.deepEqual(sp.notChecked, g.notChecked);

@@ -1,0 +1,252 @@
+{
+ "summary": {
+  "bars": {
+   "b1": {
+    "pass": true,
+    "failures": []
+   },
+   "b2": {
+    "pass": true,
+    "failures": []
+   },
+   "b3": {
+    "pass": true,
+    "failures": []
+   },
+   "b4": {
+    "pass": true,
+    "failures": []
+   },
+   "b5": {
+    "pass": true,
+    "failures": []
+   },
+   "b6": {
+    "pass": false,
+    "failures": [
+     "/home/hamr/.config/fwdloop/flows/m10b-aging/runs/run-1-rerun-1: the rerun reason and which ask it answered - needed in this run's own files (run.json / state.json / audit row): only the parent folder name in the path links to it"
+    ]
+   }
+  },
+  "forcedCut330": {
+   "fails": [],
+   "cutsSeen": 6,
+   "kindsSeen": [
+    "try",
+    "fail"
+   ]
+  },
+  "forcedCut120": {
+   "fails": [],
+   "cutsSeen": 20,
+   "kindsSeen": [
+    "last",
+    "fail",
+    "try"
+   ]
+  },
+  "selftest": {
+   "b1 drop a human line": "RED (check can fail)",
+   "b1 swap human order": "RED (check can fail)",
+   "b2 blank gets a user-says": "RED (check can fail)",
+   "b3 wrong verdict": "RED (check can fail)",
+   "b4 money in memo": "RED (check can fail)",
+   "b5 cap ignored": "RED (check can fail)",
+   "b5 cut eats a human line": "RED (check can fail)",
+   "b5 wrong cut order": "RED (check can fail)"
+  },
+  "triesChecked": 24,
+  "memosNonNull": 21,
+  "maxChars": 1106
+ },
+ "samples": [
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/aging-live-4/runs/run-24",
+   "row": 0,
+   "step": "aging_read",
+   "attempt": 1,
+   "chars": 0,
+   "memo": null
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/aging-live-4/runs/run-24",
+   "row": 1,
+   "step": "bucket_assignment",
+   "attempt": 1,
+   "chars": 128,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step aging_read try 1 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/aging-live-4/runs/run-24",
+   "row": 4,
+   "step": "bucket_assignment",
+   "attempt": 2,
+   "chars": 196,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step bucket_assignment): redo — user says \"yes\"\nlast try: step bucket_assignment try 1 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/aging-live-4/runs/run-24",
+   "row": 8,
+   "step": "(virtual next try)",
+   "chars": 259,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step bucket_assignment): redo — user says \"yes\"\nask 2 (after step bucket_assignment): accept — user says \"yes\"\nlast try: step bucket_assignment try 2 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 1,
+   "step": "resume_parked",
+   "attempt": 1,
+   "chars": 0,
+   "memo": null
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 2,
+   "step": "resume_parked",
+   "attempt": 2,
+   "chars": 134,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step resume_parked try 1 — result: stopped"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 3,
+   "step": "jd_parked",
+   "attempt": 1,
+   "chars": 233,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step resume_parked try 2 — result: hitl\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 4,
+   "step": "summary_resume",
+   "attempt": 1,
+   "chars": 229,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step jd_parked try 1 — result: hitl\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 5,
+   "step": "summary_resume",
+   "attempt": 2,
+   "chars": 233,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step summary_resume try 1 — result: red\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 8,
+   "step": "summary_resume",
+   "attempt": 2,
+   "chars": 489,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"redo again\"\nlast try: step summary_resume try 2 — result: green\nearlier try: step summary_resume try 1 — result: red — 1267 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 9,
+   "step": "summary_resume",
+   "attempt": 3,
+   "chars": 542,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"redo again\"\nlast try: step summary_resume try 3 — result: red\nearlier try: step summary_resume try 1 — result: red — 1267 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\nearlier try: step summary_resume try 2 — result: green\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-2",
+   "row": 13,
+   "step": "(virtual next try)",
+   "chars": 728,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"redo again\"\nask 2 (after step summary_resume): accept\nlast try: step summary_resume try 4 — result: green\nearlier failure: step resume_parked try 1 — result: stopped — stopped after turn 2 of try 1 of step 1\nearlier failure: step summary_resume try 1 — result: red — 1267 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\nearlier failure: step summary_resume try 3 — result: red — 1357 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 0,
+   "step": "resume_parked",
+   "attempt": 1,
+   "chars": 0,
+   "memo": null
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 1,
+   "step": "jd_parked",
+   "attempt": 1,
+   "chars": 131,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step resume_parked try 1 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 2,
+   "step": "summary_resume",
+   "attempt": 1,
+   "chars": 127,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step jd_parked try 1 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 3,
+   "step": "summary_resume",
+   "attempt": 2,
+   "chars": 131,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nlast try: step summary_resume try 1 — result: red"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 6,
+   "step": "summary_resume",
+   "attempt": 2,
+   "chars": 274,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"try again\"\nlast try: step summary_resume try 2 — result: green\nearlier try: step summary_resume try 1 — result: red — 1394 words, limit 600"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 7,
+   "step": "summary_resume",
+   "attempt": 3,
+   "chars": 327,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"try again\"\nlast try: step summary_resume try 3 — result: red\nearlier try: step summary_resume try 1 — result: red — 1394 words, limit 600\nearlier try: step summary_resume try 2 — result: green"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 8,
+   "step": "summary_resume",
+   "attempt": 4,
+   "chars": 516,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"try again\"\nlast try: step summary_resume try 4 — result: red\nearlier try: step summary_resume try 1 — result: red — 1394 words, limit 600\nearlier try: step summary_resume try 2 — result: green\nearlier try: step summary_resume try 3 — result: red — 1551 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 9,
+   "step": "summary_resume",
+   "attempt": 5,
+   "chars": 912,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"try again\"\nlast try: step summary_resume try 5 — result: red\nearlier try: step summary_resume try 1 — result: red — 1394 words, limit 600\nearlier try: step summary_resume try 2 — result: green\nearlier try: step summary_resume try 3 — result: red — 1551 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\nearlier try: step summary_resume try 4 — result: red — no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Professional Skills\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Soft Skills\" (a heading is a line that is only that text, optionally after #)"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m7-walk-2/runs/run-6",
+   "row": 13,
+   "step": "(virtual next try)",
+   "chars": 1106,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step summary_resume): redo — user says \"try again\"\nask 2 (after step summary_resume): accept\nlast try: step summary_resume try 6 — result: green\nearlier failure: step summary_resume try 1 — result: red — 1394 words, limit 600\nearlier failure: step summary_resume try 3 — result: red — 1551 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)\nearlier failure: step summary_resume try 4 — result: red — no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Professional Skills\" (a heading is a line that is only that text, optionally after #); no line is exactly the heading \"Soft Skills\" (a heading is a line that is only that text, optionally after #)\nearlier failure: step summary_resume try 5 — result: red — 1889 words, limit 600; no line is exactly the heading \"Work History\" (a heading is a line that is only that text, optionally after #)"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m10b-aging/runs/run-1-rerun-1",
+   "row": 0,
+   "step": "aging_report",
+   "attempt": 1,
+   "chars": 152,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step bucket_assignment): rerun — user says \"wrong answer\""
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m10b-aging/runs/run-1-rerun-1",
+   "row": 1,
+   "step": "bucket_assignment",
+   "attempt": 1,
+   "chars": 201,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step bucket_assignment): rerun — user says \"wrong answer\"\nlast try: step aging_report try 1 — result: hitl"
+  },
+  {
+   "run": "/home/hamr/.config/fwdloop/flows/m10b-aging/runs/run-1-rerun-1",
+   "row": 5,
+   "step": "(virtual next try)",
+   "chars": 252,
+   "memo": "What has happened so far in this run (written by code from the run's own record):\nask 1 (after step bucket_assignment): rerun — user says \"wrong answer\"\nask 2 (after step bucket_assignment): accept\nlast try: step bucket_assignment try 1 — result: green"
+  }
+ ]
+}

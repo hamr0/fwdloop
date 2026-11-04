@@ -38,9 +38,9 @@ function homeWithHint() {
 async function draftInto(root, work, tag, tweak = (t) => t) {
   const fx = job2Fixture();
   const proseFile = path.join(work, `${tag}.prose.txt`);
-  writeFileSync(proseFile, tweak(fx.prose));
+  writeFileSync(proseFile, tweak(fx.proseG));
   const dir = path.join(work, tag);
-  const r = await draftToDir({ proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {} });
+  const r = await draftToDir({ proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'sections', names: ['summary of work history blurb', 'professional skills', 'soft skills'] }, added: 'sections named a, b, c' }] });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   return { dir, hash: r.hash, fx };
 }

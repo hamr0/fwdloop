@@ -1,0 +1,128 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "garden_lines",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "picks": {
+        "notes": [
+          "Garden notes"
+        ]
+      },
+      "goal": "Write 3 lines about my garden from the notes"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "garden_lines"
+      ],
+      "emits": "ask1",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "weekly_jobs",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "picked": [
+            {
+              "rule": "listItems",
+              "value": 3
+            }
+          ]
+        }
+      },
+      "picks": {
+        "notes": [
+          "Garden notes"
+        ]
+      },
+      "goal": "List 3 jobs for this week from the notes"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "weekly_jobs"
+      ],
+      "emits": "ask2",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "closing_note",
+      "fromLine": 5,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "picked": [
+            {
+              "rule": "maxWords",
+              "value": 80
+            }
+          ]
+        }
+      },
+      "goal": "Write a short closing note to my neighbour"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "closing_note"
+      ],
+      "emits": "ask3",
+      "fromLine": 6,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "ask3"
+      ],
+      "emits": "final_output",
+      "fromLine": 7,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out"
+    }
+  ],
+  "guardrailClasses": {
+    "3": "softgreen",
+    "5": "softgreen"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {
+    "notes": [
+      "Garden notes"
+    ]
+  },
+  "flowType": "plain"
+}

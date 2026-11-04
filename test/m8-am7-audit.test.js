@@ -88,7 +88,7 @@ for (const width of [1280, 390, 320]) {
     const hintWord = (r) => `${r.ids.length} ${r.ids.length === 1 ? 'hint' : 'hints'}`;
     assert.equal(await chrome.ev(`${body}.querySelectorAll("[data-testid^=audit-try-hints]").length`), 0, 'the separate hints box is gone');
     assert.equal(await chrome.ev(`${G}.querySelector("tr.hint-row td.q").textContent`), 'told from earlier runs');
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr.hint-row td.c")).map(function(c){ var b = c.querySelector("button.btn.small"); return b ? b.getAttribute("data-hint") + ":" + b.textContent : c.textContent; })`),
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tr.hint-row:not(.memo-row) td.c")).map(function(c){ var b = c.querySelector("button.btn.small"); return b ? b.getAttribute("data-hint") + ":" + b.textContent : c.textContent; })`),
       await chrome.ev(`Array.from(${G}.querySelectorAll("thead th.t")).map(function(h, i){ return ${JSON.stringify(Object.fromEntries(want.map((r) => [r.try, hintWord(r)])))}[i + 1] ? (i + 1) + ":" + ${JSON.stringify(Object.fromEntries(want.map((r) => [r.try, hintWord(r)])))}[i + 1] : "\u2014"; })`),
       'a try handed hints has its own button, any other try a dash');
     assert.equal(await chrome.ev(`${G}.querySelectorAll(".fx-row.hintrow").length`), 0, 'nothing about hints is open on load');

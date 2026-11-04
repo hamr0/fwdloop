@@ -59,6 +59,6 @@ export async function world({ mode = 'green', prose = (p) => p } = {}) {
   const h = remember(await createPanelServer({ port: 0, root, settings: { home: path.join(base, 'cfg'), env: {} } }));
   HANDLES.push(h);
   const get = async (p, init) => { const r = await fetch(`http://127.0.0.1:${h.port}${p}`, init); const t = await r.text(); let body = t; try { body = JSON.parse(t); } catch { /* text */ } return { status: r.status, body, headers: r.headers, raw: t }; };
-  return { root, port: h.port, runDir: parked.runDir, outcome, get, delivered: path.join(SEND_DIR, 'job2-run-1-resume-summary-output.json') };
+  return { root, port: h.port, runDir: parked.runDir, outcome, get, delivered: path.join(SEND_DIR, 'job2-run-1-resume-summary-output.md') };
 }
 

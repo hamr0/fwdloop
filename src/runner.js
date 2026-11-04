@@ -76,6 +76,7 @@ import {
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
+import { buildMemo } from './memo.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
@@ -226,9 +227,9 @@ const holdOf = (ceilingUsd) => (Number.isFinite(ceilingUsd) && /** @type {number
 // WITHOUT the cap (M2 scope item 3, the load-bearing invariant).
 // ---------------------------------------------------------------------------
 
-const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap', 'hints']);
+const EXECUTOR_FIELDS = Object.freeze(['goal', 'primitives', 'reads', 'gap', 'hints', 'memo']);
 
-/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null, hints?:string|null}} opts  `hints` (M8 am7): the earlier runs' block, text only, for a retry / redo / rerun try */
+/** @param {{goal:string, primitives?:string[], reads?:Record<string,any>, gap?:string|null, hints?:string|null, memo?:string|null}} opts  `hints` (M8 am7): the earlier runs' block, text only, for a retry / redo / rerun try; `memo` (M14): what happened so far in this run, text only, every try */
 export function buildExecutorContext(opts) {
   for (const key of Object.keys(opts ?? {})) {
     if (!EXECUTOR_FIELDS.includes(key)) {
@@ -236,7 +237,7 @@ export function buildExecutorContext(opts) {
     }
   }
   const {
-    goal, primitives = [], reads = {}, gap = null, hints = null,
+    goal, primitives = [], reads = {}, gap = null, hints = null, memo = null,
   } = opts ?? {};
   return Object.freeze({
     goal,
@@ -244,6 +245,7 @@ export function buildExecutorContext(opts) {
     reads: Object.freeze({ ...reads }),
     gap: gap ?? null,
     hints: hints ?? null,
+    memo: memo ?? null,
   });
 }
 
@@ -251,7 +253,7 @@ export function buildExecutorContext(opts) {
  *  construction test, negative vi). Walks any depth, any key, any array
  *  entry; also catches a bare function value anywhere in the tree. */
 const FORBIDDEN_CONTEXT_KEYS = Object.freeze([
-  'close', 'shape', 'cap', 'strike', 'maxWords', 'sections', 'linesPerInvoice', 'mustCarry',
+  'close', 'shape', 'cap', 'strike', 'maxWords', 'sections', 'linesPerInvoice', 'mustCarry', 'picked',
 ]);
 
 /**
@@ -738,17 +740,17 @@ function recordLateAnswerIfAny(runDir, now = () => new Date().toISOString()) {
 export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 
 /**
- * @param {{flowName: string, runId: string, runDir: string, outcome: string, specHash: string|null, now: () => string}} o
+ * @param {{flowName: string, runId: string, runDir: string, outcome: string, now: () => string}} o
  */
 function recordRunNotes({
-  flowName, runId, runDir, outcome, specHash, now,
+  flowName, runId, runDir, outcome, now,
 }) {
   if (NOT_A_RUN_END.has(outcome)) return;
   const door = configDoorHome();
   if (door.skip) return;
   try {
     const r = learnAtRunEnd({
-      home: door.home, workflow: flowName, runId, runDir, specHash, now: new Date(now()),
+      home: door.home, workflow: flowName, runId, runDir, now: new Date(now()),
     });
     if (r.problem) throw new Error(r.problem);
   } catch (/** @type {any} */ e) {
@@ -819,6 +821,11 @@ function makeAuditRow({
   hintsText = /** @type {string|undefined} */ (undefined),
   hintIds = /** @type {string[]|undefined} */ (undefined),
   hintsError = /** @type {string|undefined} */ (undefined),
+  memoText = /** @type {string|undefined} */ (undefined),
+  badCalls = /** @type {any[]|undefined} */ (undefined),
+  sentSha256 = /** @type {string|undefined} */ (undefined),
+  savedBy = /** @type {string|undefined} */ (undefined),
+  forcedRefused = /** @type {string|undefined} */ (undefined),
 }) {
   const row = {
     step: step?.emits ?? step?.goal ?? null,
@@ -844,6 +851,16 @@ function makeAuditRow({
   // (this row, written after the call from what the try held in memory); a failed ask for the block is `hintsError`, the first line, secrets redacted.
   if (hints !== undefined) { row.hints = hints; row.hintsText = hintsText; row.hintIds = hintIds; }
   if (hintsError !== undefined) row.hintsError = hintsError;
+  // M14 item 7: the exact memo text this try was handed (what happened so far in the run); the key is absent when the try got none. The ONE place the text is kept.
+  if (memoText !== undefined) row.memoText = memoText;
+  // M14 item 10: bare-agent's facts about this try's calls that went wrong (`badCalls`), as the model step returned them; the key is absent when there were none. The ONE writer.
+  if (Array.isArray(badCalls) && badCalls.length > 0) row.badCalls = badCalls;
+  // M15 item 4: the sha256 of the plain-text file a send wrote; the key is only on a green send row. The ONE writer; the Result tab reads it to tell the file changed.
+  if (typeof sentSha256 === 'string') row.sentSha256 = sentSha256;
+  // M4d am37 item 5: which way the model step saved its artifact - `first` (round 1), `forced` (the forced call after the fixed line), `fallback` (the unforced call); absent when it did not save. The ONE writer.
+  if (savedBy === 'first' || savedBy === 'forced' || savedBy === 'fallback') row.savedBy = savedBy;
+  // M4d am37, ruling A: the fixed say of a try whose forced call the provider refused with no usage returned (it booked $0); absent otherwise. The ONE writer.
+  if (typeof forcedRefused === 'string') row.forcedRefused = forcedRefused;
   return row;
 }
 
@@ -956,13 +973,26 @@ async function runStepTries({
       }
     }
     // every row this try writes from here on carries how many hints it was handed, which, and what (none handed = no field)
-    const rowOf = (/** @type {any} */ a) => makeAuditRow({
+    // M14 items 2 and 7: the memo is built fresh from the run's files before EVERY try (src/memo.js), handed whole, and kept on every row this try writes
+    const memo = buildMemo(runDir, { step: step?.emits ?? step?.goal ?? null });
+    // M14 item 10: this try's `badCalls` come back with the model step's result; every row the try writes carries them
+    /** @type {any[]|undefined} */
+    let badCalls;
+    // M4d am37: how this try's model step saved, as it returned it
+    let savedBy;
+    let forcedRefused;
+    let firstText;
+    const rowOf = (/** @type {any} */ a) => withFirstText(makeAuditRow({
       ...a,
+      ...(memo !== '' ? { memoText: memo } : {}),
+      ...(badCalls !== undefined ? { badCalls } : {}),
+      ...(savedBy !== undefined ? { savedBy } : {}),
+      ...(forcedRefused !== undefined ? { forcedRefused } : {}),
       ...(handed !== null ? { hints: handed.ids.length, hintsText: handed.text, hintIds: handed.ids } : {}),
       ...(handedError !== undefined ? { hintsError: handedError } : {}),
-    });
+    }), firstText);
     const executorContext = buildExecutorContext({
-      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text,
+      goal: step.goal, primitives: step.primitives ?? [], reads: readsMap, gap, hints: handed === null ? null : handed.text, memo: memo === '' ? null : memo,
     });
 
     // `stepMeta` is a SEPARATE argument from `executorContext` — never a
@@ -1005,10 +1035,15 @@ async function runStepTries({
         const tools = first.tools || result.tools ? { ...(first.tools ?? {}) } : null;
         if (tools) for (const [k, v] of Object.entries(result.tools ?? {})) tools[k] = (tools[k] ?? 0) + v;
         const ungranted = [...new Set([...(first.ungranted ?? []), ...(result.ungranted ?? [])])].sort();
-        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}) };
+        const bad = [...(first.badCalls ?? []), ...(result.badCalls ?? [])];
+        result = { ...result, refused, tools, ...(ungranted.length > 0 ? { ungranted } : {}), ...(bad.length > 0 ? { badCalls: bad } : {}) };
       }
     }
     const wallMs = Date.now() - startedAt;
+    badCalls = Array.isArray(result?.badCalls) ? result.badCalls : undefined;
+    savedBy = typeof result?.savedBy === 'string' ? result.savedBy : undefined;
+    forcedRefused = typeof result?.forcedRefused === 'string' ? result.forcedRefused : undefined;
+    firstText = typeof result?.firstText === 'string' ? result.firstText : undefined;
 
     // A Stop landed during this try: the call in flight finished and is booked here (its cost into the run's spend and onto the one
     // `stopped` row), no new call started. Unknown cost stays unknown (usd null, spend incomplete), never 0.
@@ -1226,13 +1261,14 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
  * @param {unknown} opts.catalogue - passed straight through to `readFlow`.
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<{ok:boolean, artifact?:unknown, costUsd:number|null, red?:string, transport?:boolean, model?:string, modelMatch?:boolean}>} opts.modelStep
  * @param {(opts:{question:string, evidence:unknown, runDir:string}) => Promise<{decision:'accept'|'redo'|'rerun'|'timeout'|'park', reason?:string, artifactSha256?:string}>} opts.askStep
- * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown, acceptedSha256?:string|null) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives] - injected primitive implementations, keyed by catalogue verb.
  * @param {string[]} [opts.primitiveReds] - `resolvePrimitives`'s own `reds` (e.g. bareguard refusing a symlinked file scope); any entry refuses the run at $0 like an unwired verb, before the run dir exists.
  * @param {() => string} [opts.clock] - returns the current ISO timestamp; defaults to the wall clock.
  * @param {string} opts.businessDate - the run's explicit "as of today", never the wall clock.
  * @param {number} [opts.ceilingUsd] - per-attempt ceiling override; the model's hold from Settings prices (`ceilingCostUsd`); absent = no hold.
  * @param {{slot: string, model: string}} [opts.runModel] - M4d am33: the model this run started on; recorded once in the run folder (run.json) and kept by every resume/continue.
+ * @param {{decision: 'rerun', words: string, afterStep: string|null}} [opts.rerunOf] - M14 am1 item 1: only `resumeRun`'s rerun path passes it; kept in the new run's run.json
  * @param {string|null} [opts.initialGap] - M3 scope item 7 (rerun as a fresh
  *   run): a human's rerun reason, carried as the FIRST ordinary step's
  *   starting gap. Never used by a plain `runFlow` call outside `resumeRun`'s
@@ -1244,6 +1280,8 @@ export async function runStepRalph({ mcpServer = null, ...opts }) {
  */
 export async function runFlow({
   root, name, runId, sources, catalogue, modelStep, askStep, sendStep, primitives, primitiveReds, clock, businessDate, ceilingUsd, initialGap, fetchPage,
+  // M14 am1 item 1: set only by `resumeRun`'s rerun path ({decision, words, afterStep}); written once into run.json by `writeRunStart`
+  rerunOf,
   // M4d am33: the model this run STARTED on ({ slot, model }); recorded once beside the run, kept by every resume/continue. Absent = nothing recorded.
   runModel,
   // F45 finding 3's test needs to advance wall time across a park/resume
@@ -1374,7 +1412,7 @@ export async function runFlow({
     });
   }
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
-  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest) });
+  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
   if (frozen.skip) {
     return haltRun({
@@ -1408,9 +1446,7 @@ export async function runFlow({
     appendAudit(runDir, fullRow);
     if (row.spendComplete === false) spendComplete.value = false;
     if (modelOutput !== undefined) {
-      attemptsLog.push({
-        step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-      });
+      attemptsLog.push(attemptEntry(row, modelOutput));
     }
   };
   const spent = { value: 0 };
@@ -1478,7 +1514,7 @@ export async function runFlow({
     firstStepGap: initialGap ?? null,
   });
   recordRunNotes({
-    flowName: name, runId, runDir, outcome: result.outcome, specHash: signature.flow, now,
+    flowName: name, runId, runDir, outcome: result.outcome, now,
   });
 
   if (result.outcome === 'complete') return { ...result, auditRows };
@@ -1880,11 +1916,12 @@ async function foldFromStep({
         });
       }
       const content = contentResult.value;
-      const filename = `${flowName}-${runId}-${step.emits}.json`;
+      const filename = `${flowName}-${runId}-${step.emits}.md`;
       // eslint-disable-next-line no-await-in-loop
       const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
+        ...(sendResult.ok && typeof sendResult.sha256 === 'string' ? { sentSha256: sendResult.sha256 } : {}),
       });
       recordAudit(sendRow);
       if (!sendResult.ok) {
@@ -2173,7 +2210,7 @@ function sameRoot(recorded, requested) {
  * @param {string} opts.runId
  * @param {unknown} opts.catalogue
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
  * @param {string[]} [opts.primitiveReds] - see `runFlow`'s own.
  * @param {() => string} [opts.clock]
@@ -2463,7 +2500,7 @@ export async function resumeRun({
         runId, at: now(), outcome: 'ask-expired', spentUsd: spent.value, spendComplete: spendComplete.value, capUsd: arbiter.capUsd ?? null, wallMs: getNowMs() - runStartedAt, signatureHash: state.signatureHash,
       });
       recordRunNotes({
-        flowName: name, runId, runDir, outcome: 'ask-expired', specHash: state.signatureHash, now,
+        flowName: name, runId, runDir, outcome: 'ask-expired', now,
       });
       return { outcome: 'ask-expired', runDir, spentUsd: spent.value };
     }
@@ -2500,7 +2537,7 @@ export async function resumeRun({
       }
       // M8 am4: a rerun ends THIS run, so its notes count now (the new run, started below, makes its own).
       recordRunNotes({
-        flowName: name, runId, runDir, outcome: 'rerun', specHash: state.signatureHash, now,
+        flowName: name, runId, runDir, outcome: 'rerun', now,
       });
 
       // Deterministic derived id (M3 scope item 7) — refused by name, never
@@ -2540,6 +2577,8 @@ export async function resumeRun({
         runModel,
         // Item 7: the reason becomes the new run's FIRST step's starting gap.
         initialGap: reason,
+        // M14 am1 item 1: the new run keeps the reason in its own run.json (decision, words, the step the old run's ask followed; null = the ask was first)
+        rerunOf: { decision: 'rerun', words: reason, afterStep: steps[state.stepIndex - 1]?.emits ?? null },
       });
 
       return {
@@ -2582,9 +2621,7 @@ export async function resumeRun({
       appendAudit(runDir, fullRow);
       if (row.spendComplete === false) spendComplete.value = false;
       if (modelOutput !== undefined) {
-        attemptsLog.push({
-          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-        });
+        attemptsLog.push(attemptEntry(row, modelOutput));
       }
     };
 
@@ -2696,7 +2733,7 @@ export async function resumeRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: state.signatureHash, now,
+      flowName: name, runId, runDir, outcome: result.outcome, now,
     });
 
     if (result.outcome === 'complete') return { ...result, auditRows };
@@ -2732,7 +2769,7 @@ export function auditSpend(runDir) {
  * @param {string} opts.runId
  * @param {unknown} opts.catalogue
  * @param {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class:string|null}) => Promise<any>} opts.modelStep
- * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number}>} opts.sendStep
+ * @param {(target:string, filename:string, content:unknown) => Promise<{ok:boolean, red?:string, bytes?:number, sha256?:string}>} opts.sendStep
  * @param {Record<string, any>} [opts.primitives]
  * @param {string[]} [opts.primitiveReds]
  * @param {() => string} [opts.clock]
@@ -2849,9 +2886,7 @@ export async function continueRun({
       appendAudit(runDir, fullRow);
       if (row.spendComplete === false) spendComplete.value = false;
       if (modelOutput !== undefined) {
-        attemptsLog.push({
-          step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput,
-        });
+        attemptsLog.push(attemptEntry(row, modelOutput));
       }
     };
     const runStartedAt = typeof halt.startedAt === 'number' ? halt.startedAt : startedAt;
@@ -2905,7 +2940,7 @@ export async function continueRun({
       attemptsLog,
     });
     recordRunNotes({
-      flowName: name, runId, runDir, outcome: result.outcome, specHash: halt.signatureHash, now,
+      flowName: name, runId, runDir, outcome: result.outcome, now,
     });
     if (result.outcome === 'complete') return { ...result, auditRows };
     return result;
@@ -3007,6 +3042,23 @@ export async function stopParkedRun({
     releaseResumeLock(runDir, lockPath);
     try { closeSync(lockFd); } catch { /* already closed */ }
   }
+}
+
+/** hamr's ask 2026-11-03: the round-1 text of a try a later round saved. Held beside the audit row (rows stay small), read by `attemptEntry` only. */
+const FIRST_TEXT = new WeakMap();
+
+/** Registers a try's round-1 text against its audit row (the row itself is unchanged). */
+function withFirstText(row, firstText) {
+  if (firstText !== undefined) FIRST_TEXT.set(row, firstText);
+  return row;
+}
+
+/** The ONE builder of a try's log.json entry (what the model said, per try), for the three `recordAudit`s; `firstText` is there only when a later round saved. */
+function attemptEntry(row, modelOutput) {
+  const firstText = FIRST_TEXT.get(row);
+  return {
+    step: row.step, attempt: row.attempt, class: row.class, verdict: row.verdict, gap: row.gap, ...(row.refused ? { refused: row.refused } : {}), modelOutput, ...(firstText !== undefined ? { firstText } : {}),
+  };
 }
 
 /** log.json's one writer, called from every exit path (complete + every

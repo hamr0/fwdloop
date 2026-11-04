@@ -22,7 +22,7 @@ export const DROP_IT = 'drop it';
 /** @param {unknown} text @returns {boolean} */
 export const isDropIt = (text) => String(text ?? '').trim().replace(/\.$/, '').toLowerCase() === DROP_IT;
 /** the answers that accept the code's reading of a rule; anything else the person types is their own reading */
-const AGREE_WORDS = ['agree', 'yes'];
+export const AGREE_WORDS = ['agree', 'yes'];
 /** @param {unknown} text @returns {boolean} */
 export const isAgree = (text) => AGREE_WORDS.includes(String(text ?? '').trim().replace(/[.!]$/, '').toLowerCase());
 
@@ -139,14 +139,17 @@ export function tooManyAsksText(asks) {
  * What a typed answer to a look ask does, the ONE place that decides (the panel's answer route, the setup record and the Result tab all read it).
  * `agree` / `yes` to a reading ask takes the code's reading; `drop it` to a can't-check ask leaves the rule Not checked (no `~` line); anything else is the
  * person's own words, taken word for word with newlines folded to spaces. A question that is not a look ask is never changed: its answer is its rule.
- * @param {{source?: string, ask?: string, proposal?: string|null}} q @param {unknown} typed
- * @returns {{rule: string|null, left: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
+ * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
+ * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
+ * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed
+ * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
   if (q.source !== 'look') return { rule: typedText, left: false };
   const text = stripAgreeLead(typedText); // F240: "yes, check it as ..." is the person's own words minus the leading "yes,"
-  if (q.ask === 'reading' && typeof q.proposal === 'string' && isAgree(text)) return { rule: q.proposal, left: false };
-  if (q.ask === 'cant-check' && isDropIt(text)) return { rule: null, left: true };
-  return { rule: text, left: false };
+  const shape = q.ask === 'check' || q.ask === 'no-check';
+  if ((q.ask === 'reading' || q.ask === 'check') && typeof q.proposal === 'string' && isAgree(text)) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
+  if ((q.ask === 'cant-check' || shape) && isDropIt(text)) return { rule: null, left: true };
+  return { rule: text, left: false, ...(shape ? { own: true } : {}) };
 }

@@ -44,6 +44,7 @@
 // signed text).
 
 import { createRubric, checkStep } from 'bareguard';
+import { plainWords } from './checkwords.js';
 import { checkCited } from './citedcheck.js';
 import { closeSheet } from './sheetrun.js';
 
@@ -105,6 +106,8 @@ export function softgreenSpec(shape) {
   if (shape.linesPerInvoice !== undefined || shape.mustCarry !== undefined) {
     checks.push({ id: 'lines', rule: 'blockLines', field: 'text', size: shape.linesPerInvoice, phrases: shape.mustCarry });
   }
+  // M10 am16: each check the person picked is one more bareguard rule on the answer's text, id `pick<k>`; code set it from the person's pick, the drafter never writes one
+  if (Array.isArray(shape.picked)) shape.picked.forEach((c, k) => checks.push({ id: `pick${k + 1}`, field: 'text', ...c }));
   return { schema: 1, goal: 'softgreen', checkpoints: { close: { gating: true, checks } } };
 }
 
@@ -123,7 +126,7 @@ const partAfter = (item) => item.slice(item.indexOf(':') + 1);
  * A gap it has no sentence for is still a red, worded generically, never dropped.
  *
  * @param {any[]} gaps
- * @param {{ linesPerInvoice?: number, mustCarry?: string[] }} shape
+ * @param {{ linesPerInvoice?: number, mustCarry?: string[], picked?: any[] }} shape
  * @returns {{ red: string, reds: string[] }}
  */
 export function renderSoftgreenGaps(gaps, shape) {
@@ -165,6 +168,9 @@ export function renderSoftgreenGaps(gaps, shape) {
       // bareguard lists (block, word) misses and bounds the list; the tail counts the missing words it left out (amendment 20)
       const moreWords = (g.itemsTotal ?? 0) - (g.items?.length ?? 0);
       if (moreWords > 0) reds.push(`${moreWords} more missing word(s)`);
+    } else if (/^pick\d+$/.test(String(g.id)) && shape.picked?.[Number(String(g.id).slice(4)) - 1]) {
+      // M10 am16: a check the person picked is told in the words it was picked in, with the count bareguard measured when it gives one
+      reds.push(`not met: ${plainWords(shape.picked[Number(String(g.id).slice(4)) - 1])}${typeof g.measured === 'number' ? ` (found ${g.measured})` : ''}`);
     } else {
       reds.push(`the ${g.check} check failed (${g.kind ?? 'no detail'})`);
     }
@@ -179,6 +185,7 @@ function softgreenCheckText(c) {
   if (c.id === 'words') return `at most ${c.value} words`;
   if (c.id === 'sections') return `the sections are there, in order: ${c.names.join(', ')}`;
   if (c.id === 'perSection') return `each section is about ${c.wordsPerSection} words`;
+  if (/^pick\d+$/.test(c.id)) return plainWords(/** @type {any} */ (c));
   return `${c.size ?? 'its'} lines per block, each carrying: ${(c.phrases ?? []).join(', ')}`;
 }
 

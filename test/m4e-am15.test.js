@@ -99,13 +99,13 @@ async function draft(guardrail, mutate, { provider } = {}) {
   const fx = job2Fixture();
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am15-'));
   const proseFile = path.join(work, 'prose.txt');
-  assert.ok(fx.prose.includes(G_OLD));
-  writeFileSync(proseFile, fx.prose.replace(G_OLD, `guardrail: ${guardrail}`));
+  assert.ok(fx.proseG.includes(G_OLD));
+  writeFileSync(proseFile, fx.proseG.replace(G_OLD, `guardrail: ${guardrail}`));
   const args = validArgs();
   mutate?.(args);
   const p = provider ?? fakeProvider([toolReply(args)]);
   const dir = path.join(work, 'draft');
-  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {} });
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: p, rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
   return { r, p, dir, work };
 }
 const readDecl = (dir) => JSON.parse(readFileSync(path.join(dir, 'declaration.json'), 'utf8'));
@@ -137,17 +137,17 @@ test('(a) at sign: a draft whose guardrail was edited to fight itself (re-hashed
   assert.equal(existsSync(path.join(work, 'flows', 'job2')), false);
 });
 
-test('(b) ~3 sections, about 180 words each, under 600 words: green, the machine sets wordsPerSection 180, the readout shows it', async () => {
+test('(b) ~3 sections, about 180 words each, under 600 words: green with the picked check only (M10 am16: the machine no longer sets wordsPerSection), the readout shows the pick', async () => {
   const { r, dir } = await draft('~3 sections, about 180 words each, under 600 words');
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(readDecl(dir).steps[2].close.shape.wordsPerSection, 180);
-  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\n {5}sections: summary of work history blurb · professional skills · soft skills · about 180 words each · under 600 words\n/);
+  assert.deepEqual(readDecl(dir).steps[2].close.shape, { picked: [{ rule: 'maxWords', value: 600 }] });
+  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\n {5}you picked: at most 600 words\n/);
   assert.equal(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).ok, true);
 });
-test('(b) the drafter schema never offers wordsPerSection to the model', async () => {
+test('(b) the drafter schema never offers wordsPerSection (nor any shape) to the model', async () => {
   const { buildDeclarationSchema } = await import('../src/drafter.js');
-  const shape = buildDeclarationSchema([{ verb: 'read' }]).properties.steps.items.properties.close.properties.shape;
-  assert.equal(Object.keys(shape.properties).includes('wordsPerSection'), false);
+  const close = buildDeclarationSchema([{ verb: 'read' }]).properties.steps.items.properties.close;
+  assert.equal(close.properties.shape, undefined);
 });
 
 test('(c) "250ish each" only in the job line, guardrail without a per-section size: no wordsPerSection, green as today', async () => {
@@ -157,13 +157,10 @@ test('(c) "250ish each" only in the job line, guardrail without a per-section si
   assert.doesNotMatch(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /words each/);
 });
 
-test('(e) a model that writes wordsPerSection itself is overwritten with the guardrail\'s number (or dropped when there is none)', async () => {
-  const a = await draft('~3 sections, about 180 words each, under 600 words', (x) => { x.steps[2].close.shape.wordsPerSection = 500; });
+test('(e) a model that writes a shape (wordsPerSection) itself has it dropped: the plan carries only the picked check', async () => {
+  const a = await draft('~3 sections, about 180 words each, under 600 words', (x) => { x.steps[2].close.shape = { wordsPerSection: 500, sections: ['a'] }; });
   assert.equal(a.r.ok, true, JSON.stringify(a.r.reds));
-  assert.equal(readDecl(a.dir).steps[2].close.shape.wordsPerSection, 180);
-  const b = await draft('3 sections, all under 600 words', (x) => { x.steps[2].close.shape.wordsPerSection = 500; });
-  assert.equal(b.r.ok, true, JSON.stringify(b.r.reds));
-  assert.equal('wordsPerSection' in readDecl(b.dir).steps[2].close.shape, false);
+  assert.deepEqual(readDecl(a.dir).steps[2].close.shape, { picked: [{ rule: 'maxWords', value: 600 }] });
 });
 test('(e) a declaration whose wordsPerSection differs from the guardrail (hand-edited, re-hashed) is red at sign', async () => {
   const { r, dir } = await draft('~3 sections, about 180 words each, under 600 words');
@@ -185,7 +182,7 @@ test('(f) the same at revise (a second draft over the same card) and at sign (ha
   const first = await draft('3 sections, all under 600 words');
   assert.equal(first.r.ok, true);
   const bad = validArgs(); bad.steps[2].primitives = ['write'];
-  const revised = await draftToDir({ proseFile: path.join(first.work, 'prose.txt'), dir: path.join(first.work, 'draft-1'), root: path.join(first.work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(bad)]), rates: RATES, modelId: MODEL, env: {} });
+  const revised = await draftToDir({ proseFile: path.join(first.work, 'prose.txt'), dir: path.join(first.work, 'draft-1'), root: path.join(first.work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(bad)]), rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
   assert.equal(revised.ok, false);
   assert.ok(revised.reds.some((x) => x.includes(WRITE_RED)), JSON.stringify(revised.reds));
   const d = readDecl(first.dir); d.steps[2].primitives = ['read', 'write']; writeFileSync(path.join(first.dir, 'declaration.json'), JSON.stringify(d));

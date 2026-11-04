@@ -36,7 +36,7 @@
     --cap-j:#6b7396; --cap-j-bg:#2a2f45; --cap-j-ink:#c0caf5;
     --cap-r:#2b8a7e; --cap-r-bg:#17332f; --cap-r-ink:#8fdccf;
     --req:#c9a85f;
-    --accent:#7aa2f7;
+    --accent:#7aa2f7; --search-tint:var(--panel2);
     --btn-bg:#1f2335; --btn-text:#c0caf5;
     --field-bg:var(--bg); --field-soft-bg:var(--bg); --field-border:var(--text-dim);
     --primary-bg:#7aa2f7; --primary-text:#1a1b26; --primary-border:#7aa2f7;
@@ -82,7 +82,7 @@
       --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
       --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
       --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a; --req:#8a6d2a;
-      --accent:#2668c2;
+      --accent:#2668c2; --search-tint:#f5f7fc;
       --btn-bg:#e9e9ed; --btn-text:#3760bf;
       --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
       --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
@@ -101,7 +101,7 @@
     --cap-s:#2a4fa8; --cap-s-bg:#cfdaf3; --cap-s-ink:#1d3a80;
     --cap-j:#5b6680; --cap-j-bg:#c7cddb; --cap-j-ink:#333c52;
     --cap-r:#2b8a7e; --cap-r-bg:#cdeee8; --cap-r-ink:#14524a; --req:#8a6d2a;
-    --accent:#2668c2;
+    --accent:#2668c2; --search-tint:#f5f7fc;
     --btn-bg:#e9e9ed; --btn-text:#3760bf;
     --field-bg:#ffffff; --field-soft-bg:#f7f7f9;
     --primary-bg:#2668c2; --primary-text:#e1e2e7; --primary-border:#2668c2;
@@ -236,7 +236,7 @@
   /* M4b piece 4: the answer doors. Shape/placement from bareloop's mockup Run-tab
      action bar (a row of `.btn`s with a hint line under it), redo is ours. */
   .answer-doors{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);}
-  .answer-doors label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
+  .answer-doors label{display:block;font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:3px;}
   .answer-doors textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;min-height:64px;padding:6px 8px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);resize:vertical;}
   .answer-doors .actions-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .answer-doors .btn{min-width:44px;}
@@ -306,6 +306,13 @@
   .rl-pill-need{border-color:var(--accent);color:var(--accent);}
   .rl-dash{border-top:1px dashed var(--border-strong);margin:10px 0 6px;}
   #panel-runs .rl-faint{margin-bottom:4px;}
+  /* Runs tab: the search block is a light card (V1), hamr 2026-11-03 */
+  #panel-runs .rl-dash{border:0;margin:12px 0 0;}
+  #panel-runs .rl-faint[data-testid="rl-filter-note"]{color:var(--accent);font-weight:700;font-size:12px;letter-spacing:.02em;background:var(--search-tint);padding:8px 10px 6px;margin-bottom:0;border-radius:6px 6px 0 0;}
+  #panel-runs .rl-faint[data-testid="rl-filter-note"]::before{content:"SEARCH  ";letter-spacing:.08em;}
+  #runs-filterbar-anchor{background:var(--search-tint);padding:4px 10px 10px;margin-bottom:12px;border-radius:0 0 6px 6px;}
+  #runs-filterbar-anchor input[type="search"],#runs-filterbar-anchor input[type="text"]{border:1px solid var(--accent) !important;background:var(--bg,#fff);font-size:14px;padding:8px 10px;}
+  #runs-filterbar-anchor input:focus{outline:2px solid var(--accent);outline-offset:1px;}
   @media (max-width:899px){ .rl-fold{min-height:44px;} }
 
   .rp-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:2px solid var(--border-strong);background:var(--panel);flex-wrap:wrap;gap:8px;}
@@ -344,11 +351,12 @@
   .ended-block.amber,.ended-block.expired,.ended-block.stuck{border-color:var(--amber);}
   .ended-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px;}
   .ended-row:last-child{margin-bottom:0;}
-  .ended-label{color:var(--text-faint);font-size:11px;letter-spacing:0.08em;min-width:84px;}
+  /* hamr 2026-11-02: Run tab ended/next/schedule and Result tab captions accent bold; Run summary/map +1px */
+  .ended-label{color:var(--accent);font-weight:700;font-size:11px;letter-spacing:0.08em;min-width:84px;}
   .ended-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
   /* M9 am24: a NEXT with several instructions is one per line, label muted, instructions in a second column (shape: bareloop 8cad363, with labels in the muted colour) */
   .next-rows{display:grid;grid-template-columns:max-content minmax(0,1fr);column-gap:10px;row-gap:2px;}
-  .next-label{color:var(--text-faint);}
+  .next-label{color:var(--accent);font-weight:700;}
   .next-text{min-width:0;overflow-wrap:anywhere;}
   .audit-sched-start{padding:6px 10px;margin-bottom:8px;border:1px solid var(--border-strong);background:var(--panel2);font-size:12px;overflow-wrap:anywhere;}
   .when-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
@@ -360,10 +368,11 @@
   .summary-box.grey,.summary-box.stopped,.summary-box.skipped{border-color:var(--grey-dot);}
   .summary-box.amber,.summary-box.expired,.summary-box.stuck{border-color:var(--amber);}
   .summary-box.magenta{border-color:var(--magenta);}
-  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;}
+  .summary-box::before{content:"┤ SUMMARY ├";position:absolute;top:-10px;left:10px;background:var(--panel2);padding:0 6px;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.08em;}
   .summary-headline{font-weight:700;margin-bottom:8px;font-size:13px;}
   .summary-row{display:flex;gap:0;padding:2px 0;}
-  .sum-label{flex:none;width:66px;color:var(--text-faint);}
+  /* hamr 2026-11-02: Run summary captions blue, same size */
+  .sum-label{flex:none;width:66px;color:var(--accent);font-weight:700;}
   .sum-val{color:var(--text);}
   .summary-box .num{color:var(--accent);font-weight:700;}
 
@@ -371,7 +380,7 @@
      wrapping; a name is never cut. A box + its trailing arrow are ONE unit (the arrow never wraps alone); the lead arrow
      of a wrapped line hangs in the container's left padding (absolute, zero layout impact — toggling it moves nothing). */
   .map-box{border:1px solid var(--border-strong);padding:10px;margin-top:16px;margin-bottom:14px;background:var(--panel2);}
-  .map-box::before{content:"┤ MAP ├";display:block;font-size:11px;color:var(--text-faint);letter-spacing:0.08em;margin:-2px 0 8px 0;}
+  .map-box::before{content:"┤ MAP ├";display:block;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.08em;margin:-2px 0 8px 0;}
   .map-chips{display:flex;flex-wrap:wrap;gap:8px 4px;align-items:flex-start;padding-left:1.4em;}
   .map-item{position:relative;display:inline-flex;align-items:center;gap:4px;max-width:100%;}
   .map-arrow{color:var(--text-dim);font-size:13px;flex:none;}
@@ -500,7 +509,7 @@
   .audit-tally{color:var(--text-dim);margin:2px 0 4px;}
   .audit-try{margin:4px 0 2px;overflow-wrap:anywhere;}
   .audit-judged{color:var(--text-faint);}
-  .audit-fold-label{color:var(--text-faint);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
+  .audit-fold-label{color:var(--accent);text-transform:uppercase;font-size:10px;letter-spacing:.05em;margin-top:8px;}
   .audit-fold-body table.rounds-table{width:100%;border-collapse:collapse;margin-top:4px;}
   .audit-fold-body table.rounds-table th{position:sticky;top:0;z-index:1;}
   .audit-fold-body table.rounds-table tr.trysep td{border-top:1px solid var(--border-strong);}
@@ -526,14 +535,14 @@
   .fold-list{margin-top:10px;}
   .fgrid .cell.fail[aria-expanded="true"]{outline:2px solid var(--red);outline-offset:1px;}
   .fx-errors{margin:8px 0 4px;min-width:0;}
-  .fx-label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
+  .fx-label{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;}
   .fx-row{min-width:0;}
   .fx-rowhead{display:flex;align-items:baseline;gap:8px;width:100%;min-width:0;min-height:32px;padding:3px 4px;border:0;background:none;color:var(--text);font:inherit;font-size:12px;text-align:left;}
   button.fx-rowhead{cursor:pointer;}
   button.fx-rowhead:hover{background:var(--panel2);}
   button.fx-rowhead:focus-visible,.fx-more:focus-visible,.cell.fail:focus-visible{outline:2px solid var(--red);outline-offset:1px;}
   .fx-caret{flex:none;width:12px;color:var(--text-faint);}
-  .fx-try{flex:none;font-weight:700;}
+  .fx-try{flex:none;font-weight:700;color:var(--accent);}
   .fx-chk{flex:none;white-space:nowrap;}
   .fx-first{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim);}
   .fx-faint,.fx-count{color:var(--text-faint);}
@@ -550,6 +559,8 @@
   .btn.hints:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
   .cell.none{color:var(--text-faint);cursor:default;font-weight:400;}
   tr.hint-row td{color:var(--text-faint);}
+  tr.hint-row td.q{color:var(--accent);}
+  .audit-group th{color:var(--accent);}
   .fx-row.hintrow.open>.fx-rowhead{background:var(--panel2);}
   .fx-row.hintrow .fx-body{border-left-color:var(--accent);background:var(--panel2);}
   .fx-row.hintrow .fx-try{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
@@ -598,6 +609,7 @@
   #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
   table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
   table.grid.tg td.c{min-width:84px;}
+  table.grid.tg th{color:var(--accent);font-weight:700;}
   .tg-rowname{display:flex;align-items:center;max-width:min(240px,60vw);}
   table.grid.tg button.tg-name{flex:0 1 auto;min-width:0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:none;padding:0;min-height:32px;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;}
   table.grid.tg button.tg-name:hover{text-decoration:underline;}
@@ -626,12 +638,13 @@
   /* M10 am4 item 8 (bareloop never looked on a phone): a long saved-file name wraps inside its button instead of pushing it past the screen */
   #result-body .btn{max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;}
   .field{margin-bottom:10px;}
-  label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
+  /* hamr 2026-11-02: captions on every page 1px bigger, bold, accent (Chat card keeps its pills) */
+  label{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;}
   /* hamr's 2026-09-27 exit-check review #3: Ask tab box headers — same
      bold/uppercase weight `label` already gives the Job tab's own fields,
      applied to "draft under review" and each unjudged input's own label
      ("resume-text"/"jd-text" etc.), never the faint `.hint` style. */
-  .evidence-heading{font-size:11px;font-weight:700;color:var(--text-dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
+  .evidence-heading{font-size:12px;font-weight:700;color:var(--accent);margin:8px 0 3px;text-transform:uppercase;letter-spacing:0.04em;}
   .evidence-heading:first-child{margin-top:0;}
   /* review #3: the ask's own question, a real heading under the "step ·
      draft N · asked · status" meta line — reuses the box-drawing h4 look
@@ -679,8 +692,8 @@
   @media (max-width:400px){.job-card .radio-row{padding-right:76px;}}
   .cap-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-bottom:6px;}
   .cap-field label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:1px;}
-  /* hamr 2026-11-01 (variant A): the Chat card's field captions are normal case, 14px bold, ink, with the Runs captions' blue left mark; `required` is small and grey */
-  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label,#chat-job-card .jf-waitrow > label{font-size:14px;font-weight:700;color:var(--cap-s-ink);text-transform:none;letter-spacing:0;margin:6px 0 6px;padding-left:8px;border-left:4px solid var(--cap-s);}
+  /* hamr 2026-11-02 picked variant C: the Chat card's field captions are pill captions (accent text on a tinted pill), no left bar; `required` is small and grey */
+  #chat-job-card .field > label:not(.jf-thinking),#chat-job-card .cap-field > label{font-size:13px;font-weight:700;color:var(--accent);text-transform:none;letter-spacing:0;margin:8px 0 6px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--accent) 16%,transparent);display:inline-block;}
   #chat-job-card .req{font-size:11px;font-weight:400;color:var(--req);margin-left:8px;}
   .cap-field input{width:100%;padding:5px 6px;box-sizing:border-box;}
   .btn.primary{background:var(--primary-bg);color:var(--primary-text);border-color:var(--primary-border);font-weight:700;}
@@ -780,7 +793,6 @@
   .ro-lines{padding:6px 8px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-size:12px;overflow-wrap:anywhere;overflow-y:auto;}
   .ro-lines .ro-line{display:flex;gap:8px;}
   .ro-lines .ro-n{flex:none;min-width:1.4em;color:var(--text-faint);}
-  .jf-waitrow{margin-bottom:4px;}
   .jf-err{font-size:11px;color:var(--red);margin-top:2px;overflow-wrap:anywhere;}
   .jf-err:empty{display:none;}
   .dest-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:6px;}
@@ -892,7 +904,7 @@
   .settings-header h2::after{content:" ├";color:var(--text-faint);}
   .money-strip{display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;align-items:end;padding:10px;border:1px solid var(--border-strong);background:var(--panel2);}
   .money-item{min-width:0;}
-  .money-item label{display:block;font-size:11px;font-weight:700;color:var(--text-dim);margin-bottom:2px;}
+  .money-item label{display:block;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:2px;}
   .money-value{font-size:16px;font-weight:700;padding:6px 0;overflow-wrap:anywhere;}
   .money-item input{width:100%;height:44px;box-sizing:border-box;}
   .keyfile-strip{position:relative;border:1px solid var(--border-strong);padding:12px 12px 8px;background:var(--panel2);margin:14px 0;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
@@ -921,7 +933,7 @@
   .pv-fold{border:0;background:none;color:var(--text);font:inherit;padding:0 4px 0 0;min-width:22px;min-height:24px;cursor:pointer;text-align:left;}
   .pv-krow select,.pv-krow input[type=text]{width:100%;max-width:100%;min-height:28px;box-sizing:border-box;}
   .pv-grid select,.pv-grid input[type=text]{font-size:12px;height:28px;padding:2px 6px;}
-  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
+  .pv-legacy{display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:28px;color:var(--text-dim);text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;}
   .pv-legacy input,.pv-m-use input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer;}
   .pv-tok{text-align:right;font-variant-numeric:tabular-nums;}
   .pv-refcell{display:flex;justify-content:flex-end;}
@@ -960,7 +972,7 @@
   .pv-typed{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;}
   .pv-typed input{flex:1 1 160px;min-width:0;max-width:260px;min-height:28px;box-sizing:border-box;}
   .pv-typed .hint{flex:1 1 100%;margin:0;}
-  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;}
+  .field label.jf-thinking{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;margin-top:6px;font-size:12px;color:var(--text-dim);text-transform:none;letter-spacing:0;}
   .field label.jf-thinking input{width:auto;min-height:0;margin:0;}
   .hint.bad{color:var(--red);}
   .table-wrap{overflow-x:auto;border:1px solid var(--border-strong);background:var(--panel2);max-width:100%;}
@@ -1175,7 +1187,7 @@
                   <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
                 </div>
-                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait. With a Destination, the last line writes the result there.</div>
+                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait. The last line writes the result to the Destination.</div>
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
               </div>
               <div class="field">
@@ -1217,9 +1229,9 @@
                 <div class="jf-err" id="jf-err-schedule" data-testid="jf-err-schedule"></div>
               </div>
               <div class="field">
-                <label for="jf-dest-folder">Destination</label>
+                <label for="jf-dest-folder">Destination <span class="req" id="jf-req-destination" data-testid="jf-req-destination">required</span></label>
                 <input id="jf-dest-folder" type="text" placeholder="/full/path/to/a/folder" autocomplete="off" spellcheck="false" data-testid="jf-dest-folder">
-                <div class="hint">Where the accepted result is placed, at the last step. Leave empty for no send.</div>
+                <div class="hint">Where the accepted result is placed, at the last step.</div>
                 <div class="jf-err" id="jf-err-destination" data-testid="jf-err-destination"></div>
               </div>
               <div class="cap-row" data-testid="cap-row">
@@ -1326,11 +1338,14 @@
                   <div class="hint" id="jf-run-left" data-testid="jf-run-left"></div>
                   <div class="jf-err" id="jf-err-run-capUsd" data-testid="jf-err-run-capUsd"></div>
                 </div>
-                <div class="cap-field" id="jf-run-waits" data-testid="jf-run-waits"></div>
+                <div class="cap-field" id="jf-run-waits" data-testid="jf-run-waits" hidden>
+                  <label for="jf-run-wait">Ask wait</label>
+                  <input id="jf-run-wait" class="jf-wait" type="text" placeholder="e.g. 30m" autocomplete="off" spellcheck="false" data-testid="jf-run-wait">
+                </div>
               </div>
               <div class="jf-err" id="jf-err-run-askWaits" data-testid="jf-err-run-askWaits"></div>
               <div class="hint" id="jf-run-sign-hint" data-testid="jf-run-sign-hint">A different destination, cap or ask wait is signed for this run only: two clicks. The flow's own values never change.</div>
-              <div class="field">
+              <div class="field" id="jf-run-id-field" data-testid="jf-run-id-field">
                 <label for="jf-run-id">Run id</label>
                 <input id="jf-run-id" type="text" autocomplete="off" spellcheck="false" data-testid="jf-run-id">
                 <div class="jf-err" id="jf-err-runId" data-testid="jf-err-runId"></div>
@@ -2772,6 +2787,14 @@
     return resultField("Page read", '<div class="ro-value" data-testid="' + testid + '" style="overflow-wrap:anywhere"><a href="' + escapeXml(url) +
       '" target="_blank" rel="noopener noreferrer">' + escapeXml(url) + '</a><div class="hint" data-testid="result-page-note">' + escapeXml(note || "") + '</div></div>');
   }
+  // M15 item 5: the sent file(s), at the top: a link that opens the file, or the server's words (gone / changed) in its place. A run that sent nothing draws nothing.
+  function resultFileLinks(data){
+    return (data.delivered || []).map(function(d){
+      return resultField("Saved", d.words ? '<div class="rs-warn" data-testid="result-file-top-gone">' + escapeXml(d.name) + ' \u2014 ' + escapeXml(d.words) + '</div>'
+        : '<div class="ro-value" data-testid="result-file-top" style="overflow-wrap:anywhere"><a href="/api/runs/' + encodeURIComponent(data.flow) + '/' + encodeURIComponent(data.runId) +
+          '/download?i=' + d.i + '&view=1" target="_blank" rel="noopener noreferrer">' + escapeXml(d.name) + '</a></div>');
+    }).join("");
+  }
   // `own` = the Result tab read 2+ pages, so this line's box shows its own page
   function resultLineCard(line, own, note){
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
@@ -2913,7 +2936,7 @@
         ' \u00b7 ' + escapeXml(detail.checkType) + ' \u00b7 ' + escapeXml(detail.flow + " (" + detail.runId + ")") + '</div>') +
       '<div class="field-row">' + resultField("Money", '<div class="ro-value" data-testid="result-counters">' + escapeXml(counters[0] || "") + '</div>') +
       resultField("Time", '<div class="ro-value">' + escapeXml((counters[1] || "").replace(/^took /, "")) + '</div>') + '</div>' +
-      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + '</div>';
+      ((data.pages || []).length === 1 ? resultPageLink(data.pages[0], data.pageNote, "result-page-top") : "") + resultFileLinks(data) + '</div>';
     var ownPages = (data.pages || []).length >= 2;
     (data.lines || []).forEach(function(line){ h += resultLineCard(line, ownPages, data.pageNote); });
     if(data.gap){
@@ -3660,7 +3683,7 @@
   function gridTryOf(t){
     var out = {
       n: t.n, glyph: t.mark, hint: t.thinking || "", noVerdict: null, known: Array.isArray(t.checks) && t.checks.length > 0, inflight: t.mark === "·",
-      cells: {}, order: [], output: t.output || null, hints: t.hints && t.hints.text ? t.hints : null, red: null
+      cells: {}, order: [], output: t.output || null, hints: t.hints && t.hints.text ? t.hints : null, memo: t.memo && t.memo.text ? t.memo : null, red: null
     };
     if(out.known){
       t.checks.forEach(function(c){
@@ -3719,6 +3742,13 @@
     return open;
   }
   function gridHintsWord(h){ return h.n + (h.n === 1 ? " hint" : " hints"); }
+  // M14 item 7: the memo button's word is the memo's line count (the words "line" and "lines" are the page's own, as in "+N more lines")
+  function gridMemoLines(m){
+    var lines = String(m.text).split("\n");
+    while(lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+    return lines;
+  }
+  function gridMemoWord(m){ var n = gridMemoLines(m).length; return n + (n === 1 ? " line" : " lines"); }
   function gridTableHtml(pid, model){
     if(model.rows.length === 0) return "";
     var head = '<tr><th class="q">check</th>' + model.tries.map(function(t){
@@ -3728,6 +3758,12 @@
     if(model.tries.some(function(t){ return !!t.hints; })){
       hrow = '<tr class="hint-row"><td class="q">told from earlier runs</td>' + model.tries.map(function(t){
         return '<td class="c">' + (t.hints ? '<button type="button" class="btn small hints" data-hint="' + t.n + '" aria-expanded="false" aria-controls="fxerr-' + pid + '" title="try ' + t.n + ' · told from earlier runs">' + gridHintsWord(t.hints) + "</button>" : '<span class="cell none">—</span>') + "</td>";
+      }).join("") + "</tr>";
+    }
+    // M14 item 7: `told in this run` directly under `told from earlier runs`, one button per try that was handed a memo; it opens the exact text the way the hints do
+    if(model.tries.some(function(t){ return !!t.memo; })){
+      hrow += '<tr class="hint-row memo-row"><td class="q">told in this run</td>' + model.tries.map(function(t){
+        return '<td class="c">' + (t.memo ? '<button type="button" class="btn small hints" data-memo="' + t.n + '" aria-expanded="false" aria-controls="fxerr-' + pid + '" title="try ' + t.n + ' · told in this run">' + gridMemoWord(t.memo) + "</button>" : '<span class="cell none">—</span>') + "</td>";
       }).join("") + "</tr>";
     }
     var sub = "";
@@ -3765,12 +3801,16 @@
     while(lines.length && lines[lines.length - 1].trim() === "") lines.pop();
     return lines;
   }
-  // the errors area: the hints texts opened by their buttons, then one line per red try (`try N ✗ <first error line>`).
+  // the errors area: the hints and memo texts opened by their buttons, then one line per red try (`try N ✗ <first error line>`).
   // `st` = {open: {tryN: true}, more: {tryN: true}, hint: {tryN: true}, hmore: {tryN: true}}
   function gridErrorsHtml(pid, model, st){
     var hrows = model.tries.filter(function(t){ return t.hints && st.hint[t.n]; }).map(function(t){
       return '<div class="fx-row hintrow open"><button type="button" class="fx-rowhead" id="fxhint-' + pid + "-" + t.n + '" data-hrow="' + t.n + '" aria-expanded="true"><span class="fx-caret">▾</span><span class="fx-try">try ' + t.n + " · told from earlier runs · " + gridHintsWord(t.hints) + '</span></button><div class="fx-body">' +
         gridLinesHtml(gridHintLines(t.hints), !!st.hmore[t.n], "data-hmore", t.n) + "</div></div>";
+    }).join("");
+    var mrows = model.tries.filter(function(t){ return t.memo && st.memo[t.n]; }).map(function(t){
+      return '<div class="fx-row hintrow open"><button type="button" class="fx-rowhead" id="fxmemo-' + pid + "-" + t.n + '" data-mrow="' + t.n + '" aria-expanded="true"><span class="fx-caret">▾</span><span class="fx-try">try ' + t.n + " · told in this run · " + gridMemoWord(t.memo) + '</span></button><div class="fx-body">' +
+        gridLinesHtml(gridMemoLines(t.memo), !!st.mmore[t.n], "data-mmore", t.n) + "</div></div>";
     }).join("");
     var rows = model.tries.map(function(t){
       if(t.noVerdict){
@@ -3787,7 +3827,7 @@
       var body = open ? '<div class="fx-body">' + gridLinesHtml(lines, !!st.more[t.n], "data-fxmore", t.n) + "</div>" : "";
       return '<div class="fx-row' + (open ? " open" : "") + '">' + head + body + "</div>";
     }).join("");
-    return hrows + rows ? '<div class="fx-label">errors</div>' + hrows + rows : "";
+    return hrows + mrows + rows ? '<div class="fx-label">errors</div>' + hrows + mrows + rows : "";
   }
   // the rounds, folded per try: each fold builds its own try's rows (20 a page) the first time it opens
   function gridRoundsHtml(model){
@@ -3821,12 +3861,15 @@
     Array.prototype.forEach.call(wrap.querySelectorAll("[data-hint]"), function(b){
       b.setAttribute("aria-expanded", st.hint[b.getAttribute("data-hint")] ? "true" : "false");
     });
+    Array.prototype.forEach.call(wrap.querySelectorAll("[data-memo]"), function(b){
+      b.setAttribute("aria-expanded", st.memo[b.getAttribute("data-memo")] ? "true" : "false");
+    });
   }
   // a model step's body below its tally: the grid (hints row, every-step row, the close's checks), the errors area, the judged line, then the rounds folds
   function buildGridEl(g){
     var pid = String(g.step).replace(/[^A-Za-z0-9_-]/g, "_");
     var model = gridModelOf(g.fold);
-    var st = { open: gridDefaultOpen(model), more: {}, hint: {}, hmore: {} };
+    var st = { open: gridDefaultOpen(model), more: {}, hint: {}, hmore: {}, memo: {}, mmore: {} };
     var wrap = document.createElement("div");
     wrap.setAttribute("data-fxpart", pid);
     wrap.setAttribute("data-testid", "audit-grid-" + g.step);
@@ -3847,6 +3890,33 @@
         renderGridErrors(wrap, pid, model, st);
         var hagain = wrap.querySelector('[data-hmore="' + hk + '"]');
         if(hagain) hagain.focus();
+        return;
+      }
+      var mmore = e.target.closest("[data-mmore]");
+      if(mmore){
+        var mk = mmore.getAttribute("data-mmore");
+        st.mmore[mk] = !st.mmore[mk];
+        renderGridErrors(wrap, pid, model, st);
+        var magain = wrap.querySelector('[data-mmore="' + mk + '"]');
+        if(magain) magain.focus();
+        return;
+      }
+      var mrow = e.target.closest("[data-mrow]");
+      if(mrow){
+        var mn = mrow.getAttribute("data-mrow");
+        st.memo[mn] = false;
+        renderGridErrors(wrap, pid, model, st);
+        var mb = wrap.querySelector('[data-memo="' + mn + '"]');
+        if(mb) mb.focus();
+        return;
+      }
+      var memo = e.target.closest("[data-memo]");
+      if(memo){
+        var mn2 = memo.getAttribute("data-memo");
+        st.memo[mn2] = !st.memo[mn2];
+        renderGridErrors(wrap, pid, model, st);
+        var me = document.getElementById("fxmemo-" + pid + "-" + mn2);
+        if(me) me.scrollIntoView({ block: "nearest" });
         return;
       }
       var hrow = e.target.closest("[data-hrow]");
@@ -5472,7 +5542,9 @@
     var capNoteEl = document.getElementById("jf-cap-note");
     var runDestEl = document.getElementById("jf-run-dest");         // Run a signed flow: the open Destination box (amendment 5)
     var runCapEl = document.getElementById("jf-run-cap");           // ... and the open Cap $ box
-    var runWaitsEl = document.getElementById("jf-run-waits");       // ... and one wait box per ask
+    var runWaitsEl = document.getElementById("jf-run-waits");       // ... and its one Ask wait box (M13 am7)
+    var runWaitEl = document.getElementById("jf-run-wait");
+    var runSignedWaits = {};   // the signed wait of each ask line of the picked job, line -> "1h"; ONE writer: paintRunFlow
     var resumeBox = document.getElementById("jf-resume");           // the "Resume run-<n>" form (amendment 4 item 4): only Cap $ is open
     var resumeCapEl = document.getElementById("jf-resume-cap");
     var modeRow = document.getElementById("jf-mode-row");
@@ -5873,9 +5945,10 @@
       paintRequired();
       inputsHintEl.textContent = (generic || tickets) ? "The Inputs line says what to read; it may be empty for a generic MCP job." : INPUTS_HINT_PLAIN;
     }
-    // M13 am5: the one writer of the required marks. Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
+    // M13 am5/am6: the one writer of the required marks. Destination is required for every flow type (am6). Inputs is optional only for an MCP job; the Run card's mark shows when the flow has input rows
     function paintRequired(){
       byId("jf-req-inputs").textContent = flowTypeEl.value === "mcp" ? "optional for MCP" : "required";
+      byId("jf-req-destination").textContent = "required";
       byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
     }
     function setFlow(type, server, sched){
@@ -5916,11 +5989,21 @@
         ...(reuseOf !== null ? {reuseOf: reuseOf} : {})
       };
     }
-    function runWaits(){
-      var waits = {};
-      runWaitsEl.querySelectorAll("input.jf-wait").forEach(function(el){ waits[el.getAttribute("data-line")] = el.value.trim(); });
-      return waits;
+    // M13 am7: the one Ask wait box is the wait of every ask that does not set its own. The job's shared wait is its commonest signed wait (first ask on a
+    // tie); an ask signed with a different wait sets its own and keeps it. An empty box changes nothing.
+    function sharedAskWait(signed){
+      var count = {}, best = "";
+      Object.keys(signed).forEach(function(l){ count[signed[l]] = (count[signed[l]] || 0) + 1; });
+      Object.keys(signed).forEach(function(l){ if(best === "" || count[signed[l]] > count[best]) best = signed[l]; });
+      return best;
     }
+    function askWaitsFrom(signed, text){
+      var t = String(text).trim(), out = {}, base = sharedAskWait(signed);
+      if(t === "") return out;
+      Object.keys(signed).forEach(function(l){ if(signed[l] === base) out[l] = t; });
+      return out;
+    }
+    function runWaits(){ return askWaitsFrom(runSignedWaits, runWaitEl.value); }
     function currentRun(){
       return {
         flow: pickedFlow || "", inputs: readRows(runInputsEl), runId: (byId("jf-run-id").value.trim() === autoRunId ? "" : byId("jf-run-id").value.trim()),
@@ -5963,8 +6046,8 @@
       }
       var c = currentCard();
       var v = Number(c.capUsd);
-      // M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
-      return c.flowName !== "" && c.job.trim() !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
+      // M13 am6: Destination is required for every flow type. M13 am5: Inputs is required except for an MCP job (item 4); the server still judges what is in it
+      return c.flowName !== "" && c.job.trim() !== "" && c.destination !== "" && (flowTypeEl.value === "mcp" || c.inputs.trim() !== "") && c.capUsd !== "" && isFinite(v) && v > 0;
     }
 
     // ---- the money note under Cap (M4e amendment 4 items 1-2) ----
@@ -6123,7 +6206,9 @@
       return b;
     }
     function paintReuseKind(){
+      // M13 am7: the name that will be true. The server's answer (the one that picks the button) shows the new name OR the Run id, never both
       newNameField.hidden = !(mode === "run" && reuseKind === "draft" && !reuseRunOf);
+      byId("jf-run-id-field").hidden = !newNameField.hidden;
     }
     function checkReuse(){
       if(mode !== "run" || !selectedFlow()){ reuseKind = null; reuseBusy = false; paintReuseKind(); return; }
@@ -6152,8 +6237,7 @@
       if(!f || mode !== "run" || cardLocked() || sessionLive) return;
       reuseOf = reuseRunOf ? {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : ""} : {flow: f.flow, fromRun: pickedRun ? pickedRun.runId : undefined};
       var rows = readRows(runInputsEl);
-      var waits = runWaits();
-      var firstWait = Object.keys(waits).map(function(k){ return waits[k]; }).filter(function(w){ return w !== ""; })[0] || "1h";
+      var firstWait = runWaitEl.value.trim() || "1h";
       var pk = runPickChoice();
       setMode("new");
       setVal("jf-name", reuseRunOf ? f.flow : newNameEl.value.trim()); setVal("jf-job", jobBoxEl.value); setVal("jf-cap-money", runCapEl.value.trim());
@@ -6202,18 +6286,9 @@
       runDestEl.classList.toggle("locked", !(f && f.hasSend));
       byId("jf-run-dest-hint").textContent = !f ? "" : (f.hasSend ? "Where the accepted result is placed, at the last step. A different folder is signed for this run only." : "This flow has no send step, so there is no destination to set.");
       runCapEl.value = f ? String(f.values.capUsd) : "";   // M6 am11: the job's SIGNED cap, never what an earlier run was capped at after drafting (v)
-      runWaitsEl.innerHTML = "";
-      Object.keys((v && v.askWaits) || {}).forEach(function(line){
-        var row = document.createElement("div");
-        row.className = "jf-waitrow";
-        var lab = document.createElement("label");
-        lab.textContent = "Ask wait \u00b7 line " + line;
-        var inp = makeInput("jf-wait", "e.g. 30m", v.askWaits[line]);
-        inp.setAttribute("data-line", line);
-        inp.setAttribute("data-testid", "jf-run-wait-" + line);
-        row.appendChild(lab); row.appendChild(inp);
-        runWaitsEl.appendChild(row);
-      });
+      runSignedWaits = (v && v.askWaits) || {};
+      runWaitsEl.hidden = Object.keys(runSignedWaits).length === 0;
+      runWaitEl.value = sharedAskWait(runSignedWaits);
       paintRunRows(f, pickedRun ? pickedRun.sources : (f ? f.lastSources : null));
       autoRunId = f && f.nextRunId ? f.nextRunId : "";
       byId("jf-run-id").value = autoRunId;
@@ -6961,15 +7036,18 @@
     // Re-attach after a page load/refresh or a panel restart: the server reads the newest unsigned draft from its files, so ask it.
     // If one exists, this tab takes it over as if it had started it: the card filled from the draft's own copy, the poll loop, the
     // progress list, the readout and the main button. A signed or abandoned draft never comes back (empty card).
-    function attachSession(d){
-      var c = d.card || {};
-      openNewCard();
-      setMode("new");
+    // ONE writer of the New-job boxes from a draft's card (attach, and Revise opening on the newest card)
+    function fillCardFields(c){
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       setFlow(c.flowType, c.mcp, c.schedule);
+    }
+    function attachSession(d){
+      openNewCard();
+      setMode("new");
+      fillCardFields(d.card || {});
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -7003,7 +7081,7 @@
       resetCard();
     });
     // Revise (amendment 14 item 2): opens every card field, filled as last submitted; nothing is sent
-    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
+    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; if(lastState && lastState.card) fillCardFields(lastState.card); reviseOpen = true; refreshStartEnabled(); fitCardBoxes(); });
     // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     qSend.addEventListener("click", doAnswer);
@@ -7496,7 +7574,7 @@
       var shown = more ? s.check.tools : s.check.tools.slice(0, MCP_TOOLS_SHOWN);
       list = '<div class="pv-mhead mc-t" aria-hidden="true"><span>TOOL</span><span>HINT</span><span class="n">USED</span></div>' +
         shown.map(function(t){
-          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && s.use.tools[t.name]) || 0) + '</span></div>';
+          return '<div class="pv-mrow mc-t" tabindex="-1" data-testid="mcp-tool"><span class="pv-m-name"><code>' + escapeXml(t.name) + '</code></span><span>' + escapeXml(t.hint || "—") + '</span><span class="n">' + ((s.use && s.use.tools && Object.prototype.hasOwnProperty.call(s.use.tools, t.name) && s.use.tools[t.name]) || 0) + '</span></div>';
         }).join("") +
         (s.check.tools.length > shown.length ? '<div class="pv-more"><button class="pv-add" type="button" data-more="' + pi + "-" + si + '">+' + (s.check.tools.length - shown.length) + ' more</button></div>' : "");
     } else if(s.check) list = '<div class="pv-more"><span class="hint bad">' + escapeXml(s.check.error || "") + '</span></div>';

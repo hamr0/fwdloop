@@ -1,0 +1,1121 @@
+{
+ "model": "meta-models/muse-spark-open-1026",
+ "N": 12,
+ "cap": 6,
+ "results": [
+  {
+   "run": 0,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons is 62 percent through its £480,000 budget, with Phase 1 (roof and windows) finished in September.\nPhase 2 (reading rooms and new shelving) runs to the end of the project, and the children's wing stays open throughout.\nRisks on file are a two-week steel delivery delay for the new staircase, an unconfirmed heating contractor start date and possible extra restoration for a listed ceiling, with weekly site meetings Thursdays at 9.",
+    "b": "The 3 main risks on file for Harbour Lane library renovation:\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.016377250000000003,
+   "A": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note issued; 3 bullets written under 15 words with no invented figures — GROUNDED.\"",
+      "usd": 0.0110555,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 roof and windows finished September; Phase 2 reading rooms ongoing.\n- Children's wing stays open; weekly site meetings Thursdays at 9.\n- Risks: steel two weeks late, heating start unconfirmed, ceiling restoration possible.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.0140265,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note completed as 3 bullet points incorporating the previously missing addressee, sign-off and date while grounding content in the provided project facts.\"",
+      "usd": 0.01881075,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.04389275,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, thank you for your continued support.\n- Phase 2 remains on track for 14 March deadline.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.018618250000000003,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.018618250000000003,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 1,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons — Phase 1 (roof and windows) finished in September, Phase 2 (reading rooms and new shelving) runs to project end.\nBudget £480,000 with 62 percent spent; children's wing stays open throughout; weekly site meeting Thursdays at 9.\nCurrent risks: steel delivery for new staircase two weeks late, heating contractor start date not confirmed, one listed ceiling may need extra restoration.",
+    "b": "1. Steel delivery for the new staircase is two weeks late.\n2. The heating contractor has not confirmed a start date.\n3. One listed ceiling may need extra restoration work."
+   },
+   "prefixUsd": 0.012548,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 finished September; Phase 2 continues with Calder & Sons.\n- Budget £480,000, 62 percent spent; children's wing open, meetings Thursdays at 9.\n- Steel delivery two weeks late, heating start unconfirmed, ceiling restoration possible.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.01025425,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note drafted as exactly 3 bullets from verified project data.\"",
+      "usd": 0.013706,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 finished September; Phase 2 continues with Calder & Sons.\n- Budget £480,000, 62 percent spent; children's wing stays open.\n- Risks tracked; weekly site meeting Thursday at 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.008845,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.03280525,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, Harbour Lane update concludes, deadline 14 March.\n- Phase 2 continues, children's wing remains open, meetings Thursdays at 9.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.013749250000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.013749250000000001,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 2,
+   "prefix": {
+    "a": "Harbour Lane library renovation with builder Calder & Sons, budget 480,000 pounds with 62 percent spent.\nPhase 1 roof and windows finished in September; Phase 2 reading rooms and new shelving runs to the end of the project, with the children's wing staying open throughout.\nRisks on file include steel for the new staircase two weeks late, heating contractor start date not yet confirmed, and a listed ceiling may need extra restoration; weekly site meeting Thursday at 9.",
+    "b": "Main risks to Harbour Lane library renovation project:\n\n1. Steel delivery for the new staircase is two weeks late\n2. Heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.01899175,
+   "A": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note — Harbour Lane library renovation update:\\n\\n- Phase 1 complete; Phase 2 continues with children's wing open\\n- Budget at 62 percent spent; weekly site meeting Thursday at 9\\n- Risks noted; Calder & Sons addressing steel, heating and ceiling issues\"",
+      "usd": 0.009742,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 roof and windows finished September; Phase 2 continues\n- Children's wing stays open throughout; budget 62 percent spent\n- Risks: steel two weeks late, heating unconfirmed, ceiling restoration; meeting Thursday 9",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.031607,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 finished in September; Phase 2 continues to completion.\n- Budget 480,000 pounds, 62 percent spent with Calder & Sons.\n- Children's wing stays open; weekly site meeting Thursday at 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.01796025,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.05930925000000001,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, thank you for continued support.\n- Phase 2 completes by deadline 14 March as planned.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.01389975,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.01389975,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 3,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons, budget £480,000 with 62 percent spent.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms and new shelving) runs to the end of the project.\nChildren's wing stays open throughout; weekly site meeting Thursdays at 9; risks: staircase steel two weeks late, heating contractor start unconfirmed, listed ceiling may need extra restoration.",
+    "b": "3 main risks to the Harbour Lane library renovation project:\n\n1. Steel delivery for the new staircase is two weeks late\n2. Heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.01384575,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 finished September; Phase 2 reading rooms ongoing.\n- Children's wing stays open; weekly meeting Thursdays at 9.\n- Risks: staircase steel delayed two weeks, heating contractor unconfirmed, ceiling restoration.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.0090395,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note — Harbour Lane library renovation update:\\n\\n- Thank you for continued support during Phase 2 works.\\n- Weekly site meeting Thursdays at 9; children's wing remains open.\\n- Calder & Sons progressing reading rooms and shelving installation.\"",
+      "usd": 0.017051250000000004,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Thank you for supporting Phase 2 works.\n- Children's wing open; site meeting Thursdays at 9.\n- Calder & Sons progressing reading rooms and shelving installation.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.012313250000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.03840400000000001,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note crafted to meet your formatting and personalization requirements:\\n\\n- Dear Mrs Okafor, thank you for your continued support.\\n- We remain focused on the 14 March deadline.\\n- Kind regards, Tom\"",
+      "usd": 0.0159705,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Dear Mrs Okafor, thank you for your support.\n- We remain focused on 14 March deadline.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.008285,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.0242555,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 4,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons, budget 480,000 pounds with 62 percent spent.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms, new shelving) runs to the end of the project.\nChildren's wing stays open throughout; weekly site meeting every Thursday at 9.",
+    "b": "The 3 main risks on file for the Harbour Lane library renovation are:\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.0160115,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 finished September; Phase 2 reading rooms ongoing to completion.\n- Budget 480,000 pounds, 62 percent spent; builder Calder & Sons.\n- Children's wing stays open; weekly site meeting Thursday at 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.013052750000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Children's wing stays open throughout renovation.\n- Weekly site meeting every Thursday at 9.\n- Phase 2 reading rooms continue to completion.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.010416250000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 complete; Phase 2 continues with reading rooms and shelving.\n- Children's wing remains open; weekly site meeting Thursdays at 9.\n- Budget 62 percent spent; builders Calder & Sons addressing risks.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.01602375,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.03949275000000001,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note with 3 bullets meeting all constraints (under 15 words, no \\\"very\\\", addressed to Mrs Okafor, deadline 14 March, signed by Tom) ready to emit.\"",
+      "usd": 0.015406,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Dear Mrs Okafor, thank you for continued support.\n- Phase 2 remains on track for deadline 14 March.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.01295,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.028356,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 5,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons — £480,000 budget, 62 percent spent.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms, new shelving) runs to end of project, children's wing stays open throughout.\nRisks: steel delivery for new staircase two weeks late, heating contractor start date not confirmed, listed ceiling may need extra restoration; site meeting Thursdays at 9.",
+    "b": "3 main risks to the Harbour Lane library renovation project:\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.0162815,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 finished in September; Phase 2 ongoing with Calder & Sons.\n- Children's wing stays open throughout; budget £480,000, 62 percent spent.\n- Steel delay and heating contractor risks monitored; meeting Thursday at 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.013079750000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note with 3 bullets prepared — each under 15 words, no invented figures.\\n\\nText to emit:\\n```\\n- Thank you for your continued support\\n- Next site meeting Thursday at 9\\n- Children's wing remains open throughout works\\n```\"",
+      "usd": 0.011123250000000001,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Thank you for your continued support\n- Next site meeting Thursday at 9\n- Children's wing remains open throughout works",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.007423250000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.03162625,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, thank you for your continued support.\n- Project completes 14 March, children's wing remains open throughout.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.00981775,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.00981775,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 6,
+   "prefix": {
+    "a": "Harbour Lane library renovation, budget £480,000 with 62 percent spent, builder Calder & Sons.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms, new shelving) runs to the end of the project and the children's wing stays open throughout.\nRisks are steel delivery for the new staircase two weeks late, heating contractor start date not confirmed, and one listed ceiling may need extra restoration; weekly site meeting every Thursday at 9.",
+    "b": "3 main risks to the Harbour Lane library renovation:\n\n1. Steel delivery for the new staircase is two weeks late.\n2. The heating contractor has not confirmed a start date.\n3. One listed ceiling may need extra restoration work."
+   },
+   "prefixUsd": 0.0116215,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 2 continues; children's wing remains open throughout.\n- Budget 62 percent spent; site meetings Thursdays at 9.\n- Contact us with questions about next steps.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.015446750000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note completed with available project data; excluded ungrounded recipient, signature and date.\\n\\n*Needing follow-through?* Weekly site meeting every Thursday at 9 — attendance recommended to track Phase 2 and listed ceiling items.\"",
+      "usd": 0.014578,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note completed; excluded ungrounded recipient, signature and date.\\n\\n- Harbour Lane Phase 1 finished September; Phase 2 reading rooms ongoing.\\n- Budget £480,000, 62 percent spent; children's wing stays open throughout.\\n- Risks: steel delivery two weeks late, heating contractor unconfirmed, ceiling restoration possible.\"",
+      "usd": 0.013181250000000002,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.04320600000000001,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note required 3 bullets, Mrs Okafor address, 14 March deadline and Tom sign-off — all under 15 words, no invented figures.\"",
+      "usd": 0.013646000000000002,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Dear Mrs Okafor, Harbour Lane update enclosed for review\n- Deadline remains 14 March as previously confirmed\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.015293750000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.028939750000000004,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 7,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons is 62 percent through its £480,000 budget, with Phase 1 (roof and windows) finished in September.\nPhase 2 (reading rooms, new shelving) runs to the end of the project while the children's wing stays open, with weekly site meetings Thursdays at 9.\nRisks on file: steel for the new staircase is two weeks late, the heating contractor has not confirmed a start date, and one listed ceiling may need extra restoration.",
+    "b": "Main risks to the Harbour Lane library renovation project:\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.0117085,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 complete; Phase 2 underway with children's wing open.\n- Budget 62% spent of ��480,000; weekly meetings Thursdays at 9.\n- Risks: steel two weeks late, heating contractor unconfirmed, ceiling restoration pending.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.020978,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 2 continues while children's wing stays open\n- Weekly site meetings Thursdays at 9 as scheduled\n- Risks tracked and updates to follow",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.016781,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note delivered as three concise bullets covering status, next steps and risks, grounded in project facts without invented data.\\n\\n\"",
+      "usd": 0.01198625,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.049745250000000005,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, Phase 2 continues with children's wing open.\n- Steel two weeks late and heating contractor risks monitored Thursdays at 9.\n- Aiming to complete by 14 March. Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.01260225,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.01260225,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 8,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons — Phase 1 (roof and windows) finished in September, Phase 2 (reading rooms and shelving) now underway.\nBudget £480,000 with 62 percent spent; children's wing stays open throughout and weekly site meetings are Thursdays at 9.\nCurrent risks: steel for new staircase two weeks late, heating contractor start date unconfirmed, and one listed ceiling may need extra restoration.",
+    "b": "3 main risks to Harbour Lane library renovation (per project facts):\n\n1. Steel delivery for the new staircase is two weeks late.\n2. Heating contractor has not confirmed a start date.\n3. One listed ceiling may need extra restoration work."
+   },
+   "prefixUsd": 0.0108775,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 finished September; Phase 2 underway with Calder & Sons.\n- Budget £480,000, 62% spent; children's wing stays open throughout.\n- Risks: steel two weeks late, heating unconfirmed, ceiling restoration possible.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.01678475,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 2 underway; children's wing remains open throughout.\n- Budget £480,000, 62 percent spent; weekly meetings Thursdays at 9.\n- Risks include late steel, unconfirmed heating contractor, ceiling restoration possible.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.013174250000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 2 continues with reading rooms and new shelving.\n- Children's wing stays open throughout construction period.\n- Weekly site meeting Thursday at 9 to manage risks.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.01687375,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.046832750000000006,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note — 3 bullets, under 15 words each, addressed to Mrs Okafor, deadline 14 March, signed as requested.\"",
+      "usd": 0.01264925,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Mrs Okafor, thank you for your continued support.\n- Phase 2 remains on track for 14 March.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.0081515,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.02080075,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 9,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons, budget £480,000 with 62 percent spent.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms, new shelving) runs to the end of the project.\nChildren's wing stays open throughout; weekly site meeting every Thursday at 9.",
+    "b": "3 main risks to the Harbour Lane library renovation (from project facts):\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.0145215,
+   "A": {
+    "tries": [
+     {
+      "text": "- Harbour Lane renovation at 62 percent spend, Phase 1 finished in September.\n- Calder & Sons leads Phase 2; children's wing remains open throughout.\n- Weekly site meeting Thursday at 9; budget £480,000.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.009673500000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Children's wing remains open throughout Phase 2 works.\n- Weekly site meetings Thursdays at 9, all welcome.\n- Contact us with any questions about renovation progress.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.017076,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Children's wing stays open throughout renovation.\n- Phase 1 finished September; Phase 2 continues now.\n- Weekly site meeting every Thursday at 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.0207995,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.047549,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Dear Mrs Okafor, Harbour Lane update enclosed.\n- Phase 2 continues; completion deadline is 14 March.\n- Kind regards, Tom – weekly meetings Thursdays at 9.",
+      "green": true,
+      "red": "",
+      "usd": 0.01751525,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.01751525,
+    "firstFactTry": {
+     "okafor": 1,
+     "tom": 1,
+     "deadline": 1
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 10,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons has spent 62% of its £480,000 budget.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms and new shelving) runs to project end with the children's wing open throughout.\nCurrent risks are a two-week late steel delivery for the new staircase, an unconfirmed heating contractor start date, and potential extra restoration for a listed ceiling; weekly site meetings are Thursdays at 9.",
+    "b": "1. Steel delivery for the new staircase is two weeks late\n2. Heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.023193250000000002,
+   "A": {
+    "tries": [
+     {
+      "text": "- Phase 1 complete; Phase 2 ongoing, children's wing remains open.\n- 62% of £480,000 budget spent; weekly meetings Thursdays at 9.\n- Risks: late steel, unconfirmed heating contractor, listed ceiling restoration needs.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.014417000000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note draft completed with the constraints you confirmed — including the recipient name, date and sign-off you noted as not present in the reads — so the bullets use only facts on file and do not invent those missing details:\\n\\n- Phase 1 finished September; Phase 2 continues with children's wing open\\n- Budget at 62 percent of £480,000; Calder & Sons progressing Phase 2\\n- Risks monitored; weekly site meetings Thursdays at 9\"",
+      "usd": 0.020812749999999998,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note is exactly 3 bullets, each under 15 words, grounded in reads:\\n\\n- Phase 1 finished September; Phase 2 continues, children's wing open throughout\\n- Budget 62% of £480,000 spent; Calder & Sons leads Phase 2\\n- Risks: steel staircase two weeks late, heating start unconfirmed, ceiling restoration possible\"",
+      "usd": 0.010238750000000001,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.045468499999999995,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note formatted exactly as requested - 3 bullets, under 15 words each, grounded in your facts and carryMemo instructions:\\n\\n- Dear Mrs Okafor, Harbour Lane update from Calder & Sons.\\n- Phase 2 continues; completion deadline is 14 March.\\n- Kind regards, Tom\"",
+      "usd": 0.012218,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Dear Mrs Okafor, Harbour Lane update from Calder & Sons.\n- Phase 2 continues; completion deadline is 14 March.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.009545250000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.02176325,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  },
+  {
+   "run": 11,
+   "prefix": {
+    "a": "Harbour Lane library renovation by Calder & Sons — £480,000 budget, 62 percent spent.\nPhase 1 (roof and windows) finished in September; Phase 2 (reading rooms, new shelving) runs to project end, children's wing remains open throughout.\nCurrent risks: steel for new staircase two weeks late, heating contractor start date unconfirmed, one listed ceiling may need extra restoration; weekly site meeting Thursdays at 9.",
+    "b": "3 main risks to the Harbour Lane library renovation:\n\n1. Steel delivery for the new staircase is two weeks late\n2. The heating contractor has not confirmed a start date\n3. One listed ceiling may need extra restoration work"
+   },
+   "prefixUsd": 0.011539250000000001,
+   "A": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note formatted as requested - 3 bullets, each under 15 words, grounded in project sources:\\n\\n- Phase 1 finished September; Phase 2 continues, children's wing remains open.\\n- £480k budget 62% spent; Calder & Sons leads Phase 2.\\n- Risks noted: late steel, unconfirmed heating, ceiling restoration; meet Thursdays 9.\"",
+      "usd": 0.017008000000000002,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Phase 1 finished September; Phase 2 continues, children's wing remains open.\n- £480k budget 62% spent; Calder & Sons leads Phase 2.\n- Risks noted: late steel, unconfirmed heating, ceiling restoration; meet Thursdays 9.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.0103275,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Thank you for your continued support and patience.\n- Weekly site meetings continue Thursdays at 9.\n- Please contact us with any questions.",
+      "green": false,
+      "red": "missing \"Mrs Okafor\"; missing \"Kind regards, Tom\"; missing \"14 March\"",
+      "usd": 0.009161250000000001,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     }
+    ],
+    "green": false,
+    "nTries": 3,
+    "usd": 0.03649675,
+    "firstFactTry": {
+     "okafor": null,
+     "tom": null,
+     "deadline": null
+    },
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": null,
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing note crafted to your exact specifications with all requested elements:\\n\\n- Mrs Okafor, thank you for your continued support.\\n- Phase 2 remains on track for 14 March deadline.\\n- Kind regards, Tom\"",
+      "usd": 0.014702250000000002,
+      "ok": false,
+      "textInstead": true,
+      "facts": {
+       "okafor": false,
+       "tom": false,
+       "deadline": false
+      }
+     },
+     {
+      "text": "- Mrs Okafor, thank you for your continued support.\n- Phase 2 remains on track for 14 March deadline.\n- Kind regards, Tom",
+      "green": true,
+      "red": "",
+      "usd": 0.011526250000000002,
+      "ok": true,
+      "textInstead": false,
+      "facts": {
+       "okafor": true,
+       "tom": true,
+       "deadline": true
+      }
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.026228500000000002,
+    "firstFactTry": {
+     "okafor": 2,
+     "tom": 2,
+     "deadline": 2
+    },
+    "memoCut": false
+   }
+  }
+ ],
+ "invalid": [],
+ "spent": 0.9288919999999999,
+ "unpriced": false,
+ "halted": null
+}

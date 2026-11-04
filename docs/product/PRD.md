@@ -144,6 +144,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 2. It says either that this is the newest version, or the new version number with the exact command `npm install -g fwdloop@latest` and that the panel then needs `3 restart`.
 3. `5 install` keeps its job (folders, keys file, settings); its words say that it does not update fwdloop.
 
+**Parked, not scheduled: M14 item 11 gap** (hamr, 2026-11-02, unsigned). A drafter question that is not a page-look question has no human row in the Audit; the answer shows only inside the redraft's `card` row (F130 survey, M14 build p4). Fixing it needs new screen words.
+
 **Next, not scheduled: reopen the M10b aging exit after bareloop's learnings** (hamr, 2026-10-23, unsigned). The M10b exit is met for the expenses job; the aging job stays open (F78): the drafter drops or mis-tags the bucket check. The bareloop `loop` session will send its learnings on this; they are copied byte for byte, UI and inner working, under a signed amendment, before the aging exit walk is run again. The m10b branch is reviewed and released with this one issue open.
 1. The learnings spec came from the bareloop `loop` session on 2026-10-23, as hamr signed it there. Source of truth: bareloop branch `feat/learnings`, commits `d185cfa` (the Audit box) and `1ba048d`, `107fce5`, `9ce156f` (ledger and memory rules). Code: bareloop `src/panel/index.html` `renderAuditLearnings` / `learnRow` / `learnHintLabel`, `src/panel/server.js` (getRunDetail `learnings`), `src/learn.js` `parseHintBlock` (reader) and `hintText` / `renderHints` (writer). A local copy of the message: `.claude/scratch/bareloop-learnings-spec-2026-10-23.md` (gitignored; bareloop's commits are the source).
 2. What it is: a read-only Audit section showing the exact text the drafter was handed from earlier runs. One fold at the top of the Audit tab, the same box as the other Audit sections, closed by default, header `[✓] learnings  What the planner was told from earlier runs · N hints`, no arrow. Inside, each hint is a small table: its title line (n · level · seen N times · check · error kinds · fixed / never fixed), then "It said:", "Fix touched:", "What changed:". Hidden when a run has no learnings. Setting `learningHints` off by default. *Update 2026-10-25: the fold now wears the same ▶ / ▼ arrow as the other Audit folds (bareloop 417e80c, learnings part only).*
@@ -331,6 +333,41 @@ bareloop's detailed borrow spec: `../bareloop/docs/product/fwd-borrow-from-barel
 **No CLI as a product surface.** `npm install`, one command, a localhost server starts and **the
 browser is the product**; the server owns the scheduler. A CLI exists for M0–M4 and M6a (`fwdloop draft`, `fwdloop sign` — sign needs an interactive terminal and a typed flow name, M6a amendment 2) but is
 undocumented and carries no stability promise (docs/archive/PRD.md:427-431).
+
+**M14 — memory improvements, borrowed from bareloop's shape (DRAFT, not signed).**
+
+**Why:** today a human's words at an ask reach one place only. Accept text is saved and thrown away; a Redo reason reaches only that step's redo; a Rerun reason reaches only the first step. F127b: later steps never learn them (0 of 12 today, 12 of 12 with a memo).
+
+**A. The carry memo: what happened so far in this run, for every fresh worker.**
+1. Plain code writes it, no AI. It is built fresh before each try from what the run already keeps. No new run-folder file. It survives a pause, resume or restart.
+2. Every model step gets it on every try, including the first try of a later step. If nothing has happened yet, it is left out.
+3. Human lines, in order, never cut: `ask N (after step X): accept / redo / rerun — user says "…"`. Accept text is now used. A blank answer adds no "user says" line.
+4. Work lines: the last try and how it ended, then earlier tries of this step with each check result, then earlier steps' failures. Repeated failures fold into one line (the learnings fold rule). A try's result is taken from its check, never guessed.
+5. Cap 4,000 characters. When too long, cut the oldest tries first, then the oldest failures. The heading and the human lines are never cut.
+6. Left out: money and time, and the newest failure when the retry already gets it as its gap.
+7. The text the AI saw is saved per try, on that try's audit row. The Audit tab shows it: in each step's grid, a `told in this run` row under `told from earlier runs`, with one button per try that opens the exact memo text, the same way the hints open.
+
+**B. bare-agent 0.59: cut-offs and bad tool calls.**
+8. bare-agent goes from `^0.57.0` to `^0.59.0`.
+9. A cut-off retry's gap names bare-agent's facts: output tokens, how many were thinking, and the limit.
+10. `checkArgs` is on. A wrong or missing tool value never runs the tool. `badCalls` go on the audit row.
+
+**C. The Audit shows every hand-over.**
+11. Every place learnings or the memo are handed to the AI has its Audit row. A place that hands text with no Audit row is a gap.
+
+**D. What stays the same:** learnings stay separate and unchanged; in-run memory still lasts one run.
+
+**Not in M14:** memory across runs from Accept notes, and anything bareloop marked as not proven (the notebook, readMap, seed note).
+
+**POCs before build** (each small, on the real run path): (a) the memo built from real audit rows of an old run with 2 asks, at $0: is everything there and in order? (b) one live run with the memo and the 0.59 upgrade: do the books balance?
+
+**Done when:** a live run with 2 asks where the Accept text and the Redo reason both appear in a later step's first-try memo, the saved memo matches what was sent and the `told in this run` row opens that exact text, a forced cut-off and a forced bad call both show on the audit row, the books balance, and the suite is green on 0.59.
+
+**Negative case:** a run with no asks gets no human lines; a blank Accept adds nothing; the memo never shows money; a good tool call is never flagged.
+
+Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo text is saved on the audit row; learnings and the memo show in the Audit wherever they are handed on; the memo row reads `told in this run`. Sources: F127, F127b, F128, F129 in `docs/logs/FINDINGS.md`; bareloop v0.53.0 `docs/product/LAYERS.md` ("Notes to the AI") and loop's answers 2026-11-02.
+
+*Built after signing — not signed text: the draft above is kept as written. M14 was signed by hamr 2026-11-02 (with its amendments 1 and 2) and its exit 2026-11-03; M15 (one result for every job) was signed 2026-11-03. The signed text and what was built are in docs/wiki/the-module-ladder.md under M14 and M15.*
 
 ## Guiding principles — borrowed from bareloop, reminders not features
 

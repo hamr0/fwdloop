@@ -11,8 +11,11 @@ import { runBatch, evaluate, totals, armProvider, SPEND_STOP_USD, DRAFTS_PER_ARM
 import { hintsForJob, withPocCap, jobTextOf } from './notes.mjs';
 import { HINT_HEADER } from './learn-poc.mjs';
 import {
-  RATES, MODEL, validArgs, toolReply,
+  RATES, MODEL, validArgs as m6aArgs, toolReply,
 } from '../m6a/fixture.mjs';
+
+// M10 am16: the shared job2 fixture carries no line-3 guardrail, so the plan carries no check of its own for line 3
+const validArgs = () => { const a = m6aArgs(); delete a.guardrailClasses['3']; a.steps[2].close = { class: 'hitl' }; return a; };
 
 function fixtureProse() {
   const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-f80-in-'));

@@ -103,7 +103,7 @@ test('(b) a new destination + higher cap + different ask wait: Sign & run — no
   assert.equal((await w.get('/api/runs/job2/run-1')).json().capUsd, 0.4, 'the Run tab shows the cap in force');
   assert.equal((await w.get('/api/runs/job2/run-1/job')).json().sends[0].target, out2, 'the Job tab shows the destination in force');
   acceptAndFinish(w, 'job2', 'run-1', runDir, ask);
-  assert.deepEqual(readdirSync(out2), ['job2-run-1-resume-summary-output.json'], 'the send lands in the NEW folder');
+  assert.deepEqual(readdirSync(out2), ['job2-run-1-resume-summary-output.md'], 'the send lands in the NEW folder');
   assert.deepEqual(readdirSync(w.outDir), [], 'and not in the flow\'s own');
   assert.equal(jsonl(path.join(flowDir, 'history.jsonl')).find((h) => h.runId === 'run-1').capUsd, 0.4, 'the cap in force is the run\'s');
   // the next plain Run starts again from the flow's signed values
@@ -112,8 +112,8 @@ test('(b) a new destination + higher cap + different ask wait: Sign & run — no
   const p2 = await parked(w, 'job2', 'run-2');
   assert.equal(Date.parse(p2.ask.expiresAt) - Date.parse(p2.ask.askedAt), 30 * 60_000);
   acceptAndFinish(w, 'job2', 'run-2', p2.runDir, p2.ask);
-  assert.deepEqual(readdirSync(w.outDir), ['job2-run-2-resume-summary-output.json'], 'back in the flow\'s own folder');
-  assert.deepEqual(readdirSync(out2), ['job2-run-1-resume-summary-output.json']);
+  assert.deepEqual(readdirSync(w.outDir), ['job2-run-2-resume-summary-output.md'], 'back in the flow\'s own folder');
+  assert.deepEqual(readdirSync(out2), ['job2-run-1-resume-summary-output.md']);
   assert.deepEqual(['prose.txt', 'signature.json', 'declaration.json'].map((f) => sha(path.join(flowDir, f))), flowFiles, 'the flow\'s signed files never changed');
   assert.equal(jsonl(path.join(flowDir, 'history.jsonl')).find((h) => h.runId === 'run-2').capUsd, 0.25);
   assert.equal(runs().sort().join(), 'run-1,run-2');

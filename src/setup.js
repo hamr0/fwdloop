@@ -16,6 +16,8 @@ import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
 import { readFileInside, readdirInside } from './flow.js';
 import { readSpendRows } from './provider.js';
+import { checkAsks } from './checkpick.js';
+import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
 
 export const SETUP_FILE = 'setup.jsonl';
 const CARD_RE = /^card-(\d+)\.json$/;
@@ -65,10 +67,20 @@ function planRow(sessionDir, rel, kind, n) {
  * @param {string} sessionDir @param {string} rel
  */
 function humanRows(sessionDir, rel) {
-  return readQuestions(join(sessionDir, rel)).questions.filter((q) => q.source === 'look' && q.answer !== null).map((q) => ({
+  const answered = readQuestions(join(sessionDir, rel)).questions.filter((q) => q.source === 'look' && q.answer !== null).map((q) => ({
     kind: 'human', n: q.k, at: q.at ?? null, source: 'look', ask: q.ask, question: q.question, answer: q.answer, line: q.line,
     ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null,
   }));
+  // M10 am17 (6): a pick kept from the last draft is the same row, from this plan's picks record (not an answer file), its answer being the words `kept from last draft`
+  const kept = Array.isArray(readJson(join(sessionDir, rel), RECORD_FILE)?.kept) ? readJson(join(sessionDir, rel), RECORD_FILE).kept : [];
+  const keptRows = kept.map((k, i) => {
+    const [ask] = checkAsks([{ line: k.line, rule: k.rule, text: k.ruleText, check: k.check ?? null, why: null }]);
+    return {
+      kind: 'human', n: answered.length + i + 1, at: null, source: 'look', ask: ask.ask, question: ask.question, answer: KEPT_WORDS, line: k.line,
+      ruleNo: k.rule, ruleText: k.ruleText, proposal: ask.reading ?? null, rule: k.added ?? null,
+    };
+  });
+  return [...answered, ...keptRows];
 }
 
 /**

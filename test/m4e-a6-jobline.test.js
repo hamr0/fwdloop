@@ -3,147 +3,41 @@
 // note is paid and not here; this proves the same plan shape (the sections reordered) is red at draft and at change.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-import { tmpdir } from 'node:os';
-import { mkdtempSync } from '../scripts/tmp-track.mjs';
-
 import { checkShapeFitsJobLine } from '../src/declaration.js';
-import { draftToDir, SPEC_HASH_FILE } from '../src/authoring.js';
-import {
-  RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
-} from './drafter-fixture.mjs';
 
-const tmp = (p) => mkdtempSync(path.join(tmpdir(), `fwdloop-a6-${p}-`));
+// M10 am16: the drafter writes no check, so a plan can no longer carry a section order or a word limit that fights its job line. The same rules still judge a shape by direct
+// call (a signed plan edited by hand is held to them at sign), and a changed plan still draws a fresh draft: these tests call the rule on the job2 line 3 and its guardrail.
 const SKILLS_FIRST = ['professional skills', 'summary of work history blurb', 'soft skills'];
+const LINE3 = 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,';
+const lines = [{ n: 3, text: LINE3, guardrail: '3 sections, all under 600 words' }];
+const redsOf = (shape) => { const r = []; checkShapeFitsJobLine({ fromLine: 3, goal: LINE3, close: { class: 'softgreen', shape } }, 2, lines, r); return r; };
+const GOOD = ['summary of work history blurb', 'professional skills', 'soft skills'];
 
-async function firstDraft() {
-  const fx = job2Fixture();
-  const work = tmp('w');
-  const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, fx.prose);
-  const root = path.join(work, 'flows');
-  const dir = path.join(work, 'draft');
-  const r = await draftToDir({
-    proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {},
-  });
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-  return { work, root, proseFile, dir, first: r };
-}
-const change = (w, args) => {
-  const provider = fakeProvider([toolReply(args)]);
-  return { provider, run: () => draftToDir({ proseFile: w.proseFile, dir: path.join(w.work, 'draft-1'), root: w.root, name: 'job2', provider, rates: RATES, modelId: MODEL, env: {} }) };
-};
-
-test('(a) a change that reorders a section against its job line is red naming the step and both orders; the last green plan stays', async () => {
-  const w = await firstDraft();
-  const bad = validArgs();
-  bad.steps[2].close.shape.sections = SKILLS_FIRST;
-  const { run } = change(w, bad);
-  const r = await run();
-  assert.equal(r.ok, false);
-  const red = r.reds.find((x) => /the job line says/.test(x));
-  assert.ok(red, JSON.stringify(r.reds));
+test('(a) a shape that reorders a section against its job line is red naming the step and both orders', () => {
+  const red = redsOf({ sections: SKILLS_FIRST, maxWords: 600 }).find((x) => /the job line says/.test(x));
+  assert.ok(red);
   assert.match(red, /steps\[2\]/);
   assert.match(red, /the job line says summary of work history blurb, then professional skills, then soft skills; the check says professional skills, then summary of work history blurb, then soft skills — change the job line on the card to change the order/);
-  assert.equal(existsSync(path.join(w.work, 'draft-1', SPEC_HASH_FILE)), false, 'no spec.hash: unsignable');
-  assert.equal(readFileSync(path.join(w.dir, SPEC_HASH_FILE), 'utf8').trim(), w.first.hash, 'the last green plan is untouched');
 });
 
-test('(a) the same at a FIRST draft: red, nothing to sign', async () => {
-  const fx = job2Fixture();
-  const work = tmp('f');
-  const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, fx.prose);
-  const bad = validArgs();
-  bad.steps[2].close.shape.sections = SKILLS_FIRST;
-  const r = await draftToDir({
-    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(bad)]), rates: RATES, modelId: MODEL, env: {},
-  });
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => /the job line says .* the check says /.test(x)), JSON.stringify(r.reds));
-  assert.equal(existsSync(path.join(work, 'd', SPEC_HASH_FILE)), false);
-});
-
-for (const [what, mutate, re] of [
-  ['a renamed section not in the job line', (a) => { a.steps[2].close.shape.sections = ['summary of work history blurb', 'professional skills', 'hobbies']; }, /names "hobbies", which is not in the job line's words/],
-  ['a tighter word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 300; }, /check says 300 words; the guardrail has no 300/],
-  ['a looser word limit than the line\'s guardrail', (a) => { a.steps[2].close.shape.maxWords = 900; }, /check says 900 words; the guardrail has no 900/],
+for (const [what, shape, re] of [
+  ['a renamed section not in the job line', { sections: ['summary of work history blurb', 'professional skills', 'hobbies'] }, /names "hobbies", which is not in the job line's words/],
+  ['a tighter word limit than the line\'s guardrail', { sections: GOOD, maxWords: 300 }, /check says 300 words; the guardrail has no 300/],
+  ['a looser word limit than the line\'s guardrail', { sections: GOOD, maxWords: 900 }, /check says 900 words; the guardrail has no 900/],
+  ['one section on a "3 sections" guardrail', { sections: ['soft skills'] }, /the guardrail says 3 sections; the check has 1/],
+  ['four sections on a "3 sections" guardrail', { sections: [...GOOD, 'professional'] }, /the guardrail says 3 sections; the check has 4/],
+  ['a section named by the whole job line', { sections: [LINE3] }, /at most 8 words/],
+  ['a section name that contains another', { sections: ['soft skills', 'professional skills and soft skills', 'summary of work history blurb'] }, /contains "soft skills" — one section name may not contain another/],
+  ['a section name over 8 words', { sections: ['one two three four five six seven eight nine', 'professional skills', 'soft skills'] }, /"one two three four five six seven eight nine" \(9 words\)/],
 ]) {
-  test(`(a) a change with ${what} is red and names both`, async () => {
-    const w = await firstDraft();
-    const bad = validArgs();
-    mutate(bad);
-    const r = await change(w, bad).run();
-    assert.equal(r.ok, false);
-    assert.ok(r.reds.some((x) => re.test(x)), JSON.stringify(r.reds));
-    assert.equal(existsSync(path.join(w.work, 'draft-1', SPEC_HASH_FILE)), false);
+  test(`(a) a shape with ${what} is red and names both`, () => {
+    assert.ok(redsOf(shape).some((x) => re.test(x)), JSON.stringify(redsOf(shape)));
   });
 }
 
-test('(b) a revise that changes only what a step carries (a mustCarry word, the sections kept in the line\'s order) is a green plan', async () => {
-  const w = await firstDraft();
-  const ok = validArgs();
-  ok.steps[2].close.shape.linesPerInvoice = 1; // am16 C12: mustCarry comes with linesPerInvoice
-  ok.steps[2].close.shape.mustCarry = ['JD'];
-  const r = await change(w, ok).run();
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.notEqual(r.hash, w.first.hash);
-});
-
-test('(b) a plan whose tool or read changes (not its check) is green', async () => {
-  const w = await firstDraft();
-  const ok = validArgs();
-  ok.steps[2].reads = [...ok.steps[2].reads].reverse();
-  const r = await change(w, ok).run();
-  assert.equal(r.ok, true, JSON.stringify(r.reds));
-});
-
-// M4e amendment 7 item 1 / negative (a): a check cannot be emptied. Each case is red at a first draft and names the cause.
-const FIRST_DRAFT = async (bad) => {
-  const fx = job2Fixture();
-  const work = tmp('a7');
-  const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, fx.prose);
-  const r = await draftToDir({
-    proseFile, dir: path.join(work, 'd'), root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(bad)]), rates: RATES, modelId: MODEL, env: {},
-  });
-  return { r, work };
-};
-for (const [what, mutate, re] of [
-  ['one section on a "3 sections" guardrail', (a) => { a.steps[2].close.shape.sections = ['soft skills']; }, /the guardrail says 3 sections; the check has 1/],
-  ['four sections on a "3 sections" guardrail', (a) => { a.steps[2].close.shape.sections = ['summary of work history blurb', 'professional skills', 'soft skills', 'professional']; }, /the guardrail says 3 sections; the check has 4/],
-  ['a section named by the whole job line', (a) => { a.steps[2].close.shape.sections = [a.steps[2].goal]; }, /at most 8 words/],
-  ['a section name that contains another', (a) => { a.steps[2].close.shape.sections = ['soft skills', 'professional skills and soft skills', 'summary of work history blurb']; }, /contains "soft skills" — one section name may not contain another/],
-]) {
-  test(`(a7) a first draft with ${what} is red, nothing to sign`, async () => {
-    const bad = validArgs();
-    mutate(bad);
-    const { r, work } = await FIRST_DRAFT(bad);
-    assert.equal(r.ok, false);
-    assert.ok(r.reds.some((x) => re.test(x)), JSON.stringify(r.reds));
-    assert.equal(existsSync(path.join(work, 'd', SPEC_HASH_FILE)), false);
-  });
-}
-
-test('(a7) the real replay shape: a change that swaps the three sections for ONE equal to the whole line is red and the last green plan stays', async () => {
-  const w = await firstDraft();
-  const bad = validArgs();
-  bad.steps[2].close.shape.sections = [bad.steps[2].goal];
-  const r = await change(w, bad).run();
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => /the guardrail says 3 sections; the check has 1/.test(x)), JSON.stringify(r.reds));
-  assert.ok(r.reds.some((x) => /the job line or most of it|at most 8 words/.test(x)), JSON.stringify(r.reds));
-  assert.equal(readFileSync(path.join(w.dir, SPEC_HASH_FILE), 'utf8').trim(), w.first.hash);
-});
-
-test('(a7) a section name over 8 words is red naming it', async () => {
-  const bad = validArgs();
-  const long = 'one two three four five six seven eight nine';
-  bad.steps[2].close.shape.sections = [long, 'professional skills', 'soft skills'];
-  const { r } = await FIRST_DRAFT(bad);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes(`"${long}" (9 words)`)), JSON.stringify(r.reds));
+test('(b) a shape that keeps the sections in the line\'s order and a word limit the guardrail names is green', () => {
+  assert.deepEqual(redsOf({ sections: GOOD, maxWords: 600 }), []);
+  assert.deepEqual(redsOf({ sections: ['summary of work history', 'professional skills', 'soft skills'] }), []);
 });
 
 test('(a7) a short line whose section name is most of it (>= 60% of its words) is red; a 2-of-6-word section is not', () => {

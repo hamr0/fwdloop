@@ -184,7 +184,8 @@ test('F3 audit: every author POST in the page shows a refusal (any non-2xx, any 
 });
 
 test('re-attach restores every new field (job, destination, inputs, cap, ask wait) and the POST body carries exactly the new shape', () => {
-  const at = fnSrc('attachSession');
+  assert.match(fnSrc('attachSession'), /fillCardFields\(d\.card \|\| \{\}\)/, 'attachSession fills through the one writer');
+  const at = fnSrc('fillCardFields');
   for (const id of ['jf-name', 'jf-job', 'jf-cap-money', 'jf-dest-folder', 'jf-inputs', 'jf-ask-wait']) assert.match(at, new RegExp(`setVal\\("${id}"`), id);
   assert.match(fnSrc('currentCard'), /flowName:[\s\S]*job: jobEl\.value,[\s\S]*destination: destEl\.value\.trim\(\),[\s\S]*inputs: inputsBox\.value,[\s\S]*capUsd:[\s\S]*askWait: askWaitEl\.value\.trim\(\)/);
   assert.match(fnSrc('resetCard'), /askWaitEl\.value = "1h"/, 'a cleared card goes back to the default wait');

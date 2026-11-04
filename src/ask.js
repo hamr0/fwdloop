@@ -699,7 +699,7 @@ export function readAcceptedHashesByEmits(runDir) {
 /**
  * @param {string} runDir
  * @returns {{ archived: true, asks: Array<{ askId: string, question?: string, askedAt?: string, expiresAt?: string,
- *   evidence: ReturnType<typeof readAskEvidence>,
+ *   evidence: ReturnType<typeof readAskEvidence>, emits?: string,
  *   answer: { status: string, reason?: string, answeredAt?: string, why?: string } }> } | { archived: false, why: string }}
  */
 export function listArchivedAsks(runDir) {

@@ -33,7 +33,7 @@ general agent. Not a chat bot. A workflow that a person can read, approve, rerun
 A real past run: a job that reads a public flights page, lists 3 Madrid→Rome flights, asks a
 human to check them, then writes the result out. Shown across the panel's Job, Run, Ask, Audit and Result tabs.
 
-<img src="https://raw.githubusercontent.com/hamr0/fwdloop/main/docs/media/walkthrough.gif" alt="fwdloop panel walkthrough: Job, Run, Ask, Audit, Result" width="100%">
+<img src="https://raw.githubusercontent.com/hamr0/fwdloop/main/docs/media/walkthrough.gif" alt="fwdloop panel walkthrough: Job, Run waiting at the Ask, Ask, passed Run, Audit, Result" width="100%">
 
 ## Where it comes from
 

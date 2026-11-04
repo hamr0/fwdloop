@@ -22,7 +22,9 @@ function job2Fixture() {
   writeFileSync(resume, '# Jo Doe\n\nSenior engineer, ten years.\n');
   writeFileSync(jd, '# About the role\n\nBuild things.\n\n## Responsibilities\n\nShip.\n');
   const prose = readFileSync(new URL('../../test/fixtures/job2-m6a.prose.txt', import.meta.url), 'utf8')
-    .replace('@RESUME@', resume).replace('@JD@', jd);
+    .replace('@RESUME@', resume).replace('@JD@', jd)
+    // (M10 am16: the shared fixture job carries no line-3 guardrail now; this frozen harness's plans do)
+    .replace('\n4. ask 30m', '\n   guardrail: 3 sections, all under 600 words\n4. ask 30m');
   return { dir, prose };
 }
 

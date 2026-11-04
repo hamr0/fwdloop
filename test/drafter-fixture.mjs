@@ -17,7 +17,9 @@ export function job2Fixture() {
   writeFileSync(jd, '# About the role\n\nBuild things.\n\n## Responsibilities\n\nShip.\n');
   const prose = readFileSync(new URL('./fixtures/job2-m6a.prose.txt', import.meta.url), 'utf8')
     .replace('@RESUME@', resume).replace('@JD@', jd);
-  return { dir, prose, resume, jd };
+  // `proseG`: the same job with its line-3 guardrail (M10 am16: the default `prose` carries none, since a shape guardrail is settled by the person's pick); tests of a guardrail's own words use it
+  const proseG = prose.replace('\n4. ask 30m', '\n   guardrail: 3 sections, all under 600 words\n4. ask 30m');
+  return { dir, prose, proseG, resume, jd };
 }
 
 /** The known-valid target: test/fixtures/job2.m1.declaration.json minus the
@@ -27,6 +29,9 @@ export function validArgs() {
   const d = JSON.parse(readFileSync(new URL('./fixtures/job2.m1.declaration.json', import.meta.url), 'utf8'));
   delete d.inputFacts;
   d.steps[0].primitives = ['read'];
+  // M10 am16: a line-3 guardrail is settled by the person's pick, so the fixture job carries none and the drafter's plan carries no check of its own
+  delete d.guardrailClasses['3'];
+  d.steps[2].close = { class: 'hitl' };
   return d;
 }
 

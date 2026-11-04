@@ -42,6 +42,7 @@ import { factPartReds } from './citedcheck.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
 import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
 import { lineRules } from './pagebits.js';
+import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
@@ -217,9 +218,14 @@ function checkOwnKeys(obj, allowed, path, reds) {
 export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoice', 'mustCarry']);
 
 /** Shape keys only the MACHINE sets (M4e amendment 15): read from the line's guardrail, never offered to the drafter's model. */
-export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection']);
+export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection', 'picked']);
 
 const SHAPE_TYPE_CHECKS = Object.freeze({
+  // M10 am16: the checks the person picked, set by code (src/checkpick.js applyPicks), each one a bareguard rule with only that rule's own fields
+  picked: {
+    expected: 'a non-empty array of checks, each an object with a text rule of bareguard\'s list',
+    check: (v) => Array.isArray(v) && v.length > 0 && v.every((c) => isPlainObject(c) && typeof c.rule === 'string' && OFFERED_RULES.includes(c.rule)),
+  },
   wordsPerSection: {
     expected: 'a positive integer',
     check: (v) => Number.isInteger(v) && v > 0,
@@ -377,6 +383,25 @@ export function guardrailWordNumbers(guardrail) {
   return [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumber(m[1]));
 }
 
+/** M10 amendment 14 item 2: every standalone number in a guardrail's own text (digits not joined to letters: "P1" and "250ish" are not one; "1,000" and "2.5" are one number each). */
+export function guardrailStandaloneNumbers(guardrail) {
+  if (typeof guardrail !== 'string') return [];
+  return [...guardrail.matchAll(/(?<![A-Za-z0-9_.,])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?![A-Za-z0-9_])/g)].map((m) => Number(m[1].replace(/,/g, '')));
+}
+
+/** M10 amendment 14 item 1: the send line (a signed send) is where the accepted result is written out and no AI runs, so a guardrail under it is refused at $0, naming the line.
+ *  Pure; the card (src/panel/authorcard.js checkCard) and the drafter's pre-flight both call it. @param {any[]} lines `parseSignedText`'s lines @param {{sends?: {line: number}[]}} arbiter */
+export function checkSendLineGuardrail(lines, arbiter) {
+  const reds = [];
+  for (const s of Array.isArray(arbiter?.sends) ? arbiter.sends : []) {
+    const l = (Array.isArray(lines) ? lines : []).find((x) => x?.n === s.line);
+    if (l && typeof l.guardrail === 'string' && l.guardrail.trim() !== '') {
+      reds.push(`line ${s.line} is the send line (it writes out what you accepted at the Ask before it, and no AI runs there), so it cannot carry the guardrail "${l.guardrail.trim()}". Put the guardrail on the line that makes the result.`);
+    }
+  }
+  return reds;
+}
+
 /** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
 export function guardrailWordsPerSection(guardrail) {
   const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
@@ -464,7 +489,8 @@ export function checkShapeFitsJobLine(step, i, lines, reds) {
   const wantPer = guardrailWordsPerSection(line?.guardrail);
   if (shape.wordsPerSection !== undefined && shape.wordsPerSection !== wantPer) {
     reds.push(`declaration: ${label} the check has wordsPerSection ${shape.wordsPerSection}; the guardrail says ${wantPer === null ? 'no size for each section' : `${wantPer} words each`} — change the guardrail on the card to change it`);
-  } else if (shape.wordsPerSection === undefined && wantPer !== null) {
+  } else if (shape.wordsPerSection === undefined && wantPer !== null && !Array.isArray(shape.picked)) {
+    // (a shape of picked checks, M10 am16, was kept by code and chosen by the person: the guardrail's size is a check only if it was picked)
     reds.push(`declaration: ${label} the guardrail says ${wantPer} words each; the check has no wordsPerSection`);
   }
   // M4e amendment 16 C13: a size for each section needs the section names to be checked against.
@@ -623,6 +649,15 @@ function checkSheetKey(step, label, c, reds) {
   const tables = c.sheetWords?.tables;
   if (!shapeOk || !tables || !Number.isInteger(step.fromLine)) return;
   for (const r of sheetCheckReds(list, step.fromLine, tables)) reds.push(r);
+}
+
+/** M10 am19: the tools that serve an input's kind (src/primitives.js rolePrimitiveFor): a page or ticket is frozen as text. */
+function inputReachVerbs(source) {
+  if (source?.kind === 'page') return ['read', 'grep'];
+  const p = String(source?.path ?? '').toLowerCase();
+  if (p.endsWith('.docx')) return ['readDocx'];
+  if (isCellsPath(source?.path)) return ['addressCells'];
+  return ['read', 'grep'];
 }
 
 /**
@@ -890,7 +925,9 @@ export function validateDeclaration(declaration, context = {}) {
         if (cellsRoles.includes(readId) && !declaredEmits.has(readId)) continue; // an input with cells, frozen at run start (M4d amendment 8)
         if (pageRoles.includes(readId) && !declaredEmits.has(readId)) continue; // a web page, frozen at run start (M10 am7 item 3)
         if (docRoles.includes(readId) && !declaredEmits.has(readId) && step.close?.cited?.source === readId) continue; // a document the step quotes (M10 piece 5)
-        if (readId === emits || !declaredEmits.has(readId)) {
+        if (docRoles.includes(readId) && !declaredEmits.has(readId)) {
+          reds.push(`declaration: ${label} reads document input "${readId}" — leave it out of reads and grant "read" ("readDocx" for .docx); only a step that quotes it lists it`);
+        } else if (readId === emits || !declaredEmits.has(readId)) {
           reds.push(`declaration: ${label} reads artifact "${readId}" that no earlier step declared`);
         }
       }
@@ -1159,6 +1196,19 @@ export function validateDeclaration(declaration, context = {}) {
   for (const line of safeLines) {
     if (!claimedLines.has(line.n) && !refusedLines.has(line.n)) {
       reds.push(`declaration: job line ${line.n} ("${line.text}") is neither served by any step's fromLine nor refused with a reason`);
+    }
+  }
+
+  // --- check 7 (M10 am19): every input must be reachable by a model step (not an ask step, not the send step).
+  // Ruling A, hamr 2026-11-04: md/txt/page/ticket -> read or grep; docx -> readDocx; a sheet -> addressCells; or the role in the step's `reads`.
+  // `picks` / `inputFacts` name headings only and are not a grant. Plan-fit check: draft, revise and sign turn `fitJobLine` on; signed flows keep running.
+  if (fitJobLine === true) {
+    const modelSteps = stepInfo.filter((st) => st.fromLine === null || (!askLines.includes(st.fromLine) && !sendLines.includes(st.fromLine)));
+    for (const s of Array.isArray(safeArbiter.sources) ? safeArbiter.sources : []) {
+      const verbs = inputReachVerbs(s);
+      if (!modelSteps.some((st) => st.reads.includes(s.role) || st.primitives.some((v) => verbs.includes(v)))) {
+        reds.push(`Input "${s.role}" is read by no step.`);
+      }
     }
   }
 

@@ -35,7 +35,7 @@ const args = (over = {}) => Object.fromEntries(Object.entries({
   ...over,
 }).filter(([, v]) => v !== undefined));
 const run = (provider, extra = {}) => draft({
-  proseText: PROSE, provider, rates: RATES, modelId: MODEL, mcpServers: ['github'], flowType: 'tickets', mcp: PICK, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); }, ...extra,
+  proseText: PROSE, provider, rates: RATES, modelId: MODEL, offerQuestions: false, mcpServers: ['github'], flowType: 'tickets', mcp: PICK, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); }, ...extra,
 });
 
 test('Tickets: the drafter is told the flow type, that the ticket is frozen, the F90c line word for word, and what it may suggest; nothing is fetched', async () => {
@@ -93,7 +93,7 @@ test('MCP (generic): told the server and every tool name; a draft where no step 
 
 test('plain: nothing about MCP is told or offered, and the declaration says flowType plain with no mcp block', async () => {
   const p = fakeProvider([toolReply(args({ ticketFilter: undefined, steps: [{ ...args().steps[0], reads: [] }, ...args().steps.slice(1)] }))]);
-  const r = await draft({ proseText: PROSE.replace('\nguardrail: source issues = page:https://github.com/flutter/flutter/issues', ''), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: PROSE.replace('\nguardrail: source issues = page:https://github.com/flutter/flutter/issues', ''), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(r.declaration.flowType, 'plain');
   assert.equal(r.declaration.mcp, undefined);

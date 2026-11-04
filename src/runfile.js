@@ -50,10 +50,12 @@ export function readRunInputs(runDir) {
  * M8b item 1: the ONE writer of `run.json`, called once when a fresh run has frozen its inputs (`runFlow`); never over an existing record. `model` is the pick
  * the run started on (M4d am33; null = the section is left out), `thinking` the job's "Thinking on" box as it was at the start (M4d am25: written for every fresh
  * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A fresh run always has `thinking` and `inputs`.
- * @param {string} runDir @param {{ model: { slot: string, model: string }|null, thinking: boolean, inputs: any[] }} start
+ * @param {string} runDir @param {{ model: { slot: string, model: string }|null, thinking: boolean, inputs: any[], rerun?: {decision: 'rerun', words: string, afterStep: string|null}|null }} start
  */
-export function writeRunStart(runDir, { model, thinking, inputs }) {
+export function writeRunStart(runDir, { model, thinking, inputs, rerun = null }) {
   writeFileSync(join(runDir, RUN_FILE), `${JSON.stringify({
     ...(model ? { model: { slot: model.slot, model: model.model } } : {}), thinking, inputs,
+    // M14 am1 item 1: a rerun keeps the reason it was started with (the decision, the human's words, the step the old run's ask followed); a fresh run has no such key
+    ...(rerun ? { rerun: { decision: rerun.decision, words: rerun.words, afterStep: rerun.afterStep } } : {}),
   }, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
 }

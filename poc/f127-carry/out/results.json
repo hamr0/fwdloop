@@ -1,0 +1,125 @@
+{
+ "model": "meta-models/muse-spark-open-1026",
+ "N": 8,
+ "cap": 1.25,
+ "results": [
+  {
+   "run": 1,
+   "prefix": {
+    "a1": "Sweet Crumb Bakery is launching a new loyalty card, available free at the counter from Monday 3 November. The card gives you one stamp for every purchase of $3 or more, and ten stamps earn you a free loaf or pastry of your choice. Available in blue or green, the card is easy to keep in your wallet and stamps never expire, so you can collect at your own pace. Offices and clubs can place group orders two days ahead to earn double stamps, making it a simple way to save while enjoying your favourites.",
+    "a2": "Sweet Crumb Bakery is launching a new loyalty card to thank our customers. Available free at the counter from Monday 3 November, the card is simple to use and rewarding. You will receive one stamp for every purchase of 3 dollars or more, and ten stamps earn you a free loaf or pastry of your choice. Choose a card in blue or green, collect at your own pace as stamps never expire, and enjoy a little extra with each visit. Offices and clubs can organise group orders two days ahead to earn double stamps.\n",
+    "b1": "Earning and spending with your Sweet Crumb loyalty card is simple. You will receive one stamp for every purchase of $3 or more, and once you have collected ten stamps you can choose a free loaf or pastry of your choice. There is no rush, as stamps never expire, so you can build your collection at your own pace. For larger orders, offices and clubs can arrange group orders two days ahead and earn double stamps on those purchases, helping you reach your reward sooner. Just present your card at the counter each visit to collect your stamp.",
+    "b2": "How it works is straightforward. You will receive one stamp on your card for every purchase of $3 or more. Once you have collected ten stamps, you can exchange them for a free loaf or pastry of your choice. There is no hurry to fill your card, as stamps never expire, so you can collect at your own pace. If you pick up your card from Monday 3 November, simply present it at the counter each time you shop to earn your stamps. Choose a blue or green card when you collect it, and use the same card for every visit."
+   },
+   "A": {
+    "tries": [
+     {
+      "text": "(no answer)",
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing summary ready for review:\\n\\n- Choose a free blue or green card from Monday 3 November.\\n- Offices and clubs: order 2 days ahead for double stamps.\\n- Ten stamps earn free loaf or pastry of your choice.\\n- New collection Saturdays 8 to 10 at community hall on Mill Street.\"",
+      "usd": 0.01203975,
+      "ok": false
+     },
+     {
+      "text": "- Choose a free loyalty card in blue or green.\n- Offices and clubs can order two days ahead for double stamps.\n- Ten stamps earn a free loaf or pastry of your choice.\n- New collection point Saturdays 8 to 10 at community hall on Mill Street.",
+      "green": true,
+      "red": "",
+      "usd": 0.007963,
+      "ok": true
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.02000275,
+    "honoursAsk1": true,
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "(no answer)",
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing section completed with verified details from the brief and details reads, respecting British spelling and prior style constraints.\"",
+      "usd": 0.018624250000000002,
+      "ok": false
+     },
+     {
+      "text": "- Choose blue or green card free from Monday 3 November.\n- Offices and clubs organise group orders two days ahead for double stamps.\n- Collect ten stamps for favourite free loaf or pastry of choice.\n- Collect Saturdays 8 to 10 at community hall on Mill Street.",
+      "green": true,
+      "red": "",
+      "usd": 0.020851750000000002,
+      "ok": true
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.039476000000000004,
+    "honoursAsk1": true,
+    "memoCut": false
+   }
+  },
+  {
+   "run": 2,
+   "prefix": {
+    "a1": "Sweet Crumb Bakery is launching a new loyalty card to thank its customers. Available free at the counter from Monday 3 November, the card is simple to use and rewarding. You will receive one stamp for every purchase of 3 dollars or more, and once you collect 10 stamps you can choose a free loaf or pastry. The cards come in blue or green, and your stamps never expire. Whether you drop in for a daily treat or a fresh loaf for the weekend, the new card makes every visit a little sweeter.",
+    "a2": "Sweet Crumb Bakery is introducing a new loyalty card to thank our regular customers. Available free at the counter from Monday 3 November, the card is simple to use and rewarding. You will receive one stamp for every purchase of 3 dollars or more, and when you collect 10 stamps you can choose a free loaf or pastry. Cards are available in blue or green, and your stamps never expire, so you can take your time filling your card. It is our way of making your daily visit a little more enjoyable. Whether you favour a morning roll or an afternoon treat, the savings add up.",
+    "b1": "Earning and spending points is simple. You will receive one stamp for every purchase of 3 dollars or more, and when you collect 10 stamps you can choose a free loaf or pastry. The card is available free at the counter from Monday 3 November, so you can pick one up on your next visit. Your stamps never expire, so you can take your time filling your card. Whether you favour a morning roll or an afternoon treat, each qualifying purchase brings you closer to a reward, and the savings add up over time.",
+    "b2": "To earn stamps, simply present your card with each purchase of $3 or more and receive one stamp. Collect 10 stamps to claim your choice of a free loaf or pastry. Your stamps never expire, so you can fill your card at your own pace. Offices and clubs placing group orders two days in advance earn double stamps. Cards are available in blue or green and free at the counter from Monday 3 November. You can collect your rewards at the community hall on Mill Street on Saturdays between 8 and 10."
+   },
+   "A": {
+    "tries": [
+     {
+      "text": "(no answer)",
+      "green": false,
+      "red": "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row. Text: \"Closing section compiled with verified details from the source documents.\"",
+      "usd": 0.01341225,
+      "ok": false
+     },
+     {
+      "text": "- Cards available in blue or green, free at counter.\n- Offices and clubs earn double stamps on group orders placed two days ahead.\n- Collect 10 stamps to choose a free loaf or pastry.\n- Collect rewards at Mill Street community hall Saturdays 8 to 10.",
+      "green": true,
+      "red": "",
+      "usd": 0.0132795,
+      "ok": true
+     }
+    ],
+    "green": true,
+    "nTries": 2,
+    "usd": 0.02669175,
+    "honoursAsk1": true,
+    "memoCut": false
+   },
+   "B": {
+    "tries": [
+     {
+      "text": "- Choose blue or green card free at counter from Monday 3 November\n- Offices and clubs can organise group orders two days ahead for double stamps\n- Collect ten stamps to claim your favourite free loaf or pastry\n- Collect rewards at Mill Street community hall Saturdays 8 to 10",
+      "green": true,
+      "red": "",
+      "usd": 0.01530675,
+      "ok": true
+     }
+    ],
+    "green": true,
+    "nTries": 1,
+    "usd": 0.01530675,
+    "honoursAsk1": true,
+    "memoCut": false
+   }
+  },
+  {
+   "run": 3,
+   "prefix": {
+    "a1": "Sweet Crumb Bakery is launching a new loyalty card, available free at the counter from Monday 3 November. It is simple to use: you receive one stamp for every purchase of $3 or more, and when you collect 10 stamps you can choose a free loaf or pastry. The card comes in blue or green. Stamps never expire, so you can save at your own pace, and offices and clubs that place group orders 2 days ahead earn double stamps. It is our thank you for shopping local.",
+    "a2": null,
+    "b1": "Starting Monday 3 November, you can pick up a free loyalty card at the counter, available in blue or green. You'll earn one stamp for every purchase of $3 or more, and once you collect 10 stamps you can redeem them for a free loaf or pastry. Stamps never expire, so you can take your time filling your card. Offices and clubs that place group orders two days in advance earn double stamps. You can also collect your orders at the new collection point in the community hall on Mill Street on Saturdays between 8 and 10.",
+    "b2": "Pick up your free loyalty card at the counter from Monday 3 November, available in blue or green. You will earn one stamp for every purchase of $3 or more, and once you collect 10 stamps you can redeem them for a free loaf or pastry. Stamps never expire, so you can take your time. Offices and clubs can place group orders two days ahead to earn double stamps. You can collect your rewards at our new collection point in the community hall on Mill Street on Saturdays from 8 to 10."
+   },
+   "A": null,
+   "B": null,
+   "prefixFailed": true
+  }
+ ],
+ "spent": 1.2629345000000003,
+ "unpriced": false,
+ "halted": "budget $1.25 reached"
+}

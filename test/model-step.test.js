@@ -89,7 +89,7 @@ function fakeTwoRoundProvider() {
         return {
           text: null,
           toolCalls: [{
-            id: 't1', name: 'emit_artifact', arguments: { text: 'the artifact' },
+            id: 't1', name: 'emit_artifact', arguments: { text: 'the artifact', done: true },
           }],
           usage: { inputTokens: 100, outputTokens: 50 },
           stopReason: 'tool_calls',
@@ -110,7 +110,7 @@ test('happy path: one attempt sums every round into one costUsd, never the last 
   });
   const result = await modelStep(CTX, {}, { class: 'hitl' });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.artifact, { text: 'the artifact' });
+  assert.deepEqual(result.artifact, { text: 'the artifact', done: true });
   assert.equal(typeof result.costUsd, 'number');
   assert.ok(result.costUsd > 0);
   assert.equal(result.modelMatch, 'match');
@@ -195,7 +195,7 @@ test('PROOF the above can fail: a malformed round followed by a clean one is ok:
       this.lastMalformedToolCall = null;
       return {
         text: null,
-        toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'ok' } }],
+        toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'ok', done: true } }],
         usage: { inputTokens: 10, outputTokens: 5 },
         stopReason: 'tool_use',
         model: 'deepseek-flash',
@@ -207,7 +207,7 @@ test('PROOF the above can fail: a malformed round followed by a clean one is ok:
   });
   const result = await modelStep(CTX, {}, { class: 'hitl' });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.artifact, { text: 'ok' });
+  assert.deepEqual(result.artifact, { text: 'ok', done: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ test('a transport fault WITH a priced round already captured keeps that known pa
       calls += 1;
       if (calls === 1) {
         return {
-          text: null, toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'partial' } }], usage: { inputTokens: 100, outputTokens: 50 }, stopReason: 'tool_calls', model: 'deepseek-flash',
+          text: null, toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'partial', done: true } }], usage: { inputTokens: 100, outputTokens: 50 }, stopReason: 'tool_calls', model: 'deepseek-flash',
         };
       }
       const e = new Error('finishing round: socket reset');
@@ -292,7 +292,7 @@ test('an unknown model still meters (via the injected rates) and stamps modelMat
   const provider = {
     generate: async () => ({
       text: null,
-      toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'x' } }],
+      toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'x', done: true } }],
       usage: { inputTokens: 10, outputTokens: 5 },
       stopReason: 'tool_calls',
       model: 'deepseek-v4-pro',
@@ -378,7 +378,7 @@ test('grantedTools are passed through to the Loop as callable tools', async () =
     generate: async (messages, tools) => {
       seenToolNames = tools.map((t) => t.name);
       return {
-        text: null, toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'x' } }], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'tool_calls', model: 'deepseek-flash',
+        text: null, toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { text: 'x', done: true } }], usage: { inputTokens: 5, outputTokens: 5 }, stopReason: 'tool_calls', model: 'deepseek-flash',
       };
     },
   };
@@ -460,7 +460,7 @@ test('M4a-3 (a): tools tallies every GRANTED tool call across the whole attempt,
       // outer round 2, iteration 2: emit_artifact — success.
       return {
         text: null,
-        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok' } }],
+        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok', done: true } }],
         usage: { inputTokens: 5, outputTokens: 5 },
         stopReason: 'tool_calls',
         model: 'deepseek-flash',
@@ -509,7 +509,7 @@ test('M4a-3 (b): an ungranted tool call is flagged in "ungranted", never counted
       }
       return {
         text: null,
-        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok' } }],
+        toolCalls: [{ id: 't2', name: 'emit_artifact', arguments: { text: 'ok', done: true } }],
         usage: { inputTokens: 5, outputTokens: 5 },
         stopReason: 'tool_calls',
         model: 'deepseek-flash',
@@ -581,7 +581,7 @@ test('refused: a bareguard write refusal lands in result.refused with verb, reso
         n += 1;
         const toolCalls = n === 1 && calls
           ? [{ id: 'w', name: 'write', arguments: { path: 'inputs/x.md', content: 'pwn' } }]
-          : [{ id: 'e', name: 'emit_artifact', arguments: { text: 'ok' } }];
+          : [{ id: 'e', name: 'emit_artifact', arguments: { text: 'ok', done: true } }];
         return { text: null, toolCalls, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: 'deepseek-flash' };
       },
     };

@@ -34,10 +34,16 @@ test('a Tickets MCP job: the tab shows and the grid is drawn; an MCP job and a p
   assert.equal(withPage.hasGrid, false, 'no grid for an MCP job');
   assert.equal(withPage.hasResult, true, 'it reads a page, so it has M10\'s Result page');
   assert.equal(withPage.resultTab, true, 'the tab it had before M13');
-  // and with a plain text file as its input there is no M10 page at all: no tab
+  // and with a plain text file as its input there is no M10 page; since M15 item 1 every job but a Tickets MCP one still has the Result tab
   sign(root, 'mcpjob2', { ...rest, flowType: 'mcp', steps: rest.steps.map((st, i) => (i === 0 ? { ...st, reads: [] } : st)) }, prose.replace(/source issues = page:\S+/, 'source issues = file:/home/hamr/Documents/resumes/jd-anthropic-applied-ai-architect.md'));
   const bare = detailOf(root, 'mcpjob2');
   assert.equal(bare.hasGrid, false);
-  assert.equal(bare.hasResult, false);
-  assert.equal(bare.resultTab, false, 'an MCP job without an M10 page has no Result tab');
+  assert.equal(bare.hasResult, true, 'M15 item 1: a job with no M10 input has the Result cards');
+  assert.equal(bare.resultTab, true, 'M15 item 1: and the tab');
+  // a Tickets MCP job with no page input keeps exactly what it had: the grid, and no Result cards
+  sign(root, 'tickfile', { ...DECL, steps: DECL.steps.map((st, i) => (i === 0 ? { ...st, reads: [] } : st)) }, prose.replace(/source issues = page:\S+/, 'source issues = file:/home/hamr/Documents/resumes/jd-anthropic-applied-ai-architect.md'));
+  const tf = detailOf(root, 'tickfile');
+  assert.equal(tf.hasGrid, true);
+  assert.equal(tf.hasResult, false, 'M15 item 1: Tickets MCP keeps its grid unchanged');
+  assert.equal(tf.resultTab, true);
 });

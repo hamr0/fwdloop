@@ -48,7 +48,14 @@ for (const [label, shape] of [
 function validatorReds(shape) {
   const reds = [];
   // wordsPerSection is the guardrail's own number (amendment 15), so the line states the same one.
-  const guardrail = Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '';
+  // M10 am14: a shape number the guardrail never names is red, so the line names every number the shape carries.
+  const guardrail = [
+    Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) ? `${shape.sections.length} sections, ${shape.wordsPerSection} words each` : '',
+    shape.maxWords !== undefined ? `under ${shape.maxWords} words` : '',
+    shape.linesPerInvoice !== undefined ? `${shape.linesPerInvoice} lines per invoice` : '',
+    // M10 am15: every mustCarry word is a word of the guardrail
+    Array.isArray(shape.mustCarry) ? shape.mustCarry.filter((w) => typeof w === 'string').join(' ') : '',
+  ].filter(Boolean).join(', ');
   const LINES = [{ n: 3, guardrail }];
   const step = { fromLine: 3, goal: 'write the summary and the skills and the a and the soft skills', close: { shape } };
   const sh = D.checkShapes({ steps: [step] });
@@ -107,16 +114,16 @@ test('refuse at sign: signDraft refuses a draft edited to name a section "Skills
   const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-am18-'));
   works.push(work);
   const proseFile = path.join(work, 'prose.txt');
-  writeFileSync(proseFile, fx.prose);
+  writeFileSync(proseFile, fx.proseG);
   const args = validArgs();
   const dir = path.join(work, 'draft');
-  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(args), toolReply(args), toolReply(args)]), rates: RATES, modelId: MODEL, env: {} });
+  // (M10 am16: the plan's check is the person's pick; the sections are added to it by hand below, as a re-hashed edit would)
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'job2', provider: fakeProvider([toolReply(args), toolReply(args), toolReply(args)]), rates: RATES, modelId: MODEL, env: {}, noQuestions: true, checkPicks: [{ line: 3, rule: 1, check: { rule: 'maxWords', value: 600 }, added: 'at most 600 words' }] });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const dp = path.join(dir, 'declaration.json');
   const d = JSON.parse(readFileSync(dp, 'utf8'));
-  const i = d.steps.findIndex((s) => Array.isArray(s.close?.shape?.sections));
-  assert.ok(i >= 0, 'fixture has a step with sections');
-  d.steps[i].close.shape.sections[0] += ':';
+  const i = d.steps.findIndex((s) => s.fromLine === 3);
+  d.steps[i].close.shape.sections = ['Skills:', 'Experience', 'Summary'];
   writeFileSync(dp, JSON.stringify(d));
   const rd = (f) => readFileSync(path.join(dir, f), 'utf8');
   const h = specHash({ proseText: rd('prose.txt'), declarationText: rd('declaration.json'), inputFactsText: rd('input-facts.json'), readoutText: rd('readout.txt'), targetText: rd('target.json') }).hash;

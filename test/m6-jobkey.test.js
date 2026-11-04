@@ -51,7 +51,7 @@ test('jobkey: no RUN field changes the key (cap, destination, input path, ask wa
   const s = scene();
   const base = s.signedKey(s.card());
   assert.equal(s.signedKey(s.card({ capUsd: '0.9' })), base, 'cap');
-  assert.equal(s.signedKey(s.card({ destination: '' })), base, 'destination');
+  assert.equal(s.signedKey(s.card({ destination: path.join(s.inn, '..') })), base, 'destination');
   assert.equal(s.signedKey(s.card({ inputs: `b: ${path.join(s.inn, 'b.md')}` })), base, 'input');
   assert.equal(s.signedKey(s.card({ job: 'Read it\n~ short\n~ plain\nAsk 2h: ok?\nWrite it' })), base, 'ask wait');
   assert.equal(jobKeyOfCard('Read it\n~ short\n~ plain\nAsk 2h: ok?\nWrite it'), base);

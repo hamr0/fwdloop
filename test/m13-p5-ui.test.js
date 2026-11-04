@@ -6,7 +6,7 @@ import path from 'node:path';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
-import { killChildrenAfter, rq, world } from './m4e-world.mjs';
+import { killChildrenAfter, rq, tmp, world } from './m4e-world.mjs';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
 import { readRows } from '../src/trigger-clock.js';
@@ -82,6 +82,7 @@ test('the card sends the schedule it shows: Every day at 07:05 is {kind daily, h
   await set('jf-name', 'sched-card');
   await set('jf-job', 'Read what comes in\nWrite it out');
   await set('jf-inputs', 'resume: /full/path/to/resume.md');
+  await set('jf-dest-folder', tmp('dest'));
   await set('jf-cap-money', '0.25');
   await setSel(c, 'jf-sched', 'daily');
   await set('jf-sched-time', '07:05');

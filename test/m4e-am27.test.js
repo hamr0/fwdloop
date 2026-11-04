@@ -34,9 +34,11 @@ test('am27: answers show on the answer-redraft plan; after a Revise the box is g
   assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job }))).status, 202);
   const b = await settleOn(w, id, ['green', 'red', 'stopped', 'questions-open']);
   await childGone(w, id);
-  assert.equal(b.phase, 'green', JSON.stringify(b));
+  // M10 am16: a Revise is a plain draft that makes a fresh suggestion call and asks again about each guardrail, the answers (now ~ lines) included
+  assert.equal(b.phase, 'questions-open', JSON.stringify(b));
+  assert.deepEqual(b.questions.map((q) => [q.line, q.source]), [[1, 'look'], [2, 'look']]);
   assert.equal(b.revises.at(-1).kind, 'revise');
-  assert.deepEqual(b.answers, []); // (b) no separate box
+  assert.ok(!b.answers?.length, 'no separate box'); // (b)
   const newest = JSON.parse(readFileSync(path.join(w.dir(id), `card-${b.revises.at(-1).n}.json`), 'utf8')).job;
   assert.ok(newest.split('\n').some((l) => l.trim().startsWith('~') && l.includes(A1)) && newest.split('\n').some((l) => l.trim().startsWith('~') && l.includes(A2)), 'the answers are ~ guardrails in the newest card');
 });

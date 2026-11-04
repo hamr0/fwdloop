@@ -1,0 +1,10 @@
+{
+  "flowName": "m14-walk-6",
+  "job": "Write 3 lines about my garden from the notes\nAsk 1h: check it with me\nList 3 jobs for this week from the notes\n~ exactly 3 bullets\n~ exactly 3 list items\nAsk 1h: check it with me\nWrite a short closing note to my neighbour\n~ under 80 words\n~ at most 80 words\nAsk 1h: check it with me\nWrite it out",
+  "destination": "/tmp/poc-out",
+  "inputs": "notes: /tmp/poc-notes.md",
+  "capUsd": 0.5,
+  "askWait": "1h",
+  "provider": "BASETEN_API_KEY",
+  "model": "meta-models/muse-spark-open-1026"
+}

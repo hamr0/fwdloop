@@ -28,6 +28,7 @@ export const PLAN_CHECK_RULES = Object.freeze([
   { re: /picks|inputFacts|invented name/, say: 'The plan names a field that is not in your input.', fix: 'Check the names in your Inputs and job line, then Draft again.' },
   { re: /guardrailClasses|unjudgeable|refused/, say: "The AI's notes on which lines it can check are not in a form the checker accepts.", fix: 'Draft again.' },
   { re: /^line \d+'s (guardrail|check)|can't write files/, say: null, fix: 'Change the guardrail on that line the way the sentence says, then Draft again.' },
+  { re: /^Input ".+" is read by no step\.$/, say: null, fix: 'Draft again.' },
   { re: /must be an? |is required|must name|does not name/, say: 'The plan the AI wrote is not in the shape the checker needs.', fix: 'Draft again.' },
 ]);
 

@@ -46,9 +46,10 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  applyAnswers, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
+import { recordPath, RECORD_FILE, KEPT_WORDS } from '../pickrecord.js';
 import { csvRolesOf } from '../sheetblock.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
@@ -290,6 +291,18 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M10 am17: `--carry <record>` for a draft that follows an earlier plan. A Revise follows the newest plan folder that has a record (`draft-<n>` newest first, then `draft`);
+   * the redraft after the answers follows the plan that asked (`only`). No record, no flag: every guardrail is asked, as before.
+   * @param {string} dir @param {number[]} ns the plans' numbers @param {string} [only] the one plan folder (relative)
+   * @returns {string[]}
+   */
+  function carryArgv(dir, ns, only) {
+    const rels = only === undefined ? [...ns].sort((a, b) => b - a).map((x) => `draft-${x}`).concat('draft') : [only];
+    const rel = rels.find((r) => readFileInside(join(dir, r), RECORD_FILE).ok);
+    return rel === undefined ? [] : ['--carry', recordPath(join(dir, rel))];
+  }
+
+  /**
    * What the human is shown beside a green plan at sign: "Checked" (built by `checkedLines` from the plan's typed closes, never model text) and
    * "Not checked" (the drafter's own list, always with its label). Read-only; neither is signed or in the hash. @param {string} dir @param {string} rel
    */
@@ -297,7 +310,11 @@ export function createAuthor(opts) {
     const decl = readJson(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true };
+    const kept = readJson(dir, `${rel}/${RECORD_FILE}`)?.kept;
+    const opts = {
+      ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
+      ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),
+    };
     return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
   }
 
@@ -504,6 +521,8 @@ export function createAuthor(opts) {
       // an earlier draft that is gone is never counted as $0: refused here, at $0, in words
       const startedFrom = body?.startedOverFrom;
       let priorUsd = 0;
+      /** @type {string[]} */
+      let carryFrom = [];
       if (startedFrom !== undefined && startedFrom !== null && startedFrom !== '' && typeof startedFrom !== 'string') {
         return { status: 400, body: { ok: false, refused: 'started-over-from', say: 'startedOverFrom must be the id of an earlier draft (a string).' } };
       }
@@ -512,6 +531,8 @@ export function createAuthor(opts) {
         const spent = draftingSpent(join(dd, startedFrom), { ceilingUsd: capFloorFor(true, home, cardFields(body)) });
         if (spent.missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
         priorUsd = spent.usd;
+        // M10 am20: a Start over carries the picks of the plan it starts over from, through the same record path as a Revise
+        carryFrom = carryArgv(join(dd, startedFrom), (view(startedFrom, keys)?.revises ?? []).map((x) => x.n));
       }
       const vet = vetCard(body, loaded, priorUsd, runOf?.flow);
       if (!vet.ok) return vet.reply;
@@ -538,7 +559,7 @@ export function createAuthor(opts) {
       let child;
       try {
         child = spawnDetached({
-          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
+          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...carryFrom, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
         });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The draft could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
@@ -690,7 +711,7 @@ export function createAuthor(opts) {
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...modelArgv(vet.card)],
+          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...carryArgv(dir, v.revises.map((x) => x.n)), ...modelArgv(vet.card)],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });
@@ -706,7 +727,7 @@ export function createAuthor(opts) {
      * `POST /api/author/:id/answer` body `{ k, answer }` (M4e amendments 24, 25): the human's answer to the plan's question `k` of `n`, one at a time.
      * A blank answer is refused and the question stays open; there is no skip. The answer is written ONCE ('wx') as `<plan>/answer-<k>.json`. After
      * the LAST answer the plan is drafted again as a fresh plain `fwdloop draft --no-questions` child (it never asks), from the submitted card with
-     * each answer added word for word as a `~` guardrail under its line (the one `appendAnswersToJob`, then the one `cardToProse`). It is booked as
+     * each answer added word for word as a `~` guardrail under its line (the one `applyAnswers`, then the one `cardToProse`). It is booked as
      * an answer redraft (`redraft-<n>.json`), not a revise: it uses none of the 2. Synchronous, like `revise`; a refusal at $0 writes nothing.
      * @param {string} id @param {any} body
      */
@@ -744,10 +765,10 @@ export function createAuthor(opts) {
       if (last) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo };
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, ...(x.pairRule === undefined ? {} : { pairRule: x.pairRule }) };
         });
         const adds = all.filter((x) => x.rule !== null);
-        const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', adds.map((x) => ({ line: x.line, answer: /** @type {string} */ (x.rule) })));
+        const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
         const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
         if (!vet.ok) return vet.reply;
@@ -756,7 +777,8 @@ export function createAuthor(opts) {
           const ov = view(other, keys);
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
-        redraft = { vet, all, left: all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo })) };
+        // M10 am16 (4): what a shape guardrail's answers picked, for the redraft: the check an agree took, or the person's own words (a `~` rule, no check). A rule left Not checked rides `left`.
+        redraft = { vet, all, picks: grown.picks, left: grown.left };
       }
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
@@ -778,7 +800,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });

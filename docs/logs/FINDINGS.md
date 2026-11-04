@@ -3917,7 +3917,7 @@ D6 total spend under $0.10.
 
 **Plans as drafted (rejected declarations).**
 - Job A: (1) `read the ticket body` — primitives [read], reads [issue], emits ticket_body, close hitl. (2) `use the body for this step` — [read], reads [ticket_body], emits ticket_body_used, hitl. (3) `do your tests` — [read, grep, write], reads [ticket_body_used], emits test_report, hitl.
-- Job B: (1) `read the ticket and pull out its priority and what is broken` — [read], reads [issue], emits ticket_triage, hitl. (2) `write a short first-response plan for the on-call engineer` — [], reads [ticket_triage], emits first_response_plan, softgreen maxWords 150. (3) `check it with me,` — [], reads [first_response_plan], emits plan_review, hitl (the ask line was drafted as an ordinary step, red anyway before asks are wired). (4) `and once I accept, write it out.` — [write], reads [plan_review], emits first_response_plan_file, hitl.
+- Job B: (1) `read the ticket and pull out its priority and what is broken` — [read], reads [issue], emits ticket_triage, hitl. (2) `write a short first-response plan for the on-call engineer` — [], reads [ticket_triage], emits first_response_plan, softgreen maxWords 150. (3) `check it with me,` — [], reads [first_response_plan], emits plan_review, hitl (the ask line was drafted as an ordinary step, red anyway before asks are wired; RETRACTED in F90b: an ask line is one hitl step with no primitives by design, so this was a misreading, not a defect). (4) `and once I accept, write it out.` — [write], reads [plan_review], emits first_response_plan_file, hitl.
 - **What this means for M12 (not changed here).** The planner's behaviour on a ticket body is sane; the blocker is only that a plain-text file source cannot be read by an ordinary step. A `ticket` source (pageRoles) is exempt from that rule, so the real build is likely fine; priority-as-typed-field is not something the drafter does today for a ticket field (hitl, "correctness claim"), which matters if M12 wants "P2 only" mechanically checked.
 
 ## F90b — F90 rerun with the ticket body signed as a ticket list source (`tickets:`) (pre-registered 2026-10-27, before any run)
@@ -5260,3 +5260,1169 @@ Unchecked by design: the page in a browser, the marks' look, Run a signed flow.
 - **5 FAIL on the letter.** Differing cells are plain/empty, plain/blank and tickets/file; the third is the one above.
 
 Verdict: the assumption holds for what matters (nothing the server accepts is newly blocked except a plain card with empty Inputs, which am5 asks for; Tickets empty is refused by both; MCP stays open). I mis-specified the matrix by including tickets/file in "every file cell passes"; stays FAIL on the letter, no refit. The build takes the candidate rule as is (page checks "filled"; the server keeps judging content).
+
+## F127 PRE-REGISTRATION (2026-11-02, PAID, cap $1.00 of a $1.50 total for F127-F129; written before any run, NOT yet run)
+
+**Question.** hamr: longer runs with several human asks need a carry memo. Does handing a later step one carry block (every earlier try of THIS step with its check result and gap whole, plus the human answers verbatim) make it honour an early human answer and go green in fewer tries than today's shape (goal + reads + NEWEST gap only)?
+
+**What a real step sees (read from the code before this text, src/runner.js 229-246, 965, src/model-step.js `userContent`).** The step is handed exactly `{goal, primitives, reads, gap, hints}`; the model sees goal + reads + gap (+ `fromEarlierRuns` hints on a retry/redo/rerun try of a RERUN, not within a run). A human's answer reaches a step only as the `initialGap` of the redo of the step the ask judged (runner.js 1748: `initialGap: reason`); a LATER step sees it only if the earlier artifact it lists in `reads` carries it. So after two asks, step C sees: its goal, `reads` = the artifacts of A and B (as redone), and the newest checker red. The two answers are NOT in C's prompt. Arm A mirrors that exactly.
+
+**Setup.** `poc/f127-carry/f127.mjs`, model `meta-models/muse-spark-open-1026` on provider row `BASETEN_API_KEY` (shape openai-api, $1.25 in / $4.25 out per M, from Settings), through the REAL `makeLiveModelStep` (src/model-step.js, softgreen schema `{text, done}`), maxTokens 16000, hard deadline from `LIVE_PROVIDER_OPTIONS`, no thinking switch sent (stepMeta.thinkingMode absent), bare-agent 0.57.0 (main repo). Job, model steps only, no panel, topic a bakery loyalty card. Step A writes a short intro; ASK 1 (scripted human, redo with the answer as the redo's `initialGap`, as the runner does): "use British spelling and never use the word 'very'"; A is redone once. Step B (reads A) writes a second section; ASK 2 answer, B redone once: "keep each section under 120 words". Step C (reads A and B) writes a closing section; its goal states only the SIZES (exactly 4 bullets, each under 15 words); British spelling and no 'very' are NOT in its goal (they are the checker's rules and the human's ask-1 answer; a step never sees its close). The goal also carries the cue words `color`, `organize`, `center`, `favorite` spelled the US way (the topic invites US spelling, so the test can fail). C gets up to 3 tries; the retry gap is the checker's red text, whole. Mechanical checker, code only, no LLM: exactly 4 bullet lines (`-`, `*`, a bullet glyph or `N.`), each under 15 words, none of {color, organize, center, favorite, analyze, behavior} (any word starting with one, either case), no word `very`. The prefix (A, A-redo, B, B-redo) is generated ONCE per run index and both arms run step C from the same prefix (paired).
+- **Arm A** (today's shape): C's try k sees goal + reads + the newest gap.
+- **Arm B** (memo): the same plus one carry block, max 4000 chars, in `reads.carryMemo`: both human answers verbatim and every earlier try of step C with its check result and gap whole (answer text of the try included). Over 4000 chars is recorded and the oldest try's answer text is cut with the cut said.
+
+**N.** 8 runs per arm (8 prefixes, 16 C-runs, up to 48 C calls plus 32 prefix calls).
+
+**Pass bars (fixed now, no refit).** (1) Arm B green within 3 tries in >= 7/8. (2) Arm B honours ask-1 (the spelling-and-'very' part of the checker) in >= 7/8 of its FINAL answers, green or not. (3) The checker is proven able to fail: run once on a hand-written bad answer and see red (plus the reverse, a hand-written good answer green, and one deliberate break of a checker rule seen to let a bad answer through, then restored).
+
+**Win rule.** B passes (1)(2)(3) AND (B green-rate > A green-rate OR B's mean $ per green < A's). $ = the metered cost of step C's tries only (the shared prefix is the same for both and reported apart). Reported: green rate, tries per green, $ per green, ask-1 honour rate, A vs B.
+
+**Budget.** F127 stops at $1.00 cumulative (every round metered through `new Loop({onLlmResult})` inside `makeLiveModelStep`); an unpriced call renders "at least $X", never 0; a partial batch is reported partial.
+
+result (2026-11-02, [MEASURED], PAID; INCONCLUSIVE, FAIL on the letter of bars 1 and 2: N=2 per arm, not 8): the $1.50 total cap ran out. $0.39 went on four setup defects before the valid start (step A with no facts in `reads` made the model refuse or invent; a no-tool-call reply halted my script; two script bugs), then the valid run spent $0.87 and stopped at the shared-ledger guard $1.25 after 2 complete runs (run 3 half done, discarded). Per-run cost was about $0.17 (muse bills heavy reasoning), so 8 runs were never reachable inside the cap. What a real step sees (read from the code): goal + reads + newest gap; the human's answers do NOT reach step C. Numbers: Arm A green 2/2, tries 2 and 2, $0.0467 for step C, ask-1 honoured 2/2; Arm B green 2/2, tries 2 and 1, $0.0548, ask-1 honoured 2/2. Bar 1 (>=7/8) and bar 2 (>=7/8) unmet on the letter (N=2). Bar 3 PASS: `selftest.mjs` bad answer red, good green, each rule broken once lets a bad answer through, then restored. Win rule: NOT met (B green-rate not above A, $ per green B $0.027 vs A $0.023). What it means: nothing shown for the memo. The test did not discriminate: no US-spelling red ever fired, because C reads A and B, which were already redone in British, so the spelling rides in the reads. Every red in 4 of 4 failed first tries was muse returning text instead of the tool twice, not content. Unchecked: N=8, a job whose earlier artifacts do not carry the answer. Raw: `poc/f127-carry/out/{results.json,calls.jsonl}`, ledger `poc/f127-carry/spend-ledger-all.jsonl`.
+
+## F128 PRE-REGISTRATION (2026-11-02, PAID, cap $0.20 of the $1.50 total; written before any run, NOT yet run)
+
+**Question.** bare-agent 0.59 (BA-29) returns `r.cutOff = {outputTokens, reasoningTokens, maxTokensRequested}` when a run ends `truncated:max_tokens`. Does it work on fwdloop's path, can the retry gap carry its facts, and does fwdloop's per-round metering still sum on 0.59? Preventive (hamr will take it): the POC proves it works, no win rule beyond the bars.
+
+**Setup.** `poc/f128-cutoff/f128.mjs`, same model/row/prices as F127, provider via `makeProvider` and a Loop built like src/model-step.js (`new Loop({provider, rates, onLlmResult})`, one `emit_artifact` tool, softgreen schema), messages as the real step builds them (system prompt, user = JSON `{goal, reads, gap}`). The goal asks for a numbered list of 60 lines, each at least 12 words, in `text`. Try 1 `maxTokens: 400` (forces a cut-off); a retry (up to 2) with `maxTokens: 16000`.
+- **Arm A** (bare-agent 0.57.0, main repo): the retry gap is today's text from src/model-step.js, `truncated: <outputTokens> tokens, no tool call`.
+- **Arm B** (bare-agent 0.59.0 in a scratch worktree, `npm i bare-agent@0.59.0 --no-save`): the retry gap holds the facts read from `r.cutOff` (outputTokens, reasoningTokens, maxTokensRequested) as plain facts.
+
+**N.** 5 runs per arm.
+
+**Pass bars (fixed now).** (1) On 0.59, `r.cutOff` is populated on every forced cut-off (try 1 ending `truncated:max_tokens`), >= 5/5 (a try 1 that is not cut off does not count as forced and leaves the bar unmet). (2) On 0.59 the metering still sums every round: for each run, fwdloop's `sumMeterings` over the `onLlmResult` events equals the plain sum of the events' `costUsd` and equals tokens x the row's prices recomputed (tolerance 1e-9 USD); events count equals rounds made. (3) Arm B's retry ends with a complete `emit_artifact` call (60 numbered lines in `text`, `done` present) in >= 4/5. Arm A's retry rate is reported for comparison, not a bar.
+
+**Budget.** $0.20 cumulative, metered per round; partial reads "at least $X".
+
+result (2026-11-02, [MEASURED], PAID; bar 1 PASS, bar 2 FAIL on the letter for 3 of 5 runs, bar 3 FAIL): arm B (0.59.0) 5 runs, arm A (0.57.0) 5 runs, spend about $0.18 per arm (the pre-registered $0.20 total was too small; own cap raised to $0.40 inside the $1.50 hard cap). Bar 1: `r.cutOff` populated on 5/5 forced cut-offs, always {outputTokens 400, reasoningTokens 397, maxTokensRequested 400} (the 400-token cap is eaten by reasoning, not the artifact); 0.57 has no `cutOff` (0/5). Bar 2: events = generate calls and `sumMeterings` = plain sum of events in 5/5; the recorded `balanced` flag is true for runs 4-5 and false for runs 1-3 because my recompute left out `cacheReadTokens` (2304 per run; fwdloop prices cache reads as input, signed M4d am2); the gap was exactly 2304 x $1.25/M = $0.00288 in each of the three, so the books balance, but the letter as recorded is FAIL for those 3 runs (script fixed before runs 4-5). Bar 3: arm B ended with a complete 60-line tool call in 1/5 (needs 4/5) FAIL; arm A 1/5. Every non-complete retry ended `end_turn` with text and no tool call (muse), at 16000 tokens, so the gap text was not the limiter. What it means: `cutOff` works on our path and metering is unchanged on 0.59; it did not make the retry succeed on this model. Raw: `poc/f128-cutoff/f128-{A,B-part1,B-part2}.json` (B runs 1-3 then 4-5 in two script runs; the first script run's budget guard was a script defect).
+
+## F129 PRE-REGISTRATION (2026-11-02, $0 first, then PAID smoke cap $0.05 of the $1.50 total; written before any run, NOT yet run)
+
+**Question.** bare-agent 0.59 `new Loop({checkArgs: true})` refuses a tool call whose top-level args are the wrong type or missing before the tool runs. Does it hold on our path, and does it leave good calls alone?
+
+**Setup.** `poc/f129-checkargs/f129.mjs`, bare-agent 0.59.0 (scratch worktree). Part 1, $0: a scripted fake provider (`generate` returns scripted `{text, toolCalls, usage}`), a tool `emit_artifact` with `parameters` `{text: string (required), done: boolean (required)}` and an `execute` that records its calls. Round 1: `{text: 42, done: true}` (number for a string); round 2: `{done: true}` (text missing); round 3: a corrected `{text: "ok", done: true}`; round 4: no tool calls. Part 2, PAID smoke: N=3 real steps on muse (same row/prices as F127) through the real `makeLiveModelStep` path's Loop shape with `checkArgs: true` on a normal step (a 3-line summary), and the same 3 goals with `checkArgs` off for comparison of behaviour.
+
+**Pass bars (all four must hold, fixed now).** (1) On the two bad calls the tool's `execute` is NOT called. (2) `r.badCalls` holds an `arg-type` entry (tool `emit_artifact`, param `text`) and an `arg-missing` entry (tool `emit_artifact`, param `text`). (3) The loop continues and the corrected call of round 3 executes (recorded once, with `text: "ok"`). (4) Paid smoke: in the 3 `checkArgs:true` runs no `badCalls` key (no false badCalls on good calls), each ends with a captured artifact, and the artifact shape (keys) equals that of the `checkArgs` off runs.
+
+**Budget.** $0.05 for the smoke; partial reads "at least $X".
+
+result (2026-11-02, [MEASURED]; bars 1-3 PASS at $0; bar 4 FAIL on the letter, on the control arm): $0 part, 0.59.0, scripted provider: (1) `execute` not called on the number-for-string call or the missing-param call; (2) `r.badCalls` = [{arg-type, emit_artifact, text, expected string, got number, round 0}, {arg-missing, emit_artifact, text, round 1}]; (3) loop went on, the corrected call of round 3 executed once with text "ok". Negative control with checkArgs off executes all 3 calls and has no `badCalls`, so the check can fail. Smoke on muse, total $0.029: the 3 checkArgs:true runs had no `badCalls` key, 3/3 captured an artifact, keys [blocker, done, text]. Bar 4 as written also compares with the 3 checkArgs-off runs: 2 of those had the same keys and 1 made no tool call at all (muse text reply, unrelated to checkArgs), so the shape comparison is FAIL on the letter. What it means: checkArgs does what it says and left good calls alone in 3/3. Raw: `poc/f129-checkargs/{f129-free.json,f129-smoke.json}`.
+
+## F127b PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $6.00; written before any paid call, NOT yet run)
+
+**Why a redo.** F127 did not discriminate: ask 1 (British spelling) was an answer about step A, so A was redone and the spelling rode into step C through the redone A/B artifacts; the memo had nothing to carry. Reading the code again (runner.js 1748, `initialGap: reason`): a human answer reaches only the redo of the step it judged; later steps never see it unless an earlier artifact carries it. F127b makes the answers be about LATER work only, so no redo happens and no artifact can carry them.
+
+**Question.** When a human gives later-work instructions at ask 1 and ask 2, and a later step C has up to 3 tries, does one carry block (every human answer verbatim, with which ask; every earlier try of C with check result and gap whole) get the human facts into C and C green sooner/cheaper than today's shape (goal + reads + NEWEST gap only)?
+
+**What a real step sees** (confirmed against src/model-step.js `userContent`, lines 350-361: `{goal, reads, gap}` plus optional hints/quoting/answering, none used here): goal + reads + gap. `reads.carryMemo` is the memo's slot, as in F127.
+
+**Setup.** `poc/f127b-carry/f127b.mjs` (reuses poc/f127-carry code), real `makeLiveModelStep` (slot BASETEN_API_KEY, model `meta-models/muse-spark-open-1026`, $1.25/$4.25 per M from Settings), bare-agent 0.57.0, softgreen `{text, done}`, no thinking switch. Throwaway job, model steps only, topic a project with a provided facts file (`reads.facts`).
+- Step A: write a 3-line project summary from the facts. ASK 1 (scripted human, accepts A; no redo): "For the closing note: address it to Mrs Okafor and sign it 'Kind regards, Tom'."
+- Step B: list 3 risks from the facts. ASK 2 (accepts B; no redo): "The closing note must say the deadline is 14 March."
+- Step C: write the closing note. Goal states only the guardrails: exactly 3 bullets (lines starting "- "), each under 15 words, no word "very". It does NOT name Okafor, Tom or 14 March.
+- Validity assert in code: the A and B artifacts must not contain `Okafor`, `\bTom\b` or `14 March`. If they do, that prefix is INVALID: reported, and regenerated (at most 2 regenerations over the whole batch; a further invalid prefix ends the batch partial). Denominators count valid runs only.
+- Checker (code only, no LLM) judges C: exactly 3 bullet lines (`-`, `*`, bullet glyph, `N.`); each bullet under 15 words (<=14); no word `very` (case-insensitive); text contains `Mrs Okafor`, `Kind regards, Tom`, `14 March` (exact substrings, case-sensitive). Up to 3 tries; retry gap = the checker's red text whole (it names what is missing, so arm A can learn the human facts ONLY from the gap: recorded per run, per fact, on which try it first appears). A no-answer try (the step returns not-ok, e.g. text instead of the tool twice) is a red try with gap = the step's red text.
+- Arm A (today): C's try k sees goal + reads (facts, A artifact, B artifact) + newest gap.
+- Arm B (memo, adapted from bareloop v0.53.0 carry memo, section 1: one block written by code, facts from the run's own record, never a model's words, capped): same plus `reads.carryMemo`, max 4000 chars: every human answer verbatim with which ask it came from, every earlier try of C with its answer text, check result and gap whole. Over 4000: oldest tries' answer text cut with the cut said; human answers never cut.
+- Prefix (A, B) generated once per run index; both arms run C from the same prefix (paired). Arm order alternates by run index (even: A first; odd: B first) so time of day hits both.
+
+**N.** 12 valid runs per arm. No additional runs if budget remains; spend left is reported.
+
+**Pass bars (fixed now, no refit).**
+1. Arm B green within 3 tries in >= 10/12.
+2. Arm B try 1 contains all three human facts (the three substrings) in >= 10/12.
+3. Arm A try 1 contains all three human facts in <= 2/12 (proves today's gap exists).
+4. The checker is proven able to fail: a hand-written bad answer red; a hand-written good answer green; each rule broken once (disabled) lets a bad answer pass; then restored (selftest, $0).
+
+**Win rule.** B passes bars 1 and 2 AND (B green rate > A green rate OR B mean $ per green < A's OR B mean tries per green < A's). $ per green = total metered cost of C's tries in that arm / greens in that arm (prefix cost reported apart). Tries per green = mean tries over green runs.
+
+**Reported.** Per arm: green rate, try-1 green rate, tries per green, $ per green, human-fact presence per try (each of the 3 facts, tries 1-3), the try on which each fact first appears, count of text-instead-of-tool replies (the muse habit; counted separately, never excluded), memo cuts.
+
+**Budget.** HARD CAP $6.00 for F127b, every round metered through `onLlmResult` inside `makeLiveModelStep`; the script refuses to start a call at or above the cap; unpriced renders "at least $X"; a partial batch is reported partial. Key from `pass amr/baseten_api` first line, never printed; refused if empty.
+
+result F127b (2026-11-02, [MEASURED], PAID; bars 1, 3, 4 PASS, bar 2 FAIL on the letter, so the win rule is NOT met): 12 valid runs per arm, 0 invalid prefixes (the A/B artifacts never held Okafor, Tom or 14 March), spend $0.9289 of the $6.00 cap (all metered rounds, none unpriced; prefix $0.1775, step C arm A $0.5148, arm B $0.2365), $5.07 left, no extra runs added. Order alternated by run index.
+- Arm A (today): green 0/12, try-1 green 0/12, all 3 human facts in try 1: 0/12, and in tries 2 and 3: 0/12 each. The checker's red text ("missing "Mrs Okafor"; missing "Kind regards, Tom"; missing "14 March"") reached try 2/3 in 24 tries and was never acted on, so the gap alone did NOT carry the facts. Text-instead-of-tool replies: 12 of 36 tries.
+- Arm B (memo): green 12/12, try-1 green 6/12, tries per green 1.50, $ per green $0.0197 (arm A has no green, so no comparison per green). All 3 facts in try 1: 6/12; in try 2: 6/6 of the tries that reached it. Fact first appears on try 1 in 6 runs, try 2 in 6 runs. Text-instead-of-tool replies: 6 of 18 tries, ALL on try 1, and each such reply is a not-ok try with no artifact (facts counted as absent); the memo did not change that habit, and the retry with the memo then went green 6/6. Memo cuts: 0.
+- Bars. (1) B green within 3 tries >= 10/12: 12/12 PASS. (2) B try 1 holds all three facts >= 10/12: 6/12 FAIL on the letter (all 6 misses are a try 1 that returned text instead of the tool, so no artifact; supplementary, outside the bar: the raw reply text of 3 of those 6 held all three facts, a partial read since the red text is the only copy). (3) A try 1 holds all three facts <= 2/12: 0/12 PASS. (4) `poc/f127b-carry/selftest.mjs`: bad answer red, good green, each of the six rules broken once lets a bad answer through, then restored: PASS.
+- Win rule: B passed bar 1 but failed bar 2, so NOT met on the letter, although B green 12/12 vs A 0/12.
+- What it means: with later-work human answers, today's shape cannot get step C green on this model (0/36 tries held a fact, even with the gap naming each missing one); the memo got C green in 12/12 within 3 tries. The bar-2 miss is the muse text-instead-of-tool habit eating try 1, not the memo failing to carry the facts. Unchecked: whether the gap reached the model as I read the code (no raw prompt captured); one model, one job, N=12; a cheaper fix of the text-instead habit (not tried).
+- Raw: `poc/f127b-carry/out/{results.json,calls.jsonl,spend.jsonl}`, `poc/f127b-carry/run.log`, code `poc/f127b-carry/{f127b,checker,selftest,report}.mjs`.
+
+## F130 PRE-REGISTRATION (2026-11-02, $0, no model call, no network, no pass; M14 POC a; written before any run, NOT yet run)
+
+**Question.** M14 items 1-6 and 11: is every fact the carry memo needs already in a run's existing files, in order, and can plain code build the memo from them without writing into the run folder?
+
+**Setup.** `poc/f130-memo/` (throwaway renderer + checks, never imported by src; reads only, writes nothing into any run folder, copies results into `poc/f130-memo/out/`). Real runs under `~/.config/fwdloop/flows` with at least 2 asks and at least one answer that carries text: `aging-live-4/run-24` (redo "yes", accept "yes"), `m7-walk-2/run-2` (redo "redo again", accept blank), `m7-walk-2/run-6` (redo "try again", accept blank), plus `m10b-aging/run-1-rerun-1` (the only rerun on disk; one ask, reason "wrong answer" lives in the parent run). Sources: `audit.jsonl`, `answer.*.consumed.json`, `asks/<askId>.json` (which step the ask is on), `job/declaration.json` (step order, to say which step an ask follows), `run.json`. For every audit row of a model step (model not null) the memo is built from what had happened before that try started (answer files by `answeredAt` and the ask's decision row by file order; both must agree).
+
+**Pass bars (fixed now).** (1) Every human answer appears as `ask N (after step X): accept|redo|rerun — user says "…"` in run order, with the right step, in the memo of every later try. (2) A blank answer adds no `user says` line. (3) Each try's check result in the memo equals that try's audit row verdict. (4) No money or time string in any memo (case-insensitive grep: `$`, `usd`, `cost`, `\bms\b`, `\d\s?ms`, `second`, `wallMs`, `minute`). (5) Cap 4000 respected; with a tiny cap the heading and human lines are never cut, and the cut order is oldest tries first, then oldest failures. (6) Every fact the memo needs is found in the run's existing files; any missing fact is a FAIL naming the file it would need. (7) Item 11 survey: every place in `src/` that hands learnings or earlier-run / earlier-try text to a model, with whether today's Audit tab shows it, file:line both sides (a report, no bar on count).
+
+**Checks proven able to fail** by breaking each once (drop a human line, shuffle order, render a wrong verdict, inject `$0.01`, lift the cut): red, then restored; recorded.
+
+**Wording choices of the POC, not signed** (the signed text does not give the words): heading text, the folded line form `xN`, a last-try line that names its verdict but not its gap text (the retry gets the gap, item 6). Reported as read, never refit.
+
+## F131 PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $2.00; M14 POC b; written before any paid call, NOT yet run)
+
+**Question.** Does bare-agent 0.59.0 run one of hamr's own signed flows on the real CLI path (`node bin/fwdloop run`) with no crash, balanced books, the same run-folder file names as 0.57, and no surprise `badCalls` / `cutOff`?
+
+**Setup.** `poc/f131-ba059/`. A scratch worktree of HEAD under `.claude/worktrees/`, `npm ci`, then `npm i bare-agent@0.59.0 --no-save` (0.57 arm: the lockfile's version, untouched). One existing flow of hamr's that ran green, 1-2 model steps, no asks, cheap, copied (not moved) into a mkdtemp root inside `.claude/worktrees/`; HOME pointed at a temp dir holding a copy of `.config/fwdloop/config.json`; hamr's real flows and runs.jsonl untouched. Model `meta-models/muse-spark-open-1026` via BASETEN_API_KEY row, key from `pass amr/baseten_api | head -n1 | tr -d '\r\n'` exported in the same command, refused if empty, never printed. The flow's own signed values; one run on 0.57, then one on 0.59.
+
+**Pass bars (fixed now).** (1) The run ends (any outcome) with no crash on 0.59. (2) Books balance: sum of audit-row `usd` = the run's history total = sum of `spend.jsonl` rounds (tolerance 1e-9). (3) The 0.59 run folder holds the same file names as the 0.57 run folder. (4) No `badCalls` / `cutOff` on a normal run (reported if present). A bar is judged on the letter; an outcome of red is fine for bar 1 but is reported.
+
+**Budget.** $2.00 total for both runs, metered; unpriced reads "at least $X".
+
+result F130 (2026-11-02, [MEASURED], $0, no model call; bars 1-5 PASS, bar 6 FAIL on the letter for one fact, bar 7 is the survey below): code `poc/f130-memo/{memo,run,fold-check}.mjs`, raw `poc/f130-memo/out/{results.json,fold.json}`. Four real runs: `aging-live-4/run-24` (redo "yes", accept "yes"), `m7-walk-2/run-2` (redo "redo again", blank accept), `m7-walk-2/run-6` (redo "try again", blank accept), `m10b-aging/run-1-rerun-1` (rerun "wrong answer", asked in the parent run). 24 tries checked = 20 model-step tries plus one virtual "next try after the whole record" per run (the m7 and aging blank/last answers come after the last model try, so only the virtual try can see them); 21 memos non-empty (the 3 first tries of a run with nothing before them get none, as item 2 says); longest memo 1106 chars.
+- Bar 1 PASS: every `ask N (after step X): decision — user says "…"` line matches an independent list built from the answer files by `answeredAt` against each try's start (`at` minus `wallMs`), in order, with the right step; the audit decision row (file order) and the time rule agreed on every try. Bar 2 PASS: the blank accepts of run-2, run-6 and the rerun's own ask give `ask 2 (after step …): accept` with no "user says". Bar 3 PASS: each `result:` in a memo equals the verdict of that step's n-th model row in a fresh read of audit.jsonl. Bar 4 PASS: no `$`, usd, cost, ms, second, minute in any memo. Bar 5 PASS: all memos under 4000; with cap 330 (6 cuts, only `try` lines) and cap 120 (20 cuts, `try` then `fail` then `last`) the heading and all human lines were never changed and the cut was oldest first. Fold: a synthetic record with the same red text three times renders one line `… (x3)` (no real run repeats an identical failure text, so the fold is proven on a synthetic record only).
+- Checks proven able to fail (each broken once, red, then the real code green): drop a human line, swap human order, add "user says" to a blank, wrong verdict, `$0.01` in the memo, cap ignored, a cut that eats a human line, a reversed cut order: 8 of 8 red. (The first selftest run had 3 blind checks because no real try saw a blank answer or two human lines; the virtual next try was added for that, and the three then went red. Recorded, not hidden.)
+- Bar 6 FAIL (one fact): a rerun's reason is not in the rerun run's own files. `m10b-aging/run-1-rerun-1` holds no trace of "wrong answer" (grep over its folder: none); the only link is the folder NAME `run-1-rerun-1` to the parent run's consumed answer. The memo for that run needs, in its own files, the rerun reason, its decision and which step the parent's ask followed (a field on `run.json` or `state.json` of the rerun run, written when the rerun starts). Every other fact was found in existing files: the answer (consumed answer file, kept per askId), which step each ask followed (`asks/<askId>.json` `emits` plus `job/declaration.json` step order), the order (audit decision row), the result of every try (audit row verdict and gap). Two notes the build must settle, not failures: (a) the audit `attempt` counter restarts after a redo (m7-walk-2 run-2 has `summary_resume` attempt 2 twice and `resume_parked` attempt 2 twice), so a memo labels a try by its count within the step, not by `attempt`; (b) item 6 is read here as "the last-try line keeps its verdict but drops its gap text when the same step retries"; the signed text could be read as dropping the whole line, and the signed text has no wording for the heading, a "cut" note or the fold marker (`xN`), so those are POC choices, not signed.
+- Bar 7, the item 11 survey, every place text reaches a model and whether today's Audit shows it (file:line hand-over / file:line Audit):
+  1. Drafter first draft, learnings in the system prompt: `src/drafter.js:683` (block from `src/authoring.js:366`, record `src/authoring.js:384` -> `src/flowmodel.js:66`). Audit: yes, one fold "What the planner was told from earlier runs" (`src/panel/data.js:2044`, `src/panel/index.html:3919-3960`); gap: shown once per run folder and only for the run that takes the flow's record (`src/flowmodel.js` `takeLearningsRecord`), not per round.
+  2. Redraft after the human's answers: the answers ride inside the new prose (`src/panel/author.js:743-783`, `redraft-N.json` at :778) and the same learnings block goes in through `draftToDir` (same path as 1). Audit: yes for the block (copied into the new run folder, `src/flowmodel.js` `copyLearningsRecord`) and an `answers redraft N` row (`src/panel/data.js:1948`); unchecked: whether the answer texts themselves show in that Audit row.
+  3. Drafter revise rounds and the cut-off / not-a-tool-call nudges (earlier validator reds handed back): `src/drafter.js:409-412` (`reviseMessage`), `:765-769`, `:776-778`, `:837`. Audit: partly; `src/panel/data.js:1913-1918` shows the first red plus "(and N more)" and keeps all reds as `raw`.
+  4. Step try, earlier runs' block (retry, redo, rerun first try): `src/runner.js:943-966` -> `src/model-step.js:355` (`fromEarlierRuns`). Audit: yes, the `told from earlier runs` row with one button per try (`src/audit-fold.js:118`, `src/panel/index.html:3729-3730`).
+  5. Step retry, the previous try's check text as the gap: `src/runner.js:965` -> `src/model-step.js:350`. Audit: yes (`src/audit-fold.js:116`, `src/panel/index.html:3669` `gridGapLines`).
+  6. Redo reason as the redone step's gap: `src/runner.js:1748` (`initialGap: reason`). Audit: yes, `you said redo: "…"` (`src/audit-fold.js:46`).
+  7. Rerun reason as the new run's first step gap: `src/runner.js:2006` (`firstStepGap`, set at `:1478`; resume path `:2542`). Audit: NO, the reason is not in the new run's files (bar 6), so the new run's Audit cannot show it. GAP.
+  8. Accept text: handed to no model today; the Audit shows only `you accepted` (`src/audit-fold.js:44`). This is the item 3 change itself.
+  9. Page and sheet map calls (`src/drafter.js:546-552`): the model gets the saved page or sheet text, no earlier-run or earlier-try text; not a hand-over for item 11.
+  The memo itself (item 7 of the signed text) has no hand-over site yet; items 4-7 above are the ones whose Audit row exists, items 2 (answers text), 3 (all reds), 7 are the gaps.
+- Unchecked: the panel was not opened (the Audit survey is from reading the code, not from a screenshot); the cap-4000 cut on a real long run (no real memo got near 4000; the cut is proven only at caps 330 and 120); a memo on a run that was paused, resumed and restarted (the memo here is built from files only, which is the survival the signed text asks for, but no restart was run).
+
+result F131 (2026-11-02, [MEASURED], PAID; metered $0.5923 of the $2.00 cap, all rounds priced, none unpriced; bars 1, 2, 3 PASS, bar 4 PASS as far as the files go but is blind to it, see below): code `poc/f131-ba059/{arm.sh,arm-full.sh,loop.sh,compare.mjs}`, raw `poc/f131-ba059/out/{compare-6-7.json,compare-all.json,raw/,*.log}`. Flow: a copy of hamr's `exit-walk-1` (green before: 2 model steps, then the signed ask, then the send; no signed flow of his has no ask line, so each run parked at its ask, was answered `accept` through `fwdloop answer`, and resumed through `fwdloop resume`; nothing was signed by script). Copy in a mkdtemp root under `.claude/worktrees/`, HOME pointed at a temp dir with a copy of `config.json`, model `meta-models/muse-spark-open-1026` (BASETEN_API_KEY row) written into the COPY's `model.json`, key from `pass amr/baseten_api` first line. Worktree of HEAD 7bfaabe; 0.57.0 from `npm ci`, 0.59.0 by `npm i bare-agent@0.59.0 --no-save`; hamr's real flows and `runs.jsonl` untouched.
+- Seven runs: run-1 0.57 red (send refused: hamr's own `~/fwdloop-out/exit-walk-1-run-1-written_totals.json` already exists, nothing overwritten) $0.0684; run-2, run-3, run-4 0.59 and run-5 0.57 each ended at step 2 `Total the amount owed per customer` with "a FINISHED round returned text instead of the tool twice in a row" (struck-out / attempt-fallback, $0.0723-0.1252 each: muse's known text-instead-of-tool habit, F127b; it hit both versions); run-6 0.57 complete $0.0707; run-7 0.59 complete $0.0971. Reached the ask: 0.57 in 2 of 3 runs (run-1, run-6; run-5 did not), 0.59 in 1 of 4 (run-7). Too few to compare a rate; no claim.
+- Bar 1 PASS: 0.59.0 ended every run (2 complete, 3 ended at step 2 by the runner's own text-instead-of-tool rule) with no crash. Bar 2 PASS: all 7 runs balance (audit-row usd = history total = sum of spend.jsonl, 1e-9); run-7 (0.59): $0.0970995 / $0.0970995 / $0.0970995; run-6 (0.57): $0.070676 on all three. Bar 3 PASS: run-6 (0.57, complete) and run-7 (0.59, complete) hold the same 13 file names (normalised for ids): answer.<uuid>.consumed.json, artifacts/{aging_report,checked_totals,customer_totals}.json, ask.json, asks/<uuid>.json, audit.jsonl, diary.jsonl, log.json, pids.jsonl, run.json, spend.jsonl, state.json (written_totals is sent to the out folder, not the run folder). Bar 4 PASS on the files, BLIND in fact: no `badCalls` or `cutOff` appears in any run folder, no stopReason other than `tool_use` / `end_turn`; but `src/` reads neither (`grep badCalls|cutOff src/*.js` finds only the drafter's own `cutOff` variable), so a surprise could not be written to disk today. A checkArgs-on run is outside this POC (F129 covered it at $0).
+- Side effects, cleaned: my two completed sends wrote `~/fwdloop-out/exit-walk-1-run-6-written_totals.json` and `-run-7-` (hamr's earlier policy allows POC writes there); both removed. The worktree, the temp root and the temp HOME were removed. A `thinkingMode 'off' ... thinkingStatus 'ignored'` provider note from muse appeared on both versions.
+
+## F132 PRE-REGISTRATION (2026-11-02, $0, no model call, no network, no pass; M14 am1 item 1 POC; written before any run, NOT yet run)
+
+**Question.** On the real rerun path (`resumeRun` answering `rerun "<reason>"`, then `runFlow` for `<runId>-rerun-1`), can the new run's own `run.json` hold `rerun: {decision:'rerun', words, afterStep}` from its start, written by the existing one writer (`writeRunStart`, src/runfile.js:55, called once at src/runner.js:1377), with no new file, and does it survive the rerun's own park and resume?
+
+**Setup.** `poc/f132-rerun-reason/run.mjs` (throwaway, never imported by src). Flow: the signed `job2` fixture (3 model steps, then one signed ask, then the send) in a mkdtemp root under the POC folder, scripted fake model step as in `test/rerun.test.js`, send folder a mkdtemp. Park run-1 at its ask, answer `rerun "wrong answer"`, `resumeRun`, inspect `run-1-rerun-1`. The fact is known in `resumeRun` (src/runner.js ~2471-2542: `reason`, `state.stepIndex` = the ask's step index, so `afterStep` = the number of the step before the ask, 1-based = `state.stepIndex`) and has to reach `runFlow` and `writeRunStart`. The POC patches a COPY of `src/` (copied into a scratch dir inside the POC folder, so node_modules still resolves), never the main tree: `resumeRun` passes `rerunOf` to `runFlow`, `runFlow` passes it to `writeRunStart`, which writes a `rerun` section. A hook in the copy records what `writeRunStart` was handed.
+
+**Pass bars (fixed now).** (1) The hook sees `{decision:'rerun', words:'wrong answer', afterStep:3}` at the moment the new run's `run.json` is first written. (2) The new run folder's file names (recursive, sorted) are identical to a rerun on the unpatched `src/`; and `run.json` differs from the unpatched one only by the `rerun` key. (3) Park the rerun at its ask, answer `accept`, `resumeRun` it: `run.json` is byte-identical before and after and still holds the same fact. (4) Check can fail, by three breaks: (a) copy without the `resumeRun` pass-through: bar 1 must go red; (b) copy where the hook sees the fact but `writeRunStart` drops it: bars 2/3 (file holds the fact) must go red; (c) a rerun on the unpatched `src/`: no `rerun` key at all. Each red recorded, then the patched copy re-run green.
+
+**Not covered (stated now).** Who reads the fact (memo, Audit) is not built; a rerun of a rerun (`-rerun-1` already exists is refused, F-existing); a rerun started from the panel (same `resumeRun`, unchecked); a `continueRun` path never starts a rerun.
+
+result F132 (2026-11-02, [MEASURED], $0, no model, no network): code `poc/f132-rerun-reason/run.mjs`, raw `poc/f132-rerun-reason/out/results.json`. Real `runFlow`/`resumeRun`/`answerAsk` on the signed `job2` fixture, scripted fake model step; the patched variants are COPIES of `src/` in a scratch folder inside the POC folder (deleted at exit); the main tree was never patched (`git status` showed only `poc/f132-rerun-reason/`). Verdict: **bars 1, 2, 3, 4 PASS**, with one comparator slip recorded below.
+- Where the fact is known: `resumeRun`'s rerun branch, src/runner.js:2471-2546: `reason` (2476) and `state.stepIndex` (the ask's 0-based step index = the 1-based number of the step before it = `afterStep`; here 3) are both in scope at the `runFlow` call (2524-2543). Bar 1 PASS: the hook in the patched `writeRunStart` was handed exactly `{decision:'rerun', words:'wrong answer', afterStep:3}` for `run-1-rerun-1`, once.
+- Where the build should write it (one writer): `writeRunStart`, src/runfile.js:55 (add a `rerunOf` argument and a `rerun` section; `flag: 'wx'` already makes it write-once). Path of the value: src/runner.js:2542 (`resumeRun` passes `rerunOf: { decision:'rerun', words: reason, afterStep: state.stepIndex }` beside `initialGap: reason`) -> `runFlow` parameter list (1246) -> its one `writeRunStart` call (1377). Three small edits plus the writer; no reader exists yet (runfile.js `readRunRecord` already reads the whole record).
+- Bar 2 PASS: the rerun's folder has the same 16 file names as a rerun on unpatched `src/`; its `run.json` differs only by the `rerun` key. Comparator slip: my first run compared raw names and went FAIL on one line only, the random uuid in `asks/<uuid>.json` (different every run, patched or not); the comparator now masks uuids and I did not touch the bar's intent (no new file).
+- Bar 3 PASS: park the rerun at its ask, answer `accept`, `resumeRun` it (outcome `complete`): `run.json` byte-identical before and after (same sha256) and still holds the fact. Cause is mechanical: `writeRunStart` is called only on a fresh run and `wx` never overwrites, so a resume cannot change it.
+- Bar 4 PASS (checks can fail): copy without the `resumeRun` pass-through, the hook sees `undefined` (bar 1 red); copy whose writer drops the section, the hook sees the fact but the file has none (bars 2b and 3 red); unpatched `src/`: no `rerun` key. Each break ran in its own copy.
+- Unchecked: reading the fact back into the memo or the Audit (not built); a rerun started from the panel's Rerun button (same `resumeRun`, not run here); a rerun of a rerun (the `-rerun-1` name is refused when it exists, so a second rerun of the same run cannot happen); old runs and the one rerun on disk (`m10b-aging/run-1-rerun-1`) have no such record and keep reading it from the parent's consumed answer; `afterStep` is the step number only, the step's `emits` name is derivable from `job/declaration.json` if the signed words want a name (am1 says "which step", unsigned detail); tests not run (no src change).
+
+## F133 PRE-REGISTRATION (2026-11-02, $0, no network beyond 127.0.0.1, no pass; M14 Done-when "a forced cut-off and a forced bad call both show on the audit row" and "the books balance"; written before any run, NOT yet run)
+
+**Question.** On the real run path (`node bin/fwdloop run / inbox / answer / resume`), with a scripted stand-in provider, does a forced cut-off and a forced bad tool call show on the audit row with the M14 item 9 and 10 words and facts, and do the books balance?
+
+**Setup.** `poc/f133-forced/`. A local node HTTP server on a free port (not 8765, not 4700-4809) speaks the openai-api chat-completions shape and logs every request body. A mkdtemp root holds the signed `job2-with-sources` fixture flow (written with `writeFlow`, the way F132 and the tests do; no CLI sign, no script signing of hamr's flows). HOME is a mkdtemp dir with its own `.config/fwdloop/config.json` (provider row `MOCK_API_KEY`, `shape openai-api`, `legacyMaxTokens true`, base URL = the stand-in, a ticked model `mock-model` with both prices); hamr's real config, flows and panel are never touched. bare-agent 0.59.0 from the repo's node_modules, `checkArgs` as built (p5). The run parks at its ask, is answered `accept` through `fwdloop answer`, and resumed through `fwdloop resume`.
+- Forced arm, replies in order for the model step: (a) round 1 of try 1: `finish_reason: "length"`, no tool call, `completion_tokens` = the request's `max_tokens`, `completion_tokens_details.reasoning_tokens` = 12000; (b) try 2 round 1: an `emit_artifact` call with `text: 42` (a number for a string); (c) the round after the refusal: a correct `emit_artifact` call; then a plain stop.
+- Good arm (the negative control): the same server sending only the correct call, then a plain stop.
+
+**Pass bars (fixed now).** (1) Forced arm: step 1 try 1's audit row gap names bare-agent's cut-off facts: contains `cut off at the output limit with no tool call`, the output tokens (= the request's `max_tokens`), `12000 of them thinking`, and `the limit was <max_tokens>`; it does not contain the old words `truncated: N tokens, no tool call`. (2) The try that sent the wrong-typed call has `badCalls` on its audit row with tool `emit_artifact` and param `text`; the bad call's tool never ran: the artifact in the run folder carries the correct call's text, and no artifact holds `42`. (3) Books balance, forced arm: sum of audit-row `usd` = history total (`history.jsonl` `spentUsd`) = sum of `spend.jsonl` `costUsd`, tolerance 1e-9, and no unpriced round. (4) Every audit row of a try that was handed a memo carries `memoText`, and it equals, byte for byte, the `fromThisRun` string in the user message of the stand-in's logged request bodies for that try (and a try with no `fromThisRun` in any request has no `memoText`). (5) The check can fail: on the good arm bars 1 and 2 are red (no cut-off gap, no `badCalls`), and bar 3 still balances.
+
+**Budget.** $0 (stand-in). Judged on the letter; a bar guessed wrong stays FAIL.
+
+result F133 (2026-11-02, [MEASURED], $0, stand-in on 127.0.0.1, no pass, no real key; bars 1-5 PASS): code `poc/f133-forced/run.mjs` (`node poc/f133-forced/run.mjs forced|good`), raw `poc/f133-forced/out/{forced,good}.json` (audit rows, spend rows, history, every request's `fromThisRun`, CLI output). Real `bin/fwdloop run / inbox / answer accept / resume` on the signed `job2-with-sources` fixture (written by `writeFlow` in a mkdtemp root, as F132; nothing signed by CLI or script for hamr), own HOME and config (`MOCK_API_KEY` row, `mock-model` ticked at $0.30 / $1.20 per M), bare-agent 0.59.0. Both mkdtemp dirs removed; hamr's config, flows and panel untouched. One harness slip before the first real run, recorded: I passed a `--business-date` flag the CLI does not have (run refused at once, no calls); and the first scripted run gave later steps only a stop, so step 2 ended red on text-instead-of-tool (my stand-in's fault); the script was then changed to send a correct call for every later step before the final runs below.
+- Bar 1 PASS: step `resume-text` try 1 audit row gap = `truncated: cut off at the output limit with no tool call — 16000 output tokens, 12000 of them thinking; the limit was 16000` (the request's `max_tokens` was 16000; reasoning tokens 12000 from `completion_tokens_details`); the old `truncated: N tokens, no tool call` words are absent.
+- Bar 2 PASS: try 2 of the same step has `badCalls: [{kind arg-type, tool emit_artifact, param text, expected string, got number, round 0}]`; the run's artifact holds the correct call's text and no `42`, so the refused call's tool did not run; the step closed on the following correct call (verdict hitl, as the checker's third outcome for that step).
+- Bar 3 PASS: forced arm audit rows $0.02328 = history `spentUsd` $0.02328 = spend rows $0.02328 (1e-9; spend.jsonl holds one row per model try = 4, while the stand-in saw 8 requests; each audit row sums its try's rounds; the 16000-token cut-off round is $0.0195 of it), no unpriced round. Good arm: $0.00324 on all three.
+- Bar 4 PASS: forced arm, 3 of the model tries got a memo (try 1 of step 1 none, as item 2 says): `memoText` on those 3 audit rows (114, 295, 291 chars) is byte-equal to the 3 distinct `fromThisRun` strings the server received, and every request of a try carried the same string (requests of try 2: 3, all 114 chars); the request with no memo has no `fromThisRun` and its row no `memoText`. Good arm: 2 memos, 2 equal strings.
+- Bar 5 PASS (the check can fail): the good arm has no cut-off gap and no `badCalls` anywhere (bars 1 and 2 red, as pre-registered), while bar 3 still balances.
+- Unchecked: the panel's Audit tab rendering of these rows (no browser); a real provider's `length` reply shape (the stand-in copies bare-agent's own parsing of `finish_reason`/`usage`, not a real vendor body); a bad call with a missing (not wrong-typed) value (F129 covered that at $0); a cut-off with no reasoning tokens reported (the "not reported" words, src/model-step.js `cutOffRed`).
+
+## F134 — a plain step cannot read a document input (live, m14-walk-1; 2026-11-02)
+
+**Date** 2026-11-02. **Status** recorded, unsigned — not built. **Class** live failure on hamr's real panel; model-independent (the validator refuses before any model matters). **Grounded in** hamr's walk, flow `m14-walk-1` run-1 (~$0.04 total; files `~/.config/fwdloop/flows/m14-walk-1/{setup.jsonl,declaration.json}`, `runs/run-1/log.json`), model Baseten muse.
+
+**What happened.** Job line 1 "Write 3 lines about my garden from the notes" (hitl), then asks; Inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`. Draft try 1 had `steps[0].reads ["notes"]` (the right plan). The validator refused it: `declaration: steps[0] reads artifact "notes" that no earlier step declared` (same for steps[2]). Try 3 passed only with `reads []`, so step 1 had nothing to read; at run time it halted `done:false` "no garden notes file was provided in reads". That halt is correct; the job cannot be done on any model.
+
+**Cause.** src/declaration.js:892: a `.md` / `.txt` / `.docx` input (`docRoles`, line 679) may be listed in `reads` only by a step whose `close.cited.source` names it (M10 piece 5). A hitl or plain written step has no declared way to read a document input; it falls to line 893-895 and is refused. CSV inputs (cellsRoles, line 890) and web pages (pageRoles, line 891) are exempt; document inputs are not.
+
+**Not checked.** Whether a fix should allow a plain read of a document role, or the drafter should refuse the job at draft time naming the line. Not built, not signed; no amendment without hamr's word.
+
+## F135 — a send line that also has a shape guardrail cannot be drafted (live, m14-walk-2; 2026-11-02)
+
+**Status** recorded, unsigned, not built. **Grounded in** hamr's panel drafts of `m14-walk-2` (`~/.config/fwdloop/flows/.drafts/d-00mvzqki2p-2cac`, `d-00mvzqosmh-328b`; and the logs of the other m14-walk-2 drafts).
+
+**What happened.** Job line 5 "Write a short closing note to my neighbour" with `~ exactly 3 bullets` is also the send line (destination set; the card adds `send at line 5`). Two rules conflict: the send step must be granted a write-class primitive, and a softgreen step (one whose check reads its reply) is never granted `write`. Exact reds seen live: `declaration: send at line 5 (steps[4]) is not granted a catalogue primitive of class "write"` (d-00mvzqosmh-328b) and, in round 3 of the log, the drafter's own words `step 5's check reads its reply, so it can't write files. The send step writes the result out.` Other reds in d-00mvzqki2p-2cac: `line 5 is marked unjudgeable but guardrailClasses proposes "softgreen"`; `steps[4].close.class "hitl" does not match "softgreen"`. m14-walk-1 passed only by dropping the guardrail to hitl (`guardrailClasses {}`).
+
+**Not checked.** Whether the fix is a rule change (a separate send step), a refusal at draft time naming the line, or advice to the drafter. Not built, not signed; separate from F134.
+
+## F136 PRE-REGISTRATION (2026-11-02, PAID, HARD CAP $0.40 total; F134 fix POC; written before any paid call, NOT yet run)
+
+**Question.** Does telling the drafter that a .md/.txt/.docx input (other than a cited step's source) is never listed in `reads` (grant `read`, or `readDocx` for .docx; read it by its role through that tool), and making the refusal say the same, stop the F134 red on a real draft? hamr ruled option 1 (tell the drafter the right way + the refusal says the same); no rule change.
+
+**Job (both arms).** The card in `.drafts/d-00mvzqki2p-2cac/card.json` (m14-walk-2: garden lines, two asks 1h, `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, cap $0.5) with the last line's `~ exactly 3 bullets` REMOVED (that clash is F135), destination `/home/hamr/fwdloop-out`. Prose built by `cardToProse`. Drafted through `node bin/fwdloop draft` with HOME=<tmp> and a copied config; flows root in the tmp.
+
+**Models.** `deepseek-flash` (DEEPSEEK_API_KEY) and Baseten muse `meta-models/muse-spark-open-1026` (BASETEN_API_KEY).
+
+**Baseline.** Current code (pre-fix commit, in a git worktree): 2 drafts per model = 4. **Candidate.** Fixed code: 5 drafts per model = 10.
+
+**PASS (candidate, on the letter).** 0 of 10 drafts carry the F134 red (`reads artifact "<notes>" that no earlier step declared` for role notes) in ANY round, AND at least 8 of 10 drafts green (a draft that ends ok with a signable hash). Baseline must show the F134 red in at least 3 of 4 drafts; else the POC cannot fail, and that is recorded. Not refit afterwards. Thinking off. Per draft recorded: model, verdict, rounds, reds per round, cost.
+
+### F136 RESULT (2026-11-02, run after the pre-registration above; fix commit 62f2abb, baseline = pre-fix 87d7392)
+
+Total spend $0.1003 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off). Per draft: model, verdict, rounds, reds, cost.
+
+| arm | model | n | verdict | rounds | F134 red | other reds (round) | cost |
+|---|---|---|---|---|---|---|---|
+| base | deepseek-flash | 1 | RED | 5 | yes (r2,r4,r5) | send does not read a signed ask's emits (r2) | 0.0141 |
+| base | deepseek-flash | 2 | RED | 5 | yes (r2,r3,r5) | pause at unsigned line 3 (r2,r5) | 0.0142 |
+| base | muse | 1 | green | 1 | no | none | 0.0064 |
+| base | muse | 2 | green | 1 | no | none | 0.0065 |
+| cand | deepseek-flash | 1 | green | 1 | no | none | 0.0028 |
+| cand | deepseek-flash | 2 | green | 3 | no | guardrailClasses keys, pause at line 3 (r1) | 0.0087 |
+| cand | deepseek-flash | 3 | green | 1 | no | none | 0.0028 |
+| cand | deepseek-flash | 4 | green | 2 | no | pause at line 3 (r1) | 0.0057 |
+| cand | deepseek-flash | 5 | green | 2 | no | guardrailClasses shape, pause at line 3 (r1) | 0.0057 |
+| cand | muse | 1-5 | green x5 | 1 each | no | none | 0.0066-0.0068 each |
+
+**Baseline.** F134 red in 2 of 4 drafts (deepseek-flash 2/2, muse 0/2). The pre-registered precondition (at least 3 of 4) is NOT met: on this job (without the F135 clash) muse drafts green on the old code, so the POC cannot fail on muse. It can on deepseek-flash, which hit the red in 2 of 2 and ended RED after 5 rounds.
+
+**Candidate.** F134 red in 0 of 10 drafts in any round; 10 of 10 green. Letter of the pre-registered candidate bar: PASS. Verdict stands as: candidate PASS; baseline precondition not met (2/4), recorded, not refit. The evidence for the fix is the deepseek-flash arm (2/2 RED before, 5/5 green after, all rounds free of the F134 red). Not checked: that the green plans actually read the notes at run time (this POC drafts only).
+
+## F137 (2026-11-02, recorded, unsigned, NOT built): a softgreen close invented a heading the job never asked for; the bullet count was lost
+
+Live run `~/.config/fwdloop/flows/m14-walk-3-2/runs/run-1` (model Muse `meta-models/muse-spark-open-1026`, result not-done, $0.0374). Line 3 is "List 3 jobs for this week from the notes" with the guardrail "exactly 3 bullets" (`job/prose.txt` line 4).
+
+**What happened.** The drafter closed step `weekly_jobs` as softgreen with shape `{sections:["Jobs for this week"]}` (`job/declaration.json`). That heading is taken from the job words and was never asked for, and the close carries no bullet count at all. So the guardrail "exactly 3 bullets" lost its intent, and the step gained a check it cannot know about (a step never sees its close).
+
+**Reds (exact, `runs/run-1/audit.jsonl`).**
+- try 1: red, `no line is exactly the heading "Jobs for this week" (a heading is a line that is only that text, optionally after #)`
+- try 2: red, same text
+- try 3: not-done, `step "weekly_jobs" reports done: false — Blocked: no line is exactly the heading "Jobs for this week" in the notes at ask1_check.`
+
+**What worked live.** The step read the notes through `read` (F134 fix: audit rows show `tools:{read:2}` / `{read:1}`). The memo reached the step (`memoText` on the rows, including the ask 1 `accept` line). Books balance: audit rows sum to $0.0374015, equal to spend and history.
+
+**Cost of leaving it.** A job whose guardrail is a count goes red on a heading nobody asked for. Not built: recorded for hamr's ruling.
+
+## F138 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.60 total; M10 am14 exit walk; written before any paid call, NOT yet run)
+
+**Riskiest assumption.** Told the two am14 rules, the drafter leaves line 3 (`~ exactly 3 bullets`) as `Not checked` (unjudgeable with a reason, class hitl) instead of looping on the new red or inventing a shape that carries a number it was not given.
+
+**Job (all drafts).** Card: inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, destination `/home/hamr/fwdloop-out`, cap 0.5, ask wait 1h. Job box, verbatim: `Write 3 lines about my garden from the notes` / `Ask: check it with me` / `List 3 jobs for this week from the notes` / `~ exactly 3 bullets` / `Ask: check it with me` / `Write a short closing note to my neighbour` / `~ under 80 words` / `Ask: check it with me` / `Write it out`. Drafted through `node bin/fwdloop draft` with HOME=<mkdtemp>, a copy of the config, thinking off; prose built by `cardToProse`.
+
+**Models.** `deepseek-flash` (DEEPSEEK_API_KEY) and Baseten Muse `meta-models/muse-spark-open-1026` (BASETEN_API_KEY). 5 drafts each = 10.
+
+**PASS (signed Done-when, on the letter).** All 10 drafts green (ok with a signable hash); in every green draft line 3 is shown `Not checked` (unjudgeable, hitl) and NO shape on line 3 lacks the number 3 (no sections-only shape); line 5 carries `maxWords` 80 OR is `Not checked`. Which of the two line 5 chose is recorded; either is legal, an invented number is not. Any red draft, any line-3 shape, or any shape number the guardrail never named = FAIL. Not refit afterwards. Per draft recorded: model, verdict, rounds, reds per round, line 3 and line 5 closes, cost.
+
+**Must-fail (tests, red first).** A send-line guardrail reaches drafting (card, and draft pre-flight); a check drops a number its guardrail named; a check carries a number the guardrail never named; a good signed job from the $0 scan is refused (scan re-run with the built code: 0 refused).
+
+### F138 RESULT (2026-11-03, run after the pre-registration above; code = the M10 am14 commit)
+
+**Verdict: FAIL on the letter** (9 of 10 meet the bar; deepseek-flash draft 2 does not). Spend $0.0945 (cap $0.60). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off, `--provider/--model` named), prose from `cardToProse` of the walk job. No patch made after the run.
+
+| model | n | verdict | rounds | line 3 close | line 5 close | cost |
+|---|---|---|---|---|---|---|
+| deepseek-flash | 1 | green | 3 | hitl, Not checked (unjudgeable with reason) | hitl, Not checked | 0.0094 |
+| deepseek-flash | 2 | green | 3 | **softgreen `{linesPerInvoice:3, mustCarry:["job"]}`, no unjudgeable** | softgreen maxWords 80 | 0.0095 |
+| deepseek-flash | 3 | green | 3 | hitl, Not checked | softgreen maxWords 80 | 0.0093 |
+| deepseek-flash | 4 | green | 3 | hitl, Not checked | softgreen maxWords 80 | 0.0096 |
+| deepseek-flash | 5 | green | 1 | hitl, Not checked | hitl, Not checked | 0.0031 |
+| muse | 1-5 | green x5 | 1,3,1,1,1 | hitl, Not checked x5 | hitl, Not checked x5 | 0.0077, 0.0227, 0.0077, 0.0078, 0.0077 |
+
+**Reds seen (not final).** The new rule fired and was recovered from: deepseek-flash 3 round 2 (`line 3's guardrail names 3, but the check does not carry 3. Leave that guardrail Not checked ...`) and muse 2 round 1 (same red). Other reds in rounds 1-2 were older ones (class mismatch: unjudgeable with a softgreen class; linesPerInvoice without mustCarry; pause at an unsigned line). No made-up heading (`sections`) on line 3 in any draft. No shape number the guardrail never named in a final plan.
+
+**Why FAIL.** The bar says line 3 is `Not checked` in every green draft. deepseek-flash draft 2 ended green with line 3 as a softgreen check (`linesPerInvoice 3` plus `mustCarry ["job"]`): it carries the 3 (the validator is satisfied, as written) but is not left Not checked, and `mustCarry "job"` is a word the guardrail never named. Not refit. Line 5: 6 of 10 chose `Not checked`, 4 of 10 chose `maxWords 80`; both legal.
+
+**Not checked.** Whether a `linesPerInvoice` shape for a bullet count is acceptable under item 2 as signed (it satisfies the letter of item 2, not the Done-when's "line 3 shown Not checked"); that is hamr's to rule.
+
+**$0 rescan with the built code (35 signed flows under ~/.config/fwdloop/flows).** 33 good signed jobs: 0 refused. Refused: m14-walk-1 (guardrail on the send line, F135) and m14-walk-3-2 (line 3 sections-only shape, F137) only, both the intended catches. The 77 saved drafts: the same F135/F137 drafts refused, plus one old draft (d-00muwjz2nt-2fd3) for a sections red that predates am14.
+
+## F139 — M15 POC: can every sent artifact become a plain `.md`? (pre-registered 2026-11-03, $0, read-only)
+
+Spec: signed M15 items 2, 3, 5. No src edits, no paid calls; scripts in the scratchpad `m15-poc/`; flows read from `~/.config/fwdloop/flows`, files from `~/fwdloop-out`.
+
+**Riskiest assumptions and bars (fixed before the run).**
+- **(a) Every real sent artifact turns into a `.md` per item 3.** Corpus: every file in `~/fwdloop-out` whose run folder still exists, plus that run's accepted artifact (found via the ask's artifact sha256 / the send step's ask emit, matched to `artifacts/*.json`). Rule under test: an artifact that is `{text: string}` becomes the text itself; any other flat shape becomes one `name: value` line per field. **PASS** = every artifact in the corpus is either `{text}` (round-trip: `.md` equals the text field byte for byte) or flat scalar fields, and no `.md` holds `{`, `}`, a quote used as syntax, or a check mark. **FAIL** = any artifact with a nested object or array value, or a non-string text field; each is listed with flow/run, since those are the real open question. Counted by job type (plain, page/flights, CSV, docx, MCP, Tickets).
+- **(b) `buildResult` for a plain run.** Call `buildResult` on m14-walk-5 run-1 with `isResultRun` bypassed (read-only scratch script importing the repo module). **PASS** = returns per-line data with no throw. Recorded either way: what item 2 needs that is missing (where a text step's text would come from).
+- **(c) Tickets and flights.** Record what the sent file holds today for ticket-triage-4 run-6 and m10-walk-flights-5 run-1, and what the `.md` would be. **PASS** = the Tickets artifact fits the item 3 rule without loss of the grid's data (the grid stays; only the sent file changes).
+
+### F139 RESULT (2026-11-03, $0, read-only; scripts `scratchpad/m15-poc/corpus.mjs`, `br2.mjs`; repo at a6ddbb1)
+
+**(a) Corpus.** 104 files in `~/fwdloop-out`; 59 have a run folder still on disk. In all 59 the sent file is byte-identical (sha256) to one file in that run's `artifacts/`, so identity holds. The other 45 files (aging-live-4, am29, m7-walk, new-close*, run-muw*) have no run folder and are counted only for shape.
+
+| Type (59 with a run folder) | Count | Shape sent today |
+|---|---|---|
+| Plain (m7-walk 7, am29 1, browse-check 1, m14-walk-5 1) | 10 | `{text}` |
+| Tickets (ticket-triage*, runs 1-8) | 14 | `{text}` |
+| Page / flights (flights-learn-1, m10-walk-flights-4 and -5) | 3 | `{results:[{quote, values:{price,airline,departure,arrival,duration}}]}` |
+| CSV, cite-form era (aging-live 21, m10b-aging 4, m10b-expenses 2, m10-walk-csv 2, exit-walk-1 1, thinking-check-1 2) | 32 | nested objects, listed below |
+| docx, MCP-tool | 0 | none in the corpus |
+
+Over all 104 files: 52 are `{text}` only. For all 52 the text field equals the would-be `.md` exactly (0 round-trip failures), with no braces and no check marks in any text.
+
+**Shapes that do not fit "text only, or one `name: value` line per field" (35 of 59 with a run folder):**
+- Flights, `results: array` of objects each holding `quote` plus a nested `values` object: flights-learn-1/run-1, m10-walk-flights-4/run-1, m10-walk-flights-5/run-1. This is the one that matters: the signed example (flights' facts) is not flat.
+- Cite-form CSV, all retired and refused at start now: `text:string + cells:object` (aging-live-4 runs 1, 10-13 etc., exit-walk-1/run-1, thinking-check-1/run-1 and run-2), `fields:object` (m10-walk-csv/run-1), `expenses:object` (m10-walk-csv-4/run-1), and the m10b-* ones (`daysPastDue`, `bucketByRow`, `buckets`, `daysOverdue`, `invoiceCount`, `over500*`, `expense*`: each an object).
+- Old `text:string + lines:array` (new-close1, new-close2; no run folder).
+
+**(a) FAIL on the letter** (35 nested). Every `{text}` artifact passes. The 32 CSV ones are retired forms; only the 3 flights artifacts are a live open question.
+
+**(b) PASS.** `getRunResult` returns `null` for m14-walk-5 run-1 today (the `isResultRun` gate: no page, CSV or docx source). With the gate removed in a scratch copy of `src` (repo untouched) `buildResult` returns without throwing: 3 lines (1, 3, 5), each `kind:"text"`, `facts`/`rows` absent, `file:null`, per-line `checks` of 2, 2 and 4, rule `exactly 3 bullets` on line 3 and `under 80 words` on line 5, the top-level Not checked list with 5 items, and `delivered` = the `.json` (431 bytes, state ok). Missing for item 2: the text itself. Line to step to artifact is `steps[].fromLine -> emits` (line 1 -> `garden_lines.json`, 3 -> `week_jobs.json`, 5 -> `neighbour_note.json`, each `{text}`). Line-level `notChecked` is `[]` for text lines (only the top-level list is filled). `delivered` must switch to the `.md` and carry its recorded sha (item 4/5). Also: only line 5's text is what the send ships (`final_out` is a copy of the closing note), lines 1 and 3 appear only on the card.
+
+**(c)** ticket-triage-4/run-6: the sent file is `{text}` (802 bytes), the `.md` would be that paragraph. That run is a page source, so it already passes the gate and shows the Result tab; its `tickets` grid key is absent on this run (not the schedule-source run), so the grid is untouched by item 3, which changes only the sent file. m10-walk-flights-5/run-1: sent file is `results` with 3 entries (1549 bytes); under item 3 as signed that has no flat form.
+
+**Risk to Tickets.** None found: all 14 Tickets artifacts are `{text}` and round-trip. Unchecked: the schedule-source run with the `tickets` grid (not run here), and that the `.md` rename keeps the by-number re-arrival (name-based dedupe was not read).
+
+## F140 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.40 total; M10 am15 exit walk; written before any paid call, NOT yet run)
+
+**Riskiest assumption.** Told the am15 rule and refused at $0 when a check uses a `mustCarry` word the guardrail never named, or `linesPerInvoice` without "per invoice" in the guardrail, the drafter leaves line 3 (`~ exactly 3 bullets`) `Not checked` in every draft.
+
+**Job.** The same card as F138 (inputs `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, destination `/home/hamr/fwdloop-out`, cap 0.5, ask wait 1h; job box verbatim as in F138), drafted through `node bin/fwdloop draft` with HOME=<mkdtemp>, a copy of the config, thinking off, prose by `cardToProse`. Models: `deepseek-flash` and Baseten Muse `meta-models/muse-spark-open-1026`, 5 drafts each = 10.
+
+**PASS (signed Done-when, on the letter).** All 10 drafts green; in every green draft line 3 is `Not checked`. Any red final draft, or line 3 carrying any shape, = FAIL. Not refit afterwards. Plus: a test per refusal fails first; the $0 rescan (scratchpad/scan.mjs from F138) refuses none of the 33 good signed jobs. Per draft recorded: model, verdict, rounds, line 3 and line 5 closes, cost.
+
+### F140 RESULT (2026-11-03, run after the pre-registration above; code = cd9b0f0, M10 am15)
+
+**Verdict: FAIL on the letter** (8 of 10 green with line 3 Not checked; deepseek-flash 1 and 2 ended RED after 3 rounds). Spend $0.0804 (cap $0.40). Real CLI path (`node bin/fwdloop draft`, HOME=<mkdtemp> with a copy of the config, thinking off, `--provider/--model` named), the F138 prose. No patch made after the run. (A first attempt had no key because `pass` ran under the overridden HOME: refused at $0, nothing spent.)
+
+| model | n | verdict | rounds | line 3 | line 5 | cost |
+|---|---|---|---|---|---|---|
+| deepseek-flash | 1 | RED | 3 | final try `softgreen {mustCarry:["bullets"]}` | n/a | 0.0097 |
+| deepseek-flash | 2 | RED | 3 | final try `softgreen {mustCarry:["bullets"]}` | n/a | 0.0097 |
+| deepseek-flash | 3 | green | 1 | hitl, Not checked | softgreen maxWords 80 | 0.0031 |
+| deepseek-flash | 4 | green | 2 | hitl, Not checked | softgreen maxWords 80 | 0.0063 |
+| deepseek-flash | 5 | green | 2 | hitl, Not checked | softgreen maxWords 80 | 0.0062 |
+| muse | 1 | green | 2 | hitl, Not checked | hitl, Not checked | 0.0147 |
+| muse | 2-5 | green x4 | 1 | hitl, Not checked x4 | hitl, Not checked x4 | 0.0077, 0.0077, 0.0074, 0.0079 |
+
+**Why the two reds.** Neither final shape was refused by the am15 rule: "bullets" IS a word of the guardrail `exactly 3 bullets`, so `mustCarry ["bullets"]` is legal under am15 as signed. They ended red on the older rules (`mustCarry` without `linesPerInvoice`; the guardrail's 3 not carried; line 3 marked unjudgeable beside a softgreen class), 3 rounds used. The am15 refusal itself did not fire in these 10 drafts; its two tests prove it at $0. Also seen: a line 5 `79 words` red and a send-line red in rounds 1-2 (older rules), recovered or not.
+
+**Not checked.** Whether am15 should also forbid a `mustCarry` word that is the guardrail's own noun (a word-count form of the same invention); that is hamr's to rule.
+
+**$0 rescan with the built code (36 signed flows, 78 saved drafts).** The 33 good signed jobs: 0 refused. Refused: m14-walk-1 (send-line guardrail, F135) and m14-walk-3-2 (line 3 count, F137) only, the intended catches, same as F138; plus the same 5 old drafts.
+
+## F141 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.05 total; Muse text-instead-of-tool; written before any paid call, NOT yet run)
+
+**The live failure.** `~/.config/fwdloop/flows/m14-walk-5/runs/run-3` (model `meta-models/muse-spark-open-1026`, slot `BASETEN_API_KEY`, thinking off on try 1) went red on step `weekly_jobs` (line 3, "List 3 jobs for this week from the notes", guardrail `~ exactly 3 bullets`), 4 of 4 tries, with the red at `src/model-step.js:611`: "a FINISHED round (stopReason=end_turn) returned text instead of the tool twice in a row". Muse typed a good answer (once the artifact JSON itself) as text instead of calling `emit_artifact`. Step `garden_lines` did the same on tries 1-2. deepseek-flash on the same job (run-1) saved through the tool. Diary shape on `garden_lines` try 1: round 1 `tool_use` (a `read`), round 2 `end_turn` (text), round 3 (the second round, a fresh Loop) `tool_use` (`read` again).
+
+**Question.** Does forcing the tool (B), or telling the model it missed (C), make Muse save through `emit_artifact`? Today the second round (`src/model-step.js`, `for (let round = 1; round <= 2; ...)`, `loop.run(messages, ...)`) re-sends the same fresh `messages`, so the model never hears it missed the tool.
+
+**The step under test.** Built exactly as the runner builds it for run-3's `weekly_jobs` try 1: `src/model-step.js` `makeLiveModelStep` itself (system prompt, `userContent`, `emit_artifact` with `HITL_SCHEMA`, `maxTokens: 16000`, `LIVE_PROVIDER_OPTIONS` 300s timeout, `thinkingMode: 'off'`, at most 2 rounds); `goal` = "List 3 jobs for this week from the notes" (run-3 `job/declaration.json` step 3; the guardrail is a line check, not part of the model's input); `primitives: ['read']` from `resolvePrimitives` over the real catalogue, with the frozen `inputs/notes.md` of run-3 (sha256 `38290a0b...e5af`) copied into a mkdtemp run dir as role `notes`; `gap` null, no hints; `memo` = the exact `memoText` run-3's audit row recorded for `weekly_jobs` try 1. Provider, model and prices come from `makeProvider('BASETEN_API_KEY', { model })` (Settings door), key from env only.
+
+**Arms (each N=3, each a fresh conversation, one step attempt, interleaved A1 B1 C1 A2 B2 C2 A3 B3 C3).**
+- **A (today).** `toolChoice` unset, `makeLiveModelStep` unchanged. Reported, not deciding.
+- **B (forced).** `toolChoice = { name: 'emit_artifact' }`. bare-agent 0.59 `OpenAIProvider.generate` accepts `'auto' | 'required' | { name }` (`node_modules/bare-agent/src/provider-openai.js:25-44` maps `{ name }` to `{ type:'function', function:{ name } }`; `:154` reads `options.toolChoice`; `:167` sets `body.tool_choice`, only when tools are present). `{ name }` chosen over `'required'` because `'required'` would still allow another `read`. The seam is a provider wrapper handed to `makeLiveModelStep` as its injected `provider` (no `src/` change): it adds the `toolChoice` to a `generate` call ONLY when the conversation's last message is a tool result of a non-`emit_artifact` call (i.e. right after the model's `read`). The first call stays unforced, because the step grants `read` and forcing from call 1 would stop it reading the notes; the call after `emit_artifact`'s result stays unforced, or the Loop would loop on the forced tool. Known limit: B also stops a second `read` after the first one.
+- **C (told, same conversation).** `toolChoice` unset. The step's two rounds are the same as `makeLiveModelStep`'s, except round 2: if round 1 ended with no `emit_artifact` call, round 2 continues the SAME conversation, `loop.run([...round1.msgs, { role: 'user', content: NUDGE }], tools, opts)`, where `round1.msgs` is the `msgs` field of the Loop result (`node_modules/bare-agent/src/loop.js:1119` returns it, with the model's final text pushed as an assistant message at `:1109`; typedef `:481`). Exact NUDGE string: `You answered in text. Call emit_artifact now with that answer; do not reply in text.` C is a copy of `makeLiveModelStep`'s per-round body (Loop construction, `onLlmResult` metering, `maxTokens: 16000`, `thinkingMode: 'off'`, `checkArgs: true`) with only the round-2 messages changed; marked as a copy in the script.
+
+**Pass marks.** An arm PASSES when 3 of 3 tries end with `emit_artifact` called within the step's 2 rounds and an artifact that passes the step's own validation (typed `done` boolean `true`, `runner.js` `checkDoneBlocker` rules; and `text` a non-empty string, the HITL shape's documented `{text}` form), with no provider error. FAIL for an arm: any try ends in text, any provider error or 400 (including on `toolChoice`), any invalid artifact, or any unpriced round (cost unknown: refused, never 0).
+**Decision.** A is reported (count of tool endings vs text endings), not deciding. If B and C both pass, the cheaper (total usd over its 3 tries) wins; tie -> B (mechanical, no prose). If one passes, that one. If neither, neither; nothing is built.
+
+**Recorded per try.** arm, try, endedBy (tool / text / error), rounds, stopReason per call, usd (per call and total), tokens, whether Muse thought (reasoning tokens or text if the provider shows it, else "not visible"), artifact validity, red text.
+**Cost.** Metered per round through `onLlmResult` (A and B via `makeLiveModelStep`, C via its copy). Expected about $0.003 per round on this model; HARD CAP $0.05 total: the script stops before any try whose worst seen cost would cross the cap. Key: env `BASETEN_API_KEY` only; empty -> refuse at $0 naming the variable; never printed or written. Results: `.claude/scratch/f141/result-<timestamp>.json` (never overwritten).
+
+### F141 RESULT (2026-11-03, run after the pre-registration above; code = 928a65e)
+
+**Verdict: FAIL on the letter.** The run stopped at the $0.05 cap after 5 of 9 tries (Muse cost about $0.006-0.0095 per try, more than guessed). Per try (`.claude/scratch/f141/result-2026-11-03T10-42-15-196Z.json`):
+
+| try | ended by | valid | calls | usd |
+|---|---|---|---|---|
+| A1 | text (red) | no | 4 | 0.0086085 |
+| B1 | tool | yes | 3 | 0.0065225 |
+| C1 | tool | yes | 4 | 0.0095165 |
+| A2 | text (red) | no | 4 | 0.00880825 |
+| B2 | tool | yes | 3 | 0.00613 |
+
+Totals: A 0/2 tool (2 text), B 2/2, C 1/1. Total $0.0396 (cap $0.05). Muse's thinking-off was reported `ignored` by bare-agent. No arm reached 3 of 3, so neither B nor C passes; the criteria are not refit.
+
+Direction only, not deciding: A reproduces the live red every time; B and C saved every time they ran.
+
+## F141b PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.30 total; hamr: "expand the money"; written before any paid call, NOT yet run)
+
+**Question, step, arms.** The same as F141 (pre-registration above): same step (run-3 `weekly_jobs` try 1 on Muse `meta-models/muse-spark-open-1026`, built by `makeLiveModelStep`), same arms A (today), B (forced `{ name: 'emit_artifact' }` right after a non-emit tool result, same B forcing rule) and C (told in the same conversation, same NUDGE string: `You answered in text. Call emit_artifact now with that answer; do not reply in text.`). Same validity rule (`emit_artifact` called within the step's 2 rounds, typed `done` true, `text` a non-empty string, no provider error, every round priced).
+
+**Sample.** N=5 per arm, interleaved A1 B1 C1 A2 B2 C2 ... A5 B5 C5 (15 tries). The F141 tries do NOT count toward F141b: fresh samples.
+
+**Pass mark.** An arm PASSES at 5 of 5 tool-saved valid artifacts with no provider error. If both B and C pass, the lower total usd wins; tie -> B. If one passes, that one. If neither, neither; nothing is built. A is reported, not deciding. If the cap stops the run early, it is FAIL on the letter again.
+
+**Cost.** HARD CAP $0.30 total; the script stops before any try whose worst seen cost would cross the cap. Key: env `BASETEN_API_KEY` only, never printed or written. Results: `.claude/scratch/f141/result-f141b-<timestamp>.json` (never overwritten).
+
+### F141b RESULT (2026-11-03, run after the pre-registration above; code = b94bf92)
+
+**Verdict: A FAIL 0 of 5, B PASS 5 of 5, C PASS 5 of 5. By the pre-registered rule B wins (cheaper).** All 15 tries ran; total $0.1488 under the $0.30 cap (not stopped at cap). Model Muse `meta-models/muse-spark-open-1026`. Per try (`.claude/scratch/f141/result-f141b-2026-11-03T10-48-14-757Z.json`, log `run-f141b.log`):
+
+| try | ended by | valid | calls | usd |
+|---|---|---|---|---|
+| A1 | text (red) | no | 4 | 0.00874025 |
+| B1 | tool | yes | 3 | 0.006349 |
+| C1 | tool | yes | 4 | 0.01026525 |
+| A2 | text (red) | no | 4 | 0.00906325 |
+| B2 | tool | yes | 3 | 0.00635 |
+| C2 | tool | yes | 5 | 0.01233275 |
+| A3 | text (red) | no | 4 | 0.0079965 |
+| B3 | tool | yes | 3 | 0.00603275 |
+| C3 | tool | yes | 9 | 0.02773025 |
+| A4 | text (red) | no | 4 | 0.008549 |
+| B4 | tool | yes | 3 | 0.0064085 |
+| C4 | tool | yes | 4 | 0.01041825 |
+| A5 | text (red) | no | 4 | 0.00875725 |
+| B5 | tool | yes | 3 | 0.00681675 |
+| C5 | tool | yes | 5 | 0.01297725 |
+
+Totals: A $0.0431 (5 text reds; reproduces the live run-3 red every time), B $0.0320 (3 calls every try), C $0.0737 (4 to 9 calls; C3 took 9 calls, $0.0277). B is cheaper than C, so B wins; nothing is refit.
+
+The log shows bare-agent reported Muse's thinkingMode `off` as `ignored` ("the switch was accepted but the reply shows thinking happened anyway"); Muse thought anyway. Reasoning text was not visible in any try.
+
+**Not checked.**
+- B on deepseek-flash or any other model: only Muse was run.
+- B with thinking on: on DeepSeek a forced call with thinking on 400s per bare-agent's doc, and bare-agent sends thinking disabled there; unchecked live.
+- B's known limit: after a read, the next call is forced to `emit_artifact`, so a step that needs a second read cannot make it.
+
+## F141c PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.40 total; hamr: arm D = text answer -> forced emit_artifact in the same conversation, nudge reply as fallback; written before any paid call, NOT yet run)
+
+**Question.** hamr's design: "force the tool, and use the tool reply as fallback", only when the model answered in text. Does it save every try on Muse, and not regress deepseek-flash (thinking off and on)?
+
+**Arm D, per step attempt** (same step as F141: run-3 `weekly_jobs` try 1, `makeLiveModelStep` shape, a whole-line-commented copy of model-step's round construction in the scratch script; `src/` untouched).
+- Round 1: exactly as today, toolChoice unset. If `emit_artifact` is called: done (path `r1`).
+- If round 1 ends in text with no `emit_artifact`: round 2 CONTINUES the same conversation (round-1 msgs incl. the model's text) + user message `You answered in text. Call emit_artifact now with that answer; do not reply in text.` (the F141 NUDGE string), with `toolChoice: { name: 'emit_artifact' }` on that round's first call. Saved here = path `forced`.
+- Fallback: if round 2 throws a provider error that names tool_choice or is a 4xx on the forced call, OR still ends without `emit_artifact`, round 3 = same conversation + the NUDGE again, toolChoice unset (pure C). Saved here = path `fallback`. Otherwise `red`.
+
+**Cells, N=5 each, fresh samples (F141/F141b tries do not count).**
+1. Muse `meta-models/muse-spark-open-1026` (slot BASETEN_API_KEY), thinking off, arm D.
+2. deepseek-flash via Fireworks `accounts/fireworks/models/deepseek-v4p1-flash` (slot FIREWORKS_API_KEY; Settings provider row read in `~/.config/fwdloop/config.json`: present, use=true, in 0.45 / out 1.8 per M), thinking off, arm D.
+3. Same Fireworks deepseek-flash, thinking ON (as a retry attempt runs), arm D.
+
+**Pass marks.** Each cell PASSES at 5 of 5 valid artifacts (`done` true, non-empty `text`) with no unhandled provider error. Cell 1 must reach round 2 on at least 3 of 5 tries (proves the forced path is exercised, since Muse answers in text in round 1). Cells 2-3: no regression: a try that saves in round 1 counts as a pass; any 400 on the forced call that the fallback does not recover is FAIL. Unpriced -> stop, never 0. Stopping before the cap is crossed -> FAIL on the letter.
+
+**Report per try:** path, calls, usd, stopReasons, thinking status.
+
+**Cost.** HARD CAP $0.40 total across the three cells; the script stops before any try whose worst seen cost would cross it. Keys: env only, never printed. Results: `.claude/scratch/f141/result-<tag>-<timestamp>.json` (never overwritten).
+
+**Fallback proof at $0.** A `--fake-reject` run of arm D against an in-script fake provider (round 1 ends in text; a forced call throws a 400 "tool_choice not supported") proves the fallback reaches round 3 and saves. A fake cannot prove a real provider; noted.
+
+### F141c RESULT (2026-11-03, run after the pre-registration above; code = 45fa919)
+
+Results: `.claude/scratch/f141/result-f141c-{muse,fw-off,fw-on}-2026-11-03T10-5*.json`. Per try: path, calls, usd, valid.
+
+**Cell 1, Muse `meta-models/muse-spark-open-1026`, thinking off: PASS 5 of 5.** All 5 took the `forced` path (round 1 text, round 2 forced `emit_artifact` saved), 0 fallback. Cell $0.0823 (0.08227575).
+
+| try | path | calls | usd | valid |
+|---|---|---|---|---|
+| 1 | forced | 9 | 0.0297 | yes |
+| 2 | forced | 4 | 0.0091 | yes |
+| 3 | forced | 6 | 0.0165 | yes |
+| 4 | forced | 6 | 0.0175 | yes |
+| 5 | forced | 4 | 0.0095 | yes |
+
+bare-agent reported Muse's thinking `off` as `ignored` (it thinks anyway); the forced call itself reported `applied`.
+
+**Cell 2, Fireworks deepseek-flash, thinking off: FAIL on the letter, 4 of 5 valid.** All 5 saved in round 1 (path `r1`, today's code path, nothing forced; 3 calls each). Cell $0.0088 (0.00883665).
+
+| try | path | calls | usd | valid |
+|---|---|---|---|---|
+| 1 | r1 | 3 | 0.0017 | yes |
+| 2 | r1 | 3 | 0.0021 | NO |
+| 3 | r1 | 3 | 0.0017 | yes |
+| 4 | r1 | 3 | 0.0017 | yes |
+| 5 | r1 | 3 | 0.0017 | yes |
+
+Try 2 called `emit_artifact` with `done:false` and this blocker: "The notes contain only garden tasks (raised bed, apple tree, compost bin, water butt, seeds, path stones) — there are no jobs listed for this week, so the requested list of 3 jobs cannot be grounded in the notes." This is the model's own judgment on round 1, untouched by arm D. It is recorded; the criteria are not refit.
+
+**Cell 3, Fireworks deepseek-flash, thinking on: PASS 5 of 5.** All path `r1`, 3 calls each, all valid. Cell $0.0100 (0.01004265); per try 0.0020, 0.0019, 0.0019, 0.0021, 0.0021.
+
+**`--fake-reject` ($0):** a fake provider that 400s on `tool_choice` reached the fallback round (round 3) and saved. A fake cannot prove a real provider.
+
+**Total paid $0.1012** (0.08227575 + 0.00883665 + 0.01004265 = 0.10115505), under the $0.40 cap; no cell stopped at cap.
+
+**Not checked.**
+- The forced call with thinking ON on DeepSeek never ran (no DeepSeek try reached round 2), so bare-agent's "DeepSeek 400s on thinking + forced tool_choice" case is unproven live.
+- The fallback against a real provider's refusal of `tool_choice` is unproven live (only the fake).
+
+## F142 PRE-REGISTRATION (2026-11-03, $0; M15 am2 friendly .md; written before the run, NOT yet run)
+
+Spec: signed M15 am2 items (1) and (2). No src edits, no paid calls. Scripts in `.claude/scratch/f142/` (gitignored): `candidate.mjs` (a scratch copy of `renderSentMd`/`valueLines`, src/send.js:47, changed per am2 (1) and (2) only), `run.mjs` (a separate checker that walks the artifact JSON; it does not use the renderer's code).
+
+**Input.** The F139 set: every file in `~/fwdloop-out` with a run folder on disk, whose bytes equal one of that run's `artifacts/*.json` (F139's sha256 identity method; 59 files), with that artifact as input; plus the artifacts behind today's `m10b-expenses-run-2-large_expenses_out.md` and `m10-walk-flights-5-run-2-flights_written.md` (the run's `artifacts/<name>.json`).
+
+**Candidate rules (as read from the signed text).**
+- Name words: each name in the path (`expenseTotal.value` is `expenseTotal`, `value`) is split at a lowercase/digit-to-capital boundary, `_` and `-`; the words are joined by a space; the first letter of the first word is made capital and the later words are lowercased. The lowercasing is not stated in the signed words; it is read from the signed example `expenseTotal.value` becomes `Expense total` (lowercase t). A run of capitals (`ID`) stays one word.
+- A last name of `value` or `rows` is left out (only when something remains; else the name is kept). A list is joined with ", " as today.
+- Two lines in the same block (the flat part of the file, or one `## Result k` block) that would get the same words both keep today's form.
+- A result in a list of results writes its `quote` as a last line `from the page: "<quote>"`, word for word.
+- Nothing else changes: `{text}` alone is the text; `## Result k` headings, blank-line joins, null as `name: `, nested objects and lists as today.
+
+**Pass marks (any miss = FAIL, no refitting).**
+- (a) every value in the artifact JSON appears in the new .md exactly (string form as today's renderer prints it), in the same order, none dropped, changed or reordered; checked by a separate checker that walks the JSON.
+- (b) for every results-list artifact, each result's quote appears exactly once, byte for byte, as `from the page: "<quote>"` after its values.
+- (c) a forced same-words case (a fixture with `rows.value` and `rows.rows`, and one with `expenseTotal` and `expense_total`) keeps today's form for both colliding lines.
+- (d) today's m10b-expenses run-2 file reads exactly `Expense rows: 3, 6, 9, 12, 13, 14, 15, 17, 20, 21, 22, 25, 26, 27, 29, 32, 38` / `Expense count: 17` / `Expense total: 12719.59`.
+- (e) `{text}`-only artifacts are byte-identical to today's output (the real `renderSentMd`).
+
+### F142 RESULT (2026-11-03, $0; `.claude/scratch/f142/run.mjs` + `candidate.mjs`, result `.claude/scratch/f142/result-2026-11-03T14-19-50-809Z.json`; repo at 1d9b1cd)
+
+**Verdict: PASS on all five marks, 0 failures.** 61 artifacts (the F139 59 by sha256 identity, plus the artifacts behind today's m10b-expenses run-2 and m10-walk-flights-5 run-2). The candidate was proven able to fail: with the quote line removed and the first-letter capital removed in a temporary copy, (b) went 0 of 4 and (d) 0 of 1; restored, then the run below. No src edit, no refit.
+
+| Mark | Result |
+|---|---|
+| (a) every value, in order, none dropped/changed/reordered (checker walks the JSON) | PASS, 37 of 37 non-text artifacts, 0 failures |
+| (b) each quote exactly once as `from the page: "<quote>"`, last line of its block | PASS, 12 of 12 quotes in 4 of 4 results-list artifacts (flights-learn-1/run-1, m10-walk-flights-4/run-1, -5/run-1, -5/run-2) |
+| (c) forced same-words fixtures keep today's form for both lines | PASS, 3 of 3 (`rows.value`+`rows.rows`; `expenseTotal`+`expense_total` as boxes; as scalars) |
+| (d) m10b-expenses run-2 reads `Expense rows: 3, 6, …` / `Expense count: 17` / `Expense total: 12719.59` | PASS, byte for byte |
+| (e) `{text}`-only artifacts byte-identical to today's renderer | PASS, 24 of 24 (equal to the real `renderSentMd` and to the text field) |
+
+Today's two run-2 files on disk equal today's `renderSentMd` of their artifacts (checked).
+
+**Samples (before → after).**
+- CSV nested (m10b-expenses run-2): `expenseRows.rows: 3, 6, …, 38` / `expenseCount.value: 17` / `expenseTotal.value: 12719.59` → `Expense rows: 3, 6, …, 38` / `Expense count: 17` / `Expense total: 12719.59`.
+- Flights (flights-learn-1 run-1): `## Result 1` / `price: 39` → `## Result 1` / `Price: 39` / `from the page: "From 39 US dollars.This price does not include overhead bin access. Nonstop flight with Ryanair. …Select flight"`. These flights artifacts hold only `price`: the airline and times were never in the sent file, so the quote is where they appear.
+- Plain text (am29-walk-2 run-1): identical, byte for byte.
+
+**Seen, not a mark.** A top-level scalar's name is changed too: a retired cite-form `{text, cells}` artifact writes `Text: …` where today it writes `text: …` (the rule reads every name in a box or beside one; none of the live jobs send this shape). Camel-case acronyms stay one word (`ID` stays `id`, lowercased by the signed example's rule); not exercised by any file in the set.
+
+## F143 PRE-REGISTRATION (2026-11-03, $0; bareguard listItems on feat/list-items e5ecc5f, before release; written before the run, NOT yet run)
+
+**Question.** Does bareguard's new `listItems {field, value}` rule (exactly `value` outer list items; rulings A and B, hamr 2026-11-03) behave as agreed, through the public API (`createRubric` + `checkStep`), on fixtures and on three real m14-walk-5 artifacts?
+
+**Setup.** The bareguard repo is read only (HEAD e5ecc5f on feat/list-items, verified before the run). The tree is exported with `git archive e5ecc5f` into `.claude/scratch/f143/bareguard-e5ecc5f/` and imported from there. fwdloop's node_modules and package.json are untouched. Output is `{text: <fixture>}`, one `listItems` check on field `text`, value 3 unless stated. No paid call, no key.
+
+**Spec under test.** Item line: trimmed both ends, starts with `-` `*` `+` `•` then space/tab then non-empty text, or ASCII digits then `.`/`)` then space/tab then non-empty text. Outer = item lines whose indent (leading whitespace chars; space, tab, NBSP each 1, tabs not expanded) equals the smallest indent among item lines; non-item lines never set it. Fewer: kind `under`, `{measured, limit, direction: "at-least"}`. More: kind `over`, direction `"at-most"`. Missing or wrong-type field: kind `missing` / `wrong-type`, `limit` present, NO `direction` key. `value` 0: `createRubric` throws.
+
+**Cases (expected verdict / measured, value 3 unless stated).**
+1. Lead-in plus 3 bullets: green.
+2. Lead-in plus 2 bullets: red under, measured 2.
+3. One sentence, no marks: red under, measured 0.
+4. hamr's B example (`Jobs this week:` / `- Prune the apple tree` / `  - before the frost` / `- Turn the compost bin` / `- Fix the tap`): green (measured 3).
+5. Numbered `1.` list of 3: green. 6. Numbered `1)` list of 3: green.
+7. 4 bullets: red over, measured 4, direction at-most.
+8. All 3 items indented 2 spaces: green.
+9. Stray nested before outer (`  - a` / `- b` / `- c`), value 2: green (measured 2).
+10. Mixed tab/space (`\t- a` / `  - b`), value 1: green (measured 1).
+11. Non-items, each alone, value 1, expected red under measured 0: `1.Work`, `1.5 x`, `2024 results`, `**bold**`, `---`, `***`, `-x`, lone `-`, lone `1.`.
+12. `* * *`, value 1: green (counts 1). 13. `- [ ] task`, value 1: green. 14. `- x` with NBSP right after the mark, value 1: red under measured 0.
+15. Missing field: red, kind `missing`, limit 3, no `direction` key. 16. Non-string field (number): red, kind `wrong-type`, limit 3, no `direction` key.
+17. `value: 0`: `createRubric` throws.
+18. `rubricVocabulary.rules.listItems` exists and its fields are exactly `field` and `value`.
+19-21. Real files, field `text`, value 3, expected green (counts only; text never printed): `~/.config/fwdloop/flows/m14-walk-5/runs/run-1/artifacts/week_jobs.json`, `run-4/artifacts/weekly_jobs.json`, `run-5/artifacts/week_jobs.json`.
+22. Can-fail control: one temporary wrong expectation in the script must show red, then be restored; the result says so.
+
+**Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit of expectations or fixtures to pass.
+
+### F143 RESULT (2026-11-03, $0)
+
+Script `.claude/scratch/f143/poc.mjs` (gitignored), imported through `index.js` (`createRubric` + `checkStep` + `rubricVocabulary`) of the `git archive e5ecc5f` export; bareguard repo untouched (HEAD e5ecc5f, branch feat/list-items verified first). Results: `.claude/scratch/f143/result-2026-11-03T14-57-56-369Z.json`. 32 checks (case 11 is 9 checks, case 4 also run at value 2 to read measured 3).
+
+**FAIL on the letter: 31 of 32 checks PASS, 1 miss.**
+
+- Cases 1-17 and 19-21: PASS exactly as pre-registered. Both hamr examples, numbered `1.` and `1)`, 4 items over at-most, all-indented, stray nested (2), mixed tab/space (1), all 9 non-items measured 0, `* * *` = 1, `- [ ] task` = 1, NBSP `- x` = 0, missing and wrong-type carry limit 3 and no `direction` key, `value: 0` throws, and the three real files (counts only, no text printed) all green.
+- **Case 18 MISS.** `rubricVocabulary.rules.listItems.fields` is `field`, `value` and an optional `text` (type `explanation`, "the signer's explanation; never decides"). Pre-registered: exactly `field` and `value`. Not refit. This is the same optional `text` that every other rule (`maxLines` checked) lists; the gap is in my pre-registration, not a bareguard defect, and it changes no verdict.
+
+**Can-fail control.** With `F143_BREAK=1` one expectation was made wrong (case 7 expecting measured 5 instead of 4): it went red (2 fails with case 18), then the real run restored it (1 fail, case 18). The break file is `result-…-BREAK.json`.
+
+**API facts that differ from the spec:** only the optional `text` explanation field above. Gap kinds are `under` / `over` / `missing` / `wrong-type`, as signed.
+
+## F143b PRE-REGISTRATION (2026-11-03, $0; bareguard listItems on the published npm package 0.31.0; written before the run, NOT yet run)
+
+**Question.** Does the published `bareguard@0.31.0` (listItems code unchanged since e5ecc5f, which F143 tested) behave as agreed, through its public API only (`createRubric` / `checkStep` / `rubricVocabulary`), imported from a fresh install?
+
+**Setup.** Fresh `npm init -y` + `npm install bareguard@0.31.0` in `.claude/scratch/f143b/pkg/` (gitignored, no other packages). fwdloop's package.json, package-lock.json and node_modules are untouched. Script `.claude/scratch/f143b/poc.mjs` is F143's poc.mjs adapted to import from that install. No paid call, no key.
+
+**Cases.** All F143 cases 1-21 exactly as pre-registered in F143 (same fixtures, same expectations; case 14 written with an explicit `\u00a0`), except case 18, which is replaced by (ii). Plus:
+- (i) The installed `node_modules/bareguard/package.json` version is exactly `0.31.0`.
+- (ii) `rubricVocabulary.rules.listItems.fields` keys are exactly `field`, `value` and optional `text` (known from F143 case 18; this is a new pre-registration, not a refit: F143 stays FAIL on the letter).
+- (iii) Documented limits, value 3 unless stated: (a) a line inside a ``` fence counts if it is an item (fence lines plus `- a`/`- b`/`- c`: green, measured 3); (b) `> - a`, value 1: red under, measured 0; (c) `\r\n` splits like `\n` (`- a\r\n- b\r\n- c` green; with a 4th item red over, measured 4, at-most).
+- Can-fail control: one temporary wrong expectation (`F143B_BREAK=1`) must show red, then be restored.
+
+**Pass mark.** Every case exactly as expected. Any miss is FAIL on the letter; no refit.
+
+### F143b RESULT (2026-11-03, $0)
+
+Script `.claude/scratch/f143b/poc.mjs` (gitignored), run with `timeout 120` against a fresh install in `.claude/scratch/f143b/pkg/` (`npm install bareguard@0.31.0`, nothing else requested). Results: `.claude/scratch/f143b/result-2026-11-03T16-10-46-015Z.json`. 35 checks.
+
+**PASS: 35 of 35, every case exactly as pre-registered.**
+
+- (i) installed version read from `node_modules/bareguard/package.json`: `0.31.0`.
+- Cases 1-17 and 19-21: PASS (same fixtures and expectations as F143; the three real m14-walk-5 files green, counts only, no text printed).
+- (ii) case 18: `rubricVocabulary.rules.listItems.fields` is exactly `field`, `text`, `value`: PASS.
+- (iii) (a) items inside a ``` fence count (measured 3, green); (b) `> - a` is not an item (red under, measured 0); (c) CRLF counts like LF (3 items green; 4 items red over, measured 4, at-most): all PASS.
+
+**Can-fail control.** With `F143B_BREAK=1` case 7 expected measured 5 instead of 4: 1 fail (red); the real run restored it, 0 fails. Break file `result-2026-11-03T16-10-45-737Z-BREAK.json`.
+
+## F144 PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.25; M10 am16 suggestion call + code keep-or-drop; written before any paid call, NOT yet run)
+
+**Question.** Riskiest assumption of M10 am16: one AI call at draft time, shown a job's step lines + guardrails and bareguard's installed `rubricVocabulary` (0.26.0, read through the package export), suggests per guardrail one check from that list or none; code's keep-or-drop (am16 (2)) then leaves only honest checks, with few `I can't check this` asks.
+
+**Setup.** Script `.claude/scratch/f144/poc.mjs` (gitignored; `--dry` = $0, prints corpus, labels, prompt, schema, and runs keep-or-drop on the hand labels). Model deepseek-flash via the Settings Fireworks row `accounts/fireworks/models/deepseek-v4p1-flash`, slot `FIREWORKS_API_KEY` (rates in 0.45 / out 1.8 per M, read from `~/.config/fwdloop/config.json` by `makeProvider`; unpriced = stop, never 0). Thinking off (`thinkingMode: 'off'`), forced tool call `suggest_checks`, maxTokens 16000, timeout and deadline 300 s, metered per round through `new Loop({ onLlmResult })` as the drafter does. N = 3 calls per job, sequential, no retry. Hold per call = `ceilingCostUsd` (about $0.043); the run stops before spent + hold would cross $0.25. Key from env only, refused at $0 when empty. Results to `.claude/scratch/f144/result-<ISO>.json` (opened `wx`, never overwritten).
+
+**Code's keep-or-drop (am16 (2)), in the script.** A suggestion is kept only if (1) its rule is a key of `rubricVocabulary.rules` and it carries exactly that rule's own fields (id, field, strict, text are code's); (2) every number in it is a number the guardrail names: `guardrailWordNumbers` for maxWords/minWords `value`, `guardrailWordsPerSection` for `wordsPerSection`, `guardrailStandaloneNumbers` for the others (all from src/declaration.js, the am14/am15 readers); (3) every name/phrase is, after the same lowercase + whitespace-collapse that `checkShapeFitsJobLine` uses, a substring of the guardrail, and every word of it is a word of the guardrail; (4) for sections rules, the count of names equals `guardrailSectionCount` when the guardrail states one (the am14 test). `checkShapeFitsJobLine` itself is not called (it would also red "180 words each, no wordsPerSection" and drop an honest maxWords 600); its normalisation is not exported, so the script repeats two lines of it (a build would export it). Nothing in src/ is touched.
+
+**Corpus.** Every signed job under `~/.config/fwdloop/flows/*/prose.txt` (36 signed jobs) with at least one guardrail under a step line (not the arbiter block, not a send line, not an ask line): **33 jobs**. A line's guardrail is split on "; " into guardrails (same-line duplicates merged): **63 guardrails, 8 in scope, 55 out of scope**. Only prose.txt is read. Only 6 jobs carry an in-scope guardrail (am29-walk-2, m14-walk-3-2, m14-walk-5, m7-walk-2, m7-walk-3, ticket-triage-6), 5 distinct guardrail texts: scored pairs = 8 x 3 = **24**. The out-of-scope guardrails are still shown to the model (the real call cannot know scope); they are not scored, but any check kept on one is reported. All 33 jobs get N = 3 calls: 99 calls.
+
+Hand labels (written now, before the run). `none` = no honest check on bareguard 0.26. Label text is exact. "Accept" lists every check that counts as equal to the label.
+- "every invoice appears exactly once" -> out of scope (cells (a per-row claim on a sheet))
+
+  - in: aging-live-1 (l2 g1), aging-live-4 (l2 g1), m10b-aging (l2 g1), m10b-aging-2 (l2 g1), m10b-aging-3 (l2 g1), m10b-aging-5 (l2 g1)
+- "3 sections, about 180 words each, under 600 words" -> {"rule":"maxWords","value":600}
+
+  - in: am29-walk-2 (l3 g1)
+- "under 100 words" -> {"rule":"maxWords","value":100}
+
+  - in: am29-walk-2 (l4 g1)
+- "every customer appears exactly once" -> out of scope (cells)
+
+  - in: exit-walk-1 (l2 g1), thinking-check-1 (l2 g1)
+- "under $40" -> out of scope (page source (flights, M10 items 1-3))
+
+  - in: flights-learn-1 (l2 g1), flights-learn-2 (l2 g1), flights-learn-3 (l2 g1)
+- "nonstop" -> out of scope (page source)
+
+  - in: flights-learn-1 (l2 g2), flights-learn-2 (l2 g2), flights-learn-3 (l2 g2), m10-walk-flights (l2 g2), m10-walk-flights-2 (l2 g2), m10-walk-flights-3 (l2 g2), m10-walk-flights-4 (l2 g2), m10-walk-flights-5 (l2 g2)
+- "Price over 500" -> out of scope (cells)
+
+  - in: m10-walk-csv (l2 g1), m10-walk-csv-2 (l2 g1), m10-walk-csv-3 (l2 g1), m10-walk-csv-4 (l2 g1)
+- "use the column 'Amount' for 'Price'" -> out of scope (cells/source)
+
+  - in: m10-walk-csv-2 (l2 g2), m10-walk-csv-3 (l2 g2), m10-walk-csv-4 (l2 g2)
+- "under $150" -> out of scope (page source)
+
+  - in: m10-walk-flights (l2 g1), m10-walk-flights-2 (l2 g1), m10-walk-flights-3 (l2 g1), m10-walk-flights-4 (l2 g1), m10-walk-flights-5 (l2 g1)
+- "days past due = days since 'Due date' as of 2026-10-11" -> out of scope (cells)
+
+  - in: m10b-aging (l2 g2), m10b-aging-2 (l2 g3), m10b-aging-3 (l2 g3), m10b-aging-5 (l2 g3)
+- "each invoice is in one bucket" -> out of scope (cells)
+
+  - in: m10b-aging-2 (l2 g2), m10b-aging-3 (l2 g2), m10b-aging-5 (l2 g2)
+- "there is no days past due column" -> out of scope (cells/source)
+
+  - in: m10b-aging-5 (l2 g4)
+- "work it out as days since 'Due date' as of 2026-10-11" -> out of scope (cells)
+
+  - in: m10b-aging-5 (l2 g5)
+- "Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+" -> out of scope (cells/source (column names))
+
+  - in: m10b-aging-5 (l2 g6)
+- "Amount over 500" -> out of scope (cells)
+
+  - in: m10b-expenses (l2 g1), m10b-expenses-a (l2 g1)
+- "exactly 3 bullets" -> none (no exact-count rule in 0.26; maxLines 3 is a WRONG kept)
+
+  - in: m14-walk-3-2 (l3 g1), m14-walk-5 (l3 g1)
+- "under 80 words" -> {"rule":"maxWords","value":80}
+
+  - in: m14-walk-5 (l5 g1)
+- "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words" -> {"rule":"maxWords","value":600} OR {"rule":"sections","names":["Work History","Professional Skills","Soft Skills"]}
+
+  - in: m7-walk-2 (l3 g1), m7-walk-3 (l3 g1)
+- "priority P1 only" -> out of scope (ticket filter (M12))
+
+  - in: ticket-triage (l2 g1), ticket-triage-2 (l2 g1), ticket-triage-3 (l2 g1), ticket-triage-4 (l2 g1), ticket-triage-5 (l2 g1), ticket-triage-6 (l2 g1)
+- "run a ticket again when its state changes" -> out of scope (ticket watch (M12))
+
+  - in: ticket-triage (l2 g2), ticket-triage-2 (l2 g2), ticket-triage-3 (l2 g2), ticket-triage-4 (l2 g2), ticket-triage-5 (l2 g2), ticket-triage-6 (l2 g2)
+- "at most 3 words" -> {"rule":"maxWords","value":3}
+
+  - in: ticket-triage-6 (l2 g3)
+Decisions on the two judgment calls: (1) `exactly 3 bullets` is labelled `none`: bareguard 0.26 has no exact-count rule, and `maxLines 3` is only "at most 3 lines" (it also counts a lead-in line), weaker than the words. A kept `maxLines 3` there is a WRONG kept, not an acceptable one. (2) `3 sections: Work History, Professional Skills, Soft Skills, all under 600 words` accepts either `maxWords 600` or `sections [Work History, Professional Skills, Soft Skills]` (both honest, one pick per guardrail); `3 sections, about 180 words each, under 600 words` names no section, so only `maxWords 600` (`sectionWords` would need names the guardrail never states).
+
+**Prompt (verbatim; vocabulary block generated from `rubricVocabulary.rules[r].description` for the 9 text rules nonEmpty, maxWords, minWords, maxLines, sections, sectionOrder, sectionWords, mustCarry, blockLines; the cells, cited, command, file and pipeline rules do not read a text field and are not offered).**
+
+System:
+
+```
+You help a person turn the guardrails written under the lines of a job into mechanical checks.
+You are given the job's lines. Under a line, its guardrails are numbered g1, g2, ... You are also given the checks the checker can run.
+
+For EACH guardrail, call suggest_checks with one entry: the one check from the list that checks exactly what that guardrail says, or the rule "none".
+
+Rules:
+- Use only a rule from the list below, with only the fields that rule takes. Do not set id, field, strict or text: code sets them.
+- Use only numbers the guardrail itself states, and only words the guardrail itself contains. Never add a section name, phrase or number the guardrail does not state.
+- If no check on the list checks exactly what the guardrail says (it is about content, sources, prices, columns, or a count the list cannot check exactly), answer "none". A check that is weaker than, or different from, the guardrail is worse than "none".
+- Answer for every guardrail once, using the line number and the guardrail number shown.
+
+Checks the checker can run (rule({ fields })):
+- nonEmpty({ id, field: non-blank string, max 128 chars, text?: string (the signer's explanation; never decides) })
+- maxWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- minWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- maxLines({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- sections({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionOrder({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionWords({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, wordsPerSection: integer >= 1, text?: string (the signer's explanation; never decides) })
+- mustCarry({ id, field: non-blank string, max 128 chars, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- blockLines({ id, field: non-blank string, max 128 chars, size: integer >= 1, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+```
+
+User (one per job; shown for m14-walk-5; ask lines show their question text only; guardrails numbered g1.. under their line):
+
+```
+The job:
+1. Write 3 lines about my garden from the notes
+2. check it with me
+3. List 3 jobs for this week from the notes
+   g1: exactly 3 bullets
+4. check it with me
+5. Write a short closing note to my neighbour
+   g1: under 80 words
+6. check it with me
+7. Write it out
+```
+
+Tool `suggest_checks` (forced via `toolChoice`; typed fields only, no prose is parsed; the answer is read from the tool arguments; the model's `rule` is an enum of the 9 rules + `none`; code still checks the rule against the full vocabulary list):
+
+```json
+{
+ "name": "suggest_checks",
+ "parameters": {
+  "type": "object",
+  "properties": {
+   "checks": {
+    "type": "array",
+    "description": "One entry per guardrail.",
+    "items": {
+     "type": "object",
+     "properties": {
+      "line": {
+       "type": "integer",
+       "description": "the job line number"
+      },
+      "guardrail": {
+       "type": "integer",
+       "description": "the guardrail number under that line (g1 = 1)"
+      },
+      "rule": {
+       "type": "string",
+       "enum": [
+        "nonEmpty",
+        "maxWords",
+        "minWords",
+        "maxLines",
+        "sections",
+        "sectionOrder",
+        "sectionWords",
+        "mustCarry",
+        "blockLines",
+        "none"
+       ]
+      },
+      "value": {
+       "type": "integer"
+      },
+      "size": {
+       "type": "integer"
+      },
+      "wordsPerSection": {
+       "type": "integer"
+      },
+      "names": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "phrases": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "line",
+      "guardrail",
+      "rule"
+     ]
+    }
+   }
+  },
+  "required": [
+   "checks"
+  ]
+ }
+}
+```
+
+**Scoring per (guardrail, call) pair, in-scope only.** A suggestion with no entry, or rule `none`, = `none`. Code's keep-or-drop gives kept or dropped (with the reason). Per pair: `match` = kept check is in the label's accept list, or the label is `none` and nothing was kept; `wrong` = a check was kept that is not in the accept list (any kept check on a `none` label); `dropped` / `none` on a labelled check = a miss that falls to an ask, never a wrong kept.
+
+**Pass marks (all four; any miss = FAIL, no refit of labels, filter or marks).**
+- (a) 0 kept checks, across ALL 99 calls (in and out of scope), whose rule is not on the list or that carry a number or word the guardrail never named. Re-verified after the run by a second, independently written reader in the script (raw numbers and word tokens, no src helper); a disagreement between the two readers is itself a FAIL.
+- (b) On in-scope pairs: 0 `wrong` kept, and `match` >= 80% of the 24 pairs (>= 20 of 24).
+- (c) Per call, the number of in-scope guardrails with nothing kept (the `I can't check this` asks, am16 (3)/(5)) never exceeds am1's 3. Honest note: this corpus has at most 2 in-scope guardrails per job, so (c) cannot fail here; it is recorded, not a test of anything. The count over all guardrails is also reported, for information.
+- (d) No provider error, and no structure error (no tool call, unreadable arguments); a call without a usable answer also scores its pairs as `none`. A run stopped early by the cap or an unpriced round is not a pass.
+
+**Report also:** cost per call and total (every round metered; books = sum of rounds), which suggestions were dropped and why, checks kept on out-of-scope guardrails (informational, unscored), stray entries (line/guardrail numbers that do not exist), thinking status per call.
+
+**$0 self-check (before any paid call; `--dry`, 2026-11-03).** All hand labels are kept by code's filter (0 dropped of 8 label instances, 5 distinct). Eight can-fail controls behave as written: an off-list rule, a number not named (99 for "under 80 words", 180 for the "180 words each" line), an unnamed word ("Summary"), a wrong section count, an extra field are all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT by the filter, which shows the filter judges only rule, number and word, so that mistake must be avoided by the prompt, and would score `wrong`.
+
+### F144 RESULT (2026-11-03, run after the pre-registration above; code = 5fc7650)
+
+Run `.claude/scratch/f144/result-2026-11-03T15-42-57-087Z.json` (gitignored): 99/99 calls, `stoppedEarly` null, spent **$0.070207** (cap $0.25), deepseek-flash via the Fireworks row, forced tool call `suggest_checks`, every call 1 round, stop `tool_use`. Scored exactly against the marks above; no label, filter or mark changed.
+
+**Verdict: FAIL on the letter (mark b).**
+
+| Mark | Verdict | Numbers |
+|---|---|---|
+| (a) no kept check with an off-list rule or a number/word the guardrail never named, across all 99 calls; second reader agrees | **PASS** | 18 kept checks in all (12 in scope, 6 out of scope). Script reader: 0 violations. The independent second reader in the script (`verifyKept`, raw numbers and word tokens) returned null (no problem) on all 18; I re-ran an equivalent reader on the result file by hand: 0 violations. No disagreement between the readers. |
+| (b) in scope: 0 `wrong` kept AND match >= 20 of 24 | **FAIL** | 0 wrong kept (passes that half). match **18 of 24 = 75%** (< 80%): 18 match, 5 dropped, 1 none. |
+| (c) per call, in-scope guardrails with nothing kept never above 3 | **PASS** (cannot fail here, as pre-registered) | max 1 per call. For information only, over all guardrails: 171 of 189 rows have nothing kept, max 6 in one call. |
+| (d) no provider error, no structure error, no early stop | **PASS** | 0 errors, 0 non-tool stops, 0 unreadable arguments, 99/99 calls. |
+
+Breakdown of the 24 in-scope pairs (8 guardrails x 3 calls): am29-walk-2 "under 100 words" 3/3 match (maxWords 100); m14-walk-5 "under 80 words" 3/3 (maxWords 80); ticket-triage-6 "at most 3 words" 3/3 (maxWords 3); m14-walk-5 and m14-walk-3-2 "exactly 3 bullets" 6/6 match as `none` (nothing kept; no `maxLines 3` was suggested, the wrong-kept trap did not fire); m7-walk-2 / m7-walk-3 "3 sections: ... all under 600 words" 3/6 (kept `sections [Work History, Professional Skills, Soft Skills]`, an accepted label); am29-walk-2 "3 sections, about 180 words each, under 600 words" **0/3**.
+
+**Every in-scope miss (6, all fall to an ask; none is a wrong kept).**
+- am29-walk-2, call 1, line 3 g1 ("3 sections, about 180 words each, under 600 words"): suggested `sectionWords` names [how it matches the JD, work history, skills] wordsPerSection 180. Dropped: name "how it matches the JD" is not in the guardrail's words (the guardrail names no section; the model took the names from the job's other lines or invented them).
+- am29-walk-2, call 2, same guardrail: suggested `sections` with the same three names. Dropped for the same reason.
+- am29-walk-2, call 3, same guardrail: `none`. Not kept; the label wanted `maxWords 600` and the model never suggested it in any of the 3 calls.
+- m7-walk-2, call 1, line 3 g1 ("3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"): suggested `sectionWords` names [Work History, Professional Skills, Soft Skills] wordsPerSection 600. Dropped: "wordsPerSection 600 is not a number the guardrail names (it names none)".
+- m7-walk-2, call 2, same guardrail: same suggestion, same drop.
+- m7-walk-3, call 1, same guardrail: same suggestion, same drop.
+
+**The "all under 600 words" reading.** The three m7 drops are the code's filter working as designed: the guardrail names no per-section number, so `wordsPerSection 600` has no number to stand on (`guardrailWordsPerSection` reads none), and the filter refuses it. The model's reading is that each section is under 600 words; that is a different, stricter check than the signer's "all under 600 words" (which also reads as one total of 600). The right outcome for a reading the guardrail does not state is an ask to the human (what this check means), not a silent keep. Whether that ask, rather than a kept `sections`/`maxWords`, is the wanted outcome is a design question for am16; the filter made no mistake here. The am29-walk-2 miss is of a different kind: the model never offered the label's `maxWords 600`, and its names were not the guardrail's.
+
+**The 18 strays** (entries whose line/guardrail number does not exist), in 7 calls, all rule `none`: aging-live-1 call 3 (1: line 1 g1), m10b-aging-3 call 1 (3: lines 1, 3, 4 g1) and call 3 (2: lines 3, 4 g1), m10b-expenses call 1 (3), m10b-expenses-a calls 2 and 3 (3 each), ticket-triage-4 call 3 (3: line 1 g1, g2, g3). They are answers for the job's lines that carry no guardrail (the source line, ask lines, the write-out line) or for a guardrail number that is not there; each says `none`, code ignored them, none was kept, and no scored pair was affected. Cost of leaving them: nothing in this run; a build must keep ignoring an entry that matches no real (line, guardrail).
+
+**Out-of-scope kept checks (6; informational, unscored; a BUILD question).** The model was shown these guardrails (the real call cannot know scope) and code kept a check on them:
+- mustCarry ["nonstop"] on "nonstop" (m10-walk-flights-3 call 3, m10-walk-flights-4 call 1, m10-walk-flights-5 call 2): a page-source (flights) guardrail that M10 items 1-3 already settle.
+- sections [Current, 1-30, 31-60, 61-90, 90+] (m10b-aging-5 call 1) and sections [Customer, Invoice #, ..., 90+] (call 2) on "Customer, Invoice #, Invoice date, Due date, Amount, Days overdue, Current, 1-30, 31-60, 61-90, 90+": a cells (column names) guardrail; both pass the filter because every word is in the guardrail.
+- mustCarry ["priority P1"] on "priority P1 only" (ticket-triage-3 call 1): a ticket filter that M12 already settles.
+Each is honest by the filter's three tests (rule, number, words) but sits on a guardrail another module's check already covers. Build question for hamr, not judged here: am16 must not add a shape check on top of a cells/page/ticket guardrail that M10 items 1-3 and M12 already settle; keep-or-drop alone does not know the scope, so scope has to be decided before or beside it.
+
+**Cost.** $0.070207 for 99 calls, books = sum of rounds (every call 1 round). Per call mean $0.000709, min $0.000653, max $0.000978 (against the ~$0.043 hold per call; the hold is a ceiling, not spend). Input about 1.2k tokens and output about 60 tokens on the smallest job.
+
+**Not checked / odd.** `thinkingStatus` is `applied` on all 99 calls although the script passes `thinkingMode: 'off'`; I did not look into why (the audit-row meaning of that string is not read here), so I make no claim about thinking for this run. Anything about the human ask UI is not checked here.
+
+## F144b PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.15; F144 rerun with two prompt rules, scope decided by code before the call, and bareguard 0.31.0 `listItems`; written before any paid call, NOT yet run)
+
+**Question.** F144 failed on the letter (mark b: 18 of 24 = 75%) and showed am16 must not put a shape check on a guardrail another signed part already settles. Does the same one-call suggestion, with (1) two prompt rules, (2) scope decided by CODE before the call, and (3) the published bareguard 0.31.0 vocabulary (`listItems`), pass the marks F144 missed?
+
+**What stays exactly as F144.** Same corpus (every signed job under `~/.config/fwdloop/flows/*/prose.txt` with a step guardrail: 33 jobs, 63 guardrails split on "; "), model deepseek-flash via the Fireworks row `accounts/fireworks/models/deepseek-v4p1-flash` (slot `FIREWORKS_API_KEY`, key from env only, refused at $0 when empty), thinking off, N = 3 sequential calls per job, forced typed tool `suggest_checks`, same tool schema except the `rule` enum also lists `listItems`, maxTokens 16000, deadline 300 s, metered per round through `new Loop({ onLlmResult })`, same code keep-or-drop (am16 (2): rule on the list, own fields only, numbers the guardrail names, words the guardrail contains, section count), same independent second reader (`verifyKept`), hold per call = `ceilingCostUsd` (~$0.043). Script `.claude/scratch/f144b/poc.mjs` = copy of f144 plus the three changes below (gitignored; `--dry` = $0). Results to `.claude/scratch/f144b/result-<ISO>.json` (opened `wx`).
+
+**Change 1: two prompt rules.** Added to the Rules list, exactly: "Suggest `sections` or `sectionWords` only when the guardrail itself names the sections." and "A guardrail like 'all under N words' or 'under N words' is about the whole answer: use maxWords N." Nothing else in the prompt text is edited (the "none" rule still says "a count the list cannot check exactly"; left as in F144). Final system prompt, verbatim (the vocabulary block is generated from the installed 0.31.0 `rubricVocabulary.rules[r].description`):
+
+```
+You help a person turn the guardrails written under the lines of a job into mechanical checks.
+You are given the job's lines. Under a line, its guardrails are numbered g1, g2, ... You are also given the checks the checker can run.
+
+For EACH guardrail, call suggest_checks with one entry: the one check from the list that checks exactly what that guardrail says, or the rule "none".
+
+Rules:
+- Use only a rule from the list below, with only the fields that rule takes. Do not set id, field, strict or text: code sets them.
+- Use only numbers the guardrail itself states, and only words the guardrail itself contains. Never add a section name, phrase or number the guardrail does not state.
+- Suggest `sections` or `sectionWords` only when the guardrail itself names the sections.
+- A guardrail like 'all under N words' or 'under N words' is about the whole answer: use maxWords N.
+- If no check on the list checks exactly what the guardrail says (it is about content, sources, prices, columns, or a count the list cannot check exactly), answer "none". A check that is weaker than, or different from, the guardrail is worse than "none".
+- Answer for every guardrail once, using the line number and the guardrail number shown.
+
+Checks the checker can run (rule({ fields })):
+- nonEmpty({ id, field: non-blank string, max 128 chars, text?: string (the signer's explanation; never decides) })
+- maxWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- minWords({ id, field: non-blank string, max 128 chars, value: integer >= 1, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- maxLines({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- listItems({ id, field: non-blank string, max 128 chars, value: integer >= 1, text?: string (the signer's explanation; never decides) })
+- sections({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionOrder({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- sectionWords({ id, field: non-blank string, max 128 chars, names: non-empty list of non-blank strings, each max 1000 chars, wordsPerSection: integer >= 1, text?: string (the signer's explanation; never decides) })
+- mustCarry({ id, field: non-blank string, max 128 chars, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+- blockLines({ id, field: non-blank string, max 128 chars, size: integer >= 1, phrases: non-empty list of non-blank strings, each max 1000 chars, strict?: boolean = false, text?: string (the signer's explanation; never decides) })
+```
+
+User text: as F144 (the job's lines, guardrails numbered under their line), except that only the guardrails code scopes IN are shown (original g-numbers kept; a line with none shows no g-line).
+
+**Change 3: vocabulary from the published bareguard 0.31.0.** Read from the fresh install at `.claude/scratch/f143b/pkg/node_modules/bareguard` (version checked in the script, refuses if not 0.31.0), not the repo's `node_modules`. Offered rules: the F144 nine plus `listItems` (a text rule: `listItems({ field, value >= 1 })` = exactly `value` outer list items), ten in all, in the vocabulary's own order; `carriesAny` and `allowedKeys` (also in 0.31.0) are not offered, as before (not asked for). Hand label for "exactly 3 bullets" becomes `{"rule":"listItems","value":3}` (written now); a kept `maxLines 3` there stays a WRONG kept. Every other hand label is as in F144 (the "3 sections: Work History, ..., all under 600 words" guardrail still accepts `maxWords 600` OR `sections [Work History, Professional Skills, Soft Skills]`; "3 sections, about 180 words each, under 600 words" accepts only `maxWords 600`).
+
+**Change 2: scope by CODE, before the call (not the hand labels).** A guardrail is settled by another signed part, is NOT sent to the model, and gets no am16 check, when BOTH hold:
+1. the job signs an input that routes its guardrails to another reader: a CSV file source (cells close: `src/drafter.js:319` `csvRoles` by `isCellsPath` `src/closers.js:53`; the cells reader numbers every line rule `src/drafter.js:363-367` and looks at the sheet `:628`) or a page source (cited close: `src/drafter.js:320,331`; page fetch `:523`); a ticket list is a page source (`src/ticket-draft.js:16`), and its priority/label filter and state/labels watch are the drafter's reading of those guardrails (`src/ticket-draft.js:35-36`);
+2. the guardrail names no whole-output word number: `guardrailWordNumbers(g).length === 0` (`src/declaration.js:375`, the reader `checkShapeFitsJobLine` uses for `maxWords`, `src/declaration.js:441`, am28/am29). A guardrail that names one is the one thing the shape reader still takes in such a job ("at most 3 words" under a ticket line).
+Every other guardrail (jobs with only text/markdown/.docx inputs, or none) is IN. The script implements this as `codeScope(sources, g)` (the signed `arbiter.sources` of the job). It reads no label. **Pass mark (e): code's scope equals F144's hand scope on all 63 guardrails (in 8 / out 55); any disagreement, listed, = FAIL.** Honest note: the page and ticket arms read one regex plus the source kind, so a page job whose guardrail has a word number would be IN while the model-side meaning is "about the page"; none exists in this corpus, and this is a build question, not judged here.
+
+**Paid plan.** Only jobs with at least one guardrail code scopes IN are called: 6 jobs (am29-walk-2, m14-walk-3-2, m14-walk-5, m7-walk-2, m7-walk-3, ticket-triage-6) x 3 = **18 calls** (F144 was 99), 24 scored pairs (8 guardrails x 3). Out-of-scope guardrails are never shown, so no kept check on one can occur.
+
+**Pass marks (all; any miss = FAIL, no refit of labels, filter, scope rule or marks).**
+- (a) 0 kept checks, across all 18 calls, whose rule is not on the list or that carry a number or word the guardrail never named; the second reader (`verifyKept`) agrees on every kept check (a disagreement is itself a FAIL).
+- (b) On the 24 in-scope pairs: 0 `wrong` kept and `match` >= 20 of 24. `match` = kept check is in the label's accept list; `wrong` = any other kept check; no label is `none` now.
+- (c) Per call, in-scope guardrails with nothing kept (the `I can't check this` asks) never above 3 (am1). Cannot fail on this corpus (at most 2 per job); recorded, not a test.
+- (d) No provider error, no structure error (no tool call, unreadable arguments), no early stop (cap or unpriced round).
+- (e) Scope by code = hand scope, 63 of 63 (above).
+
+**Report also.** Cost per call and total (every round metered, books = sum of rounds, unknown never 0), every dropped suggestion with its reason, stray entries, thinking status per call (F144 saw `applied` with thinking off; unexplained, still not claimed).
+
+**$0 self-check (`--dry`, 2026-11-03, before any paid call).** Scope by code vs hand: 63 of 63 agree (code in 8 / out 55). All hand labels kept by the filter (0 dropped, 10 label instances, `listItems 3` kept). Eight can-fail controls behave (off-list rule, a number or word not named, wrong section count, an extra field all DROPPED; `maxLines 3` for "exactly 3 bullets" is KEPT, the filter cannot judge meaning, scored `wrong`). The scope rule can fail: with the word-number test removed, a temporary copy disagreed on 2 guardrails (m7-walk-3 l3 g1, ticket-triage-6 l2 g3). Paid command (key from env): `FIREWORKS_API_KEY=$(pass amr/fireworks_api | head -n1 | tr -d '\r\n') node .claude/scratch/f144b/poc.mjs`.
+
+### F144b RESULT (2026-11-03, run after the pre-registration above; code = 3df2cc2)
+
+**Verdict: FAIL on the letter (mark b: 12 of 24 = 50%, needs 20).** Result file `.claude/scratch/f144b/result-2026-11-03T16-15-02-873Z.json`. deepseek-flash via Fireworks, bareguard 0.31.0, 18 calls, 6 jobs x 3, total spend $0.013532 (cap $0.15; every call 1 round, $0.00071 to $0.00081), no early stop.
+
+| Mark | Verdict | Evidence |
+|---|---|---|
+| (a) 0 kept off-list / unnamed number or word; second reader agrees | PASS | 12 kept checks, all `verifyKept` null (agrees on every one); 0 kept off-list. |
+| (b) 0 wrong kept and match >= 20 of 24 | FAIL | 0 wrong kept, but match 12, dropped 10, none 2 (24 pairs). |
+| (c) cantCheck per call never above 3 | PASS (recorded, cannot fail) | max 1 per call. |
+| (d) no provider/structure error, no early stop | PASS | 18 of 18 `tool_use`, 0 non-tool stops, 0 early stop, thinking status `applied` on all (as in F144, still unexplained). |
+| (e) scope by code = hand scope, 63 of 63 | PASS | `scopeDisagreements` 0. |
+
+**Per job (3 calls each).** m14-walk-3-2 3/3 match and ticket-triage-6 3/3 match. am29-walk-2: line 4 `under 100 words` 3/3 match; line 3 ("3 sections, about 180 words each, under 600 words") 0/3: one `none`, one `sections` with a stray `wordsPerSection`, one `sectionWords` with an invented section name (dropped). m14-walk-5 `under 80 words`: 0/3 (all three suggested `maxWords 80` but also sent a stray field: `size: 80` once, `phrases: []` twice; the filter dropped each). m7-walk-2 ("3 sections: ... all under 600 words"): 0/3 (two `sectionWords` wordsPerSection 600, dropped; one `none`). m7-walk-3 same guardrail: 0/3 (all `sectionWords` 600, dropped).
+
+**Compared with F144 (18/24, 0 wrong kept, $0.070 over 99 calls):** the two prompt rules and scope by code cost 5x less and kept the safety (still 0 wrong kept) but did not lift the match count, it fell from 18 to 12. The only new loss is m14-walk-5, which F144 matched.
+
+**Two causes, named plainly.**
+1. The tool schema offers every optional field to every rule, so the model fills fields the rule does not take (`size`, `phrases`, `wordsPerSection`) and the strict extra-field drop throws out an otherwise right check. This is a shape of OUR tool, not a judgment miss: in all 3 m14-walk-5 calls the model chose the right rule and the right number. It cost 3 of the 12 missing matches (m14-walk-5), plus the am29-walk-2 call-2 `sections` + `wordsPerSection` drop.
+2. The prompt rule "all under N words is about the whole answer: use maxWords N" did not change the model's per-section reading: for "3 sections: ..., all under 600 words" 5 of 6 calls still suggested `sectionWords` with wordsPerSection 600 (m7-walk-2 2 of 3, m7-walk-3 3 of 3). The am29-walk-2 line-3 guardrail ("about 180 words each") still invents section names or answers none (3/3 miss).
+
+**Not checked:** whether a per-rule schema (each rule's exact fields only, so a stray field cannot be sent) fixes cause 1; whether any prompt wording fixes cause 2. No label, filter, scope rule or mark was refit.
+
+## F144c PRE-REGISTRATION (2026-11-03, PAID, HARD CAP $0.10; M10 am16 per-rule answer form; written before any paid call, NOT yet run)
+
+**Question.** F144b failed on the letter (12 of 24) and named two causes. Cause 1: the tool offered ONE flat object with `rule` and every optional field (`value`, `size`, `wordsPerSection`, `names`, `phrases`) to every rule, so the model filled fields the rule does not take (`maxWords 80` + `phrases: []` or `size: 80`) and the strict extra-field drop threw out a right check. Does a per-rule answer form, where each entry can carry only its own rule's fields, fix it?
+
+**ONE change from F144b, nothing else.** The answer form. Same corpus (33 jobs, 63 guardrails; 6 jobs called, 18 calls, 24 scored pairs), scope by code, model deepseek-flash via Fireworks `accounts/fireworks/models/deepseek-v4p1-flash` (slot `FIREWORKS_API_KEY`, key from env only, refused at $0 when empty), thinking off, N = 3, forced typed tool `suggest_checks`, vocabulary from the installed bareguard 0.31.0 at `.claude/scratch/f143b/pkg/node_modules/bareguard` (incl. `listItems`), same system prompt (incl. the two F144b rules), same user text, same code keep-or-drop (`keepOrDrop`, unchanged: the strict extra-field drop stays), same second reader, same hand labels, maxTokens 16000, deadline 300 s, metered per round. Only the cap is lower ($0.15 to $0.10; F144b spent $0.0135). Script `.claude/scratch/f144c/poc.mjs` = copy of f144b + the form change + a JSON-schema check (gitignored; `--dry` = $0). Results to `.claude/scratch/f144c/result-<ISO>.json` (opened `wx`).
+
+**The form: `anyOf`, one variant per rule (flat, `rule` is a `const`).** Each entry in `checks` must match exactly one variant: `line`, `guardrail`, `rule` (a `const`), plus exactly that rule's own fields from `rubricVocabulary` (the fields code does not set: `id`, `field`, `text`, `strict` are left out, as the prompt already says), `additionalProperties: false`. A variant keeps the entry flat, so `keepOrDrop`, `scoreCall` and the labels read it unchanged. Code still sets `field` and `id`. Why `anyOf` and not `oneOf` or the discriminated parameter set: bare-agent passes the tool's `parameters` through to the wire untouched (`node_modules/bare-agent/src/provider-openai.js:163-166`, `parameters: t.parameters`; no schema rewriting, and its own `checkArgs` is off by default and top-level only, `src/loop.js:70`), so `anyOf` and `oneOf` both reach Fireworks identically. Whether Fireworks ENFORCES the form (constrains decoding to a variant) or only shows it to the model is unknown at $0 and is what the report below measures; `anyOf` is chosen because it is the keyword OpenAI-compatible structured-output backends document, and `oneOf` adds an "exactly one" test that the disjoint `const` rules make redundant. If the provider rejects the schema (400), that is a provider/structure error (mark d), not retried with another shape inside this run.
+
+Tool schema, verbatim (variants one per line; eleven: ten offered rules plus `none`):
+
+```
+{ "name": "suggest_checks", "parameters": {
+  "type": "object", "required": ["checks"], "additionalProperties": false,
+  "properties": { "checks": { "type": "array", "description": "One entry per guardrail.", "items": { "anyOf": [
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"nonEmpty"}},"required":["line","guardrail","rule"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"maxWords"},"value":{"type":"integer","minimum":1}},"required":["line","guardrail","rule","value"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"minWords"},"value":{"type":"integer","minimum":1}},"required":["line","guardrail","rule","value"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"maxLines"},"value":{"type":"integer","minimum":1}},"required":["line","guardrail","rule","value"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"listItems"},"value":{"type":"integer","minimum":1}},"required":["line","guardrail","rule","value"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"sections"},"names":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["line","guardrail","rule","names"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"sectionOrder"},"names":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["line","guardrail","rule","names"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"sectionWords"},"names":{"type":"array","minItems":1,"items":{"type":"string"}},"wordsPerSection":{"type":"integer","minimum":1}},"required":["line","guardrail","rule","names","wordsPerSection"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"mustCarry"},"phrases":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["line","guardrail","rule","phrases"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"blockLines"},"size":{"type":"integer","minimum":1},"phrases":{"type":"array","minItems":1,"items":{"type":"string"}}},"required":["line","guardrail","rule","size","phrases"],"additionalProperties":false},
+    {"type":"object","properties":{"line":{"type":"integer","description":"the job line number"},"guardrail":{"type":"integer","description":"the guardrail number under that line (g1 = 1)"},"rule":{"const":"none"}},"required":["line","guardrail","rule"],"additionalProperties":false}
+  ] } } } } }```
+
+**Pass marks: the same as F144b, (a)-(e), any miss = FAIL, no refit of labels, filter, scope rule or marks.**
+- (a) 0 kept checks, across all 18 calls, whose rule is not on the list or that carry a number or word the guardrail never named; the second reader (`verifyKept`) agrees on every kept check.
+- (b) On the 24 in-scope pairs: 0 `wrong` kept and `match` >= 20 of 24.
+- (c) Per call, in-scope guardrails with nothing kept never above 3 (recorded, cannot fail on this corpus).
+- (d) No provider error, no structure error (no tool call, unreadable arguments), no early stop (cap or unpriced round).
+- (e) Scope by code = hand scope, 63 of 63.
+
+**Report also (not deciding).** Entries that carried a field the form does not offer (`fieldNotOffered` per call; should be 0 if the provider enforces the form), entries that fail the schema check (`schemaErrors`), cost per call and total, every dropped suggestion with its reason, thinking status per call. Not claimed in advance: that this lifts cause 2 (the per-section reading of "all under 600 words"; 5 of 6 calls in F144b); it is not what this run changes, so a (b) miss from m7-walk-2/3 and am29-walk-2 line 3 is expected to remain possible, and is reported as such, not refit.
+
+**$0 self-check (`--dry`, 2026-11-03, before any paid call; exit 0).** Scope by code vs hand: 63 of 63 agree (code in 8 / out 55). All hand labels kept by the filter (0 dropped). Every hand label (with `line`, `guardrail` added) validates against the new schema (10 of 10 valid, `none` valid), checked by a small in-script JSON-schema validator (keywords used: type, const, anyOf, properties, required, additionalProperties, items, minItems, minimum; no dependency). Seven can-fail controls are REJECTED by the schema (`maxWords` + `phrases: []`, `maxWords` + `size`, `sections` + `wordsPerSection`, `none` + `value`, an off-list rule, `maxWords` without `value`, a model-set `id`); the eight F144b filter controls still behave (7 dropped, `maxLines 3` for "exactly 3 bullets" kept and scored `wrong`). Hold per call (ceiling) $0.0432; 18 calls at the F144b rate (about $0.0008) is about $0.015; the script stops before a call whose hold would cross the cap. Paid command (key from env): `FIREWORKS_API_KEY=$(pass amr/fireworks_api | head -n1 | tr -d '\r\n') node .claude/scratch/f144c/poc.mjs`.
+
+### F144c RESULT (2026-11-03, run after the pre-registration above; code = ed9bdde)
+
+Run: `.claude/scratch/f144c/result-2026-11-03T19-00-47-854Z.json`, bareguard 0.31.0, deepseek-v4p1-flash via Fireworks, thinking `applied` on every call, 18 of 18 calls, 1 round each, spent $0.021926 (cap $0.10), `stoppedEarly` null. Scored exactly against the pre-registered marks, no refit.
+
+**Verdict: FAIL on (b), 15 of 24 (bar >= 20).**
+
+- (a) PASS. 0 kept checks off the list or carrying a number or word the guardrail never named (0 kept outside scope); the second reader (`verifyKept`) agrees on all 15 kept checks.
+- (b) FAIL. In-scope 24 pairs: 15 match, 7 dropped, 2 none, 0 wrong kept. 15 < 20.
+- (c) Recorded: max in-scope guardrails with nothing kept per call = 1 (`cantCheck` 1 on the am29-walk-2, m7-walk-2 and m7-walk-3 calls; 0 elsewhere). Never above 3.
+- (d) PASS. 0 provider errors, 0 non-tool stops (every `stopReason` tool_use), 0 schema errors, no early stop.
+- (e) PASS. Scope by code = hand scope, 63 of 63 (`scopeDisagreements` 0).
+
+Report (not deciding): `fieldNotOffered` 0 on all 18 calls and `schemaErrors` 0, so the form held (unknown before the run whether Fireworks enforces it, or the model simply obeyed it; not separated here). `strays` 6 in total (m14-walk-3-2 calls 2 and 3, out of scope), none kept.
+
+Per in-scope guardrail (3 calls each):
+- am29-walk-2 line 3 "3 sections, about 180 words each, under 600 words": 0 of 3. `sections` (calls 1-2) and `sectionWords` wordsPerSection 180 (call 3), names ["how it matches the JD","work history","skills"]; all dropped, the name "how it matches the JD" is not in the guardrail's words. An invented section name.
+- m7-walk-2 line 3 "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words": 0 of 3. Calls 1-2 `sectionWords` wordsPerSection 600 with the three named sections (per-section reading), dropped "600 is not a number the guardrail names" (the filter reads it as naming none); call 3 `none`.
+- m7-walk-3 line 3 (same guardrail text): 0 of 3. Calls 1 and 3 the same dropped `sectionWords` 600; call 2 `none`.
+- am29-walk-2 line 4 "under 100 words": 3 of 3 match.
+- m14-walk-3-2 line 3 "exactly 3 bullets": 3 of 3 match (`listItems` 3).
+- m14-walk-5 line 3 "exactly 3 bullets": 3 of 3 match (`listItems` 3).
+- m14-walk-5 line 5 "under 80 words": 3 of 3 match (`maxWords` 80).
+- ticket-triage-6 line 2 g3 "at most 3 words": 3 of 3 match.
+
+All 9 misses are the two resume-section guardrails (am29-walk-2 line 3: 3; m7-walk-2 and m7-walk-3 line 3: 6).
+
+Reading. The per-rule form fixed F144b cause 1: stray fields are 0 and `maxWords 80` and `listItems 3` now pass. Cause 2 remains (the model reads "all under 600 words" per section, 4 of 6 m7 calls), and am29-walk-2 line 3 shows an invented section name. Across F144, F144b and F144c, 0 wrong kept on in-scope guardrails in 135 calls (corrected from 141, orchestrator's miscount); F144 also kept 6 checks on out-of-scope guardrails (mustCarry `nonstop` on m10-walk-flights-3/-4/-5, `sections` twice on m10b-aging-5, mustCarry `priority P1` on ticket-triage-3), which scope by code (F144b on) never sends to the model. Every miss becomes a code ask ("I can't check this"), never a wrong check.
+
+Standing of the bar: the >= 20 of 24 mark was this POC's own pre-registered bar, not signed am16 text. am16's Done-when is the m14-walk-5 5-draft walk plus the $0 rescan. The next step is hamr's to rule.
+
+## F145 PRE-REGISTRATION (2026-11-04, PAID, HARD CAP $0.30; M10 am16 Done-when walk; written before any paid call, NOT yet run)
+
+What is tested: am16's signed Done-when, verbatim: "the walk job m14-walk-5 (`~ exactly 3 bullets` on line 3, `~ under 80 words` on line 5) drafts 5 times on deepseek-flash, each time asking once per guardrail with code's words, no made-up heading or word in any plan; a $0 rescan refuses 0 of the 33 good jobs; a test for each drop fails first."
+
+Code under test: branch `chore/fix-ledger` at HEAD when the run starts (am16 built in 9207e27, 694e098, 39094ce, 4bfc1fd); the run records the sha.
+
+Job: the signed text of m14-walk-5 (`~/.config/fwdloop/flows/m14-walk-5/prose.txt`), sent as the New-job card the panel holds for it (the job box words of `.drafts/d-00mw0jdbj3-ae4f/card.json`: line 3 `~ exactly 3 bullets`, line 5 `~ under 80 words`, three `Ask 1h` lines, destination `/home/hamr/fwdloop-out`, input `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, cap 0.5, ask wait 1h). Only provider and model are set for this walk.
+
+Model: deepseek-flash through Settings' ticked Fireworks row (slot `FIREWORKS_API_KEY`, model `accounts/fireworks/models/deepseek-v4p1-flash`, in $0.45 / out $1.80 per M), the paid-runs rule. The native `deepseek-flash` row (slot `DEEPSEEK_API_KEY`) is also ticked; it is not used. Key from the shell env only, never printed.
+
+Path (the real one, nothing internal called): `.claude/scratch/f145/walk.mjs` starts the real `bin/fwdloop panel` on a free port in an isolated HOME (a mkdtemp with `.config/fwdloop/config.json` copied; hamr's real flows and `.drafts` untouched), then drives the panel's own HTTP doors: `POST /api/author/draft` (the card), `GET /api/author/<id>` until `questions-open`/`green`/`red`/`stopped`, `POST /api/author/<id>/answer` with the human answer `agree` to every ask (what hamr clicks); the panel spawns the real `fwdloop draft` child, and the redraft with `--picks`. 5 fresh drafts in a row, one fresh isolated HOME per draft, the temp homes removed after (the result JSON kept).
+
+Stop rule: before each draft the script adds the spend so far and stops, with no new draft, if the next could cross $0.30 (a draft is about 2 cents per the signed Cap). A draft's own cost is what the draft log books.
+
+Pass marks, on the letter. For each of the 5 drafts:
+- (a) Exactly 2 am16 asks before drafting: line 3 `exactly 3 bullets` and line 5 `under 80 words`, each in code's words: the kept form `Line n, guardrail "<...>": I propose <words>.` or the nothing-kept form `Line n, guardrail "<...>": I can't check this. Your own words, or Not checked?`. Both count as code's words; which one each ask was is recorded. No other am16 ask (the draft raises no other question).
+- (b) The final plan (`draft-1/declaration.json`): line 3's close carries only the picked check (`listItems 3` if proposed and agreed) or is Not checked (hitl); line 5's close only `maxWords 80` if proposed and agreed, or Not checked. No heading, section, mustCarry, or any other shape key or value anywhere in the plan that a pick did not put there: every key under every `close.shape` must be `picked`, every picked entry must equal an agreed proposal, no other step has a shape, and the whole plan carries none of the rule names (sections, sectionWords, sectionOrder, mustCarry, blockLines, minWords, maxLines, nonEmpty, headings) outside `picked`.
+- (c) The draft ends green (a plan the checker accepts), no provider error, no red.
+
+Any miss in any one of the 5 drafts = FAIL. No refit afterwards.
+
+Recorded per draft (not deciding): which asks were "I propose" and which "I can't check", the plain words shown, the cost, the rounds and calls, the suggestion call's raw typed answer (`log.json` entry `check-suggest`, `args`), and the kept check each ask carried.
+
+The two other parts of the Done-when are not re-run here:
+- The $0 rescan: done at P6, 0 of the 33 good jobs refused. The 4 cite-form jobs the rescan refuses were refused before am16 too (the builder's rescan plus the orchestrator's pre-am16 comparison).
+- "A test for each drop fails first": the build's evidence (test/m10-am16-checkpick.test.js, written red first).
+
+Expected cost: about 5 x $0.004 to $0.01 (one suggestion round plus one drafting round each). Unchecked until run: whether the model proposes `listItems 3` / `maxWords 80` every time (F144c: 3 of 3 each on this job); a "can't check" ask is a pass on (a).
+
+### F145 RESULT (2026-11-04, run after the pre-registration above; code = 6787f10)
+
+Verdict: PASS, 5 of 5 drafts on the pre-registered marks (a), (b), (c). Source: `.claude/scratch/f145/result-2026-11-04T06-32-44-673Z.json` (`code` chore/fix-ledger@6787f10, `stoppedEarly` null, 06:32:44 to 06:33:32). Model: Fireworks `accounts/fireworks/models/deepseek-v4p1-flash`. Spent $0.0194 (file: 0.0193779) against the $0.30 cap.
+
+Per draft (cost complete, 1 first round + 1 redraft round, 1 call each): draft 1 $0.003806, draft 2 $0.003925, draft 3 $0.003794, draft 4 $0.003891, draft 5 $0.003963 (about $0.0038 to $0.0040 each). All five phases `green`.
+
+(a) Asks. Every draft asked exactly 2 am16 asks, both the kept-check ("I propose") form, none "I can't check". Full text, identical in all five:
+- `Line 3, guardrail "exactly 3 bullets": I propose exactly 3 list items. Answer "agree" to use it, or type your own words (your answer is added as a new ~ rule on line 3), or answer "drop it" to leave it Not checked.`
+- `Line 5, guardrail "under 80 words": I propose at most 80 words. Answer "agree" to use it, or type your own words (your answer is added as a new ~ rule on line 5), or answer "drop it" to leave it Not checked.`
+Both answered `agree` in every draft.
+
+(b) Final plans. In every draft: line 3 `softgreen` with `shape.picked [{rule:listItems, value:3}]`; line 5 `softgreen` with `shape.picked [{rule:maxWords, value:80}]`; lines 1, 2, 4, 6, 7 `hitl` with no shape. Scan: over all 5 plans, the only key under any `shape` is `picked`; no heading, section, mustCarry or other shape key anywhere. Plan card sentences, every draft: line 3 "The reply is checked as plain text only." + "You picked: exactly 3 list items."; line 5 "The reply is checked as plain text only." + "You picked: at most 80 words."; the hitl lines read "No machine check of the content: you check it at the ask."
+
+The suggestion call (`check-suggest`, outcome `answered`) typed answer, draft 1 args: `{"checks":[{"line":3,"guardrail":1,"rule":"listItems","value":3},{"line":5,"guardrail":1,"rule":"maxWords","value":80}]}`. Drafts 2, 3 and 5 returned the same args. Draft 4 also returned `{"line":1,"guardrail":1,"rule":"maxLines","value":3}` (line 1 has no guardrail on it to check); no ask was made for it and it is in no plan, so the scope step dropped it (spend/rows: still 2 asks, line 1 `hitl`).
+
+Not checked: hamr's own look at the asks on his panel. The drafts ran in isolated homes (mkdtemp), nothing was written to hamr's flows. The $0 rescan and the red-first drop tests are not re-run here (see the pre-registration).
+
+## F146 PRE-REGISTRATION (2026-11-04, $0; M10 am17 riskiest assumption; written before the POC is run, NOT yet run)
+
+What is tested: am17's riskiest assumption, before any build: a Revise can carry the previous draft's check picks, and code can decide per guardrail "unchanged line and exact words: keep the pick, skip the suggestion" against "new or changed: suggest and ask", with an own-words `~` line counted as settled. No `src/` change, no provider, no key, no `pass`.
+
+Code under test: branch `chore/fix-ledger` at HEAD when the POC runs. Real functions only: `readQuestions` (src/authoring.js), `ruleOfAnswer` (src/pageask.js), `parseSignedText` (src/signed-text.js), `cardToProse` (src/panel/authorcard.js), `scopedRules` and `settleRules` (src/checkpick.js). The keep/ask decision is written in the POC script only (poc/m10-am17/), never in `src/`.
+
+Input: a copy of a real answered draft's files (hamr's `.drafts/d-00mw1qzz19-9c06`: `draft/questions.json`, `draft/answer-1.json`, `draft/answer-2.json`, `card-1.json`, `draft-1/declaration.json`), paths neutralised; plus variants of its card that the POC builds by editing the job text.
+
+Pass marks, on the letter:
+- (a) The POC names, from the real files, the file and field where the last draft's picks live after an am16 answer-redraft, and shows a Revise can rebuild the same `{line, rule, check|null, added, own}` list `src/panel/author.js` hands `--picks` from them (using only the files on disk). PASS needs the rebuilt list to equal what the answer path builds from the same files, and each file/field named. A missing record that the Revise would need is a FAIL of (a) and is reported as such.
+- (b) The POC loads those picks and a revised card, and computes keep/ask per guardrail: (b1) a cap-only change gives 0 asks, every pick kept; (b2) one guardrail's words changed gives exactly that one guardrail asked and the others kept; (b3) a deleted guardrail: its pick is gone (not in the kept list, no check for it in the settled result); (b4) an own-words `~` line (a pick with `own`) is kept and not asked, and the `~` line it added is not asked either.
+- (c) What `draft()` sends the model carries no pick: grep of every prompt builder `draft()` calls (`suggestUserText`, `SUGGEST_SYSTEM`, `buildSystemPrompt`, the drafter's user text) plus a run of those builders with a distinctive sentinel pick string showing the sentinel in no output. `checkPicks` is read in one place only.
+- Must-fail: each bar is shown red once by breaking the input (b1: change a guardrail's word with a cap change; b2: also edit another; b3: leave a stale pick; b4: drop `own`; a: remove `questions.json`; c: put the sentinel into the lines), then restored. A bar that cannot be made red is not counted.
+
+Recorded either way: anything that makes am17 hard to build as signed (for example a record that does not exist, a number that shifts, a case two readers disagree on). Signed text is not changed.
+
+Cost: $0. No model call, no key, no `pass`.
+
+### F146 RESULT (2026-11-04, $0; code = chore/fix-ledger at the POC commit; script `poc/m10-am17/keep-picks.mjs`, fixture `poc/m10-am17/fixture/` = copy of hamr's answered draft `d-00mw1qzz19-9c06`, paths neutralised)
+
+Verdict: every bar PASS on the letter, each shown red once by breaking its input (RED-OK for all six). Spend $0; no provider call outside a fake provider, no key, no `pass`, no `src/` change.
+
+(a) PASS. Where the picks live today: they are NOT in one record. The words are in the plan dir that asked (`draft/` for the first plan): `questions.json` (per ask: `line`, `ruleNo`, `ruleText` = the guardrail's exact words, `check`, `proposal`) and `answer-K.json` (`answer`, `rule` = the `~` line the answer added). The answer-redraft's marker `redraft-<n>.json` has `fromPlan` pointing at that plan dir, plus `answers` (line, question, answer only: no check, no ruleNo). The checks alone ride the plan's `draft-<n>/declaration.json` (`steps[].close.shape.picked`, `guardrailClasses`, `unjudgeable`), with no guardrail words. `--picks` is argv of the redraft child only (src/panel/author.js:760, bin/fwdloop:916); it is not written to disk (the child log is `redraft-<n>.log`). A Revise today (`revise()`, author.js:658) spawns `fwdloop draft` with no `--picks`. The POC rebuilt `{line, rule, check, added, own}` from `redraft-1.json` -> `fromPlan` -> `readQuestions` + `ruleOfAnswer`, and the checks per line equal draft-1's `shape.picked` exactly (line 3 listItems 3, line 5 maxWords 80). This covers a FIRST Revise after an answer-redraft.
+
+(b) PASS, 4 of 4 on the registered inputs. b1 cap-only: 0 asks, 2 kept. b2 line 5 "under 80 words" -> "under 60 words": exactly `5:under 60 words` asked, line 3 kept. b3 line 5 guardrail and its agree line deleted: no kept pick, no check, no ask. b4 own words on line 3 (`three tidy bullets`): kept as own-words, not asked, its `~` line not asked, cap-only gives 0 asks. The keep/ask decision is POC code (match on line + exact guardrail text; the `~` line an answer wrote counts as settled while a pick on that line recorded it); the real `settleRules` then gave the checks/notes.
+
+(c) PASS. `draft()` with a sentinel in `checkPicks` (`added`) sent 2 calls (the suggestion call, then a drafting round) and the sentinel is in none of the messages or tool schemas. `checkPicks` is read in one place (src/drafter.js:736, `settleRules`).
+
+Recorded, not deciding (what makes am17 hard to build exactly as signed; signed text unchanged):
+1. A second Revise has no record. A Revise's `draft-<n>/` has no `questions.json`/answers when nothing was asked, and the answer-redraft's own dir (`draft-1/`) has none either; its picks are only the checks in `declaration.json`, without the guardrail words, and own-words / Not checked picks only as `unjudgeable` sentences. So item (1) "kept with the card" and the Done-when's second Revise need one new persisted record carried forward from plan to plan (a file in each draft dir written by `fwdloop draft`, or a `picks` field in an existing draft-dir file); the answer-time record cannot be walked back across a chain.
+2. A pick has two sets of words: the original guardrail and the `~` line an agree wrote. Edit only the agree-written line (80 -> 60): the original is unchanged so the pick (maxWords 80) is kept, and the edited line is asked as new: the plan then carries a check that disagrees with the line beside it. Edit only the original: the agree line stays settled but its check is gone (no ask, no check, line unchecked). Signed (2)/(3) say "line and words" without saying which. The registered b2 passes only because the agree line is treated as settled by the pick even when the original changed (the POC's choice).
+3. "Tied to its line number": inserting a line at the top shifts every number, so every pick is dropped and all four guardrails are asked (4 asks, 0 kept). Tying by line number is literal in the signed text; tying by the guardrail's words and its step text would not do this. Not tested further.
+4. Rule numbers shift when an earlier `~` rule on the same line is deleted; the POC renumbers a kept pick to where its guardrail now is before `settleRules` (which matches by rule number).
+5. In `draft()` a Revise needs the suggestion call and asks for only the new/changed rules while `settleRules` needs the kept ones: today one `shapeRules` set feeds both (src/drafter.js:659-736); it would have to split. A draft that stops at the new asks (`look-asks`) must hand the kept picks on to its answer-redraft too (today's `--picks` is built from that draft's answers only).
+6. The am1 count: a kept pick is not an ask, so it cannot count; nothing in the POC touches am1's counter (unchecked).
+
+## F146b PRE-REGISTRATION (2026-11-04, $0; M10 am18 riskiest assumption; written before the POC is run, NOT yet run)
+
+What is tested: am18's rule, before any build: a kept pick follows its job line's words plus the guardrail's exact words, never the number; an agreed proposal's added `~` line and its source guardrail are one pick; duplicate line words match in order. No `src/` change, no provider, no key, no `pass`. Decision function is POC code only (`poc/m10-am17/keep-picks-am18.mjs`); real functions as in F146 (`readQuestions`, `ruleOfAnswer`, `parseSignedText`, `cardToProse`, `scopedRules`, `settleRules`, `appendAnswersToJob`).
+
+Input: the F146 fixture (`poc/m10-am17/fixture/`, hamr's answered draft); variants built by editing its card, and for (e)/(f) a scratch copy of the fixture with the plan's `card.json` / `questions.json` / `answer-K.json` rewritten in the same shapes.
+
+Pass marks, on the letter:
+- (a) Insert a line at the top: 0 asks, both kept picks now on their line's new number (3 -> 4, 5 -> 6).
+- (b) Swap two lines (the list-jobs block and the closing-note block, each with its guardrails and ask): 0 asks, picks follow their lines.
+- (c) Edit only the agree-added `~ at most 80 words` (80 -> 60): the line-5 pick is asked (only line 5 asked, line 3 kept) and the plan carries no maxWords 80 check. Edit only its source `~ under 80 words` (-> 60): also asked, line 3 kept, no maxWords 80 check kept.
+- (d) Change a job line's own words (not its `~`): that line's guardrails are asked, the other line's pick is kept.
+- (e) Two lines with identical words, each with a different pick (first agreed with a check, second Not checked): matched in order, first keeps its check, second keeps Not checked, 0 asks.
+- (f) A line with an earlier unrelated `~` rule before the picked one; the earlier rule is deleted: the pick survives, renumbered to rule 1, the plan carries its check, 0 asks.
+- (g) The pairing agreed-added line <-> source guardrail is read from disk: `answer-K.json` (`rule` = added line, `ruleText` = source, `line`) plus `card.json` for the line's words. If it needs anything not on disk, FAIL and say what one record must hold.
+- Must-fail: each bar shown red once by breaking its input (a: also edit another line's words; b: swap and edit a guardrail; c: edit nothing; d: also change the other line's words; e: pick order reversed; f: also change the picked rule's words; g: remove `rule` from the answer file), then restored. A bar that cannot be made red is not counted.
+
+Recorded either way: anything am18 cannot do as written (signed text unchanged); the record shape a build needs (F146 finding 1: one record carried plan to plan).
+
+Cost: $0. No model call, no key, no `pass`.
+
+### F146b RESULT (2026-11-04, $0; code = chore/fix-ledger at the POC commit; script `poc/m10-am17/keep-picks-am18.mjs`, same F146 fixture)
+
+Verdict: every bar PASS on the letter, each shown red once by breaking its input (7 of 7 RED-OK). Spend $0; no provider, no key, no `pass`, no `src/` change.
+
+Disclosure: on the first run (b) and (e) failed because of my own input numbers (I counted the `~` lines as job lines: expected lines 3 and 7, and put the second duplicate on line 4; the real numbers are 3 and 5, and 3). I corrected those numbers in the script and reran; no rule or pass mark was loosened.
+
+- (a) PASS: top line inserted: 0 asks, picks on lines 4 (listItems 3) and 6 (maxWords 80). Red: also edit line 3's guardrail -> asked.
+- (b) PASS: two blocks swapped: 0 asks, picks follow to lines 3 and 5. Red: also edit a guardrail -> asked.
+- (c) PASS (both halves): edit only the added `~ at most 80 words` -> 60: line 5's pick asked, line 3 kept, no maxWords 80 check kept. Edit only the source `under 80 words` -> 60: same. Red: edit nothing -> 0 asks, check kept.
+- (d) PASS: job line 3's own words changed: its two guardrails asked, line 5 kept with its check. Red: also change line 5's words -> line 5 asked too.
+- (e) PASS: two lines with identical words, first agreed (maxWords 80), second Not checked: 0 asks, first keeps the check, second keeps Not checked. Red: stored picks reversed -> asked. (The red works through the pair check, not only the order, so it shows the order matters but is not an isolated order test.)
+- (f) PASS: an earlier `~ plain tone` deleted: the pick was rule 2, is now rule 1, 0 asks, maxWords 80 carried. Red: also change the picked rule's words -> asked.
+- (g) PASS: the pairing is on disk. `draft/answer-K.json` holds `line`, `ruleText` (source guardrail) and `rule` (the added `~` line); `card.json` (the card at the time of the ask) gives that line's words. `rule` equals what the real `ruleOfAnswer` makes of the answer. Red: `rule` removed -> pairing null. This covers a FIRST Revise after an answer-redraft only (F146 finding 1 still stands).
+
+Record shape a build needs (one record carried from plan to plan, F146 finding 1): per pick `{lineWords, occurrence (n-th line with the same words), ruleText (source guardrail), added (the `~` line the agree/own answer wrote, or null), check | null, own, left}`. Line number and rule number are NOT stored: both are recomputed on the new card. Written by `fwdloop draft` into each draft dir, and copied forward (kept picks plus the newly answered ones) so a second Revise can read it.
+
+Recorded, not deciding (signed text unchanged):
+1. A broken pair asks two rules (the changed one and its partner) for one pick; the build must fold them to one ask (am18 (4) says "asks again", singular).
+2. A line whose own words changed turns its old agreed `~` line back into a plain guardrail, asked beside the source (two asks, one of them the old proposal). Signed (3) says "its guardrails are asked"; it does not say whether the old added line is asked or dropped.
+3. A line with a typo-level change in its words is a new line and loses its picks (signed (3) says so; it costs one re-ask).
+4. Equal-word lines match in order only: swapping two equal-word lines swaps nothing (picks stay with position). Signed (3) says "matched in their order"; moving one of two identical lines cannot be followed.
+5. F146 findings 5 and 6 (one `shapeRules` set feeds both the suggestion call and `settleRules`; the am1 counter) are untouched by this POC.
+
+## F147 PRE-REGISTRATION (2026-11-04, $0; M10 am19 riskiest assumption; written before the POC result is recorded)
+
+What is tested: am19's rule, before any build: every Inputs line's name must be granted to at least one model step (not an ask step, not the send step), through its tool or in its `reads`; else `Input "notes" is read by no step.` No `src/` change, no provider, no key, no `pass`, `~/.config/fwdloop` read only. The rule is POC code only (`poc/m10-am19/unreached-input.mjs`), run over a signed plan's `declaration.json` + the arbiter parsed from its `prose.txt` (`parseSignedText`). Two forms are run and both recorded: the exact one (the tool that serves that input's kind: `read`/`grep` for .md/.txt and pages/tickets, `readDocx` for .docx, `addressCells` for .csv; or the role in `reads`) and the literal one (`read` tool or `reads` only, as signed).
+
+Disclosure: before this pre-registration I ran the script once to see how the signed flows are laid out (exploration, no marks decided from it).
+
+Pass marks, on the letter:
+- (a) `m14-walk-7` signed declaration: red, naming `notes`.
+- (b) `m14-walk-6` signed plan: green.
+- (c) the good signed jobs under `~/.config/fwdloop/flows/*/signed` (the 33 of the M10 am16 rescan: all signed flows minus the 4 cite-form jobs and minus `m14-walk-1` and `m14-walk-3-2`, refused earlier by F135/F137): 0 refused. For each refusal: is the input truly unreachable, or does it reach a step another way (CSV roles via `reads`, page/sheet facts, ticket/MCP inputs, readDocx, picks, send step)? A refusal of a job that works live is a FAIL of the rule as written; not fitted.
+- (d) recorded, not a mark: where an Inputs line becomes a role and how each input kind reaches a step at run time, so the build tests "granted" exactly.
+- (e) must-fail: (a) shown red, then the check broken -> green, then restored -> red.
+
+Recorded either way: anything am19 cannot do as written (signed text unchanged).
+
+Cost: $0.
+
+### F147 RESULT (2026-11-04, $0; code = chore/fix-ledger at the POC commit; script `poc/m10-am19/unreached-input.mjs`)
+
+Verdict: (a) PASS, (b) PASS, (c) FAIL on the letter, (d) recorded, (e) PASS (and (a)-(c) agree with a second, literal form of the rule). Spend $0; no provider, no key, no `pass`, no `src/` change, flows read only.
+
+- (a) PASS: `m14-walk-7` -> `Input "notes" is read by no step.` (steps 1, 3, 7 hold `write`; the others nothing; `picks: {notes}` on steps 1 and 3 is not a grant).
+- (b) PASS: `m14-walk-6` green (`read` on steps 1, 3, 5).
+- (c) FAIL on the letter: of the 33 good signed jobs (39 signed; minus aging-live-1, m10-walk-csv, m10-walk-csv-2, m10-walk-csv-3 which the baseline `validateDeclaration` with `fitJobLine` refuses, minus m14-walk-1 and m14-walk-3-2) 2 are refused, by the exact and the literal form alike:
+  - `m14-walk-7`: the same job as (a); it IS in the 33, so (a) and (c) as written cannot both pass. Truly unreachable; run-1 went red live ("No garden notes were provided in reads").
+  - `m14-walk-8`: steps 1, 3, 5 hold `write` only, no `read`, `reads` empty; run-1 ended not-done at step `weekly_jobs`: "No notes were available to derive jobs from" (the same defect, seen live). Truly unreachable, no other route (no CSV/page/docx/ticket/MCP input; one .md file input).
+  No refused job works live. Not refit: the mark stays FAIL; the rule refuses exactly the two jobs that failed live for this cause. Recorded for hamr: (c) as written needs "0 refused except jobs whose live run failed for this cause", or the good set to exclude them, to be passable.
+  Also recorded (not in the 33): `m14-walk-1` is also refused by the rule (same defect, write only); the 4 cite-form jobs: only aging-live-1 is refused (its CSV `aging` is in no step's `reads` and `read` cannot serve a csv); the other three list `aging`/`expenses` in `reads`.
+- (d) How an input reaches a step (read from src): `source <role> = file:|page` in the signed Inputs becomes `arbiter.sources[]` `{kind, role, path}` (`parseSignedText`, src/signed-text.js; roles used by src/declaration.js:698-705). At run start `freezeInputs` (src/runner.js:435) freezes a file as `inputs/<role><ext>` and a page or ticket as `inputs/<role>.txt`; `inputsByRole` maps role -> frozen path. Three routes: (1) the step's `reads` list: `readsMap` in `runFlow` (src/runner.js ~994) hands the frozen text to the step; the validator accepts a role in `reads` for a csv or page input, and for a .md/.txt/.docx only when the step quotes it (`close.cited.source`), otherwise it refuses and says to grant `read` (src/declaration.js:916-921); (2) a granted tool by role: `read`/`grep` serve `.md`/`.txt` roles, which includes every page and ticket (`rolePrimitiveFor`, src/primitives.js:102-108, `sandboxedReadTool`), `readDocx` serves `.docx`, `addressCells` serves `.csv`; `read` refuses a docx or csv role by name; (3) nothing else: `picks` and `inputFacts` name headings only, they are not a grant; an ask step and the send step are not model steps. The test "granted" for a build: some step that is neither an ask line nor a send line has the role in `reads`, or holds the verb that serves its kind (above). The signed literal wording ("its `read` tool, or in its `reads`") gives the same 33-job result; it differs only for a docx/csv input granted `readDocx`/`addressCells` with no `read` and no `reads`, which no signed job has.
+- (e) PASS: (a) red; check broken (never reds) -> green; restored -> red. Also walk-7 with step 1 granted `read` -> green, so the check judges the plan.
+
+Recorded, not deciding (signed text unchanged): am19 (1) says "through its `read` tool" for every kind; a docx input is served by `readDocx` and a csv by `addressCells`, so the literal wording would pass a docx input whose only grant is an unrelated `read`. Where the check lives is open: `validateDeclaration` (all three callers: draft, revise, sign) vs. the drafter's check loop. The baseline "good" set used here has no page/sheet words, so it is lighter than a real draft check.
+
+## F148 PRE-REGISTRATION (2026-11-04, $0; M10 am20 riskiest assumption; Start over can find and use the picks of the plan it starts over from)
+
+What is tested: am20, before any build. On hamr's real walk-9 draft dir `~/.config/fwdloop/flows/.drafts/d-00mw23a969-7629` (READ ONLY, nothing written there):
+- (a) the Start-over path can find the picks record of the plan it starts over from: the newest `draft-<n>` folder holding `picks-record.json`, else `draft` (the rule `carryArgv` applies to a Revise); name the file and field.
+- (b) a script `poc/m10-am20/startover-carry.mjs` feeds that record and the job as it stands (the last card minus the weather line added in walk-9 revise 2) to `matchRecord`: 0 asks.
+- (c) must-fail: (b) shown red once by breaking the input (`BREAK=1`: the record's line words damaged in memory).
+
+Disclosure: the script was run once, with both outputs seen, before this text was committed (the bars above were fixed before I wrote the script; they were not changed after the run).
+
+Cost: $0.
+
+### F148 RESULT (2026-11-04, $0; script `poc/m10-am20/startover-carry.mjs`; the draft dir was only read)
+
+Verdict: (a) PASS, (b) PASS, (c) PASS. Spend $0; no provider, no key, no `pass`, no `src/` change.
+- (a) The record Start over can carry is `draft-3/picks-record.json`, field `picks` (2 entries: "exactly 3 bullets", "under 80 words"), the newest plan folder holding one (draft-3 is the red revise-2 plan; `draft` holds none, `draft-1` and `draft-2` hold the same two). Found by the rule `carryArgv` applies to a Revise.
+- (b) The job as it stands minus the weather line (the unchanged card): `matchRecord` -> 0 asks, 2 kept.
+- (c) `BREAK=1` (line words damaged in memory) -> 2 asks, 0 kept, exit 1; unbroken -> exit 0.
+- Recorded: the Start-over start path (`start`, src/panel/author.js) passes no `--carry`; the earlier draft's id is already in the body as `startedOverFrom`, so the plan folders to look in are known there.
+
+## F149 (2026-11-04, finding only, unsigned, no fix): a misleading sentence on a red plan (walk-9 revise 2)
+
+Seen on hamr's walk-9 revise 2 (`d-00mw23a969-7629`, `draft-3`): the job's last line was "Write one line about the weather from the notes", after "Write it out", so the last line was not the send line. The validator reds were right: `declaration: unjudgeable names line 8, which has no guardrail to be unjudgeable about; declaration: send at line 8 (steps[7]) is not granted a catalogue primitive of class "write"; declaration: send at line 8 (steps[7]) does not read the emits of any earlier signed a...` (log in `revise-3.log`).
+The page showed "The AI's notes on which lines it can check are not in a form the checker accepts." Cause: `PLAN_CHECK_RULES` in `src/plain-checks.js` maps by the FIRST matching rule over the first red; the first red holds the word `unjudgeable`, so the rule `/guardrailClasses|unjudgeable|refused/` wins. That rule blames the AI's notes; the real cause is that line 8 is the send line by position (the last line with the Destination) while the job puts a work line there, which is the second and third reds (the `send at line N` rule's sentence).
+A clean fix would touch: (1) `src/plain-checks.js`: an earlier rule for `unjudgeable names line \d+, which has no guardrail` (or ordering the `send at line` rule first) with a sentence naming the last line; or (2) the order of the reds in `src/declaration.js` so the root red (send slot) comes before its consequence; (3) the page's pick of which red to show (first red). Not built: `plain-checks.js` and `declaration.js` are under the am19 build on this branch; costs if left: a user sees a wrong cause and "Draft again", which repeats the red.
+
+## F150 pre-registration (2026-11-04, $0): M10 am21, an edited added line is the one ask
+
+Why: hamr's live walk `m14-walk-11` (draft `d-00mw28nmoh-e174`, read only). Card-1 changed the agreed `~ at most 80 words` to `~ at most 60 words`; draft-1's one ask was about the source "under 80 words" (proposal at most 80); `agree` re-added `~ at most 80 words`; the plan checked 80 and "at most 60 words" was Not checked (no-pick) without being asked.
+No provider, no key, no `pass`, no write to the draft dir. Script `poc/m10-am21/edited-pair.mjs`; replays the real card-1 and the record the revise carried (`draft/picks-record.json`) through the real `scopedRules`, `matchRecord`, `rowsFromAnswer`, `checkAsks`, `ruleOfAnswer`, `settleRules`, with the suggestion canned to `maxWords 60` (the call itself is am16's, proven F144c).
+- (a) The one ask is about "at most 60 words" (Line 6, ruleText "at most 60 words"), and it is the only ask. Expected FAIL on the code as it stands (the ask is about "under 80 words").
+- (b) An `agree` to that ask gives a card whose closing-note lines are `~ under 80 words` and `~ at most 60 words` only (no `at most 80 words`), and the plan pick on line 6 is `maxWords 60` only, with no Not-checked note for line 6.
+- (c) The edited line is never `no-pick` without an ask: with no answer given, the edited rule is among the asked rules (control: with the record's `added` line unchanged, no ask and the line is covered).
+Pass bar is mine, not signed text. No refit: a miss stays FAIL on the letter.
+
+### F150 RESULT (2026-11-04, $0; script `poc/m10-am21/edited-pair.mjs`; the draft dir was only read)
+
+Verdict: (a) PASS, (b) PASS, (c) PASS (control PASS). Spend $0; no provider, no key, no `pass`.
+- Before the fix (same script on the code as it stood): (a) FAIL (the one ask was about "under 80 words"), (b) FAIL (no answer path that replaces the edited line), (c) FAIL (asked rule 6.1 "under 80 words", the edited rule 6.2 was folded).
+- After: (a) one ask, line 6 "at most 60 words"; (b) the closing-note `~` lines are `under 80 words` and `at most 60 words` only, line 6 carries `maxWords 60` once, no Not-checked note; (c) the edited rule 6.2 is asked; the control (added line unchanged) asks 0.
+- Built: `matchRecord` returns the edited added line as the asked rule with `pairRule` (its source's number) and folds the source; `applyAnswers` (src/panel/authorcard.js) is the one writer of what answers do to the job box and picks (replace, not append, for a `pairRule` ask). The am18 (4) test that pinned the old target was updated to the am21 target.

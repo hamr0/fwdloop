@@ -1,0 +1,265 @@
+{
+ "run-1": {
+  "rows": 8,
+  "auditUsd": 0.06838274999999999,
+  "spendRounds": 8,
+  "spendUsd": 0.06838275,
+  "histUsd": 0.06838274999999999,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "red",
+  "files": [
+   "answer.<uuid>.consumed.json",
+   "artifacts/aging_report.json",
+   "artifacts/checked_totals.json",
+   "artifacts/customer_totals.json",
+   "ask.json",
+   "asks/<uuid>.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl",
+   "state.json"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:hitl",
+   "checked_totals#1:paused",
+   "checked_totals#1:green",
+   "written_totals#1:red"
+  ]
+ },
+ "run-2": {
+  "rows": 7,
+  "auditUsd": 0.12518725000000003,
+  "spendRounds": 13,
+  "spendUsd": 0.12518725,
+  "histUsd": 0.12518725000000003,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "struck-out",
+  "files": [
+   "artifacts/aging_report.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:red",
+   "aging_report#3:red",
+   "aging_report#4:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:red"
+  ]
+ },
+ "run-3": {
+  "rows": 6,
+  "auditUsd": 0.07836825,
+  "spendRounds": 11,
+  "spendUsd": 0.07836825,
+  "histUsd": 0.07836825,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "attempt-fallback",
+  "files": [
+   "artifacts/aging_report.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:red",
+   "customer_totals#4:red"
+  ]
+ },
+ "run-4": {
+  "rows": 6,
+  "auditUsd": 0.07232325,
+  "spendRounds": 11,
+  "spendUsd": 0.07232325000000002,
+  "histUsd": 0.07232325,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "attempt-fallback",
+  "files": [
+   "artifacts/aging_report.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:red",
+   "customer_totals#4:red"
+  ]
+ },
+ "run-5": {
+  "rows": 6,
+  "auditUsd": 0.08025100000000002,
+  "spendRounds": 11,
+  "spendUsd": 0.08025099999999999,
+  "histUsd": 0.08025100000000002,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "attempt-fallback",
+  "files": [
+   "artifacts/aging_report.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:red",
+   "customer_totals#4:red"
+  ]
+ },
+ "run-6": {
+  "rows": 8,
+  "auditUsd": 0.070676,
+  "spendRounds": 8,
+  "spendUsd": 0.070676,
+  "histUsd": 0.070676,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "complete",
+  "files": [
+   "answer.<uuid>.consumed.json",
+   "artifacts/aging_report.json",
+   "artifacts/checked_totals.json",
+   "artifacts/customer_totals.json",
+   "artifacts/written_totals.json",
+   "ask.json",
+   "asks/<uuid>.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl",
+   "state.json"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:red",
+   "aging_report#2:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:red",
+   "customer_totals#3:hitl",
+   "checked_totals#1:paused",
+   "checked_totals#1:green",
+   "written_totals#1:green"
+  ]
+ },
+ "run-7": {
+  "rows": 6,
+  "auditUsd": 0.0970995,
+  "spendRounds": 5,
+  "spendUsd": 0.0970995,
+  "histUsd": 0.0970995,
+  "histRows": 1,
+  "balanced": true,
+  "unpriced": 0,
+  "outcome": "complete",
+  "files": [
+   "answer.<uuid>.consumed.json",
+   "artifacts/aging_report.json",
+   "artifacts/checked_totals.json",
+   "artifacts/customer_totals.json",
+   "artifacts/written_totals.json",
+   "ask.json",
+   "asks/<uuid>.json",
+   "audit.jsonl",
+   "diary.jsonl",
+   "log.json",
+   "pids.jsonl",
+   "run.json",
+   "spend.jsonl",
+   "state.json"
+  ],
+  "badCalls": [],
+  "cutOff": [],
+  "stopReasons": [
+   "tool_use",
+   "end_turn"
+  ],
+  "verdicts": [
+   "aging_report#1:hitl",
+   "customer_totals#1:red",
+   "customer_totals#2:hitl",
+   "checked_totals#1:paused",
+   "checked_totals#1:green",
+   "written_totals#1:green"
+  ]
+ }
+}

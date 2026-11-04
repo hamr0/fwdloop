@@ -41,7 +41,7 @@ const withFile = async (name, bytes, fn) => {
 
 test('a markdown document: the drafter is told it may quote it, and a cited part whose words are in the document is valid', () => withFile('terms.md', MD, async (f) => {
   const p = fakeProvider([toolReply(decl(good()))]);
-  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.declaration.steps[0].close.cited.count, { min: 2, max: 2 });
   const sys = p.calls[0].messages[0].content;
@@ -54,7 +54,7 @@ test('a markdown document: the drafter is told it may quote it, and a cited part
 test('a label that is not in the document is refused at $0 naming the line', () => withFile('terms.md', MD, async (f) => {
   const bad = [{ name: 'fee', shape: 'number', anchor: 'The cost is', rule: { op: 'lt', value: 100 } }];
   const p = fakeProvider([toolReply(decl(bad)), toolReply(decl(good()))]);
-  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true);
   assert.equal(r.revisions, 1);
   assert.ok(JSON.stringify(p.calls[1].messages).includes('line 1') && JSON.stringify(p.calls[1].messages).includes('The cost is'), 'the refusal named the line and the word');
@@ -63,15 +63,15 @@ test('a label that is not in the document is refused at $0 naming the line', () 
 test('a number rule the person never wrote is refused on a document too', () => withFile('terms.md', MD, async (f) => {
   const bad = [{ name: 'fee', shape: 'number', anchor: 'The fee is', rule: { op: 'lt', value: 77 } }];
   const p = fakeProvider([toolReply(decl(bad)), toolReply(decl(bad)), toolReply(decl(bad))]);
-  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, false);
   assert.ok(r.reds.some((x) => x.includes('77') && x.includes('line 1')), JSON.stringify(r.reds));
 }));
 
 test('a .docx document: proved on its paragraph text', () => withFile('terms.docx', makeDocx(para('Heading1', 'Fees') + para(null, 'The fee is 45 dollars per month.') + para(null, 'The fee is 60 dollars per month.')), async (f) => {
   const p = fakeProvider([emptyMap(), toolReply(decl(good()))]);
-  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: prose(f), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, r.reds.join('\n'));
   const bad = fakeProvider([emptyMap(), toolReply(decl([{ name: 'fee', shape: 'number', anchor: 'The cost is' }])), toolReply(decl([{ name: 'fee', shape: 'number', anchor: 'The cost is' }])), toolReply(decl([{ name: 'fee', shape: 'number', anchor: 'The cost is' }]))]);
-  assert.equal((await draft({ proseText: prose(f), provider: bad, rates: RATES, modelId: MODEL })).ok, false);
+  assert.equal((await draft({ proseText: prose(f), provider: bad, rates: RATES, modelId: MODEL, offerQuestions: false })).ok, false);
 }));

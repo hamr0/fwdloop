@@ -41,8 +41,7 @@ async function session() {
   // the revise's card (as submitted) carries the key (a hand-planted leak); the plan dir's prose is clean so sign's own plan-dir sweep passes and ONLY the setup scrub is under test
   writeFileSync(path.join(dir, 'card-1.json'), `${JSON.stringify({ ...card, job: `read my resume and the JD ${KEY}` }, null, 2)}\n`);
   const change = validArgs();
-  change.steps[2].close.shape.linesPerInvoice = 1; // am16 C12: mustCarry comes with linesPerInvoice
-  change.steps[2].close.shape.mustCarry = ['JD'];
+  change.steps[2].reads = [...change.steps[2].reads].reverse(); // the revise changes the plan (the drafter writes no check any more, M10 am16), so its hash differs
   const second = await draftToDir({
     proseFile, dir: path.join(dir, 'draft-1'), root, name: 'job2', provider: fakeProvider([toolReply(change)]), rates: RATES, modelId: MODEL, env: {},
   });

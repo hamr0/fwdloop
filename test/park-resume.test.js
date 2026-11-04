@@ -19,7 +19,7 @@ import path from 'node:path';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
-import { answerAsk } from '../src/ask.js';
+import { answerAsk, serializeArtifact } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { sandboxSend, SEND_DIR } from './send-sandbox.js';
 
@@ -905,6 +905,7 @@ test('F45 fix 3: history wallMs times the whole run (through the pause), not jus
 // ---------------------------------------------------------------------------
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
+// M15 item 3: the shipped file is the accepted answer's text, not its JSON; the accepted artifact is `{text}`, so its JSON hash is the hash of the text put back in it
 const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
 const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
 const realSendArgs = (args) => ({ ...baseRunArgs(args), sendStep: sendViaPrimitive });
@@ -966,7 +967,7 @@ test('M4b p3 unchanged: an untouched accepted artifact ships, and the shipped by
     assert.equal(done.outcome, 'complete', done.red);
     const files = shippedFiles(runId);
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(readFileSync(path.join(SEND_DIR, files[0]))), recorded);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), recorded);
   } finally { cleanShipped(runId); }
 });
 
