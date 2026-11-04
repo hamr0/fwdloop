@@ -6385,3 +6385,14 @@ Verdict: (a) PASS, (b) PASS, (c) FAIL on the letter, (d) recorded, (e) PASS (and
 - (e) PASS: (a) red; check broken (never reds) -> green; restored -> red. Also walk-7 with step 1 granted `read` -> green, so the check judges the plan.
 
 Recorded, not deciding (signed text unchanged): am19 (1) says "through its `read` tool" for every kind; a docx input is served by `readDocx` and a csv by `addressCells`, so the literal wording would pass a docx input whose only grant is an unrelated `read`. Where the check lives is open: `validateDeclaration` (all three callers: draft, revise, sign) vs. the drafter's check loop. The baseline "good" set used here has no page/sheet words, so it is lighter than a real draft check.
+
+## F148 PRE-REGISTRATION (2026-11-04, $0; M10 am20 riskiest assumption; Start over can find and use the picks of the plan it starts over from)
+
+What is tested: am20, before any build. On hamr's real walk-9 draft dir `~/.config/fwdloop/flows/.drafts/d-00mw23a969-7629` (READ ONLY, nothing written there):
+- (a) the Start-over path can find the picks record of the plan it starts over from: the newest `draft-<n>` folder holding `picks-record.json`, else `draft` (the rule `carryArgv` applies to a Revise); name the file and field.
+- (b) a script `poc/m10-am20/startover-carry.mjs` feeds that record and the job as it stands (the last card minus the weather line added in walk-9 revise 2) to `matchRecord`: 0 asks.
+- (c) must-fail: (b) shown red once by breaking the input (`BREAK=1`: the record's line words damaged in memory).
+
+Disclosure: the script was run once, with both outputs seen, before this text was committed (the bars above were fixed before I wrote the script; they were not changed after the run).
+
+Cost: $0.
