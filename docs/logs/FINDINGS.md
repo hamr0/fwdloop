@@ -6309,3 +6309,23 @@ Recorded, not deciding (what makes am17 hard to build exactly as signed; signed 
 4. Rule numbers shift when an earlier `~` rule on the same line is deleted; the POC renumbers a kept pick to where its guardrail now is before `settleRules` (which matches by rule number).
 5. In `draft()` a Revise needs the suggestion call and asks for only the new/changed rules while `settleRules` needs the kept ones: today one `shapeRules` set feeds both (src/drafter.js:659-736); it would have to split. A draft that stops at the new asks (`look-asks`) must hand the kept picks on to its answer-redraft too (today's `--picks` is built from that draft's answers only).
 6. The am1 count: a kept pick is not an ask, so it cannot count; nothing in the POC touches am1's counter (unchecked).
+
+## F146b PRE-REGISTRATION (2026-11-04, $0; M10 am18 riskiest assumption; written before the POC is run, NOT yet run)
+
+What is tested: am18's rule, before any build: a kept pick follows its job line's words plus the guardrail's exact words, never the number; an agreed proposal's added `~` line and its source guardrail are one pick; duplicate line words match in order. No `src/` change, no provider, no key, no `pass`. Decision function is POC code only (`poc/m10-am17/keep-picks-am18.mjs`); real functions as in F146 (`readQuestions`, `ruleOfAnswer`, `parseSignedText`, `cardToProse`, `scopedRules`, `settleRules`, `appendAnswersToJob`).
+
+Input: the F146 fixture (`poc/m10-am17/fixture/`, hamr's answered draft); variants built by editing its card, and for (e)/(f) a scratch copy of the fixture with the plan's `card.json` / `questions.json` / `answer-K.json` rewritten in the same shapes.
+
+Pass marks, on the letter:
+- (a) Insert a line at the top: 0 asks, both kept picks now on their line's new number (3 -> 4, 5 -> 6).
+- (b) Swap two lines (the list-jobs block and the closing-note block, each with its guardrails and ask): 0 asks, picks follow their lines.
+- (c) Edit only the agree-added `~ at most 80 words` (80 -> 60): the line-5 pick is asked (only line 5 asked, line 3 kept) and the plan carries no maxWords 80 check. Edit only its source `~ under 80 words` (-> 60): also asked, line 3 kept, no maxWords 80 check kept.
+- (d) Change a job line's own words (not its `~`): that line's guardrails are asked, the other line's pick is kept.
+- (e) Two lines with identical words, each with a different pick (first agreed with a check, second Not checked): matched in order, first keeps its check, second keeps Not checked, 0 asks.
+- (f) A line with an earlier unrelated `~` rule before the picked one; the earlier rule is deleted: the pick survives, renumbered to rule 1, the plan carries its check, 0 asks.
+- (g) The pairing agreed-added line <-> source guardrail is read from disk: `answer-K.json` (`rule` = added line, `ruleText` = source, `line`) plus `card.json` for the line's words. If it needs anything not on disk, FAIL and say what one record must hold.
+- Must-fail: each bar shown red once by breaking its input (a: also edit another line's words; b: swap and edit a guardrail; c: edit nothing; d: also change the other line's words; e: pick order reversed; f: also change the picked rule's words; g: remove `rule` from the answer file), then restored. A bar that cannot be made red is not counted.
+
+Recorded either way: anything am18 cannot do as written (signed text unchanged); the record shape a build needs (F146 finding 1: one record carried plan to plan).
+
+Cost: $0. No model call, no key, no `pass`.
