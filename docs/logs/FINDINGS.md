@@ -6273,3 +6273,21 @@ Both answered `agree` in every draft.
 The suggestion call (`check-suggest`, outcome `answered`) typed answer, draft 1 args: `{"checks":[{"line":3,"guardrail":1,"rule":"listItems","value":3},{"line":5,"guardrail":1,"rule":"maxWords","value":80}]}`. Drafts 2, 3 and 5 returned the same args. Draft 4 also returned `{"line":1,"guardrail":1,"rule":"maxLines","value":3}` (line 1 has no guardrail on it to check); no ask was made for it and it is in no plan, so the scope step dropped it (spend/rows: still 2 asks, line 1 `hitl`).
 
 Not checked: hamr's own look at the asks on his panel. The drafts ran in isolated homes (mkdtemp), nothing was written to hamr's flows. The $0 rescan and the red-first drop tests are not re-run here (see the pre-registration).
+
+## F146 PRE-REGISTRATION (2026-11-04, $0; M10 am17 riskiest assumption; written before the POC is run, NOT yet run)
+
+What is tested: am17's riskiest assumption, before any build: a Revise can carry the previous draft's check picks, and code can decide per guardrail "unchanged line and exact words: keep the pick, skip the suggestion" against "new or changed: suggest and ask", with an own-words `~` line counted as settled. No `src/` change, no provider, no key, no `pass`.
+
+Code under test: branch `chore/fix-ledger` at HEAD when the POC runs. Real functions only: `readQuestions` (src/authoring.js), `ruleOfAnswer` (src/pageask.js), `parseSignedText` (src/signed-text.js), `cardToProse` (src/panel/authorcard.js), `scopedRules` and `settleRules` (src/checkpick.js). The keep/ask decision is written in the POC script only (poc/m10-am17/), never in `src/`.
+
+Input: a copy of a real answered draft's files (hamr's `.drafts/d-00mw1qzz19-9c06`: `draft/questions.json`, `draft/answer-1.json`, `draft/answer-2.json`, `card-1.json`, `draft-1/declaration.json`), paths neutralised; plus variants of its card that the POC builds by editing the job text.
+
+Pass marks, on the letter:
+- (a) The POC names, from the real files, the file and field where the last draft's picks live after an am16 answer-redraft, and shows a Revise can rebuild the same `{line, rule, check|null, added, own}` list `src/panel/author.js` hands `--picks` from them (using only the files on disk). PASS needs the rebuilt list to equal what the answer path builds from the same files, and each file/field named. A missing record that the Revise would need is a FAIL of (a) and is reported as such.
+- (b) The POC loads those picks and a revised card, and computes keep/ask per guardrail: (b1) a cap-only change gives 0 asks, every pick kept; (b2) one guardrail's words changed gives exactly that one guardrail asked and the others kept; (b3) a deleted guardrail: its pick is gone (not in the kept list, no check for it in the settled result); (b4) an own-words `~` line (a pick with `own`) is kept and not asked, and the `~` line it added is not asked either.
+- (c) What `draft()` sends the model carries no pick: grep of every prompt builder `draft()` calls (`suggestUserText`, `SUGGEST_SYSTEM`, `buildSystemPrompt`, the drafter's user text) plus a run of those builders with a distinctive sentinel pick string showing the sentinel in no output. `checkPicks` is read in one place only.
+- Must-fail: each bar is shown red once by breaking the input (b1: change a guardrail's word with a cap change; b2: also edit another; b3: leave a stale pick; b4: drop `own`; a: remove `questions.json`; c: put the sentinel into the lines), then restored. A bar that cannot be made red is not counted.
+
+Recorded either way: anything that makes am17 hard to build as signed (for example a record that does not exist, a number that shifts, a case two readers disagree on). Signed text is not changed.
+
+Cost: $0. No model call, no key, no `pass`.
