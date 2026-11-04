@@ -46,7 +46,7 @@ import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
 import {
-  appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
+  applyAnswers, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
 import { recordPath, RECORD_FILE, KEPT_WORDS } from '../pickrecord.js';
@@ -727,7 +727,7 @@ export function createAuthor(opts) {
      * `POST /api/author/:id/answer` body `{ k, answer }` (M4e amendments 24, 25): the human's answer to the plan's question `k` of `n`, one at a time.
      * A blank answer is refused and the question stays open; there is no skip. The answer is written ONCE ('wx') as `<plan>/answer-<k>.json`. After
      * the LAST answer the plan is drafted again as a fresh plain `fwdloop draft --no-questions` child (it never asks), from the submitted card with
-     * each answer added word for word as a `~` guardrail under its line (the one `appendAnswersToJob`, then the one `cardToProse`). It is booked as
+     * each answer added word for word as a `~` guardrail under its line (the one `applyAnswers`, then the one `cardToProse`). It is booked as
      * an answer redraft (`redraft-<n>.json`), not a revise: it uses none of the 2. Synchronous, like `revise`; a refusal at $0 writes nothing.
      * @param {string} id @param {any} body
      */
@@ -765,10 +765,10 @@ export function createAuthor(opts) {
       if (last) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo, ask: x.ask };
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, ...(x.pairRule === undefined ? {} : { pairRule: x.pairRule }) };
         });
         const adds = all.filter((x) => x.rule !== null);
-        const grown = appendAnswersToJob(typeof v.card.job === 'string' ? v.card.job : '', adds.map((x) => ({ line: x.line, answer: /** @type {string} */ (x.rule) })));
+        const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
         const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
         if (!vet.ok) return vet.reply;
@@ -778,8 +778,7 @@ export function createAuthor(opts) {
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
         // M10 am16 (4): what a shape guardrail's answers picked, for the redraft: the check an agree took, or the person's own words (a `~` rule, no check). A rule left Not checked rides `left`.
-        const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left).map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, added: x.rule, ...(x.own ? { own: true } : {}) }));
-        redraft = { vet, all, picks, left: all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo })) };
+        redraft = { vet, all, picks: grown.picks, left: grown.left };
       }
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields

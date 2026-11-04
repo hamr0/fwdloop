@@ -182,15 +182,16 @@ const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree)
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or
  * Not checked?` when nothing was kept. A proposal is not counted toward am1's cap; a can't-check ask is (am16 (5)).
  * @param {ReturnType<typeof rowsFromAnswer>} rows
- * @returns {{line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
+ * @returns {{pairRule?: number, line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
  */
 export function checkAsks(rows) {
   return rows.map((r) => {
+    const pair = typeof (/** @type {any} */ (r).pairRule) === 'number' ? { pairRule: /** @type {any} */ (r).pairRule } : {}; // M10 am21: the asked line is an edited added line
     if (r.check === null) {
-      return { line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
+      return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
     }
     const words = plainWords(/** @type {any} */ (r.check));
-    return { line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
+    return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
   });
 }
 

@@ -64,10 +64,10 @@ export function entriesFromAnswers(lines, rules, picks, left) {
  * Decide, for the card in hand, which stored picks are kept and which guardrails must be asked.
  * A pick is KEPT when the job line with its words (same order among equal lines) still has its source guardrail with the exact words and, if the pick wrote a `~` line,
  * that line with its exact words too. Otherwise the pick is dropped (never partly kept) and its guardrails are asked: a pair broken on one side is ONE ask, so the
- * partner left on the card is folded (neither asked nor given the old check). Pure.
+ * partner left on the card is folded (neither asked nor given the old check) - except an EDITED added line (M10 am21): that one is asked (`pairRule` = its source's number) and the source is folded. Pure.
  * @param {Entry[]} entries @param {{n: number, text: string}[]} lines @param {Rule[]} rules every guardrail the call settles
  * @returns {{picks: {line: number, rule: number, check: Record<string, any>|null, added?: string, own?: boolean}[], left: {line: number, rule: number}[],
- *   kept: {line: number, rule: number, entry: Entry}[], askRules: Rule[]}}
+ *   kept: {line: number, rule: number, entry: Entry}[], askRules: (Rule & {pairRule?: number})[]}}
  */
 export function matchRecord(entries, lines, rules) {
   const byKey = new Map([...lineKeys(lines)].map(([n, k]) => [`${k.lineWords}#${k.occurrence}`, n]));
@@ -75,6 +75,8 @@ export function matchRecord(entries, lines, rules) {
   const claimed = new Set();
   /** @type {Set<string>} */
   const folded = new Set();
+  /** @type {Map<string, number>} an edited added line (by id) -> the rule number of the source it was paired with (M10 am21) */
+  const edited = new Map();
   const free = (/** @type {number} */ n, /** @type {string} */ text) => rules.find((r) => r.line === n && !claimed.has(id(r)) && !folded.has(id(r)) && norm(r.text) === norm(text));
   const kept = [];
   /** @type {{e: Entry, n: number|undefined}[]} */
@@ -107,9 +109,10 @@ export function matchRecord(entries, lines, rules) {
     const src = free(n, e.ruleText);
     const add = free(n, e.added);
     if (src && !add) {
-      // the added line was edited (or deleted): the unclaimed rule right after the source on that line is it
+      // the added line was edited (or deleted): the unclaimed rule right after the source on that line is it. M10 am21: the ONE ask is about THAT line's words
+      // (it carries the source's number as `pairRule`, the rule its pick is kept under); the source rides it and is not asked on its own
       const p = rules.find((r) => r.line === n && r.rule > src.rule && !claimed.has(id(r)) && !folded.has(id(r)));
-      if (p) folded.add(id(p));
+      if (p) { folded.add(id(src)); edited.set(id(p), src.rule); }
     } else if (add && !src) {
       // the source was edited: the unclaimed rule right before the added line is it; the old added line rides that ask
       const p = [...rules].reverse().find((r) => r.line === n && r.rule < add.rule && !claimed.has(id(r)) && !folded.has(id(r)));
@@ -123,7 +126,7 @@ export function matchRecord(entries, lines, rules) {
     if (e.left) left.push({ line: k.line, rule: k.rule });
     else picks.push({ line: k.line, rule: k.rule, check: e.check, ...(e.added === null ? {} : { added: e.added }), ...(e.own ? { own: true } : {}) });
   }
-  return { picks, left, kept, askRules: rules.filter((r) => !claimed.has(id(r)) && !folded.has(id(r))) };
+  return { picks, left, kept, askRules: rules.filter((r) => !claimed.has(id(r)) && !folded.has(id(r))).map((r) => (edited.has(id(r)) ? { ...r, pairRule: edited.get(id(r)) } : r)) };
 }
 
 /**

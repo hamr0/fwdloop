@@ -131,6 +131,50 @@ export function appendAnswersToJob(job, answers) {
 }
 
 /**
+ * M10 am21: the submitted job box with ONE `~` line of a job line replaced by the words of an answer (the edited added line the ask was about). Pure.
+ * @param {string} job @param {number} line the job line (step) number @param {string} oldText the `~` words to replace (case and spacing aside) @param {string} newText
+ * @returns {{ job: string, replaced: boolean }}
+ */
+export function replaceRuleOnJob(job, line, oldText, newText) {
+  const norm = (/** @type {string} */ t) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  const raw = String(job).split('\n');
+  let step = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    const t = raw[i].trim();
+    if (t === '') continue;
+    if (!t.startsWith('~')) { step += 1; continue; }
+    if (step === line && norm(t.slice(1)) === norm(oldText)) { raw[i] = `~ ${newText}`; return { job: raw.join('\n'), replaced: true }; }
+  }
+  return { job: String(job), replaced: false };
+}
+
+/**
+ * THE one writer of what a set of answers does to the job box and to the picks (M4e am24, M10 am16 (4), M10 am21): an answer is one more `~` line under its job line
+ * (`appendAnswersToJob`), EXCEPT the answer to an ask about an edited added line (`pairRule`), which REPLACES that line's words (the old added line never comes back).
+ * Picks and left rules are numbered as the asks carried them; an edited-line pick is kept under its source's number (`pairRule`), with the edited words as `added`.
+ * @param {string} job @param {{line: number, rule: string|null, left: boolean, check?: Record<string, any>|null, own?: boolean, ruleNo?: number, ruleText?: string, ask?: string, pairRule?: number}[]} all
+ * @returns {{job: string, added: number, picks: {line: number, rule: number|undefined, check: Record<string, any>|null, added: string, own?: boolean}[], left: {line: number, rule: number|undefined}[]}}
+ */
+export function applyAnswers(job, all) {
+  let out = job;
+  let done = 0;
+  /** @type {{ line: number, answer: string }[]} */
+  const appends = [];
+  for (const x of all) {
+    if (x.rule === null) continue;
+    if (typeof x.pairRule === 'number') {
+      const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), x.rule);
+      if (r.replaced) { out = r.job; done += 1; }
+    } else appends.push({ line: x.line, answer: x.rule });
+  }
+  const grown = appendAnswersToJob(out, appends);
+  const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left)
+    .map((x) => ({ line: x.line, rule: x.pairRule ?? x.ruleNo, check: x.check ?? null, added: /** @type {string} */ (x.rule), ...(x.own ? { own: true } : {}) }));
+  const left = all.filter((x) => x.left).flatMap((x) => [{ line: x.line, rule: x.ruleNo }, ...(typeof x.pairRule === 'number' ? [{ line: x.line, rule: x.pairRule }] : [])]);
+  return { job: grown.job, added: grown.added + done, picks, left };
+}
+
+/**
  * THE one place a step's `~` lines become its guardrail: several `~` lines under one step are ONE continuous guardrail (hamr ruling 2026-10-09),
  * each part verbatim (trimmed), in typed order, joined by "; ". An answer (am24) is one more `~` line, so it joins here too. The signed-text parser
  * stays strict 1-for-1 because the job file never carries more than one `guardrail:` per line.

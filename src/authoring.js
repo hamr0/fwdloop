@@ -90,7 +90,7 @@ export function specHash({
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
  * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>, pairRule?:number}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -115,7 +115,7 @@ export function readQuestions(planDir) {
     }
     return {
       k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }),
-      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}) } : {}),
+      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}), ...(Number.isInteger(q.pairRule) ? { pairRule: q.pairRule } : {}) } : {}),
     };
   });
   return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };

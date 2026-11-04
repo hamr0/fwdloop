@@ -136,11 +136,12 @@ test('am18 (3) two lines with the same words are matched in their order', async 
   assert.equal(x.rec.kept[1].check, null);
 });
 
-test('am18 (4) editing only the added `~` line asks that pick only (one ask, the old check not kept)', async (t) => {
+// M10 am21 supersedes the first draft of this rule: the one ask is about the EDITED added line's words, not the source guardrail
+test('am18 (4) + am21 editing only the added `~` line asks that pick only (one ask, about the edited words; the old check not kept)', async (t) => {
   const rec = await recordAfterAnswers(t);
   const x = await revise(t, ANSWERED.map((l) => (l === '~ at most 80 words' ? '~ at most 60 words' : l)), rec.picks);
   assert.equal(x.r.stop, 'look-asks');
-  assert.deepEqual(x.asked, [[5, 'under 80 words']]);
+  assert.deepEqual(x.asked, [[5, 'at most 60 words']]);
   assert.deepEqual(x.keptLines, [3]);
   assert.equal(x.rec.kept.some((k) => k.check?.value === 80), false);
 });

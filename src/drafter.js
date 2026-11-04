@@ -733,7 +733,7 @@ export async function draft({
       return {
         ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(counted)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
         questions: tooMany ? [] : asks.map((a) => ({
-          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null, ...('check' in a && a.check ? { check: a.check } : {}),
+          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null, ...('check' in a && a.check ? { check: a.check } : {}), ...('pairRule' in a && typeof a.pairRule === 'number' ? { pairRule: a.pairRule } : {}),
         })),
         droppedQuestions: [], notChecked: pageNotChecked, ...pageExtras,
       };
