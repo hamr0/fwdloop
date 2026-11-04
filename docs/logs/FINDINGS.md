@@ -6329,3 +6329,26 @@ Pass marks, on the letter:
 Recorded either way: anything am18 cannot do as written (signed text unchanged); the record shape a build needs (F146 finding 1: one record carried plan to plan).
 
 Cost: $0. No model call, no key, no `pass`.
+
+### F146b RESULT (2026-11-04, $0; code = chore/fix-ledger at the POC commit; script `poc/m10-am17/keep-picks-am18.mjs`, same F146 fixture)
+
+Verdict: every bar PASS on the letter, each shown red once by breaking its input (7 of 7 RED-OK). Spend $0; no provider, no key, no `pass`, no `src/` change.
+
+Disclosure: on the first run (b) and (e) failed because of my own input numbers (I counted the `~` lines as job lines: expected lines 3 and 7, and put the second duplicate on line 4; the real numbers are 3 and 5, and 3). I corrected those numbers in the script and reran; no rule or pass mark was loosened.
+
+- (a) PASS: top line inserted: 0 asks, picks on lines 4 (listItems 3) and 6 (maxWords 80). Red: also edit line 3's guardrail -> asked.
+- (b) PASS: two blocks swapped: 0 asks, picks follow to lines 3 and 5. Red: also edit a guardrail -> asked.
+- (c) PASS (both halves): edit only the added `~ at most 80 words` -> 60: line 5's pick asked, line 3 kept, no maxWords 80 check kept. Edit only the source `under 80 words` -> 60: same. Red: edit nothing -> 0 asks, check kept.
+- (d) PASS: job line 3's own words changed: its two guardrails asked, line 5 kept with its check. Red: also change line 5's words -> line 5 asked too.
+- (e) PASS: two lines with identical words, first agreed (maxWords 80), second Not checked: 0 asks, first keeps the check, second keeps Not checked. Red: stored picks reversed -> asked. (The red works through the pair check, not only the order, so it shows the order matters but is not an isolated order test.)
+- (f) PASS: an earlier `~ plain tone` deleted: the pick was rule 2, is now rule 1, 0 asks, maxWords 80 carried. Red: also change the picked rule's words -> asked.
+- (g) PASS: the pairing is on disk. `draft/answer-K.json` holds `line`, `ruleText` (source guardrail) and `rule` (the added `~` line); `card.json` (the card at the time of the ask) gives that line's words. `rule` equals what the real `ruleOfAnswer` makes of the answer. Red: `rule` removed -> pairing null. This covers a FIRST Revise after an answer-redraft only (F146 finding 1 still stands).
+
+Record shape a build needs (one record carried from plan to plan, F146 finding 1): per pick `{lineWords, occurrence (n-th line with the same words), ruleText (source guardrail), added (the `~` line the agree/own answer wrote, or null), check | null, own, left}`. Line number and rule number are NOT stored: both are recomputed on the new card. Written by `fwdloop draft` into each draft dir, and copied forward (kept picks plus the newly answered ones) so a second Revise can read it.
+
+Recorded, not deciding (signed text unchanged):
+1. A broken pair asks two rules (the changed one and its partner) for one pick; the build must fold them to one ask (am18 (4) says "asks again", singular).
+2. A line whose own words changed turns its old agreed `~` line back into a plain guardrail, asked beside the source (two asks, one of them the old proposal). Signed (3) says "its guardrails are asked"; it does not say whether the old added line is asked or dropped.
+3. A line with a typo-level change in its words is a new line and loses its picks (signed (3) says so; it costs one re-ask).
+4. Equal-word lines match in order only: swapping two equal-word lines swaps nothing (picks stay with position). Signed (3) says "matched in their order"; moving one of two identical lines cannot be followed.
+5. F146 findings 5 and 6 (one `shapeRules` set feeds both the suggestion call and `settleRules`; the am1 counter) are untouched by this POC.
