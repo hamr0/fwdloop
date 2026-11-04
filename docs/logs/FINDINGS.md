@@ -6227,3 +6227,32 @@ All 9 misses are the two resume-section guardrails (am29-walk-2 line 3: 3; m7-wa
 Reading. The per-rule form fixed F144b cause 1: stray fields are 0 and `maxWords 80` and `listItems 3` now pass. Cause 2 remains (the model reads "all under 600 words" per section, 4 of 6 m7 calls), and am29-walk-2 line 3 shows an invented section name. Across F144, F144b and F144c, 0 wrong kept on in-scope guardrails in 135 calls (corrected from 141, orchestrator's miscount); F144 also kept 6 checks on out-of-scope guardrails (mustCarry `nonstop` on m10-walk-flights-3/-4/-5, `sections` twice on m10b-aging-5, mustCarry `priority P1` on ticket-triage-3), which scope by code (F144b on) never sends to the model. Every miss becomes a code ask ("I can't check this"), never a wrong check.
 
 Standing of the bar: the >= 20 of 24 mark was this POC's own pre-registered bar, not signed am16 text. am16's Done-when is the m14-walk-5 5-draft walk plus the $0 rescan. The next step is hamr's to rule.
+
+## F145 PRE-REGISTRATION (2026-11-04, PAID, HARD CAP $0.30; M10 am16 Done-when walk; written before any paid call, NOT yet run)
+
+What is tested: am16's signed Done-when, verbatim: "the walk job m14-walk-5 (`~ exactly 3 bullets` on line 3, `~ under 80 words` on line 5) drafts 5 times on deepseek-flash, each time asking once per guardrail with code's words, no made-up heading or word in any plan; a $0 rescan refuses 0 of the 33 good jobs; a test for each drop fails first."
+
+Code under test: branch `chore/fix-ledger` at HEAD when the run starts (am16 built in 9207e27, 694e098, 39094ce, 4bfc1fd); the run records the sha.
+
+Job: the signed text of m14-walk-5 (`~/.config/fwdloop/flows/m14-walk-5/prose.txt`), sent as the New-job card the panel holds for it (the job box words of `.drafts/d-00mw0jdbj3-ae4f/card.json`: line 3 `~ exactly 3 bullets`, line 5 `~ under 80 words`, three `Ask 1h` lines, destination `/home/hamr/fwdloop-out`, input `notes: /home/hamr/fwdloop-walk/m14-garden-notes.md`, cap 0.5, ask wait 1h). Only provider and model are set for this walk.
+
+Model: deepseek-flash through Settings' ticked Fireworks row (slot `FIREWORKS_API_KEY`, model `accounts/fireworks/models/deepseek-v4p1-flash`, in $0.45 / out $1.80 per M), the paid-runs rule. The native `deepseek-flash` row (slot `DEEPSEEK_API_KEY`) is also ticked; it is not used. Key from the shell env only, never printed.
+
+Path (the real one, nothing internal called): `.claude/scratch/f145/walk.mjs` starts the real `bin/fwdloop panel` on a free port in an isolated HOME (a mkdtemp with `.config/fwdloop/config.json` copied; hamr's real flows and `.drafts` untouched), then drives the panel's own HTTP doors: `POST /api/author/draft` (the card), `GET /api/author/<id>` until `questions-open`/`green`/`red`/`stopped`, `POST /api/author/<id>/answer` with the human answer `agree` to every ask (what hamr clicks); the panel spawns the real `fwdloop draft` child, and the redraft with `--picks`. 5 fresh drafts in a row, one fresh isolated HOME per draft, the temp homes removed after (the result JSON kept).
+
+Stop rule: before each draft the script adds the spend so far and stops, with no new draft, if the next could cross $0.30 (a draft is about 2 cents per the signed Cap). A draft's own cost is what the draft log books.
+
+Pass marks, on the letter. For each of the 5 drafts:
+- (a) Exactly 2 am16 asks before drafting: line 3 `exactly 3 bullets` and line 5 `under 80 words`, each in code's words: the kept form `Line n, guardrail "<...>": I propose <words>.` or the nothing-kept form `Line n, guardrail "<...>": I can't check this. Your own words, or Not checked?`. Both count as code's words; which one each ask was is recorded. No other am16 ask (the draft raises no other question).
+- (b) The final plan (`draft-1/declaration.json`): line 3's close carries only the picked check (`listItems 3` if proposed and agreed) or is Not checked (hitl); line 5's close only `maxWords 80` if proposed and agreed, or Not checked. No heading, section, mustCarry, or any other shape key or value anywhere in the plan that a pick did not put there: every key under every `close.shape` must be `picked`, every picked entry must equal an agreed proposal, no other step has a shape, and the whole plan carries none of the rule names (sections, sectionWords, sectionOrder, mustCarry, blockLines, minWords, maxLines, nonEmpty, headings) outside `picked`.
+- (c) The draft ends green (a plan the checker accepts), no provider error, no red.
+
+Any miss in any one of the 5 drafts = FAIL. No refit afterwards.
+
+Recorded per draft (not deciding): which asks were "I propose" and which "I can't check", the plain words shown, the cost, the rounds and calls, the suggestion call's raw typed answer (`log.json` entry `check-suggest`, `args`), and the kept check each ask carried.
+
+The two other parts of the Done-when are not re-run here:
+- The $0 rescan: done at P6, 0 of the 33 good jobs refused. The 4 cite-form jobs the rescan refuses were refused before am16 too (the builder's rescan plus the orchestrator's pre-am16 comparison).
+- "A test for each drop fails first": the build's evidence (test/m10-am16-checkpick.test.js, written red first).
+
+Expected cost: about 5 x $0.004 to $0.01 (one suggestion round plus one drafting round each). Unchecked until run: whether the model proposes `listItems 3` / `maxWords 80` every time (F144c: 3 of 3 each on this job); a "can't check" ask is a pass on (a).
