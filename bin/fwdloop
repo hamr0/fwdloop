@@ -52,6 +52,7 @@ import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { readRecordFile } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
@@ -886,6 +887,8 @@ async function cmdDraft(rest) {
       left: { type: 'string' },
       // M10 am16: the checks the person picked and the answers that were not a pick, as JSON (the panel passes this to the redraft after the answers)
       picks: { type: 'string' },
+      // M10 am17: the record file of the plan this draft follows (a Revise, or the redraft after the answers); its kept picks skip the suggestion and the asks
+      carry: { type: 'string' },
       // M4d amendment 6: the model that drafts (and then runs) the job - a line ticked in Settings > Providers; --provider only if two keys tick the same id.
       // --thinking is the Chat "Thinking on" tick (drafting only; off unless given).
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
@@ -916,6 +919,14 @@ async function cmdDraft(rest) {
   if (values.picks !== undefined) {
     try { checkPicks = JSON.parse(values.picks); } catch { checkPicks = undefined; }
     if (!Array.isArray(checkPicks) || checkPicks.some((x) => !x || !Number.isInteger(x.line) || !Number.isInteger(x.rule))) fail('draft: --picks takes a JSON list of {line, rule, check|null, added?, own?}');
+  }
+
+  /** @type {any[]|undefined} */
+  let carriedPicks;
+  if (values.carry !== undefined) {
+    const abs = resolve(values.carry);
+    const g = readFileInside(dirname(abs), basename(abs));
+    if (g.ok) carriedPicks = readRecordFile(abs) ?? undefined; // a missing or unreadable record is no record: every guardrail is asked, as before
   }
 
   let injected = {};
@@ -977,6 +988,7 @@ async function cmdDraft(rest) {
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
     ...(checkPicks === undefined ? {} : { checkPicks }),
+    ...(carriedPicks === undefined ? {} : { carriedPicks }),
     draftThinking: values.thinking === true ? 'on' : 'off',
     flowType,
     ...(values.mcp ? { mcpServer: values.mcp } : {}),

@@ -32,6 +32,7 @@ import { leftRuleLine, dropRows, dropLine, dropSentence, pickNoteLine } from './
 import {
   scopedRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText,
 } from './checkpick.js';
+import { matchRecord, entriesFromAnswers, sameWords, KEPT_WORDS } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
@@ -424,6 +425,8 @@ export async function draft({
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
   draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
   checkPicks = /** @type {import('./checkpick.js').Pick[]} */ ([]),
+  // M10 am17/am18: the picks of the plan this one follows (src/pickrecord.js entries), and a callback that is handed this draft's record (kept + newly answered) for the one writer
+  carriedPicks = /** @type {import('./pickrecord.js').Entry[]} */ ([]), onPickRecord = /** @type {((r: {picks: import('./pickrecord.js').Entry[], kept: {line: number, rule: number, ruleText: string, check: Record<string, any>|null}[]}) => void)|null} */ (null),
   learnHints = /** @type {{text: string, ids: string[]}|null} */ (null),
   mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
@@ -656,10 +659,15 @@ export async function draft({
   // (offerQuestions false) makes no call: it settles every rule against the person's picks instead.
   // a rule a kept page or sheet fact already serves (the look tied it: line + rule number) is settled by that fact and is not asked here
   const shapeRules = scopedRules(lines, arbiter).filter((r) => ![...look.facts, ...sheetFacts].some((f) => f.line === r.line && f.forRule === r.rule));
+  // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
+  const carried = matchRecord(carriedPicks, lines, shapeRules);
+  const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check }));
+  onPickRecord?.({ picks: carried.kept.map((k) => k.entry), kept: keptView });
+  const askRules = carried.askRules;
   /** @type {ReturnType<typeof checkAsks>} */
   let shapeAsks = [];
-  if (shapeRules.length && offerQuestions) {
-    const content = suggestUserText(lines, shapeRules);
+  if (askRules.length && offerQuestions) {
+    const content = suggestUserText(lines, askRules);
     let args = null;
     for (let attempt = 1; attempt <= 2 && args === null; attempt += 1) {
       const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
@@ -706,7 +714,7 @@ export async function draft({
       log.push(entry);
       args = captured;
     }
-    shapeAsks = checkAsks(rowsFromAnswer(shapeRules, args));
+    shapeAsks = checkAsks(rowsFromAnswer(askRules, args));
   }
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
@@ -733,9 +741,14 @@ export async function draft({
   }
   // M10 am16 (4, 5): the plan carries only the checks the person picked. Every shape rule this call settles is either checked by a pick or Not checked with its reason
   // (shown on the plan card and carried as `unjudgeable`); the drafter writes no check of its own, whatever it sends is overwritten below.
-  const settled = shapeRules.length ? settleRules(shapeRules, checkPicks, leftRules) : null;
+  const allPicks = [...checkPicks, ...carried.picks];
+  const allLeft = [...leftRules, ...carried.left];
+  const settled = shapeRules.length ? settleRules(shapeRules, allPicks, allLeft) : null;
+  // the record this draft hands on: what it kept plus what the person just answered (numbered on this card)
+  onPickRecord?.({ picks: [...carried.kept.map((k) => k.entry), ...entriesFromAnswers(lines, shapeRules, checkPicks, leftRules)], kept: keptView });
+  const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && (k.rule === n.rule || (k.entry.added !== null && sameWords(k.entry.added, n.text)))) ? ` (${KEPT_WORDS})` : '');
   for (const n of settled?.notes ?? []) {
-    const line = n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason);
+    const line = (n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason)) + keptNote(n);
     if (!pageNotChecked.includes(line)) pageNotChecked.push(line);
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.

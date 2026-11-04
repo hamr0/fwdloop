@@ -23,11 +23,11 @@ const list = (xs) => xs.join(', ');
  * One entry per step, in plan order: the plain sentences for what its typed close checks.
  * M10b piece 4: with `lines` (the signed job lines) a step that reads a sheet also carries `sheet`, its line's block (src/sheetblock.js `sheetLineBlocks`: guardrails,
  * Checked with `covers`, Not checked), and its sentences are only the lead sentence; the surfaces draw the block. Without `lines` the older one-row-per-check sentences.
- * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[], lines?: any[], csvRoles?: string[] }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
+ * @param {{ steps?: any[] }} declaration @param {{ hasAsk?: boolean, askLines?: number[], lines?: any[], csvRoles?: string[], keptChecks?: {line: number, check: any}[], keptWords?: string }} [opts] hasAsk = the job has a signed ask line (so "you check it at the ask" is true);
  *   askLines = the job lines of the signed asks, which also lets a step after the LAST ask read "you check it after you accept" (am41 item 2, am42: the ONE place for these words)
  * @returns {{ step: number, line: number|null, goal: string, class: string, sentences: string[], sheet?: ReturnType<typeof sheetLineBlocks>[number] }[]}
  */
-export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvRoles = [] } = {}) {
+export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvRoles = [], keptChecks = [], keptWords = '' } = {}) {
   const blocks = Array.isArray(lines) ? sheetLineBlocks({ declaration, lines, csvRoles }) : [];
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   if (Array.isArray(askLines)) hasAsk = askLines.length > 0;
@@ -55,7 +55,7 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       if (Number.isInteger(shape.linesPerInvoice)) out.push(`The output comes in blocks of ${shape.linesPerInvoice} lines.`);
       if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(`Every block carries: ${list(shape.mustCarry)}.`);
       // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
-      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(`You picked: ${plainWords(c)}.`);
+      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`);
     } else {
       if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
       else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');

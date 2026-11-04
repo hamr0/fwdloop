@@ -39,6 +39,7 @@ import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
+import { RECORD_FILE } from './pickrecord.js';
 import { mcpPickHere } from './mcp-pick.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
@@ -297,7 +298,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, checkPicks, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, checkPicks, carriedPicks, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
@@ -374,8 +375,10 @@ export async function draftToDir({
   }
   // M13 piece 4 (R1): the job's MCP is every tool of that server's newest OK check, read here by code (the server is never started); never checked = a $0 refusal in the drafter's pre-flight
   const mcp = flowType === 'plain' ? null : (mcpPick ?? (typeof mcpServer === 'string' ? mcpPickHere(mcpServer) : { ok: false, say: 'pick an MCP for this flow type' }));
+  /** @type {{picks: object[], kept: object[]}|null} */
+  let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }),
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), onPickRecord: (r) => { pickRecord = r; },
     flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }),
   });
   if (result.stop === 'pre-flight') {
@@ -407,6 +410,7 @@ export async function draftToDir({
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
+  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj(pickRecord), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
   if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({

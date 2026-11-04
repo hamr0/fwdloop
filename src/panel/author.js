@@ -29,7 +29,7 @@
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
 import { randomBytes } from 'node:crypto';
 import {
-  mkdirSync, realpathSync, rmSync, writeFileSync,
+  existsSync, mkdirSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -49,6 +49,7 @@ import {
   appendAnswersToJob, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
+import { recordPath, RECORD_FILE, KEPT_WORDS } from '../pickrecord.js';
 import { csvRolesOf } from '../sheetblock.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
@@ -290,6 +291,18 @@ export function createAuthor(opts) {
   }
 
   /**
+   * M10 am17: `--carry <record>` for a draft that follows an earlier plan. A Revise follows the newest plan folder that has a record (`draft-<n>` newest first, then `draft`);
+   * the redraft after the answers follows the plan that asked (`only`). No record, no flag: every guardrail is asked, as before.
+   * @param {string} dir @param {number[]} ns the plans' numbers @param {string} [only] the one plan folder (relative)
+   * @returns {string[]}
+   */
+  function carryArgv(dir, ns, only) {
+    const rels = only === undefined ? [...ns].sort((a, b) => b - a).map((x) => `draft-${x}`).concat('draft') : [only];
+    const rel = rels.find((r) => existsSync(recordPath(join(dir, r))));
+    return rel === undefined ? [] : ['--carry', recordPath(join(dir, rel))];
+  }
+
+  /**
    * What the human is shown beside a green plan at sign: "Checked" (built by `checkedLines` from the plan's typed closes, never model text) and
    * "Not checked" (the drafter's own list, always with its label). Read-only; neither is signed or in the hash. @param {string} dir @param {string} rel
    */
@@ -297,7 +310,11 @@ export function createAuthor(opts) {
     const decl = readJson(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const opts = parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true };
+    const kept = readJson(dir, `${rel}/${RECORD_FILE}`)?.kept;
+    const opts = {
+      ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
+      ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),
+    };
     return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
   }
 
@@ -690,7 +707,7 @@ export function createAuthor(opts) {
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...modelArgv(vet.card)],
+          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...carryArgv(dir, v.revises.map((x) => x.n)), ...modelArgv(vet.card)],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });
@@ -780,7 +797,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });
