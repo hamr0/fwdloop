@@ -7036,15 +7036,18 @@
     // Re-attach after a page load/refresh or a panel restart: the server reads the newest unsigned draft from its files, so ask it.
     // If one exists, this tab takes it over as if it had started it: the card filled from the draft's own copy, the poll loop, the
     // progress list, the readout and the main button. A signed or abandoned draft never comes back (empty card).
-    function attachSession(d){
-      var c = d.card || {};
-      openNewCard();
-      setMode("new");
+    // ONE writer of the New-job boxes from a draft's card (attach, and Revise opening on the newest card)
+    function fillCardFields(c){
       setVal("jf-name", c.flowName); setVal("jf-job", c.job); setVal("jf-cap-money", c.capUsd);
       setModelPick(c.provider || "", c.model || ""); thinkingEl.checked = c.thinking === true && !thinkingNone;
       refreshCapNote();
       setVal("jf-dest-folder", typeof c.destination === "string" ? c.destination : ""); setVal("jf-inputs", typeof c.inputs === "string" ? c.inputs : ""); setVal("jf-ask-wait", c.askWait || "1h");
       setFlow(c.flowType, c.mcp, c.schedule);
+    }
+    function attachSession(d){
+      openNewCard();
+      setMode("new");
+      fillCardFields(d.card || {});
       sessionId = d.draftId;
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(d.phase) === -1;
       renderThread(d);
@@ -7078,7 +7081,7 @@
       resetCard();
     });
     // Revise (amendment 14 item 2): opens every card field, filled as last submitted; nothing is sent
-    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; reviseOpen = true; refreshStartEnabled(); });
+    reviseBtn.addEventListener("click", function(){ if(reviseBtn.disabled) return; if(lastState && lastState.card) fillCardFields(lastState.card); reviseOpen = true; refreshStartEnabled(); fitCardBoxes(); });
     // Start over (amendment 14 item 3): the same draft call as Draft, from the card as it is now; the old draft's files stay (a new draft id, 2 new revises)
     startOverBtn.addEventListener("click", function(){ if(!startOverBtn.disabled) doDraft(sessionId); });
     qSend.addEventListener("click", doAnswer);
