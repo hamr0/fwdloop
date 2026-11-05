@@ -25,6 +25,11 @@ if (!outEnv || !isAbsolute(outEnv)) refuse('F151_OUT must be an absolute path to
 if (existsSync(outEnv)) refuse(`F151_OUT already exists (${outEnv}); never overwritten, use a new folder.`);
 const N = Number(process.env.F151_N ?? 10);
 if (!Number.isInteger(N) || N < 1) refuse('F151_N must be a positive integer.');
+let extraArgs = [];
+if (process.env.F151_EXTRA_ARGS !== undefined) {
+  try { extraArgs = JSON.parse(process.env.F151_EXTRA_ARGS); } catch { extraArgs = null; }
+  if (!Array.isArray(extraArgs) || !extraArgs.every((x) => typeof x === 'string')) refuse('F151_EXTRA_ARGS must be a JSON list of strings.');
+}
 if (typeof process.env[keyName] !== 'string' || process.env[keyName].trim() === '') refuse(`${keyName} is empty or not set in the environment.`);
 
 const work = resolve(outEnv);
@@ -69,7 +74,7 @@ for (const [w, wording] of Object.entries(WORDINGS)) {
     const proseFile = join(work, `prose-${id}.txt`);
     writeFileSync(proseFile, prose(wording));
     const out = join(work, `draft-${id}`);
-    const argv = ['draft', proseFile, '--out', out, '--root', join(work, 'root'), '--name', `f151-${label}-${id}`, '--model', model, '--flow-type', 'tickets', '--mcp', 'github', ...(provider ? ['--provider', provider] : [])];
+    const argv = ['draft', proseFile, '--out', out, '--root', join(work, 'root'), '--name', `f151-${label}-${id}`, '--model', model, '--flow-type', 'tickets', '--mcp', 'github', ...(provider ? ['--provider', provider] : []), ...extraArgs];
     const r = spawnSync(process.execPath, [join(repo, 'bin/fwdloop'), ...argv], { encoding: 'utf8', timeout: 300000, env: process.env });
     appendFileSync(join(work, 'cli-out.txt'), `=== ${id} exit ${r.status}\n${r.stdout}${r.stderr}\n`);
     const sp = readJson(join(out, 'draft-spend.json'));
@@ -94,8 +99,8 @@ const summary = Object.keys(WORDINGS).map((w) => {
   return { wording: w, text: WORDINGS[w], drafts: rs.length, passes: rs.filter((x) => x.pass).length, misses: rs.filter((x) => !x.pass).length, namedNotEmitted: rs.filter((x) => x.namedNotEmitted).length };
 });
 const totalPasses = rows.filter((x) => x.pass).length;
-writeFileSync(join(work, 'results.json'), `${JSON.stringify({ label, repo, model, list, n: N, spentUsd: spent, aborted, passes: totalPasses, of: rows.length, summary, rows }, null, 2)}\n`);
-console.log(`\nF151 ${label} (${model})`);
+writeFileSync(join(work, 'results.json'), `${JSON.stringify({ label, repo, model, list, extraArgs, n: N, spentUsd: spent, aborted, passes: totalPasses, of: rows.length, summary, rows }, null, 2)}\n`);
+console.log(`\nF151 ${label} (${model}) extraArgs ${JSON.stringify(extraArgs)}`);
 console.log('wording  drafts  passes  misses  namedNotEmitted');
 for (const s of summary) console.log(`${s.wording.padEnd(8)} ${String(s.drafts).padEnd(7)} ${String(s.passes).padEnd(7)} ${String(s.misses).padEnd(7)} ${s.namedNotEmitted}`);
 console.log(`total: ${totalPasses} pass, ${rows.length - totalPasses} miss of ${rows.length}; spent $${spent.toFixed(4)}${aborted ? ' (ABORTED by spend guard)' : ''}; results in ${join(work, 'results.json')}`);
