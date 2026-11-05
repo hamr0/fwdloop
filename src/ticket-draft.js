@@ -1,6 +1,6 @@
 // M12 piece 3 (docs/wiki/the-module-ladder.md, "M12 scope (restart)" item 4): what the DRAFTER is told about a ticket role, and what it may suggest.
 // A ticket role is a signed page input (`source <role> = page:<address>`) whose address is a GitHub issues list: it is never fetched at draft (one ticket is read
-// per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read) and a `ticketFilter` (priority / label names); a human
+// per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read), and MUST add a `ticketFilter` (priority / label names) when a guardrail names a priority or a label; a human
 // signs it and code decides at run. The first facts line is F90c's, the line that made the drafter read a ticket role at all (FINDINGS F90c, F92).
 import { discoverServers } from 'bare-agent/mcp';
 import { startableMcpServers } from './mcp-sources.js';
@@ -63,7 +63,7 @@ export function ticketSchemaParts({ flowType, tools }) {
           labels: { type: 'array', items: { type: 'string' }, description: 'label names, one of which a ticket must carry; only when a guardrail names them' },
         },
         additionalProperties: false,
-        description: 'optional: suggest only for a guardrail that names a priority or a label',
+        description: 'required when a guardrail names a priority or a label: put those values here; leave it out only when no guardrail names one',
       },
       ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'optional: suggest only for a guardrail that says to run a ticket again when its state or its labels change' },
     },
