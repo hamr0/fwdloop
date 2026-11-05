@@ -81,6 +81,7 @@ for (const [w, wording] of Object.entries(WORDINGS)) {
     let cost = null;
     if (sp) cost = typeof sp.costUsd === 'number' ? sp.costUsd : (typeof sp.cost === 'number' ? sp.cost : null);
     if (typeof cost === 'number') spent += cost;
+    const stop = readJson(join(out, 'log.json'))?.stop ?? null;
     const decl = readJson(join(out, 'declaration.json'));
     const filter = decl?.ticketFilter ?? null;
     const up = (a) => (Array.isArray(a) ? a : []).map((v) => String(v).trim().toUpperCase());
@@ -90,8 +91,8 @@ for (const [w, wording] of Object.entries(WORDINGS)) {
     // bareloop's e1 shape: no key, but refused / unjudgeable / not-checked text mentions the filter or P1
     const texts = [...strings(decl?.refused), ...strings(decl?.unjudgeable), ...strings(readJson(join(out, 'not-checked.json')))];
     const namedNotEmitted = filter === null && texts.some((t) => /filter|P1/i.test(t));
-    rows.push({ id, wording: w, exit: r.status, cost, ticketFilter: filter, pass, namedNotEmitted });
-    console.log(id, 'exit', r.status, 'cost', cost, 'ticketFilter', JSON.stringify(filter), pass ? 'PASS' : 'MISS', namedNotEmitted ? 'namedNotEmitted' : '');
+    rows.push({ id, wording: w, exit: r.status, cost, stop, ticketFilter: filter, pass, namedNotEmitted });
+    console.log(id, 'exit', r.status, 'cost', cost, 'stop', JSON.stringify(stop), 'ticketFilter', JSON.stringify(filter), pass ? 'PASS' : 'MISS', namedNotEmitted ? 'namedNotEmitted' : '');
   }
 }
 const summary = Object.keys(WORDINGS).map((w) => {
