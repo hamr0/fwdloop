@@ -6442,3 +6442,14 @@ Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks. BASELINE (w
 **What changed since F151.** Each draft is the redraft the panel makes after the person answers the look: `F151_EXTRA_ARGS='["--no-questions","--left","2.1"]'`, i.e. the person answered "drop it" for line 2 rule 1 (`under 150 words` left Not checked), the smallest real answer, which leaves the job text unchanged. Line 1 and its `priority P1 only` / `only tickets with priority P1 count` guardrail are untouched.
 **Method, criteria, arms: as F151** (N=10 per wording, 20 per arm, BASELINE worktree at 28c7711 vs AFTER this branch, new work folders, $0.20 guard per arm). PASS bar unchanged: BASELINE misses >= 2 of 20, else INCONCLUSIVE; AND AFTER misses = 0 of 20; anything else FAIL. A draft that again stops at `look-asks` counts as a miss.
 **Recorded, not judged.** Per draft: exit, cost, `ticketFilter`, `namedNotEmitted`, and the log's `stop`.
+
+### F151b RESULT (2026-11-05, [MEASURED], run by the orchestrator; INCONCLUSIVE on the letter)
+Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, `F151_EXTRA_ARGS=["--no-questions","--left","2.1"]`; every draft in both arms reached a declaration (`stop` null, exit 0).
+
+| arm | wording A `priority P1 only` | wording B `only tickets with priority P1 count` | misses | namedNotEmitted | spent |
+|---|---|---|---|---|---|
+| BASELINE (worktree at 28c7711, schema says `optional: suggest only`) | 9 of 10 | 10 of 10 | 1 of 20 (a8) | 1 | $0.0739 |
+| AFTER (this branch, d0ebde9, schema says `required when ...`) | 10 of 10 | 10 of 10 | 0 of 20 | 0 | $0.0845 |
+
+**Verdict against the pre-registered bar: INCONCLUSIVE.** BASELINE missed 1 of 20, under the >= 2 needed to show the cause; AFTER 0 of 20 meets its half. No refit. F151 + F151b spent $0.2062.
+**Recorded, not judged.** Baseline a8 is bareloop's e1 shape: no `ticketFilter` key, and `unjudgeable.1` reads "priority P1 only names a ticket priority; no ticketFilter field can be grounded without inventing values, so the wording resists judgment and stays hitl" (guardrailClasses 1 = hitl). The model named the filter and chose not to emit it. One miss is not a rate; the change is a one-line agreement of schema and prompt, kept on its own merit (test/ticketfilter-schema-desc.test.js), not on this run.
