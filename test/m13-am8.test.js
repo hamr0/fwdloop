@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { fnSrc } from '../scripts/panel-fixtures/fn-src.mjs';
@@ -12,6 +12,13 @@ import { cardFields, cardToProse, checkCard, cardFromSigned } from '../src/panel
 import { addEnd, addedLinesOf } from '../src/added-end.js';
 import { parseSignedText } from '../src/signed-text.js';
 import { buildReadout } from '../src/authoring.js';
+import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
+import { killChildrenAfter, world } from './m4e-world.mjs';
+
+killChildrenAfter();
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
+const CLOSERS = [];
+after(() => Promise.all(CLOSERS.map((c) => c())));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -126,3 +133,29 @@ test('am8 item 3: the card shows the added lines in grey, the Ask only when it i
   assert.equal(none['jf-added-write'].hidden, true);
   assert.match(PAGE, /<div class="hint jf-added" id="jf-added-ask"[^>]*hidden><\/div>\s*<div class="hint jf-added" id="jf-added-write"[^>]*hidden><\/div>\s*<div class="hint">One step per line\./);
 });
+
+const typeIn = (c, id, v) => c.ev(`var e = document.getElementById(${JSON.stringify(id)}); e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event("input", {bubbles: true}))`);
+for (const width of [1280, 390, 320]) {
+  test(`am8 item 3 at ${width}px: the real card shows the grey added lines as the person types, no sideways scroll`, { skip: SKIP && 'no browser' }, async (t) => {
+    const w = await world({ limit: 5 });
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    await chrome.send('Page.enable');
+    await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+    await chrome.ev('document.getElementById("tab-chat").click()');
+    assert.ok(await chrome.waitFor('!!document.getElementById("jf-added-ask")'));
+    const shown = () => chrome.ev('["jf-added-ask", "jf-added-write"].map(function(i){ var e = document.getElementById(i); return e.hidden ? null : e.textContent; })');
+    await typeIn(chrome, 'jf-job', 'Read it\nWrite a very long summary of the whole thing that goes on and on and on and on and on');
+    assert.deepEqual(await shown(), [null, null], 'no Destination: nothing is added, so nothing is shown');
+    await typeIn(chrome, 'jf-dest-folder', '/some/very/long/destination/folder/that/keeps/going/and/going/and/going/and/going');
+    await typeIn(chrome, 'jf-ask-wait', '30m');
+    assert.deepEqual(await shown(), ['+ Ask 30m: check the result', '+ Write to Destination']);
+    assert.equal(await chrome.ev('getComputedStyle(document.getElementById("jf-added-ask")).color === getComputedStyle(document.querySelector("#jf-new .hint")).color'), true, 'the grey of the other hints');
+    assert.equal(await chrome.ev('document.getElementById("jf-added-ask").nextElementSibling.nextElementSibling.textContent'), 'One step per line. A line starting with ~ is a guardrail of the step above it. Ask: stops for you; Ask 2h: sets that ask\'s own wait. fwdloop adds the last check and the write to your Destination.');
+    await typeIn(chrome, 'jf-job', 'Read it\nAsk: fine?');
+    assert.deepEqual(await shown(), [null, '+ Write to Destination']);
+    const spill = await chrome.ev('({ vw: document.documentElement.clientWidth, scrollW: document.documentElement.scrollWidth })');
+    assert.ok(spill.scrollW <= spill.vw, JSON.stringify(spill));
+  });
+}
