@@ -10,7 +10,7 @@ export const ADDED_WRITE = 'write it out';
 /**
  * @param {{ n: number, text: string, ask: null | { wait: string|null, question: string }, guardrails: string[] }[]} steps `parseJobBox` steps
  * @param {string} destination the card's Destination ('' = none)
- * @returns {{ steps: typeof steps, added: number[] }} the steps with the end added, and the numbers of the added lines
+ * @returns {{ steps: { n: number, text: string, ask: null | { wait: string|null, question: string }, guardrails: string[] }[], added: number[] }} the steps with the end added, and the numbers of the added lines
  */
 export function addEnd(steps, destination) {
   if (destination === '' || steps.length === 0) return { steps, added: [] };
