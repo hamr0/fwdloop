@@ -10,9 +10,10 @@ import { cardFields, cardToProse } from '../src/panel/authorcard.js';
 import { draft } from '../src/drafter.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
+// M13 am8: the typed job ends at its Ask; code adds `write it out` as line 7 (the send in `plan` below)
 const JOB = [
   'Write 3 lines about my garden from the notes', 'Ask: check it with me', 'List 3 jobs for this week from the notes', '~ exactly 3 bullets',
-  'Ask: check it with me', 'Write a short closing note to my neighbour', '~ under 80 words', 'Ask: check it with me', 'Write it out',
+  'Ask: check it with me', 'Write a short closing note to my neighbour', '~ under 80 words', 'Ask: check it with me',
 ].join('\n');
 
 function prose(t, job = JOB) {

@@ -248,7 +248,7 @@ test('B4: answering every question drafts again with a fresh child that never as
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   const steps = parseJobBox(card.job).steps;
   assert.deepEqual([steps[0].guardrails, steps[1].guardrails, steps[2].guardrails], [[a1], [a2], []]);
-  assert.equal(steps.length, 5);
+  assert.equal(steps.length, 4, 'the typed job: M13 am8 added the write-it-out line in the prose, not in the card');
   // the prose, then the signed flow, carry them; the goal is still the line verbatim
   const prose = readFileSync(path.join(w.dir(id), 'prose-1.txt'), 'utf8');
   assert.ok(prose.includes(`1. Read my resume QMARK,\n   guardrail: ${a1}\n2. and read the JD to compare it against,\n   guardrail: ${a2}\n3. `));
