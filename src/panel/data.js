@@ -23,7 +23,7 @@ import {
   existsSync, realpathSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { plainPlanCheck } from '../plain-checks.js';
+import { plainPlanCheck, pickPlanRed } from '../plain-checks.js';
 import { compareNatural } from '../natural.js';
 import { join, sep } from 'node:path';
 
@@ -1911,7 +1911,7 @@ export function getDraftBlock(flowDir, runDir) {
   // The free retry after a broken reply reads `try N again`. A flow signed before am15 recorded no tries: nothing is added.
   const tryRows = (r, n) => (Array.isArray(r.tries) ? r.tries : []).map((t, k) => {
     const reds = Array.isArray(t.reds) ? t.reds.map(String) : [];
-    const gap = t.passed ? '' : (reds.length > 0 ? `${plainPlanCheck(reds[0]).reason}${reds.length > 1 ? ` (and ${reds.length - 1} more)` : ''}` : String(t.outcome ?? ''));
+    const gap = t.passed ? '' : (reds.length > 0 ? `${plainPlanCheck(pickPlanRed(reds)).reason}${reds.length > 1 ? ` (and ${reds.length - 1} more)` : ''}` : String(t.outcome ?? ''));
     return {
       attempt: `${n}.${k + 1}`, step: 'drafting', class: null, verdict: t.passed ? 'green' : 'red', gap, at: r.at ?? null, setup: true, blocked: false,
       action: `${t.label} ${t.passed ? '✓' : '✗'}`, tryRow: true, tokensDisplay: { kind: 'no-model' },

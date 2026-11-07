@@ -7,7 +7,7 @@
 // Throws away: the log's per-round tokens, the model's replies, the questions, and every try but the count of refused ones.
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
 
-import { plainPlanCheck } from './plain-checks.js';
+import { plainPlanCheck, pickPlanRed } from './plain-checks.js';
 
 const REBUILD_RE = /^declaration: steps\[(\d+)\]\.close\.shape cannot be built into a check — (.*)$/s;
 
@@ -88,7 +88,7 @@ export function draftStepList({ log, declaration, questionOpen = false }) {
       out.push({ id: 'checks', label: 'plan checks · a question for you', status: 'waiting', details: [] });
     } else {
       // one plain reason and its one Fix line (every rule has fix wording): the first refusal
-      const pick = checkReds.map(plainPlanCheck)[0];
+      const pick = checkReds.length > 0 ? plainPlanCheck(pickPlanRed(checkReds)) : undefined;
       out.push({ id: 'checks', label: pick ? `plan checks · ${pick.reason}` : 'plan checks', status: 'failed', details: [] });
       if (pick) out.push({ id: 'checks-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true });
     }
@@ -130,7 +130,7 @@ export function reviseStepList({ log, name }) {
     if (reds.length > 0) facts.push(reds[0]);
     return [{ id: 'plan', label: facts.join(' · '), status: 'failed', details: [] }];
   }
-  const pick = plainPlanCheck(checkReds[0]);
+  const pick = plainPlanCheck(pickPlanRed(checkReds));
   return [
     { id: 'plan', label: [name, pick.reason].join(' · '), status: 'failed', details: [] },
     { id: 'plan-fix', label: `Fix: ${pick.fix}`, status: 'done', details: [], note: true },

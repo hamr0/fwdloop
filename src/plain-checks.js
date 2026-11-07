@@ -6,7 +6,7 @@
 // change (the job line, the guardrail, the inputs, the destination) or to Draft again when it is the AI's own form error; every rule has one (am15 item 3).
 // The first two rules' `say` already ends with their fix, as the page has always shown them.
 
-/** @type {ReadonlyArray<{re: RegExp, say: string|null, fix: string}>} `say` null = the checker's own sentence, as it is without its "declaration: " prefix */
+/** @type {ReadonlyArray<{re: RegExp, say: string|null, fix: string, first?: boolean}>} `say` null = the checker's own sentence, as it is without its "declaration: " prefix */
 export const PLAN_CHECK_RULES = Object.freeze([
   { re: /which is not in the job line's words/, say: "A section name in the plan's check is not in your job line. Change the job line to use the section words you want.", fix: 'Change the job line to use the section words you want.' },
   { re: /the job line says .*; the check says/, say: "The sections in the plan's check come in a different order than your job line. Change the job line to change the order.", fix: 'Change the job line to change the order.' },
@@ -21,6 +21,8 @@ export const PLAN_CHECK_RULES = Object.freeze([
   { re: /not in the catalogue|not wired|which is not signed|checkpoint/, say: 'A step uses a tool that is not available for this job.', fix: 'Draft again; if it repeats, say in the job line what that step should do.' },
   { re: /reads artifact|is a duplicate|\.reads must|\.emits must/, say: 'The steps do not pass their results to each other in a workable order.', fix: 'Draft again.' },
   { re: /ask at line \d+|signed ask at line|ask slot/, say: 'The ask on one of your lines is not set up as a plain stop where you decide.', fix: 'Check the line that starts with Ask in your job, then Draft again.' },
+  // M4d am38 item 1: `first: true` = this red is the one explained whenever it is among the reds (pickPlanRed), not only when it comes first.
+  { re: /send at line \d+ .* is not granted a catalogue primitive of class "write"/, say: 'Your last line sends to your Destination, but your job puts other work on it. Make your last line the one that sends, or move that work above it, then Draft again.', fix: 'Make your last line the one that sends, or move that work above it, then Draft again.', first: true },
   { re: /send at line \d+|signed send at line|send slot/, say: 'The send step is not set up to follow your accept and write only to your destination.', fix: 'Check the Destination on the card, then Draft again.' },
   { re: /hitl after the last signed ask/, say: 'A step after your last ask would leave without your seeing it, so it is refused.', fix: 'Move the lines you want to check before your last Ask line, then Draft again.' },
   { re: /is a pause .* unsigned line/, say: 'A step pauses at a line you did not sign as an ask.', fix: 'Mark the line you want to stop at with Ask, then Draft again.' },
@@ -35,8 +37,18 @@ export const PLAN_CHECK_RULES = Object.freeze([
 export const GENERIC_SAY = 'One of the checks on the plan failed.';
 export const GENERIC_FIX = 'Draft again.';
 
-/** The rules as the page takes them: JSON, the regex as its source text. */
-export const pageRules = () => PLAN_CHECK_RULES.map((r) => ({ re: r.re.source, say: r.say }));
+/** The rules as the page takes them: JSON, the regex as its source text. `first` rides along so a page that picks a red reads the same rule data. */
+export const pageRules = () => PLAN_CHECK_RULES.map((r) => ({ re: r.re.source, say: r.say, ...(r.first === true ? { first: true } : {}) }));
+
+/**
+ * M4d amendment 38 item 1: the ONE decision of which red is explained: the first red a `first` rule matches, else the first red (am15 item 3).
+ * @param {ReadonlyArray<string>} reds
+ * @returns {string|undefined}
+ */
+export function pickPlanRed(reds) {
+  const list = Array.isArray(reds) ? reds : [];
+  return list.find((t) => PLAN_CHECK_RULES.some((r) => r.first === true && r.re.test(String(t)))) ?? list[0];
+}
 
 /**
  * @param {unknown} raw one raw refusal text
