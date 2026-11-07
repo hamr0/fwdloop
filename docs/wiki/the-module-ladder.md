@@ -3515,3 +3515,10 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 - The page fix (M4e am14 item 2): the Job box shows the answer `~` lines after an answer-redraft (walk-9 onward); a browser test for it was red before the fix and green after.
 - Full suite at d7a942c, tracked-only copy, empty HOME: 4603 tests, 4598 pass, 0 fail, 5 skipped.
 - Open, not part of this exit: F149 (a red send line shows the wrong sentence).
+
+**M4d amendment 38 — SIGNED by hamr 2026-11-07 ("sign m4d am38"), the text exactly as shown.** Why: hamr's walk-9 revise 2 red blamed "the AI's notes" (F149).
+
+**M4d amendment 38 — the plain reason when the job puts work on its send line (F149).**
+1. When a red plan's checker reds include `send at line N ... is not granted a catalogue primitive of class "write"`, the ✗ line's plain reason is that red's, whatever red comes first: `Your last line sends to your Destination, but your job puts other work on it.` and its **Fix:** line is `Make your last line the one that sends, or move that work above it, then Draft again.`
+2. Every other red plan shows its plain reason and Fix line as today (am15 item 3, the first red).
+3. Exit: hamr's walk-9 revise 2 job (`d-00mw23a969-7629`), drafted again on the real panel, shows these two sentences; a draft whose last line does send shows no change.
