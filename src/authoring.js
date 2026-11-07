@@ -22,6 +22,7 @@ import path from 'node:path';
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
+import { addedLinesOf } from './added-end.js';
 import { factRows } from './citedcheck.js';
 import { plainWords } from './checkwords.js';
 import { sheetLineBlocks } from './sheetblock.js';
@@ -214,8 +215,9 @@ export function buildReadout({
   if (Array.isArray(declaration.ticketWatch) && declaration.ticketWatch.length) out.push(`  ticket watch: ${declaration.ticketWatch.join(', ')}`);
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
+  const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
   declaration.steps.forEach((st, i) => {
-    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
+    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);

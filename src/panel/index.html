@@ -226,6 +226,7 @@
   .badge.cyan{color:var(--cyan);}
 
   .hint{font-size:11px;color:var(--text-faint);margin-top:4px;}
+  .hint.jf-added{margin-top:2px;overflow-wrap:anywhere;}
   .hint.money-red{color:var(--red);}
   .btn{padding:8px 14px;min-height:44px;border:1px solid var(--border-strong);background:var(--panel2);color:var(--text);white-space:nowrap;flex:none;position:relative;}
   .btn::before{content:"[ ";color:var(--text-faint);}
@@ -1187,7 +1188,9 @@
                   <div class="jf-gut" id="jf-job-gut" data-testid="jf-job-gut" aria-hidden="true"><div class="jf-gut-in"></div></div>
                   <textarea class="jf-wrap" id="jf-job" rows="6" data-testid="jf-job" autocomplete="off" spellcheck="false" placeholder="Read my resume&#10;~keep it under 600 words&#10;Ask: check it with me&#10;Write it out"></textarea>
                 </div>
-                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait. The last line writes the result to the Destination.</div>
+                <div class="hint jf-added" id="jf-added-ask" data-testid="jf-added-ask" hidden></div>
+                <div class="hint jf-added" id="jf-added-write" data-testid="jf-added-write" hidden></div>
+                <div class="hint">One step per line. A line starting with <code>~</code> is a guardrail of the step above it. <code>Ask:</code> stops for you; <code>Ask 2h:</code> sets that ask's own wait. fwdloop adds the last check and the write to your Destination.</div>
                 <div class="jf-err" id="jf-err-job" data-testid="jf-err-job"></div>
               </div>
               <div class="field">
@@ -6163,7 +6166,18 @@
       clearBtn.textContent = b.text;
       clearBtn.disabled = b.disabled;
     }
+    // M13 am8: the end code adds, in grey under the Job box (the server's `addEnd` is the one writer; this only shows it): an Ask unless the last step is already one, then the write.
+    function paintAddedEnd(){
+      var steps = jobEl.value.split("\n").map(function(l){ return l.trim(); }).filter(function(l){ return l !== "" && l.charAt(0) !== "~"; });
+      var on = destEl.value.trim() !== "" && steps.length > 0;
+      var needAsk = on && !/^ask[: ]/i.test(steps[steps.length - 1]);
+      var askEl = byId("jf-added-ask"), writeEl = byId("jf-added-write");
+      askEl.hidden = !needAsk; writeEl.hidden = !on;
+      askEl.textContent = "+ Ask " + (askWaitEl.value.trim() || "1h") + ": check the result";
+      writeEl.textContent = "+ Write to Destination";
+    }
     function refreshStartEnabled(){
+      paintAddedEnd();
       paintRequired();
       startOk = startReady();
       syncCardLock();
