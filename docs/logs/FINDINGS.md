@@ -6470,3 +6470,8 @@ Trigger rows (last job line hand-classed):
 - (b) 2 trigger rows, 0 botched (both are work on the send line).
 - (c) 19 red tries have no trigger; am38 does not change their sentence.
 Verdict on the letter: **PASS**. Note: the second row (`d-00mvzqosmh-328b`) today shows "The steps do not pass their results to each other in a workable order", also wrong for its cause, so am38 would help there too.
+
+## F153 (2026-11-07, finding only, unsigned, no fix): a GREEN plan turns the last work line into the send and drops a line
+Seen on hamr's am38 walk (real panel, deepseek-flash). Job `walk-9` (drafting `d-00mw6xgjxy-39e4`, $0.0084): `1. Write 3 lines about my garden from the notes` / `2. ask 1h: check it with me` / `3. Write it out` / `4. Write one line about the weather from the notes`, `send at line 4` (the last line, by position). The plan drafted GREEN with 3 steps: line 1 `[read]` emits garden_lines; line 2 the ask; line 4 `"Write one line about the weather from the notes"` granted `[read, write]`, reads `garden_review, garden_lines`, i.e. the send step. Line 3 `Write it out` has no step. Signed, the weather line would never run and the send would ship the garden lines.
+The same job with line 4 `Write two lines about the weather from the notes` (`walk-9-2`, `d-00mw6xph91-740f`) drafted red with the am38 sentence, so am38 only helps when the drafter does not do this.
+Not checked: why the "line neither served by any step" check let line 3 pass; whether a check that the send line's own words are a send (not work) is buildable without reading prose (typed fields only). Costs if left: a person can sign a plan that silently skips a work line. Discuss with hamr before any fix.
