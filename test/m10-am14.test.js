@@ -28,22 +28,25 @@ function world(t) {
   return { card, check: (over) => checkCard(card(over), { root, home, keys: [] }) };
 }
 
-test('card: a guardrail under the send line is refused at $0, naming the line (and the walk job passes)', (t) => {
+test('card: M13 am8 replaced the card refusal: a guardrail under the last typed line is work, accepted; the added send line carries none', (t) => {
   const w = world(t);
-  assert.equal(w.check().ok, true, 'the walk job (guardrails on lines 3 and 5, none on the send line) passes');
+  assert.equal(w.check().ok, true, 'the walk job (guardrails on lines 3 and 5) passes');
   const r = w.check({ job: `${JOB}\n~ exactly 3 bullets` });
-  assert.equal(r.ok, false);
-  assert.match(r.refusals.map((x) => x.say).join(' '), /line 7 is the send line.*exactly 3 bullets/);
+  assert.equal(r.ok, true, 'the last typed line is no longer the send, so a guardrail under it is allowed');
+  assert.match(r.prose, /\n7\. Write it out\n   guardrail: exactly 3 bullets\n8\. ask 1h: check the result with me\n9\. write it out\n\n/);
+  assert.match(r.prose, /send at line 9 to /);
 });
 
 test('drafter pre-flight: a prose file with a guardrail on the send line stops at $0 with no provider call', async (t) => {
   const w = world(t);
-  const prose = cardToProse(w.card({ job: `${JOB}\n~ exactly 3 bullets` }));
+  // hand-written prose (the CLI, or a job signed before M13 am8) can still carry one: cardToProse never writes one on the added send line
+  const prose = cardToProse(w.card()).replace('9. write it out\n', '9. write it out\n   guardrail: exactly 3 bullets\n');
+  assert.match(prose, /write it out\n   guardrail: exactly 3 bullets\n/);
   const p = fakeProvider([toolReply(validArgs())]);
   const r = await draft({ proseText: prose, provider: p, rates: RATES, modelId: MODEL });
   assert.equal(r.stop, 'pre-flight');
   assert.equal(p.calls.length, 0);
-  assert.match(r.reds.join(' '), /line 7 is the send line/);
+  assert.match(r.reds.join(' '), /line 9 is the send line/);
 });
 
 // M10 am16 replaced (2) and am15: the drafter no longer writes a check, so its check cannot carry a made-up number or word. The same refusals now live in code's
