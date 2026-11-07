@@ -6458,3 +6458,15 @@ Model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, `F151_EXTRA
 **Question.** For M4d am38: on hamr's real drafts, which red tries carry the trigger red `send at line N ... is not granted a catalogue primitive of class "write"`, and is every one of them a job whose last line (the send line) holds work, not a send? And does walk-9 revise 2 (`d-00mw23a969-7629`) carry it?
 **Method.** Read every drafting folder's draft logs under hamr's flows root (`~/.config/fwdloop/flows`, and the drafting folders the panel keeps; read only, never written). For each red try: its reds list, the first red's plain reason today (`plainPlanCheck`), whether any red matches the trigger, and the job's last line text.
 **Criteria (fixed now, no refit).** (a) walk-9 revise 2's red try carries the trigger red. (b) Every red try with the trigger red is hand-classed from its last job line as "work on the send line" or "a send line the drafter botched"; the count of botched ones is reported. (c) Red tries without the trigger are counted; am38 does not change their sentence. PASS when (a) holds and (b) finds 0 botched; a botched one is reported to hamr as a case where am38's sentence would mislead. Anything else FAIL.
+
+### F152 RESULT (2026-11-07, [MEASURED], $0)
+`poc/am38/scan.mjs` over `~/.config/fwdloop/flows/.drafts` (96 drafting folders, read only), output `poc/am38/out/scan.txt`. Tries read (`draft`, `draft-N` with a log.json): 135; red tries: 21; red tries with the trigger red: 2; red tries without it: 19.
+Trigger rows (last job line hand-classed):
+| folder | try | last job line | class |
+|---|---|---|---|
+| `d-00mw23a969-7629` | `draft-3` (walk-9 revise 2) | `8. Write one line about the weather from the notes` | work on the send line |
+| `d-00mvzqosmh-328b` | `draft` | `5. Write a short closing note to my neighbour` (Destination send at line 5) | work on the send line |
+- (a) HOLDS: walk-9 revise 2 (`draft-3`) carries `send at line 8 (steps[7]) is not granted a catalogue primitive of class "write"`; its first-red plain reason today is the wrong "The AI's notes on which lines it can check ..." sentence (F149).
+- (b) 2 trigger rows, 0 botched (both are work on the send line).
+- (c) 19 red tries have no trigger; am38 does not change their sentence.
+Verdict on the letter: **PASS**. Note: the second row (`d-00mvzqosmh-328b`) today shows "The steps do not pass their results to each other in a workable order", also wrong for its cause, so am38 would help there too.
