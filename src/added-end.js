@@ -44,3 +44,17 @@ export function addedLinesOf(lines, arbiter) {
   if (textOf(send.line - 1) === ADDED_ASK_QUESTION && (arbiter.asks ?? []).some((a) => a.line === send.line - 1)) found.add(send.line - 1);
   return found;
 }
+
+/**
+ * The lines a person typed, found again from a signed job: the signed lines without the send line (the last line when it is the send; today's `write it out`, or
+ * the person's own words in a job signed before am8) and without an added Ask before it. ONE reader for the Edit card (`cardFromSigned`) and the job identity (`jobKeyOfSigned`).
+ * @template {{ n: number, text: string }} L
+ * @param {L[]} lines @param {{ sends?: { line: number }[], asks?: { line: number }[] }} arbiter
+ * @returns {L[]}
+ */
+export function typedLinesOf(lines, arbiter) {
+  const sends = arbiter?.sends ?? [];
+  const lastSend = sends.length === 1 && sends[0].line === lines.length ? sends[0].line : null;
+  const added = addedLinesOf(lines, arbiter);
+  return lines.filter((l) => l.n !== lastSend && !added.has(l.n));
+}

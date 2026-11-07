@@ -18,7 +18,7 @@ import { checkFlowName } from '../flow.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
-import { addEnd, addedLinesOf } from '../added-end.js';
+import { addEnd, typedLinesOf } from '../added-end.js';
 import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
@@ -286,7 +286,7 @@ export function cardFromSigned({ lines, arbiter }) {
   let firstWait = null;
   // M13 am8: the end is added by code (`cardToProse`), so the card's job leaves out the send line (the last line when it is the send) and an added Ask before it
   const lastSend = (arbiter.sends ?? []).length === 1 && arbiter.sends[0].line === lines.length ? arbiter.sends[0].line : null;
-  const added = addedLinesOf(lines, arbiter);
+  const typed = new Set(typedLinesOf(lines, arbiter).map((l) => l.n));
   for (const l of lines) {
     const ak = asks.get(l.n);
     if (ak) {
@@ -294,7 +294,7 @@ export function cardFromSigned({ lines, arbiter }) {
       if (w === null) return no();
       firstWait ??= w;
     }
-    if (l.n === lastSend || added.has(l.n)) continue;
+    if (!typed.has(l.n)) continue;
     if (ak) jobLines.push(`Ask ${waitText(ak.ttlMs)}: ${l.text}`);
     else jobLines.push(l.text);
     if (typeof l.guardrail === 'string' && l.guardrail !== '') jobLines.push(`~ ${l.guardrail}`);
