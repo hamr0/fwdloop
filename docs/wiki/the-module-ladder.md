@@ -3534,3 +3534,11 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 **M4d am38 EXIT — SIGNED by hamr 2026-11-08 ("sign m4d am38 exit"), the text exactly as shown.**
 
 > **M4d am38 exit.** Evidence: hamr's live walk 2026-11-07 on the real panel, deepseek-flash. `walk-9-2` (d-00mw6xph91-740f), last line "Write two lines about the weather from the notes" with the send at line 4: red, ✗ line `plan checks · Your last line sends to your Destination, but your job puts other work on it` and `Fix: Make your last line the one that sends, or move that work above it, then Draft again.` Every other red keeps its first-red words: F152 (19 of 21 real red tries unchanged) and test/m4d-am38.test.js. Full suite at f224c73: 4613 tests, 4607 pass, 1 fail (launcher-stop-deadline, a timing test, green 3 of 3 alone), 5 skipped.
+
+**M13 am8 EXIT — SIGNED by hamr 2026-11-08 ("sign m13 am8 exit"), the text exactly as shown.**
+
+> **M13 am8 exit.** Evidence: hamr's live walk 2026-11-08 on the real panel, deepseek-flash. `walk-11` typed without a send line ("Write 3 lines about my garden from the notes" / "Ask 1h: check it with me" / "List 3 jobs for this week from the notes"); the card showed the two grey added lines; the plan had 5 steps, lines 4 and 5 marked `[added]`, and line 3 ran as work (run-1 not-done honestly on its own words, run-2 complete). F154 10 of 10 and 5 of 5; F156 40 of 42 signed jobs unchanged, 2 accepted by hamr's ruling. Full suite at 9a03e45: 4635 tests, 4625 pass, 5 fail (each green alone), 5 skipped.
+
+**M13 am9 EXIT — SIGNED by hamr 2026-11-08 ("sign m13 am9 exit"), the text exactly as shown.**
+
+> **M13 am9 exit.** Evidence: `walk-11 (run-2)`, complete, $0.0037: the last Ask showed `## Line 1: ...`, `Line 2: you accepted this at the Ask.`, `## Line 3: ...` and the sent `walk-11-run-2-final_output.md` is byte-equal to the accepted artifact. F155 PASS on 4 real runs; test/m13-am9.test.js 9 of 9.
