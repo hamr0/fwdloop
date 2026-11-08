@@ -121,20 +121,19 @@ test('a work step with no readable saved output: the Ask refuses, naming the ste
   assert.equal(red.red, 'ask: the saved output "n1" of step "Write the first note" — artifact "n1" is not valid JSON');
 });
 
-test('the run refuses at the Ask when a step output is gone (resume path), and shows nothing', async () => {
+test('the run refuses at the last Ask when a step output is gone, naming the step; the Ask is never shown, nothing is sent', async () => {
   const r = root(); clean('am9-gone'); modelRound = 0;
   sign(r, 'j');
-  const parked1 = await runFlow(args(r, 'j', 'am9-gone', { askStep: makeParkingAskStep(), sources: [] }));
-  assert.equal(parked1.outcome, 'paused', parked1.red);
-  assert.equal(answerAsk({ runDir: parked1.runDir, askId: parked1.askId, decision: 'accept' }).ok, true);
-  const parked2 = await resumeRun(args(r, 'j', 'am9-gone'));
-  assert.equal(parked2.outcome, 'paused', parked2.red);
-  assert.equal(answerAsk({ runDir: parked2.runDir, askId: parked2.askId, decision: 'accept' }).ok, true);
-  rmSync(path.join(parked2.runDir, 'artifacts', 'n2.json'));
-  const res = await resumeRun(args(r, 'j', 'am9-gone'));
-  assert.notEqual(res.outcome, 'paused');
-  assert.notEqual(res.outcome, 'complete');
-  assert.match(res.red ?? '', /n2/);
+  const shown = [];
+  const askStep = async ({ question, evidence, runDir }) => {
+    shown.push(question);
+    if (question === 'look at the first note') rmSync(path.join(runDir, 'artifacts', 'n1.json')); // gone before the last Ask builds the file
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) };
+  };
+  const res = await runFlow(args(r, 'j', 'am9-gone', { askStep, sources: [] }));
+  assert.equal(res.outcome, 'red');
+  assert.equal(res.red, 'ask: the saved output "n1" of step "Write the first note" is missing — refusing to show the whole job');
+  assert.deepEqual(shown, ['look at the first note']);
   assert.deepEqual(shipped('am9-gone'), []);
 });
 
