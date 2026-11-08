@@ -76,7 +76,7 @@ test('tries are labelled by their count within the step, never the audit attempt
 
 test('a run with no asks has no human lines; a blank answer adds nothing but its own line', () => {
   const memo = buildMemo(makeRun({ rows: [mrow('resume_parked', 1, 'hitl')] }), { step: 'jd_parked' });
-  assert.equal(memo, `${MEMO_HEADING}\nlast try: step resume_parked try 1 — result: done, for you to check at the Ask`);
+  assert.equal(memo, `${MEMO_HEADING}\nlast try: step resume_parked try 1 — result: hitl`);
   assert.ok(!/ask \d/.test(memo) && !/user says/.test(memo));
   const blank = buildMemo(makeRun({ rows: RUN6_ROWS, asks: [{ ...RUN6_ASKS[0], reason: '' }, RUN6_ASKS[1]] }), { step: 'summary_resume_final' });
   assert.match(blank, /^ask 1 \(after step summary_resume\): redo$/m);
