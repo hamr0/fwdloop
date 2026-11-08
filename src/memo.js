@@ -19,6 +19,9 @@ export const MEMO_CAP = 4000;
 /** one gap text is cut here (with an ellipsis), so a single long red cannot eat the whole cap */
 const GAP_CHARS = 300;
 
+// F157: `hitl` is our class word; told to a model it reads as "handed off, not done". The try finished; a human checks it at the next Ask.
+const HITL_RESULT = 'done, for you to check at the Ask';
+
 /** a try that closed well; every other verdict of a model try is a failure the memo names */
 const WELL = new Set(['green', 'hitl']);
 const DECISION_OF = Object.fromEntries(Object.entries(DECISION_STATUS).map(([k, v]) => [v, k]));
@@ -99,7 +102,7 @@ export function buildMemo(runDir, { step, cap = MEMO_CAP }) {
   const earlier = tries.slice(0, -1);
   const sameStep = earlier.filter((t) => t.step === step);
   const failures = earlier.filter((t) => t.step !== step && !WELL.has(t.verdict));
-  const label = (/** @type {{step: string, n: number, verdict: string, gap: string}} */ t) => `step ${t.step} try ${t.n} — result: ${t.verdict}`;
+  const label = (/** @type {{step: string, n: number, verdict: string, gap: string}} */ t) => `step ${t.step} try ${t.n} — result: ${t.verdict === 'hitl' ? HITL_RESULT : t.verdict}`;
   const gapOf = (/** @type {{gap: string}} */ t) => (t.gap === '' ? '' : ` — ${cutGap(t.gap)}`);
   const foldLine = (/** @type {string} */ kind, /** @type {any[]} */ g) => ({ kind, text: `${kind}: ${label(g[0])}${gapOf(g[0])}${g.length > 1 ? ` (x${g.length})` : ''}` });
 
