@@ -3,7 +3,7 @@
 // usage: FIREWORKS_API_KEY=... F157_OUT=<new dir> [F157_N=10] node poc/memo-hitl/f157.mjs
 // The read tool here is a stand-in that serves the frozen notes (the run's own primitives need a signed flow); everything else is the runner's call.
 import {
-  existsSync, mkdirSync, cpSync, readFileSync, writeFileSync,
+  existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, unlinkSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -31,6 +31,10 @@ cpSync(RUN, rec, { recursive: true });
 const rows = readFileSync(join(RUN, 'audit.jsonl'), 'utf8').split('\n').filter(Boolean);
 const cut = rows.findIndex((l) => JSON.parse(l).step === 'week_jobs');
 writeFileSync(join(rec, 'audit.jsonl'), rows.slice(0, cut).map((l) => `${l}\n`).join(''));
+// ask 2 (after week_jobs) did not exist yet when week_jobs started: take its two files out of the copy
+const ASK2 = '88432107-6781-4ed0-9900-7f403f566c98';
+unlinkSync(join(rec, 'asks', `${ASK2}.json`));
+unlinkSync(join(rec, `answer.${ASK2}.consumed.json`));
 const AFTER = buildMemo(rec, { step: 'week_jobs' });
 const asTold = AFTER.replace('result: done, for you to check at the Ask', 'result: hitl');
 if (asTold !== BASELINE) { console.error(`refused at $0: the rebuilt record does not give the baseline text\n${asTold}`); process.exit(2); }
