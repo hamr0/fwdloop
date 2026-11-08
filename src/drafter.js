@@ -19,6 +19,7 @@ import { Loop, HaltError } from 'bare-agent';
 import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from './declaration.js';
+import { readEveryStep } from './whole-job.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
@@ -873,6 +874,8 @@ export async function draft({
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
     }
+    // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
+    if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
     // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the person's picks (applyPicks, next).
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => {
