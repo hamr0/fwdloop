@@ -6521,3 +6521,10 @@ Ran `poc/m13-am8/f156.mjs` (output `poc/m13-am8/out/f156.txt`) on a `cp -a` copy
 - **Verdict on the letter: FAIL.** The new verdict differs from the old for 2 flows: `m14-walk-1`, `walk-9`.
 
 **hamr ruling on F156 (2026-11-08, unsigned ruling, not signed text):** "fine if 2 old jobs are broken but new ruling works". `walk-9` and `m14-walk-1` (work on the send line, the F153 shape) no longer reopen as a card after the M13 am8 build; accepted, no fix. The other 40 signed jobs keep their same-job verdict.
+
+## F157 (2026-11-08): the carry memo's `result: hitl` reads as unfinished next to an accept
+Seen on hamr's walk-11 run-2 (complete): step 3 was told `last try: step garden_lines try 1 — result: hitl` after `ask 1 (after step garden_lines): accept`, and wrote into the sent file a remark that the two disagree. Cause: `buildMemo` (src/memo.js) prints the audit verdict word as is; `hitl` is our class word, not a result. hamr asked for the fix 2026-11-08.
+
+### F157 PRE-REGISTRATION (2026-11-08, PAID, about $0.05; `poc/memo-hitl/f157.mjs`; written before any run, NOT yet run)
+**Method.** The real model step call (the same function the runner uses for a step, no src change beyond the fix) for walk-11 run-2's step 3 (`List 3 jobs for this week from the notes`, its frozen notes and reads), model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, key from the environment only. BASELINE: the memo text exactly as told in walk-11 run-2. AFTER: the memo the fixed `buildMemo` writes for the same record. N=10 each.
+**Criteria (fixed now, no refit).** A try "worries" when its saved output matches /hitl|status line|ask record|which one holds|confirm(ing)? which/i. BASELINE worries >= 2 of 10, else INCONCLUSIVE (cause not shown). AND AFTER worries = 0 of 10. Anything else FAIL. Recorded, not judged: cost, done flag.
