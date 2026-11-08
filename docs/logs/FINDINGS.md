@@ -6528,3 +6528,10 @@ Seen on hamr's walk-11 run-2 (complete): step 3 was told `last try: step garden_
 ### F157 PRE-REGISTRATION (2026-11-08, PAID, about $0.05; `poc/memo-hitl/f157.mjs`; written before any run, NOT yet run)
 **Method.** The real model step call (the same function the runner uses for a step, no src change beyond the fix) for walk-11 run-2's step 3 (`List 3 jobs for this week from the notes`, its frozen notes and reads), model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, key from the environment only. BASELINE: the memo text exactly as told in walk-11 run-2. AFTER: the memo the fixed `buildMemo` writes for the same record. N=10 each.
 **Criteria (fixed now, no refit).** A try "worries" when its saved output matches /hitl|status line|ask record|which one holds|confirm(ing)? which/i. BASELINE worries >= 2 of 10, else INCONCLUSIVE (cause not shown). AND AFTER worries = 0 of 10. Anything else FAIL. Recorded, not judged: cost, done flag.
+
+### F157 RESULT (2026-11-08, [MEASURED], run by the orchestrator; INCONCLUSIVE)
+`poc/memo-hitl/f157.mjs` at 8ddff3c, model `accounts/fireworks/models/deepseek-v4p1-flash` via Fireworks, walk-11 run-2 step 3 (`week_jobs`), N=10 per arm, interleaved. Spent $0.0298.
+- BASELINE (memo `result: hitl`): worries 0 of 10; done:false 1 of 10.
+- AFTER (memo `result: done, for you to check at the Ask`): worries 0 of 10; done:false 3 of 10.
+**Verdict against the pre-registered bar: INCONCLUSIVE** (baseline worries 0, under the 2 needed to show the cause). No refit. The walk-11 run-2 remark was not reproduced in 10 tries; the fix's benefit is not shown.
+**Recorded, not judged.** Every done:false in both arms says the notes carry no "this week" marker (the model's literal reading, as walk-11 run-1 and m14-walk-10 run-1). 3 of 10 vs 1 of 10 is too few to call a difference; the read tool was a stand-in returning the frozen notes.
