@@ -6535,3 +6535,5 @@ Seen on hamr's walk-11 run-2 (complete): step 3 was told `last try: step garden_
 - AFTER (memo `result: done, for you to check at the Ask`): worries 0 of 10; done:false 3 of 10.
 **Verdict against the pre-registered bar: INCONCLUSIVE** (baseline worries 0, under the 2 needed to show the cause). No refit. The walk-11 run-2 remark was not reproduced in 10 tries; the fix's benefit is not shown.
 **Recorded, not judged.** Every done:false in both arms says the notes carry no "this week" marker (the model's literal reading, as walk-11 run-1 and m14-walk-10 run-1). 3 of 10 vs 1 of 10 is too few to call a difference; the read tool was a stand-in returning the frozen notes.
+
+**hamr rulings 2026-11-08 (unsigned rulings, not signed text):** (1) F157: B, the memo fix (2078404) is reverted because its benefit was not shown (F157 INCONCLUSIVE); `result: hitl` stays; fix only if the remark shows up again live. (2) M13 am8 item 4: the plan mark stays as built, `[added]` with its brackets.
