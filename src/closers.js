@@ -239,7 +239,7 @@ function describeArtifact(artifact) {
  * Async because bareguard's `checkStep` is.
  *
  * @param {any} artifact
- * @param {{ maxWords?: number, sections?: string[], wordsPerSection?: number, linesPerInvoice?: number, mustCarry?: string[] }} shape
+ * @param {{ maxWords?: number, sections?: string[], wordsPerSection?: number, linesPerInvoice?: number, mustCarry?: string[], picked?: any[] }} shape
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeSoftgreen(artifact, shape) {
@@ -271,7 +271,7 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, cited?: any, columns?: {source: string, column: string}[], sheet?: any[] } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[] } }} step
  * @param {unknown} artifact
  * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
@@ -279,6 +279,32 @@ export async function closeSoftgreen(artifact, shape) {
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeByClass(step, artifact, ctx) {
+  const cls = step?.close?.class;
+  if (cls === 'green' && Array.isArray(step?.close?.picked) && step.close.picked.length > 0) return await closeFactAndPicks(step, artifact, ctx);
+  return await closeOne(step, artifact, ctx);
+}
+
+/**
+ * M10 am22 (1): a fact line (cited / sheet) that also carries the checks the person picked. The artifact is `{results|claims..., text}`: the fact half reads
+ * everything but `text`, the picks read `text` (the softgreen close, unchanged). Green only if both are green. A red in either is red (both reasons told);
+ * a third outcome (unparseable, crash) of either half is never turned into green: the fact half's wins when it has one, else the picks' own.
+ * @param {any} step @param {unknown} artifact @param {Parameters<typeof closeOne>[2]} ctx @returns {Promise<CloseVerdict>}
+ */
+async function closeFactAndPicks(step, artifact, ctx) {
+  const rec = artifact && typeof artifact === 'object' && !Array.isArray(artifact);
+  const { text, ...factArtifact } = rec ? /** @type {Record<string, any>} */ (artifact) : /** @type {Record<string, any>} */ ({});
+  const fact = /** @type {any} */ (await closeOne(step, rec ? factArtifact : artifact, ctx));
+  const picks = /** @type {any} */ (await closeSoftgreen({ text }, { picked: step.close.picked }));
+  const pickChecks = picks.checks;
+  if (fact.verdict === 'crash' || fact.verdict === 'unparseable') return { ...fact, pickChecks };
+  if (picks.verdict === 'crash' || picks.verdict === 'unparseable') return fact.verdict === 'red' ? { ...fact, pickChecks } : { ...picks, cited: fact.cited, sheetRecord: fact.sheetRecord, checks: fact.checks };
+  if (fact.verdict === 'green' && picks.verdict === 'green') return { ...fact, pickChecks };
+  const reds = [...(fact.verdict === 'red' ? [fact.red] : []), ...(picks.verdict === 'red' ? [picks.red] : [])].filter(Boolean);
+  return { ...fact, verdict: 'red', red: reds.join('\n'), reds, pickChecks };
+}
+
+/** @param {any} step @param {unknown} artifact @param {{ reads: Record<string, any>, businessDate: string, source?: any, sheet?: any }} ctx @returns {Promise<CloseVerdict>} */
+async function closeOne(step, artifact, ctx) {
   const cls = step?.close?.class;
   if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
   if (cls === 'green' && Array.isArray(step?.close?.sheet)) return await closeSheet(step.close.sheet, artifact, ctx.sheet);

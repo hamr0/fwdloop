@@ -64,6 +64,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'flowType',
   'ticketFilter',
   'ticketWatch',
+  'pickedLines',
   // step level
   'goal',
   'primitives',
@@ -79,6 +80,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'cited',
   'columns',
   'sheet',
+  'picked',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -89,9 +91,9 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch', 'pickedLines']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked']);
 
 /** M13 piece 4 (signed item 4): the job's flow type, set by code from the job card, signed with the job. */
 export const FLOW_TYPES = Object.freeze(['plain', 'mcp', 'tickets']);
@@ -545,6 +547,31 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
 }
 
 /**
+ * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/checkpick.js applyPicks).
+ * @param {Record<string, any>} declaration @param {string[]} reds
+ */
+function checkPickedLines(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'pickedLines')) return;
+  const v = declaration.pickedLines;
+  if (!Array.isArray(v) || v.length === 0 || !v.every((n) => Number.isInteger(n) && n > 0)) reds.push('declaration: "pickedLines" must be a non-empty list of line numbers');
+}
+
+/**
+ * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
+ * applyPicks); here it must be a green step's, a list of bareguard text rules that builds into a check.
+ * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds
+ */
+function checkPickedKey(step, label, effectiveClass, reds) {
+  const at = `declaration: ${label}.close.picked`;
+  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet))) {
+    reds.push(`${at} is for a step that checks facts (quotes or a sheet) only; this step's check is "${step.close.class ?? effectiveClass}"`);
+    return;
+  }
+  if (!SHAPE_TYPE_CHECKS.picked.check(step.close.picked)) { reds.push(`${at} must be ${SHAPE_TYPE_CHECKS.picked.expected}`); return; }
+  try { buildSoftgreenRubric({ picked: step.close.picked }); } catch (err) { reds.push(`${at} cannot be built into a check - ${String(err.message).replace(/^invalid rubric: /, '')}`); }
+}
+
+/**
  * M10 amendment 7 item 1: `close.cited` is the facts a green step checks its quotes against, written by the drafter (a fact part:
  * `{source, facts, count?}`, src/citedcheck.js). Its SHAPE is checked in every mode (a signed flow is read the same way). With `fitJobLine` the number rules
  * must be the person's own words on the job line; with `pageWords` (the drafting copy of each page and what the page-word map kept) every word is proved on
@@ -724,6 +751,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // --- top level: unknown / arbiter keys -----------------------------------
   checkOwnKeys(declaration, TOP_LEVEL_ALLOWED, 'declaration', reds);
+  checkPickedLines(declaration, reds);
 
   // --- steps: must be a non-empty array, or nothing else here is meaningful
   if (!Array.isArray(declaration.steps) || declaration.steps.length === 0) {
@@ -980,6 +1008,7 @@ export function validateDeclaration(declaration, context = {}) {
             if (fitJobLine === true) checkShapeFitsJobLine(step, i, safeLines, reds);
           }
         }
+        if (step.close.picked !== undefined) checkPickedKey(step, label, effectiveClass, reds);
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);

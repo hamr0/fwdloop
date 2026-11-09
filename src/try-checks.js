@@ -44,6 +44,14 @@ export function outputRecord(step, artifact) {
  * @param {any} step @param {any} artifact @param {{verdict: string, red?: string|null, checks?: Array<{text:string, ok:boolean, result:string|null}>}} closed
  */
 export function closeRecords(step, artifact, closed) {
+  const rows = factRecords(step, artifact, closed);
+  // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
+  const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
+  return [...rows, ...picks.map((/** @type {any} */ c, i) => ({ n: rows.length + 3 + i, text: c.text, ok: c.ok, result: c.result, source: lineSource(step) }))];
+}
+
+/** @param {any} step @param {any} artifact @param {any} closed */
+function factRecords(step, artifact, closed) {
   const source = lineSource(step);
   if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
     return [{

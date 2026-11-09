@@ -235,11 +235,20 @@ export function applyPicks(declaration, rules, settled, sentence) {
   const green = (/** @type {number} */ n) => declaration.steps.some((/** @type {any} */ st) => st?.fromLine === n && st?.close?.class === 'green');
   const mine = (/** @type {number} */ n) => lineSet.has(n) && !green(n);
   const steps = declaration.steps.map((/** @type {any} */ st) => {
+    // M10 am22 (1): a fact line keeps its fact close and adds the person's picks to it (`close.picked`); the line stays green
+    if (st && typeof st === 'object' && lineSet.has(st.fromLine) && green(st.fromLine)) {
+      const { picked: _own, ...close } = st.close ?? {};
+      const kept = settled.checks.get(st.fromLine) ?? [];
+      return { ...st, close: kept.length && st.close?.class === 'green' ? { ...close, picked: kept } : close };
+    }
     if (!st || typeof st !== 'object' || !mine(st.fromLine)) return st;
     const picked = settled.checks.get(st.fromLine) ?? [];
     return { ...st, close: picked.length ? { class: 'softgreen', shape: { picked } } : { class: 'hitl' } };
   });
   const out = { ...declaration, steps };
+  // M10 am22 (3): the record of the fact lines that carry the person's picks, written here and nowhere else; whatever the drafter sent for it is gone
+  const pickedLines = [...new Set(steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) && st.close.class === 'green').map((/** @type {any} */ st) => st.fromLine))].sort((a, b) => a - b);
+  if (pickedLines.length) out.pickedLines = pickedLines; else delete out.pickedLines;
   const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (isRec(declaration.guardrailClasses)) {
     out.guardrailClasses = { ...declaration.guardrailClasses };
