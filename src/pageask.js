@@ -10,10 +10,12 @@
 //   READING: a kept fact carries it with a `reading` (a limit the page cannot hold in words, e.g. "not a red-eye"). Asked only when a bound of the
 //     reading is NOT in the words the person wrote; a bound they wrote themselves is theirs and nothing is asked.
 //   CAN'T CHECK: no kept fact carries it.
+//   A COUNT guardrail (declaration.js isCountGuardrail) is none of these: it is asked once, as a pick (M10 am24).
 // Throws away: a fact's name, words and source (only its reading and the rule it serves are used).
 import { redactSecrets } from './redact.js';
 import { lineRules, boundInWords, wordsSaidOn } from './pagebits.js';
 import { validReading } from './pagerules.js';
+import { isCountGuardrail } from './declaration.js';
 
 /** the most asks before drafting; more than this is a job to rewrite, not a questionnaire (am1) */
 export const MAX_LOOK_ASKS = 3;
@@ -97,6 +99,7 @@ export function askableFromLook(look, jobLines) {
   for (const l of Array.isArray(jobLines) ? jobLines : []) {
     lineRules(l).forEach((rule, k) => {
       const n = k + 1;
+      if (isCountGuardrail(rule)) return; // M10 am24: a count guardrail is asked only as a pick (src/checkpick.js), never as a page question; its look facts stay
       const key = `${l.n}\u0000${rule.trim().toLowerCase()}`;
       const tied = facts.filter((f) => f.line === l.n && f.forRule === n);
       if (tied.length > 0) {
