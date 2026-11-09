@@ -1,5 +1,7 @@
 // PAID; NOT the product. F162: one practice draft on the REAL panel path (repo bin + HTTP API) to check M10 am22 + am23 live.
 // Usage: FIREWORKS_API_KEY=... node poc/m10-am23/practice-draft.mjs --out <fresh scratch dir> [--cap <usd, default 0.05>] [--no-counts]
+//   [--repo <dir>] panel started from that repo's bin/fwdloop (default: this repo)  [--input <name>=<url>] replaces the default flights inputs line
+//   [--job-file <path>] job text used verbatim; bars then judge the first model step whose close has picks or is green
 // The key is only checked for emptiness and passed through the parent env; it is never read into a variable that is printed or written.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync,
@@ -28,12 +30,14 @@ const JOB_LINES = [
 ];
 const URL_FLIGHTS = 'https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD';
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, cap: { type: 'string' }, 'no-counts': { type: 'boolean' } } });
+const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, cap: { type: 'string' }, 'no-counts': { type: 'boolean' }, repo: { type: 'string' }, input: { type: 'string' }, 'job-file': { type: 'string' } } });
 // --no-counts: comparator, drops exactly the two count guardrail lines; everything else identical
-const JOB = (values['no-counts'] ? JOB_LINES.filter((l) => l !== '~ exactly 3 bullets' && l !== '~ under 80 words') : JOB_LINES).join('\n');
+const PANEL_REPO = values.repo ? path.resolve(values.repo) : REPO;
+const JOB = values['job-file'] ? readFileSync(path.resolve(values['job-file']), 'utf8') : (values['no-counts'] ? JOB_LINES.filter((l) => l !== '~ exactly 3 bullets' && l !== '~ under 80 words') : JOB_LINES).join('\n');
 const fail = (m) => { process.stderr.write(`practice-draft: ${m}\n`); process.exit(2); };
 if (!values.out) fail('--out <fresh scratch dir> is required');
 const CAP = values.cap ?? '0.05';
+if (values.input !== undefined && !/^[^\s=:]+=\S+$/.test(values.input)) fail('--input must be <name>=<url>');
 if (!(Number(CAP) > 0)) fail('--cap must be a positive USD number');
 const out = path.resolve(values.out);
 if (existsSync(out) && readdirSync(out).length > 0) fail(`${out} exists and is not empty; give a fresh dir`);
@@ -107,8 +111,8 @@ const say = (s) => process.stdout.write(`${s}\n`);
 
 async function main() {
   const log = openSync(path.join(out, 'panel.out'), 'w');
-  panel = spawn(process.execPath, [path.join(REPO, 'bin', 'fwdloop'), 'panel', '--port', String(PORT), '--root', flows], {
-    cwd: REPO, env: { ...process.env, HOME: home }, stdio: ['ignore', log, log],
+  panel = spawn(process.execPath, [path.join(PANEL_REPO, 'bin', 'fwdloop'), 'panel', '--port', String(PORT), '--root', flows], {
+    cwd: PANEL_REPO, env: { ...process.env, HOME: home }, stdio: ['ignore', log, log],
   });
   closeSync(log);
   let up = false;
@@ -120,7 +124,7 @@ async function main() {
 
   const card = {
     flowName: 'practice-am23', job: JOB, capUsd: CAP, askWait: '30m', destination: send,
-    provider: 'FIREWORKS_API_KEY', model: MODEL, inputs: `flights: ${URL_FLIGHTS}`,
+    provider: 'FIREWORKS_API_KEY', model: MODEL, inputs: values.input !== undefined ? values.input.replace('=', ': ') : `flights: ${URL_FLIGHTS}`,
   };
   const start = await rq('POST', '/api/author/draft', card);
   if (start.status !== 202 && start.status !== 200) throw new Error(`draft refused: ${start.status} ${start.text.slice(0, 600)}`);
@@ -168,7 +172,12 @@ async function main() {
   const planRel = st.plan ?? 'draft';
   const readJson = (p) => { try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; } };
   const decl = readJson(path.join(dd, planRel, 'declaration.json'));
-  const step2 = decl?.steps?.find((s) => s.fromLine === 2) ?? null;
+  const hasPicks = (c) => c?.class === 'green' || c?.shape?.picked !== undefined || c?.picked !== undefined;
+  for (const s of decl?.steps ?? []) { if (s.close !== undefined && s.close !== null) say(`CLOSE line ${s.fromLine}: ${JSON.stringify(s.close)}`); }
+  const step2 = values['job-file']
+    ? ((decl?.steps ?? []).find((s) => hasPicks(s.close)) ?? null)
+    : (decl?.steps?.find((s) => s.fromLine === 2) ?? null);
+  const JL = step2?.fromLine ?? 2;
   report.line2Step = step2;
   report.line2Close = step2?.close ?? null;
   say(`\nLINE 2 STEP CLOSE: ${JSON.stringify(step2?.close ?? null)}`);
@@ -203,7 +212,7 @@ async function main() {
     return;
   }
   // bars
-  const qs = report.questions.filter((q) => q.line === 2).map((q) => q.question).join('\n');
+  const qs = report.questions.filter((q) => q.line === JL).map((q) => q.question).join('\n');
   report.bars.a = /exactly 3 bullets/i.test(qs) && /under 80 words/i.test(qs);
   const closeJson = JSON.stringify(step2?.close ?? {});
   report.bars.b = st.phase === 'green' && step2?.close?.class === 'green' && /cited/i.test(closeJson) && step2?.close?.picked !== undefined && JSON.stringify(step2.close.picked).length > 2;
