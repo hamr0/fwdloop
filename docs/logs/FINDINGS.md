@@ -6644,3 +6644,13 @@ A refused or red draft is FAIL with its reason, never refit.
 **F162 OLD-CODE FLIGHTS RESULT (2026-11-09, PAID $0.0104).** Out dir `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/bacc1500-09a3-4575-90fd-670b7893e350/scratchpad/f162-old`, panel from worktree at 4e349c5, `--no-counts`; phase green; every step hitl, line 2 `{"class":"hitl"}`, cited=no. **Outcome on the letter: OLD-HITL** - the lost price check on today's Google Flights page happens on the code before today's fixes and am22/am23 too; not caused by this branch.
 
 **F162 RUN 3b PRE-REGISTRATION (written before the run).** URL changed after run 3's $0 refusal, nothing else: input `changelog=https://raw.githubusercontent.com/expressjs/express/master/History.md`, same job file `poc/m10-am23/changelog-job.txt`, `--cap 0.25`, same bars (a)-(d) on the summarise line. Bar (b) is read from the printed `CLOSE line` JSON (green with cited AND picks present, under `close.picked` per am22), not the script's string judge.
+
+## F163 PRE-REGISTRATION (2026-11-09, $0, no model call, no network, no src edit; `poc/f163/replay.mjs`; written before the script)
+**Question.** Does the M10 am24 candidate (a COUNT guardrail, the one `isCountGuardrail`, gets no page question of either kind; look facts untouched; non-count page questions unchanged) do what am24 says, and nothing else, on real saved drafts?
+**Method.** The candidate is a pure filter in the script ("NOT the product"; no src edit) around the real `askableFromLook` (src/pageask.js): it drops the asks whose `ruleText` is `isCountGuardrail`. Today's = the real `askableFromLook` unfiltered. The pick offer is the real `offerRules`. Inputs: the saved F162 drafts (run 1, run 2, run 3b, comparator: `draft/page-look.json` facts + `draft/prose.txt`) and the 41 saved looks under `~/.config/fwdloop/flows/.drafts` (read only), job lines minus signed ask lines, as `src/drafter.js` builds them.
+**Bars (fixed now, no refit).**
+(a) F162 run 1 and run 3b looks replayed: today's code yields a page question AND a pick for `under 80 words` (shown); the candidate yields only the pick.
+(b) F162 run 2 and the comparator: the candidate's full question list (page asks + picks) is identical to today's.
+(c) All 41 saved looks with their jobs: the candidate differs from today ONLY by removed page questions on count guardrails; no non-count page question is lost; no look fact is removed.
+(d) Recorded, not judged: the 3-ask cap (am1/am16 (5)) counts only page asks and can't-check picks; how many replays change their counted number.
+PASS = a, b and c all hold. FAIL otherwise, reported on the letter; a FAIL stops the build.
