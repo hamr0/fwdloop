@@ -1399,19 +1399,19 @@ export async function runFlow({
 
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume); taken here, recorded in `run.json` once the inputs are frozen
   const thinkingBox = readModelRecord(flowDir)?.thinking === true;
-  // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
-  if (!runOwnsPlan(runDir)) {
-    try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
-      try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(`learnings record: ${e?.message ?? e}`).split('\n')[0] }); } catch { /* best-effort */ }
-    }
-  }
-
   const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp, ticketFilter: declaration.ticketFilter });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
+  // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; taken only once the inputs froze, so a run refused at its inputs leaves it; a failure never stops the run
+  if (!runOwnsPlan(runDir)) {
+    try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
+      try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(`learnings record: ${e?.message ?? e}`).split('\n')[0] }); } catch { /* best-effort */ }
+    }
+  }
+
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
   writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs

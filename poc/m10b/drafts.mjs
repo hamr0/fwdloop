@@ -1,5 +1,5 @@
 // POC F76 Part B: does deepseek-flash, given bareguard 0.26.0's rubricVocabulary, draft the right sheet checks? NOT the product.
-// borrowed-from: poc/am28-word-limit/draft.mjs (forced tool call, per-round metering via Loop onLlmResult, prices from Settings via makeProvider).
+// borrowed-from: poc/am28-word-limit/draft.mjs@82ec67b (forced tool call, per-round metering via Loop onLlmResult, prices from Settings via makeProvider).
 //   node poc/m10b/drafts.mjs --dry            $0: build and print both prompts (cell text of Customer/Description redacted) + tool schema; no network, no key
 //   node poc/m10b/drafts.mjs --tag <tag>      PAID (6 calls): needs DEEPSEEK_API_KEY in the env (the provider row name in Settings; first line of the pass entry only)
 // Results: poc/m10b/results/<tag>.json. A tag that already has results is refused; a result file is never overwritten.
