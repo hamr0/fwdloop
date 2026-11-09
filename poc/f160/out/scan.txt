@@ -1,0 +1,3 @@
+F160 scan
+{"tries":140,"noProse":0,"noLook":99,"withLook":41,"withTiedFact":0,"rulesScoped":7,"tied":0,"tiedCountable":0,"hits":0,"allTied":38,"allTiedCountable":0,"allTiedOutOfScope":38}
+VERDICT: NOT SEEN
