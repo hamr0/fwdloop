@@ -6662,3 +6662,12 @@ Script `poc/f163/replay.mjs <scratchpad>`, output `poc/f163/out/replay.txt` (rea
 - (c) 41 saved looks: 7 lose a page question, all the same one: `cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"` (a count guardrail); 0 non-count page questions lost, 0 added; the filter sees only the asks, so no look fact is touched. ok
 - (d) recorded: 7 of 41 replays drop their page-ask count 1 -> 0; run 1 and run 3b 1 -> 0. Nothing else changes the cap count.
 **Verdict on the letter: PASS.**
+
+## F164 PRE-REGISTRATION (2026-11-09, $0, no model call, no network, no key, no src edit; `poc/f164/`; questions fixed before the replay scripts were run)
+**Question.** hamr's flights job (line 2 "list 3 flights from Madrid to Rome", `~ under $150` / `$40`, `nonstop`) drafted line 2 as `green` + `cited` through Oct 24 and on Nov 4 (flights-gif-1). Today 4 fresh drafts leave line 2 without a price check (hitl / softgreen), one of them on code 4e349c5. Was it the PAGE, the CODE, or the DRAFTER (model)?
+**Method (all read-only on saved drafts under `~/.config/fwdloop/flows/.drafts/` and the F162 scratch dirs).**
+1. Page: diff a working frozen `flights.txt` (Oct 24, Nov 4) against today's, normalised for refs, prices and durations.
+2. Look: compare working vs failing `page-look.json` (the AI map answer: words, units, currencies, order).
+3. Drafter: compare each round's args in `log.json` and the `notChecked` lines the drafter was given.
+4. Code: `git log` over the draft/look/close files since Oct 23; replay the REAL `draft()` of a repo root with a fake provider (page-map answer = the saved mapping, drafter answer = a hand-built Oct-style cited close), at 07159e8 (the code of the Nov 4 green draft; same installed node_modules), at HEAD, and as a cross of (prose+page) x (saved map answer). Outputs: whether the code accepts the close, and the drafter's system prompt.
+**Verdict classes (fixed now).** PAGE-CHANGED = same code and same map answer give a different outcome on today's page. CODE-CHANGED = same saved inputs give different outcomes on old and new code (name the commit and line). DRAFTER-ONLY = same code accepts an Oct-style close on today's inputs, and only the model's choice differs. UNKNOWN otherwise. A paid replay is estimated, NOT run.
