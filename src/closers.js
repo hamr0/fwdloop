@@ -294,7 +294,11 @@ async function closeFactAndPicks(step, artifact, ctx) {
   const rec = artifact && typeof artifact === 'object' && !Array.isArray(artifact);
   const { text, ...factArtifact } = rec ? /** @type {Record<string, any>} */ (artifact) : /** @type {Record<string, any>} */ ({});
   const fact = /** @type {any} */ (await closeOne(step, rec ? factArtifact : artifact, ctx));
-  const picks = /** @type {any} */ (await closeSoftgreen({ text }, { picked: step.close.picked }));
+  // am22 (2): missing text is red, never green. Code adds the `nonEmpty` floor to the person's picks (a count like "at most 80 words" passes an empty text), so empty = missing.
+  const picked = step.close.picked.some((/** @type {any} */ c) => c.rule === 'nonEmpty') ? step.close.picked : [...step.close.picked, { rule: 'nonEmpty' }];
+  const picks = /** @type {any} */ (typeof text === 'string'
+    ? await closeSoftgreen({ text }, { picked })
+    : { verdict: 'red', red: 'no text: the answer has no "text" for your checks to read', checks: [{ id: 'text', text: plainWords({ rule: 'nonEmpty' }), ok: false, result: 'no text' }] });
   const pickChecks = picks.checks;
   if (fact.verdict === 'crash' || fact.verdict === 'unparseable') return { ...fact, pickChecks };
   if (picks.verdict === 'crash' || picks.verdict === 'unparseable') return fact.verdict === 'red' ? { ...fact, pickChecks } : { ...picks, cited: fact.cited, sheetRecord: fact.sheetRecord, checks: fact.checks };

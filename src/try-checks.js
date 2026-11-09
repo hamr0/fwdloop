@@ -67,7 +67,7 @@ function factRecords(step, artifact, closed) {
   if (step?.close?.class === 'green' && step?.close?.cited) {
     const n = Array.isArray(artifact?.results) ? artifact.results.length : 0;
     return [{
-      n: 3, text: 'every result is quoted from the saved copy and passes its rules', ok: closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
+      n: 3, text: 'every result is quoted from the saved copy and passes its rules', ok: Array.isArray(/** @type {any} */ (closed).pickChecks) && closed.cited?.check ? closed.cited.check.verdict === 'green' : closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
     }];
   }
   if (step?.close?.class === 'green') {

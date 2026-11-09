@@ -111,3 +111,36 @@ test('(1) the validator accepts close.picked on a fact step (a list of text rule
   junk.steps[0].close.picked = [{ rule: 'cells' }];
   assert.match(reds(junk).join('\n'), /close\.picked must be/);
 });
+
+test('(2) a fact line with picks and no text, or empty text, is red even when its facts pass; never green, never a casualty', async () => {
+  const none = await close({ results: good });
+  assert.equal(none.verdict, 'red');
+  assert.match(none.red, /no text/);
+  const empty = await close({ results: good, text: '' });
+  assert.equal(empty.verdict, 'red');
+  assert.match(empty.red, /not met: the answer is not empty/);
+  const notString = await close({ results: good, text: 42 });
+  assert.equal(notString.verdict, 'red');
+  // only maxWords picked: empty text still red (the code floor), a good text still green
+  assert.equal((await close({ results: good, text: '' }, [{ rule: 'maxWords', value: 80 }])).verdict, 'red');
+  assert.equal((await close({ results: good, text: words(3) }, [{ rule: 'maxWords', value: 80 }])).verdict, 'green');
+});
+
+test('(2) the check rows of a fact line with picks: the fact row, then each pick, with the floor listed', async () => {
+  const { closeRecords } = await import('../src/try-checks.js');
+  const art = { results: good, text: words(93) };
+  const step = stepWith([{ rule: 'maxWords', value: 80 }]);
+  const closed = await closeByClass(step, art, { reads: {}, businessDate: '', source });
+  const rows = closeRecords(step, art, closed);
+  assert.ok(rows.some((r) => /at most 80 words/.test(r.text) && r.ok === false && /93 words/.test(r.result)), JSON.stringify(rows));
+  assert.ok(rows[0].text.startsWith('every result is quoted') && rows[0].ok === true);
+});
+
+test('(2) a fact step with picks is offered a "text" box and told to write it; one without is offered none (the step never sees the check itself)', async () => {
+  const { buildEmitArtifactSchema } = await import('../src/model-step.js');
+  const withText = buildEmitArtifactSchema('green', true, null, true);
+  assert.ok(withText.properties.text && withText.required.includes('text'));
+  assert.equal(withText.additionalProperties, false);
+  assert.equal(buildEmitArtifactSchema('green', true).properties.text, undefined);
+  assert.equal(JSON.stringify(withText).includes('maxWords'), false);
+});
