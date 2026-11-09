@@ -6551,3 +6551,16 @@ Scan: `poc/f158/scan.mjs`, output `poc/f158/out/scan.txt`. Source of picks: `pic
 - **Unknown, not guessed:** the 71 declarations with no picks-record. The record exists only from am17; a try with no record either had no picks or predates it, and nothing on disk tells which. Signed flows (44 read, 20 with a green step) hold no pick record, so their picks are unknown except through the drafting folders counted above.
 - Drops: none.
 **Verdict on the letter: NOT SEEN** (0 dropped of 21 recoverable agreed picks; the 71 unrecoverable tries are a blind spot, not evidence either way). Reported to hamr, who decides.
+
+## F159 PRE-REGISTRATION (2026-11-09, $0, no model call, no network, no src edit; `poc/m10-am22/keepboth.mjs`; written before the script)
+**Question.** Can fwdloop's existing graders grade ONE artifact of a green-cited fact step against both its cited check and a picked `at most 80 words` check, unchanged, and is the combined verdict right (M10 am22 keep-both)? Bareloop's $0 POC found a hole: a fact line with only a maxWords pick and no text graded green.
+**Method.** Fixture page written by hand (no PII). Real code paths imported from `../src` (the cited-check grader and the softgreen/pick grader as the runner calls them). No reimplementation of either.
+**Samples (6), one green-cited fact step on the page with a picked `at most 80 words`:**
+(a) good: real quotes from the page, text <=80 words -> expect green
+(b) 93 words of text, good quotes -> expect red
+(c) made-up quote, good text -> expect red
+(d) no quote, good text -> expect red
+(e) no text field (or empty), good quotes -> expect red
+(f) maxWords pick only, no text -> expect red (bareloop's hole)
+**Criteria (fixed now, no refit).** PASS = all 6 verdicts as expected. FAIL otherwise, reported on the letter.
+**Recorded, not judged.** What shape change the artifact/close needs (does a cited artifact carry `text`?); whether either grader had to change.
