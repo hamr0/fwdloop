@@ -120,7 +120,7 @@ function spendOf(id) {
 }
 
 async function oneDraft(arm, i) {
-  const flowName = `f165-${arm}-${i}`;
+  const flowName = `f165-${arm.toLowerCase()}-${i}`;
   const row = { flowName, arm, i, phase: null, line2Class: null, cited: null, picks: null, unjudgeable2: null, spendUsd: 0, spendComplete: false, model: null, questions: 0 };
   const card = { flowName, job: JOBS[arm], capUsd: '0.5', askWait: '30m', destination: send, provider: PROVIDER, model: MODEL, inputs: `flights: ${URL_FLIGHTS}` };
   const start = await rq('POST', '/api/author/draft', card);
