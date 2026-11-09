@@ -109,6 +109,7 @@ test('(1) the validator accepts close.picked on a fact step (a list of text rule
   assert.match(reds(bad).join('\n'), /close\.picked is for a step that checks facts/);
   const junk = decl(part());
   junk.steps[0].close.picked = [{ rule: 'cells' }];
+  junk.pickedLines = [1];
   assert.match(reds(junk).join('\n'), /close\.picked must be/);
 });
 
@@ -143,4 +144,26 @@ test('(2) a fact step with picks is offered a "text" box and told to write it; o
   assert.equal(withText.additionalProperties, false);
   assert.equal(buildEmitArtifactSchema('green', true).properties.text, undefined);
   assert.equal(JSON.stringify(withText).includes('maxWords'), false);
+});
+
+test('(3) a count beside a fact check is allowed ONLY on a recorded picked line; a drafter-written count on a fact line stays refused', () => {
+  const picked = [{ rule: 'maxWords', value: 80 }];
+  const rec = decl(part());
+  rec.steps[0].close.picked = picked;
+  rec.pickedLines = [1];
+  assert.deepEqual(reds(rec), [], 'recorded: allowed');
+  const norec = decl(part());
+  norec.steps[0].close.picked = picked;
+  assert.match(reds(norec).join('\n'), /not one of the lines you picked checks for/, 'no record: refused');
+  const other = decl(part());
+  other.steps[0].close.picked = picked;
+  other.pickedLines = [2];
+  assert.match(reds(other).join('\n'), /not one of the lines you picked checks for/, 'recorded for another line: refused');
+  const own = decl(part());
+  own.steps[0].close.shape = { maxWords: 80 };
+  assert.match(reds(own).join('\n'), /carries no count check of the drafter's own/, 'a drafter shape on a fact line');
+  const ownAndRec = decl(part());
+  ownAndRec.steps[0].close.shape = { maxWords: 80 };
+  ownAndRec.pickedLines = [1];
+  assert.match(reds(ownAndRec).join('\n'), /carries no count check of the drafter's own/, 'a record does not make a drafter shape fine');
 });

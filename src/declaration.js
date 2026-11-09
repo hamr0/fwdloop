@@ -559,12 +559,17 @@ function checkPickedLines(declaration, reds) {
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
  * applyPicks); here it must be a green step's, a list of bareguard text rules that builds into a check.
- * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds
+ * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
+ * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */
-function checkPickedKey(step, label, effectiveClass, reds) {
+function checkPickedKey(step, label, effectiveClass, reds, declaration) {
   const at = `declaration: ${label}.close.picked`;
   if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet))) {
     reds.push(`${at} is for a step that checks facts (quotes or a sheet) only; this step's check is "${step.close.class ?? effectiveClass}"`);
+    return;
+  }
+  if (!Array.isArray(declaration.pickedLines) || !declaration.pickedLines.includes(step.fromLine)) {
+    reds.push(`${at}: line ${step.fromLine} is not one of the lines you picked checks for (pickedLines), so a count check cannot sit beside its fact check`);
     return;
   }
   if (!SHAPE_TYPE_CHECKS.picked.check(step.close.picked)) { reds.push(`${at} must be ${SHAPE_TYPE_CHECKS.picked.expected}`); return; }
@@ -1008,7 +1013,10 @@ export function validateDeclaration(declaration, context = {}) {
             if (fitJobLine === true) checkShapeFitsJobLine(step, i, safeLines, reds);
           }
         }
-        if (step.close.picked !== undefined) checkPickedKey(step, label, effectiveClass, reds);
+        if (step.close.picked !== undefined) checkPickedKey(step, label, effectiveClass, reds, declaration);
+        else if (fitJobLine === true && effectiveClass === 'green' && step.close.shape !== undefined && step.close.shape !== null) {
+          reds.push(`declaration: ${label}.close.shape: a step that checks facts carries no count check of the drafter's own; only a check you picked (close.picked, on a line recorded in pickedLines) can sit beside its fact check`);
+        }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);

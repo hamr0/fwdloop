@@ -877,10 +877,12 @@ export async function draft({
     // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
     if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
     // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the person's picks (applyPicks, next).
+    delete declaration.pickedLines; // the record of picked fact lines is code's too (applyPicks)
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => {
-        if (!isPlainObject(st) || !isPlainObject(st.close) || st.close.shape === undefined) return st;
-        const { shape: _drop, ...close } = st.close;
+        if (!isPlainObject(st) || !isPlainObject(st.close) || (st.close.shape === undefined && st.close.picked === undefined)) return st;
+        // M10 am22 (3): `close.picked` is code's from the person's picks (applyPicks, next); one the drafter sent is dropped here too
+        const { shape: _drop, picked: _dropPicked, ...close } = st.close;
         return { ...st, close };
       });
     }
