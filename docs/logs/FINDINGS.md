@@ -6584,3 +6584,13 @@ Scan `poc/f160/scan.mjs`, output `poc/f160/out/scan.txt`. Real `parseSignedText`
 - Of the 41: 7 guardrails were in the offer scope (`scopedRules`); **0** of them tied by a fact via `forRule`. Countable guardrails tied by `forRule` and removed from the offer: **0**.
 - Context (not the bar): 38 guardrails were tied by `forRule` across the 41 looks, all price/phrase rules on page jobs ("under $150", "nonstop"), none countable (no words/bullets/items number). All 38 were already out of offer scope (`codeScope`: a page job with no whole-output word number routes its guardrails to the look), so line 662's filter removed nothing there.
 **Verdict on the letter: NOT SEEN** (0 countable tied guardrails). The bareloop shape (a `~ under 80 words` or `exactly 3 bullets` on a page job tied by the look) is not on disk here; the gap is reachable by the code path (a word-number guardrail stays in scope and a look fact can carry its `forRule`) but was not seen in the 41 saved looks.
+
+## F161 PRE-REGISTRATION (2026-11-09, $0, no model call, no network, no src edit; `poc/f161/replay.mjs`; written before the script)
+**Question.** Does the M10 am23 candidate (a COUNT guardrail always reaches the pick offer, on a page or sheet job and whatever the look tied to it; look facts never removed; non-count guardrails unchanged) do what am23 says, and nothing else, on real saved drafts?
+**Method.** The candidate is a pure function in the script ("NOT the product"; no src edit): count = `guardrailWordNumbers` or `guardrailSectionCount` (real src readers) or an item/bullet/line/point count read by a regex in the script (no item reader exists in src yet). Old offer = real `scopedRules` then the drafter's `look.facts + sheetFacts` filter (src/drafter.js:662). Candidate offer = scope widened by count, filter skipping count rules. Facts are never touched by either.
+**Bars (fixed now, no refit).**
+(a) A synthetic saved look (the shape of a real `page-look.json` under `~/.config/fwdloop/flows/.drafts`) tying `~ exactly 3 bullets` and `~ under 80 words` on line 1 of a page job to facts via `forRule`: with the candidate both are in the offer; with today's code neither, or only one, is (shown).
+(b) `~ exactly 3 bullets` on a page job with no tie is in the candidate offer (and shown absent today).
+(c) Replay all 41 saved looks (the F160 set) with their jobs, old vs candidate: the offer sets differ ONLY by added count guardrails; no look fact is removed; no non-count guardrail is added.
+PASS = a, b and c all hold. FAIL otherwise, reported on the letter; a FAIL stops the build.
+**Recorded, not judged.** How many of the 41 replayed jobs gain an offered guardrail, and which.
