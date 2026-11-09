@@ -1,0 +1,4 @@
+(a) tied: old offer (none) | candidate offer 1.1"exactly 3 bullets", 1.2"under 80 words" | facts kept 2 => ok
+(b) untied: old (none) | candidate 1.1"exactly 3 bullets" => ok
+(c) replayed 41 looks (expect 41): 0 gain a count guardrail, 0 bad => ok
+VERDICT: PASS

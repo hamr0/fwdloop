@@ -6594,3 +6594,10 @@ Scan `poc/f160/scan.mjs`, output `poc/f160/out/scan.txt`. Real `parseSignedText`
 (c) Replay all 41 saved looks (the F160 set) with their jobs, old vs candidate: the offer sets differ ONLY by added count guardrails; no look fact is removed; no non-count guardrail is added.
 PASS = a, b and c all hold. FAIL otherwise, reported on the letter; a FAIL stops the build.
 **Recorded, not judged.** How many of the 41 replayed jobs gain an offered guardrail, and which.
+
+### F161 RESULT (2026-11-09, [MEASURED], $0)
+Script `poc/f161/replay.mjs`, output `poc/f161/out/replay.txt` (real `parseSignedText`, `scopedRules`, `hasRoutingInput`, `guardrailWordNumbers`, `guardrailSectionCount`; candidate and the item-count regex live in the script only).
+- (a) synthetic saved look tying `~ exactly 3 bullets` + `~ under 80 words` (line 1, forRule 1 and 2): today's offer is empty; candidate offers both; both facts kept. ok
+- (b) `~ exactly 3 bullets` on a page job, no tie: today none; candidate offers it. ok
+- (c) all 41 saved looks replayed: offer sets identical (0 gain a count guardrail, 0 removed, 0 non-count added). ok (consistent with F160: none of the 41 has a count guardrail).
+**Verdict on the letter: PASS.** Recorded: no item-count reader exists in src; the script's regex is `N (adjective)? bullets|list items|items|lines|points`, N digit or one..ten, not after `$`.
