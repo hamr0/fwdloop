@@ -6654,3 +6654,11 @@ A refused or red draft is FAIL with its reason, never refit.
 (c) All 41 saved looks with their jobs: the candidate differs from today ONLY by removed page questions on count guardrails; no non-count page question is lost; no look fact is removed.
 (d) Recorded, not judged: the 3-ask cap (am1/am16 (5)) counts only page asks and can't-check picks; how many replays change their counted number.
 PASS = a, b and c all hold. FAIL otherwise, reported on the letter; a FAIL stops the build.
+
+### F163 RESULT (2026-11-09, [MEASURED], $0)
+Script `poc/f163/replay.mjs <scratchpad>`, output `poc/f163/out/replay.txt` (real `parseSignedText`, `askableFromLook`, `offerRules`, `isCountGuardrail`; the candidate filter lives in the script only).
+- (a) run 1 and run 3b: today = page question (`cant-check` "under 80 words") AND pick; candidate = pick only. ok
+- (b) run 2 and comparator: page-question lists identical (none), picks unchanged. ok
+- (c) 41 saved looks: 7 lose a page question, all the same one: `cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"` (a count guardrail); 0 non-count page questions lost, 0 added; the filter sees only the asks, so no look fact is touched. ok
+- (d) recorded: 7 of 41 replays drop their page-ask count 1 -> 0; run 1 and run 3b 1 -> 0. Nothing else changes the cap count.
+**Verdict on the letter: PASS.**
