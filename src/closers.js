@@ -299,7 +299,7 @@ async function closeFactAndPicks(step, artifact, ctx) {
   const picks = /** @type {any} */ (typeof text === 'string'
     ? await closeSoftgreen({ text }, { picked })
     : { verdict: 'red', red: 'no text: the answer has no "text" for your checks to read', checks: [{ id: 'text', text: plainWords({ rule: 'nonEmpty' }), ok: false, result: 'no text' }] });
-  const pickChecks = picks.checks;
+  const pickChecks = Array.isArray(picks.checks) ? picks.checks.filter((/** @type {any} */ c) => c.id !== 'keys') : picks.checks; // the one-key row is code's, always true here
   if (fact.verdict === 'crash' || fact.verdict === 'unparseable') return { ...fact, pickChecks };
   if (picks.verdict === 'crash' || picks.verdict === 'unparseable') return fact.verdict === 'red' ? { ...fact, pickChecks } : { ...picks, cited: fact.cited, sheetRecord: fact.sheetRecord, checks: fact.checks };
   if (fact.verdict === 'green' && picks.verdict === 'green') return { ...fact, pickChecks };

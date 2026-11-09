@@ -141,7 +141,7 @@ test('(b) ~3 sections, about 180 words each, under 600 words: green with the pic
   const { r, dir } = await draft('~3 sections, about 180 words each, under 600 words');
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(readDecl(dir).steps[2].close.shape, { picked: [{ rule: 'maxWords', value: 600 }] });
-  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\n {5}you picked: at most 600 words\n/);
+  assert.match(readFileSync(path.join(dir, 'readout.txt'), 'utf8'), /\n {5}you picked: at most 600 words \[you picked\]\n/);
   assert.equal(signDraft({ dir, approve: r.hash, signedBy: 'alice' }).ok, true);
 });
 test('(b) the drafter schema never offers wordsPerSection (nor any shape) to the model', async () => {

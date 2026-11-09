@@ -167,3 +167,46 @@ test('(3) a count beside a fact check is allowed ONLY on a recorded picked line;
   ownAndRec.pickedLines = [1];
   assert.match(reds(ownAndRec).join('\n'), /carries no count check of the drafter's own/, 'a record does not make a drafter shape fine');
 });
+
+// ---- (4) who added each check ----
+test('(4) the plan card / Job tab rows say [agent] for the AI\'s checks and [you picked] for the person\'s, on a fact line and a text line; hitl rows carry none', async () => {
+  const { checkedLines } = await import('../src/checked.js');
+  const d = {
+    steps: [
+      { fromLine: 1, goal: 'g1', close: { class: 'green', cited: factPart, picked: [{ rule: 'maxWords', value: 80 }] } },
+      { fromLine: 2, goal: 'g2', close: { class: 'softgreen', shape: { maxWords: 50 } } },
+      { fromLine: 3, goal: 'g3', close: { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } } },
+      { fromLine: 4, goal: 'g4', close: { class: 'hitl' } },
+    ],
+  };
+  const [fact, soft, pick, hitl] = checkedLines(d, { hasAsk: true }).map((c) => c.sentences);
+  assert.ok(fact.filter((s) => s.endsWith('[agent]')).length >= 1 && fact.filter((s) => s.endsWith('[agent]')).every((s) => s.startsWith('fact')), fact.join('\n'));
+  assert.ok(fact.includes('You picked: at most 80 words. [you picked]'), fact.join('\n'));
+  assert.ok(soft.includes('The whole output is under 50 words. [agent]'));
+  assert.ok(pick.includes('You picked: exactly 3 list items. [you picked]'));
+  assert.equal(hitl.some((s) => /\[(agent|you picked)\]/.test(s)), false);
+});
+
+test('(4) the Audit rows of a try: the fact row [agent], each pick [you picked] (the floor too), a text line\'s drafter checks [agent]', async () => {
+  const { closeRecords } = await import('../src/try-checks.js');
+  const step = stepWith([{ rule: 'maxWords', value: 80 }]);
+  const art = { results: good, text: words(93) };
+  const rows = closeRecords(step, art, await closeByClass(step, art, { reads: {}, businessDate: '', source }));
+  assert.ok(rows[0].text.endsWith('[agent]'));
+  const picks = rows.slice(1);
+  assert.ok(picks.length >= 2 && picks.every((r) => r.text.endsWith('[you picked]')), JSON.stringify(picks));
+  const soft = { close: { class: 'softgreen', shape: { maxWords: 5 } } };
+  const sr = closeRecords(soft, { text: 'a b' }, await closeByClass(soft, { text: 'a b' }, { reads: {}, businessDate: '' }));
+  assert.ok(sr.some((r) => r.text.endsWith('[agent]')));
+  assert.ok(sr.every((r) => r.text.endsWith('[agent]') || /only a "text" field/.test(r.text)), JSON.stringify(sr));
+});
+
+test('(4) the signed readout writes the person\'s picks on a fact line with their label, and the AI\'s fact rows with theirs', async () => {
+  const { buildReadout } = await import('../src/authoring.js');
+  const d = decl(part());
+  d.steps[0].close.picked = [{ rule: 'maxWords', value: 80 }];
+  d.pickedLines = [1];
+  const text = buildReadout({ declaration: d, arbiter: signed.arbiter, lines: signed.lines, name: 'x', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: 'r' });
+  assert.match(text, /\n {5}you picked: at most 80 words \[you picked\]\n/);
+  assert.match(text, /\n {5}fact · [^\n]* \[agent\]\n/);
+});

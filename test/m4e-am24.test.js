@@ -328,8 +328,8 @@ test('C1: Checked lists only what a typed check really checks, per step, in plai
   assert.equal(lines.length, 4);
   assert.match(lines[0].sentences.join(' '), /cite its source cell.*recomputes/);
   assert.deepEqual(lines[1].sentences, [
-    'The reply is checked as plain text only.', 'The whole output is under 600 words.', 'These section headings are there, in this order: Fit, Skills.', 'Each of those sections is about 200 words.']);
-  assert.deepEqual(lines[2].sentences, ['The reply is checked as plain text only.', 'The output comes in blocks of 3 lines.', 'Every block carries: date, total.']);
+    'The reply is checked as plain text only.', 'The whole output is under 600 words. [agent]', 'These section headings are there, in this order: Fit, Skills. [agent]', 'Each of those sections is about 200 words. [agent]']);
+  assert.deepEqual(lines[2].sentences, ['The reply is checked as plain text only.', 'The output comes in blocks of 3 lines. [agent]', 'Every block carries: date, total. [agent]']);
   assert.deepEqual(lines[3].sentences, ['No machine check of the content: you check it at the ask.']);
   assert.deepEqual(checkedLines({ steps: [{ close: { class: 'hitl' } }] }, { hasAsk: false })[0].sentences, ['No machine check of the content; the machine checks only that the step happened.'], 'no ask in the job: it never says you check it at the ask');
   // a softgreen with only sections says nothing about words, lines or tone

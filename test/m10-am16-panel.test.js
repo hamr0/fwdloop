@@ -48,7 +48,7 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 bullets', 'exactly 3 list items']);
   const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
   assert.deepEqual([row.source, row.ask, row.line, row.proposal, row.rule], ['look', 'check', 3, 'exactly 3 list items', 'exactly 3 list items']);
-  assert.ok(g.checked[2].sentences.includes('You picked: exactly 3 list items.'), JSON.stringify(g.checked[2]));
+  assert.ok(g.checked[2].sentences.includes('You picked: exactly 3 list items. [you picked]'), JSON.stringify(g.checked[2]));
   const signed = signDraft({ dir: path.join(w.dir(id), 'draft-1'), approve: g.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
   // 3. the signed job: the agreed words are a new ~ line (the confirmation)
@@ -59,7 +59,7 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   const shown = getDraftBlock(signed.flowDir, signed.flowDir).rows.filter((r) => /^you were asked: /.test(r.action));
   assert.equal(shown.length, 1);
   assert.match(shown[0].action, /^you were asked: Line 3, guardrail "exactly 3 bullets": I propose exactly 3 list items\./);
-  assert.equal(shown[0].gap, 'you said: agree');
+  assert.equal(shown[0].gap, 'you said: agree [you picked]');
 });
 
 test('own words: a `~` line word for word, no check, Not checked with its reason; drop it: no line, Not checked as the person chose', async () => {

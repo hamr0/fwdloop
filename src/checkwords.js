@@ -2,6 +2,11 @@
 // the plan card (src/checked.js), the softgreen close's check list (src/closers.js) and the Audit all read it; nothing else writes these words.
 /** the rules of bareguard's list a person may pick here (text rules only: the ones a plain answer can be judged by) */
 export const OFFERED = Object.freeze(['nonEmpty', 'maxWords', 'minWords', 'maxLines', 'listItems', 'sections', 'sectionOrder', 'sectionWords', 'mustCarry', 'blockLines']);
+/** M10 am22 (4): who added a check, the ONE place these two words live. The plan card, the Job tab and the Audit trail write them after the check's words. */
+export const LABEL_AGENT = '[agent]';
+export const LABEL_PICKED = '[you picked]';
+/** @param {string} text @param {'agent'|'picked'} by */
+export const labelled = (text, by) => `${text} ${by === 'picked' ? LABEL_PICKED : LABEL_AGENT}`;
 const listOf = (/** @type {string[]} */ xs) => xs.join(', ');
 /**
  * The check in plain words, one fixed phrase per rule: the ask, the `~` line an agree writes, the plan card and the Audit all read this one function.

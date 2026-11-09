@@ -7,6 +7,7 @@
 // A green "found" is the step's OWN claimed value in plain words (a number, or a count of rows / days / bands / groups); a string claim (a looked-up cell) is never
 // repeated, because it is cell text. A red "found" is bareguard's gap words (row numbers and counts), never a cell's text.
 // Third outcomes, named: a line the run never reached (no record) carries no verdict; a check the record lacks carries none (the page shows no mark).
+import { labelled } from './checkwords.js';
 import { isDeepStrictEqual } from 'node:util';
 import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
@@ -90,7 +91,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       const words = sheetCheckSentence(c);
       const cw = coversWords(rules);
       /** @type {any} */
-      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: [name, ...(words === name ? [] : [words]), ...(cw ? [cw] : [])].join(' — ') };
+      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: labelled([name, ...(words === name ? [] : [words]), ...(cw ? [cw] : [])].join(' — '), 'agent') }; // M10 am22 (4): the AI wrote every sheet check
       const res = newest && Array.isArray(newest.results) ? newest.results.find((/** @type {any} */ r) => isRec(r) && r.id === c.id) : undefined;
       if (isRec(res) && typeof res.ok === 'boolean') {
         e.ok = res.ok;

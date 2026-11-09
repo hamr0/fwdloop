@@ -12,7 +12,7 @@
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
 
 import { factRows } from './citedcheck.js';
-import { plainWords } from './checkwords.js';
+import { plainWords, labelled } from './checkwords.js';
 import { sheetCheckRows } from './sheetchecks.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { splitReadNotes, signedFactNames } from './pagedropwords.js';
@@ -41,25 +41,27 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
     const out = [];
     if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
       // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
-      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited));
+      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited).map((r) => labelled(r, 'agent')));
     } else if (cls === 'green' && Array.isArray(st.close.sheet)) {
       // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
-      out.push('The machine recomputes each of these from the saved sheet and compares it with what the step gave:', ...(sheet ? [] : sheetCheckRows(st.close.sheet)));
+      out.push('The machine recomputes each of these from the saved sheet and compares it with what the step gave:', ...(sheet ? [] : sheetCheckRows(st.close.sheet).map((r) => labelled(r, 'agent'))));
     } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {
       out.push('The reply is checked as plain text only.');
-      if (Number.isInteger(shape.maxWords)) out.push(`The whole output is under ${shape.maxWords} words.`);
-      if (Array.isArray(shape.sections) && shape.sections.length > 0) out.push(`These section headings are there, in this order: ${list(shape.sections)}.`);
-      if (Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) && shape.sections.length > 0) out.push(`Each of those sections is about ${shape.wordsPerSection} words.`);
-      if (Number.isInteger(shape.linesPerInvoice)) out.push(`The output comes in blocks of ${shape.linesPerInvoice} lines.`);
-      if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(`Every block carries: ${list(shape.mustCarry)}.`);
+      if (Number.isInteger(shape.maxWords)) out.push(labelled(`The whole output is under ${shape.maxWords} words.`, 'agent'));
+      if (Array.isArray(shape.sections) && shape.sections.length > 0) out.push(labelled(`These section headings are there, in this order: ${list(shape.sections)}.`, 'agent'));
+      if (Number.isInteger(shape.wordsPerSection) && Array.isArray(shape.sections) && shape.sections.length > 0) out.push(labelled(`Each of those sections is about ${shape.wordsPerSection} words.`, 'agent'));
+      if (Number.isInteger(shape.linesPerInvoice)) out.push(labelled(`The output comes in blocks of ${shape.linesPerInvoice} lines.`, 'agent'));
+      if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(labelled(`Every block carries: ${list(shape.mustCarry)}.`, 'agent'));
       // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
-      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`);
+      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`, 'picked'));
     } else {
       if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
       else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
     }
+    // M10 am22 (1)(4): the checks the person picked for a fact line, beside its fact rows
+    if (cls === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`, 'picked'));
     return {
       step: i + 1, line: Number.isInteger(st?.fromLine) ? st.fromLine : null, goal: typeof st?.goal === 'string' ? st.goal : '', class: String(cls), sentences: out,
       ...(sheet && cls === 'green' ? { sheet } : {}),

@@ -41,6 +41,7 @@ import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../r
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
+import { LABEL_PICKED } from '../checkwords.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import {
@@ -1940,7 +1941,7 @@ export function getDraftBlock(flowDir, runDir) {
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
-      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${r.question}`, gap: `you said: ${r.answer}` }));
+      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${r.question}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${LABEL_PICKED}` : ''}` }));
       else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }

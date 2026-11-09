@@ -36,6 +36,6 @@ test('a Revise that changes only the cap asks nothing and keeps the pick; a seco
     const s = await settled(w, id);
     assert.equal(s.phase, 'green', `revise ${n}: ${JSON.stringify(s.questions ?? s.reds ?? s)}`);
     assert.deepEqual(pickedOn3(w, id, `draft-${n}`), picked, `revise ${n} keeps the same check`);
-    assert.ok(s.checked[2].sentences.includes('You picked: exactly 3 list items. (kept from last draft)'), JSON.stringify(s.checked[2]));
+    assert.ok(s.checked[2].sentences.includes('You picked: exactly 3 list items. (kept from last draft) [you picked]'), JSON.stringify(s.checked[2]));
   }
 });

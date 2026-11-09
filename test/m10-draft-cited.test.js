@@ -56,9 +56,9 @@ test('the drafter writes the facts and count, code accepts them: the draft is va
   assert.equal(cited.facts.length, 5);
   assert.deepEqual(cited.count, { min: 3, max: 3 });
   const [line1] = checkedLines(r.declaration, { askLines: [2] });
-  assert.ok(line1.sentences.some((s) => s === 'fact · origin airport — phrase, must say "Leaves Amsterdam Airport Schiphol", quoted from "flights"'), line1.sentences.join('\n'));
-  assert.ok(line1.sentences.some((s) => s === 'fact · price — money in US dollars, under 150 US dollars, after "From", quoted from "flights"'));
-  assert.ok(line1.sentences.some((s) => s === 'fact · results — exactly 3 results, each quoted from "flights"'));
+  assert.ok(line1.sentences.some((s) => s === 'fact · origin airport — phrase, must say "Leaves Amsterdam Airport Schiphol", quoted from "flights" [agent]'), line1.sentences.join('\n'));
+  assert.ok(line1.sentences.some((s) => s === 'fact · price — money in US dollars, under 150 US dollars, after "From", quoted from "flights" [agent]'));
+  assert.ok(line1.sentences.some((s) => s === 'fact · results — exactly 3 results, each quoted from "flights" [agent]'));
 });
 
 test('the drafter is told every rule the validator will apply, and the checked words: place phrases, labels, units, the limit read', async () => {

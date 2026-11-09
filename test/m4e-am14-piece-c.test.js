@@ -25,12 +25,12 @@ const readout = (steps) => buildReadout({
 test('(5) a step whose check names sections gets one fixed line in the check\'s order, with the word limit when set', () => {
   const t = readout([step({ class: 'softgreen', shape: { sections: ['How it matches the JD', 'Professional skills', 'Soft skills'], maxWords: 600 } })]);
   const i = t.findIndex((l) => l.startsWith('  1. '));
-  assert.equal(t[i + 2], '     sections: How it matches the JD · Professional skills · Soft skills · under 600 words');
+  assert.equal(t[i + 2], '     sections: How it matches the JD · Professional skills · Soft skills · under 600 words [agent]');
 });
 
 test('(5) sections without maxWords: no "under" part; a step with no sections gets no line', () => {
   const t = readout([step({ class: 'softgreen', shape: { sections: ['A', 'B'] } }), step({ class: 'hitl' }), step({ class: 'softgreen', shape: { maxWords: 50 } })]);
-  assert.deepEqual(t.filter((l) => l.includes('sections:')), ['     sections: A · B']);
+  assert.deepEqual(t.filter((l) => l.includes('sections:')), ['     sections: A · B [agent]']);
 });
 
 const settled = (w, id) => until(async () => { const j = (await w.get(`/api/author/${id}`)).json(); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });

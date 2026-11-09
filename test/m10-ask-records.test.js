@@ -63,7 +63,7 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   const shown = block.rows.filter((r) => /^you were asked: /.test(r.action));
   assert.equal(shown.length, 2);
   assert.equal(shown[0].action, `you were asked: ${rows[0].question}`);
-  assert.equal(shown[0].gap, 'you said: agree');
+  assert.equal(shown[0].gap, 'you said: agree [you picked]');
   assert.equal(shown[1].gap, 'you said: Drop it.');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
   // 3. the signed job: the agreed reading is a new ~ line (the dropped rule adds none)
