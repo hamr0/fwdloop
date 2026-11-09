@@ -6537,3 +6537,9 @@ Seen on hamr's walk-11 run-2 (complete): step 3 was told `last try: step garden_
 **Recorded, not judged.** Every done:false in both arms says the notes carry no "this week" marker (the model's literal reading, as walk-11 run-1 and m14-walk-10 run-1). 3 of 10 vs 1 of 10 is too few to call a difference; the read tool was a stand-in returning the frozen notes.
 
 **hamr rulings 2026-11-08 (unsigned rulings, not signed text):** (1) F157: B, the memo fix (2078404) is reverted because its benefit was not shown (F157 INCONCLUSIVE); `result: hitl` stays; fix only if the remark shows up again live. (2) M13 am8 item 4: the plan mark stays as built, `[added]` with its brackets.
+
+## F158 PRE-REGISTRATION (2026-11-09, $0, no model call, read only; `poc/f158/scan.mjs`; written before any run)
+**Question.** Has a person's agreed check pick ever been silently dropped on hamr's real drafts because its job line's step is `green` (applyPicks skips a line with any green step, src/checkpick.js:225-238)?
+**Method.** Read every drafting folder under `~/.config/fwdloop/flows/.drafts` and every signed flow's plan under `~/.config/fwdloop/flows/*` (read only). For each try with settled picks: for each picked line, does the try's final declaration have a green step on that line, and does that step's close carry the pick? Count picks offered/agreed, picks landed, picks dropped on a green line.
+**Criteria (fixed now, no refit).** NEEDED when at least 1 agreed pick was dropped on a green line in a real draft or signed plan; NOT SEEN when 0. Either outcome is reported to hamr, who decides.
+**Recorded, not judged.** Per drop: folder, line, the pick, the green step's close kind (cited, sheet, other), and whether the plan readout showed a `you picked:` row for it.
