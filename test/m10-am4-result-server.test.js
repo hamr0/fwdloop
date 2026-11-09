@@ -244,7 +244,7 @@ test('am9: a sheet/doc job line lists every check of its step\'s newest try, ✓
   ]);
   const l3 = r.lines.find((l) => l.n === 3);
   assert.equal(l3.checks.length, 5, 'try 3 only, not the three tries together');
-  assert.equal(l3.checks[3].text, 'at most 600 words');
+  assert.equal(l3.checks[3].text, 'at most 600 words [agent]');
   assert.equal(l3.checks[3].result, '4 words');
   assert.equal(l3.checks[4].ok, false);
   assert.match(l3.checks[4].result, /no line is exactly the heading/, 'a failed check keeps its reason');
