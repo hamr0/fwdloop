@@ -6564,3 +6564,10 @@ Scan: `poc/f158/scan.mjs`, output `poc/f158/out/scan.txt`. Source of picks: `pic
 (f) maxWords pick only, no text -> expect red (bareloop's hole)
 **Criteria (fixed now, no refit).** PASS = all 6 verdicts as expected. FAIL otherwise, reported on the letter.
 **Recorded, not judged.** What shape change the artifact/close needs (does a cited artifact carry `text`?); whether either grader had to change.
+
+### F159 RESULT (2026-11-09, [MEASURED], $0)
+Script `poc/m10-am22/keepboth.mjs` (real `closeByClass` from src/closers.js: closeCited + closeSoftgreen, unchanged; combiner lives in the script only). Combined verdict = cited close green AND softgreen close (picked maxWords 80) green. Sample (e) was run as two cases (missing text field, empty text) so the bar's "or empty" is not skipped.
+Config A (pick only): a green OK; b 93 words red OK; c made-up quote red OK; d no quote red OK; e1 no text field red OK (softgreen `unparseable`); **e2 empty text GREEN (wrong)**; f maxWords only, no text red OK. 6/7.
+**Verdict on the letter: FAIL** (e, empty-text reading: `maxWords` on `""` passes, so a fact line with an empty `text` goes green; the same hole class bareloop found, here in the "empty" form, not the "missing" form).
+Config B (same, plus a `nonEmpty` pick added by code beside the person's picks): 7/7. Recorded as a follow-up result, not the pre-registered bar.
+**Recorded, not judged.** (1) Neither grader changed. (2) The cited artifact has no `text` today (`{results:[...]}` only); keep-both needs one file `{results, text}`. (3) `closeSoftgreen` reds a whole `{results,text}` artifact (its one-key `allowedKeys ['text']` rule), so the softgreen half must be handed `{text}` only (a projection in the combiner). (4) The cited half ignores `text`. (5) Missing text is `unparseable` (never green); empty text needs a code-added `nonEmpty` floor. (6) Not tested: runner wiring, validator, drafter brief (the worker brief for a fact line says "no text"), the `closeByClass` dispatch itself (today one verdict per step, so the combiner is new code in the runner).
