@@ -6543,3 +6543,11 @@ Seen on hamr's walk-11 run-2 (complete): step 3 was told `last try: step garden_
 **Method.** Read every drafting folder under `~/.config/fwdloop/flows/.drafts` and every signed flow's plan under `~/.config/fwdloop/flows/*` (read only). For each try with settled picks: for each picked line, does the try's final declaration have a green step on that line, and does that step's close carry the pick? Count picks offered/agreed, picks landed, picks dropped on a green line.
 **Criteria (fixed now, no refit).** NEEDED when at least 1 agreed pick was dropped on a green line in a real draft or signed plan; NOT SEEN when 0. Either outcome is reported to hamr, who decides.
 **Recorded, not judged.** Per drop: folder, line, the pick, the green step's close kind (cited, sheet, other), and whether the plan readout showed a `you picked:` row for it.
+
+### F158 RESULT (2026-11-09, [MEASURED], $0)
+Scan: `poc/f158/scan.mjs`, output `poc/f158/out/scan.txt`. Source of picks: `picks-record.json` in each drafting try dir (`draft`, `draft-N`), line found by matching the entry's line words to the step goal; the final `declaration.json` of the same try gives the step class.
+- 140 try dirs; 47 have no declaration (failed drafts); 93 have one. 22 of those 93 carry a picks-record (34 entries: 21 agreed checks, 13 own-words/left); 71 have none.
+- Agreed check picks 21: landed on a non-green line 21, dropped on a green line **0**. Own-words/left entries on a green line 0. Unmatched entries 0.
+- **Unknown, not guessed:** the 71 declarations with no picks-record. The record exists only from am17; a try with no record either had no picks or predates it, and nothing on disk tells which. Signed flows (44 read, 20 with a green step) hold no pick record, so their picks are unknown except through the drafting folders counted above.
+- Drops: none.
+**Verdict on the letter: NOT SEEN** (0 dropped of 21 recoverable agreed picks; the 71 unrecoverable tries are a blind spot, not evidence either way). Reported to hamr, who decides.
