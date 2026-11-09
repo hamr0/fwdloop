@@ -6638,3 +6638,9 @@ A refused or red draft is FAIL with its reason, never refit.
 **Outcomes (fixed now).**
 - OLD-GREEN = line 2 close class green with a cited part on old code: our branch lost the price check (a regression to hunt).
 - OLD-HITL = line 2 still hitl: today's page, not our code.
+
+**F162 RUN 3 RESULT (2026-11-09, $0).** Refused at $0 at input freeze: `input "changelog": https://raw.githubusercontent.com/nodejs/node/main/CHANGELOG.md came back with only the site's own header and menus - the page did not load its content, so there is nothing to read`. That file is an index of links per Node major line, not release notes: the orchestrator's page choice, not product behaviour. Bars (a)-(d) FAIL on the letter (no draft).
+
+**F162 OLD-CODE FLIGHTS RESULT (2026-11-09, PAID $0.0104).** Out dir `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/bacc1500-09a3-4575-90fd-670b7893e350/scratchpad/f162-old`, panel from worktree at 4e349c5, `--no-counts`; phase green; every step hitl, line 2 `{"class":"hitl"}`, cited=no. **Outcome on the letter: OLD-HITL** - the lost price check on today's Google Flights page happens on the code before today's fixes and am22/am23 too; not caused by this branch.
+
+**F162 RUN 3b PRE-REGISTRATION (written before the run).** URL changed after run 3's $0 refusal, nothing else: input `changelog=https://raw.githubusercontent.com/expressjs/express/master/History.md`, same job file `poc/m10-am23/changelog-job.txt`, `--cap 0.25`, same bars (a)-(d) on the summarise line. Bar (b) is read from the printed `CLOSE line` JSON (green with cited AND picks present, under `close.picked` per am22), not the script's string judge.
