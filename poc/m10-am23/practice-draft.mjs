@@ -1,5 +1,5 @@
 // PAID; NOT the product. F162: one practice draft on the REAL panel path (repo bin + HTTP API) to check M10 am22 + am23 live.
-// Usage: FIREWORKS_API_KEY=... node poc/m10-am23/practice-draft.mjs --out <fresh scratch dir> [--cap <usd, default 0.05>]
+// Usage: FIREWORKS_API_KEY=... node poc/m10-am23/practice-draft.mjs --out <fresh scratch dir> [--cap <usd, default 0.05>] [--no-counts]
 // The key is only checked for emptiness and passed through the parent env; it is never read into a variable that is printed or written.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync,
@@ -17,7 +17,7 @@ const MODEL = 'accounts/fireworks/models/deepseek-v4p1-flash';
 const DEADLINE_MS = 6 * 60 * 1000;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
-const JOB = [
+const JOB_LINES = [
   'Read the flights page,',
   'list 3 flights from Madrid to Rome,',
   '~ under $150',
@@ -25,10 +25,12 @@ const JOB = [
   '~ under 80 words',
   'Ask 30m: check it with me,',
   'and once I accept, write it out.',
-].join('\n');
+];
 const URL_FLIGHTS = 'https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD';
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, cap: { type: 'string' } } });
+const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, cap: { type: 'string' }, 'no-counts': { type: 'boolean' } } });
+// --no-counts: comparator, drops exactly the two count guardrail lines; everything else identical
+const JOB = (values['no-counts'] ? JOB_LINES.filter((l) => l !== '~ exactly 3 bullets' && l !== '~ under 80 words') : JOB_LINES).join('\n');
 const fail = (m) => { process.stderr.write(`practice-draft: ${m}\n`); process.exit(2); };
 if (!values.out) fail('--out <fresh scratch dir> is required');
 const CAP = values.cap ?? '0.05';
@@ -193,6 +195,13 @@ async function main() {
   report.models = [...models];
   say(`\nSPEND: $${spent.toFixed(4)} (complete: ${complete}) per plan ${JSON.stringify(perPlan)}; MODEL: ${[...models].join(', ')}`);
 
+  if (values['no-counts']) {
+    const cls = step2?.close?.class ?? 'none';
+    const cited = /cited/i.test(JSON.stringify(step2?.close ?? {}));
+    report.comparator = { class: cls, cited };
+    say(`COMPARATOR: line 2 close class=${cls} cited=${cited ? 'yes' : 'no'}`);
+    return;
+  }
   // bars
   const qs = report.questions.filter((q) => q.line === 2).map((q) => q.question).join('\n');
   report.bars.a = /exactly 3 bullets/i.test(qs) && /under 80 words/i.test(qs);
