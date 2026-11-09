@@ -1,5 +1,5 @@
 // PAID; NOT the product. F162: one practice draft on the REAL panel path (repo bin + HTTP API) to check M10 am22 + am23 live.
-// Usage: FIREWORKS_API_KEY=... node poc/m10-am23/practice-draft.mjs --out <fresh scratch dir>
+// Usage: FIREWORKS_API_KEY=... node poc/m10-am23/practice-draft.mjs --out <fresh scratch dir> [--cap <usd, default 0.05>]
 // The key is only checked for emptiness and passed through the parent env; it is never read into a variable that is printed or written.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync,
@@ -28,9 +28,11 @@ const JOB = [
 ].join('\n');
 const URL_FLIGHTS = 'https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD';
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' } } });
+const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, cap: { type: 'string' } } });
 const fail = (m) => { process.stderr.write(`practice-draft: ${m}\n`); process.exit(2); };
 if (!values.out) fail('--out <fresh scratch dir> is required');
+const CAP = values.cap ?? '0.05';
+if (!(Number(CAP) > 0)) fail('--cap must be a positive USD number');
 const out = path.resolve(values.out);
 if (existsSync(out) && readdirSync(out).length > 0) fail(`${out} exists and is not empty; give a fresh dir`);
 // $0 refusal before anything starts: emptiness only, the value is never printed
@@ -115,7 +117,7 @@ async function main() {
   if (!up) throw new Error('panel did not come up on the port');
 
   const card = {
-    flowName: 'practice-am23', job: JOB, capUsd: '0.05', askWait: '30m', destination: send,
+    flowName: 'practice-am23', job: JOB, capUsd: CAP, askWait: '30m', destination: send,
     provider: 'FIREWORKS_API_KEY', model: MODEL, inputs: `flights: ${URL_FLIGHTS}`,
   };
   const start = await rq('POST', '/api/author/draft', card);
