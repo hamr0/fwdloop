@@ -418,6 +418,16 @@ export function guardrailSectionCount(guardrail) {
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
 }
 
+/** M10 amendment 23: the first "<N> bullets / list items / items / lines / points" in a guardrail (N digits, or the words one..ten; not a price like "$5 per item"), or null. */
+export function guardrailItemCount(guardrail) {
+  const m = typeof guardrail === 'string' ? /(?<![$€£\d.,])\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|list items?|items?|lines?|points?)\b/i.exec(guardrail) : null;
+  if (!m) return null;
+  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+}
+
+/** M10 amendment 23: the ONE place that says a guardrail is a count code can check: N words, N bullets / list items / items / lines / points, or N sections. */
+export const isCountGuardrail = (guardrail) => guardrailWordNumbers(guardrail).length > 0 || guardrailItemCount(guardrail) !== null || guardrailSectionCount(guardrail) !== null;
+
 /** M4e amendment 15 item 2: for each line whose guardrail gives a size for each section, a section count AND a word number,
  *  size x count more than the LARGEST word number (no possible pick fits) is a red naming the line and the numbers. $0; run before any model
  *  call, when there is no AI pick yet (amendment 29). After the draft the AI's `maxWords` is checked in checkShapeFitsJobLine. */

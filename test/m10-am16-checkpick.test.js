@@ -57,13 +57,14 @@ test('the filter holds rule, number and word only: a wrong meaning with the righ
   assert.equal(keepOrDrop('exactly 3 bullets', { rule: 'maxLines', value: 3 }).kept, true);
 });
 
-test('scope by code: a CSV or page input routes its guardrails elsewhere unless the guardrail names a whole-output word number', () => {
+test('scope by code: a CSV or page input routes its guardrails elsewhere unless the guardrail is a count (word number, items, sections)', () => {
   const csv = [{ kind: 'file', role: 'a', path: '/x/a.csv' }];
   const page = [{ kind: 'page', role: 'p', path: 'https://x.test/' }];
   const doc = [{ kind: 'file', role: 'd', path: '/x/n.md' }];
   assert.equal(codeScope(csv, 'Amount over 500'), 'out');
   assert.equal(codeScope(page, 'under $40'), 'out');
   assert.equal(codeScope(page, 'under 100 words'), 'in'); // the F144b caveat: a page job whose guardrail carries a word number counts as in
+  assert.equal(codeScope(page, 'exactly 3 bullets'), 'in'); // M10 am23
   assert.equal(codeScope(doc, 'exactly 3 bullets'), 'in');
   assert.equal(codeScope([], 'exactly 3 bullets'), 'in');
 });
@@ -78,7 +79,8 @@ test('scoped rules: step lines only (no ask or send line), rule numbers as the l
   const arbiter = { asks: [{ line: 2 }], sends: [{ line: 3 }], sources: [] };
   assert.deepEqual(scopedRules(lines, arbiter), [{ line: 1, rule: 1, text: 'exactly 3 bullets' }, { line: 1, rule: 2, text: 'under 80 words' }]);
   const routed = { ...arbiter, sources: [{ kind: 'page', role: 'p', path: 'https://x.test/' }] };
-  assert.deepEqual(scopedRules(lines, routed), [{ line: 1, rule: 2, text: 'under 80 words' }]);
+  // M10 am23: a count (bullets here) is in scope on a routed job too
+  assert.deepEqual(scopedRules(lines, routed), [{ line: 1, rule: 1, text: 'exactly 3 bullets' }, { line: 1, rule: 2, text: 'under 80 words' }]);
 });
 
 test('plain words: one fixed phrase per offered rule', () => {

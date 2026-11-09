@@ -31,7 +31,7 @@ import { lookAtPage, pageInfoLines } from './pagelook.js';
 import { lookAtSheet, sheetPrompt } from './sheetlook.js';
 import { leftRuleLine, dropRows, dropLine, dropSentence, pickNoteLine } from './pagedropwords.js';
 import {
-  scopedRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText,
+  offerRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText,
 } from './checkpick.js';
 import { matchRecord, entriesFromAnswers, sameWords, KEPT_WORDS } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
@@ -659,7 +659,7 @@ export async function draft({
   // per guardrail, or none; code keeps what passes keep-or-drop. The call is metered, held and booked as a drafting round (the same `meterings`). The redraft after the answers
   // (offerQuestions false) makes no call: it settles every rule against the person's picks instead.
   // a rule a kept page or sheet fact already serves (the look tied it: line + rule number) is settled by that fact and is not asked here
-  const shapeRules = scopedRules(lines, arbiter).filter((r) => ![...look.facts, ...sheetFacts].some((f) => f.line === r.line && f.forRule === r.rule));
+  const shapeRules = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
   // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
   const carried = matchRecord(carriedPicks, lines, shapeRules);
   const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, added: k.entry.added, left: k.entry.left }));

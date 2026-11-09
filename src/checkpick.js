@@ -10,7 +10,7 @@ import { isCellsPath } from './closers.js';
 import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
-import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount } from './declaration.js';
+import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, isCountGuardrail } from './declaration.js';
 
 /** the one tool the suggestion call is forced to use */
 export const SUGGEST_TOOL = 'suggest_checks';
@@ -24,11 +24,11 @@ const WORD_FIELDS = ['names', 'phrases'];
 /** @param {any[]|undefined} sources the job's signed inputs @returns {boolean} a CSV file or a web page routes its guardrails to another signed part (M10 items 1-3, M12) */
 export const hasRoutingInput = (sources) => (sources ?? []).some((s) => (s.kind === 'file' && isCellsPath(s.path)) || s.kind === 'page');
 /**
- * A guardrail goes to this call unless the job signs an input that routes its guardrails elsewhere AND the guardrail names no whole-output word number
- * (the one thing the shape reader still takes in such a job). A page job whose guardrail carries a word number therefore counts as in (F144b caveat).
+ * A guardrail goes to this call unless the job signs an input that routes its guardrails elsewhere AND the guardrail is not a count code can check (M10 am23: words, items, sections)
+ * (the one thing the shape reader still takes in such a job). A page job whose guardrail is a count therefore counts as in (F144b caveat).
  * @param {any[]|undefined} sources @param {string} g @returns {'in'|'out'}
  */
-export const codeScope = (sources, g) => (hasRoutingInput(sources) && guardrailWordNumbers(g).length === 0 ? 'out' : 'in');
+export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountGuardrail(g) ? 'out' : 'in');
 
 /**
  * Every guardrail rule on a step line (not a signed ask or send line) that this call settles, in line order. `rule` is the rule's number on its line (the one
@@ -52,6 +52,12 @@ export function scopedRules(lines, arbiter) {
   }
   return out;
 }
+
+/**
+ * The rules the suggestion call offers for a draft: `scopedRules` less the ones a kept page or sheet fact already serves (the look tied it: line + rule number).
+ * @param {{n: number, guardrail?: string}[]} lines @param {any} arbiter @param {{line: number, forRule?: number}[]} facts `look.facts` + the sheets' facts
+ */
+export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountGuardrail(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
 
 // ---- code's keep-or-drop (am16 (2)) --------------------------------------------------------------------------------------------------------
 const norm = (/** @type {unknown} */ t) => String(t).toLowerCase().replace(/\s+/g, ' ').trim();
