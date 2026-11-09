@@ -6601,3 +6601,14 @@ Script `poc/f161/replay.mjs`, output `poc/f161/out/replay.txt` (real `parseSigne
 - (b) `~ exactly 3 bullets` on a page job, no tie: today none; candidate offers it. ok
 - (c) all 41 saved looks replayed: offer sets identical (0 gain a count guardrail, 0 removed, 0 non-count added). ok (consistent with F160: none of the 41 has a count guardrail).
 **Verdict on the letter: PASS.** Recorded: no item-count reader exists in src; the script's regex is `N (adjective)? bullets|list items|items|lines|points`, N digit or one..ten, not after `$`.
+
+## F162 PRE-REGISTRATION (2026-11-09, PAID, hard cap $0.05, about 1 cent; `poc/m10-am23/practice-draft.mjs`; written before the script)
+**Question.** On the REAL panel path (repo bin, HTTP API, deepseek-flash via Fireworks), does a page job with count guardrails on its fact line show both the AI's fact check and the person's picks (M10 am22 + am23), each labelled, and is `~ exactly 3 bullets` offered as a pick?
+**Method.** One practice draft, `practice-am23`: line 1 "Read the flights page," line 2 "list 3 flights from Madrid to Rome," with `~ under $150`, `~ exactly 3 bullets`, `~ under 80 words`; then Ask 30m and a send line. A fresh scratch HOME and flows root, copied config (no keys), panel on port 4917. Every offered question is answered `agree` (a can't-check ask: `drop it`). The script is "PAID; NOT the product".
+**Bars (fixed now, no refit).**
+(a) The draft's pick offer (questions) includes line 2's `exactly 3 bullets` and `under 80 words`.
+(b) After `agree` to every offered pick (and `agree` to any look question), the draft goes green with a plan where line 2's step keeps its fact check (close class green, cited) AND carries the picks.
+(c) The plan readout / plan card text shows `[agent]` on the fact check row and `[you picked]` on each pick row.
+(d) Spend recorded is at most $0.05 and the model recorded is the Fireworks deepseek flash model.
+A refused or red draft is FAIL with its reason, never refit.
+**Recorded, not judged.** The questions verbatim, the line 2 step close JSON, spend per plan.
