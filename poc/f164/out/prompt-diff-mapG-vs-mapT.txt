@@ -1,0 +1,13 @@
+48c48
+<   Kept, line 2: origin airport: place phrases (every one must be its own phrase fact) "Leaves Adolfo Suárez Madrid-Barajas Airport"; price (rule 1): labels "From", unit "US dollars", currency "$", limit read from your words: under 150 US dollars; stops (rule 2): phrase "Nonstop"
+---
+>   Kept, line 2: origin airport: place phrases (every one must be its own phrase fact) "Leaves Adolfo Suárez Madrid-Barajas Airport"; destination airport: place phrases (every one must be its own phrase fact) "arrives at Leonardo da Vinci International Airport"; price label (rule 1): labels "From", unit "US dollars", currency "$", limit read from your words: under 150 US dollars; nonstop word (rule 2): phrase "Nonstop"
+50,51c50,54
+<   - line 2: "under $150" — "from" does not show the same values as "From", so it was not used as a second way to read it.
+<   - line 2: "destination airport" — "Rome" is on the page but in none of its results, so it is not checked.
+---
+>   - line 2: "list item count second" — One result is one record; ask for N results instead.
+>   - line 2: "word limit second" — One result is one record; ask for N results instead.
+>   - line 2: "under $150" — "US dollars" was listed twice, as a unit and as a currency; it is used once, as the first way to write the price. "from" does not show the same values as "From", so it was not used as a second way to read it.
+>   - line 2: "list item count" — No word on this page reads "list item count" safely.
+>   - line 2: "word limit" — No word on this page reads "word limit" safely.
