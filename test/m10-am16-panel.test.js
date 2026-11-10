@@ -20,9 +20,9 @@ const settle = (w, id, phases) => until(async () => { const j = await state(w, i
 const childGone = (w, id) => until(() => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
-async function asked(suggest = SUGGEST) {
+async function asked(suggest = SUGGEST, job = JOB) {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: suggest } });
-  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  const id = (await w.post('/api/author/draft', w.card({ job }))).json().draftId;
   const s = await settle(w, id, ['questions-open', 'green', 'red', 'stopped']);
   await childGone(w, id);
   return { w, id, s };
@@ -80,7 +80,8 @@ test('own words: a `~` line word for word, no check, Not checked with its reason
 });
 
 test('nothing kept: "I can\'t check this. Your own words, or Not checked?"', async () => {
-  const { s } = await asked('{"checks":[]}');
+  // M10 am27 (3): a single count with nothing kept is built by code; the "I can't check this" path is a rule that names no count
+  const { s } = await asked('{"checks":[]}', JOB.replace('~ exactly 3 bullets', '~ keep it short and kind'));
   assert.equal(s.phase, 'questions-open');
-  assert.match(s.questions[0].question, /^Line 3, guardrail "exactly 3 bullets": I can't check this\. Your own words, or Not checked\?/);
+  assert.match(s.questions[0].question, /^Line 3, guardrail "keep it short and kind": I can't check this\. Your own words, or Not checked\?/);
 });
