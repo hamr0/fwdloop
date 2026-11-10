@@ -38,6 +38,7 @@ import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import { isCountGuardrail } from './declaration.js';
+import { repairDeclaration } from './repairs.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
@@ -910,6 +911,8 @@ export async function draft({
     }
     // M10 am16 (4): code sets the check of every line it settled, from the picks only; the drafter's own `close.shape` and class for such a line are gone
     if (settled) Object.assign(declaration, applyPicks(declaration, shapeRules, settled, (n) => dropSentence({ line: n.line, fact: '', reason: n.reason })));
+    // M10 am27 (2): the two mechanical plan mistakes (cited page not in reads; unjudgeable note on a green line) are repaired by code and logged on the round
+    { const fixed = repairDeclaration(declaration, arbiter); if (fixed.repaired.length) { Object.assign(declaration, fixed.declaration); entry.repaired = fixed.repaired; } }
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
