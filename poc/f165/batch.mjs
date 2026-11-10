@@ -1,6 +1,6 @@
 // PAID; NOT the product. F165: do count guardrails on the flights fact line make the drafter drop line 2's cited price check?
-// Usage: DEEPSEEK_API_KEY=... node poc/f165/batch.mjs --out <fresh dir> [--n <drafts per arm, default 10>]
-// One panel (port 4918, HOME=<out>/home) for the whole batch; drafts interleaved A,B,A,B...; hard cap: no new draft once spend >= $0.35.
+// Usage: DEEPSEEK_API_KEY=... node poc/f165/batch.mjs --out <fresh dir> [--n <drafts per arm, default 10>] [--repo <checkout, default this repo>]
+// One panel (port 4918, HOME=<out>/home) for the whole batch; drafts interleaved A,B,A,B...; hard cap $0.45: no new draft once spend >= $0.40 (F168).
 // The key is only checked for emptiness and passed through the parent env; it is never read into a printed or written value.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync, appendFileSync,
@@ -12,13 +12,13 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const DEFAULT_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PORT = 4918;
 const PROVIDER = 'DEEPSEEK_API_KEY';
 const MODEL = 'deepseek-flash';
 const DEADLINE_MS = 6 * 60 * 1000;
-const STOP_NEW_AT = 0.35;
-const HARD_CAP = 0.40;
+const STOP_NEW_AT = 0.40; // F168 pre-registration: driver stop >= $0.40, hard cap $0.45
+const HARD_CAP = 0.45;
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 const LINES_A = ['Read the flights page,', 'list 3 flights from Madrid to Rome,', '~ under $150', '~ nonstop', 'Ask 30m: check it with me,', 'and once I accept, write it out.'];
@@ -26,9 +26,12 @@ const LINES_B = ['Read the flights page,', 'list 3 flights from Madrid to Rome,'
 const JOBS = { A: LINES_A.join('\n'), B: LINES_B.join('\n') };
 const URL_FLIGHTS = 'https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD';
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, n: { type: 'string' } } });
+const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, n: { type: 'string' }, repo: { type: 'string' } } });
 const fail = (m) => { process.stderr.write(`f165: ${m}\n`); process.exit(2); };
 if (!values.out) fail('--out <fresh dir> is required');
+// --repo: the checkout whose bin/fwdloop starts the panel (default: this repo)
+const REPO = path.resolve(values.repo ?? DEFAULT_REPO);
+if (!existsSync(path.join(REPO, 'bin', 'fwdloop'))) fail(`--repo ${REPO} has no bin/fwdloop`);
 const N = values.n === undefined ? 10 : Number(values.n);
 if (!Number.isInteger(N) || N < 1 || N > 10) fail('--n must be an integer 1..10');
 const out = path.resolve(values.out);
@@ -166,6 +169,7 @@ async function oneDraft(arm, i) {
   row.line2Class = close?.class ?? null;
   row.cited = /cited/i.test(JSON.stringify(close ?? {}));
   row.picks = close?.picked !== undefined && JSON.stringify(close.picked).length > 2;
+  row.structureRetries = readJson(path.join(dd, st?.plan ?? 'draft', 'log.json'))?.structureRetries ?? null;
   row.unjudgeable2 = decl?.unjudgeable?.['2'] ?? decl?.unjudgeable?.[2] ?? null;
   const sp = spendOf(id);
   row.spendUsd = sp.usd; row.spendComplete = sp.complete;
@@ -205,8 +209,14 @@ try {
   const gA = G('A'); const gB = G('B');
   const nA = count('A', () => true); const nB = count('B', () => true);
   let verdict = Math.abs(gA - gB) <= 2 ? 'NO-DIFFERENCE' : (gA - gB >= 3 ? 'COUNTS-HURT' : 'COUNTS-HELP');
-  if (cut || nA !== N || nB !== N) verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`;
+  // F168 bars: PASS iff G(B) >= 8 AND |G(A) - 9| <= 2 AND every green B draft has its picks on line 2
+  const greenB = rows.filter((r) => r.arm === 'B' && r.phase === 'green');
+  const picksLostB = greenB.filter((r) => !r.picks).length;
+  const f168 = gB >= 8 && Math.abs(gA - 9) <= 2 && picksLostB === 0 ? 'PASS' : 'FAIL';
+  let f168v = f168;
+  if (cut || nA !== N || nB !== N) { verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`; f168v = `INCONCLUSIVE (cut batch; letter would read ${f168})`; }
   const summary = {
+    F168: f168v, picksOnLine2B: `${greenB.length - picksLostB}/${greenB.length} green B drafts`, structureRetriesA: rows.filter((r) => r.arm === 'A').map((r) => r.structureRetries), structureRetriesB: rows.filter((r) => r.arm === 'B').map((r) => r.structureRetries),
     G_A: gA, G_B: gB, draftsA: nA, draftsB: nB, verdict, totalSpendUsd: spent, spendComplete: rows.every((r) => r.spendComplete), overHardCap: spent > HARD_CAP,
     redA: count('A', (r) => r.phase === 'red'), redB: count('B', (r) => r.phase === 'red'),
     stoppedA: count('A', (r) => r.phase === 'stopped'), stoppedB: count('B', (r) => r.phase === 'stopped'),
