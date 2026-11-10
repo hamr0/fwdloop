@@ -2,6 +2,7 @@
 // Usage: DEEPSEEK_API_KEY=... node poc/f165/batch.mjs --out <fresh dir> [--n <drafts per arm, default 10>] [--repo <checkout, default this repo>]
 // One panel (port 4918, HOME=<out>/home) for the whole batch; drafts interleaved A,B,A,B...; hard cap $0.45: no new draft once spend >= $0.40 (F168, F170).
 // F170: picks are read from close.picked OR close.shape.picked (both rules, listItems 3 and maxWords 80); the retention record (log.json entry.retention) and code repairs (entry.repaired) are read; verdict is F170's.
+// F172: `--bar f172` selects F172's verdict (|G(A)-G(B)| <= 2, both picks on 10/10 green B drafts, retention 20/20); default stays F170's.
 // The key is only checked for emptiness and passed through the parent env; it is never read into a printed or written value.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync, appendFileSync,
@@ -27,10 +28,12 @@ const LINES_B = ['Read the flights page,', 'list 3 flights from Madrid to Rome,'
 const JOBS = { A: LINES_A.join('\n'), B: LINES_B.join('\n') };
 const URL_FLIGHTS = 'https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD';
 
-const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, n: { type: 'string' }, repo: { type: 'string' } } });
+const { values } = parseArgs({ args: process.argv.slice(2), options: { out: { type: 'string' }, n: { type: 'string' }, repo: { type: 'string' }, bar: { type: 'string' } } });
 const fail = (m) => { process.stderr.write(`f165: ${m}\n`); process.exit(2); };
 if (!values.out) fail('--out <fresh dir> is required');
 // --repo: the checkout whose bin/fwdloop starts the panel (default: this repo)
+const BAR = values.bar ?? 'f170';
+if (BAR !== 'f170' && BAR !== 'f172') fail('--bar must be f170 or f172');
 const REPO = path.resolve(values.repo ?? DEFAULT_REPO);
 if (!existsSync(path.join(REPO, 'bin', 'fwdloop'))) fail(`--repo ${REPO} has no bin/fwdloop`);
 const N = values.n === undefined ? 10 : Number(values.n);
@@ -167,6 +170,7 @@ async function oneDraft(arm, i) {
   const decl = readJson(path.join(dd, st?.plan ?? 'draft', 'declaration.json'));
   const step2 = decl?.steps?.find((s) => s.fromLine === 2) ?? null;
   const close = step2?.close ?? null;
+  row.hasLine2Step = Boolean(step2);
   row.line2Class = close?.class ?? null;
   row.cited = /cited/i.test(JSON.stringify(close ?? {}));
   // F170: the picks sit in close.picked (a fact line) or close.shape.picked (a softgreen line); both locations, both rules
@@ -228,10 +232,12 @@ try {
   const picksLostB = greenB.filter((r) => !r.picksBoth).length;
   const retained = rows.filter((r) => r.hasRetention).length;
   const f170 = gB >= 8 && Math.abs(gA - 9) <= 2 && picksLostB === 0 && retained === 20 ? 'PASS' : 'FAIL';
+  const f172 = Math.abs(gA - gB) <= 2 && greenB.length === 10 && picksLostB === 0 && retained === 20 ? 'PASS' : 'FAIL';
   let f170v = f170;
-  if (cut || nA !== N || nB !== N || N !== 10) { verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`; f170v = `INCONCLUSIVE (cut batch; letter would read ${f170})`; }
+  let f172v = f172;
+  if (cut || nA !== N || nB !== N || N !== 10) { verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`; f170v = `INCONCLUSIVE (cut batch; letter would read ${f170})`; f172v = `INCONCLUSIVE (cut batch; letter would read ${f172})`; }
   const summary = {
-    F170: f170v, bothPicksOnLine2B: `${greenB.length - picksLostB}/${greenB.length} green-phase B drafts`, retentionRecords: `${retained}/${rows.length} drafts`,
+    ...(BAR === 'f172' ? { F172: f172v, noLine2Step: rows.filter((r) => r.hasLine2Step === false).map((r) => r.flowName) } : { F170: f170v }), bothPicksOnLine2B: `${greenB.length - picksLostB}/${greenB.length} green-phase B drafts`, retentionRecords: `${retained}/${rows.length} drafts`,
     repairsFired: { A: rows.filter((r) => r.arm === 'A').map((r) => r.repairs.length), B: rows.filter((r) => r.arm === 'B').map((r) => r.repairs.length) },
     repairTexts: rows.filter((r) => r.repairs.length).map((r) => ({ draft: r.flowName, repairs: r.repairs })), structureRetriesA: rows.filter((r) => r.arm === 'A').map((r) => r.structureRetries), structureRetriesB: rows.filter((r) => r.arm === 'B').map((r) => r.structureRetries),
     G_A: gA, G_B: gB, draftsA: nA, draftsB: nB, verdict, totalSpendUsd: spent, spendComplete: rows.every((r) => r.spendComplete), overHardCap: spent > HARD_CAP,
