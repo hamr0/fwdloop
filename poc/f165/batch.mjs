@@ -1,6 +1,7 @@
 // PAID; NOT the product. F165: do count guardrails on the flights fact line make the drafter drop line 2's cited price check?
 // Usage: DEEPSEEK_API_KEY=... node poc/f165/batch.mjs --out <fresh dir> [--n <drafts per arm, default 10>] [--repo <checkout, default this repo>]
-// One panel (port 4918, HOME=<out>/home) for the whole batch; drafts interleaved A,B,A,B...; hard cap $0.45: no new draft once spend >= $0.40 (F168).
+// One panel (port 4918, HOME=<out>/home) for the whole batch; drafts interleaved A,B,A,B...; hard cap $0.45: no new draft once spend >= $0.40 (F168, F170).
+// F170: picks are read from close.picked OR close.shape.picked (both rules, listItems 3 and maxWords 80); the retention record (log.json entry.retention) and code repairs (entry.repaired) are read; verdict is F170's.
 // The key is only checked for emptiness and passed through the parent env; it is never read into a printed or written value.
 import {
   closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync, appendFileSync,
@@ -168,7 +169,20 @@ async function oneDraft(arm, i) {
   const close = step2?.close ?? null;
   row.line2Class = close?.class ?? null;
   row.cited = /cited/i.test(JSON.stringify(close ?? {}));
-  row.picks = close?.picked !== undefined && JSON.stringify(close.picked).length > 2;
+  // F170: the picks sit in close.picked (a fact line) or close.shape.picked (a softgreen line); both locations, both rules
+  const pk = [close?.picked, close?.shape?.picked].find((x) => Array.isArray(x)) ?? [];
+  row.picks = pk.length > 0;
+  row.picksBoth = pk.some((c) => c?.rule === 'listItems' && c?.value === 3) && pk.some((c) => c?.rule === 'maxWords' && c?.value === 80);
+  // F170: the retention record (last log entry that carries one in the final plan's log.json) and every code repair of the draft (all plan folders)
+  const finalEntries = readJson(path.join(dd, st?.plan ?? 'draft', 'log.json'))?.log ?? [];
+  const lastRet = [...finalEntries].reverse().find((e) => Array.isArray(e?.retention));
+  row.hasRetention = Boolean(lastRet);
+  row.retention2 = lastRet?.retention?.find((x) => x?.line === 2) ?? null;
+  row.repairs = [];
+  for (const sub of existsSync(dd) ? readdirSync(dd) : []) {
+    if (sub !== 'draft' && !/^draft-\d+$/.test(sub)) continue;
+    for (const e of readJson(path.join(dd, sub, 'log.json'))?.log ?? []) if (Array.isArray(e?.repaired)) row.repairs.push(...e.repaired);
+  }
   row.structureRetries = readJson(path.join(dd, st?.plan ?? 'draft', 'log.json'))?.structureRetries ?? null;
   row.unjudgeable2 = decl?.unjudgeable?.['2'] ?? decl?.unjudgeable?.[2] ?? null;
   const sp = spendOf(id);
@@ -201,7 +215,7 @@ try {
       spent += row.spendUsd;
       rows.push(row);
       appendFileSync(resultsPath, `${JSON.stringify(row)}\n`);
-      say(`${row.flowName}: ${row.phase} line2=${row.line2Class} cited=${row.cited} picks=${row.picks} $${row.spendUsd.toFixed(4)}${row.spendComplete ? '' : ' (INCOMPLETE)'} total $${spent.toFixed(4)}`);
+      say(`${row.flowName}: ${row.phase} line2=${row.line2Class} cited=${row.cited} picks=${row.picks} both=${row.picksBoth} retention=${row.hasRetention} repairs=${row.repairs.length} $${row.spendUsd.toFixed(4)}${row.spendComplete ? '' : ' (INCOMPLETE)'} total $${spent.toFixed(4)}`);
     }
   }
   const G = (arm) => rows.filter((r) => r.arm === arm && r.phase === 'green' && r.line2Class === 'green' && r.cited).length;
@@ -209,14 +223,17 @@ try {
   const gA = G('A'); const gB = G('B');
   const nA = count('A', () => true); const nB = count('B', () => true);
   let verdict = Math.abs(gA - gB) <= 2 ? 'NO-DIFFERENCE' : (gA - gB >= 3 ? 'COUNTS-HURT' : 'COUNTS-HELP');
-  // F168 bars: PASS iff G(B) >= 8 AND |G(A) - 9| <= 2 AND every green B draft has its picks on line 2
+  // F170 bars: PASS iff G(B) >= 8 AND |G(A) - 9| <= 2 AND every green-phase B draft carries BOTH listItems 3 and maxWords 80 on line 2 AND a retention record exists on 20/20 drafts
   const greenB = rows.filter((r) => r.arm === 'B' && r.phase === 'green');
-  const picksLostB = greenB.filter((r) => !r.picks).length;
-  const f168 = gB >= 8 && Math.abs(gA - 9) <= 2 && picksLostB === 0 ? 'PASS' : 'FAIL';
-  let f168v = f168;
-  if (cut || nA !== N || nB !== N) { verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`; f168v = `INCONCLUSIVE (cut batch; letter would read ${f168})`; }
+  const picksLostB = greenB.filter((r) => !r.picksBoth).length;
+  const retained = rows.filter((r) => r.hasRetention).length;
+  const f170 = gB >= 8 && Math.abs(gA - 9) <= 2 && picksLostB === 0 && retained === 20 ? 'PASS' : 'FAIL';
+  let f170v = f170;
+  if (cut || nA !== N || nB !== N || N !== 10) { verdict = `INCONCLUSIVE (cut batch; letter would read ${verdict})`; f170v = `INCONCLUSIVE (cut batch; letter would read ${f170})`; }
   const summary = {
-    F168: f168v, picksOnLine2B: `${greenB.length - picksLostB}/${greenB.length} green B drafts`, structureRetriesA: rows.filter((r) => r.arm === 'A').map((r) => r.structureRetries), structureRetriesB: rows.filter((r) => r.arm === 'B').map((r) => r.structureRetries),
+    F170: f170v, bothPicksOnLine2B: `${greenB.length - picksLostB}/${greenB.length} green-phase B drafts`, retentionRecords: `${retained}/${rows.length} drafts`,
+    repairsFired: { A: rows.filter((r) => r.arm === 'A').map((r) => r.repairs.length), B: rows.filter((r) => r.arm === 'B').map((r) => r.repairs.length) },
+    repairTexts: rows.filter((r) => r.repairs.length).map((r) => ({ draft: r.flowName, repairs: r.repairs })), structureRetriesA: rows.filter((r) => r.arm === 'A').map((r) => r.structureRetries), structureRetriesB: rows.filter((r) => r.arm === 'B').map((r) => r.structureRetries),
     G_A: gA, G_B: gB, draftsA: nA, draftsB: nB, verdict, totalSpendUsd: spent, spendComplete: rows.every((r) => r.spendComplete), overHardCap: spent > HARD_CAP,
     redA: count('A', (r) => r.phase === 'red'), redB: count('B', (r) => r.phase === 'red'),
     stoppedA: count('A', (r) => r.phase === 'stopped'), stoppedB: count('B', (r) => r.phase === 'stopped'),
