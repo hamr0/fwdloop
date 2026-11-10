@@ -148,6 +148,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 
 **Parked, not scheduled: raise the bareguard pin** (hamr, 2026-11-10, unsigned). fwdloop pins bareguard `^0.31.0` (package.json). hamr ruled bareguard's tighten #80: `cells` rows and keys give `claim-malformed` (e679db4 on its branch, validated 33/33 identical on our saved runs), and `topN` rows and values give a red (0 of 3,859 files use it). Raise the pin when it ships, and re-run the 33 pairs on the installed package.
 
+*Update 2026-11-10: done, pinned ^0.34.1 in bd453c3; 33/33 saved pairs identical on 0.34.1 from npm.*
+
 **Next, not scheduled — first thing next: one per-line ledger** (hamr, 2026-11-10, unsigned draft; module number: hamr picks). DRAFT for hamr to edit. Not signed, not built, no module number. It needs its own scope, exit and negative scenario signed by hamr, and a $0 POC first, before anything is built.
 
 **Why.**
