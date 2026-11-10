@@ -6875,3 +6875,15 @@ Reported, not deciding: tries to green, gap texts, spend, spendComplete.
 A batch cut by the cap is INCONCLUSIVE for the arms it cut (the driver also marks B/C inconclusive when A was cut).
 If both pass: fewer mean tries to green wins; a tie goes to B.
 Misreads stay FAIL on the letter; no refitting after the run.
+
+### F173 RESULT (2026-11-10, PAID $0.7373 complete, [MEASURED]; worktree `poc/f173-picks-told` @333f99a; `summary.json`, `results.jsonl` in the session scratchpad `f173-1/`)
+**Verdict on the letter: B PASS, C PASS; both pass, so B wins (fewer mean tries to green: 1 vs 3.25), per the pre-registered tie rule.** Spend $0.7373 of the $1.00 cap, every sample spend-complete; no arm cut by the cap.
+- **A (today):** G 0/4, all four ended `attempt-fallback` after 4 tries. Mean $0.0825, 56.9 s.
+- **B (picks told in `yourTextHas`):** G 4/4, green on try 1 every time. Mean $0.0313, 36.1 s.
+- **C (list-item gloss on the red only):** G 4/4, mean 3.25 tries to green (3, 4, 3, 3). Mean $0.0705, 68.2 s.
+- **Gap texts per try (from the audit rows, line 2 `madrid_rome_flights`).**
+  - A: try 1 always "N words, limit 80" (150, 131, 135, 123); then "not met: exactly 3 list items (found 0)" on tries 2-4 (a-4 had "98 words, limit 80" on try 2 first). It swings words to list items and never lands both, as in walk-am27-1.
+  - C: try 1 was words (178, 146, 101) or a page-quote red once (c-1: "From" / "Nonstop" not in the quote, 139 words); try 2 was almost always "exactly 3 list items (found 0)" plus the gloss (c-2 then 116 words on try 3 before green on try 4). The gloss gets the model to a list by try 3, but it still needs the words red first.
+  - B: no red at all; telling the picks up front means try 1 already has 3 items and under 80 words.
+- **Driver labelling gap, not a run failure.** The driver's `outcome` reads "no-history (exit 0)" for every paused B/C run. The audit shows line 2 `green` and the last row `accepted_flights` `paused` (the line-3 ask) in all 8 B and C samples; the run paused as designed.
+- **Not controlled:** the flights page was fetched live per run, so page content could differ between samples.
