@@ -30,7 +30,7 @@ import { GateRefusal } from './primitives.js';
 import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
 import { worstThinkingStatus } from './thinking.js';
-import { citedBrief } from './citedcheck.js';
+import { citedBrief, toldPicks } from './citedcheck.js';
 import { sheetAnswerProps, sheetBrief } from './sheetclaims.js';
 
 import {
@@ -334,7 +334,7 @@ function stoppedResult(cumulative, modelId, modelMatch) {
  * @param {{in:number,out:number}} [opts.rates]
  * @param {string} [opts.modelId]
  * @param {Record<string,string|undefined>} [opts.env] - the merged shell+keys-file env the key is read from (default process.env).
- * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, cited?:any, sheet?:any[]|null, withText?:boolean, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
+ * @returns {(executorContext:object, grantedTools:Record<string,any>, stepMeta?:{class?:string, attempt?:number, step?:string|null, cited?:any, sheet?:any[]|null, withText?:boolean, picked?:any[]|null, thinkingMode?:'on'|'off'}, seam?:{stopRequested?:() => boolean}) => Promise<any>}
  */
 export function makeLiveModelStep({
   slot, model, spendPath, provider: injectedProvider, rates: injectedRates, modelId: injectedModelId, env,
@@ -388,8 +388,8 @@ export function makeLiveModelStep({
       ...(typeof executorContext.hints === 'string' && executorContext.hints !== '' ? { fromEarlierRuns: executorContext.hints } : {}),
       // M14 item 2: what happened so far in this run (src/memo.js), whole, on every try that has any; absent = nothing has happened yet. Text only, it leans the model, the close alone judges
       ...(typeof executorContext.memo === 'string' && executorContext.memo !== '' ? { fromThisRun: executorContext.memo } : {}),
-      // M10 am7 item 3: a step that quotes a saved page is told the form of its answer and what each result must hold
-      ...(stepMeta.class === 'green' && stepMeta.cited ? { quoting: citedBrief(stepMeta.cited) } : {}),
+      // M10 am7 item 3: a step that quotes a saved page is told the form of its answer and what each result must hold; M10 am28: and each pick on its line (values only)
+      ...(stepMeta.class === 'green' && stepMeta.cited ? { quoting: { ...citedBrief(stepMeta.cited), ...(Array.isArray(stepMeta.picked) && stepMeta.picked.length > 0 ? { yourTextHas: toldPicks(stepMeta.picked) } : {}) } } : {}),
       // M10b piece 2: a step that reads a sheet is told the shape of each claim box (bareguard's worked example), never the check
       ...(stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? { answering: sheetBrief(stepMeta.sheet) } : {}),
       // M10 am22: a fact step whose line carries the person's picks also writes the answer the job line asks for, in "text" (their sizes are in the job line)

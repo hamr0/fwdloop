@@ -1005,7 +1005,7 @@ async function runStepTries({
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
     // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
     // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, withText: step.close?.class === 'green' && Array.isArray(step.close.picked) && step.close.picked.length > 0, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, withText: step.close?.class === 'green' && Array.isArray(step.close.picked) && step.close.picked.length > 0, picked: step.close?.class === 'green' && Array.isArray(step.close.picked) ? step.close.picked : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
