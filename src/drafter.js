@@ -37,6 +37,7 @@ import { matchRecord, entriesFromAnswers, sameWords, KEPT_WORDS } from './pickre
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
+import { isCountGuardrail } from './declaration.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
@@ -292,11 +293,29 @@ function cleanNotChecked(raw) {
   return Array.isArray(raw) ? raw.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
 }
 
+// M10 am27 (1): at draft time a count guardrail is hidden from the AI (the page look and the drafter); code keeps the ORIGINAL rule numbers and text.
+const shownRules = (/** @type {string} */ guardrail) => lineRules({ rule: guardrail }).filter((r) => !isCountGuardrail(r)).join('; ');
+
+/**
+ * The job lines as the page look may see them (no count rule), and `toOriginal`, which takes a look fact's / dropped entry's visible rule number back to the guardrail's own number.
+ * @param {{n: number, text: string, rule?: string}[]} jobLines
+ */
+export function hideCounts(jobLines) {
+  const seenLines = jobLines.map((l) => { const kept = lineRules(l).filter((r) => !isCountGuardrail(r)); return { n: l.n, text: l.text, ...(kept.length ? { rule: kept.join('; ') } : {}) }; });
+  const ruleMap = (/** @type {number} */ line, /** @type {number|undefined} */ vis) => {
+    if (vis === undefined) return undefined;
+    const orig = lineRules(jobLines.find((x) => x.n === line)).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r));
+    return orig[vis - 1]?.no ?? vis;
+  };
+  const toOriginal = (/** @type {any} */ f) => (f.forRule !== undefined ? { ...f, forRule: ruleMap(f.line, f.forRule) } : f.rule !== undefined ? { ...f, rule: ruleMap(f.line, f.rule) } : f);
+  return { seenLines, toOriginal };
+}
+
 function jobLinesText(lines, asks) {
   const askLines = new Set(asks.map((a) => a.line));
   return lines
     .map((l) => `${l.n}. ${l.text}${askLines.has(l.n) ? ' [SIGNED ASK — a human stop]' : ''}`
-      + `${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
+      + `${l.guardrail && shownRules(l.guardrail) ? ` [guardrail: ${shownRules(l.guardrail)}]` : ' [no guardrail]'}`)
     .join('\n');
 }
 
@@ -349,8 +368,8 @@ function whenToUse(menu) {
 function sheetRuleNumbers(lines, arbiter) {
   const csvRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path));
   if (csvRoles.length === 0) return [];
-  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}) })).filter((x) => x.rules.length > 0);
-  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((r, i) => `${i + 1}) ${r}`).join(' ')}`)];
+  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r)) })).filter((x) => x.rules.length > 0);
+  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((q) => `${q.no}) ${q.r}`).join(' ')}`)];
 }
 
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
@@ -542,6 +561,8 @@ export async function draft({
   const pageExtras = pageSources.length ? { look, pageLooks } : {};
   let mapCut = null;
   const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
+  // M10 am27 (1): the page look sees only the non-count rules; `toOriginal` takes a visible rule number back to the original one
+  const { seenLines, toOriginal } = hideCounts(jobLines);
   const pageInfo = [];
   /** one map call (a page's or a sheet's): its hold, its metering and its book are the drafting round's own (the `kind` names it in the round log) */
   const makeCallModel = (kind) => async (content, attempt) => {
@@ -573,13 +594,14 @@ export async function draft({
   for (const s of pageSources) {
     const pg = pages[s.role];
     // The hold of the map call is sized from its own prompt (the saved page is in it): one that cannot fit what is left of the cap is refused here, at $0.
-    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
+    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines: seenLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
     const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spentBefore + mapCeiling > budgetUsd) {
       if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
     }
     const callModel = makeCallModel('page-map');
-    const got = await lookAtPage({ label: s.role, text: pg.text, jobLines, callModel });
+    const got0 = await lookAtPage({ label: s.role, text: pg.text, jobLines: seenLines, callModel });
+    const got = got0.ok ? { ...got0, look: { ...got0.look, facts: got0.look.facts.map(toOriginal), dropped: got0.look.dropped.map(toOriginal) } } : got0;
     if (!got.ok) {
       const m = sumMeterings(meterings);
       return {
