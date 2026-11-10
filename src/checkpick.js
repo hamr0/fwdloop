@@ -293,3 +293,26 @@ export function applyPicks(declaration, rules, settled, sentence) {
   }
   return out;
 }
+
+// borrowed-from: bareloop src/checkpick.js@0408a8f (retentionOf, 890affa; adapted to fwdloop's one close per line: a unit is one cited fact of the line's step)
+/**
+ * M10 am27 (4) RETENTION record of one draft (record only, counts, no words). Per job line: `aiParts` = the cited facts the drafter wrote on that line (a `cited` close counts once per
+ * fact, at least 1), `kept` = how many are still in the final declaration, `dropped` = what code removed, `picks` = the line has the person's picks; `classAsked` / `classFinal`
+ * = the line's close class as the drafter sent it and as it ended. Pure.
+ * @param {any} drafted the declaration as the drafter sent it @param {any} final the declaration the draft ended with @param {any[]|null|undefined} jobLines @param {Iterable<number>} [pickLines]
+ * @returns {{line: number, aiParts: number, kept: number, dropped: number, picks: boolean, classAsked: string|null, classFinal: string|null}[]}
+ */
+export function retentionOf(drafted, final, jobLines, pickLines = []) {
+  const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!isRec(drafted) || !Array.isArray(drafted.steps) || !isRec(final) || !Array.isArray(final.steps)) return [];
+  const stepsOn = (/** @type {any} */ d, /** @type {number} */ n) => d.steps.filter((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
+  const units = (/** @type {any[]} */ steps) => steps.reduce((/** @type {number} */ sum, /** @type {any} */ st) => (isRec(st.close) && isRec(st.close.cited) ? sum + Math.max(1, Array.isArray(st.close.cited.facts) ? st.close.cited.facts.length : 0) : sum), 0);
+  const classOf = (/** @type {any[]} */ steps) => (isRec(steps[0]?.close) && typeof steps[0].close.class === 'string' ? steps[0].close.class : null);
+  const withPicks = new Set(pickLines);
+  return (Array.isArray(jobLines) ? jobLines : []).filter((l) => isRec(l) && Number.isInteger(l.n)).map((l) => {
+    const was = stepsOn(drafted, l.n); const now = stepsOn(final, l.n);
+    const aiParts = units(was);
+    const kept = Math.min(aiParts, units(now));
+    return { line: l.n, aiParts, kept, dropped: aiParts - kept, picks: withPicks.has(l.n), classAsked: classOf(was), classFinal: classOf(now) };
+  });
+}

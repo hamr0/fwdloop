@@ -9,7 +9,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { cardFields, cardToProse } from '../src/panel/authorcard.js';
 import { draft, hideCounts } from '../src/drafter.js';
 import { repairDeclaration } from '../src/repairs.js';
-import { countCheck } from '../src/checkpick.js';
+import { countCheck, retentionOf } from '../src/checkpick.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
 const JOB = [
@@ -127,5 +127,32 @@ test('(3) the suggestion call keeps nothing for a single count: the person is of
     assert.deepEqual(r.questions.map((q) => [q.line, q.ask, q.proposal, q.check]), [[3, 'check', 'exactly 3 list items', { rule: 'listItems', value: 3 }]]);
     assert.ok(!r.questions.some((q) => /can't check this/.test(q.question)));
     assert.equal(p.calls.some((c) => c.tools[0] === 'emit_declaration'), false);
+  }
+});
+
+// ---- (4) every draft records, per job line, the AI checks written, kept, dropped and the picks ----
+const stepOn = (n, close) => ({ primitives: ['read'], reads: [], emits: `e${n}`, fromLine: n, close });
+const cites = (...names) => ({ class: 'green', cited: { source: 'flights', facts: names.map((name) => ({ name })) } });
+
+test('(4) retentionOf: per line, cited facts written / kept / dropped, the pick flag and the class as sent and as ended; counts only', () => {
+  const drafted = { steps: [stepOn(1, cites('a', 'b', 'c')), stepOn(2, { class: 'hitl' })] };
+  const final = { steps: [stepOn(1, cites('a')), stepOn(2, { class: 'softgreen' })] };
+  assert.deepEqual(retentionOf(drafted, final, [{ n: 1 }, { n: 2 }, { n: 3 }], [2]), [
+    { line: 1, aiParts: 3, kept: 1, dropped: 2, picks: false, classAsked: 'green', classFinal: 'green' },
+    { line: 2, aiParts: 0, kept: 0, dropped: 0, picks: true, classAsked: 'hitl', classFinal: 'softgreen' },
+    { line: 3, aiParts: 0, kept: 0, dropped: 0, picks: false, classAsked: null, classFinal: null },
+  ]);
+  assert.deepEqual(retentionOf(null, final, [{ n: 1 }]), []);
+});
+
+test('(4) every draft round carries the record, one row per job line, in a plan with a pick and in one without', async (t) => {
+  for (const picks of [undefined, [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }]]) {
+    const p = fakeProvider([toolReply(plan())]);
+    const r = await draft({ proseText: prose(t, ONE_COUNT), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false, ...(picks ? { checkPicks: picks } : {}) });
+    assert.equal(r.ok, true, r.reds.join('\n'));
+    const rec = r.log[0].retention;
+    assert.ok(Array.isArray(rec) && rec.length === 7, `a row per job line (got ${JSON.stringify(rec)})`);
+    assert.deepEqual(rec.map((x) => x.line), [1, 2, 3, 4, 5, 6, 7]);
+    assert.equal(rec.find((x) => x.line === 3).picks, picks !== undefined);
   }
 });
