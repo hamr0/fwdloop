@@ -176,11 +176,11 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 | disagreement 3 and 5: a "drop it" lands in different places by ask kind; agreed and dropped | D7: look `dropped` vs pick-ask `left`, two owners of one meaning | RD, not seen |
 | answer 4 and disagreement 1: Not checked vs the signed Checked | D8: card vs Job tab Not checked, two renderings of one list | RD, not seen |
 | answer 5: retention cannot see agreed-but-never-built | D15: retention does not count agreed AI items | RD |
-| answer 7: a zero-content-check plan signs | D4: a close with no real check could sign | FIXED 55e7234 (end check, both doors) |
+| answer 7: a zero-content-check plan signs | D4: a close with no real check could sign | built on bareloop's branch feat/check-ledger (55e7234), NOT released: bareloop v0.55.0, 2026-11-10, does not include it |
 | disagreement 8: no rule-level coverage | D10 / L11: every `~` rule carried or refused, red `rubric-rule-dropped` | reconciled at the validator |
 | answer 6: the drafter prompt promises more than code does | D3: "code adds the checks the person picked" true only for `~` picks | text unchanged, seen as VANISHED in 2 of 5 |
 
-- bareloop already fixed two things we have not: the D4 end check (55e7234) and the rule-level red `rubric-rule-dropped` (MAP L11 / D10, rubricstep.js:727).
+- bareloop has two things we do not: the D4 end check (55e7234), built on bareloop's feat/check-ledger, not released in v0.55.0 (loop, 2026-11-10), and the rule-level red `rubric-rule-dropped` (MAP L11 / D10, rubricstep.js:727; in released tags since v0.42.0 by git tag --contains). bareloop's design draft 2 (`../bareloop/.claude/scratch/r10/ledger/DESIGN.md`, 2026-11-10) took our 9 gaps; one ruling (sign state/rule/line/part, not reason words) is with hamr.
 - Our rule: copy bareloop code only from a released tag, with the `// borrowed-from:` header. Never import.
 - Where we differ: bareloop has a confirm AI (L6, L7) that plans checks and takes free-text answers. We have none. Our close is one class per line, not parts (F171 "The one fact first"). So its confirm kinds (item kind 3, and the confirm half of kind 6) do not exist here.
 
