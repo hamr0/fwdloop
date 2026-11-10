@@ -6855,3 +6855,23 @@ One code-owned row per (job line, rule or AI part) with a state (agreed / droppe
 - **Misses:** a-2 and a-8 put line 2 to hitl (no-count arm); b-10 ended softgreen (asked hitl, the code-built count pick made it softgreen, no page check).
 - **Repairs fired on 6 drafts** (a-1, a-6, a-10, b-7 added "flights" to reads; a-5, b-8, a-10 dropped an unjudgeable note on a green line 2). All of them kept their page check.
 - **Update 2026-11-10: the "price ceiling gap" was never lost.** Chat and the stash `.claude/stash/2026-11-10-m10-am22-am27-counts-and-ledger.md` said the drafter's money fact sometimes omits `lt 150`, citing `m10-walk-flights-5` run-3. That was wrong. No entry in this file states it (F162's "price check lost" is a line-2 hitl on a different job, a draft problem, not an omitted bound), so the correction sits here. [CODE] F82's fix `boundReds` (src/citedwords.js:192, red `bound-missing`, commit 6138a63, 2026-10-24 14:22, first in v0.24.0) refuses at $0 a cited close that drops a limit the look read. [MEASURED] `~/.config/fwdloop/flows/m10-walk-flights-5` was signed 2026-10-24 14:08 (`declaration.json`, `signature.json` mtime 14:08:47), 14 minutes before that fix; runs 2 and 3 (2026-11-03) were green reuse of that plan (a green same-job run reuses its plan). The missing bound is a pre-fix plan, not a regression. [MEASURED] F172's 20 final plans (highest `draft`/`draft-N` with a `declaration.json`; 20 of 20 have a line-2 step): 15 carry `"op":"lt","value":150` on line 2 (A 7, B 8). The 5 without: a-2, a-8 (hitl, no page check), b-10 (softgreen, no page check), and a-4, b-5 (green + cited with NO price fact; in both the person's answer was "drop it" on the price can't-check, and `not-checked.json` says `under $150 — You chose to leave it Not checked`, so it is the person's drop, not a drafter omission, and `boundReds` does not apply). So 15 of 17 green cited plans carry the bound, and the other 2 are the person's drop. [MEASURED] What F171 disagreement 1 shows instead is a DISPLAY gap: Not checked lists "under $150" while the signed plan checks it (29 of 36 green line-2 plans). That is still open.
+
+## F173 PRE-REGISTRATION (2026-11-10, PAID, hard cap $1.00; `poc/f173/batch.mjs --cap 1.00`; written before any run)
+
+**Trigger.** hamr's walk walk-am27-1 run-1: line 2 red 4/4 tries (155 words, then 0 list items); $0.0819. Cap raised to $1.00 by hamr, 2026-11-10.
+
+**Question.** Signed job walk-am27-1, line 2 (`madrid_rome_flights`): green, cited page check + two code picks (`listItems 3`, `maxWords 80`). In hamr's walk run-1 failed all 4 tries (try 1: 155 words vs 80; tries 2-4: a paragraph, "exactly 3 list items (found 0)"). The step never sees its picks (M6a am1). Does telling the step its picks (arm B) or saying what a list item is in the red (arm C) get line 2 green within its tries, more often than today (arm A)?
+
+**Candidate.** Worktree branch `poc/f173-picks-told` @ 333f99a (POC only, never ships). One env var `FWD_F173_ARM` (A/B/C), read only in src/f173.js.
+- A: today. No change.
+- B: the step's `quoting` block gains `yourTextHas`: one plain line per pick, pick values only, no verdict ("exactly 3 list items; a list item is its own line starting with "1." or "- " followed by a space and its text" / "at most 80 words"). The gloss states what bareguard's listItems counts.
+- C: brief as today; a listItems red also says what a list item is (same gloss).
+
+**Method.** `node poc/f173/batch.mjs`: real run path (`bin/fwdloop run walk-am27-1 --root <scratch>`), a fresh scratch root + scratch HOME per sample (job + signature copied, no old runs, no learnings), arms interleaved A,B,C x4 (12 runs), sample ends when the run pauses at the line-3 ask or ends red. Page input is fetched live per run (signed address), so page content may vary between samples; reported, not controlled. Model deepseek-flash (DeepSeek direct, slot DEEPSEEK_API_KEY). Hard cap $1.00: before each run, stop if spent + last measured run cost (or $0.10 before any) would cross it.
+
+**Bars (fixed now).** G(arm) = runs where line 2 ends green within its tries.
+B or C PASSES iff G >= 3/4 AND G > G(A) AND (mean cost <= A's OR mean wall <= A's).
+Reported, not deciding: tries to green, gap texts, spend, spendComplete.
+A batch cut by the cap is INCONCLUSIVE for the arms it cut (the driver also marks B/C inconclusive when A was cut).
+If both pass: fewer mean tries to green wins; a tie goes to B.
+Misreads stay FAIL on the letter; no refitting after the run.
