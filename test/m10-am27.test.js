@@ -9,6 +9,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { cardFields, cardToProse } from '../src/panel/authorcard.js';
 import { draft, hideCounts } from '../src/drafter.js';
 import { repairDeclaration } from '../src/repairs.js';
+import { countCheck } from '../src/checkpick.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
 const JOB = [
@@ -101,4 +102,30 @@ test('(2) a draft whose plan needs a repair carries the log of it on that round'
   const r = await draft({ proseText: prose(t, JOB.replace(/\n~ [^\n]*/, '')), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   const round = r.log.find((e) => e.kind === 'draft' || e.round === 1);
   assert.deepEqual(round.repaired, ['unjudgeable: dropped the entry for line 5 (its class is green; reason was: the page cannot prove it)']);
+});
+
+// ---- (3) a single count the suggestion call keeps nothing for gets the pick code builds from the guardrail's own number ----
+const suggestReply = (checks) => ({ text: '', toolCalls: [{ id: 's1', name: 'suggest_checks', arguments: { checks } }], usage: { inputTokens: 900, outputTokens: 100 }, stopReason: 'tool_calls', model: MODEL });
+const ONE_COUNT = JOB.replace(/\n~ [^\n]*/, '\n~ exactly 3 bullets');
+
+test('(3) countCheck: one count builds the check its own readers name; two counts, a range, a section count build none', () => {
+  assert.deepEqual(countCheck('exactly 3 bullets'), { rule: 'listItems', value: 3 });
+  assert.deepEqual(countCheck('under 80 words'), { rule: 'maxWords', value: 80 });
+  assert.deepEqual(countCheck('at least 50 words'), { rule: 'minWords', value: 50 });
+  assert.deepEqual(countCheck('exactly 5 lines'), { rule: 'maxLines', value: 5 });
+  assert.equal(countCheck('3 bullets under 80 words'), null);
+  assert.equal(countCheck('between 50 and 80 words'), null);
+  assert.equal(countCheck('3 sections'), null);
+  assert.equal(countCheck('keep it kind'), null);
+});
+
+test('(3) the suggestion call keeps nothing for a single count: the person is offered the code-built pick, never "I can\'t check this"', async (t) => {
+  for (const checks of [[], [{ line: 3, guardrail: 1, rule: 'maxWords', value: 80 }]]) {
+    const p = fakeProvider([suggestReply(checks)]);
+    const r = await draft({ proseText: prose(t, ONE_COUNT), provider: p, rates: RATES, modelId: MODEL });
+    assert.equal(r.stop, 'look-asks');
+    assert.deepEqual(r.questions.map((q) => [q.line, q.ask, q.proposal, q.check]), [[3, 'check', 'exactly 3 list items', { rule: 'listItems', value: 3 }]]);
+    assert.ok(!r.questions.some((q) => /can't check this/.test(q.question)));
+    assert.equal(p.calls.some((c) => c.tools[0] === 'emit_declaration'), false);
+  }
 });

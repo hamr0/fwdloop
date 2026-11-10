@@ -10,7 +10,7 @@ import { isCellsPath } from './closers.js';
 import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
-import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, isCountGuardrail } from './declaration.js';
+import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountGuardrail } from './declaration.js';
 
 /** the one tool the suggestion call is forced to use */
 export const SUGGEST_TOOL = 'suggest_checks';
@@ -174,8 +174,31 @@ export function rowsFromAnswer(scoped, args) {
   return scoped.map((s) => {
     const e = entries.find((/** @type {any} */ x) => x?.line === s.line && x?.guardrail === s.rule);
     const res = e === undefined ? /** @type {ReturnType<typeof keepOrDrop>} */ ({ kept: false, why: 'no entry' }) : keepOrDrop(s.text, e);
-    return { ...s, check: res.kept ? res.check : null, why: res.kept ? null : res.why };
+    if (res.kept) return { ...s, check: res.check, why: null };
+    // M10 am27 (3): a count rule is never "I can't check this"; with nothing kept from the call, CODE proposes the check its own readers name
+    const own = countCheck(s.text);
+    return { ...s, check: own, why: own ? null : res.why };
   });
+}
+
+// borrowed-from: bareloop src/checkpick.js@0408a8f (countCheck, 5a81681; one reader file differs: fwdloop's declaration.js has the same three readers)
+/**
+ * The check CODE proposes for a count rule when the call yields none: a bullets / list-items / points count -> listItems N, a lines count -> maxLines N, ONE word number ->
+ * minWords N when the rule says "at least / minimum / more than", else maxWords N. A section count names no sections, so none is built; a rule naming two different counts is
+ * not built either; a rule with several word numbers or a range is not guessed. The result passes `keepOrDrop`, so every number is one the rule names.
+ * @param {string} text @returns {Record<string, any>|null}
+ */
+export function countCheck(text) {
+  const items = guardrailItemCount(text);
+  const words = guardrailWordNumbers(text);
+  /** @type {Record<string, any>|null} */
+  let built = null;
+  if (items !== null && (words.length > 0 || guardrailSectionCount(text) !== null)) return null;
+  if (items !== null) built = { rule: /\blines?\b/i.test(text) && !/\b(bullets?|items?|points?)\b/i.test(text) ? 'maxLines' : 'listItems', value: items };
+  else if (words.length === 1 && !/\bbetween\b|\d\s*(?:-|–|to)\s*\d/i.test(text)) built = { rule: /\b(at least|min(?:imum)?|more than|over|no fewer than)\b/i.test(text) ? 'minWords' : 'maxWords', value: words[0] };
+  if (built === null) return null;
+  const res = keepOrDrop(text, built);
+  return res.kept ? res.check : null;
 }
 
 // ---- the asks (words are item 4's) -----------------------------------------------------------------------------------------------------

@@ -124,10 +124,12 @@ test('the prompt names the checks the checker can run and the user text sends on
 });
 
 test('rows: one per scoped guardrail; a missing entry is dropped as "no entry"; an entry for a guardrail not sent is ignored', () => {
-  const scoped = [{ line: 1, rule: 1, text: 'exactly 3 bullets' }, { line: 1, rule: 2, text: 'under 80 words' }];
+  // M10 am27 (3): a count rule with nothing kept is built by code; the "no entry" path is a rule that names no count
+  const scoped = [{ line: 1, rule: 1, text: 'exactly 3 bullets' }, { line: 1, rule: 2, text: 'tone is warm' }];
   const rows = rowsFromAnswer(scoped, { checks: [{ line: 1, guardrail: 1, rule: 'listItems', value: 3 }, { line: 9, guardrail: 1, rule: 'maxWords', value: 1 }] });
   assert.deepEqual(rows.map((r) => [r.line, r.rule, r.check, r.why]), [[1, 1, { rule: 'listItems', value: 3 }, null], [1, 2, null, 'no entry']]);
-  assert.deepEqual(rowsFromAnswer(scoped, null).map((r) => r.why), ['no entry', 'no entry']);
+  assert.deepEqual(rowsFromAnswer(scoped.slice(1), null).map((r) => r.why), ['no entry']);
+  assert.deepEqual(rowsFromAnswer(scoped.slice(0, 1), null).map((r) => r.check), [{ rule: 'listItems', value: 3 }]);
 });
 
 test('asks: a kept check is `Line n, guardrail "<...>": I propose <plain words>.`; nothing kept is `I can\'t check this. Your own words, or Not checked?`; only the second counts', () => {
