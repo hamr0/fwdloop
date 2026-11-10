@@ -6693,3 +6693,12 @@ Script `poc/f163/replay.mjs <scratchpad>`, output `poc/f163/out/replay.txt` (rea
 **Verdict (fixed now).** COUNTS-HURT if G(A) - G(B) >= 3. NO-DIFFERENCE if |G(A) - G(B)| <= 2. COUNTS-HELP if G(B) - G(A) >= 3. Reported, not deciding: red/stopped/timeout counts per arm, and per-arm drafter `unjudgeable` reasons for line 2. If the cap stops the batch early the arms may be unequal; the verdict is then stated on the letter with the counts of drafts done, and a cut batch is INCONCLUSIVE.
 
 RUN 1 (2026-11-09, $0): all 20 drafts refused at the card at $0 — the driver's flow names had an uppercase letter (driver bug, not product). No verdict. Run 2 follows with lowercase names, same arms and bars, fresh out dir.
+
+## F166 PRE-REGISTRATION (2026-11-10, $0, no model call, no network, no key, no src edit; `poc/f166/`; questions fixed before the replay scripts)
+**Question.** F165 arm B (line 2 plus `~ exactly 3 bullets`, `~ under 80 words`) kept a green cited line 2 in only 2/10 drafts (arm A 9/10). Where does the green cited price check get lost?
+**Hypotheses, tested in order (read saved F165 drafts under the scratchpad `f165-2/flows/.drafts/<id>/{draft,draft-1}/`).**
+- H1 VALIDATOR: a failing B draft wrote line 2 green+cited in some round, our validator refused it (red text on line 2), and the next round backed off. Decides: per round, line-2 class + the reds fed back; H1 holds if a red naming line 2 precedes a drop to hitl.
+- H2 PROMPT: the drafter is told something in B (system prompt text rendered from lines + look facts) that steers line 2 off green. Decides: rebuild the exact system prompt at $0 with the real `draft()` and a fake provider on the saved page, saved page-map answer and saved prose, for A and B; diff them. H2 holds if the diff carries line text/facts/rules that name or imply the shape guardrails settle or mix the line.
+- H3 REDRAFT: the loss is made in draft-1 (after the answers) only, by inputs the answers add (`~ exactly 3 list items; at most 80 words`) or by the look's page-map answer to the extra rules. Decides: draft/ log has no drafter round (only page-map + check-suggest); compare the page-map facts for rules 3..6 between A and B.
+- H4 APPLYPICKS: the drafter wrote green+cited and code (applyPicks) overwrote it to softgreen. Decides: drafter round args line 2 class vs final declaration class.
+**Verdict (fixed now).** H1/H2/H3/H4 each CONFIRMED, REFUTED, or PARTIAL from the per-draft table (draft, phase, per-round line-2 class, reds, final class). A cause in code is named by file:line. Nothing is run paid.
