@@ -1,0 +1,20 @@
+f165-a-1 | draft | kept[origin airport,price label#1,stops#2] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-1 | draft-1 | kept[origin,price#1,stops#2,bullet count#3,word limit#4] | rounds first[green+cited] RED:declaration: steps[3] (line 4) is a pause (no primitives, hi > revision[hitl] | structureErr=0 | final=softgreen+shape
+f165-a-2 | draft | kept[origin,price#1,stops#2] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-2 | draft-1 | kept[origin airport,price#1,nonstop#2] | rounds first[green+cited] | structureErr=0 | final=green+cited+picked
+f165-a-3 | draft | kept[origin airport,stops#2,price#1] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-3 | draft-1 | kept[origin airport,destination airport,price label#1,stops#2,flight count#3] | rounds first[hitl] | structureErr=0 | final=softgreen+shape
+f165-a-4 | draft | kept[origin airport,destination airport,price#1,stops#2] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-4 | draft-1 | kept[price#1,stops#2,origin] | rounds first[hitl] RED:declaration: steps[3] (line 4) is a pause (no primitives, hi > revision[hitl] | structureErr=0 | final=softgreen+shape
+f165-a-5 | draft | kept[origin city and airport,price label#1,nonstop requirement#2] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-5 | draft-1 | kept[origin airport,price label#1,stops#2] | rounds structure-retry[green+cited] | structureErr=1 | final=green+cited+picked
+f165-a-6 | draft | kept[origin airport,destination airport,price label#1,nonstop word#2] | rounds first[green+cited] | structureErr=0 | final=green+cited
+f165-b-6 | draft-1 | kept[origin airport,price label#1,stops#2] | rounds structure-retry[hitl+cited] | structureErr=1 | final=softgreen+shape
+f165-a-7 | draft | kept[origin airport code,price#1,stops#2] | rounds first[green+cited] RED:declaration: line 2 is marked unjudgeable but guardrailClass > revision[green+cited] RED:declaration: steps[1].close.cited.source "flights" is not in > revision[green+cited] | structureErr=0 | final=green+cited
+f165-b-7 | draft-1 | kept[origin,price label#1,stops#2] | rounds structure-retry[hitl] | structureErr=1 | final=softgreen+shape
+f165-a-8 | draft | kept[origin airport,price label#1,stops#2] | rounds first[green+cited] RED:declaration: line 2 is marked unjudgeable but guardrailClass > revision[hitl] | structureErr=0 | final=hitl
+f165-b-8 | draft-1 | kept[origin place,price label#1,stop count#2] | rounds first[hitl] | structureErr=0 | final=softgreen+shape
+f165-a-9 | draft | kept[origin airport,destination airport,price label#1,stops#2] | rounds first[green+cited] RED:declaration: line 2 is marked unjudgeable but guardrailClass|declaration: steps[1].close.cited.source "flights" is not in|declaration: steps[3] (line 4) is a pause (no primitives, hi > revision[green+cited] | structureErr=0 | final=green+cited
+f165-b-9 | draft-1 | kept[origin,price#1,stops#2] | rounds first[hitl] | structureErr=0 | final=softgreen+shape
+f165-a-10 | draft | kept[origin,price#1,stops#2] | rounds structure-retry[green+cited] RED:declaration: line 2 is marked unjudgeable but guardrailClass > revision[green+cited] | structureErr=1 | final=green+cited
+f165-b-10 | draft-1 | kept[origin,price label#1,nonstop#2,flight word#3] | rounds structure-retry[softgreen] | structureErr=1 | final=softgreen+shape
