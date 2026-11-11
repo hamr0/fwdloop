@@ -67,6 +67,7 @@ function planRow(sessionDir, rel, kind, n) {
  * @param {string} sessionDir @param {string} rel
  */
 function humanRows(sessionDir, rel) {
+  /** @type {any[]} the look rows carry look-only fields (and a recorded choice), the drafter rows do not */
   const answered = readQuestions(join(sessionDir, rel)).questions.filter((q) => q.answer !== null).map((q) => (q.source === 'look' ? {
     kind: 'human', n: q.k, at: q.at ?? null, source: 'look', ask: q.ask, question: q.question, answer: q.answer, line: q.line,
     ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null, ...(q.choice === undefined ? {} : { choice: q.choice }),
