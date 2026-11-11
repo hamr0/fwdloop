@@ -66,6 +66,10 @@ for (const width of [1280, 390, 320]) {
     assert.deepEqual([s.agree, s.drop, s.or, s.box, s.send, s.orText, s.labels], [true, true, true, true, true, 'Or type a new rule:', ['Agree', 'Drop it', 'Send']]);
     assert.ok(!/Answer "agree"|type your own reading/.test(s.text), s.text);
     assert.ok(s.text.endsWith('I read it as: departure time between 05:00 and 23:59. Agree?'), s.text);
+    // hamr 2026-11-11: Agree / Drop it are the the same size as the panel's other small buttons (computed height, font-size, padding against the Settings button, the reference)
+    const sz = await chrome.ev(`(function(){ var g = function(sel){ var e = document.querySelector(sel); var c = getComputedStyle(e), r = e.getBoundingClientRect(); return [Math.round(r.height * 10) / 10, c.fontSize, c.paddingTop + "/" + c.paddingBottom, c.lineHeight]; }; return { agree: g("#chat-q-agree"), drop: g("#chat-q-drop"), send: g("#chat-q-send"), clear: g("#chat-clear-btn"), settings: g("#settings-open") }; })()`);
+    console.log(`# walk am29 button sizes ${width}px ${JSON.stringify(sz)}`);
+    assert.deepEqual([sz.agree, sz.drop], [sz.settings, sz.settings], 'Agree and Drop it match the panel\'s other small buttons (Settings): height, font-size, padding, line height');
     await chrome.ev('document.getElementById("chat-question").scrollIntoView()');
     let m = await chrome.ev(measure('#chat-question'));
     console.log(`# walk am29 reading ${width}px ${JSON.stringify(m)}`);

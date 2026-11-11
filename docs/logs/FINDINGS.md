@@ -6994,3 +6994,7 @@ Not settled by the signed text: see the hand-back.
 ## F178 (2026-11-11, $0): M10 am30 repro (pre-registration, written before any run)
 
 Pre-stated bar: current code reproduces the `2.null` refusal (a copy of draft `d-00mwcib8im-c20d`, a sheet-column reading ask with `ruleNo: null`, answered with choice drop through the real `createAuthor().answer()` door, the real redraft child spawned with a fake key value). After the fix: the drop is refused 400 `bad-choice` at the door, nothing written, no child spawned. A drop on a question tied to a `~` rule (integer `ruleNo`) still reaches the drafter as `<line>.<rule>`. Script `poc/m10-am30/poc.mjs`. Counts and shapes only; the copy is in a mkdtemp root, removed after.
+
+### F178 RESULT (2026-11-11, $0, [MEASURED])
+
+Before the fix (commit before 'M10 am30'): the no-rule copy answered with choice drop gave 202, answer-1.json and redraft-1.json written with `left: [{line:2, rule:null}]`, and the real redraft child exited with `fwdloop: draft: --left takes <line>.<rule> pairs like 1.2,3.1, got "2.null"`. Reproduced: PASS. After the fix: the same request is 400 `bad-choice`, no answer file, no redraft file, no child spawned; the copy with `ruleNo: 1` still gives `left: [{line:2, rule:1}]` (the child then stops at its own $0 Settings tick check, not at the pair). Bar: PASS.
