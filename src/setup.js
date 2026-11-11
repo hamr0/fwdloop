@@ -61,22 +61,27 @@ function planRow(sessionDir, rel, kind, n) {
 }
 
 /**
- * M10 am2 item 4: one row per question the page look raised and the person answered, in the plan folder that raised it (the draft log's human rows, read
- * from the answer files). The question, the answer, the line and the time, plus the proposal and the rule the answer added as their own fields (never cut
+ * M10 am2 item 4 (and M14 am3: also a question the drafter raised): one row per question the plan asked and the person answered, in the plan folder that
+ * raised it (the draft log's human rows, read from the answer files). The question, the answer, the line and the time, plus the proposal and the rule the answer added as their own fields (never cut
  * out of the question text). A question nobody answered leaves no row.
  * @param {string} sessionDir @param {string} rel
  */
 function humanRows(sessionDir, rel) {
-  const answered = readQuestions(join(sessionDir, rel)).questions.filter((q) => q.source === 'look' && q.answer !== null).map((q) => ({
+  const answered = readQuestions(join(sessionDir, rel)).questions.filter((q) => q.answer !== null).map((q) => (q.source === 'look' ? {
     kind: 'human', n: q.k, at: q.at ?? null, source: 'look', ask: q.ask, question: q.question, answer: q.answer, line: q.line,
     ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null,
+  } : {
+    // M14 am3: a question the drafter raised and the person answered is the same row, with no look-only fields (so no picked label)
+    kind: 'human', n: q.k, at: q.at ?? null, question: q.question, answer: q.answer, line: q.line,
   }));
+  // a kept row's n counts the answered LOOK rows only, as before M14 am3 (a page-look row never changes)
+  const lookAnswered = answered.filter((r) => r.source === 'look').length;
   // M10 am17 (6): a pick kept from the last draft is the same row, from this plan's picks record (not an answer file), its answer being the words `kept from last draft`
   const kept = Array.isArray(readJson(join(sessionDir, rel), RECORD_FILE)?.kept) ? readJson(join(sessionDir, rel), RECORD_FILE).kept : [];
   const keptRows = kept.map((k, i) => {
     const [ask] = checkAsks([{ line: k.line, rule: k.rule, text: k.ruleText, check: k.check ?? null, why: null }]);
     return {
-      kind: 'human', n: answered.length + i + 1, at: null, source: 'look', ask: ask.ask, question: ask.question, answer: KEPT_WORDS, line: k.line,
+      kind: 'human', n: lookAnswered + i + 1, at: null, source: 'look', ask: ask.ask, question: ask.question, answer: KEPT_WORDS, line: k.line,
       ruleNo: k.rule, ruleText: k.ruleText, proposal: ask.reading ?? null, rule: k.added ?? null,
     };
   });
