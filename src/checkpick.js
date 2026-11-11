@@ -205,7 +205,7 @@ export function countCheck(text) {
 /** the can't-check ask, as the signed words say it */
 export const CANT_CHECK_WORDS = "I can't check this. Your own words, or Not checked?";
 /** how every answer is told, once (am2 item 2's words) */
-const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer is added as a new ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
+export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer is added as a new ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
 
 /**
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or

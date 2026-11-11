@@ -444,7 +444,7 @@ test('P3: while a question is open the main button is off, the card is locked, t
 });
 
 test('P4: a poll tick never rewrites an answer being typed; only a NEW question (or none) clears the box', () => {
-  const prelude = `var qKey = ""; var questionBox = {hidden: true}; var qHead = {}; var qLine = {}; var qText = {}; var qAnswer = {value: ""}; var qError = {textContent: ""};
+  const prelude = `var qKey = ""; var questionBox = {hidden: true}; var qHead = {}; var qLine = {}; var qText = {}; var qAnswer = {value: ""}; var qError = {textContent: ""}; var qAgree = {}; var qDrop = {}; var qChoices = {}; var qOr = {};
     ${fnSrc('questionViewFor')}`;
   const render = new Function(`${prelude}\n${fnSrc('renderQuestion')}\nreturn { render: renderQuestion, a: qAnswer, err: qError, box: questionBox, head: qHead };`)();
   render.render(openState);
@@ -466,10 +466,12 @@ test('P4: a poll tick never rewrites an answer being typed; only a NEW question 
 
 test('P5: Send posts k and the text to the answer route; a refusal shows the server\'s words in the question box and keeps it open; the wire is the gated POST door', () => {
   const d = fnSrc('doAnswer');
-  assert.match(d, /authorPost\("\/api\/author\/" \+ id \+ "\/answer", \{k: lastState\.openK, answer: qAnswer\.value\}\)/);
+  // M10 am29: a choice button posts {k, choice}; the box's button posts {k, answer, choice: "rule"}
+  assert.match(d, /\{k: lastState\.openK, answer: qAnswer\.value, choice: "rule"\}/);
+  assert.match(d, /authorPost\("\/api\/author\/" \+ id \+ "\/answer", body\)/);
   assert.match(d, /qError\.textContent = refusalText\(r\)/);
   assert.doesNotMatch(d, /qAnswer\.value = ""[\s\S]*refusalText/, 'a refusal does not clear what was typed');
-  assert.match(CHAT, /qSend\.addEventListener\("click", doAnswer\)/);
+  assert.match(CHAT, /qSend\.addEventListener\("click", function\(\)\{ doAnswer\("rule"\); \}\)/);
 });
 
 test('P6: Your answers sit under their line; Checked is listed; Not checked always carries its label; none of it shows without a green plan', () => {

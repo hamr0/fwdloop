@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readQuestions } from '../src/authoring.js';
 import { parseJobBox } from '../src/panel/authorcard.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { ruleOfAnswer } from '../src/pageask.js';
@@ -143,4 +144,14 @@ test('the setup record\'s human row carries the typed choice (a row from an old 
   await greenAfter(w, id);
   const rows = (dir) => buildSetupRows({ sessionDir: dir, planDir: path.join(dir, 'draft-1'), hash: 'h', signedBy: 's', signedAt: 'x' }).filter((r) => r.kind === 'human');
   assert.deepEqual(rows(w.dir(id)).map((r) => [r.answer, r.choice]), [['agree', 'agree']]);
+});
+
+test('the state the panel polls: a look question carries its ask, whether code proposes, and the text without the CLI answer words; the stored question is whole', async () => {
+  const { w, id, s } = await askWorld([...READ_RULES, 'pays well']);
+  const [a, b] = s.questions;
+  assert.deepEqual([a.ask, a.proposes, b.ask, b.proposes], ['reading', true, 'cant-check', false]);
+  assert.equal(a.shown, `Your line 1 says "not a red-eye". I read it as: ${PROPOSAL}. Agree?`);
+  assert.equal(b.shown, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it?');
+  assert.match(a.question, /Answer "agree", or type your own reading/, 'the polled question is the stored one, whole');
+  assert.match(readQuestions(path.join(w.dir(id), 'draft')).questions[0].question, /Answer "agree"/);
 });

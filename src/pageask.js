@@ -16,6 +16,8 @@ import { redactSecrets } from './redact.js';
 import { lineRules, boundInWords, wordsSaidOn } from './pagebits.js';
 import { validReading } from './pagerules.js';
 import { isCountGuardrail } from './declaration.js';
+import { HOW_TO_ANSWER } from './checkpick.js';
+import { columnTail } from './sheetfind.js';
 
 /** the most asks before drafting; more than this is a job to rewrite, not a questionnaire (am1) */
 export const MAX_LOOK_ASKS = 3;
@@ -70,15 +72,35 @@ export function ruleWords(f) {
 
 /** the words of a reading ask: the ONE spelling, and {@link readingOfQuestion} reads it back (the Result tab's "(you confirmed)") */
 const READING_HEAD = ' I read it as: ';
-const READING_TAIL = '. Agree? Answer "agree"';
+const READING_ASKED = '. Agree?';
+/** the part of a reading ask that tells the CLI's typed words (M10 am29: the panel shows the question without it) */
+const READING_ANSWER = ' Answer "agree"';
+const READING_TAIL = `${READING_ASKED}${READING_ANSWER}`;
+/** @param {number} n @returns {string} the rest of a reading ask after its answer words */
+const readingRest = (n) => `, or type your own reading (your answer is added as a new ~ rule on line ${n}).`;
+/** @param {number} n @returns {string} the answer words a can't-check ask ends with (said once, here, and cut in the panel) */
+const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer is added as a new ~ rule on line ${n}).`;
 /** @param {number} n @param {string} rule @param {string} reading @returns {string} */
-const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}, or type your own reading (your answer is added as a new ~ rule on line ${n}).`;
+const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}${readingRest(n)}`;
 /** @param {unknown} q a recorded question @returns {string|null} the reading a reading ask proposed, or null when it was another kind of question */
 export function readingOfQuestion(q) {
   const s = String(q ?? '');
   const a = s.indexOf(READING_HEAD);
   const b = s.indexOf(READING_TAIL);
   return a >= 0 && b > a ? s.slice(a + READING_HEAD.length, b) : null;
+}
+
+/**
+ * M10 am29: a look question as the PANEL shows it: the code's own answer words (`Answer "agree"…` / `answer "drop it"…`) cut off the end, because the buttons and the box say it.
+ * Only the known tails are cut, matched exactly as a suffix (never a pattern over the prose); a question that ends in none of them is returned whole. The stored question is never changed.
+ * @param {{question: string, line: number, source?: string}} q @returns {string}
+ */
+export function panelQuestionText(q) {
+  const text = String(q.question);
+  if (q.source !== 'look') return text;
+  const tails = [`${READING_ANSWER}${readingRest(q.line)}`, cantCheckTail(q.line), columnTail(q.line), ` ${HOW_TO_ANSWER(q.line, true)}`, ` ${HOW_TO_ANSWER(q.line, false)}`];
+  const hit = tails.find((t) => text.endsWith(t));
+  return hit === undefined ? text : text.slice(0, text.length - hit.length);
 }
 
 /**
@@ -118,7 +140,7 @@ export function askableFromLook(look, jobLines) {
       seen.add(key);
       cants.push({
         line: l.n, rule: n, source: 'look', ask: 'cant-check', ruleText: rule,
-        question: `Your line ${l.n} says "${rule}". I can't check this on the page. Drop it? Answer "${DROP_IT}", or type how to check it (your answer is added as a new ~ rule on line ${l.n}).`,
+        question: `Your line ${l.n} says "${rule}". I can't check this on the page. Drop it?${cantCheckTail(l.n)}`,
       });
     });
   }
