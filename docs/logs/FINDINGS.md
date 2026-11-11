@@ -6953,3 +6953,15 @@ Question: does widening `humanRows` (src/setup.js) to also keep answered non-loo
 - **Bar 3 (no change to look rows):** across the whole corpus, every page-look human row is byte-identical (JSON) between main and candidate; the only difference anywhere is added non-look rows. Report sessions, look rows compared, non-look rows added.
 - **Bar 4:** an unanswered non-look question adds no row (planted copy under mkdtemp, cleaned up).
 - **Can fail:** break the candidate (drop the answer filter) and show bar 4 or bar 3 goes red.
+
+### F176 RESULT (2026-11-11, $0, [MEASURED])
+
+Script `poc/m14-am3/poc.mjs` (modes dump / compare / bars; imports from a path on the command line). Run against the repo (main code, branch `ledger-gaps`) and the worktree `poc/m14-am3`. Corpus: 164 session dirs (103 real plus 61 across the six scratch corpora); `buildSetupRows` built all 164 on both sides, 0 errors.
+
+- **Bar 1: PASS.** On main, `d-00mv5hai9f-6c7b` builds 9 rows (`card>draft>card>redraft>card>revise>card>revise>sign`) and 0 human rows although draft/ has one answered drafter question.
+- **Bar 2: PASS.** On the candidate the same session gets exactly 1 human row (shape `kind,n,at,question,answer,line`, no `source`, no look fields), in the `draft` position (`card>draft>human>card>...`). Rendered through `getDraftBlock` (exported; setup.jsonl written by `writeSetup` in a mkdtemp flow dir): 1 row whose action starts `you were asked: `, gap starts `you said: `, no picked label, step `drafting`.
+- **Bar 3: PASS.** 164 sessions, 122 page-look human rows compared, 0 sessions with any look-row JSON difference; non-look human rows 0 on main, 1 added on the candidate (1 session). Every other row (cards, plans, sign), ignoring the human row counter `n`, identical in all 164 sessions (0 other diffs). Note: `n` of a kept-pick row is `answered.length + i + 1`, so it would shift by the added rows in a session that has both; no such session in the corpus (look-row JSON identical).
+- **Bar 4: PASS.** A mkdtemp copy of the real session with an extra unanswered non-look question: human rows 1 before and 1 after; copy removed.
+- **Can fail: shown.** A copy of the candidate with the answer filter dropped: bar 4 goes red (1 -> 2 rows) and bar 3 goes red (3 sessions with look-row differences: unanswered look questions now get rows).
+
+Candidate (src/setup.js, `humanRows`): the filter drops the `source === 'look'` clause; a look question maps to the same object as before, any other answered question maps to `{ kind: 'human', n, at, question, answer, line }`. No change to src/panel/data.js (it already renders a human row and adds the picked label only for source 'look').
