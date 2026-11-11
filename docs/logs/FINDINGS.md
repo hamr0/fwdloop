@@ -6965,3 +6965,14 @@ Script `poc/m14-am3/poc.mjs` (modes dump / compare / bars; imports from a path o
 - **Can fail: shown.** A copy of the candidate with the answer filter dropped: bar 4 goes red (1 -> 2 rows) and bar 3 goes red (3 sessions with look-row differences: unanswered look questions now get rows).
 
 Candidate (src/setup.js, `humanRows`): the filter drops the `source === 'look'` clause; a look question maps to the same object as before, any other answered question maps to `{ kind: 'human', n, at, question, answer, line }`. No change to src/panel/data.js (it already renders a human row and adds the picked label only for source 'look').
+
+## F177 PRE-REGISTRATION (2026-11-11, $0; M10 am29; poc/m10-am29/; written before any run)
+
+Question: can a typed `choice` (agree / drop / rule) ride from the panel's answer request into `answer-<k>.json` and decide the rule in code, with every existing answer giving the same rule as today (except the `stripAgreeLead` cases) and the CLI path unchanged? No model calls, no keys. Candidate lives only in a git worktree.
+
+- **Corpus:** every answered question in `~/.config/fwdloop/flows/.drafts` and `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/bacc1500-09a3-4575-90fd-670b7893e350/scratchpad/{f162-1,f165-1,f168-1,f170-1,f172-1,f173-1}/flows/.drafts` (read-only).
+- **Bar 1 (no loss):** map each saved answer to a choice as a button user would have pressed (`isAgree` -> agree; `isDropIt` -> drop; else rule with the typed words). The candidate's rule for (choice, words) equals today's `ruleOfAnswer` result for every answer, EXCEPT answers where `stripAgreeLead` changed the text; those are listed separately with counts (expected: box words are now kept whole).
+- **Bar 2 (trap closed):** a box answer "agree, why not" on a reading ask gives rule "agree, why not" word for word, never agree; "agree" typed in the box gives rule "agree"; choice agree gives the proposal; choice drop on a reading ask gives left / Not checked.
+- **Bar 3 (door):** on the candidate, the panel's real answer handler (against a mkdtemp draft session copied from a saved one with a look question) writes `choice` into `answer-<k>.json` and the redraft reads it. A choice not one of agree/drop/rule, agree on a question without a proposal, or drop/agree on a drafter (non-look) question, is refused.
+- **Bar 4 (CLI unchanged):** an answer file with NO `choice` field (today's CLI and old files) gives exactly today's rule.
+- **Can fail:** break one mapping in the candidate and show a bar goes red.
