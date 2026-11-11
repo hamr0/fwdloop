@@ -6942,3 +6942,14 @@ Scripts in the session scratchpad `bg81/` (`a.mjs`, `scan.mjs`, `scan2.mjs`, `c.
 **What the bars got wrong.** (1) `~` was the wrong marker; the saved form is `guardrail:`. (2) B assumed such rules existed in saved data; none do, so B proves nothing about real runs. C and A are the evidence for the build.
 
 *Re-run 2026-11-11 on bareguard 0.35.0 from npm:* A 33/33 identical (against installed 0.34.1; 0 diffs, 0 skipped); C 20/20.
+
+## F176 PRE-REGISTRATION (2026-11-11, $0; M14 am3; poc/m14-am3/; written before any run)
+
+Question: does widening `humanRows` (src/setup.js) to also keep answered non-look questions give the signed M14 am3 rows, with no change to page-look rows? No model calls, no keys. Candidate lives only in a git worktree (branch `poc/m14-am3`); `src/` in the repo is untouched.
+
+- **Corpus:** every session dir in `~/.config/fwdloop/flows/.drafts` plus the six scratch corpora `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/bacc1500-09a3-4575-90fd-670b7893e350/scratchpad/{f162-1,f165-1,f168-1,f170-1,f172-1,f173-1}/flows/.drafts` (read-only). Folders may hold PII: counts and row shapes only are reported.
+- **Bar 1 (red first):** on main's code, `buildSetupRows` on `d-00mv5hai9f-6c7b` gives NO human row for its answered drafter question.
+- **Bar 2:** on the candidate (`humanRows` also keeps answered non-look questions, `source` absent or non-look, same fields), that session gets exactly one human row for it, in the `draft` plan folder position, and the Audit renders it as `you were asked: ...` / `you said: ...` with no picked label.
+- **Bar 3 (no change to look rows):** across the whole corpus, every page-look human row is byte-identical (JSON) between main and candidate; the only difference anywhere is added non-look rows. Report sessions, look rows compared, non-look rows added.
+- **Bar 4:** an unanswered non-look question adds no row (planted copy under mkdtemp, cleaned up).
+- **Can fail:** break the candidate (drop the answer filter) and show bar 4 or bar 3 goes red.
