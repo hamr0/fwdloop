@@ -6940,3 +6940,5 @@ Scripts in the session scratchpad `bg81/` (`a.mjs`, `scan.mjs`, `scan2.mjs`, `c.
 **C (planted): PASS, 20/20 cells.** Order 0, 4, 5, 6 outer items, 3 outer plus 7 nested. max5 GGGRG, min5 RRGGR, max0 GRRRR, listItems5 RRGRR; all as expected. Gap kinds: `over` for max rules, `under` for min, `under`/`over` for exact. Can-fail: with the max5 expectation changed to GGGGG the script printed `MISMATCHES 1` for max5 (got GGGRG). Also checked at build time: `minListItems 0`, `listItems 0` and `maxListItems -1` are refused ("must be an integer >= 1" / ">= 0"), so `maxListItems 0` alone signs "no bullets" as ruled.
 
 **What the bars got wrong.** (1) `~` was the wrong marker; the saved form is `guardrail:`. (2) B assumed such rules existed in saved data; none do, so B proves nothing about real runs. C and A are the evidence for the build.
+
+*Re-run 2026-11-11 on bareguard 0.35.0 from npm:* A 33/33 identical (against installed 0.34.1; 0 diffs, 0 skipped); C 20/20.
