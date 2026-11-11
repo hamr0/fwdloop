@@ -120,6 +120,8 @@ scoped: the use needs its own module with a signed scope/exit/negative (the bare
 prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 0.49 for the M6a drafter's `thinking` option)). Source: `../bareagent/src/provider-jev.js`,
 `provider-jev-calibration.js`, bare-agent README "Fast gut check — Jev".
 
+*Update 2026-11-11: dropped by hamr. No job has needed a routing gate, and a classifier deciding is close to the "No LLM judge" rule.*
+
 **Parked, not scheduled: two panel asks** (hamr, 2026-10-16, raised during the m11-am5 live walk; after the m11-am5 release). Not signed, not drafted; each needs its own amendment signed by hamr before it is built.
 1. The Run tab summary shows how long the run took: `passed · $0.0047` becomes `passed · $0.0047 1m56s`.
 2. The runs list Scheduled section gets its own filter/search, like the other sections.
@@ -129,6 +131,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 **Parked, not scheduled: two hitl ideas** (raised by hamr 2026-10-19, unsigned). Not drafted; each needs its own amendment signed by hamr before it is built.
 1. A guardrail code cannot check becomes a human review item instead of only a "Not checked" line. It complements the rubric and removes nothing that works.
 2. A code-forced mid-run stop: when a step's check could not be judged by code and a later step reads that step's output, the run pauses for a human before the dependent step runs, even if the job signed no ask there. Open points: (a) it would need a signed amendment, because ask positions are human-signed today and this is a code-decided stop like M10's code-forced asks; (b) how it relates to today's rule that unjudged hitl output rides as evidence to the next signed ask; (c) scheduled runs would wait on a human; (d) measure how often it would fire on existing runs before designing. hamr's note, 2026-10-19, unsigned: it could be offered as an extra hitl with max limits (a cap on how many such stops a run may take). Otherwise it needs a rethink, or the job is split into two workflows, with a later design letting one workflow trigger another. Any version must be designed, tested and validated before it is built.
+
+*Update 2026-11-11: both dropped by hamr. Idea 1: bareloop's one check list gives every rule a row that ends built or not-checked with a reason at Accept. Idea 2: splitting the job into chained workflows is the way instead.*
 
 **Parked, not scheduled: clean up the run folder's JSON files** (hamr, 2026-10-24, unsigned). Not drafted; it needs its own amendment signed by hamr before it is built. A run folder has grown to about 30 kinds of JSON file, one or more added for most features. Counted over the 61 real runs in flows/ on 2026-10-24: `audit.jsonl`, `log.json`, `inputs.json`, `pids.jsonl` (61 each), `spend.jsonl` (55), `state.json`, `ask.json`, `answer.<askId>.consumed.json` (42 each), `trigger.json` (27), `thinking.json` (26), `signed-values.json` (20), `checks.jsonl` (19), `calls.jsonl` (18), `run-model.json` (13), `tools.jsonl` (10), `halt.json` (8), `sheet-checks.json`, `cited-checks.json` (7 each), `reopen.<askId>.N.json` (6), and the rarer `signed-values-r1.json`, `halt.N.consumed.json`, `state.<askId>.stopped.json`, `ask.<askId>.stopped.json`, `setup.jsonl`, `plan.json`, `needs-removed-<hash>.json`, `learnings.json`. *Update 2026-10-25: built as M8b (signed 2026-10-24; docs/wiki/the-module-ladder.md): `run.json`, `diary.jsonl`, `line-checks.json`; the file names in this paragraph are the old ones.*
 1. Fold them into as few files as the rules allow: records stay write-once or append-only, keyed by id; an answer file is still consumed exactly once (rename-to-consume is the mutex); every reader still tells stale from fresh.
@@ -147,6 +151,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 3. `5 install` keeps its job (folders, keys file, settings); its words say that it does not update fwdloop.
 
 **Parked, not scheduled: M14 item 11 gap** (hamr, 2026-11-02, unsigned). A drafter question that is not a page-look question has no human row in the Audit; the answer shows only inside the redraft's `card` row (F130 survey, M14 build p4). Fixing it needs new screen words.
+
+*Update 2026-11-11: hamr: fix it. The question and its answer go into the Audit. Seen in 1 of 46 saved draft questions (`~/.config/fwdloop/flows/.drafts/d-00mv5hai9f-6c7b/draft`, abandoned draft). Today `humanRows` (src/setup.js:69) keeps only `source === 'look'` answers; the Audit row words `you were asked:` / `you said:` (src/panel/data.js:1944) already exist. Needs a signed M14 amendment.*
 
 **Parked, not scheduled: raise the bareguard pin** (hamr, 2026-11-10, unsigned). fwdloop pins bareguard `^0.31.0` (package.json). hamr ruled bareguard's tighten #80: `cells` rows and keys give `claim-malformed` (e679db4 on its branch, validated 33/33 identical on our saved runs), and `topN` rows and values give a red (0 of 3,859 files use it). Raise the pin when it ships, and re-run the 33 pairs on the installed package.
 
@@ -424,6 +430,8 @@ It replaces the stacked try blocks per step. fwdloop has no command-exit check, 
 5. Links are signed by a human, like triggers and caps; the drafter never makes a link.
 6. One cap for the whole chain. The chain tab adds up each piece's "about $X a run" from its own track record (the Signed flow row's figure; rule 2 means every piece has at least one passed run) and proposes the cap; the human can raise it, never set it below the proposal. A piece whose figure is unknown is refused, never counted as $0.
 7. Not the multi-agent orchestration ruled out above: one workflow runs at a time, each under its own signed job.
+
+*Update 2026-11-11: hamr: kept for later. Next big module after the bareloop check-list copy; not before.*
 
 **Signed as M10 scope: rubric checks and asks for jobs that check a page or a sheet** (hamr, 2026-10-18; M10 scope input, after v0.21.0). Signed by hamr 2026-10-18 as the M10 scope (docs/wiki/the-module-ladder.md, M10); starts after v0.21.0. hamr's goal: an automation job that checks something online (the shape of bareloop's flights job) with actions and asks, and the same for a local sheet when a citation isn't found: "hitl is rubric with hitl", borrow what fits. From bareloop (F226-F228, F234-F238 in `../bareloop/docs/wiki/FINDINGS.md`; build spec `../bareloop/docs/product/ITEM33-BUILD.md` "Idea A core"):
 1. Page words must read a value of the right kind, not just be on the page (run mvdg1xo3 signed `StaticText` and `O` and could never pass).
