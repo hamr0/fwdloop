@@ -6928,3 +6928,15 @@ Build under test: `git archive 4d13fa0` of bareguard, extracted to the scratchpa
 **C (planted, can fail).** Grade synthetic outputs with 0, 4, 5, 6 outer items, and one with 3 outer items plus nested sub-bullets, against `maxListItems 5`, `minListItems 5`, `maxListItems 0` and `listItems 5`. Expected (order 0, 4, 5, 6, 3-plus-nested; G = green, R = red): max5 G,G,G,R,G; min5 R,R,G,G,R; max0 G,R,R,R,R; listItems5 R,R,G,R,R. Then break one expectation on purpose and show the check reports a mismatch.
 
 FAIL rule: a guess about file names, fields or word forms that turns out wrong stays recorded as wrong; bars are never refit after reading data.
+
+### F175 RESULT (2026-11-11, $0, [MEASURED])
+
+Scripts in the session scratchpad `bg81/` (`a.mjs`, `scan.mjs`, `scan2.mjs`, `c.mjs`, `c2.mjs`); build `4d13fa0` extracted there, compared with bareguard 0.34.1 installed in fwdloop.
+
+**A (no change): PASS, 33/33 identical.** Same corpus and selection as bg0341: 22 `line-checks.json` files under `~/.config/fwdloop/flows`, 33 (check, claims) pairs (28 green, 5 red on both builds). For every pair `rubricSha`, verdict, gaps, fault, full and the rendered gap text matched byte for byte. 0 throws, 0 skipped.
+
+**B (new rules read right): NO DATA.** The bar's guess about the word form was wrong in one respect: saved guardrails are `guardrail:` lines in `prose.txt` (joined with `;`), not `~` lines (0 `~` lines exist). Scanned 648 `prose.txt` files (flows incl. runs' job copies and drafts, plus the six corpora), 2810 guardrail lines. Rules with inclusive count words (at most / no more than / up to / at least / no fewer than) on bullets / items / points: 0. Strict words (more than / fewer than / under N bullets): 0. Every bullet/item guardrail found is exact: "exactly N bullets" 235, "exactly N list items" 82, "three short bullet points" 22 (a bare word number, no at-most or at-least wording). A broader grep of every file in the same roots for the inclusive or strict words next to bullets/items/points also found 0. Saved checks use `listItems` 212 times and `maxLines` once; no other count rule. So old red / new green = n/a, old green / new red = n/a, other flips = n/a. The fix-ledger case has no saved instance to measure; B stays open until a real job says "at most N bullets".
+
+**C (planted): PASS, 20/20 cells.** Order 0, 4, 5, 6 outer items, 3 outer plus 7 nested. max5 GGGRG, min5 RRGGR, max0 GRRRR, listItems5 RRGRR; all as expected. Gap kinds: `over` for max rules, `under` for min, `under`/`over` for exact. Can-fail: with the max5 expectation changed to GGGGG the script printed `MISMATCHES 1` for max5 (got GGGRG). Also checked at build time: `minListItems 0`, `listItems 0` and `maxListItems -1` are refused ("must be an integer >= 1" / ">= 0"), so `maxListItems 0` alone signs "no bullets" as ruled.
+
+**What the bars got wrong.** (1) `~` was the wrong marker; the saved form is `guardrail:`. (2) B assumed such rules existed in saved data; none do, so B proves nothing about real runs. C and A are the evidence for the build.
