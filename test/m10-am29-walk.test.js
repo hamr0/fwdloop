@@ -94,7 +94,8 @@ for (const width of [1280, 390, 320]) {
     await until(async () => (await w2.get(`/api/author/${id2}`)).json()?.phase === 'questions-open');
     await chrome.open(`http://127.0.0.1:${w2.h.port}/`, width);
     s = await shownNow('What does "3 sections" mean here?');
-    assert.deepEqual([s.agree, s.drop, s.or, s.box, s.send, s.labels], [false, false, false, true, true, ['Send']], 'a drafter question shows the box only');
+    assert.equal(s.orText, 'Or type a new rule:');
+    assert.deepEqual([s.agree, s.drop, s.or, s.box, s.send, s.labels], [false, false, true, true, true, ['Send']], 'a drafter question shows the labelled box and no buttons');
     await chrome.ev('document.getElementById("chat-question").scrollIntoView()');
     m = await chrome.ev(measure('#chat-question'));
     console.log(`# walk am29 drafter ${width}px ${JSON.stringify(m)}`);

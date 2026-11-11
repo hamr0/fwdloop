@@ -20,11 +20,11 @@ const view = (q) => new Function(`${fnSrc('questionViewFor')}\nreturn questionVi
 
 const READING = { source: 'look', ask: 'reading', proposes: true, question: 'Q', shown: 'S' };
 test('the view: a look question with a proposal offers Agree, Drop it and the box; one without a proposal offers Drop it and the box; a drafter question the box only', () => {
-  assert.deepEqual([view(READING).look, view(READING).agree, view(READING).drop], [true, true, true]);
+  assert.deepEqual([view(READING).agree, view(READING).drop], [true, true]);
   for (const ask of ['check', 'reading']) assert.equal(view({ ...READING, ask }).agree, true, ask);
   for (const ask of ['no-check', 'cant-check']) assert.deepEqual([view({ ...READING, ask, proposes: false }).agree, view({ ...READING, ask, proposes: false }).drop], [false, true], ask);
   const d = view({ question: 'what do you mean?' });
-  assert.deepEqual([d.look, d.agree, d.drop, d.question], [false, false, false, 'what do you mean?']);
+  assert.deepEqual([d.agree, d.drop, d.question], [false, false, 'what do you mean?']);
 });
 
 test('the view shows the question without the CLI\'s answer tail (the server\'s `shown`), and the whole question when there is none', () => {
@@ -71,6 +71,11 @@ test('the wire: Agree and Drop it post {k, choice} and nothing else; the box\'s 
   assert.deepEqual(await run('drop', 'typed words'), [['/api/author/s/answer', { k: 3, choice: 'drop' }]]);
   assert.deepEqual(await run('rule', 'agree, why not'), [['/api/author/s/answer', { k: 3, answer: 'agree, why not', choice: 'rule' }]]);
   assert.deepEqual(await run(undefined, 'yes'), [['/api/author/s/answer', { k: 3, answer: 'yes', choice: 'rule' }]], 'Enter in the box is the box\'s button');
+});
+
+test('the label "Or type a new rule:" is in the box for every question: never hidden by markup or by the page\'s render', () => {
+  assert.doesNotMatch(PAGE.match(/<label[^>]*id="chat-q-or"[^>]*>/)[0], /hidden/);
+  assert.doesNotMatch(fnSrc('renderQuestion'), /qOr/);
 });
 
 test('the markup: Agree, Drop it, the label "Or type a new rule:" and Send, each once, in the one existing question box', () => {

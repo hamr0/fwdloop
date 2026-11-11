@@ -743,7 +743,7 @@
   .chat-question .q-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .chat-question .q-choices .btn{flex:1 1 auto;min-width:0;}
   .chat-question .q-or{display:block;font-size:12px;color:var(--text-faint);margin-top:8px;text-transform:none;letter-spacing:normal;font-weight:normal;}
-  .chat-question .q-or:not([hidden]) + textarea{margin-top:4px;}
+  .chat-question .q-or + textarea{margin-top:4px;}
   .chat-question .q-err{color:var(--red);}
   .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
   .chat-extras:empty{display:none;}
@@ -1406,7 +1406,7 @@
               <button class="btn" type="button" id="chat-q-agree" data-testid="chat-q-agree" hidden>Agree</button>
               <button class="btn" type="button" id="chat-q-drop" data-testid="chat-q-drop" hidden>Drop it</button>
             </div>
-            <label class="q-or" id="chat-q-or" data-testid="chat-q-or" for="chat-q-answer" hidden>Or type a new rule:</label>
+            <label class="q-or" id="chat-q-or" data-testid="chat-q-or" for="chat-q-answer">Or type a new rule:</label>
             <textarea id="chat-q-answer" data-testid="chat-q-answer" rows="2" autocomplete="off" spellcheck="false" aria-label="Your answer" placeholder="Your answer, on one line"></textarea>
             <div class="hint q-err" id="chat-q-error" data-testid="chat-q-error" role="alert"></div>
             <button class="btn primary wide" type="button" id="chat-q-send" data-testid="chat-q-send">Send</button>
@@ -5545,7 +5545,6 @@
     var qChoices = document.getElementById("chat-q-choices");
     var qAgree = document.getElementById("chat-q-agree");
     var qDrop = document.getElementById("chat-q-drop");
-    var qOr = document.getElementById("chat-q-or");
     var extrasEl = document.getElementById("chat-extras");
     var newBox = document.getElementById("jf-new");
     var runBox = document.getElementById("jf-run");
@@ -5794,13 +5793,13 @@
       if(!q) return null;
       // M10 am2 item 1 / am5 item 1: a question the page look raised is ONE plain chat message (bareloop's words); the head and line rows stay empty
       if(q.source === "look"){
-        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), look: true, agree: q.proposes === true, drop: q.ask === "reading" || q.ask === "check" || q.ask === "no-check" || q.ask === "cant-check" };
+        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), agree: q.proposes === true, drop: q.ask === "reading" || q.ask === "check" || q.ask === "no-check" || q.ask === "cant-check" };
       }
       return {
         key: String(state.draftId) + ":" + q.k, k: q.k,
         head: "A question the plan raised (" + q.k + " of " + state.total + ")",
         line: q.lineText ? "About job line " + q.line + ": " + q.lineText : "About job line " + q.line,
-        question: q.question, look: false, agree: false, drop: false
+        question: q.question, agree: false, drop: false
       };
     }
     // pure: what sits beside a green plan: Your answers (only when the plan was drafted with some), Checked (the machine's sentences from the
@@ -6661,8 +6660,8 @@
         qKey = v.key;
         qHead.textContent = v.head; qLine.textContent = v.line; qText.textContent = v.question;
         qHead.hidden = v.head === ""; qLine.hidden = v.line === ""; // a look question is one plain message: no empty rows
-        // M10 am29: a look question has Agree (only when it proposes something), Drop it and the box; a drafter question shows the box only
-        qAgree.hidden = !v.agree; qDrop.hidden = !v.drop; qChoices.hidden = !(v.agree || v.drop); qOr.hidden = !v.look;
+        // M10 am29: every question has the labelled box; a look question also has Agree (only when it proposes something) and Drop it
+        qAgree.hidden = !v.agree; qDrop.hidden = !v.drop; qChoices.hidden = !(v.agree || v.drop);
         qAnswer.value = ""; qError.textContent = "";
       }
     }
