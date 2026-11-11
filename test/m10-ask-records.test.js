@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signDraft } from '../src/authoring.js';
+import { panelQuestionText } from '../src/pageask.js';
 import { readSetup } from '../src/setup.js';
 import { getDraftBlock } from '../src/panel/data.js';
 import { isFwdloopAlive } from '../src/liveness.js';
@@ -62,7 +63,9 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   const block = getDraftBlock(signed.flowDir, signed.flowDir);
   const shown = block.rows.filter((r) => /^you were asked: /.test(r.action));
   assert.equal(shown.length, 2);
-  assert.equal(shown[0].action, `you were asked: ${rows[0].question}`);
+  // M10 am29: the Audit row shows the question as the panel does (no `Answer "agree"…` tail); the stored question is whole
+  assert.equal(shown[0].action, `you were asked: ${panelQuestionText(rows[0])}`);
+  assert.ok(rows[0].question.includes('Answer "agree"') && !shown[0].action.includes('Answer "agree"'), shown[0].action);
   assert.equal(shown[0].gap, 'you said: agree [you picked]');
   assert.equal(shown[1].gap, 'you said: Drop it.');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
