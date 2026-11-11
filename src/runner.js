@@ -77,6 +77,7 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, writeRunStart } from './runfile.js';
 import { buildMemo } from './memo.js';
+import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
@@ -1004,7 +1005,7 @@ async function runStepTries({
     // M4d am25: `thinkingMode` is the ONE decision of what this try asks of thinking (`stepThinkingMode`); the model step only passes it on.
     // M10 am7 item 3: `cited` is the fact part of a green step that quotes a saved page - the form of its ANSWER ({results: [{quote, values}]}) and the facts it must hold,
     // told to the step in plain words by the model step. It is not the check: the quotes are checked by `closeCited` against the run's own copy.
-    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
+    const stepMeta = Object.freeze({ class: step.close?.class ?? null, cited: step.close?.class === 'green' && step.close.cited ? step.close.cited : null, sheet: step.close?.class === 'green' && Array.isArray(step.close.sheet) ? step.close.sheet : null, withText: step.close?.class === 'green' && Array.isArray(step.close.picked) && step.close.picked.length > 0, picked: step.close?.class === 'green' && Array.isArray(step.close.picked) ? step.close.picked : null, attempt, step: step?.emits ?? step?.goal ?? null, thinkingMode: stepThinkingMode({ boxOn: thinkingBox, attempt }) });
 
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
@@ -1398,19 +1399,19 @@ export async function runFlow({
 
   // M4d am25: the run keeps the job's "Thinking on" box as it is now (read by `readJobThinking` on every try and every resume); taken here, recorded in `run.json` once the inputs are frozen
   const thinkingBox = readModelRecord(flowDir)?.thinking === true;
-  // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; a failure never stops the run
-  if (!runOwnsPlan(runDir)) {
-    try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
-      try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(`learnings record: ${e?.message ?? e}`).split('\n')[0] }); } catch { /* best-effort */ }
-    }
-  }
-
   const frozen = await freezeInputs(runDir, sources ?? [], { fetchPage, tableRoles: sheetRolesOf(declaration.steps), mcp: declaration.mcp, ticketFilter: declaration.ticketFilter });
   if (!frozen.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: frozen.red, spent: { value: 0 },
     });
   }
+  // M8 item 6: the first run from a freshly signed flow takes the learnings its draft was handed (the Audit box); a run that kept its own plan already has its record; taken only once the inputs froze, so a run refused at its inputs leaves it; a failure never stops the run
+  if (!runOwnsPlan(runDir)) {
+    try { takeLearningsRecord(flowDir, runDir); } catch (/** @type {any} */ e) {
+      try { appendRow(join(runDir, LEARN_ERROR_FILE), { at: now(), error: redactSecrets(`learnings record: ${e?.message ?? e}`).split('\n')[0] }); } catch { /* best-effort */ }
+    }
+  }
+
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
   writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
@@ -1605,6 +1606,8 @@ async function runAskSlot({
   runStartedAt,
   // M13 item 5: the job's signed `mcp.server`; a redo of the step before the ask runs it again with its signed MCP tools
   mcpServer = /** @type {string|null} */ (null),
+  // M13 am9: set only for the Ask that shows the whole job; rebuilds `{text}` from the saved outputs after a redo changed one
+  rebuildPrior = /** @type {null | (() => ({ok:true,value:any}|{ok:false,red:string}))} */ (null),
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -1794,6 +1797,11 @@ async function runAskSlot({
       // case `writeArtifact` allows to overwrite on purpose.
       writeArtifact(runDir, priorId, currentPrior, { overwrite: true });
       artifacts[priorId] = currentPrior;
+      if (rebuildPrior) {
+        const whole = rebuildPrior();
+        if (!whole.ok) return { type: 'halted', outcome: 'red', red: whole.red };
+        currentPrior = whole.value;
+      }
       // eslint-disable-next-line no-continue
       continue;
     }
@@ -1844,6 +1852,9 @@ async function foldFromStep({
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
+  // M13 am9: the Ask that shows the whole job (-1 = none: a job signed before am8 is unchanged)
+  const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
+  const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id) });
 
   for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
@@ -1955,7 +1966,17 @@ async function foldFromStep({
             : `ask: prior artifact "${priorId}" for step "${step.goal}" — ${priorArtifactResult.red}`,
         });
       }
-      const priorArtifact = priorArtifactResult.value;
+      let priorArtifact = priorArtifactResult.value;
+      if (i === wholeIdx) {
+        const whole = rebuildWhole();
+        if (!whole.ok) {
+          return haltRun({
+            flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+            outcome: 'red', red: whole.red,
+          });
+        }
+        priorArtifact = whole.value;
+      }
 
       // M2 amendment 1 item 2: every hitl artifact carried since the
       // previous ask goes to THIS ask as evidence, alongside the ask step's
@@ -1976,6 +1997,7 @@ async function foldFromStep({
         priorStepNo: priorStepIndex + 1,
         priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
         priorArtifact,
+        rebuildPrior: i === wholeIdx ? rebuildWhole : null,
         redoCap,
         effectiveCeilingUsd,
         capUsd,
@@ -2636,7 +2658,21 @@ export async function resumeRun({
     // `priorId` names a step strictly earlier than the parked ask
     // (state.stepIndex), so i < state.stepIndex — already proven `ok` by the
     // "was this step already done" gate above; safe to collapse here.
-    const priorArtifact = readArtifact(runDir, priorId);
+    let priorArtifact = readArtifact(runDir, priorId);
+    // M13 am9: the Ask that shows the whole job rebuilds `{text}` from the saved outputs, as the first pass did
+    const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
+    const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id) });
+    if (state.stepIndex === wholeIdx) {
+      const whole = rebuildWhole();
+      if (!whole.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red', red: whole.red,
+          resumeAt: { stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [], redone: typeof state.redone === 'number' ? state.redone : 0 },
+        });
+      }
+      priorArtifact = whole.value;
+    }
 
     const oneShotAskStep = makeOneShotThenParkAskStep({ decision: answer.decision, reason: answer.reason, artifactSha256: answer.artifactSha256 });
 
@@ -2650,6 +2686,7 @@ export async function resumeRun({
       priorStepNo: priorStepIndex + 1,
       priorPrevStepId: priorStepIndex > 0 ? (steps[priorStepIndex - 1].emits ?? null) : null,
       priorArtifact,
+      rebuildPrior: state.stepIndex === wholeIdx ? rebuildWhole : null,
       redoCap,
       effectiveCeilingUsd,
       capUsd,

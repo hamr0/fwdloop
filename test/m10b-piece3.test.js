@@ -136,7 +136,7 @@ test('valid checks draft, KEEP covers (signed), and show one plan-card row per c
   assert.equal(sheet.length, 3);
   assert.deepEqual(sheet.map((c) => c.covers), [[1], [2], []], 'M10b piece 4: covers is kept on the check, so it is signed');
   const rows = checkedLines(r.declaration).find((x) => x.line === 2).sentences;
-  for (const c of sheet) assert.ok(rows.includes(sheetCheckSentence(c)), sheetCheckSentence(c));
+  for (const c of sheet) assert.ok(rows.includes(`${sheetCheckSentence(c)} [agent]`), sheetCheckSentence(c));
   assert.equal(rows.length, 1 + sheet.length, 'a lead sentence, then one row per check');
   assert.deepEqual(r.notChecked, []);
 });

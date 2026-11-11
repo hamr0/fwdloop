@@ -170,7 +170,7 @@ for (const width of [1280, 390, 320]) {
     const G = 'document.querySelector("[data-testid=audit-grid-resume-summary]")';
     // the grid: rows are the step's checks by number, columns the tries, each column head the try, its glyph and its thinking words
     assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("thead th")).map(function(e){ return e.textContent.replace(/\\s+/g, " "); })`), ['check', 'try 1 ✗thinking off', 'try 2 ✓thinking on', 'try 3 ✓thinking on']);
-    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.memo-row) td.q")).map(function(e){ return e.textContent.slice(0, 20); })`), ['every step: exists, ', '3 the answer has onl', '4 at most 600 words', '5 the sections are t']);
+    assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.memo-row) td.q")).map(function(e){ return e.textContent.slice(0, 20); })`), ['every step: exists, ', '3 the answer has onl', '4 at most 600 words ', '5 the sections are t']);
     assert.deepEqual(await chrome.ev(`Array.from(${G}.querySelectorAll("tbody tr:not(.step-sub):not(.memo-row)")).map(function(tr){ return Array.from(tr.querySelectorAll("td.c")).map(function(c){ return c.textContent; }).join(""); })`), ['✓✓✓', '✓✓✓', '✗✓✓', '✗✓✓']);
     assert.equal(await chrome.ev(`${G}.querySelector("td.q[title]").getAttribute("title")`), 'line 3 ~', 'a check says which job line it serves on hover (the every-step row names itself, it has no line)');
     // the errors list (M4d am36 item 4): try 1 is the only red try, so it is the open one; one line `try 1 ✗ <first line>`, then the try's gap

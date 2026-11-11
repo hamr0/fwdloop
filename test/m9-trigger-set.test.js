@@ -131,7 +131,7 @@ test('Must fail (item 2): changing only the schedule keeps the green run; an edi
   // a step change (the plan itself) is not the same job
   const prose = text(path.join(flowDir, 'prose.txt'));
   const changed = writeFlow({
-    root: w.root, name: 'job2', proseText: prose.replace('write it out.', 'write it out, then tidy it.'),
+    root: w.root, name: 'job2', proseText: prose.replace('compare it against,', 'compare it against, then tidy it,'),
     declaration: JSON.parse(text(path.join(flowDir, 'declaration.json'))), signedBy: 'else', signedAt: '2026-10-10T12:00:00Z', catalogue: CAT, replaces: { flowHash: read().signature.flow },
   });
   assert.equal(changed.ok, true, JSON.stringify(changed.reds));

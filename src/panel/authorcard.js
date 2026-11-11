@@ -18,7 +18,7 @@ import { checkFlowName } from '../flow.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
-import { checkSendLineGuardrail } from '../declaration.js';
+import { addEnd, typedLinesOf } from '../added-end.js';
 import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
@@ -257,7 +257,7 @@ export function runInputRows(v) {
  * @returns {string}
  */
 export function cardToProse(card) {
-  const { steps } = parseJobBox(card.job);
+  const { steps } = addEnd(parseJobBox(card.job).steps, card.destination); // M13 am8: the end is added by code
   const out = [...jobFileLines(steps, card.askWait), '', ARBITER_HEADING];
   out.push(`guardrail: cap $${capText(Number(card.capUsd))} per run`);
   if (card.destination !== '') out.push(`guardrail: send at line ${steps.length} to file:${card.destination}`);
@@ -284,14 +284,19 @@ export function cardFromSigned({ lines, arbiter }) {
   const asks = new Map((arbiter.asks ?? []).map((a) => [a.line, a]));
   const jobLines = [];
   let firstWait = null;
+  // M13 am8: the end is added by code (`cardToProse`), so the card's job leaves out the send line (the last line when it is the send) and an added Ask before it
+  const lastSend = (arbiter.sends ?? []).length === 1 && arbiter.sends[0].line === lines.length ? arbiter.sends[0].line : null;
+  const typed = new Set(typedLinesOf(lines, arbiter).map((l) => l.n));
   for (const l of lines) {
     const ak = asks.get(l.n);
     if (ak) {
       const w = waitText(ak.ttlMs);
       if (w === null) return no();
       firstWait ??= w;
-      jobLines.push(`Ask ${w}: ${l.text}`);
-    } else jobLines.push(l.text);
+    }
+    if (!typed.has(l.n)) continue;
+    if (ak) jobLines.push(`Ask ${waitText(ak.ttlMs)}: ${l.text}`);
+    else jobLines.push(l.text);
     if (typeof l.guardrail === 'string' && l.guardrail !== '') jobLines.push(`~ ${l.guardrail}`);
   }
   const sends = arbiter.sends ?? [];
@@ -306,7 +311,9 @@ export function cardFromSigned({ lines, arbiter }) {
   const again = parseSignedText(cardToProse(cardFields({ ...card, flowName: 'x' })));
   // M9 am1: the trigger is not a box on the card, and signing an Edit clears it (By hand again), so it is not part of the fidelity check
   const norm = (a) => JSON.stringify({ ...a, trigger: null, asks: (a.asks ?? []).map(({ ttlSigned, ...rest }) => rest) });
-  const sameLines = again.ok && JSON.stringify(again.lines) === JSON.stringify(lines);
+  // a send line signed before am8 is the person's own words; the added one reads `write it out`: the words alone may differ there
+  const sendText = (/** @type {{n: number, text: string}[]} */ ls) => ls.map((l) => (l.n === lastSend ? { ...l, text: '' } : l));
+  const sameLines = again.ok && JSON.stringify(sendText(again.lines)) === JSON.stringify(sendText(lines));
   if (!sameLines || norm(again.arbiter) !== norm(arbiter)) return no();
   return { ok: true, card };
 }
@@ -493,8 +500,5 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     }
     return { ok: false, refusals };
   }
-  // M10 am14 item 1: a guardrail on the send line is refused at $0, before drafting, naming the line
-  for (const r of checkSendLineGuardrail(parsed.lines, parsed.arbiter)) no('job', r);
-  if (refusals.length > 0) return { ok: false, refusals };
   return { ok: true, prose };
 }

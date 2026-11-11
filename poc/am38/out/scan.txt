@@ -1,0 +1,24 @@
+folder | try | first-red reason today | trigger? | last job line
+d-00mv1fxoag-0ee7 | draft | The AI's notes on which lines it can check are not in a form the checker accepts | n | 5. write: and once I accept, write it out.
+d-00mv578fk0-d8a4 | draft | A section name in the plan's check is not in your job line | n | 4. Write it out
+d-00mv5ciofj-e416 | draft | A section name in the plan's check is not in your job line | n | 4. Write it out
+d-00mv5cr539-2b12 | draft | The sections in the plan's check come in a different order than your job line | n | 4. Write it out
+d-00mv5hai9f-6c7b | draft | The plan's check has one part of a pair without the other, so it cannot be checked | n | 4. Write it out
+d-00mv5hai9f-6c7b | draft-1 | The AI's notes on which lines it can check are not in a form the checker accepts | n | 4. Write it out
+d-00mv5hai9f-6c7b | draft-2 | The AI's notes on which lines it can check are not in a form the checker accepts | n | 4. Write it out
+d-00mv5hai9f-6c7b | draft-3 | The sections in the plan's check come in a different order than your job line | n | 4. Write it out
+d-00mvj7mw7w-e782 | draft | One of the checks on the plan failed | n | 4. and once I accept, write it out.
+d-00mvj8mhjc-9543 | draft | One of the checks on the plan failed | n | 4. and once I accept, write it out.
+d-00mvkmbx5j-a98a | draft-1 | The plan the AI wrote is not in the shape the checker needs | n | 4. Write it out
+d-00mvksot4p-3cb3 | draft-1 | One of the checks on the plan failed | n | 4. Write it out
+d-00mvmpv3wn-3471 | draft | The steps do not pass their results to each other in a workable order | n | 5. Write it out
+d-00mvmqc524-a401 | draft | The steps do not pass their results to each other in a workable order | n | 5. Write it out
+d-00mvxmnli4-bbf5 | draft | One of the checks on the plan failed | n | 4. Write it out
+d-00mvzo5fte-69cf | draft | The plan the AI wrote is not in the shape the checker needs | n | 5. Write a short closing note to my neighbour
+d-00mvzo62k1-dccc | draft | The plan the AI wrote is not in the shape the checker needs | n | 5. Write a short closing note to my neighbour
+d-00mvzo8r2f-d88a | draft | The steps do not pass their results to each other in a workable order | n | 5. Write a short closing note to my neighbour
+d-00mvzqki2p-2cac | draft | The AI's notes on which lines it can check are not in a form the checker accepts | n | 5. Write a short closing note to my neighbour
+d-00mvzqosmh-328b | draft | The steps do not pass their results to each other in a workable order | y | 5. Write a short closing note to my neighbour
+d-00mw23a969-7629 | draft-3 | The AI's notes on which lines it can check are not in a form the checker accepts | y | 8. Write one line about the weather from the notes
+
+tries read: 135; red tries: 21; with trigger: 2; without trigger: 19

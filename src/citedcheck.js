@@ -15,6 +15,7 @@
 
 import { createHash } from 'node:crypto';
 import { createRubric, checkStep } from 'bareguard';
+import { plainWords } from './checkwords.js';
 import { asList, FACT_OPS, boundOk, MAX_CURRENCIES, MAX_UNITS, MAX_UNIT_CHARS } from './pagebits.js';
 import { ruleWords, moneyAs } from './pageask.js';
 
@@ -234,6 +235,19 @@ export function citedBrief(part) {
     eachResultHolds: part.facts.map(factBrief),
     howMany,
   };
+}
+
+/**
+ * M10 am28: what a page-quoting step is told about the picks (am22) on its line, one plain line per pick, the values and what counts, never a verdict and never
+ * another guardrail. A list item is what bareguard's listItems counts: its own line starting with "1." or "- " followed by a space and its text.
+ * @param {any[]} picked @returns {string[]}
+ */
+export function toldPicks(picked) {
+  return picked.map((c) => {
+    if (c.rule === 'listItems') return `Your "text" must have exactly ${c.value} list items; a list item is its own line starting with "1." or "- " followed by a space and its text.`;
+    if (c.rule === 'nonEmpty') return 'Your "text" must not be empty.';
+    return `Your "text" must have ${plainWords(c)}.`;
+  });
 }
 
 /**

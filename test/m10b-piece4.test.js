@@ -106,9 +106,9 @@ test('covers stays on the signed check, is validated against the line\'s rules, 
   assert.notEqual(hashOf(agingDecl()), hashOf(retagged), 'a changed covers tag changes the hash (it is signed)');
   assert.equal(hashOf(agingDecl()), hashOf(agingDecl()), 'and the same tags hash the same');
   const readout = (d) => buildReadout({ declaration: d, arbiter: agingJob.arbiter, lines: agingJob.lines, name: 'x', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: 'r' });
-  assert.match(readout(agingDecl()), /\n {5}sheet check: no duplicate Invoice # — covers "every invoice appears exactly once"\n/);
-  assert.match(readout(agingDecl()), /\n {5}sheet check: rows — rows where Amount > 500 — covers "amounts over 500 are flagged"\n/);
-  assert.match(readout(agingDecl()), /\n {5}sheet check: bucket — band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90\+\n/, 'no tag, no covers words');
+  assert.match(readout(agingDecl()), /\n {5}sheet check: no duplicate Invoice # — covers "every invoice appears exactly once" \[agent\]\n/);
+  assert.match(readout(agingDecl()), /\n {5}sheet check: rows — rows where Amount > 500 — covers "amounts over 500 are flagged" \[agent\]\n/);
+  assert.match(readout(agingDecl()), /\n {5}sheet check: bucket — band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90\+ \[agent\]\n/, 'no tag, no covers words');
 });
 
 test('a covers that is not a list of rule numbers of the line is refused at sign, naming the line and the check; an old check without covers still signs', () => {
@@ -159,9 +159,9 @@ test('the block for the aging job: guardrails, Checked with name / words / cover
   assert.equal(b.line, 2);
   assert.deepEqual(b.guardrails, ['every invoice appears exactly once', 'amounts over 500 are flagged']);
   assert.deepEqual(b.checked.map((c) => c.text), [
-    'no duplicate Invoice # — covers "every invoice appears exactly once"',
-    'rows — rows where Amount > 500 — covers "amounts over 500 are flagged"',
-    'bucket — band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+',
+    'no duplicate Invoice # — covers "every invoice appears exactly once" [agent]',
+    'rows — rows where Amount > 500 — covers "amounts over 500 are flagged" [agent]',
+    'bucket — band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+ [agent]',
   ]);
   assert.deepEqual(b.checked.map((c) => c.name), ['no duplicate Invoice #', 'rows', 'bucket']);
   assert.equal(b.notChecked, 'none', 'every guardrail has a check that covers it');
@@ -170,9 +170,9 @@ test('the block for the aging job: guardrails, Checked with name / words / cover
 test('the block for the expenses job, and a REAL uncovered guardrail shown as Not checked', () => {
   const [b] = sheetLineBlocks({ declaration: expDecl(), lines: expJob.lines, csvRoles: ['expenses'] });
   assert.deepEqual(b.checked.map((c) => c.text), [
-    'rows — rows where Amount > 500 — covers "only amounts over 500"',
-    'count — count of rows where Amount > 500 — covers "only amounts over 500"',
-    'sum — sum of Amount where Amount > 500 — covers "the sum is exact"',
+    'rows — rows where Amount > 500 — covers "only amounts over 500" [agent]',
+    'count — count of rows where Amount > 500 — covers "only amounts over 500" [agent]',
+    'sum — sum of Amount where Amount > 500 — covers "the sum is exact" [agent]',
   ]);
   assert.equal(b.notChecked, 'none');
   const d = expDecl(); d.steps[1].close.sheet[2].covers = []; // the sum check no longer claims the second guardrail
@@ -313,8 +313,8 @@ test('Job tab: a step that reads a sheet shows its line\'s block under its check
   const rows = jobStepFold(st, {}).children.map((c) => c.textContent);
   assert.deepEqual(rows.slice(rows.findIndex((r) => r === 'Guardrails:')), [
     'Guardrails:', '- every invoice appears exactly once', '- amounts over 500 are flagged', 'Checked:',
-    '- no duplicate Invoice # \u2014 covers "every invoice appears exactly once"', '- rows \u2014 rows where Amount > 500 \u2014 covers "amounts over 500 are flagged"',
-    '- bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+', 'Not checked: none',
+    '- no duplicate Invoice # \u2014 covers "every invoice appears exactly once" [agent]', '- rows \u2014 rows where Amount > 500 \u2014 covers "amounts over 500 are flagged" [agent]',
+    '- bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+ [agent]', 'Not checked: none',
   ]);
   assert.equal(jobStepFold({ ...st, sheet: null }, {}).children.some((c) => c.textContent === 'Checked:'), false);
 });
@@ -383,9 +383,9 @@ for (const width of [1280, 390, 320]) {
       'line 2: The machine recomputes each of these from the saved sheet and compares it with what the step gave:',
       '  Guardrails:', '  - every invoice appears exactly once', '  - amounts over 500 are flagged', `  - ${LONG}`,
       '  Checked:',
-      '  - no duplicate Invoice # \u2014 covers "' + LONG + '"',
-      '  - rows \u2014 rows where Amount > 500',
-      '  - bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+',
+      '  - no duplicate Invoice # \u2014 covers "' + LONG + '" [agent]',
+      '  - rows \u2014 rows where Amount > 500 [agent]',
+      '  - bucket \u2014 band on Due date as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+ [agent]',
       '  Not checked:', '  - every invoice appears exactly once', '  - amounts over 500 are flagged',
     ]);
     const plan = await chrome.ev(MEASURE('#chat-extras'));

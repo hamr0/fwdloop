@@ -22,8 +22,9 @@ import path from 'node:path';
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
+import { addedLinesOf } from './added-end.js';
 import { factRows } from './citedcheck.js';
-import { plainWords } from './checkwords.js';
+import { plainWords, labelled } from './checkwords.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -214,25 +215,28 @@ export function buildReadout({
   if (Array.isArray(declaration.ticketWatch) && declaration.ticketWatch.length) out.push(`  ticket watch: ${declaration.ticketWatch.join(', ')}`);
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
+  const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
   declaration.steps.forEach((st, i) => {
-    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
+    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
-    if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${row}`);
+    if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
     // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
     if (Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M10 am16: the checks the person picked, signed with the readout, each in the one set of plain words (typed fields, never model prose)
-    if (Array.isArray(st.close?.shape?.picked)) for (const c of st.close.shape.picked) out.push(`     you picked: ${plainWords(c)}`);
+    if (Array.isArray(st.close?.shape?.picked)) for (const c of st.close.shape.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
+    // M10 am22 (1): the checks the person picked for a fact line are signed with the readout too, in the same words
+    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
       const per = Number.isInteger(shape.wordsPerSection) ? ` · about ${shape.wordsPerSection} words each` : '';
       const lim = Number.isInteger(shape.maxWords) ? ` · under ${shape.maxWords} words` : '';
-      out.push(`     sections: ${shape.sections.join(' · ')}${per}${lim}`);
+      out.push(`     ${labelled(`sections: ${shape.sections.join(' · ')}${per}${lim}`, 'agent')}`);
     }
   });
   out.push('', READOUT_HEADS.asks);

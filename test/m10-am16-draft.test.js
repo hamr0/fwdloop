@@ -10,9 +10,10 @@ import { cardFields, cardToProse } from '../src/panel/authorcard.js';
 import { draft } from '../src/drafter.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
+// M13 am8: the typed job ends at its Ask; code adds `write it out` as line 7 (the send in `plan` below)
 const JOB = [
   'Write 3 lines about my garden from the notes', 'Ask: check it with me', 'List 3 jobs for this week from the notes', '~ exactly 3 bullets',
-  'Ask: check it with me', 'Write a short closing note to my neighbour', '~ under 80 words', 'Ask: check it with me', 'Write it out',
+  'Ask: check it with me', 'Write a short closing note to my neighbour', '~ under 80 words', 'Ask: check it with me',
 ].join('\n');
 
 function prose(t, job = JOB) {
@@ -58,11 +59,12 @@ test('(1) one forced suggestion call, metered, before any drafting round; the as
 });
 
 test('(2)(3) a suggestion code drops (a number the guardrail never names) is "I can\'t check this", a missing entry too; the drafter is never called', async (t) => {
+  // M10 am27 (3): a single count with nothing kept is built by code (test/m10-am27.test.js); the "I can't check this" path is a rule that names no count
   const p = fakeProvider([suggestReply([{ line: 3, guardrail: 1, rule: 'maxWords', value: 80 }])]);
-  const r = await draft({ proseText: prose(t), provider: p, rates: RATES, modelId: MODEL });
+  const r = await draft({ proseText: prose(t, JOB.replace('~ exactly 3 bullets', '~ keep it short and kind').replace('~ under 80 words', '~ tone is warm')), provider: p, rates: RATES, modelId: MODEL });
   assert.equal(r.stop, 'look-asks');
   assert.deepEqual(r.questions.map((q) => q.ask), ['no-check', 'no-check']);
-  assert.match(r.questions[0].question, /^Line 3, guardrail "exactly 3 bullets": I can't check this\. Your own words, or Not checked\?/);
+  assert.match(r.questions[0].question, /^Line 3, guardrail "keep it short and kind": I can't check this\. Your own words, or Not checked\?/);
   assert.equal(p.calls.some((c) => c.tools[0] === 'emit_declaration'), false);
 });
 

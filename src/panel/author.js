@@ -749,7 +749,8 @@ export function createAuthor(opts) {
       // M10 piece 3 (am2): a question the page look raised takes bareloop's answer words. A blank answer gets bareloop's sentence; a newline is folded to a
       // space (one `~` line is one line) instead of refused. Every other question keeps its own gate (blank, one line).
       const look = q.source === 'look';
-      const answer = typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim() : '';
+      // hamr 2026-11-07 (ruling 2A): a leading `~` the person typed is dropped quietly (the job line adds its own); the ONE place, so a tilde-only answer is a blank answer
+      const answer = typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim().replace(/^(?:~\s*)+/, '') : '';
       if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: look ? LOOK_BLANK_ANSWER_SAY : BLANK_ANSWER_SAY } };
       if (!look && /[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
       if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };

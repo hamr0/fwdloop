@@ -1,0 +1,16 @@
+(a) f162-1: today page asks [L2.3 cant-check "under 80 words"] + pick of "under 80 words": true; candidate page asks [] + pick true => ok
+(a) f162-3b: today page asks [L2.2 cant-check "under 80 words"] + pick of "under 80 words": true; candidate page asks [] + pick true => ok
+(b) f162-2: today page asks [none]; candidate [none]; picks [2.2 exactly 3 bullets | 2.3 under 80 words] => ok
+(b) f162-cmp: today page asks [none]; candidate [none]; picks [none] => ok
+changed d-00mvmpttfq-ef2f/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmpv3wn-3471/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmpvn72-a874/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmpwwbj-0d02/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmqc524-a401/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmqcnez-2ca8/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+changed d-00mvmr8g3i-d791/draft: removed [L3.1 cant-check "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"]; page asks 1 -> 0
+(c) replayed 41 looks (expect 41): 7 lose a count page question, 0 bad (facts are never touched: the filter sees only the asks) => ok
+(d) cap 3: 7 of 41 saved looks change their page-ask count
+(d) f162-1: page asks 1 -> 0
+(d) f162-3b: page asks 1 -> 0
+VERDICT: PASS

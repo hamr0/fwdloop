@@ -96,8 +96,8 @@ test('plain-checks: every rule (and the unknown red) has a one-sentence fix; rea
   assert.deepEqual([b.reason, b.fix], ['A line of your job is not covered by any step', 'Make every line of your job say one thing to do, then Draft again.']);
   assert.equal(plainPlanCheck('zzz').say, 'One of the checks on the plan failed.');
   assert.equal(plainPlanCheck('zzz').fix, 'Draft again.');
-  // M10 am19: + the unreached-input rule
-  assert.equal(PLAN_CHECK_RULES.length, 22);
+  // M10 am19: + the unreached-input rule; M4d am38: + the send-line work rule
+  assert.equal(PLAN_CHECK_RULES.length, 23);
   for (const r of PLAN_CHECK_RULES) {
     assert.match(r.fix, /^[A-Z][^.]*(\.|; [^.]*\.)$/, r.fix);
     assert.ok(r.fix.length < 90, r.fix);

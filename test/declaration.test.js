@@ -193,6 +193,13 @@ const FIELD_META = {
   ticketWatch: {
     level: 'top', required: false, needle: 'ticketWatch', retype: () => 'state', invalid: () => [],
   },
+  // M10 am22: the record of the fact lines that carry the person's picks (top), and the picks themselves on a fact step (close)
+  pickedLines: {
+    level: 'top', required: false, needle: 'pickedLines', retype: () => 'one', invalid: () => [0],
+  },
+  picked: {
+    level: 'close', required: false, needle: 'picked', retype: () => 42, invalid: () => [],
+  },
   class: {
     level: 'close', required: false, needle: 'class', retype: () => 42, invalid: () => 'nonsense',
   },
@@ -306,6 +313,8 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'flowType', level: 'top' },
   { field: 'ticketFilter', level: 'top' },
   { field: 'ticketWatch', level: 'top' },
+  { field: 'pickedLines', level: 'top' },
+  { field: 'picked', level: 'close' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
   { field: 'cited', level: 'close' },

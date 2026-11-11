@@ -19,6 +19,7 @@ import { Loop, HaltError } from 'bare-agent';
 import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from './declaration.js';
+import { readEveryStep } from './whole-job.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
@@ -30,12 +31,14 @@ import { lookAtPage, pageInfoLines } from './pagelook.js';
 import { lookAtSheet, sheetPrompt } from './sheetlook.js';
 import { leftRuleLine, dropRows, dropLine, dropSentence, pickNoteLine } from './pagedropwords.js';
 import {
-  scopedRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText,
+  offerRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, retentionOf, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText,
 } from './checkpick.js';
 import { matchRecord, entriesFromAnswers, sameWords, KEPT_WORDS } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
+import { isCountGuardrail } from './declaration.js';
+import { repairDeclaration } from './repairs.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
@@ -291,11 +294,29 @@ function cleanNotChecked(raw) {
   return Array.isArray(raw) ? raw.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
 }
 
+// M10 am27 (1): at draft time a count guardrail is hidden from the AI (the page look and the drafter); code keeps the ORIGINAL rule numbers and text.
+const shownRules = (/** @type {string} */ guardrail) => lineRules({ rule: guardrail }).filter((r) => !isCountGuardrail(r)).join('; ');
+
+/**
+ * The job lines as the page look may see them (no count rule), and `toOriginal`, which takes a look fact's / dropped entry's visible rule number back to the guardrail's own number.
+ * @param {{n: number, text: string, rule?: string}[]} jobLines
+ */
+export function hideCounts(jobLines) {
+  const seenLines = jobLines.map((l) => { const kept = lineRules(l).filter((r) => !isCountGuardrail(r)); return { n: l.n, text: l.text, ...(kept.length ? { rule: kept.join('; ') } : {}) }; });
+  const ruleMap = (/** @type {number} */ line, /** @type {number|undefined} */ vis) => {
+    if (vis === undefined) return undefined;
+    const orig = lineRules(jobLines.find((x) => x.n === line)).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r));
+    return orig[vis - 1]?.no ?? vis;
+  };
+  const toOriginal = (/** @type {any} */ f) => (f.forRule !== undefined ? { ...f, forRule: ruleMap(f.line, f.forRule) } : f.rule !== undefined ? { ...f, rule: ruleMap(f.line, f.rule) } : f);
+  return { seenLines, toOriginal };
+}
+
 function jobLinesText(lines, asks) {
   const askLines = new Set(asks.map((a) => a.line));
   return lines
     .map((l) => `${l.n}. ${l.text}${askLines.has(l.n) ? ' [SIGNED ASK — a human stop]' : ''}`
-      + `${l.guardrail ? ` [guardrail: ${l.guardrail}]` : ' [no guardrail]'}`)
+      + `${l.guardrail && shownRules(l.guardrail) ? ` [guardrail: ${shownRules(l.guardrail)}]` : ' [no guardrail]'}`)
     .join('\n');
 }
 
@@ -348,8 +369,8 @@ function whenToUse(menu) {
 function sheetRuleNumbers(lines, arbiter) {
   const csvRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path));
   if (csvRoles.length === 0) return [];
-  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}) })).filter((x) => x.rules.length > 0);
-  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((r, i) => `${i + 1}) ${r}`).join(' ')}`)];
+  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r)) })).filter((x) => x.rules.length > 0);
+  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((q) => `${q.no}) ${q.r}`).join(' ')}`)];
 }
 
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
@@ -541,6 +562,8 @@ export async function draft({
   const pageExtras = pageSources.length ? { look, pageLooks } : {};
   let mapCut = null;
   const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
+  // M10 am27 (1): the page look sees only the non-count rules; `toOriginal` takes a visible rule number back to the original one
+  const { seenLines, toOriginal } = hideCounts(jobLines);
   const pageInfo = [];
   /** one map call (a page's or a sheet's): its hold, its metering and its book are the drafting round's own (the `kind` names it in the round log) */
   const makeCallModel = (kind) => async (content, attempt) => {
@@ -572,13 +595,14 @@ export async function draft({
   for (const s of pageSources) {
     const pg = pages[s.role];
     // The hold of the map call is sized from its own prompt (the saved page is in it): one that cannot fit what is left of the cap is refused here, at $0.
-    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
+    const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines: seenLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
     const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spentBefore + mapCeiling > budgetUsd) {
       if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
     }
     const callModel = makeCallModel('page-map');
-    const got = await lookAtPage({ label: s.role, text: pg.text, jobLines, callModel });
+    const got0 = await lookAtPage({ label: s.role, text: pg.text, jobLines: seenLines, callModel });
+    const got = got0.ok ? { ...got0, look: { ...got0.look, facts: got0.look.facts.map(toOriginal), dropped: got0.look.dropped.map(toOriginal) } } : got0;
     if (!got.ok) {
       const m = sumMeterings(meterings);
       return {
@@ -658,7 +682,7 @@ export async function draft({
   // per guardrail, or none; code keeps what passes keep-or-drop. The call is metered, held and booked as a drafting round (the same `meterings`). The redraft after the answers
   // (offerQuestions false) makes no call: it settles every rule against the person's picks instead.
   // a rule a kept page or sheet fact already serves (the look tied it: line + rule number) is settled by that fact and is not asked here
-  const shapeRules = scopedRules(lines, arbiter).filter((r) => ![...look.facts, ...sheetFacts].some((f) => f.line === r.line && f.forRule === r.rule));
+  const shapeRules = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
   // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
   const carried = matchRecord(carriedPicks, lines, shapeRules);
   const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, added: k.entry.added, left: k.entry.left }));
@@ -873,16 +897,24 @@ export async function draft({
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
     }
+    // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
+    if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
     // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the person's picks (applyPicks, next).
+    delete declaration.pickedLines; // the record of picked fact lines is code's too (applyPicks)
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => {
-        if (!isPlainObject(st) || !isPlainObject(st.close) || st.close.shape === undefined) return st;
-        const { shape: _drop, ...close } = st.close;
+        if (!isPlainObject(st) || !isPlainObject(st.close) || (st.close.shape === undefined && st.close.picked === undefined)) return st;
+        // M10 am22 (3): `close.picked` is code's from the person's picks (applyPicks, next); one the drafter sent is dropped here too
+        const { shape: _drop, picked: _dropPicked, ...close } = st.close;
         return { ...st, close };
       });
     }
     // M10 am16 (4): code sets the check of every line it settled, from the picks only; the drafter's own `close.shape` and class for such a line are gone
     if (settled) Object.assign(declaration, applyPicks(declaration, shapeRules, settled, (n) => dropSentence({ line: n.line, fact: '', reason: n.reason })));
+    // M10 am27 (2): the two mechanical plan mistakes (cited page not in reads; unjudgeable note on a green line) are repaired by code and logged on the round
+    { const fixed = repairDeclaration(declaration, arbiter); if (fixed.repaired.length) { Object.assign(declaration, fixed.declaration); entry.repaired = fixed.repaired; } }
+    // M10 am27 (4): what the drafter wrote vs what the final plan keeps, per job line (record only); drafted = the declaration as sent, before any code change
+    entry.retention = retentionOf(captured, declaration, jobLines, [...(settled?.checks.keys() ?? [])]);
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,

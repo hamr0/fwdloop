@@ -146,6 +146,87 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 
 **Parked, not scheduled: M14 item 11 gap** (hamr, 2026-11-02, unsigned). A drafter question that is not a page-look question has no human row in the Audit; the answer shows only inside the redraft's `card` row (F130 survey, M14 build p4). Fixing it needs new screen words.
 
+**Parked, not scheduled: raise the bareguard pin** (hamr, 2026-11-10, unsigned). fwdloop pins bareguard `^0.31.0` (package.json). hamr ruled bareguard's tighten #80: `cells` rows and keys give `claim-malformed` (e679db4 on its branch, validated 33/33 identical on our saved runs), and `topN` rows and values give a red (0 of 3,859 files use it). Raise the pin when it ships, and re-run the 33 pairs on the installed package.
+
+*Update 2026-11-10: done, pinned ^0.34.1 in bd453c3; 33/33 saved pairs identical on 0.34.1 from npm.*
+
+**Next, not scheduled — first thing next: one per-line ledger** (hamr, 2026-11-10, unsigned draft; module number: hamr picks). DRAFT for hamr to edit. Not signed, not built, no module number. It needs its own scope, exit and negative scenario signed by hamr, and a $0 POC first, before anything is built.
+
+**Why.**
+- What line N checks is spread over 21 lists (F171, "The lists (21)"). fwdloop has no per-line ledger (F171 answer 1).
+- A fix to one list leaves the others. Example: M10 am24 stopped the double ask (pageask.js:103; 0 of 60 later plans), but the code still lets a rule be agreed and dropped (F171 disagreement 5).
+- bareloop has the same shape: about 15 lists and no per-line ledger (bareloop `.claude/scratch/r10/ledger/MAP.md`, section 0). It mapped it and postponed its own build.
+
+**The problems it must remove** (F171, one line each).
+1. Not checked lists a rule the signed plan checks. "Under $150": 29 of 36 green line-2 plans. It is the "$150 mix-up" (disagreement 1; the display gap F172's 2026-11-10 note says is still open; the limit itself is not lost).
+2. One thing is listed by several writers and deduped only by exact string. The destination is listed twice in 51 of 60 plans (disagreement 2).
+3. After an "agree", two rules with one meaning ("exactly 3 bullets", "exactly 3 list items") each get a checker, and nothing says which covers which (disagreement 4).
+4. A rule can be agreed and dropped at once. am24 stopped the double ask only (disagreement 5; `d-00mw9n54f1-e8a7`).
+5. A line's signed reason it is unjudgeable is shown on no screen. Its other rules go only into the unsigned Not checked (disagreement 6).
+6. No rule-level coverage anywhere. A rule that no check carries and no list names cannot be caught (disagreement 8). No live miss is proven; the code just cannot see one.
+7. A "drop it" on a page can't-check is not carried on Revise, so the same question can be asked again (disagreement 9).
+8. The page map re-runs per draft. The reason the person sees at sign is the last map's, not the one they answered against (disagreement 10; `d-00mwaei5w4-10f8`).
+9. A plan with zero content checks can be signed (answer 7; `d-00mwaeaump-66c3/draft-1`: all six steps hitl, `spec.hash` written).
+10. am27 (4)'s retention record counts picks as one boolean per line. It cannot see an agreed pick that was never built (answer 5).
+
+**Side by side with bareloop** (MAP.md section 3 = D-numbers; their status as of the map).
+
+| fwdloop (F171) | bareloop | bareloop status |
+|---|---|---|
+| disagreement 3 and 5: a "drop it" lands in different places by ask kind; agreed and dropped | D7: look `dropped` vs pick-ask `left`, two owners of one meaning | RD, not seen |
+| answer 4 and disagreement 1: Not checked vs the signed Checked | D8: card vs Job tab Not checked, two renderings of one list | RD, not seen |
+| answer 5: retention cannot see agreed-but-never-built | D15: retention does not count agreed AI items | RD |
+| answer 7: a zero-content-check plan signs | D4: a close with no real check could sign | built on bareloop's branch feat/check-ledger (55e7234), NOT released: bareloop v0.55.0, 2026-11-10, does not include it |
+| disagreement 8: no rule-level coverage | D10 / L11: every `~` rule carried or refused, red `rubric-rule-dropped` | reconciled at the validator |
+| answer 6: the drafter prompt promises more than code does | D3: "code adds the checks the person picked" true only for `~` picks | text unchanged, seen as VANISHED in 2 of 5 |
+
+- bareloop has two things we do not: the D4 end check (55e7234), built on bareloop's feat/check-ledger, not released in v0.55.0 (loop, 2026-11-10), and the rule-level red `rubric-rule-dropped` (MAP L11 / D10, rubricstep.js:727; in released tags since v0.42.0 by git tag --contains). bareloop's design draft 2 (`../bareloop/.claude/scratch/r10/ledger/DESIGN.md`, 2026-11-10) took our 9 gaps; one ruling (sign state/rule/line/part, not reason words) is with hamr.
+- Our rule: copy bareloop code only from a released tag, with the `// borrowed-from:` header. Never import.
+- Where we differ: bareloop has a confirm AI (L6, L7) that plans checks and takes free-text answers. We have none. Our close is one class per line, not parts (F171 "The one fact first"). So its confirm kinds (item kind 3, and the confirm half of kind 6) do not exist here.
+
+**The shape (draft).**
+- One code-owned row per (job line, rule or AI part). Item kinds, taken from MAP section 5 and adapted:
+  1. `~ rule`: the person's own words, including an agreed reading written as a rule.
+  2. `~ pick`: a rule's settled check, or left, or own words.
+  3. look fact: a kept page or sheet fact with its `forRule` tie, and the drops with reasons.
+  4. AI part: the drafter's close or fact for the line, after code transforms.
+  5. answer: a look ask or shape ask answer (agree, own words, drop it).
+  (bareloop's "AI proposal" kind and the confirm Q/A half of "answer" are dropped: no confirm AI here.)
+- States: proposed, then agreed, dropped, or not-checked (with a reason code), then built (with a part reference) or refused (with a reason). Each row also records who set it (person, code or AI) and the words the person saw.
+- One writer: one function assigns each field; everything else calls it.
+- REPLACES (become views of the ledger), from F171's sketch: `not-checked.json` (list 15, three writers plus an AI list), the Not-checked part of lists 18 and 19, `picks-record.json` (list 10), the `left` and `picks` argv plumbing (list 9) and `redraft-N.json`'s `left` (list 8), `settled` (list 11), the per-line `unjudgeable` and `refused` strings of list 14 (kept in the signed declaration only as a rendering), and the retention input (the F170 POC `retentionOf`).
+- FEEDS it (stay as their own step, write rows): the look (lists 2-4), the asks (5, 7), the answers (8), the drafter's declaration (13).
+- STAYS: the signed job (lists 1, 14, 17, 20), the validator's per-line views (16) until readers switch, the run-time records (21).
+- Readers that switch to it: the sign card, the Job tab, the Audit Draft group, the drafter prompt (its "settled before you draft" promise rendered from ledger states, F171 answer 6), the validator (every agreed row built or listed, by row id), and the retention record.
+- Open for hamr: whether the signed spec gains a field. A signed-spec field change flips the hash. Without one, the ledger stays unsigned, like `not-checked.json` today.
+
+**POC first ($0, before any scope is signed).**
+- Riskiest assumption: one ledger can be derived from what a draft already saves, without losing anything.
+- Method: a throwaway script rebuilds the ledger from the saved draft folders (F165, F168, F170, F172 in the session scratchpad, and `~/.config/fwdloop/flows/.drafts`). No src change. No model call.
+- Bars to propose (the orchestrator pre-registers them in FINDINGS before the run):
+  1. Every `~` rule of every plan gets exactly one row.
+  2. The rows reproduce each disagreement F171 measured: they flag the 29 of 36 "$150" contradictions, the 51 of 60 doubled destinations, and `d-00mwaeaump-66c3/draft-1` as zero-check.
+  3. A planted vanished rule (a rule deleted from a saved plan's carriers and lists) is flagged.
+  4. The test can fail: break one derivation and see the bar go red.
+
+**Draft scope, exit and negative scenario (DRAFT, not signed; hamr to edit).**
+- Scope: the ledger, every reader above switched to it, and bareloop's two fixes (a zero-check plan cannot be signed; a rule-level red when a `~` rule is neither carried nor listed).
+- Exit: a paid batch like F172 (same job, page and model), plus a hamr walk where the sign card and the Job tab show the same Checked and Not checked and no rule is missing.
+- Must fail when: a `~` rule has no row; two screens disagree; a zero-check plan signs.
+
+**Then share with bareloop.** Send the POC result, the design and the code to the `loop` session. FYI only.
+
+**Open questions for hamr** (no answers invented).
+1. The module number.
+2. Order against "Next: reopen the M10b aging exit after bareloop's learnings" below. The memory order after v0.27.0 was setup redesign, then M10b aging, then parked items. The ledger goes before M10b aging only on hamr's word.
+3. Release the open branch `fix/ticketfilter-schema-desc` first? The orchestrator recommends yes.
+4. Does the signed spec gain a ledger field (flips the hash), or stays unsigned?
+
+**Other open fixes (2026-11-10).**
+- (a) Raise the bareguard pin: see "Parked, not scheduled: raise the bareguard pin" above.
+- (b) F171 disagreement 7: the name `notChecked` means two things (Result tab `lines[].notChecked` is a run fault string, cited-record.js:105; the Job tab and sign card `notChecked` is the draft-time list 15). Naming only; it folds into the ledger.
+- (c) hamr's ask, 2026-11-10, unsigned: am27 (3)'s code-built count pick covers a single count guardrail only (the am27 block in `docs/wiki/the-module-ladder.md` says "a single count guardrail"; F171's lists table row 4 in `docs/logs/FINDINGS.md` says "not two counts, a range, or a section count"). Two counts on one line, a range ("3 to 5 items"), or a section count with nothing kept still get am16 (3)'s "I can't check this". It needs its own signed amendment and folds naturally into the per-line ledger (a count row).
+
 **Next, not scheduled: reopen the M10b aging exit after bareloop's learnings** (hamr, 2026-10-23, unsigned). The M10b exit is met for the expenses job; the aging job stays open (F78): the drafter drops or mis-tags the bucket check. The bareloop `loop` session will send its learnings on this; they are copied byte for byte, UI and inner working, under a signed amendment, before the aging exit walk is run again. The m10b branch is reviewed and released with this one issue open.
 1. The learnings spec came from the bareloop `loop` session on 2026-10-23, as hamr signed it there. Source of truth: bareloop branch `feat/learnings`, commits `d185cfa` (the Audit box) and `1ba048d`, `107fce5`, `9ce156f` (ledger and memory rules). Code: bareloop `src/panel/index.html` `renderAuditLearnings` / `learnRow` / `learnHintLabel`, `src/panel/server.js` (getRunDetail `learnings`), `src/learn.js` `parseHintBlock` (reader) and `hintText` / `renderHints` (writer). A local copy of the message: `.claude/scratch/bareloop-learnings-spec-2026-10-23.md` (gitignored; bareloop's commits are the source).
 2. What it is: a read-only Audit section showing the exact text the drafter was handed from earlier runs. One fold at the top of the Audit tab, the same box as the other Audit sections, closed by default, header `[✓] learnings  What the planner was told from earlier runs · N hints`, no arrow. Inside, each hint is a small table: its title line (n · level · seen N times · check · error kinds · fixed / never fixed), then "It said:", "Fix touched:", "What changed:". Hidden when a run has no learnings. Setting `learningHints` off by default. *Update 2026-10-25: the fold now wears the same ▶ / ▼ arrow as the other Audit folds (bareloop 417e80c, learnings part only).*

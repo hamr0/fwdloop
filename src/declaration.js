@@ -64,6 +64,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'flowType',
   'ticketFilter',
   'ticketWatch',
+  'pickedLines',
   // step level
   'goal',
   'primitives',
@@ -79,6 +80,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'cited',
   'columns',
   'sheet',
+  'picked',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -89,9 +91,9 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch', 'pickedLines']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked']);
 
 /** M13 piece 4 (signed item 4): the job's flow type, set by code from the job card, signed with the job. */
 export const FLOW_TYPES = Object.freeze(['plain', 'mcp', 'tickets']);
@@ -416,6 +418,16 @@ export function guardrailSectionCount(guardrail) {
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
 }
 
+/** M10 amendment 23: the first "<N> bullets / list items / items / lines / points" in a guardrail (N digits, or the words one..ten; not a price like "$5 per item"), or null. */
+export function guardrailItemCount(guardrail) {
+  const m = typeof guardrail === 'string' ? /(?<![$€£\d.,])\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|list items?|items?|lines?|points?)\b/i.exec(guardrail) : null;
+  if (!m) return null;
+  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
+}
+
+/** M10 amendment 23: the ONE place that says a guardrail is a count code can check: N words, N bullets / list items / items / lines / points, or N sections. */
+export const isCountGuardrail = (guardrail) => guardrailWordNumbers(guardrail).length > 0 || guardrailItemCount(guardrail) !== null || guardrailSectionCount(guardrail) !== null;
+
 /** M4e amendment 15 item 2: for each line whose guardrail gives a size for each section, a section count AND a word number,
  *  size x count more than the LARGEST word number (no possible pick fits) is a red naming the line and the numbers. $0; run before any model
  *  call, when there is no AI pick yet (amendment 29). After the draft the AI's `maxWords` is checked in checkShapeFitsJobLine. */
@@ -542,6 +554,36 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
   } catch (err) {
     reds.push(`declaration: ${label}.close.shape cannot be built into a check — ${String(err.message).replace(/^invalid rubric: /, '')}`);
   }
+}
+
+/**
+ * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/checkpick.js applyPicks).
+ * @param {Record<string, any>} declaration @param {string[]} reds
+ */
+function checkPickedLines(declaration, reds) {
+  if (!Object.hasOwn(declaration, 'pickedLines')) return;
+  const v = declaration.pickedLines;
+  if (!Array.isArray(v) || v.length === 0 || !v.every((n) => Number.isInteger(n) && n > 0)) reds.push('declaration: "pickedLines" must be a non-empty list of line numbers');
+}
+
+/**
+ * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
+ * applyPicks); here it must be a green step's, a list of bareguard text rules that builds into a check.
+ * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
+ * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
+ */
+function checkPickedKey(step, label, effectiveClass, reds, declaration) {
+  const at = `declaration: ${label}.close.picked`;
+  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet))) {
+    reds.push(`${at} is for a step that checks facts (quotes or a sheet) only; this step's check is "${step.close.class ?? effectiveClass}"`);
+    return;
+  }
+  if (!Array.isArray(declaration.pickedLines) || !declaration.pickedLines.includes(step.fromLine)) {
+    reds.push(`${at}: line ${step.fromLine} is not one of the lines you picked checks for (pickedLines), so a count check cannot sit beside its fact check`);
+    return;
+  }
+  if (!SHAPE_TYPE_CHECKS.picked.check(step.close.picked)) { reds.push(`${at} must be ${SHAPE_TYPE_CHECKS.picked.expected}`); return; }
+  try { buildSoftgreenRubric({ picked: step.close.picked }); } catch (err) { reds.push(`${at} cannot be built into a check - ${String(err.message).replace(/^invalid rubric: /, '')}`); }
 }
 
 /**
@@ -724,6 +766,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // --- top level: unknown / arbiter keys -----------------------------------
   checkOwnKeys(declaration, TOP_LEVEL_ALLOWED, 'declaration', reds);
+  checkPickedLines(declaration, reds);
 
   // --- steps: must be a non-empty array, or nothing else here is meaningful
   if (!Array.isArray(declaration.steps) || declaration.steps.length === 0) {
@@ -979,6 +1022,10 @@ export function validateDeclaration(declaration, context = {}) {
             checkShapeKeys(step.close.shape, `declaration.${label}.close.shape`, reds);
             if (fitJobLine === true) checkShapeFitsJobLine(step, i, safeLines, reds);
           }
+        }
+        if (step.close.picked !== undefined) checkPickedKey(step, label, effectiveClass, reds, declaration);
+        else if (fitJobLine === true && effectiveClass === 'green' && step.close.shape !== undefined && step.close.shape !== null) {
+          reds.push(`declaration: ${label}.close.shape: a step that checks facts carries no count check of the drafter's own; only a check you picked (close.picked, on a line recorded in pickedLines) can sit beside its fact check`);
         }
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);

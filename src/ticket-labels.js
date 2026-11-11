@@ -4,8 +4,8 @@
 // Three outcomes are kept apart: skip (a definite miss, or closed), run (a match), run-with-`unsure` (an off-scale or unreadable label goes to a human at the
 // ask, NEVER skipped). Normaliser borrowed in shape from fwdloop poc/mcp/f96/f96.mjs (the F96 rules, 12 of 12 on real tickets), re-shaped to a pure function.
 
-/** `P0`..`P3`, optionally after `priority`, `priority:`, `priority /` or `priority -`; the digit must end the number (`P12` is no priority) */
-const PRIORITY_LABEL = /^(?:priority\s*[:/-]?\s*)?p([0-3])(?![0-9])/;
+/** `P0`..`P3`, optionally after `priority`, `priority:`, `priority /` or `priority -`; no letter or digit may follow the digit (`P12`, `p2p` are no priority; `P1-urgent` is P1) */
+const PRIORITY_LABEL = /^(?:priority\s*[:/-]?\s*)?p([0-3])(?![a-z0-9])/;
 
 /**
  * One priority value from a ticket's labels: `P0`..`P3`; `unsure` when two different ones are present, or when a label names a priority on another scale

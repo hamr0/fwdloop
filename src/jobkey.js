@@ -5,6 +5,7 @@
 // TWO producers, ONE canonical form: the signed flow (parseSignedText's lines + arbiter) and the card's job box (parseJobBox).
 import { createHash } from 'node:crypto';
 
+import { typedLinesOf } from './added-end.js';
 import { joinGuardrails, parseJobBox } from './panel/authorcard.js';
 
 /** @param {{ask: boolean, text: string, guardrail: string}[]} steps */
@@ -21,5 +22,6 @@ export function jobKeyOfCard(job) {
 /** The key of a signed job. @param {{ lines: {n: number, text: string, guardrail: string}[], arbiter: any }} signed `parseSignedText`'s ok result */
 export function jobKeyOfSigned({ lines, arbiter }) {
   const asks = new Set((arbiter.asks ?? []).map((a) => a.line));
-  return keyOf(lines.map((l) => ({ ask: asks.has(l.n), text: String(l.text).trim(), guardrail: String(l.guardrail ?? '').trim() })));
+  // M13 am8: the end code adds (and an old job's send line) is not part of the job the person typed
+  return keyOf(typedLinesOf(lines, arbiter).map((l) => ({ ask: asks.has(l.n), text: String(l.text).trim(), guardrail: String(l.guardrail ?? '').trim() })));
 }

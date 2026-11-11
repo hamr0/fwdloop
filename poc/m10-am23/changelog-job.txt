@@ -1,0 +1,6 @@
+Read the changelog page,
+summarise the latest release in the changelog,
+~ exactly 3 bullets
+~ under 80 words
+Ask 30m: check it with me,
+and once I accept, write it out.

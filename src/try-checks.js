@@ -3,6 +3,7 @@
 // checks. A check that did not run (the done check halts before the others) is not listed. A hitl close has no mechanical check, so it adds none.
 import { createHash } from 'node:crypto';
 import { serializeArtifact } from './ask.js';
+import { labelled } from './checkwords.js';
 
 export const EVERY_STEP = 'every step';
 
@@ -44,6 +45,14 @@ export function outputRecord(step, artifact) {
  * @param {any} step @param {any} artifact @param {{verdict: string, red?: string|null, checks?: Array<{text:string, ok:boolean, result:string|null}>}} closed
  */
 export function closeRecords(step, artifact, closed) {
+  const rows = factRecords(step, artifact, closed);
+  // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
+  const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
+  return [...rows, ...picks.map((/** @type {any} */ c, i) => ({ n: rows.length + 3 + i, text: labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step) }))];
+}
+
+/** @param {any} step @param {any} artifact @param {any} closed */
+function factRecords(step, artifact, closed) {
   const source = lineSource(step);
   if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
     return [{
@@ -53,13 +62,13 @@ export function closeRecords(step, artifact, closed) {
   if (step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) && Array.isArray(closed.checks)) {
     // M10b piece 2: each signed sheet check is its own row, worded by `sheetCheckSentence`, judged by bareguard
     return closed.checks.map((c, i) => ({
-      n: 3 + i, text: c.text, ok: c.ok, result: c.result, source,
+      n: 3 + i, text: labelled(c.text, 'agent'), ok: c.ok, result: c.result, source,
     }));
   }
   if (step?.close?.class === 'green' && step?.close?.cited) {
     const n = Array.isArray(artifact?.results) ? artifact.results.length : 0;
     return [{
-      n: 3, text: 'every result is quoted from the saved copy and passes its rules', ok: closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
+      n: 3, text: labelled('every result is quoted from the saved copy and passes its rules', 'agent'), ok: Array.isArray(/** @type {any} */ (closed).pickChecks) && closed.cited?.check ? closed.cited.check.verdict === 'green' : closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
     }];
   }
   if (step?.close?.class === 'green') {
@@ -68,7 +77,8 @@ export function closeRecords(step, artifact, closed) {
       n: 3, text: 'every cited field matches its source', ok: closed.verdict === 'green', result: `${n} field${n === 1 ? '' : 's'}`, source,
     }];
   }
+  // M10 am22 (4): a softgreen check is the person's when it is one of their picks, the drafter's otherwise; the one-key row is code's own and carries no label
   return (closed.checks ?? []).map((c, i) => ({
-    n: 3 + i, text: c.text, ok: c.ok, result: c.result, source,
+    n: 3 + i, text: /** @type {any} */ (c).id === 'keys' ? c.text : labelled(c.text, /^pick\d+$/.test(String(/** @type {any} */ (c).id)) ? 'picked' : 'agent'), ok: c.ok, result: c.result, source,
   }));
 }

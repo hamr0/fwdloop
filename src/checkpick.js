@@ -10,7 +10,7 @@ import { isCellsPath } from './closers.js';
 import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
-import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount } from './declaration.js';
+import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountGuardrail } from './declaration.js';
 
 /** the one tool the suggestion call is forced to use */
 export const SUGGEST_TOOL = 'suggest_checks';
@@ -24,11 +24,11 @@ const WORD_FIELDS = ['names', 'phrases'];
 /** @param {any[]|undefined} sources the job's signed inputs @returns {boolean} a CSV file or a web page routes its guardrails to another signed part (M10 items 1-3, M12) */
 export const hasRoutingInput = (sources) => (sources ?? []).some((s) => (s.kind === 'file' && isCellsPath(s.path)) || s.kind === 'page');
 /**
- * A guardrail goes to this call unless the job signs an input that routes its guardrails elsewhere AND the guardrail names no whole-output word number
- * (the one thing the shape reader still takes in such a job). A page job whose guardrail carries a word number therefore counts as in (F144b caveat).
+ * A guardrail goes to this call unless the job signs an input that routes its guardrails elsewhere AND the guardrail is not a count code can check (M10 am23: words, items, sections)
+ * (the one thing the shape reader still takes in such a job). A page job whose guardrail is a count therefore counts as in (F144b caveat).
  * @param {any[]|undefined} sources @param {string} g @returns {'in'|'out'}
  */
-export const codeScope = (sources, g) => (hasRoutingInput(sources) && guardrailWordNumbers(g).length === 0 ? 'out' : 'in');
+export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountGuardrail(g) ? 'out' : 'in');
 
 /**
  * Every guardrail rule on a step line (not a signed ask or send line) that this call settles, in line order. `rule` is the rule's number on its line (the one
@@ -52,6 +52,12 @@ export function scopedRules(lines, arbiter) {
   }
   return out;
 }
+
+/**
+ * The rules the suggestion call offers for a draft: `scopedRules` less the ones a kept page or sheet fact already serves (the look tied it: line + rule number).
+ * @param {{n: number, guardrail?: string}[]} lines @param {any} arbiter @param {{line: number, forRule?: number}[]} facts `look.facts` + the sheets' facts
+ */
+export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountGuardrail(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
 
 // ---- code's keep-or-drop (am16 (2)) --------------------------------------------------------------------------------------------------------
 const norm = (/** @type {unknown} */ t) => String(t).toLowerCase().replace(/\s+/g, ' ').trim();
@@ -168,8 +174,31 @@ export function rowsFromAnswer(scoped, args) {
   return scoped.map((s) => {
     const e = entries.find((/** @type {any} */ x) => x?.line === s.line && x?.guardrail === s.rule);
     const res = e === undefined ? /** @type {ReturnType<typeof keepOrDrop>} */ ({ kept: false, why: 'no entry' }) : keepOrDrop(s.text, e);
-    return { ...s, check: res.kept ? res.check : null, why: res.kept ? null : res.why };
+    if (res.kept) return { ...s, check: res.check, why: null };
+    // M10 am27 (3): a count rule is never "I can't check this"; with nothing kept from the call, CODE proposes the check its own readers name
+    const own = countCheck(s.text);
+    return { ...s, check: own, why: own ? null : res.why };
   });
+}
+
+// borrowed-from: bareloop src/checkpick.js@0408a8f (countCheck, 5a81681; one reader file differs: fwdloop's declaration.js has the same three readers)
+/**
+ * The check CODE proposes for a count rule when the call yields none: a bullets / list-items / points count -> listItems N, a lines count -> maxLines N, ONE word number ->
+ * minWords N when the rule says "at least / minimum / more than", else maxWords N. A section count names no sections, so none is built; a rule naming two different counts is
+ * not built either; a rule with several word numbers or a range is not guessed. The result passes `keepOrDrop`, so every number is one the rule names.
+ * @param {string} text @returns {Record<string, any>|null}
+ */
+export function countCheck(text) {
+  const items = guardrailItemCount(text);
+  const words = guardrailWordNumbers(text);
+  /** @type {Record<string, any>|null} */
+  let built = null;
+  if (items !== null && (words.length > 0 || guardrailSectionCount(text) !== null)) return null;
+  if (items !== null) built = { rule: /\blines?\b/i.test(text) && !/\b(bullets?|items?|points?)\b/i.test(text) ? 'maxLines' : 'listItems', value: items };
+  else if (words.length === 1 && !/\bbetween\b|\d\s*(?:-|–|to)\s*\d/i.test(text)) built = { rule: /\b(at least|min(?:imum)?|more than|over|no fewer than)\b/i.test(text) ? 'minWords' : 'maxWords', value: words[0] };
+  if (built === null) return null;
+  const res = keepOrDrop(text, built);
+  return res.kept ? res.check : null;
 }
 
 // ---- the asks (words are item 4's) -----------------------------------------------------------------------------------------------------
@@ -235,11 +264,20 @@ export function applyPicks(declaration, rules, settled, sentence) {
   const green = (/** @type {number} */ n) => declaration.steps.some((/** @type {any} */ st) => st?.fromLine === n && st?.close?.class === 'green');
   const mine = (/** @type {number} */ n) => lineSet.has(n) && !green(n);
   const steps = declaration.steps.map((/** @type {any} */ st) => {
+    // M10 am22 (1): a fact line keeps its fact close and adds the person's picks to it (`close.picked`); the line stays green
+    if (st && typeof st === 'object' && lineSet.has(st.fromLine) && green(st.fromLine)) {
+      const { picked: _own, ...close } = st.close ?? {};
+      const kept = settled.checks.get(st.fromLine) ?? [];
+      return { ...st, close: kept.length && st.close?.class === 'green' ? { ...close, picked: kept } : close };
+    }
     if (!st || typeof st !== 'object' || !mine(st.fromLine)) return st;
     const picked = settled.checks.get(st.fromLine) ?? [];
     return { ...st, close: picked.length ? { class: 'softgreen', shape: { picked } } : { class: 'hitl' } };
   });
   const out = { ...declaration, steps };
+  // M10 am22 (3): the record of the fact lines that carry the person's picks, written here and nowhere else; whatever the drafter sent for it is gone
+  const pickedLines = [...new Set(steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) && st.close.class === 'green').map((/** @type {any} */ st) => st.fromLine))].sort((a, b) => a - b);
+  if (pickedLines.length) out.pickedLines = pickedLines; else delete out.pickedLines;
   const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   if (isRec(declaration.guardrailClasses)) {
     out.guardrailClasses = { ...declaration.guardrailClasses };
@@ -254,4 +292,27 @@ export function applyPicks(declaration, rules, settled, sentence) {
     if (isRec(declaration.unjudgeable) || Object.keys(un).length) out.unjudgeable = un;
   }
   return out;
+}
+
+// borrowed-from: bareloop src/checkpick.js@0408a8f (retentionOf, 890affa; adapted to fwdloop's one close per line: a unit is one cited fact of the line's step)
+/**
+ * M10 am27 (4) RETENTION record of one draft (record only, counts, no words). Per job line: `aiParts` = the cited facts the drafter wrote on that line (a `cited` close counts once per
+ * fact, at least 1), `kept` = how many are still in the final declaration, `dropped` = what code removed, `picks` = the line has the person's picks; `classAsked` / `classFinal`
+ * = the line's close class as the drafter sent it and as it ended. Pure.
+ * @param {any} drafted the declaration as the drafter sent it @param {any} final the declaration the draft ended with @param {any[]|null|undefined} jobLines @param {Iterable<number>} [pickLines]
+ * @returns {{line: number, aiParts: number, kept: number, dropped: number, picks: boolean, classAsked: string|null, classFinal: string|null}[]}
+ */
+export function retentionOf(drafted, final, jobLines, pickLines = []) {
+  const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  if (!isRec(drafted) || !Array.isArray(drafted.steps) || !isRec(final) || !Array.isArray(final.steps)) return [];
+  const stepsOn = (/** @type {any} */ d, /** @type {number} */ n) => d.steps.filter((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
+  const units = (/** @type {any[]} */ steps) => steps.reduce((/** @type {number} */ sum, /** @type {any} */ st) => (isRec(st.close) && isRec(st.close.cited) ? sum + Math.max(1, Array.isArray(st.close.cited.facts) ? st.close.cited.facts.length : 0) : sum), 0);
+  const classOf = (/** @type {any[]} */ steps) => (isRec(steps[0]?.close) && typeof steps[0].close.class === 'string' ? steps[0].close.class : null);
+  const withPicks = new Set(pickLines);
+  return (Array.isArray(jobLines) ? jobLines : []).filter((l) => isRec(l) && Number.isInteger(l.n)).map((l) => {
+    const was = stepsOn(drafted, l.n); const now = stepsOn(final, l.n);
+    const aiParts = units(was);
+    const kept = Math.min(aiParts, units(now));
+    return { line: l.n, aiParts, kept, dropped: aiParts - kept, picks: withPicks.has(l.n), classAsked: classOf(was), classFinal: classOf(now) };
+  });
 }
