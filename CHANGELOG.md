@@ -5,6 +5,55 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2026-11-11
+
+The code adds the end of a job (M13 am8, am9), and the check-pick work from live walks and POCs (M10 am22,
+am23, am24, am27, am28), with M4d am38 and three small fixes. am8, am9 and am38 exits were walked on the real
+panel (signed 2026-11-08). The POCs behind them (F151-F173) are in `docs/logs/FINDINGS.md`. M10 am25 and am26
+were not built on their own: am27 builds them.
+
+### Added
+- The code adds the end of a job (M13 am8). When a job has a Destination, fwdloop adds `ask <wait>: check
+  the result with me` after your last line (only if that line is not already an Ask) and then `write it
+  out`; the send ships the artifact you accepted at the Ask just before it. Your last line is an ordinary
+  line and runs like any other. The New job card shows the added lines in grey (`+ Ask <wait>: check the
+  result`, `+ Write to Destination`), and the draft plan marks them `added`. Jobs already signed are not
+  changed.
+- The file holds the whole job (M13 am9). The last Ask shows every step's result in job order, built by
+  code from each step's saved output: `## Line <n>: <your line words>` per step, and `Line <n>: you
+  accepted this at the Ask.` for each earlier Ask. What you accept there is exactly what the send writes.
+- A line with a fact check keeps your picked checks too (M10 am22). The step is checked both ways, its facts
+  and each pick, and is green only if both pass. A pick needs the step's `text`; missing text is red. A count
+  check the drafter wrote by itself on a fact line is still refused. Every check row says who added it:
+  `[agent]` or `[you picked]` (plan card, Job tab, Audit).
+- A count guardrail (N words, bullets, list items, lines, points, sections) is always offered as a pick, on
+  a page or sheet job too (M10 am23), and is asked once, as a pick, never also as a page question (am24).
+- At drafting, the page look and the drafter never see a count guardrail (M10 am27 (1)). Code repairs two
+  plan mistakes and logs each: a page check whose page the step does not read gets that page added to its
+  reads, and a "can't judge" note on a line that already has a page check is dropped. When the suggestion
+  call keeps nothing for a single count guardrail, code builds the pick from the guardrail's own number
+  instead of asking `I can't check this`. Every draft round records, per line, the AI checks written, kept
+  and dropped, and the picks (`retention` in the draft log).
+- A page-quoting step whose line carries picks is told each pick before its first try, in plain words
+  (values only, no verdict, no other guardrail), next to the fact rules it already gets (M10 am28).
+
+### Changed
+- bareguard `^0.34.1`.
+- A red plan whose send line carries other work now says why in plain words: `Your last line sends to your
+  Destination, but your job puts other work on it.` with the fix line (M4d am38).
+- The New job hint now reads `fwdloop adds the last check and the write to your Destination.` The refusal of
+  a guardrail under the last line (M10 am14 (1)) and the rule that every job needs an Ask before its last
+  line (M13 am6) are replaced by the added end.
+- The drafter's `ticketFilter` schema description now says the filter is required when a guardrail names a
+  priority or a label, matching the prompt.
+
+### Fixed
+- A leading `~` typed in an answer to a question is dropped, so it no longer makes a `~ ~` rule line; an
+  answer of only `~` is a blank answer.
+- A priority label with a letter after the digit (`p2p`) is no priority; `P1-urgent` is still P1.
+- The learnings record is taken after the run's inputs are frozen, so a run refused at its inputs leaves the
+  record in place.
+
 ## [0.29.0] - 2026-11-04
 
 M14 (the carry memo), M15 (one `.md` result for every job), and the check-picks redesign (M10 am16 to
