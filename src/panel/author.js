@@ -279,7 +279,7 @@ export function createAuthor(opts) {
     const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
     if (q.open.length > 0) {
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
-      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check'), shown: scrub(panelQuestionText(x), keys) } : {}) }));
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
@@ -767,6 +767,8 @@ export function createAuthor(opts) {
       const at = new Date().toISOString();
       // what this answer does (ruleOfAnswer, the one place): the `~` rule it adds, or the rule it leaves Not checked
       const effect = ruleOfAnswer(q, answer, choice);
+      // M10 am30: a rule left Not checked is a `<line>.<rule>` pair, so only a question about one of the person's `~` rules (an integer ruleNo) can be dropped; any other drop is refused here, nothing written, nothing sent to the drafter
+      if (effect.left && !Number.isInteger(q.ruleNo)) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That question is about the job line, not one of your ~ rules, so there is nothing to drop. Agree, or type your own words. Nothing was saved.' } };
       // the whole redraft is checked at $0 BEFORE the answer is written, so a refusal leaves the question open and nothing on disk
       /** @type {any} */
       let redraft = null;

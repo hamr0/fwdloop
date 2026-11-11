@@ -18,7 +18,7 @@ const view = (q) => new Function(`${fnSrc('questionViewFor')}\nreturn questionVi
   draftId: 'd', phase: 'questions-open', openK: 1, total: 1, questions: [{ k: 1, line: 2, lineText: 'x', answered: false, ...q }],
 });
 
-const READING = { source: 'look', ask: 'reading', proposes: true, question: 'Q', shown: 'S' };
+const READING = { source: 'look', ask: 'reading', proposes: true, drops: true, question: 'Q', shown: 'S' };
 test('the view: a look question with a proposal offers Agree, Drop it and the box; one without a proposal offers Drop it and the box; a drafter question the box only', () => {
   assert.deepEqual([view(READING).agree, view(READING).drop], [true, true]);
   for (const ask of ['check', 'reading']) assert.equal(view({ ...READING, ask }).agree, true, ask);

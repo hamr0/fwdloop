@@ -5793,7 +5793,7 @@
       if(!q) return null;
       // M10 am2 item 1 / am5 item 1: a question the page look raised is ONE plain chat message (bareloop's words); the head and line rows stay empty
       if(q.source === "look"){
-        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), agree: q.proposes === true, drop: q.ask === "reading" || q.ask === "check" || q.ask === "no-check" || q.ask === "cant-check" };
+        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), agree: q.proposes === true, drop: q.drops === true };
       }
       return {
         key: String(state.draftId) + ":" + q.k, k: q.k,
