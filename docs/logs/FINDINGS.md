@@ -6990,3 +6990,7 @@ Script `poc/m10-am29/poc.mjs <codeRoot>` (counts and shapes only). Run against t
 Candidate (3 files, 25 insertions, 9 deletions): `src/pageask.js` `ruleOfAnswer(q, typed, choice)`, with a choice present it decides (agree = proposal on a reading/check ask, drop = left, rule = the words whole), absent = today's words reading; `src/authoring.js` `readQuestions` carries `choice` when the file has it; `src/panel/author.js` `answer` validates `b.choice` (agree/drop/rule; agree only with a proposal on a reading/check ask; drop and agree only on look asks), sets `answer` to "agree" / "drop it" for the buttons (so `isAgree(h.answer)` in `src/panel/result.js` and the log keep reading it), writes `choice` into the answer file, and the last-answer redraft passes each question's stored choice.
 
 Not settled by the signed text: see the hand-back.
+
+## F178 (2026-11-11, $0): M10 am30 repro (pre-registration, written before any run)
+
+Pre-stated bar: current code reproduces the `2.null` refusal (a copy of draft `d-00mwcib8im-c20d`, a sheet-column reading ask with `ruleNo: null`, answered with choice drop through the real `createAuthor().answer()` door, the real redraft child spawned with a fake key value). After the fix: the drop is refused 400 `bad-choice` at the door, nothing written, no child spawned. A drop on a question tied to a `~` rule (integer `ruleNo`) still reaches the drafter as `<line>.<rule>`. Script `poc/m10-am30/poc.mjs`. Counts and shapes only; the copy is in a mkdtemp root, removed after.
