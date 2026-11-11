@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 import {
   ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
 } from '../authoring.js';
-import { ruleOfAnswer } from '../pageask.js';
+import { ruleOfAnswer, DROP_IT } from '../pageask.js';
 import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -750,7 +750,14 @@ export function createAuthor(opts) {
       // space (one `~` line is one line) instead of refused. Every other question keeps its own gate (blank, one line).
       const look = q.source === 'look';
       // hamr 2026-11-07 (ruling 2A): a leading `~` the person typed is dropped quietly (the job line adds its own); the ONE place, so a tilde-only answer is a blank answer
-      const answer = typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim().replace(/^(?:~\s*)+/, '') : '';
+      // M10 am29: the button used rides as a typed `choice`; absent = the words reading (CLI and old pages). agree needs a proposal, drop/agree are look asks only.
+      const choice = b.choice;
+      if (choice !== undefined) {
+        const proposes = look && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check');
+        if (choice !== 'agree' && choice !== 'drop' && choice !== 'rule') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That answer is not one of the choices. Nothing was saved.' } };
+        if ((choice === 'agree' && !proposes) || (choice === 'drop' && !look)) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That choice is not offered for this question. Nothing was saved.' } };
+      }
+      const answer = choice === 'agree' ? 'agree' : choice === 'drop' ? DROP_IT : typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim().replace(/^(?:~\s*)+/, '') : '';
       if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: look ? LOOK_BLANK_ANSWER_SAY : BLANK_ANSWER_SAY } };
       if (!look && /[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
       if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };
@@ -759,14 +766,15 @@ export function createAuthor(opts) {
       const answerFile = join(planDir, ANSWER_FILE(v.openK));
       const at = new Date().toISOString();
       // what this answer does (ruleOfAnswer, the one place): the `~` rule it adds, or the rule it leaves Not checked
-      const effect = ruleOfAnswer(q, answer);
+      const effect = ruleOfAnswer(q, answer, choice);
       // the whole redraft is checked at $0 BEFORE the answer is written, so a refusal leaves the question open and nothing on disk
       /** @type {any} */
       let redraft = null;
       if (last) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, ...(x.pairRule === undefined ? {} : { pairRule: x.pairRule }) };
+          const ch = x.k === v.openK ? choice : x.choice;
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, ...(x.pairRule === undefined ? {} : { pairRule: x.pairRule }) };
         });
         const adds = all.filter((x) => x.rule !== null);
         const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
@@ -784,7 +792,7 @@ export function createAuthor(opts) {
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
         writeFileSync(answerFile, `${JSON.stringify({
-          k: v.openK, line: q.line, question: q.question, answer, at,
+          k: v.openK, line: q.line, question: q.question, answer, ...(choice === undefined ? {} : { choice }), at,
           ...(look ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: effect.rule } : {}),
         })}\n`, { mode: 0o600, flag: 'wx' });
       } catch (e) {

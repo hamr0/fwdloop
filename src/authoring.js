@@ -107,15 +107,17 @@ export function readQuestions(planDir) {
     let at;
     /** @type {string|null|undefined} the `~` rule the answer added (null = it left the rule Not checked), as the answer file recorded it */
     let rule;
+    /** @type {string|undefined} M10 am29: which one the answer used (`agree`, `drop` or `rule`), when the file records it */
+    let choice;
     if (a.ok) {
       try {
         const j = JSON.parse(a.text);
         const t = j?.answer;
-        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; }
+        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; if (j.choice === 'agree' || j.choice === 'drop' || j.choice === 'rule') choice = j.choice; }
       } catch { /* unreadable = unanswered */ }
     }
     return {
-      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }),
+      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }), ...(choice === undefined ? {} : { choice }),
       ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}), ...(Number.isInteger(q.pairRule) ? { pairRule: q.pairRule } : {}) } : {}),
     };
   });

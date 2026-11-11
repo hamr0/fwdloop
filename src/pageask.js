@@ -144,12 +144,18 @@ export function tooManyAsksText(asks) {
  * person's own words, taken word for word with newlines folded to spaces. A question that is not a look ask is never changed: its answer is its rule.
  * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
  * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
- * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed
+ * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
  * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
-export function ruleOfAnswer(q, typed) {
+export function ruleOfAnswer(q, typed, choice) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
   if (q.source !== 'look') return { rule: typedText, left: false };
+  if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole
+    const shapeC = q.ask === 'check' || q.ask === 'no-check';
+    if (choice === 'agree' && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check')) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
+    if (choice === 'drop') return { rule: null, left: true };
+    return { rule: typedText, left: false, ...(shapeC ? { own: true } : {}) };
+  }
   const text = stripAgreeLead(typedText); // F240: "yes, check it as ..." is the person's own words minus the leading "yes,"
   const shape = q.ask === 'check' || q.ask === 'no-check';
   if ((q.ask === 'reading' || q.ask === 'check') && typeof q.proposal === 'string' && isAgree(text)) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
