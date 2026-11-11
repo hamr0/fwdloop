@@ -150,6 +150,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 
 *Update 2026-11-10: done, pinned ^0.34.1 in bd453c3; 33/33 saved pairs identical on 0.34.1 from npm.*
 
+**Parked, not scheduled: two ledger gaps bareloop's check list does not cover** (hamr, 2026-11-11, unsigned). F171 disagreement 4 (two `~` rules with one meaning each get a checker) and disagreement 9 (a page "drop it" is not carried on a Revise, so the same question could be asked again). The `loop` session said on 2026-11-11 that neither is solved by its one-check-list build (Phase A or B). F174 ($0, docs/logs/FINDINGS.md) found no live failure for either: disagreement 9 has no case (no Revise followed a "drop it" in any saved draft), and disagreement 4's only pair (`listItems 3` plus a cited count of 3 on the flights job) measures two different things; in the 5 split runs the second check caught a real bad output. Built only if one is seen failing live; then the fix is also sent to bareloop.
+
 **Next, not scheduled — first thing next: one per-line ledger** (hamr, 2026-11-10, unsigned draft; module number: hamr picks). DRAFT for hamr to edit. Not signed, not built, no module number. It needs its own scope, exit and negative scenario signed by hamr, and a $0 POC first, before anything is built.
 
 **Why.**
