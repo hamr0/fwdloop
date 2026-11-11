@@ -3608,3 +3608,9 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 
 > **M10 am30.** Changes M10 am29: `Drop it` shows only on a question about one of the person's `~` rules. A question about the job line itself (it names no `~` rule, like a sheet column question) shows `Agree` and the box, as before am29. A drop request on such a question is refused, and nothing is passed to the drafter. Must fail when: Drop it shows on a question with no `~` rule, or a drop on one reaches the drafter.
 - *Built after signing — not signed text (2026-11-11), M10 am30 (branch ledger-gaps):* `src/panel/author.js` `answer` refuses (400 `bad-choice`, nothing written, no redraft or child) any answer whose effect is a left rule when the question's `ruleNo` is not an integer, so a drop by button and the CLI `drop it` words on a no-rule non-reading ask are both closed at the one door (the only writer of `left` pairs is `applyAnswers`, fed only from this door). The polled look question carries `drops` (`Number.isInteger(ruleNo)`); the page shows `Drop it` from that field. Tests: `test/m10-am30.test.js`; the live repro and fix are F178.
+
+**M10 amendment 31 — SIGNED by hamr 2026-11-11 ("sign m10 am31"), the three messages exactly as shown.** Why: the M10 am29/am30 build added three refusal messages at the panel answer door (src/panel/author.js `answer`, 400 `bad-choice`) that no signed text named; shown to hamr as the words a refused answer shows (reachable only by a request the buttons do not send, e.g. an old open tab). Each message as shown:
+
+> 1. `That answer is not one of the choices. Nothing was saved.`
+> 2. `That choice is not offered for this question. Nothing was saved.`
+> 3. `That question is about the job line, not one of your ~ rules, so there is nothing to drop. Agree, or type your own words. Nothing was saved.`
