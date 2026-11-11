@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] - 2026-11-11
+
+Draft questions are answered by buttons, and every answered question gets its Audit row (M10 am29, am30,
+am31 and M14 am3, all signed 2026-11-11). The POCs behind them (F174-F178) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- In the panel, every question a draft asks has one shape: `Agree`, `Drop it`, and a box `Or type a new
+  rule:` with `Send` (M10 am29). `Agree` shows only where the question proposes something. `Drop it` leaves
+  the rule Not checked; the rule stays in the job. A question the drafter raised shows the box only (an
+  answer is still required, no Skip). The box always adds your typed words as a new `~` rule, word for word.
+- The answer file records which one was used (`agree`, `drop` or `rule`) as a typed `choice`, and code reads
+  that field, not the words, so a typed answer starting with "agree" is a rule, never an agree.
+- Every question a plan asked and you answered gets its own row in the Audit Draft group, whoever raised it
+  (the page look or the drafter): `you were asked: ...` and `you said: ...` (M14 am3). Page-look rows are
+  unchanged; the picked label stays on page-look rows only.
+
+### Changed
+- The panel shows a look question without its `Answer "agree"...` / `answer "drop it"...` tail, and the Audit
+  row shows the question the same way. The stored question is not changed and the CLI keeps its typed words.
+- The Result tab's `(you confirmed)` reads the recorded choice when a row has one, the words only when it has
+  none.
+
+### Fixed
+- `Drop it` on a question that names none of your `~` rules (a sheet column question) wrote a rule `null` and
+  the redraft crashed on `2.null`. `Drop it` now shows only on a question about one of your `~` rules, and
+  any other drop is refused at the answer door with nothing saved and nothing sent to the drafter (M10 am30).
+- A refused answer says why in plain words (M10 am31): `That answer is not one of the choices. Nothing was
+  saved.`, `That choice is not offered for this question. Nothing was saved.`, and `That question is about the
+  job line, not one of your ~ rules, so there is nothing to drop. Agree, or type your own words. Nothing was
+  saved.`
+
 ## [0.30.0] - 2026-11-11
 
 The code adds the end of a job (M13 am8, am9), and the check-pick work from live walks and POCs (M10 am22,
