@@ -69,7 +69,7 @@ function planRow(sessionDir, rel, kind, n) {
 function humanRows(sessionDir, rel) {
   const answered = readQuestions(join(sessionDir, rel)).questions.filter((q) => q.answer !== null).map((q) => (q.source === 'look' ? {
     kind: 'human', n: q.k, at: q.at ?? null, source: 'look', ask: q.ask, question: q.question, answer: q.answer, line: q.line,
-    ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null,
+    ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: q.rule ?? null, ...(q.choice === undefined ? {} : { choice: q.choice }),
   } : {
     // M14 am3: a question the drafter raised and the person answered is the same row, with no look-only fields (so no picked label)
     kind: 'human', n: q.k, at: q.at ?? null, question: q.question, answer: q.answer, line: q.line,

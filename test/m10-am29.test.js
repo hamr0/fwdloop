@@ -135,3 +135,12 @@ test('ruleOfAnswer: a typed choice decides; the words never do', () => {
   assert.deepEqual(ruleOfAnswer(q, '', 'drop'), { rule: null, left: true });
   assert.deepEqual(ruleOfAnswer(q, 'agree'), { rule: 'p', left: false }, 'no choice: today\'s words');
 });
+
+test('the setup record\'s human row carries the typed choice (a row from an old answer file has none)', async () => {
+  const { buildSetupRows } = await import('../src/setup.js');
+  const { w, id } = await askWorld();
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
+  await greenAfter(w, id);
+  const rows = (dir) => buildSetupRows({ sessionDir: dir, planDir: path.join(dir, 'draft-1'), hash: 'h', signedBy: 's', signedAt: 'x' }).filter((r) => r.kind === 'human');
+  assert.deepEqual(rows(w.dir(id)).map((r) => [r.answer, r.choice]), [['agree', 'agree']]);
+});

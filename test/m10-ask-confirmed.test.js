@@ -46,3 +46,11 @@ test('yes, Agree. and agree! count as agree; a fact the proposal does not name s
   for (const a of ['yes', 'Agree.', 'agree!']) assert.deepEqual(await scene([human({ answer: a })]), ['departure time'], a);
   assert.deepEqual(await scene([human({ proposal: 'luggage under 20', question: QUESTION(3).replace(READING, 'luggage under 20') })], { prose: (p) => withReading(p).replace(READING, 'luggage under 20') }), [], 'no fact called luggage');
 });
+
+// M10 am29: a row that records its typed choice is read by it; the words only when the row has none
+test('am29: a box answer "agree" (choice rule) confirms nothing; a button agree confirms; a row without choice reads its words', async () => {
+  assert.deepEqual(await scene([human({ answer: 'agree', choice: 'rule' })]), [], 'typed "agree" in the box is a new rule, not a confirmation');
+  assert.deepEqual(await scene([human({ answer: 'yes', choice: 'rule' })]), []);
+  assert.deepEqual(await scene([human({ answer: 'agree', choice: 'agree' })]), ['departure time']);
+  assert.deepEqual(await scene([human({ answer: 'agree' })]), ['departure time'], 'no choice recorded: today\'s words');
+});

@@ -144,7 +144,8 @@ export function confirmedFactNames(setupRows, lineN, signedRule, factNames) {
   const names = new Set();
   const written = lineRules({ rule: signedRule });
   for (const h of Array.isArray(setupRows) ? setupRows : []) {
-    if (h?.kind !== 'human' || h.source !== 'look' || h.line !== lineN || !isAgree(h.answer)) continue; // eslint-disable-line no-continue
+    // M10 am29: a row that records its typed choice is read by it (a box answer "agree" is a rule, never a confirmation); the words only when the row has none
+    if (h?.kind !== 'human' || h.source !== 'look' || h.line !== lineN || !(typeof h.choice === 'string' ? h.choice === 'agree' : isAgree(h.answer))) continue; // eslint-disable-line no-continue
     const reading = readingOfQuestion(h.question);
     if (reading === null || !written.includes(reading)) continue; // eslint-disable-line no-continue
     for (const name of factNames) if (reading.startsWith(`${name} `)) names.add(name);
