@@ -7102,3 +7102,12 @@ Same model and shape every time, so it is a provider habit, not weather. Today e
 - Reported: variants total, caught, no-op, uncaught; which red texts catch moves.
 - **Must be able to fail:** the script also counts how many caught variants would have been accepted had the validator step been skipped (repair alone parses them all); that count must be above 0, else the validator is not what is doing the catching.
 - A pass measures the rule only; nothing in src/ changes, nothing signed.
+
+### F184 POC 4 RESULT (2026-11-12, $0, `node poc/f184-misplaced/variants.mjs`, log `poc/f184-misplaced/result-1.log`, [MEASURED]): PASS
+
+- **Variants: 12** (11 raws; 10 had 1 movable object, one had 3, one had 0; the rest of each declaration's nesting is objects inside arrays, which cannot be misplaced this way). All 12 parse after the repair rule. **Caught 12, no-op 0, uncaught-and-different 0.**
+- **Bar 2: pass.** The 11 originals reproduce POC 3 (9 ok, 2 with one non-structural red each).
+- **Which reds catch a moved key** (all "unknown key", none "missing required"): `unknown key "5" at declaration.5` (6x), `"2"` (2x), `"6"` (1x): a numeric-keyed map whose last entry escaped to the declaration root; `unknown key "sheet" at declaration.steps[n].sheet` (2x) and `unknown key "columns" at declaration.steps[n].columns` (1x): a key escaped out of `close` into the step.
+- **It can fail: yes.** All 12 caught variants are accepted by repair alone; only the validator step refuses them.
+- **Limits, stated plainly.** Small sample (12). Only the LAST key of an object escaping one level was tried, not several keys or a move into an array (that one is invalid JSON anyway). A moved key whose name is VALID at the parent level (e.g. a `close` key that is also a legal step key) would not be an unknown key; none occurred in these 12, and the schema was not searched for such name collisions. No page or sheet word maps were passed (as in POC 3).
+- Measures the rule only. Nothing in src/ changed, nothing signed.
