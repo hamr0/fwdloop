@@ -7008,3 +7008,7 @@ Signed text: M10 am32 (docs/wiki/the-module-ladder.md, signed 2026-11-12). Two P
   - **Pass bar:** at least 8 of 10 questions carry a non-empty (trimmed) `suggestion` AND no call breaks (every round returns a usable tool call). Fewer than 10 questions in total (cap reached first) is INCONCLUSIVE, not a pass.
   - **Reported, deciding nothing:** how many questions carry an integer `ruleNo`, and how many of those name a real `~` rule on that question's line (rule number between 1 and the line's rule count).
   - **Can fail:** a model that leaves `suggestion` empty, or returns no tool call, fails the bar; the tally is computed from the raw answers.
+
+### F179 POC A RESULT, before the build (2026-11-12, $0, [MEASURED])
+
+`node poc/m10-am32/a.mjs` against today's code (branch `m10-am32`): the real `createAuthor().answer()` door, a mkdtemp copy of saved draft `d-00mwcib8im-c20d` (open look question 1), body `{k: 1, answer: "a rule typed with no button"}` and no `choice`. Result: status 202, `ok: true`, no refusal; `answer-1.json` written (`answer` and `rule` both the typed words, no `choice` field); the redraft was written and the real child spawned (it stopped at its own $0 Settings tick check, no model call). The hole exists live: an answer with no button is accepted and read from its words. mkdtemp root removed. Re-run after the build: the same request must give 400 with the signed `This page is out of date...` words and no `answer-1.json`. POC B is written (`poc/m10-am32/b.mjs`, `--dry` proven) and waits for hamr's key.
