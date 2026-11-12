@@ -7029,3 +7029,13 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 
 ### F179 POC A RESULT, after the build (2026-11-12, $0, [MEASURED])
 `node poc/m10-am32/a.mjs` re-run on branch `m10-am32` after the Part A door change (Part B withdrawn by hamr 2026-11-12). The same post, `{k: 1, answer: 'a rule typed with no button'}` with no `choice`, to the real `author.answer` on a copy of the real draft `d-00mwcib8im-c20d`: `status 400`, `refused: "bad-choice"`, `say: "This page is out of date. Reload it and answer again. Nothing was saved."`, `answerWritten: false`, `redraftWritten: false`. Verdict line: `AFTER: refused, nothing written` (before the build it read `BEFORE: accepted, saved with no choice (hole exists)`). Pass.
+
+## F180 (2026-11-12): the sheet look asked again about a word a rule of the line already answered ([MEASURED] $0)
+
+**Live walk (hamr, 2026-11-12), draft `/home/hamr/.config/fwdloop/flows/.drafts/d-00mwdiofu9-df4f`.** Job line 2 "Total the balance due per customer" with `~ every customer appears exactly once; total the balance due`. `fixtures/ar-aging.csv` has no "balance due" column. The page look asked twice: "no column 'balance due'; 'Amount' has numbers in 8 of 8 rows. Use it?" hamr pressed Agree both times (`draft-1/answer-1.json`, `answer-2.json`). The redraft (`draft-2`) added rule 3 `use the column 'Amount' for 'balance due'`. `draft-2/page-look.json` shows facts forRule 2 and 3 = Amount plus an ask {rule 3, word 'balance due', column 'Amount'}, which the redraft turned into dropped reason `column-declined` (src/drafter.js ~668). `draft-2/not-checked.json` then falsely says: `line 2: "use the column 'Amount' for 'balance due'" — you didn't take the offered column`.
+
+**Cause.** `src/sheetlook.js` `applySheetWords` (~line 107): `rules.some((r, i) => i + 1 !== at.rule && countPhrase(r, found.column) > 0)` skips the word's OWN rule, so a rule that itself names the column (the answer hamr gave) still asks about its own word.
+
+**$0 repro.** `applySheetWords(csv, words, jobLines, 'aging')` with line 2 rules `['every customer appears exactly once','total the balance due',"use the column 'Amount' for 'balance due'"]` and words customer (rule 1), balance due (rule 2), Amount (rule 3), balance due (rule 3): asks = `[[3,'balance due','Amount']]` before the fix.
+
+**Fix.** The "already named this column" check also counts the word's own rule (drop the `i + 1 !== at.rule &&` exclusion). Expected: asks `[]`, facts still include forRule 3 = Amount; a rule that does not name the column (rule 2 alone) still asks.
