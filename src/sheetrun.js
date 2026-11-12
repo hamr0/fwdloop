@@ -103,3 +103,30 @@ export async function closeSheet(checks, artifact, sheet) {
     return /** @type {any} */ ({ verdict: 'crash', red: `sheet close crashed: ${/** @type {any} */ (err).message}` });
   }
 }
+
+/**
+ * M10b am5: the `table` checks of a draft that already fail on the sheet the draft was made with. A table check judges the sheet itself, so bareguard's `checkStep` (the
+ * run's own judge, `closeSheet`) can run it before anything is spent: $0, no model call. Only `table` checks run; a cells check judges the step's answer and never runs here.
+ * Each check is read by its id, so bareguard's own `happened` check never counts; the answer handed over is non-empty, because an EMPTY one stops bareguard at `happened` before any
+ * table check runs (the check would then read as passing).
+ * @param {any} declaration the draft @param {Record<string, {header: string[], rows: any[]}>} tables the draft-time table of each CSV input, by role
+ * @returns {Promise<string[]>} one red per failing check, in plan order
+ */
+export async function tableChecksFailingOnInput(declaration, tables) {
+  const reds = [];
+  for (const s of Array.isArray(declaration?.steps) ? declaration.steps : []) {
+    const list = s?.close?.class === 'green' && Array.isArray(s.close.sheet) ? s.close.sheet : [];
+    for (const c of list) {
+      if (!isRec(c) || c.rule !== 'table' || typeof c.table !== 'string' || !isRec(tables[c.table])) continue;
+      const sha = tableSha(tables[c.table]);
+      if (sha === null) continue; // bareguard cannot read the sheet as a table: the draft's own sheet look has said so
+      const sheet = { ok: /** @type {const} */ (true), tables: { [c.table]: tables[c.table] }, inputs: [{ name: c.table, sha256: sha }] };
+      const v = /** @type {any} */ (await closeSheet([c], { done: true }, sheet));
+      const row = Array.isArray(v.checks) ? v.checks.find((/** @type {any} */ r) => r.id === c.id) : undefined;
+      if (!row || row.ok) continue;
+      const what = String(row.result).startsWith(`${c.id}: `) ? String(row.result).slice(c.id.length + 2) : String(row.result);
+      reds.push(`line ${s.fromLine}: the table check "${sheetCheckName(c)}" already fails on the input "${c.table}" (${what}), so this step could never pass. A table check judges the input sheet itself; to check what the step gives, use a cells check.`);
+    }
+  }
+  return reds;
+}

@@ -22,6 +22,7 @@ import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from 
 import { readEveryStep } from './whole-job.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
+import { tableChecksFailingOnInput } from './sheetrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { ticketSourcesOf, ticketFactsLines, mcpFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
 import { readInputFacts } from './input-facts.js';
@@ -924,7 +925,9 @@ export async function draft({
     });
     // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
     const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
-    const verdict = planRed ? { ok: false, reds: [planRed] } : verdict1;
+    // M10b am5: a `table` check that already fails on the sheet this draft was made with is a red ($0: bareguard's checkStep on the draft-time table, no model call)
+    const tableReds = verdict1.ok && sheetTables ? await tableChecksFailingOnInput(declaration, sheetTables) : [];
+    const verdict = planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
