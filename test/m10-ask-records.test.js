@@ -24,6 +24,8 @@ const childGone = (w, id) => until(() => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
 
+// the page's button for each answer the test used (am32: every answer carries its choice)
+const CLICK = { agree: { choice: 'agree' }, 'Drop it.': { choice: 'drop' } };
 async function signedWithAnswers(answers) {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt') } });
   const id = (await w.post('/api/author/draft', w.card({ job: JOB, inputs: `${w.card().inputs}\nflights: ${ADDRESS}` }))).json().draftId;
@@ -31,7 +33,7 @@ async function signedWithAnswers(answers) {
   await childGone(w, id);
   for (let k = 1; k <= answers.length; k += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await w.post(`/api/author/${id}/answer`, { k, answer: answers[k - 1] });
+    const r = await w.post(`/api/author/${id}/answer`, { k, ...CLICK[answers[k - 1]] });
     assert.ok(r.status === 200 || r.status === 202, r.text);
   }
   const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
@@ -48,7 +50,7 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   const rows = [1, 2].map((k) => JSON.parse(readFileSync(path.join(w.dir(id), 'draft', `answer-${k}.json`), 'utf8')));
   assert.deepEqual(rows.map((r) => [r.source, r.line, r.answer, r.proposal, r.rule]), [
     ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59'],
-    ['look', 1, 'Drop it.', null, null]]);
+    ['look', 1, 'drop it', null, null]]);
   assert.ok(rows.every((r) => typeof r.at === 'string' && r.question.startsWith('Your line 1 says')));
   // 2. the Audit: the setup record carries the rows, the Draft block shows them as you were asked / you said
   const setup = readSetup(signed.flowDir);
@@ -56,7 +58,7 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   assert.equal(human.length, 2);
   assert.deepEqual(human.map((r) => [r.source, r.line, r.answer, r.proposal, r.rule, r.ask]), [
     ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59', 'reading'],
-    ['look', 1, 'Drop it.', null, null, 'cant-check']]);
+    ['look', 1, 'drop it', null, null, 'cant-check']]);
   assert.equal(human[0].question, rows[0].question);
   const kinds = setup.rows.map((r) => r.kind);
   assert.ok(kinds.indexOf('human') > kinds.indexOf('draft') && kinds.lastIndexOf('human') < kinds.indexOf('redraft'), `under the drafting step: ${kinds.join(',')}`);
@@ -67,7 +69,7 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   assert.equal(shown[0].action, `you were asked: ${panelQuestionText(rows[0])}`);
   assert.ok(rows[0].question.includes('Answer "agree"') && !shown[0].action.includes('Answer "agree"'), shown[0].action);
   assert.equal(shown[0].gap, 'you said: agree [you picked]');
-  assert.equal(shown[1].gap, 'you said: Drop it.');
+  assert.equal(shown[1].gap, 'you said: drop it');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
   // 3. the signed job: the agreed reading is a new ~ line (the dropped rule adds none)
   const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');

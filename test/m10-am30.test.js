@@ -52,7 +52,7 @@ test('the door: a drop on a question with no ~ rule is refused 400, nothing writ
   assert.equal(r.status, 400, r.text);
   assert.equal(r.json().refused, 'bad-choice');
   assert.deepEqual(files(w, id), { answer: false, redraft: false, card: false });
-  const words = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'drop it' });
+  const words = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'drop it', choice: 'rule' });
   assert.equal(words.status, 202, 'the words are a rule of their own on a reading ask, never a drop');
 });
 

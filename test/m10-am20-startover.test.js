@@ -22,7 +22,7 @@ const pickedOn3 = (w, id, plan) => JSON.parse(readFileSync(path.join(w.dir(id), 
 async function twoRevisesDone(w) {
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   assert.equal((await settled(w, id)).phase, 'questions-open');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   assert.equal((await settled(w, id)).phase, 'green');
   let card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   for (const n of [2, 3]) {

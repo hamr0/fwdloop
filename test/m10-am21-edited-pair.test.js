@@ -96,7 +96,7 @@ test('panel: agree, edit the added line in a Revise, one ask about the edited wo
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST } });
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   assert.equal((await settled(w, id)).phase, 'questions-open');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   assert.equal((await settled(w, id)).phase, 'green');
   const card1 = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   assert.ok(card1.job.includes('~ at most 80 words'), card1.job);
@@ -105,7 +105,7 @@ test('panel: agree, edit the added line in a Revise, one ask about the edited wo
   assert.equal(s.phase, 'questions-open', JSON.stringify(s.reds ?? s));
   assert.equal(s.questions.length, 1, JSON.stringify(s.questions));
   assert.match(s.questions[0].question, /^Line 3, guardrail "at most 60 words": I propose at most 60 words\./);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   const g = await settled(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card2 = JSON.parse(readFileSync(path.join(w.dir(id), 'card-2.json'), 'utf8'));

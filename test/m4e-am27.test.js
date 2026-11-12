@@ -22,8 +22,8 @@ test('am27: answers show on the answer-redraft plan; after a Revise the box is g
   const id = (await w.post('/api/author/draft', w.card({ job: QJOB }))).json().draftId;
   await settleOn(w, id, ['questions-open']);
   await childGone(w, id);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: A1 })).status, 200);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: A2 })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: A1, choice: 'rule' })).status, 200);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: A2, choice: 'rule' })).status, 202);
   const a = await settleOn(w, id, ['green', 'red', 'stopped']);
   await childGone(w, id);
   assert.equal(a.phase, 'green', JSON.stringify(a));

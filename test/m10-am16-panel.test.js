@@ -39,7 +39,7 @@ test('the draft stops with one proposal ask in item 4\'s words; nothing is signa
 
 test('agree: the plan carries exactly the picked check; the `~` line is in the card, the signed job; the answer row has the proposal and the rule; the Audit shows both', async () => {
   const { w, id } = await asked();
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   const g = await greenAfter(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const decl = JSON.parse(readFileSync(path.join(w.dir(id), 'draft-1', 'declaration.json'), 'utf8'));
@@ -64,14 +64,14 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
 
 test('own words: a `~` line word for word, no check, Not checked with its reason; drop it: no line, Not checked as the person chose', async () => {
   const own = await asked();
-  assert.equal((await own.w.post(`/api/author/${own.id}/answer`, { k: 1, answer: 'three short bullets' })).status, 202);
+  assert.equal((await own.w.post(`/api/author/${own.id}/answer`, { k: 1, answer: 'three short bullets', choice: 'rule' })).status, 202);
   const g1 = await greenAfter(own.w, own.id);
   assert.equal(g1.phase, 'green', JSON.stringify(g1.reds ?? g1));
   const d1 = JSON.parse(readFileSync(path.join(own.w.dir(own.id), 'draft-1', 'declaration.json'), 'utf8'));
   assert.deepEqual(d1.steps.find((x) => x.fromLine === 3).close, { class: 'hitl' });
   assert.ok(g1.notChecked.items.some((x) => x.includes('"exactly 3 bullets"') && x.includes('Your own words are on the line')), JSON.stringify(g1.notChecked));
   const drop = await asked();
-  assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, answer: 'Drop it.' })).status, 202);
+  assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, choice: 'drop' })).status, 202);
   const g2 = await greenAfter(drop.w, drop.id);
   assert.equal(g2.phase, 'green', JSON.stringify(g2.reds ?? g2));
   assert.ok(g2.notChecked.items.includes('not checked · "exactly 3 bullets" — You chose to leave it Not checked.'), JSON.stringify(g2.notChecked));

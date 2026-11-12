@@ -119,12 +119,12 @@ test('a drafter question (not a look ask) refuses agree and drop; its box answer
   assert.equal(answerRow(w, id, 1).choice, 'rule');
 });
 
-test('no choice (the CLI and old answer files) keeps today\'s words: "Agree." takes the proposal and the row carries no choice field', async () => {
+test('the Agree button with its words alongside: takes the proposal and the row carries choice agree (no choice at all is refused since am32, see m10-am32.test.js)', async () => {
   const { w, id } = await askWorld();
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'Agree.' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'Agree.', choice: 'agree' })).status, 202);
   await greenAfter(w, id);
   assert.deepEqual(guardrails(w, id), [...READ_RULES, PROPOSAL]);
-  assert.equal('choice' in answerRow(w, id, 1), false);
+  assert.equal(answerRow(w, id, 1).choice, 'agree');
 });
 
 test('ruleOfAnswer: a typed choice decides; the words never do', () => {

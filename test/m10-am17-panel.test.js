@@ -23,7 +23,7 @@ test('a Revise that changes only the cap asks nothing and keeps the pick; a seco
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST } });
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   assert.equal((await settled(w, id)).phase, 'questions-open');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   const g = await settled(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const picked = { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } };
