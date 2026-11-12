@@ -7039,3 +7039,19 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 **$0 repro.** `applySheetWords(csv, words, jobLines, 'aging')` with line 2 rules `['every customer appears exactly once','total the balance due',"use the column 'Amount' for 'balance due'"]` and words customer (rule 1), balance due (rule 2), Amount (rule 3), balance due (rule 3): asks = `[[3,'balance due','Amount']]` before the fix.
 
 **Fix.** The "already named this column" check also counts the word's own rule (drop the `i + 1 !== at.rule &&` exclusion). Expected: asks `[]`, facts still include forRule 3 = Amount; a rule that does not name the column (rule 2 alone) still asks.
+
+## F181 (2026-11-12): a table check on the input sheet for a guardrail about the step's answer can never pass ([MEASURED] live walk, $0 read)
+
+**Live walk (hamr, 2026-11-12), flow `walk-m10am32-1` run-1** (read only: `/home/hamr/.config/fwdloop/flows/walk-m10am32-1/runs/run-1/`). Job line 2 "Total the balance due per customer" with `~ every customer appears exactly once; total the balance due`, sheet `fixtures/ar-aging.csv` (one row per invoice; run copy sha256 `f2960d9e...39d7` = the fixture, `tableSha` `5b3adbb6...43f1f`). `line-checks.json` shows three checks: `each-customer-once` (rule `table`, op `noDuplicates`, column `Customer`, table `aging`) failed on all 3 tries with "rows sharing a value: 2, 3, 4, 5, 6, 7"; `customer-count` (cells uniqueCount) and `balance-totals` (cells groupTotals) passed. `log.json` shows the model's answer correct each try (5 customers, right group totals). The run ended red.
+
+**Cause.** The drafter put a `table` check on the INPUT sheet for a guardrail ("every customer appears exactly once") that is about the step's ANSWER. A `table` check judges the sheet itself, and this sheet has one row per invoice, so the check can never pass whatever the model answers. Nothing at draft or sign time ran it.
+
+**Fix.** M10b amendment 5, SIGNED by hamr 2026-11-12 ("sign m10b am5"): at draft time code runs every `table` check on the sheet the draft was made with; one that already fails is a red to the drafter naming the line and the check (docs/wiki/the-module-ladder.md, after "M10b EXIT SIGNED").
+
+## F182 (2026-11-12, PRE-REGISTERED): M10b am5 POCs
+
+**POC 1 ($0, no key, no network), before the build.** `poc/m10b-am5/replay.mjs` replays walk-m10am32-1's signed plan checks and the run's frozen copy of the sheet through the real run path (`src/sheetrun.js` `readRunSheets` + `closeSheet`, which hand bareguard `createRubric` / `checkStep`). Expected: (a) the plan's `each-customer-once` table check is RED at $0 with "rows sharing a value: 2, 3, 4, 5, 6, 7" (no model call); (b) a passing table check on the same sheet (`noEmpty` on `Customer`) is GREEN. The script exits non-zero if either differs.
+
+**POC 2 (paid, after the build, not yet scripted).** deepseek-flash, the walk-m10am32-1 job drafted 5 times, cap $0.20. Pass (signed bar): no final plan carries a table check that fails on its input, AND at least 4 of 5 drafts end green. Must fail when: a plan whose table check fails on its draft-time input is signed; the red names no line or no check; a passing table check is refused; a cells check is run at draft time.
+
+**Result.** (pending)
