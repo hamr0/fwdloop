@@ -1,0 +1,6 @@
+draft 1: green cost=$0.00672 tries=2 tableChecks=[{"line":2,"op":"noEmpty","column":"Customer"}] failingOnInput=0
+draft 2: green cost=$0.01912 tries=4 tableChecks=[{"line":2,"op":"allNumbers","column":"Amount"}] failingOnInput=0
+draft 3: green cost=$0.01915 tries=4 tableChecks=[] failingOnInput=0
+draft 4: RED (structure) cost=$0.02538 tries=5 tableChecks=[{"line":2,"op":"noDuplicates","column":"Customer"}] failingOnInput=1
+draft 5: green cost=$0.01287 tries=3 tableChecks=[] failingOnInput=0
+greens 4/5 (need 4); final plans with a table check failing on the input: 1 (need 0); spent $0.0832; FAIL

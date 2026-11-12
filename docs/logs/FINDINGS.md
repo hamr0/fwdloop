@@ -7055,3 +7055,11 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 **POC 2 (paid, after the build, not yet scripted).** deepseek-flash, the walk-m10am32-1 job drafted 5 times, cap $0.20. Pass (signed bar): no final plan carries a table check that fails on its input, AND at least 4 of 5 drafts end green. Must fail when: a plan whose table check fails on its draft-time input is signed; the red names no line or no check; a passing table check is refused; a cells check is run at draft time.
 
 **POC 1 result (2026-11-12, $0, `node poc/m10b-am5/replay.mjs`, exit 0): PASS.** (a) `each-customer-once` (noDuplicates Customer) = red, "each-customer-once: rows sharing a value: 2, 3, 4, 5, 6, 7"; (b) control `noEmpty` Customer = green. It can fail: my first draft passed an empty answer and exited 1 (bareguard's `happened` check reds an empty answer, which also failed the control); fixed by passing the run's real claims. Note: this proves the real check path catches the bad check at $0 on the draft-time sheet; the draft-time hook itself is not built yet. POC 2: pending the build.
+
+### F182 POC 2 RESULT (2026-11-12, paid, real deepseek-flash, cap $0.20, [MEASURED]): FAIL on the letter
+
+`poc/m10b-am5/results-draft5-1.json` (with `draft5-1.log`): 5 real drafts of the walk-m10am32-1 job, $0.0832 spent of $0.20.
+- **Greens: passes.** 4 of 5 drafts ended green (bar: at least 4 of 5).
+- **No final plan carries a failing table check: fails.** 1 final plan does. Draft 3 used the `noDuplicates` Customer table check, got the am5 red (the check already fails on the input), fixed it and ended green. Draft 4 used it, got the am5 red, then ended RED on "structure": "the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1345)". Its last plan still carried the check, so the bar fails on the letter. That plan was never signable (it ended red).
+- Drafts 1, 2 and 5 never used the bad check (1 `noEmpty` Customer, 2 `allNumbers` Amount, 5 none).
+- Verdict: FAIL on the letter. The bar is not refitted. hamr's ruling, 2026-11-12: keep am5.
