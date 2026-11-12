@@ -7089,3 +7089,16 @@ Same model and shape every time, so it is a provider habit, not weather. Today e
 - **Bar 4: pass.** Refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects, `[1,2]}`. Accepted as designed: one extra `}`, two `}}`, `}` with whitespace.
 - **It can fail:** a LOOSENED rule (any trailing junk, cut back to any `}` that parses) accepts 4 of the 6 negatives (trailing `]`, trailing text, trailing `}x`, two concatenated objects), so the negatives are testing something.
 - Measures the rule only. Nothing in src/ changed, nothing signed.
+
+## F184 (2026-11-12): does the validator catch a key that a misplaced brace pushed up a level? ([POC 4 PRE-REGISTERED, $0])
+
+**Question (from the bare-agent session).** The F183 repair rule proves a trailing `}` is EXTRA, not WHERE it belonged. The model means `{"opts":{"x":1,"y":2}}` and writes `{"opts":{"x":1},"y":2}}`; the prefix parses and `y` lands one level up. Proposed safe rule: repair, then run the repaired declaration through the real `validateDeclaration` as the drafter calls it; use it only if the validator raises no new red; otherwise treat the round as a structure retry, as today.
+
+**POC 4 (PRE-REGISTERED, $0, no key, no network, before any script).** Script `poc/f184-misplaced/variants.mjs` (never ships; reads the same F183 saved raws read only).
+- Method: for each of the 11 extra-brace raws, take the object cut of the extra `}`. Find every object whose parent is an object and which has at least 2 keys (objects inside arrays are skipped: moving their `}` would put a bare key in an array, invalid JSON). For each, move its closing `}` to just before its LAST key, so that key escapes to the parent level, then append one `}` at the end. Every variant must parse after the F183 repair rule. Cap 30 variants per raw (evenly spaced when more). Note: this includes objects that are the last key of their parent (the bare-agent example), a superset of "not the last key".
+- Each variant: repair, then the real `validateDeclaration` with the same inputs as POC 3 (own prose.txt, input-facts.json, drafter overwrites).
+- "Caught" = the variant's reds contain at least one red text the unmodified original does not have (two originals already carry one red each in POC 3, so a plain "has a red" would be wrong for them). "No-op" = the variant parses to exactly the same object (`JSON.stringify`) as the original.
+- **Pass bar, all of:** (1) every variant is caught or a no-op; each uncaught differing variant is a FAIL, listed by key path; (2) the 11 originals still reproduce their POC 3 result (9 ok, 2 with one non-structural red each).
+- Reported: variants total, caught, no-op, uncaught; which red texts catch moves.
+- **Must be able to fail:** the script also counts how many caught variants would have been accepted had the validator step been skipped (repair alone parses them all); that count must be above 0, else the validator is not what is doing the catching.
+- A pass measures the rule only; nothing in src/ changes, nothing signed.
