@@ -7054,4 +7054,4 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 
 **POC 2 (paid, after the build, not yet scripted).** deepseek-flash, the walk-m10am32-1 job drafted 5 times, cap $0.20. Pass (signed bar): no final plan carries a table check that fails on its input, AND at least 4 of 5 drafts end green. Must fail when: a plan whose table check fails on its draft-time input is signed; the red names no line or no check; a passing table check is refused; a cells check is run at draft time.
 
-**Result.** (pending)
+**POC 1 result (2026-11-12, $0, `node poc/m10b-am5/replay.mjs`, exit 0): PASS.** (a) `each-customer-once` (noDuplicates Customer) = red, "each-customer-once: rows sharing a value: 2, 3, 4, 5, 6, 7"; (b) control `noEmpty` Customer = green. It can fail: my first draft passed an empty answer and exited 1 (bareguard's `happened` check reds an empty answer, which also failed the control); fixed by passing the run's real claims. Note: this proves the real check path catches the bad check at $0 on the draft-time sheet; the draft-time hook itself is not built yet. POC 2: pending the build.
