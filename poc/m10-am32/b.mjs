@@ -32,6 +32,7 @@ const BAR_SUGGESTED = 8;
 const DEADLINE_MS = 300_000;
 const MODEL = 'deepseek-flash';
 const TOOL = 'emit_declaration';
+const SLOT = 'DEEPSEEK_API_KEY'; // makeProvider's first argument is the key name, as checkKeyPreflight's
 const PROVIDER_OPTIONS = { timeoutMs: 300_000, deadlineMs: 240_000, thinking: { type: 'disabled' } };
 
 const NEW_FIELDS_PROMPT = [
@@ -89,8 +90,15 @@ if (dry) {
   if (!loadCatalogue().ok) throw new Error('catalogue did not load');
   const { schema, system, userText } = setup(VAGUE[0]);
   const qi = schema.properties.questions;
+  // Build the provider and read the rates with whatever key the shell has (a dummy is fine): no request is sent.
+  let providerBuilt; let ceilingUsd = null;
+  try {
+    makeProvider(SLOT, { model: MODEL, env: process.env, ...PROVIDER_OPTIONS });
+    providerBuilt = true;
+    ceilingUsd = ceilingCostUsd(ratesFor(undefined, MODEL));
+  } catch (e) { providerBuilt = `NOT built: ${scrub(e.message, secretsFromEnv(process.env.DEEPSEEK_API_KEY))}`; }
   process.stdout.write(`${JSON.stringify({
-    dry: true, providerCalled: false, job: VAGUE[0].id, model: MODEL, toolChoice: { name: TOOL }, maxTokens: DRAFT_MAX_TOKENS,
+    dry: true, providerCalled: false, providerBuilt, roundCeilingUsd: ceilingUsd, job: VAGUE[0].id, model: MODEL, toolChoice: { name: TOOL }, maxTokens: DRAFT_MAX_TOKENS,
     userText, systemChars: system.length, systemTail: system.slice(-900),
     questionsRequired: schema.required.includes('questions'), questionsSchema: qi,
   }, null, 2)}\n`);
@@ -106,7 +114,7 @@ const spendPath = join(__dirname, 'spend.jsonl');
 const secrets = secretsFromEnv(process.env.DEEPSEEK_API_KEY);
 const say = (s) => process.stdout.write(`${scrub(String(s), secrets)}\n`);
 
-const { provider, rates } = makeProvider('deepseek', { model: MODEL, env: process.env, ...PROVIDER_OPTIONS });
+const { provider, rates } = makeProvider(SLOT, { model: MODEL, env: process.env, ...PROVIDER_OPTIONS });
 const roundCeiling = ceilingCostUsd(ratesFor(undefined, MODEL));
 const rounds = [];
 const questions = [];
