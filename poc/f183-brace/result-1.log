@@ -1,0 +1,39 @@
+raws with rawArguments: 12
+PASS  [brace] d-00mw23a969-7629/draft-1#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [non-matching] d-00mw23a969-7629/draft-1#2: refused=true (structure: the tool call's arguments were not valid JSON (Expected ','...)
+PASS  [brace] d-00mw28kbae-d54a/draft-1#0: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mw28nmoh-e174/draft-2#0: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mw2a2m0v-4cda/draft-1#0: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=false reds=1; structural-looking=0
+          red: declaration: send at line 7 (steps[6]) reads the emits of more than one earlier signed ask step (garden_lines_check, week_jobs_check, closing_note_check) — exac
+PASS  [brace] d-00mw2abisr-178a/draft-1#0: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mw2abisr-178a/draft-1#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mw2abisr-178a/draft-3#0: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mw6xgjxy-39e4/draft#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mwcf1yvu-850d/draft-1#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=false reds=1; structural-looking=0
+          red: declaration: steps[1].close.columns is for a green step only (its cells are checked); this step's check is "hitl"
+PASS  [brace] d-00mwci2whu-0a3e/draft-1#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  [brace] d-00mwdiofu9-df4f/draft-4#1: repaired=true dropped=1 byte-identical-to-cut=true
+        validator ran=true ok=true reds=0
+PASS  extra-brace raws found: 11
+PASS  [negative] trailing ]: refused by the rule
+PASS  [negative] trailing text: refused by the rule
+PASS  [negative] trailing }x: refused by the rule
+PASS  [negative] truncated object: refused by the rule
+PASS  [negative] two objects {..}{..}: refused by the rule
+PASS  [negative] array root + brace: refused by the rule
+PASS  [positive] one extra }: repaired to the object
+PASS  [positive] two extra }}: repaired to the object
+PASS  [positive] extra } with whitespace: repaired to the object
+LOOSENED rule (any trailing junk) accepts 4 of 6 negatives: trailing ], trailing text, trailing }x, two objects {..}{..}
+PASS  the negatives can go red: the loosened rule accepts at least one
+VERDICT: PASS

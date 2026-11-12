@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] - 2026-11-12
+
+A drafting answer with an extra `}` is repaired by code (M4d am39), a table check that already fails on the
+input is refused at draft time (M10b am5), and a new answer must carry its button (M10 am32 Part A), with one
+sheet-look fix (F180, no amendment). The three amendments were signed 2026-11-12. The POCs behind them (F179-F184) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- A drafting round whose answer is not valid JSON, and is a complete answer followed only by `}` characters
+  and spaces, is read after those characters are dropped (M4d am39). Code uses it only when the plan checker
+  finds no unknown key in it; otherwise the round goes back to the drafter as before. Any other check problem
+  is an ordinary revision. The raw text stays on the round and the round records what was dropped. Nothing
+  else is ever dropped.
+- At draft time, every `table` check of a plan is run on the sheet the draft was made with (M10b am5). One that
+  already fails there is a red to the drafter naming the line and the check, at $0, because such a step could
+  never pass. The drafter is told up front that a table check must already hold on the input sheet and that a
+  cells check is for what the step gives. A cells check is never run at draft time.
+
+### Changed
+- The panel answer door refuses an answer that carries no `choice` (`agree`, `drop` or `rule`): `This page is
+  out of date. Reload it and answer again. Nothing was saved.` (M10 am32 Part A). The page already sends the
+  choice; only an answer posted without its button (an old open page, or a hand-made post) is refused. Old answer files are still read as before.
+
+### Fixed
+- The sheet look no longer asks a second question about a word whose own rule already names the column; an
+  answer you gave (`use the column 'Amount' for 'balance due'`) counts as a fact (F180).
+
 ## [0.31.0] - 2026-11-11
 
 Draft questions are answered by buttons, and every answered question gets its Audit row (M10 am29, am30,

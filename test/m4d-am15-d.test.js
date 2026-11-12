@@ -47,7 +47,7 @@ test('after the question is answered the first plan\'s line stays "a question fo
   await until(() => isFwdloopAlive(pid.pid, pid.procStart) !== true); // the draft child must be gone before an answer is taken
   for (let k = 1; k <= v.total; k += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const a = await w.post(`/api/author/${id}/answer`, { k, answer: 'three headings' });
+    const a = await w.post(`/api/author/${id}/answer`, { k, answer: 'three headings', choice: 'rule' });
     assert.ok([200, 202].includes(a.status), a.text);
     // eslint-disable-next-line no-await-in-loop
     if (k < v.total) await until(async () => (await w.get(`/api/author/${id}`)).json().openK === k + 1);

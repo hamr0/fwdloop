@@ -104,8 +104,8 @@ export function applySheetWords(text, words, jobLines, label) {
     if (w.kind !== 'number') { dropped.push({ ...rec, reason: 'no-column' }); continue; }
     if (found.kind === 'tie') { dropped.push({ ...rec, reason: 'column-tie', other: found.columns.map((c) => `"${c}"`).join(', ') }); continue; }
     if (found.kind === 'none') { dropped.push({ ...rec, reason: 'no-fit', other: String(found.rows) }); continue; }
-    // the person already named this column in ANOTHER rule of the line (an answer they gave, or their own words): the word is that column, asked no more
-    if (rules.some((r, i) => i + 1 !== at.rule && countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
+    // the person already named this column in a rule of the line (an answer they gave, or their own words): the word is that column, asked no more
+    if (rules.some((r, i) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     asks.push({
       line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });

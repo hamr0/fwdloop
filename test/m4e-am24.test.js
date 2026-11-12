@@ -184,16 +184,16 @@ test('B2: a blank answer is refused and the question stays open; no answer file;
   const { w, id } = await askingWorld();
   for (const answer of ['', '   ', '\n', undefined, 7]) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer });
+    const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer, choice: 'rule' });
     assert.equal(r.status, 400, JSON.stringify(answer));
     assert.equal(r.json().refused, 'blank-answer');
     assert.match(r.json().say, /can't be skipped/);
   }
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), false);
   assert.equal((await state(w, id)).openK, 1);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'two\nlines' })).json().refused, 'one-line');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: `has a key ${'sk-canary-M4E-piece2b-3c9d1e7a5b2f4860bb77'}` })).json().refused, 'key');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'out of order' })).json().refused, 'stale-question');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'two\nlines', choice: 'rule' })).json().refused, 'one-line');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: `has a key ${'sk-canary-M4E-piece2b-3c9d1e7a5b2f4860bb77'}`, choice: 'rule' })).json().refused, 'key');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'out of order', choice: 'rule' })).json().refused, 'stale-question');
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false);
 });
 
@@ -230,13 +230,13 @@ test('B4: answering every question drafts again with a fresh child that never as
   const { w, id, offered } = await askingWorld({ FWDLOOP_TEST_DRAFT_REDSTEP: '0,1', FWDLOOP_TEST_DRAFT_QUESTIONS: Q12 });
   const a1 = 'ANSMARK use the resume in my inputs, not an old one';
   const a2 = 'Count every word except the headings';
-  const r1 = await w.post(`/api/author/${id}/answer`, { k: 1, answer: a1 });
+  const r1 = await w.post(`/api/author/${id}/answer`, { k: 1, answer: a1, choice: 'rule' });
   assert.equal(r1.status, 200, r1.text);
   const mid = await state(w, id);
   assert.equal(mid.phase, 'questions-open');
   assert.equal(mid.openK, 2, 'one at a time');
   assert.deepEqual(JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8')).answer, a1);
-  const r2 = await w.post(`/api/author/${id}/answer`, { k: 2, answer: a2 });
+  const r2 = await w.post(`/api/author/${id}/answer`, { k: 2, answer: a2, choice: 'rule' });
   assert.equal(r2.status, 202, r2.text);
   const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
   await childGone(w, id);
@@ -298,7 +298,7 @@ test('B5: a question about line 9 in a 5-line job and a third question are dropp
 test('B5b: an answer about a line that already has a guardrail is accepted (no guardrail-clash) and joins after it', async () => {
   const { w, id, s } = await askingWorld();
   assert.equal(s.phase, 'questions-open');
-  const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'a perfectly good answer' });
+  const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'a perfectly good answer', choice: 'rule' });
   assert.notEqual(r.json().refused, 'guardrail-clash', r.text);
   assert.equal(r.status, 200, r.text);
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-1.json')), true);
@@ -500,7 +500,7 @@ test('P6: Your answers sit under their line; Checked is listed; Not checked alwa
 
 test('P7: the answer route is the same gated POST door as every author door (Host + Origin; no token or cookie, amendment 4 item 8): no / foreign Origin, foreign Host -> refused, nothing written; a GET is not a door', async () => {
   const { w, id } = await askingWorld();
-  const body = { k: 1, answer: 'an answer' };
+  const body = { k: 1, answer: 'an answer', choice: 'rule' };
   for (const [c, want] of [[{ headers: { origin: null } }, 403], [{ headers: { origin: 'http://evil.example' } }, 403], [{ headers: { host: 'evil.example' } }, 403]]) {
     // eslint-disable-next-line no-await-in-loop
     const r = await rq(w.h.port, { method: 'POST', url: `/api/author/${id}/answer`, body, ...c });
@@ -516,8 +516,8 @@ test('B7: a plan that is still red on try 3 but asked a question is questions-op
   assert.equal(s.phase, 'questions-open', JSON.stringify(s));
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'spec.hash')), false, 'the red plan has no hash to sign');
   assert.equal((await w.post(`/api/author/${id}/sign`, { hash: 'x' })).json().refused, 'question-open');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'ANSMARK the resume in my inputs' })).status, 200);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'the part about skills' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'ANSMARK the resume in my inputs', choice: 'rule' })).status, 200);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: 'the part about skills', choice: 'rule' })).status, 202);
   const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g));

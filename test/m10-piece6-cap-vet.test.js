@@ -38,7 +38,7 @@ test('the answer that redrafts, with a Cap at or below what the draft already sp
   const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8'));
   await until(() => isFwdloopAlive(p.pid, p.procStart) !== true);
   writeFileSync(path.join(w.dir(id), 'draft', 'spend.jsonl'), spendRow(0.30));
-  const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree' });
+  const r = await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' });
   assert.equal(r.status, 400, r.text);
   assert.equal(r.json().refusals[0].field, 'capUsd');
   assert.match(r.json().refusals[0].say, SAY);

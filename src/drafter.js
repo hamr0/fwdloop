@@ -22,6 +22,7 @@ import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from 
 import { readEveryStep } from './whole-job.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
+import { tableChecksFailingOnInput } from './sheetrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { ticketSourcesOf, ticketFactsLines, mcpFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
 import { readInputFacts } from './input-facts.js';
@@ -50,6 +51,7 @@ import {
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
 import { thinkingSay, worstThinkingStatus } from './thinking.js';
+import { repairTrailingBraces } from './jsonbrace.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
 export const MAX_REVISIONS = 2;
@@ -851,15 +853,9 @@ export async function draft({
       break;
     }
 
-    if (!isPlainObject(captured)) {
-      const malformed = provider?.lastMalformedToolCall ?? null;
-      const why = result?.stopReason === 'max_tokens' ? 'truncated: the round hit the output cap with no completed tool call'
-        : malformed ? `the tool call's arguments were not valid JSON (${malformed.error})`
-          : 'no usable tool call (text instead of the tool)';
+    // M4d am39: a structure failure is handled by one function, so a brace repair that the validator then refuses takes the very same path.
+    const structureFailure = (/** @type {string} */ why) => {
       entry.outcome = `structure: ${why}`;
-      // the raw answer is kept (log.json): the unparseable arguments as sent, else the model's text
-      if (typeof malformed?.rawArguments === 'string') entry.rawArguments = malformed.rawArguments;
-      else if (typeof result?.text === 'string' && result.text !== '') entry.rawText = result.text;
       log.push(entry);
       lastReds = [why];
       // M4d am3 A3: a round cut off at the output cap before tries 1 and 2 are spent is a FAILED TRY, advancing the same counter a
@@ -873,15 +869,36 @@ export async function draft({
           failedLines = lineNums;
           userText += `\n\n${QUESTIONS_PROMPT}`;
         }
-        continue;
+        return 'continue';
       }
-      if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; break; }
+      if (structureRetries >= MAX_STRUCTURE_RETRIES) { stop = 'structure'; return 'break'; }
       structureRetries += 1;
       nextKind = 'structure-retry';
       userText = `Your last reply was not a usable tool call (${why}). Call ${TOOL} now with a complete, valid JSON declaration.`;
       if (validatorReds.length) userText += `\n\nThe last declaration you emitted was still refused by the validator; keep fixing these too:\n${validatorReds.map((r) => `- ${r}`).join('\n')}`;
       if (askOpen) userText += `\n\n${QUESTIONS_PROMPT}`;
-      continue;
+      return 'continue';
+    };
+    /** @type {string | null} the structure reason, kept while a brace-repaired answer waits for the validator */
+    let braceWhy = null;
+    if (!isPlainObject(captured)) {
+      const malformed = provider?.lastMalformedToolCall ?? null;
+      const why = result?.stopReason === 'max_tokens' ? 'truncated: the round hit the output cap with no completed tool call'
+        : malformed ? `the tool call's arguments were not valid JSON (${malformed.error})`
+          : 'no usable tool call (text instead of the tool)';
+      // the raw answer is kept (log.json): the unparseable arguments as sent, else the model's text
+      if (typeof malformed?.rawArguments === 'string') entry.rawArguments = malformed.rawArguments;
+      else if (typeof result?.text === 'string' && result.text !== '') entry.rawText = result.text;
+      // M4d am39: only a malformed-JSON round (never a cut-off, never text) whose answer is a complete object plus trailing `}` is repaired
+      const fixed = malformed && result?.stopReason !== 'max_tokens' ? repairTrailingBraces(malformed.rawArguments) : null;
+      if (!fixed) {
+        const next = structureFailure(why);
+        if (next === 'break') break;
+        continue;
+      }
+      captured = fixed.value;
+      braceWhy = why;
+      entry.braceRepair = { dropped: fixed.dropped, used: true };
     }
 
     // `notChecked` was offered on every try, so it is information and never reaches the validator. `questions` is stripped only where it was
@@ -923,8 +940,18 @@ export async function draft({
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
+    // M4d am39: a brace-repaired answer the validator finds an unknown key in is not used; the round is a structure failure, as today
+    if (braceWhy !== null && !verdict1.ok && verdict1.reds.some((r) => /unknown key/.test(r))) {
+      entry.braceRepair = { ...entry.braceRepair, used: false };
+      delete entry.retention;
+      const next = structureFailure(braceWhy);
+      if (next === 'break') break;
+      continue;
+    }
     const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
-    const verdict = planRed ? { ok: false, reds: [planRed] } : verdict1;
+    // M10b am5: a `table` check that already fails on the sheet this draft was made with is a red ($0: bareguard's checkStep on the draft-time table, no model call)
+    const tableReds = verdict1.ok && sheetTables ? await tableChecksFailingOnInput(declaration, sheetTables) : [];
+    const verdict = planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };

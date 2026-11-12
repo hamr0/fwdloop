@@ -121,3 +121,21 @@ test('the answer words are am2\'s: agree / yes writes the proposed rule, own wor
   const next = applySheetWords(SHEET(), [{ from: 'line 1 rule 1', word: 'Price', kind: 'number' }], again, 'aging');
   assert.deepEqual([next.asks.length, next.dropped.length, next.facts.map((f) => f.column)], [0, 0, ['Amount']]);
 });
+
+// F180 (live walk 2026-11-12): the word's OWN rule already names the column (the answer the person gave, added as a rule): asked no more.
+const AR = `${['Customer,Amount', ...Array.from({ length: 8 }, (_, i) => `C${i + 1},${100 + i}.50`)].join('\n')}\n`;
+const AR_RULES = ['every customer appears exactly once', 'total the balance due'];
+const arJob = (rules) => [{ n: 1, text: 'Read the aging report' }, { n: 2, text: 'Total the balance due per customer', rules }];
+const arWords = (more) => [{ from: 'line 2 rule 1', word: 'customer', kind: 'other' }, { from: 'line 2 rule 2', word: 'balance due', kind: 'number' }, ...more];
+
+test('F180: a rule that itself names the column answers its own word - no ask, and the column is a fact of that rule', () => {
+  const rules = [...AR_RULES, "use the column 'Amount' for 'balance due'"];
+  const r = applySheetWords(AR, arWords([{ from: 'line 2 rule 3', word: 'Amount', kind: 'number' }, { from: 'line 2 rule 3', word: 'balance due', kind: 'number' }]), arJob(rules), 'aging');
+  assert.deepEqual(r.asks, []);
+  assert.ok(r.facts.some((f) => f.forRule === 3 && /amount/i.test(JSON.stringify(f))), JSON.stringify(r.facts));
+});
+
+test('F180: a rule that does NOT name the column still asks (rule 2 alone, rule 3 absent)', () => {
+  const r = applySheetWords(AR, arWords([]), arJob(AR_RULES), 'aging');
+  assert.deepEqual(r.asks.map((a) => [a.rule, a.word, a.column]), [[2, 'balance due', 'Amount']]);
+});

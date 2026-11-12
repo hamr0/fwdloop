@@ -6998,3 +6998,116 @@ Pre-stated bar: current code reproduces the `2.null` refusal (a copy of draft `d
 ### F178 RESULT (2026-11-11, $0, [MEASURED])
 
 Before the fix (commit before 'M10 am30'): the no-rule copy answered with choice drop gave 202, answer-1.json and redraft-1.json written with `left: [{line:2, rule:null}]`, and the real redraft child exited with `fwdloop: draft: --left takes <line>.<rule> pairs like 1.2,3.1, got "2.null"`. Reproduced: PASS. After the fix: the same request is 400 `bad-choice`, no answer file, no redraft file, no child spawned; the copy with `ruleNo: 1` still gives `left: [{line:2, rule:1}]` (the child then stops at its own $0 Settings tick check, not at the pair). Bar: PASS.
+
+## F179 (2026-11-12): M10 am32 POCs (pre-registration, written before any script or run)
+
+Signed text: M10 am32 (docs/wiki/the-module-ladder.md, signed 2026-11-12). Two POCs, both in `poc/m10-am32/` (never ships).
+
+- **POC A ($0, no key, no network): the hole exists live.** Bar: a POST to the REAL panel answer door (`createAuthor().answer()` in `src/panel/author.js`) with an answer and NO `choice` is, today, accepted (word reading): status 2xx, `answer-<k>.json` written with no `choice` field. Fixture: a mkdtemp copy of a real saved draft folder with an open question (`d-00mwcib8im-c20d`, read-only source, the F178 fixture), fake key value, copy removed after. Recorded as the "before" proof; re-run after the build, where the same request must be refused (400, nothing written) with the signed words `This page is out of date. Reload it and answer again. Nothing was saved.` Script `poc/m10-am32/a.mjs`.
+- **POC B (paid, real deepseek-flash, cap $0.30 total): does the drafter fill `suggestion` and `ruleNo` when forced to ask?** The drafter's real round schema (`buildRoundSchema`, copied into the POC) with `questions` forced open (required, at least one item) and each item extended to required `suggestion` (string, may be empty) and `ruleNo` (integer or null). Fixtures: the 10 vague jobs `v01`-`v10` of `poc/am24-questions/jobs.mjs` (clear jobs are not used: they asked nothing in F-am26). One round per job with the real system prompt and the old try-3 questions prompt, plus one sentence telling the drafter the two new fields. If fewer than 10 questions come back, the jobs are rerun in order until 10 questions or the cap. Every round is metered with `Loop onLlmResult`; the script stops before the ledger plus one round's ceiling would pass $0.30; it refuses at $0 on an empty key; results go to `poc/m10-am32/results-b-<tag>.json`, never overwritten (`wx`).
+  - **Pass bar:** at least 8 of 10 questions carry a non-empty (trimmed) `suggestion` AND no call breaks (every round returns a usable tool call). Fewer than 10 questions in total (cap reached first) is INCONCLUSIVE, not a pass.
+  - **Reported, deciding nothing:** how many questions carry an integer `ruleNo`, and how many of those name a real `~` rule on that question's line (rule number between 1 and the line's rule count).
+  - **Can fail:** a model that leaves `suggestion` empty, or returns no tool call, fails the bar; the tally is computed from the raw answers.
+
+### F179 POC A RESULT, before the build (2026-11-12, $0, [MEASURED])
+
+`node poc/m10-am32/a.mjs` against today's code (branch `m10-am32`): the real `createAuthor().answer()` door, a mkdtemp copy of saved draft `d-00mwcib8im-c20d` (open look question 1), body `{k: 1, answer: "a rule typed with no button"}` and no `choice`. Result: status 202, `ok: true`, no refusal; `answer-1.json` written (`answer` and `rule` both the typed words, no `choice` field); the redraft was written and the real child spawned (it stopped at its own $0 Settings tick check, no model call). The hole exists live: an answer with no button is accepted and read from its words. mkdtemp root removed. Re-run after the build: the same request must give 400 with the signed `This page is out of date...` words and no `answer-1.json`. POC B is written (`poc/m10-am32/b.mjs`, `--dry` proven) and waits for hamr's key.
+
+### F179 POC B RESULT, tag 1 (2026-11-12, paid attempt, [MEASURED]): INCONCLUSIVE, harness fault
+
+`results-b-1.json`: 7 rounds, 7 of 7 BROKE, 0 questions, no output. Each failed in about 300 ms with `[OpenAIProvider] Thinking mode does not support this tool_choice` (DeepSeek: thinking on cannot combine with a FORCED tool call). Cause: the script passed a raw `thinking` provider option and no per-call `thinkingMode`; the real drafter (`src/drafter.js` ~496 and ~834) builds the provider with `LIVE_PROVIDER_OPTIONS` and passes bareagent's per-call `thinkingMode: 'off'` with the forced `toolChoice`. Not a verdict on the drafter, nothing generated. Ledger `spend-b-1.jsonl` shows "at least $0.2688": each refused call has no metered round, so the real booking rule (a call that threw with no metering counts `unmetered`, `spendComplete: false`, cost null, repriced at the round ceiling $0.0384) books it unknown; kept unknown, not faked to $0. The real spend is unknown but the provider refused before generating.
+Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `thinkingMode: 'off'`, forced `toolChoice`); `--dry` proves the wire body at $0 (provider transport stubbed): `thinking: {"type":"disabled"}`, forced `tool_choice`, no `reasoning_effort`. The ledger is now one file per tag so tag 1's unknown rows do not use up tag 2's $0.30 cap. Tag 2 not run.
+
+### F179 POC B RESULT, tag 2 (2026-11-12, paid, real deepseek-flash, [MEASURED]): FAIL on the letter
+
+`results-b-2.json` (with `b-2.log` and `spend-b-2.jsonl`): 11 rounds, $0.02874 of the $0.30 cap.
+- **Suggestion part: passes.** 11 questions came back, 11 of 11 carry a non-empty `suggestion` (bar: at least 8 of 10).
+- **No call breaks: fails.** 2 of 11 calls BROKE with "no usable tool call (tool_use)", on v02 and v05. The bar needs no broken call, so the verdict is FAIL; the script's own verdict was FAIL. The bar is not refitted.
+- **ruleNo (reported, deciding nothing):** 0 of 11 integer, 0 real. These vague jobs carry no `~` rules, so null is the expected answer.
+- **Observation (deciding nothing):** 3 of 11 suggestions hold placeholders (`<list them>`, `<path>`, "e.g. survey_results.csv"), and several are about inputs rather than rules ("Read the complaints from the signed complaints file"). `Agree` would add those words as a `~` rule word for word.
+- **Unknown:** whether the 2 breaks come from the new required fields or are baseline drafter noise; no comparison arm was run.
+
+### F179 POC A RESULT, after the build (2026-11-12, $0, [MEASURED])
+`node poc/m10-am32/a.mjs` re-run on branch `m10-am32` after the Part A door change (Part B withdrawn by hamr 2026-11-12). The same post, `{k: 1, answer: 'a rule typed with no button'}` with no `choice`, to the real `author.answer` on a copy of the real draft `d-00mwcib8im-c20d`: `status 400`, `refused: "bad-choice"`, `say: "This page is out of date. Reload it and answer again. Nothing was saved."`, `answerWritten: false`, `redraftWritten: false`. Verdict line: `AFTER: refused, nothing written` (before the build it read `BEFORE: accepted, saved with no choice (hole exists)`). Pass.
+
+## F180 (2026-11-12): the sheet look asked again about a word a rule of the line already answered ([MEASURED] $0)
+
+**Live walk (hamr, 2026-11-12), draft `/home/hamr/.config/fwdloop/flows/.drafts/d-00mwdiofu9-df4f`.** Job line 2 "Total the balance due per customer" with `~ every customer appears exactly once; total the balance due`. `fixtures/ar-aging.csv` has no "balance due" column. The page look asked twice: "no column 'balance due'; 'Amount' has numbers in 8 of 8 rows. Use it?" hamr pressed Agree both times (`draft-1/answer-1.json`, `answer-2.json`). The redraft (`draft-2`) added rule 3 `use the column 'Amount' for 'balance due'`. `draft-2/page-look.json` shows facts forRule 2 and 3 = Amount plus an ask {rule 3, word 'balance due', column 'Amount'}, which the redraft turned into dropped reason `column-declined` (src/drafter.js ~668). `draft-2/not-checked.json` then falsely says: `line 2: "use the column 'Amount' for 'balance due'" — you didn't take the offered column`.
+
+**Cause.** `src/sheetlook.js` `applySheetWords` (~line 107): `rules.some((r, i) => i + 1 !== at.rule && countPhrase(r, found.column) > 0)` skips the word's OWN rule, so a rule that itself names the column (the answer hamr gave) still asks about its own word.
+
+**$0 repro.** `applySheetWords(csv, words, jobLines, 'aging')` with line 2 rules `['every customer appears exactly once','total the balance due',"use the column 'Amount' for 'balance due'"]` and words customer (rule 1), balance due (rule 2), Amount (rule 3), balance due (rule 3): asks = `[[3,'balance due','Amount']]` before the fix.
+
+**Fix.** The "already named this column" check also counts the word's own rule (drop the `i + 1 !== at.rule &&` exclusion). Expected: asks `[]`, facts still include forRule 3 = Amount; a rule that does not name the column (rule 2 alone) still asks.
+
+## F181 (2026-11-12): a table check on the input sheet for a guardrail about the step's answer can never pass ([MEASURED] live walk, $0 read)
+
+**Live walk (hamr, 2026-11-12), flow `walk-m10am32-1` run-1** (read only: `/home/hamr/.config/fwdloop/flows/walk-m10am32-1/runs/run-1/`). Job line 2 "Total the balance due per customer" with `~ every customer appears exactly once; total the balance due`, sheet `fixtures/ar-aging.csv` (one row per invoice; run copy sha256 `f2960d9e...39d7` = the fixture, `tableSha` `5b3adbb6...43f1f`). `line-checks.json` shows three checks: `each-customer-once` (rule `table`, op `noDuplicates`, column `Customer`, table `aging`) failed on all 3 tries with "rows sharing a value: 2, 3, 4, 5, 6, 7"; `customer-count` (cells uniqueCount) and `balance-totals` (cells groupTotals) passed. `log.json` shows the model's answer correct each try (5 customers, right group totals). The run ended red.
+
+**Cause.** The drafter put a `table` check on the INPUT sheet for a guardrail ("every customer appears exactly once") that is about the step's ANSWER. A `table` check judges the sheet itself, and this sheet has one row per invoice, so the check can never pass whatever the model answers. Nothing at draft or sign time ran it.
+
+**Fix.** M10b amendment 5, SIGNED by hamr 2026-11-12 ("sign m10b am5"): at draft time code runs every `table` check on the sheet the draft was made with; one that already fails is a red to the drafter naming the line and the check (docs/wiki/the-module-ladder.md, after "M10b EXIT SIGNED").
+
+## F182 (2026-11-12, PRE-REGISTERED): M10b am5 POCs
+
+**POC 1 ($0, no key, no network), before the build.** `poc/m10b-am5/replay.mjs` replays walk-m10am32-1's signed plan checks and the run's frozen copy of the sheet through the real run path (`src/sheetrun.js` `readRunSheets` + `closeSheet`, which hand bareguard `createRubric` / `checkStep`). Expected: (a) the plan's `each-customer-once` table check is RED at $0 with "rows sharing a value: 2, 3, 4, 5, 6, 7" (no model call); (b) a passing table check on the same sheet (`noEmpty` on `Customer`) is GREEN. The script exits non-zero if either differs.
+
+**POC 2 (paid, after the build, not yet scripted).** deepseek-flash, the walk-m10am32-1 job drafted 5 times, cap $0.20. Pass (signed bar): no final plan carries a table check that fails on its input, AND at least 4 of 5 drafts end green. Must fail when: a plan whose table check fails on its draft-time input is signed; the red names no line or no check; a passing table check is refused; a cells check is run at draft time.
+
+**POC 1 result (2026-11-12, $0, `node poc/m10b-am5/replay.mjs`, exit 0): PASS.** (a) `each-customer-once` (noDuplicates Customer) = red, "each-customer-once: rows sharing a value: 2, 3, 4, 5, 6, 7"; (b) control `noEmpty` Customer = green. It can fail: my first draft passed an empty answer and exited 1 (bareguard's `happened` check reds an empty answer, which also failed the control); fixed by passing the run's real claims. Note: this proves the real check path catches the bad check at $0 on the draft-time sheet; the draft-time hook itself is not built yet. POC 2: pending the build.
+
+### F182 POC 2 RESULT (2026-11-12, paid, real deepseek-flash, cap $0.20, [MEASURED]): FAIL on the letter
+
+`poc/m10b-am5/results-draft5-1.json` (with `draft5-1.log`): 5 real drafts of the walk-m10am32-1 job, $0.0832 spent of $0.20.
+- **Greens: passes.** 4 of 5 drafts ended green (bar: at least 4 of 5).
+- **No final plan carries a failing table check: fails.** 1 final plan does. Draft 3 used the `noDuplicates` Customer table check, got the am5 red (the check already fails on the input), fixed it and ended green. Draft 4 used it, got the am5 red, then ended RED on "structure": "the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1345)". Its last plan still carried the check, so the bar fails on the letter. That plan was never signable (it ended red).
+- Drafts 1, 2 and 5 never used the bad check (1 `noEmpty` Customer, 2 `allNumbers` Amount, 5 none).
+- Verdict: FAIL on the letter. The bar is not refitted. hamr's ruling, 2026-11-12: keep am5.
+
+## F183 (2026-11-12): broken-JSON drafts on deepseek-flash share one shape, an extra closing brace ([MEASURED] $0 read; POC 3 PRE-REGISTERED)
+
+**Evidence (read only).** `grep -l "not valid JSON"` over `~/.config/fwdloop/flows/.drafts/*/draft*/log.json` and `~/.config/fwdloop/flows/*/runs/*/log.json` gives 27 files (all 27 under `.drafts`, 0 under `runs`). They hold 33 log entries whose outcome says "not valid JSON". 12 of those carry `rawArguments` (the saved raw tool-call text; the other 21 saved none).
+- 11 of the 12 are "Unexpected non-whitespace character after JSON at position N". In every one the raw text is a complete JSON object followed by exactly one extra `}` (raw length minus N is 1; the tail reads `..."]}}`).
+- 1 of the 12 is "Expected ',' or '}' after property value in JSON at position 916" (draft `d-00mw23a969-7629`, a stray quote mid-object, `"knowledgeable": {}", "refused": ...`). Not the extra-brace shape.
+- F182 POC 2 draft 4 hit the same message at position 1345, outside this 27-file set (that log is not in the flows folder).
+Same model and shape every time, so it is a provider habit, not weather. Today each such round is a structure red and a retry (cost and tries).
+
+**POC 3 (PRE-REGISTERED, $0, no key, no network, before any script): a repair rule.** Rule: when `JSON.parse` fails AND the text is a complete JSON object followed only by one or more `}` characters (whitespace allowed), drop those trailing braces and parse. Script `poc/f183-brace/repair.mjs` (never ships; reads the 27 logs read only, writes nothing there).
+- **Pass bar, all of:**
+  1. Every saved raw answer of the extra-brace shape (11 expected) parses after the repair, and the parsed object is byte-identical (`JSON.stringify` of the parse) to parsing the text cut at the error position.
+  2. Each repaired object passes the real `validateDeclaration` as the drafter calls it, OR its validator reds are listed and none is about structure.
+  3. Every NON-matching raw (the stray-quote one, and any other) is still refused by the repair.
+  4. Synthetic negatives stay refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects `{...}{...}`.
+- **Must be able to fail:** the script also runs a LOOSENED rule (any trailing junk allowed) and shows at least one negative (the concatenated pair or trailing text) going from refused to accepted; if the loosened rule changes nothing, the negatives are not testing anything.
+- A pass is a measurement of the rule only; it builds nothing in src/ and signs nothing.
+
+### F183 POC 3 RESULT (2026-11-12, $0, `node poc/f183-brace/repair.mjs`, log `poc/f183-brace/result-1.log`, [MEASURED]): PASS
+
+- **Bar 1: pass.** 11 of 11 extra-brace raws parse after the repair (each drops exactly 1 `}`), and each parsed object is byte-identical (`JSON.stringify`) to parsing the text cut at the error position.
+- **Bar 2: pass.** Each repaired object was run through the real `validateDeclaration` with the drafter's flags (`verbatimGoals`, `fitJobLine`), its draft's own `prose.txt` and `input-facts.json`, and the drafter's code overwrites (`goal`, `flowType`, `readEveryStep`, `questions`/`notChecked` stripped). 9 ok. 2 carry one red each, neither about structure: draft `d-00mw2a2m0v-4cda` "send at line 7 reads the emits of more than one earlier signed ask step ..." and draft `d-00mwcf1yvu-850d` "steps[1].close.columns is for a green step only ...". Caveat: no page or sheet word maps were passed (the drafter passes them when the job has such inputs), so this is the validator as far as it runs without them; the two reds are the ordinary kind a retry would be asked to fix.
+- **Bar 3: pass.** The 1 non-matching raw (`d-00mw23a969-7629` stray quote, "Expected ','") is still refused.
+- **Bar 4: pass.** Refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects, `[1,2]}`. Accepted as designed: one extra `}`, two `}}`, `}` with whitespace.
+- **It can fail:** a LOOSENED rule (any trailing junk, cut back to any `}` that parses) accepts 4 of the 6 negatives (trailing `]`, trailing text, trailing `}x`, two concatenated objects), so the negatives are testing something.
+- Measures the rule only. Nothing in src/ changed, nothing signed.
+
+## F184 (2026-11-12): does the validator catch a key that a misplaced brace pushed up a level? ([POC 4 PRE-REGISTERED, $0])
+
+**Question (from the bare-agent session).** The F183 repair rule proves a trailing `}` is EXTRA, not WHERE it belonged. The model means `{"opts":{"x":1,"y":2}}` and writes `{"opts":{"x":1},"y":2}}`; the prefix parses and `y` lands one level up. Proposed safe rule: repair, then run the repaired declaration through the real `validateDeclaration` as the drafter calls it; use it only if the validator raises no new red; otherwise treat the round as a structure retry, as today.
+
+**POC 4 (PRE-REGISTERED, $0, no key, no network, before any script).** Script `poc/f184-misplaced/variants.mjs` (never ships; reads the same F183 saved raws read only).
+- Method: for each of the 11 extra-brace raws, take the object cut of the extra `}`. Find every object whose parent is an object and which has at least 2 keys (objects inside arrays are skipped: moving their `}` would put a bare key in an array, invalid JSON). For each, move its closing `}` to just before its LAST key, so that key escapes to the parent level, then append one `}` at the end. Every variant must parse after the F183 repair rule. Cap 30 variants per raw (evenly spaced when more). Note: this includes objects that are the last key of their parent (the bare-agent example), a superset of "not the last key".
+- Each variant: repair, then the real `validateDeclaration` with the same inputs as POC 3 (own prose.txt, input-facts.json, drafter overwrites).
+- "Caught" = the variant's reds contain at least one red text the unmodified original does not have (two originals already carry one red each in POC 3, so a plain "has a red" would be wrong for them). "No-op" = the variant parses to exactly the same object (`JSON.stringify`) as the original.
+- **Pass bar, all of:** (1) every variant is caught or a no-op; each uncaught differing variant is a FAIL, listed by key path; (2) the 11 originals still reproduce their POC 3 result (9 ok, 2 with one non-structural red each).
+- Reported: variants total, caught, no-op, uncaught; which red texts catch moves.
+- **Must be able to fail:** the script also counts how many caught variants would have been accepted had the validator step been skipped (repair alone parses them all); that count must be above 0, else the validator is not what is doing the catching.
+- A pass measures the rule only; nothing in src/ changes, nothing signed.
+
+### F184 POC 4 RESULT (2026-11-12, $0, `node poc/f184-misplaced/variants.mjs`, log `poc/f184-misplaced/result-1.log`, [MEASURED]): PASS
+
+- **Variants: 12** (11 raws; 10 had 1 movable object, one had 3, one had 0; the rest of each declaration's nesting is objects inside arrays, which cannot be misplaced this way). All 12 parse after the repair rule. **Caught 12, no-op 0, uncaught-and-different 0.**
+- **Bar 2: pass.** The 11 originals reproduce POC 3 (9 ok, 2 with one non-structural red each).
+- **Which reds catch a moved key** (all "unknown key", none "missing required"): `unknown key "5" at declaration.5` (6x), `"2"` (2x), `"6"` (1x): a numeric-keyed map whose last entry escaped to the declaration root; `unknown key "sheet" at declaration.steps[n].sheet` (2x) and `unknown key "columns" at declaration.steps[n].columns` (1x): a key escaped out of `close` into the step.
+- **It can fail: yes.** All 12 caught variants are accepted by repair alone; only the validator step refuses them.
+- **Limits, stated plainly.** Small sample (12). Only the LAST key of an object escaping one level was tried, not several keys or a move into an array (that one is invalid JSON anyway). A moved key whose name is VALID at the parent level (e.g. a `close` key that is also a legal step key) would not be an unknown key; none occurred in these 12, and the schema was not searched for such name collisions. No page or sheet word maps were passed (as in POC 3).
+- Measures the rule only. Nothing in src/ changed, nothing signed.

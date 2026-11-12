@@ -28,7 +28,7 @@ test('a tilde-only answer is a blank answer: refused, no answer file, the questi
   const { w, id } = await askingWorld();
   for (const answer of ['~', ' ~ ', '~~', '~ ~ ~']) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer });
+    const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer, choice: 'rule' });
     assert.equal(r.status, 400, JSON.stringify(answer));
     assert.equal(r.json().refused, 'blank-answer');
   }
@@ -38,8 +38,8 @@ test('a tilde-only answer is a blank answer: refused, no answer file, the questi
 
 test('an answer that starts with ~ is written as ONE `~ ` rule line in the card, never `~ ~`', async () => {
   const { w, id } = await askingWorld();
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: '~ keep it short' })).status, 200);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: ' ~~keep it short' })).status, 202);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: '~ keep it short', choice: 'rule' })).status, 200);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, answer: ' ~~keep it short', choice: 'rule' })).status, 202);
   await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   assert.equal(card.job.split('\n').filter((l) => l === '~ keep it short').length, 2);

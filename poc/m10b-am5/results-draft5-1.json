@@ -1,0 +1,118 @@
+{
+ "tag": "1",
+ "model": "deepseek-flash",
+ "capUsd": 0.2,
+ "startedAt": "2026-11-12T14:07:14.988Z",
+ "drafts": [
+  {
+   "n": 1,
+   "green": true,
+   "stop": null,
+   "reds": [],
+   "tries": 2,
+   "calls": 2,
+   "rounds": 2,
+   "costUsd": 0.0067188,
+   "spendComplete": true,
+   "modelReturned": "deepseek-flash",
+   "wallMs": 4564,
+   "tableChecks": [
+    {
+     "line": 2,
+     "op": "noEmpty",
+     "column": "Customer"
+    }
+   ],
+   "finalPlanFailingTableChecks": [],
+   "am5RedsSeen": []
+  },
+  {
+   "n": 2,
+   "green": true,
+   "stop": null,
+   "reds": [],
+   "tries": 4,
+   "calls": 4,
+   "rounds": 4,
+   "costUsd": 0.019116599999999997,
+   "spendComplete": true,
+   "modelReturned": "deepseek-flash",
+   "wallMs": 9393,
+   "tableChecks": [
+    {
+     "line": 2,
+     "op": "allNumbers",
+     "column": "Amount"
+    }
+   ],
+   "finalPlanFailingTableChecks": [],
+   "am5RedsSeen": []
+  },
+  {
+   "n": 3,
+   "green": true,
+   "stop": null,
+   "reds": [],
+   "tries": 4,
+   "calls": 4,
+   "rounds": 4,
+   "costUsd": 0.0191466,
+   "spendComplete": true,
+   "modelReturned": "deepseek-flash",
+   "wallMs": 9918,
+   "tableChecks": [],
+   "finalPlanFailingTableChecks": [],
+   "am5RedsSeen": [
+    "line 2: the table check \"no duplicate Customer\" already fails on the input \"aging\" (rows sharing a value: 2, 3, 4, 5, 6, 7), so this step could never pass. A table check judges the input sheet itself; to check what the step gives, use a cells check."
+   ]
+  },
+  {
+   "n": 4,
+   "green": false,
+   "stop": "structure",
+   "reds": [
+    "the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1345 (line 1 column 1346))"
+   ],
+   "tries": 5,
+   "calls": 5,
+   "rounds": 5,
+   "costUsd": 0.025381199999999996,
+   "spendComplete": true,
+   "modelReturned": "deepseek-flash",
+   "wallMs": 11288,
+   "tableChecks": [
+    {
+     "line": 2,
+     "op": "noDuplicates",
+     "column": "Customer"
+    }
+   ],
+   "finalPlanFailingTableChecks": [
+    "line 2: the table check \"no duplicate Customer\" already fails on the input \"aging\" (rows sharing a value: 2, 3, 4, 5, 6, 7), so this step could never pass. A table check judges the input sheet itself; to check what the step gives, use a cells check."
+   ],
+   "am5RedsSeen": [
+    "line 2: the table check \"no duplicate Customer\" already fails on the input \"aging\" (rows sharing a value: 2, 3, 4, 5, 6, 7), so this step could never pass. A table check judges the input sheet itself; to check what the step gives, use a cells check."
+   ]
+  },
+  {
+   "n": 5,
+   "green": true,
+   "stop": null,
+   "reds": [],
+   "tries": 3,
+   "calls": 3,
+   "rounds": 3,
+   "costUsd": 0.0128676,
+   "spendComplete": true,
+   "modelReturned": "deepseek-flash",
+   "wallMs": 6941,
+   "tableChecks": [],
+   "finalPlanFailingTableChecks": [],
+   "am5RedsSeen": []
+  }
+ ],
+ "stoppedBy": null,
+ "spentUsd": 0.0832308,
+ "verdict": "FAIL",
+ "finishedAt": "2026-11-12T14:07:57.097Z"
+}
