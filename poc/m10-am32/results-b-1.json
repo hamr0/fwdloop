@@ -1,0 +1,75 @@
+{
+  "summary": {
+    "tag": "1",
+    "model": "deepseek-flash",
+    "rounds": 7,
+    "questions": 0,
+    "withSuggestion": 0,
+    "bar": "at least 8 of 10 questions carry a suggestion, and no call breaks",
+    "brokenCalls": 7,
+    "ruleNoInteger": 0,
+    "ruleNoReal": 0,
+    "stoppedBy": "cap: ledger $0.2688 + one round's ceiling $0.0384 would pass $0.30",
+    "costUsd": "at least 0.26880",
+    "verdict": "INCONCLUSIVE (fewer than 10 questions)"
+  },
+  "rounds": [
+    {
+      "job": "v01",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: aa5d4919-7889-4084-bec8-6659589a811e)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v02",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: abb6cc7e-69bf-4392-95e3-323e6be0ccd9)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v03",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: c81a2aa6-f18d-44cc-804b-0e0274b2ec8d)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v04",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: 7c42c746-8f11-4ca9-ba11-6e841ca5cb2c)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v05",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: 645631bd-198d-48b3-b4df-b9b867c6be82)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v06",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: a9af2d42-6a43-4e4d-be84-28f1dc2027c7)",
+      "costUsd": null,
+      "nQuestions": 0
+    },
+    {
+      "job": "v07",
+      "pass": 1,
+      "usable": false,
+      "err": "[OpenAIProvider] Thinking mode does not support this tool_choice (request_id: 6e0be412-9b09-46c7-8cd5-a29ba43ce118)",
+      "costUsd": null,
+      "nQuestions": 0
+    }
+  ],
+  "questions": []
+}

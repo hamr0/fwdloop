@@ -19,6 +19,7 @@ import { lineRules } from '../../src/pagebits.js';
 import {
   makeProvider, sumMeterings, ceilingCostUsd, checkKeyPreflight, appendSpendRow, priceRecord,
 } from '../../src/provider.js';
+import { LIVE_PROVIDER_OPTIONS } from '../../src/model-step.js';
 import { buildDeclarationSchema, buildSystemPrompt, DRAFT_MAX_TOKENS, DRAFT_SKILLS } from '../../src/drafter.js';
 import { ratesFor } from '../rates.mjs';
 import { ledgerTotalUsd, scrub, secretsFromEnv } from '../m6a/batch.mjs';
@@ -33,7 +34,9 @@ const DEADLINE_MS = 300_000;
 const MODEL = 'deepseek-flash';
 const TOOL = 'emit_declaration';
 const SLOT = 'DEEPSEEK_API_KEY'; // makeProvider's first argument is the key name, as checkKeyPreflight's
-const PROVIDER_OPTIONS = { timeoutMs: 300_000, deadlineMs: 240_000, thinking: { type: 'disabled' } };
+// The real drafter's path (src/drafter.js ~496 and ~834): provider options are LIVE_PROVIDER_OPTIONS, no raw `thinking` field; thinking is bareagent's per-call `thinkingMode`, 'off' for a forced tool call.
+const PROVIDER_OPTIONS = LIVE_PROVIDER_OPTIONS;
+const RUN_OPTIONS = { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: 'off', toolChoice: { name: TOOL } };
 
 const NEW_FIELDS_PROMPT = [
   'Every question must also carry two more fields.',
@@ -90,6 +93,13 @@ if (dry) {
   if (!loadCatalogue().ok) throw new Error('catalogue did not load');
   const { schema, system, userText } = setup(VAGUE[0]);
   const qi = schema.properties.questions;
+  // $0 wire proof: the real Loop and provider, with the provider's transport (_request) stubbed on the instance; the request body is captured and refused locally, nothing leaves the machine.
+  let wire = null;
+  const { provider: dp, rates: dr } = makeProvider(SLOT, { model: MODEL, env: process.env, ...PROVIDER_OPTIONS });
+  dp._request = (_path, body) => { wire = wire ?? body; return Promise.reject(new Error('dry: request stubbed, not sent')); };
+  const dtool = { name: TOOL, description: 'x', parameters: schema, execute: async () => {} };
+  await new Loop({ provider: dp, rates: dr }).run([{ role: 'system', content: system }, { role: 'user', content: userText }], [dtool], RUN_OPTIONS).catch(() => {});
+  const wireThinking = isObj(wire) ? { thinking: wire.thinking ?? '(absent)', tool_choice: wire.tool_choice ?? null, reasoning_effort: wire.reasoning_effort ?? '(absent)', max_tokens: wire.max_tokens ?? wire.max_completion_tokens ?? null } : wire;
   // Build the provider and read the rates with whatever key the shell has (a dummy is fine): no request is sent.
   let providerBuilt; let ceilingUsd = null;
   try {
@@ -98,7 +108,7 @@ if (dry) {
     ceilingUsd = ceilingCostUsd(ratesFor(undefined, MODEL));
   } catch (e) { providerBuilt = `NOT built: ${scrub(e.message, secretsFromEnv(process.env.DEEPSEEK_API_KEY))}`; }
   process.stdout.write(`${JSON.stringify({
-    dry: true, providerCalled: false, providerBuilt, roundCeilingUsd: ceilingUsd, job: VAGUE[0].id, model: MODEL, toolChoice: { name: TOOL }, maxTokens: DRAFT_MAX_TOKENS,
+    dry: true, providerCalled: false, runOptions: RUN_OPTIONS, wireThinking, providerBuilt, roundCeilingUsd: ceilingUsd, job: VAGUE[0].id, model: MODEL, toolChoice: { name: TOOL }, maxTokens: DRAFT_MAX_TOKENS,
     userText, systemChars: system.length, systemTail: system.slice(-900),
     questionsRequired: schema.required.includes('questions'), questionsSchema: qi,
   }, null, 2)}\n`);
@@ -110,7 +120,8 @@ if (!key.ok) { process.stderr.write(`REFUSED: ${key.message}\n`); process.exit(1
 if (!tag || /[^A-Za-z0-9._-]/.test(tag)) { process.stderr.write('REFUSED: --tag is required (letters, digits, . _ - only)\n'); process.exit(1); }
 const resultsPath = join(__dirname, `results-b-${tag}.json`);
 if (existsSync(resultsPath)) { process.stderr.write(`REFUSED: tag "${tag}" already has results; use a new --tag\n`); process.exit(1); }
-const spendPath = join(__dirname, 'spend.jsonl');
+// one ledger per tag: tag 1's rows are 7 refused calls booked unknown (priced at ceiling, $0.2688), see F179; they must not eat tag 2's cap
+const spendPath = join(__dirname, `spend-b-${tag}.jsonl`);
 const secrets = secretsFromEnv(process.env.DEEPSEEK_API_KEY);
 const say = (s) => process.stdout.write(`${scrub(String(s), secrets)}\n`);
 
@@ -137,7 +148,7 @@ for (let pass = 1; stoppedBy === null && questions.length < NEED_QUESTIONS; pass
     let result; let err = null;
     try {
       // eslint-disable-next-line no-await-in-loop
-      result = await withDeadline(loop.run([{ role: 'system', content: system }, { role: 'user', content: userText }], [tool], { maxTokens: DRAFT_MAX_TOKENS, toolChoice: { name: TOOL } }), DEADLINE_MS);
+      result = await withDeadline(loop.run([{ role: 'system', content: system }, { role: 'user', content: userText }], [tool], RUN_OPTIONS), DEADLINE_MS);
       if (result?.__timedOut) err = 'deadline';
     } catch (e) { err = e.message; }
     const m = sumMeterings(events);
@@ -147,7 +158,7 @@ for (let pass = 1; stoppedBy === null && questions.length < NEED_QUESTIONS; pass
     });
     const usable = isObj(captured) && err === null;
     const qs = usable && Array.isArray(captured.questions) ? captured.questions : [];
-    const rec = { job: job.id, pass, usable, err: err ?? (usable ? null : `no usable tool call (${result?.stopReason ?? 'unknown'})`), costUsd: events.length ? m.costUsd : null, nQuestions: qs.length };
+    const rec = { job: job.id, pass, usable, thinkingStatus: result?.thinkingStatus ?? null, err: err ?? (usable ? null : `no usable tool call (${result?.stopReason ?? 'unknown'})`), costUsd: events.length ? m.costUsd : null, nQuestions: qs.length };
     rounds.push(rec);
     for (const q of qs) {
       const rulesOnLine = lineRules(lines.find((l) => l.n === (isObj(q) ? q.line : undefined)) ?? {}).length;
