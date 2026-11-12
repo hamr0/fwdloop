@@ -1,0 +1,251 @@
+{
+  "summary": {
+    "tag": "2",
+    "model": "deepseek-flash",
+    "rounds": 11,
+    "questions": 11,
+    "withSuggestion": 11,
+    "bar": "at least 8 of 10 questions carry a suggestion, and no call breaks",
+    "brokenCalls": 2,
+    "ruleNoInteger": 0,
+    "ruleNoReal": 0,
+    "stoppedBy": null,
+    "costUsd": 0.02874,
+    "verdict": "FAIL"
+  },
+  "rounds": [
+    {
+      "job": "v01",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0024671999999999997,
+      "nQuestions": 0
+    },
+    {
+      "job": "v02",
+      "pass": 1,
+      "usable": false,
+      "thinkingStatus": "applied",
+      "err": "no usable tool call (tool_use)",
+      "costUsd": 0.0027089999999999996,
+      "nQuestions": 0
+    },
+    {
+      "job": "v03",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0025686,
+      "nQuestions": 1
+    },
+    {
+      "job": "v04",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0025092,
+      "nQuestions": 0
+    },
+    {
+      "job": "v05",
+      "pass": 1,
+      "usable": false,
+      "thinkingStatus": "applied",
+      "err": "no usable tool call (tool_use)",
+      "costUsd": 0.0023645999999999997,
+      "nQuestions": 0
+    },
+    {
+      "job": "v06",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0026094,
+      "nQuestions": 1
+    },
+    {
+      "job": "v07",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0027365999999999996,
+      "nQuestions": 1
+    },
+    {
+      "job": "v08",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.00267,
+      "nQuestions": 2
+    },
+    {
+      "job": "v09",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0027803999999999997,
+      "nQuestions": 2
+    },
+    {
+      "job": "v10",
+      "pass": 1,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0026387999999999997,
+      "nQuestions": 2
+    },
+    {
+      "job": "v01",
+      "pass": 2,
+      "usable": true,
+      "thinkingStatus": "applied",
+      "err": null,
+      "costUsd": 0.0026843999999999995,
+      "nQuestions": 2
+    }
+  ],
+  "questions": [
+    {
+      "job": "v03",
+      "pass": 1,
+      "line": 1,
+      "question": "No file is signed to this run, so there is nothing to read the customer complaints from. Which file (and format, e.g. CSV or Excel) holds the complaints, and which columns identify the complainant's email/address and the complaint?",
+      "suggestion": "Read the complaints from the signed complaints file, using its email and complaint columns.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v06",
+      "pass": 1,
+      "line": 1,
+      "question": "Where does the product description live — is it pasted on the job line, or a file I should be given as an input?",
+      "suggestion": "Paste the product description text directly on this line, or add the file as an input.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v07",
+      "pass": 1,
+      "line": 3,
+      "question": "No file is signed as an input for last year's list; should the comparison use a specific file (name/role) for last year's prices, or should I search the working files for it?",
+      "suggestion": "Compare against the file the person names as last year's price list, matched by supplier and item code.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v08",
+      "pass": 1,
+      "line": 2,
+      "question": "What makes an application 'good' — which criteria or fields should the shortlist be judged on, and how many should it hold?",
+      "suggestion": "Shortlist only applications that meet these criteria: <list them>, and cap the shortlist at <N>.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v08",
+      "pass": 1,
+      "line": 4,
+      "question": "Where do the applications live and how should applicants be notified — email, or writing a reply/decision file into the applications folder? No input folder or send target is defined for this run.",
+      "suggestion": "Read applications from the folder <path> and notify each shortlisted applicant by email to the address given in their application.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v09",
+      "pass": 1,
+      "line": 1,
+      "question": "No bank statement is attached to this job. Which file should the note be based on, and in what format (CSV, PDF, screenshot, pasted text)?",
+      "suggestion": "Base the note on the attached statement file.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v09",
+      "pass": 1,
+      "line": 3,
+      "question": "What does 'brief' mean here: a maximum number of sentences or words?",
+      "suggestion": "Keep the note to at most 5 bullet points and 100 words.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v10",
+      "pass": 1,
+      "line": 1,
+      "question": "No survey results were supplied as an input to this run — where do the survey results live (which file, sheet, or export), so they can be read?",
+      "suggestion": "Read the survey results from the signed survey export (e.g. survey_results.csv).",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v10",
+      "pass": 1,
+      "line": 2,
+      "question": "What shape should the write-up take (sections, length, one finding per question or a narrative summary)?",
+      "suggestion": "Write the findings as a short markdown summary: one heading per survey question, with the top result and evidence for each.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v01",
+      "pass": 2,
+      "line": 2,
+      "question": "Nothing in this job defines what \"tidy\" means or where the vendor list comes from and what shape it should end in. What exact rules should the cleanup follow, and in what format should the tidied list be?",
+      "suggestion": "Tidy it up: one vendor per line, trim whitespace, fix capitalization of names, drop exact duplicates, keep the original order, output as a plain CSV of vendor names.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    },
+    {
+      "job": "v01",
+      "pass": 2,
+      "line": 1,
+      "question": "Which file holds the vendor list (path or pasted contents), so it can be read rather than guessed?",
+      "suggestion": "The vendor list is the attached/pasted list of vendor names.",
+      "ruleNo": null,
+      "rulesOnLine": 0,
+      "hasSuggestion": true,
+      "ruleNoInteger": false,
+      "ruleNoReal": false
+    }
+  ]
+}

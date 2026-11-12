@@ -7017,3 +7017,12 @@ Signed text: M10 am32 (docs/wiki/the-module-ladder.md, signed 2026-11-12). Two P
 
 `results-b-1.json`: 7 rounds, 7 of 7 BROKE, 0 questions, no output. Each failed in about 300 ms with `[OpenAIProvider] Thinking mode does not support this tool_choice` (DeepSeek: thinking on cannot combine with a FORCED tool call). Cause: the script passed a raw `thinking` provider option and no per-call `thinkingMode`; the real drafter (`src/drafter.js` ~496 and ~834) builds the provider with `LIVE_PROVIDER_OPTIONS` and passes bareagent's per-call `thinkingMode: 'off'` with the forced `toolChoice`. Not a verdict on the drafter, nothing generated. Ledger `spend-b-1.jsonl` shows "at least $0.2688": each refused call has no metered round, so the real booking rule (a call that threw with no metering counts `unmetered`, `spendComplete: false`, cost null, repriced at the round ceiling $0.0384) books it unknown; kept unknown, not faked to $0. The real spend is unknown but the provider refused before generating.
 Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `thinkingMode: 'off'`, forced `toolChoice`); `--dry` proves the wire body at $0 (provider transport stubbed): `thinking: {"type":"disabled"}`, forced `tool_choice`, no `reasoning_effort`. The ledger is now one file per tag so tag 1's unknown rows do not use up tag 2's $0.30 cap. Tag 2 not run.
+
+### F179 POC B RESULT, tag 2 (2026-11-12, paid, real deepseek-flash, [MEASURED]): FAIL on the letter
+
+`results-b-2.json` (with `b-2.log` and `spend-b-2.jsonl`): 11 rounds, $0.02874 of the $0.30 cap.
+- **Suggestion part: passes.** 11 questions came back, 11 of 11 carry a non-empty `suggestion` (bar: at least 8 of 10).
+- **No call breaks: fails.** 2 of 11 calls BROKE with "no usable tool call (tool_use)", on v02 and v05. The bar needs no broken call, so the verdict is FAIL; the script's own verdict was FAIL. The bar is not refitted.
+- **ruleNo (reported, deciding nothing):** 0 of 11 integer, 0 real. These vague jobs carry no `~` rules, so null is the expected answer.
+- **Observation (deciding nothing):** 3 of 11 suggestions hold placeholders (`<list them>`, `<path>`, "e.g. survey_results.csv"), and several are about inputs rather than rules ("Read the complaints from the signed complaints file"). `Agree` would add those words as a `~` rule word for word.
+- **Unknown:** whether the 2 breaks come from the new required fields or are baseline drafter noise; no comparison arm was run.
