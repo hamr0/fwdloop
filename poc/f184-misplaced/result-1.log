@@ -1,0 +1,24 @@
+d-00mw23a969-7629/draft-1#1: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw28kbae-d54a/draft-1#0: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw28nmoh-e174/draft-2#0: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw2a2m0v-4cda/draft-1#0: original validator ok=false reds=1; movable objects 1, variants 1
+d-00mw2abisr-178a/draft-1#0: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw2abisr-178a/draft-1#1: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw2abisr-178a/draft-3#0: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mw6xgjxy-39e4/draft#1: original validator ok=true reds=0; movable objects 0, variants 0
+d-00mwcf1yvu-850d/draft-1#1: original validator ok=false reds=1; movable objects 3, variants 3
+d-00mwci2whu-0a3e/draft-1#1: original validator ok=true reds=0; movable objects 1, variants 1
+d-00mwdiofu9-df4f/draft-4#1: original validator ok=true reds=0; movable objects 1, variants 1
+PASS  extra-brace raws: 11
+PASS  originals reproduce POC 3: 9 ok, 2 with a red
+PASS  every variant parses after the repair rule (not repairable: 0)
+variants 12; caught 12; no-op 0; uncaught-and-different 0
+PASS  every variant is caught or a no-op
+validator reds that catch a moved key:
+  6x  declaration: unknown key "5" at declaration.5
+  2x  declaration: unknown key "2" at declaration.2
+  2x  declaration: unknown key "sheet" at declaration.steps[n].sheet
+  1x  declaration: unknown key "6" at declaration.6
+  1x  declaration: unknown key "columns" at declaration.steps[n].columns
+PASS  CAN FAIL: 12 caught variants would be accepted by repair alone (validator skipped)
+VERDICT: PASS
