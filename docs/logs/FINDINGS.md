@@ -7026,3 +7026,6 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 - **ruleNo (reported, deciding nothing):** 0 of 11 integer, 0 real. These vague jobs carry no `~` rules, so null is the expected answer.
 - **Observation (deciding nothing):** 3 of 11 suggestions hold placeholders (`<list them>`, `<path>`, "e.g. survey_results.csv"), and several are about inputs rather than rules ("Read the complaints from the signed complaints file"). `Agree` would add those words as a `~` rule word for word.
 - **Unknown:** whether the 2 breaks come from the new required fields or are baseline drafter noise; no comparison arm was run.
+
+### F179 POC A RESULT, after the build (2026-11-12, $0, [MEASURED])
+`node poc/m10-am32/a.mjs` re-run on branch `m10-am32` after the Part A door change (Part B withdrawn by hamr 2026-11-12). The same post, `{k: 1, answer: 'a rule typed with no button'}` with no `choice`, to the real `author.answer` on a copy of the real draft `d-00mwcib8im-c20d`: `status 400`, `refused: "bad-choice"`, `say: "This page is out of date. Reload it and answer again. Nothing was saved."`, `answerWritten: false`, `redraftWritten: false`. Verdict line: `AFTER: refused, nothing written` (before the build it read `BEFORE: accepted, saved with no choice (hole exists)`). Pass.
