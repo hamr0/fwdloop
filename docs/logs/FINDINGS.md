@@ -7080,3 +7080,12 @@ Same model and shape every time, so it is a provider habit, not weather. Today e
   4. Synthetic negatives stay refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects `{...}{...}`.
 - **Must be able to fail:** the script also runs a LOOSENED rule (any trailing junk allowed) and shows at least one negative (the concatenated pair or trailing text) going from refused to accepted; if the loosened rule changes nothing, the negatives are not testing anything.
 - A pass is a measurement of the rule only; it builds nothing in src/ and signs nothing.
+
+### F183 POC 3 RESULT (2026-11-12, $0, `node poc/f183-brace/repair.mjs`, log `poc/f183-brace/result-1.log`, [MEASURED]): PASS
+
+- **Bar 1: pass.** 11 of 11 extra-brace raws parse after the repair (each drops exactly 1 `}`), and each parsed object is byte-identical (`JSON.stringify`) to parsing the text cut at the error position.
+- **Bar 2: pass.** Each repaired object was run through the real `validateDeclaration` with the drafter's flags (`verbatimGoals`, `fitJobLine`), its draft's own `prose.txt` and `input-facts.json`, and the drafter's code overwrites (`goal`, `flowType`, `readEveryStep`, `questions`/`notChecked` stripped). 9 ok. 2 carry one red each, neither about structure: draft `d-00mw2a2m0v-4cda` "send at line 7 reads the emits of more than one earlier signed ask step ..." and draft `d-00mwcf1yvu-850d` "steps[1].close.columns is for a green step only ...". Caveat: no page or sheet word maps were passed (the drafter passes them when the job has such inputs), so this is the validator as far as it runs without them; the two reds are the ordinary kind a retry would be asked to fix.
+- **Bar 3: pass.** The 1 non-matching raw (`d-00mw23a969-7629` stray quote, "Expected ','") is still refused.
+- **Bar 4: pass.** Refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects, `[1,2]}`. Accepted as designed: one extra `}`, two `}}`, `}` with whitespace.
+- **It can fail:** a LOOSENED rule (any trailing junk, cut back to any `}` that parses) accepts 4 of the 6 negatives (trailing `]`, trailing text, trailing `}x`, two concatenated objects), so the negatives are testing something.
+- Measures the rule only. Nothing in src/ changed, nothing signed.
