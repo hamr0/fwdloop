@@ -7063,3 +7063,20 @@ Fix (harness only): `b.mjs` now copies the real path (`LIVE_PROVIDER_OPTIONS`, `
 - **No final plan carries a failing table check: fails.** 1 final plan does. Draft 3 used the `noDuplicates` Customer table check, got the am5 red (the check already fails on the input), fixed it and ended green. Draft 4 used it, got the am5 red, then ended RED on "structure": "the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 1345)". Its last plan still carried the check, so the bar fails on the letter. That plan was never signable (it ended red).
 - Drafts 1, 2 and 5 never used the bad check (1 `noEmpty` Customer, 2 `allNumbers` Amount, 5 none).
 - Verdict: FAIL on the letter. The bar is not refitted. hamr's ruling, 2026-11-12: keep am5.
+
+## F183 (2026-11-12): broken-JSON drafts on deepseek-flash share one shape, an extra closing brace ([MEASURED] $0 read; POC 3 PRE-REGISTERED)
+
+**Evidence (read only).** `grep -l "not valid JSON"` over `~/.config/fwdloop/flows/.drafts/*/draft*/log.json` and `~/.config/fwdloop/flows/*/runs/*/log.json` gives 27 files (all 27 under `.drafts`, 0 under `runs`). They hold 33 log entries whose outcome says "not valid JSON". 12 of those carry `rawArguments` (the saved raw tool-call text; the other 21 saved none).
+- 11 of the 12 are "Unexpected non-whitespace character after JSON at position N". In every one the raw text is a complete JSON object followed by exactly one extra `}` (raw length minus N is 1; the tail reads `..."]}}`).
+- 1 of the 12 is "Expected ',' or '}' after property value in JSON at position 916" (draft `d-00mw23a969-7629`, a stray quote mid-object, `"knowledgeable": {}", "refused": ...`). Not the extra-brace shape.
+- F182 POC 2 draft 4 hit the same message at position 1345, outside this 27-file set (that log is not in the flows folder).
+Same model and shape every time, so it is a provider habit, not weather. Today each such round is a structure red and a retry (cost and tries).
+
+**POC 3 (PRE-REGISTERED, $0, no key, no network, before any script): a repair rule.** Rule: when `JSON.parse` fails AND the text is a complete JSON object followed only by one or more `}` characters (whitespace allowed), drop those trailing braces and parse. Script `poc/f183-brace/repair.mjs` (never ships; reads the 27 logs read only, writes nothing there).
+- **Pass bar, all of:**
+  1. Every saved raw answer of the extra-brace shape (11 expected) parses after the repair, and the parsed object is byte-identical (`JSON.stringify` of the parse) to parsing the text cut at the error position.
+  2. Each repaired object passes the real `validateDeclaration` as the drafter calls it, OR its validator reds are listed and none is about structure.
+  3. Every NON-matching raw (the stray-quote one, and any other) is still refused by the repair.
+  4. Synthetic negatives stay refused: trailing `]`, trailing text, trailing `}x`, a truncated object, two concatenated objects `{...}{...}`.
+- **Must be able to fail:** the script also runs a LOOSENED rule (any trailing junk allowed) and shows at least one negative (the concatenated pair or trailing text) going from refused to accepted; if the loosened rule changes nothing, the negatives are not testing anything.
+- A pass is a measurement of the rule only; it builds nothing in src/ and signs nothing.
