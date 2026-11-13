@@ -893,6 +893,7 @@ function makeAuditRow({
  * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
+ * @param {any[]} [opts.checkList] - M16 item 5: the plan's signed list; a list line's checks carry the row's `by`
  * @param {Record<string, any>} [opts.mcpGranted] - M13 item 5: this step's signed MCP tools, already bound to its bridge (`runStepRalph` builds them); handed to the model with the verbs
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
@@ -917,6 +918,8 @@ async function runStepTries({
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
   mcpGranted = {},
+  // M16 item 5: the signed list (declaration.checkList), so a check of a list line is tagged by its row in the Audit
+  checkList = undefined,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -1168,7 +1171,7 @@ async function runStepTries({
         n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
       }));
     }
-    tryChecks.push(...closeRecords(step, artifact, closed));
+    tryChecks.push(...closeRecords(step, artifact, closed, checkList));
     saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
@@ -1476,6 +1479,7 @@ export async function runFlow({
 
   const result = await foldFromStep({
     mcpServer: declaration.mcp?.server ?? null,
+    checkList: declaration.checkList,
     i0: 0,
     steps,
     askLines,
@@ -1610,6 +1614,8 @@ async function runAskSlot({
   mcpServer = /** @type {string|null} */ (null),
   // M13 am9: set only for the Ask that shows the whole job; rebuilds `{text}` from the saved outputs after a redo changed one
   rebuildPrior = /** @type {null | (() => ({ok:true,value:any}|{ok:false,red:string}))} */ (null),
+  // M16 item 5: the signed list, handed on to a redo's tries
+  checkList = /** @type {any[]|undefined} */ (undefined),
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -1786,7 +1792,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1851,6 +1857,8 @@ async function foldFromStep({
   resumeRedone = 0,
   // M13 item 5: the job's signed `mcp.server`, for a step that grants MCP tools (`runStepRalph` starts its bridge)
   mcpServer = /** @type {string|null} */ (null),
+  // M16 item 5: the signed list (declaration.checkList): a list line's checks are tagged by their row in the Audit
+  checkList = /** @type {any[]|undefined} */ (undefined),
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1991,6 +1999,7 @@ async function foldFromStep({
       // eslint-disable-next-line no-await-in-loop
       const askResult = await runAskSlot({
         mcpServer,
+        checkList,
         step,
         stepIndex: i,
         askSlot,
@@ -2064,7 +2073,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
@@ -2680,6 +2689,7 @@ export async function resumeRun({
 
     const askResult = await runAskSlot({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       step,
       stepIndex: state.stepIndex,
       askSlot,
@@ -2736,6 +2746,7 @@ export async function resumeRun({
 
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       i0: state.stepIndex + 1,
       steps,
       askLines,
@@ -2942,6 +2953,7 @@ export async function continueRun({
 
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       i0: halt.stepIndex,
       resumeTries,
       steps,

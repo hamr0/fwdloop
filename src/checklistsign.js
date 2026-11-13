@@ -50,3 +50,34 @@ export function checkListReds(declaration) {
   }
   return reds;
 }
+
+/** the job lines that have a list: a plan from before M16 has no `checkList`, so none @param {any} declaration @returns {Set<number>} */
+export function listLinesOf(declaration) {
+  const list = isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList : [];
+  return new Set(list.filter((r) => isRec(r) && Number.isInteger(r.line)).map((r) => /** @type {number} */ (r.line)));
+}
+
+/** the built rows of the list on one line, the floor aside @param {any} declaration @param {number} line */
+const builtOn = (declaration, line) => (isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList : []).filter((r) => isRec(r) && r.line === line && r.state === 'built' && r.kind !== 'floor');
+
+/**
+ * Who made the check at part `idx` of a list line's close (`'you'` a `~` rule, `'agent'` a `!` row, `'default'` a `$` row), read from the row that points at it (`part`), else null.
+ * ONE reader of the rows' `by` for the close's parts (the readout, the plan card and the Audit tag a check through it). Pure.
+ * @param {any} declaration @param {number} line @param {number} idx @returns {'you'|'agent'|'default'|null}
+ */
+export function partByOf(declaration, line, idx) {
+  const r = builtOn(declaration, line).find((x) => isRec(x.part) && x.part.part === idx);
+  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+}
+
+/** who made the fact named `name` of a list line's quote check (the row that built it), else null @param {any} declaration @param {number} line @param {string} name @returns {'you'|'agent'|'default'|null} */
+export function factByOf(declaration, line, name) {
+  const r = builtOn(declaration, line).find((x) => Array.isArray(x.facts) && x.facts.includes(name));
+  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+}
+
+/** who made the result count of a list line's quote check, else null @param {any} declaration @param {number} line @returns {'you'|'agent'|'default'|null} */
+export function countByOf(declaration, line) {
+  const r = builtOn(declaration, line).find((x) => x.kind === 'count');
+  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+}

@@ -40,8 +40,9 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
-import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
-import { LABEL_PICKED } from '../checkwords.js';
+import { checkedLines, notCheckedView, notCheckedLabelOf } from '../checked.js';
+import { LABEL_PICKED, tagOf } from '../checkwords.js';
+import { listLinesOf } from '../checklistsign.js';
 import { panelQuestionText } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -1899,6 +1900,8 @@ export function draftTotals(modelRows, ctx = {}) {
  */
 export function getDraftBlock(flowDir, runDir) {
   const setup = readSetup(flowDir);
+  // M16 item 5: a plan with a list tags the rule a person's answer added `[you]` (a row's `by`), an older plan keeps `[you picked]`
+  const youTag = (() => { try { const d = readFileInside(flowDir, 'declaration.json'); return d.ok && listLinesOf(JSON.parse(d.text)).size > 0 ? tagOf('you') : LABEL_PICKED; } catch { return LABEL_PICKED; } })();
   const rows = [];
   const human = (r, attempt, extra) => ({
     attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
@@ -1942,7 +1945,7 @@ export function getDraftBlock(flowDir, runDir) {
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
-      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${LABEL_PICKED}` : ''}` }));
+      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${youTag}` : ''}` }));
       else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }
@@ -2107,7 +2110,7 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
   const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
-  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: view.items, readNotes: view.readNotes, recorded } };
+  return { steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded } };
 }
 
 /**

@@ -23,8 +23,10 @@ import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { addedLinesOf } from './added-end.js';
-import { factRows } from './citedcheck.js';
-import { plainWords, labelled } from './checkwords.js';
+import { factRows, factSentence, countSentence } from './citedcheck.js';
+import { plainWords, labelled, tagged } from './checkwords.js';
+import { listLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
+import { CARD_T } from './checkblock.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -217,6 +219,7 @@ export function buildReadout({
   if (Array.isArray(declaration.ticketWatch) && declaration.ticketWatch.length) out.push(`  ticket watch: ${declaration.ticketWatch.join(', ')}`);
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
+  const onList = listLinesOf(declaration);
   const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
@@ -224,15 +227,26 @@ export function buildReadout({
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
-    if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
+    // M16: a list line's checks carry the tag of the row that built each (`[you]`, `[agent]`, `[default]`); any other line keeps today's words
+    const listed = onList.has(st.fromLine);
+    if (listed && st.close?.cited && typeof st.close.cited === 'object') {
+      const c = st.close.cited;
+      for (const f of Array.isArray(c.facts) ? c.facts : []) out.push(`     ${tagged(factSentence(f, c.source), factByOf(declaration, st.fromLine, f.name) ?? 'agent')}`);
+      if (countSentence(c)) out.push(`     ${tagged(/** @type {string} */ (countSentence(c)), countByOf(declaration, st.fromLine) ?? 'agent')}`);
+    } else if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
     // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
     if (Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M10 am16: the checks the person picked, signed with the readout, each in the one set of plain words (typed fields, never model prose)
-    if (Array.isArray(st.close?.shape?.picked)) for (const c of st.close.shape.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
+    if (Array.isArray(st.close?.shape?.picked)) st.close.shape.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
     // M10 am22 (1): the checks the person picked for a fact line are signed with the readout too, in the same words
-    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
+    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) st.close.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
+    // M16 R7: the numbers tie of a list line (the `$` row)
+    if (listed && Array.isArray(st.close?.numbersFrom) && st.close.numbersFrom.length > 0) {
+      const before = (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + (Array.isArray(st.close.picked) ? st.close.picked.length : Array.isArray(st.close.shape?.picked) ? st.close.shape.picked.length : 0);
+      out.push(`     ${tagged(`${CARD_T.numbers} ${st.close.numbersFrom.join(', ')}`, partByOf(declaration, st.fromLine, before) ?? 'default')}`);
+    }
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {

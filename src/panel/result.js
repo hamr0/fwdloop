@@ -14,7 +14,7 @@ import { basename, join } from 'node:path';
 import { readFileInside } from '../flow.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
-import { NOT_CHECKED_LABEL } from '../checked.js';
+import { notCheckedLabelOf } from '../checked.js';
 import { checkSendDestination, readArtifactResult } from '../runner.js';
 import { flowTypeOf } from '../declaration.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
@@ -293,7 +293,7 @@ export function buildResult({
   }
   const pages = [...new Set(urls.values())];
   return {
-    flow, runId, lines, pages, pageNote: pages.length ? RESULT_PAGE_MAY_CHANGE : null, notCheckedLabel: NOT_CHECKED_LABEL.charAt(0).toUpperCase() + NOT_CHECKED_LABEL.slice(1), notChecked, readNotes, delivered, gap,
+    flow, runId, lines, pages, pageNote: pages.length ? RESULT_PAGE_MAY_CHANGE : null, notCheckedLabel: ((l) => l.charAt(0).toUpperCase() + l.slice(1))(notCheckedLabelOf(declaration)), notChecked, readNotes, delivered, gap,
     door: door === null ? null : { head: RESULT_DOOR_HEAD, ask: RESULT_DOOR_ASK, askId: door.askId, draftNo: door.draftNo },
   };
 }

@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { serializeArtifact } from './ask.js';
 import { labelled } from './checkwords.js';
+import { listLinesOf, partByOf } from './checklistsign.js';
 
 export const EVERY_STEP = 'every step';
 
@@ -42,20 +43,26 @@ export function outputRecord(step, artifact) {
 /**
  * #3 and up: the close's own checks. A softgreen close carries each of its checks; a green close is one check over all its cited fields; a close that
  * judged nothing (`unparseable`, `crash`) is one check that could not run, with that third outcome as its result.
- * @param {any} step @param {any} artifact @param {{verdict: string, red?: string|null, checks?: Array<{text:string, ok:boolean, result:string|null}>}} closed
+ * @param {any} step @param {any} artifact @param {{verdict: string, red?: string|null, checks?: Array<{text:string, ok:boolean, result:string|null}>}} closed @param {any[]} [checkList] the signed list (M16): a line on it tags its checks
  */
-export function closeRecords(step, artifact, closed) {
-  const rows = factRecords(step, artifact, closed);
+export function closeRecords(step, artifact, closed, checkList = undefined) {
+  // M16 item 5: a check of a list line carries `by`, the row's own (`you` / `agent` / `default`); the Audit draws the tag from it. Any other line keeps the words it has.
+  const decl = Array.isArray(checkList) ? { checkList } : undefined;
+  const listed = decl !== undefined && listLinesOf(decl).has(step?.fromLine);
+  const hasCited = step?.close?.class === 'green' && !!step?.close?.cited;
+  const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback } : {});
+  const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
   const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
-  const pickRows = picks.map((/** @type {any} */ c, i) => ({ n: rows.length + 3 + i, text: labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step) }));
-  // M16 R7: the numbers tie of a text line is one more row (its tag is the panel piece's, P4)
+  const pickRows = picks.map((/** @type {any} */ c, /** @type {number} */ i) => ({ n: rows.length + 3 + i, text: listed ? c.text : labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + i, 'you') }));
+  // M16 R7: the numbers tie of a text line is one more row
   const tie = /** @type {any} */ (closed).numbersCheck;
-  return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step) }] : [])];
+  const picked = Array.isArray(step?.close?.picked) ? step.close.picked.length : Array.isArray(step?.close?.shape?.picked) ? step.close.shape.picked.length : 0;
+  return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + picked, 'default') }] : [])];
 }
 
-/** @param {any} step @param {any} artifact @param {any} closed */
-function factRecords(step, artifact, closed) {
+/** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label */
+function factRecords(step, artifact, closed, partBy = undefined) {
   const source = lineSource(step);
   if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
     return [{
@@ -81,7 +88,10 @@ function factRecords(step, artifact, closed) {
     }];
   }
   // M10 am22 (4): a softgreen check is the person's when it is one of their picks, the drafter's otherwise; the one-key row is code's own and carries no label
-  return (closed.checks ?? []).map((c, i) => ({
-    n: 3 + i, text: /** @type {any} */ (c).id === 'keys' ? c.text : labelled(c.text, /^pick\d+$/.test(String(/** @type {any} */ (c).id)) ? 'picked' : 'agent'), ok: c.ok, result: c.result, source,
-  }));
+  return (closed.checks ?? []).map((c, i) => {
+    const id = String(/** @type {any} */ (c).id);
+    const pk = /^pick(\d+)$/.exec(id);
+    if (partBy !== undefined) return { n: 3 + i, text: c.text, ok: c.ok, result: c.result, source, ...(pk ? { by: partBy(Number(pk[1]) - 1) ?? 'agent' } : {}) };
+    return { n: 3 + i, text: id === 'keys' ? c.text : labelled(c.text, pk ? 'picked' : 'agent'), ok: c.ok, result: c.result, source };
+  });
 }

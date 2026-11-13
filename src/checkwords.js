@@ -30,3 +30,12 @@ export function plainWords(c) {
     default: return `a ${c.rule} check`;
   }
 }
+
+// M16 item 5 (docs/wiki/the-module-ladder.md, "M16"): the tag of a check on a list line is the `by` of its row, one spelling here for the readout, the plan card, the Audit and the Job tab
+// (replaces M10 am22 (4)'s `[you picked]` for list lines only; a sheet row keeps `labelled`).
+/** @type {Readonly<Record<string, string>>} */
+export const TAG = Object.freeze({ you: '[you]', agent: '[agent]', default: '[default]' });
+/** @param {unknown} by @returns {string} the tag of a row by `you` / `agent` / `default`, '' for anything else */
+export const tagOf = (by) => (typeof by === 'string' && Object.hasOwn(TAG, by) ? TAG[by] : '');
+/** @param {string} text @param {unknown} by */
+export const tagged = (text, by) => (tagOf(by) === '' ? text : `${text} ${tagOf(by)}`);
