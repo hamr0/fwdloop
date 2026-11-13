@@ -7216,3 +7216,16 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 ## F189 (2026-11-13): does DeepSeek accept bareguard #82 claimSchema boxes as a forced tool's parameters? ([PRE-REGISTERED, paid, cap $0.03])
 - How: one forced call on deepseek-flash (thinking off, fwd's call path) per distinct claimSchema shape from fwd's 22 saved cells checks (327ea8d + required on single-key boxes).
 - Reported per shape: accepted (a tool call came back) / rejected (the provider error text) / answered-but-invalid (the reply breaks the schema, by fwd's hand validator from F188). Decides nothing for fwd; it is data for bareguard.
+
+### F189 RESULT (2026-11-13, paid $0.0021, 7 calls, `poc/f189-claims/run.mjs`, log `poc/f189-claims/result-1.log`, [MEASURED]): all 7 accepted
+- 22 cells checks collapse to 7 distinct claimSchema shapes (327ea8d, plus `required:[key]` on the single-key boxes that lacked it). deepseek-flash, thinking off, forced tool `answer`, shape wrapped as one property.
+- | shape | keywords | ops | verdict |
+  |---|---|---|---|
+  | 1 | minProperties | rows (no keyColumn) | accepted, valid |
+  | 2 | plain | count/countIf/uniqueCount | accepted, valid |
+  | 3 | additionalProperties:schema + propertyNames.pattern | daysSince | accepted, valid |
+  | 4 | additionalProperties:schema + propertyNames.pattern | band | accepted, valid |
+  | 5 | plain | sumIf | accepted, valid |
+  | 6 | anyOf + minProperties | rows with keyColumn | accepted, valid |
+  | 7 | plain (array of objects) | groupTotals | accepted, valid |
+- No provider rejection; no answered-but-invalid reply (fwd's hand validator, extended for propertyNames.pattern and schema-valued additionalProperties). Unmetered 0. Decides nothing for fwd; data for bareguard.

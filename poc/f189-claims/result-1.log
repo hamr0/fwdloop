@@ -1,0 +1,24 @@
+cells checks 22; distinct claimSchema shapes 7
+model deepseek-flash; thinkingMode off per call; maxTokens 2000
+shape 1 [minProperties] ops rows (2 checks): accepted, valid
+  schema {"type":"object","properties":{"rows":{"type":"array","items":{"type":"integer","minimum":2}}},"minProperties":1,"additionalProperties":false,"required":["rows"]}
+  reply {"claim":{"rows":[2,3,4,5,6]}}
+shape 2 [plain] ops count,countIf,uniqueCount (5 checks): accepted, valid
+  schema {"type":"object","properties":{"value":{"type":"integer"}},"required":["value"],"additionalProperties":false}
+  reply {"claim":{"value":4}}
+shape 3 [additionalProperties:schema+propertyNames.pattern] ops daysSince (4 checks): accepted, valid
+  schema {"type":"object","properties":{"days":{"type":"object","propertyNames":{"pattern":"^[1-9][0-9]*$"},"additionalProperties":{"type":"integer"}}},"required":["days"],"additionalProperties":false}
+  reply {"claim":{"days":{"2":3,"3":14,"4":7,"5":21,"6":5}}}
+shape 4 [additionalProperties:schema+propertyNames.pattern] ops band (2 checks): accepted, valid
+  schema {"type":"object","properties":{"bands":{"type":"object","propertyNames":{"pattern":"^[1-9][0-9]*$"},"additionalProperties":{"type":"string"}}},"required":["bands"],"additionalProperties":false}
+  reply {"claim":{"bands":{"2":"a: 12","3":"b: 30","4":"a: 7","5":"c: 45","6":"d: 18"}}}
+shape 5 [plain] ops sumIf (2 checks): accepted, valid
+  schema {"type":"object","properties":{"value":{"type":"number"}},"required":["value"],"additionalProperties":false}
+  reply {"claim":{"value":19}}
+shape 6 [anyOf+minProperties] ops rows (1 checks): accepted, valid
+  schema {"type":"object","properties":{"rows":{"type":"array","items":{"type":"integer","minimum":2}},"keys":{"type":"array","items":{"type":"string"}}},"minProperties":1,"anyOf":[{"required":["rows"]},{"required":["keys"]}],"additionalProperties":false}
+  reply {"claim":{"rows":[2,3,4,5,6]}}
+shape 7 [plain] ops groupTotals (6 checks): accepted, valid
+  schema {"type":"object","properties":{"totals":{"type":"array","items":{"type":"object","properties":{"group":{"type":"string"},"total":{"type":"number"}},"required":["group","total"],"additionalProperties":false}}},"required":["totals"],"additionalProperties":false}
+  reply {"claim":{"totals":[{"group":"a","total":19},{"group":"b","total":30},{"group":"c","total":45},{"group":"d","total":18}]}}
+unmetered 0; rounds 7; cost 0.0020796; tokens {"inputTokens":2432,"outputTokens":389,"cacheReadTokens":256,"cacheCreationTokens":0}
