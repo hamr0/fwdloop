@@ -320,6 +320,8 @@ export class CheckBlock {
         map.push({ part: parts.length, line: l.n, rows: lineRows[i] ?? [], origin: 'code' });
         parts.push(p);
       });
+      // a follow row ends with its parent's check: the parent's part is known only now, after the line's parts are numbered
+      for (const f of this.rowsOn(l.n).filter((x) => x.parent)) f.part = this.rows.find((x) => x.key === f.parent)?.part ?? null;
     }
     // a suggestion code has not built stays off the card (Audit only, F-b); a held one is trialled: shown under Suggested only when code has proved it builds (hamr 2026-11-13)
     for (const r of this.rows.filter((x) => x.held)) this.trialOffer(r);
@@ -394,7 +396,7 @@ export class CheckBlock {
     this.buildDefaults(l, lineParts, lineRows, factLines);
     for (const f of this.rowsOn(l.n).filter((x) => x.parent)) {
       const par = this.rows.find((x) => x.key === f.parent);
-      f.state = par?.state ?? 'not-checked'; f.reason = par?.state === 'built' ? null : (par?.reason ?? 'not checked'); f.part = par?.part ?? null;
+      f.state = par?.state ?? 'not-checked'; f.reason = par?.state === 'built' ? null : (par?.reason ?? 'not checked'); // its part is set by build(), after the parts are numbered (one owner)
     }
   }
 
