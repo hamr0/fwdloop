@@ -416,6 +416,7 @@ export async function draftToDir({
   /** @type {{picks: object[], kept: object[]}|null} */
   /** @type {any[]|null} */
   let rowChoices = null; // a Revise's carried Drop/Add choices, handed back by draft() and kept in the same record
+  /** @type {any} */
   let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
     proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), onPickRecord: (r) => { pickRecord = r; },
