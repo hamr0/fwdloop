@@ -5,10 +5,10 @@
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /**
- * The checks of one step's close in the block's part order.
- * @param {any} step @returns {{what: string}[]}
+ * The checks of one step's close in the block's part order. M16 am4: with `withSheet` (a plan whose list has sheet rows) each `close.sheet` check is a part too, after the others.
+ * @param {any} step @param {boolean} [withSheet] @returns {{what: string}[]}
  */
-export function closePartsOf(step) {
+export function closePartsOf(step, withSheet = false) {
   const close = isRec(step) && isRec(step.close) ? step.close : {};
   /** @type {{what: string}[]} */
   const parts = [];
@@ -16,6 +16,7 @@ export function closePartsOf(step) {
   const picked = Array.isArray(close.picked) ? close.picked : isRec(close.shape) && Array.isArray(close.shape.picked) ? close.shape.picked : [];
   picked.forEach((/** @type {unknown} */ _c, /** @type {number} */ i) => parts.push({ what: `the picked check ${i + 1} (close.picked)` }));
   if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) parts.push({ what: 'the numbers tie (close.numbersFrom)' });
+  if (withSheet && Array.isArray(close.sheet)) close.sheet.forEach((/** @type {any} */ c) => parts.push({ what: `the sheet check ${isRec(c) ? String(c.id) : '?'} (close.sheet)` }));
   return parts;
 }
 
@@ -29,9 +30,12 @@ export function checkListReds(declaration) {
   const list = declaration.checkList;
   if (!Array.isArray(list) || !list.every(isRec)) return ['declaration: "checkList" must be a list of rows'];
   const steps = Array.isArray(declaration.steps) ? declaration.steps.filter(isRec) : [];
-  const lines = [...new Set(list.filter((r) => Number.isInteger(r.line)).map((r) => /** @type {number} */ (r.line)))].sort((a, b) => a - b);
+  // M16 am4: a plan whose list has sheet rows is held to them for EVERY sheet check of its steps (a plan from before am4 has none: its sheet lines are not examined, as before)
+  const sheetListed = list.some((r) => r.kind === 'sheet');
+  const sheetLines = sheetListed ? steps.filter((st) => isRec(st.close) && Array.isArray(st.close.sheet) && st.close.sheet.length > 0 && Number.isInteger(st.fromLine)).map((st) => /** @type {number} */ (st.fromLine)) : [];
+  const lines = [...new Set([...list.filter((r) => Number.isInteger(r.line)).map((r) => /** @type {number} */ (r.line)), ...sheetLines])].sort((a, b) => a - b);
   const stepsOn = (/** @type {number} */ n) => steps.filter((st) => st.fromLine === n);
-  const partsOn = (/** @type {number} */ n) => stepsOn(n).flatMap((st) => closePartsOf(st));
+  const partsOn = (/** @type {number} */ n) => stepsOn(n).flatMap((st) => closePartsOf(st, sheetListed));
   const built = list.filter((r) => r.state === 'built' && r.kind !== 'floor');
   /** @type {string[]} */
   const reds = [];
@@ -51,8 +55,14 @@ export function checkListReds(declaration) {
   return reds;
 }
 
-/** the job lines that have a list: a plan from before M16 has no `checkList`, so none @param {any} declaration @returns {Set<number>} */
+/** the job lines that have a list: a plan from before M16 has no `checkList`, so none. Sheet rows (M16 am4, `kind: 'sheet'`) do not make a line a block line: a CSV job's other readers stay as they were. @param {any} declaration @returns {Set<number>} */
 export function listLinesOf(declaration) {
+  const list = isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList : [];
+  return new Set(list.filter((r) => isRec(r) && Number.isInteger(r.line) && r.kind !== 'sheet').map((r) => /** @type {number} */ (r.line)));
+}
+
+/** M16 am4: every line the plan card draws a list on - the block's lines and the sheet lines @param {any} declaration @returns {Set<number>} */
+export function cardLinesOf(declaration) {
   const list = isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList : [];
   return new Set(list.filter((r) => isRec(r) && Number.isInteger(r.line)).map((r) => /** @type {number} */ (r.line)));
 }

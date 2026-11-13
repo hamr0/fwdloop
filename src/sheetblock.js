@@ -59,6 +59,9 @@ export function sheetFoundWords(check, claims) {
 /** @param {any} l a job line `{rules?, guardrail?, rule?}` @returns {string[]} its `~` rules, numbered from 1 by position */
 export const rulesOfLine = (l) => lineRules({ ...(Array.isArray(l?.rules) ? { rules: l.rules } : {}), rule: l?.guardrail ?? l?.rule });
 
+/** M16 am4: the words of one sheet check without its tag - the ONE composition (the block's `text` and the list row both use it) @param {string} name @param {string} words @param {string} cw @returns {string} */
+export const sheetPlainText = (name, words, cw) => [name, ...(words === name ? [] : [words]), ...(cw ? [cw] : [])].join(' \u2014 ');
+
 /** the "covers ..." words of one check @param {string[]} rules @returns {string} "" when it covers none */
 export const coversWords = (rules) => rules.map((r) => `covers "${r}"`).join(' · ');
 
@@ -91,7 +94,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       const words = sheetCheckSentence(c);
       const cw = coversWords(rules);
       /** @type {any} */
-      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: labelled([name, ...(words === name ? [] : [words]), ...(cw ? [cw] : [])].join(' — '), 'agent') }; // M10 am22 (4): the AI wrote every sheet check
+      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: labelled(sheetPlainText(name, words, cw), 'agent') }; // M10 am22 (4): the AI wrote every sheet check
       const res = newest && Array.isArray(newest.results) ? newest.results.find((/** @type {any} */ r) => isRec(r) && r.id === c.id) : undefined;
       if (isRec(res) && typeof res.ok === 'boolean') {
         e.ok = res.ok;

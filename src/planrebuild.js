@@ -16,7 +16,9 @@ import { cardOfBlock } from './cardlist.js';
 import { editsOf } from './rowedit.js';
 import { offerRules, rowsFromAnswer, codeScope } from './checkpick.js';
 import { matchRecord, readRowChoices, RECORD_FILE } from './pickrecord.js';
-import { listLinesOf } from './checklistsign.js';
+import { listLinesOf, cardLinesOf } from './checklistsign.js';
+import { csvRolesOf } from './sheetblock.js';
+import { isSheetKey, sheetChoice, withSheetRows, withSheetCard, droppedSheetOf } from './sheetrows.js';
 import { validateDeclaration } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -43,8 +45,9 @@ export function rebuildBlock({ planDir, asks }) {
   const parsed = prose.ok ? parseSignedText(prose.text) : null;
   const declaration = readJson(planDir, 'declaration.json');
   if (!prose.ok || !parsed || !parsed.ok || !isRec(declaration)) return no('This plan could not be read. Nothing was changed.');
+  // the lines the block was given; a CSV job's sheet lines (M16 am4) have rows on the list too, but the block never had them
   const lineSet = listLinesOf(declaration);
-  if (lineSet.size === 0) return no(NO_LIST_SAY);
+  if (cardLinesOf(declaration).size === 0) return no(NO_LIST_SAY);
   const log = readJson(planDir, 'log.json');
   const pageLook = readJson(planDir, 'page-look.json');
   const look = isRec(pageLook?.look) ? { facts: Array.isArray(pageLook.look.facts) ? pageLook.look.facts : [], dropped: Array.isArray(pageLook.look.dropped) ? pageLook.look.dropped : [] } : { facts: [], dropped: [] };
@@ -98,18 +101,21 @@ export function rebuildBlock({ planDir, asks }) {
 
 /**
  * The checks of a rebuilt block put back into the saved plan's declaration (the same assembly the draft used), re-proved by the validator.
- * @param {any} b
- * @returns {{ok: true, declaration: any, notChecked: string[], notCheckedBy: Record<string, string>}|{ok: false, say: string}}
+ * @param {any} b @param {any} [from] the declaration to assemble over (a sheet Drop or Add changes its `close.sheet`); the saved one by default
+ * @returns {{ok: true, declaration: any, notChecked: string[], notCheckedBy: Record<string, string>, sheet: ReturnType<typeof withSheetRows>['sheet']}|{ok: false, say: string}}
  */
-function assembleAgain(b) {
-  const { checkList: _c, pickedLines: _p, ...saved } = b.declaration;
+function assembleAgain(b, from = b.declaration) {
+  const { checkList: _c, pickedLines: _p, ...saved } = from;
   // a document input is listed in a step's reads only by the step that quotes it, and the assembly put it there: take it out first, the assembly adds it again while the fact is still built
   const docs = new Set(docRolesOf(b.parsed.arbiter.sources));
   const rest = { ...saved, steps: (saved.steps ?? []).map((/** @type {any} */ st) => {
     const src = b.lineSet.has(st?.fromLine) && isRec(st.close) && isRec(st.close.cited) ? st.close.cited.source : undefined;
     return typeof src === 'string' && docs.has(src) && Array.isArray(st.reads) ? { ...st, reads: st.reads.filter((/** @type {string} */ r) => r !== src) } : st;
   }) };
-  const a = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet });
+  const built = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet });
+  // M16 am4: the sheet checks are rows on the list too, read from the steps the same way the draft read them
+  const withSheet = withSheetRows({ declaration: built.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter) });
+  const a = { ...built, declaration: withSheet.declaration };
   const cat = loadCatalogue();
   if (!cat.ok) return { ok: false, say: 'The catalogue could not be read. Nothing was changed.' };
   const inPlan = new Set(b.block.rows.filter((r) => r.state === 'built').flatMap((r) => (r.factNames ?? []).map((/** @type {string} */ nm) => `${r.line}:${nm}`)));
@@ -120,7 +126,7 @@ function assembleAgain(b) {
     pageWords: { texts: b.texts, look: pageSources ? { facts: planFacts, dropped: b.look.dropped } : null, docs: docRolesOf(b.parsed.arbiter.sources) },
   });
   if (!verdict.ok) return { ok: false, say: `The changed list did not pass the plan's checks (${String(verdict.reds[0])}). Nothing was changed.` };
-  return { ok: true, declaration: a.declaration, notChecked: a.notChecked, notCheckedBy: a.notCheckedBy };
+  return { ok: true, declaration: a.declaration, notChecked: a.notChecked, notCheckedBy: a.notCheckedBy, sheet: withSheet.sheet };
 }
 
 /** the plan's list and the closes it checks, as one comparable string (the proof that the rebuild is the saved plan) @param {any} d */
@@ -134,12 +140,16 @@ const fingerprint = (d) => JSON.stringify([d.checkList ?? null, (d.steps ?? []).
 export function rowEditPlan({ planDir, op, key, asks = true }) {
   const b = rebuildBlock({ planDir, asks });
   if (!b.ok) return { ok: false, say: b.say, refused: 'no-list' };
+  const dropped = droppedSheetOf(b.record);
   const before = assembleAgain(b);
   if (!before.ok) return { ok: false, say: before.say, refused: 'rebuild' };
   if (fingerprint(before.declaration) !== fingerprint(b.declaration)) return { ok: false, say: REBUILD_CHANGED_SAY, refused: 'changed' };
-  const done = b.block.rowChoice(key, op);
+  // a sheet row is a check of the AI's own sheet step: its Drop or Add changes `close.sheet` (src/sheetrows.js); any other row is the block's
+  const sheetDone = isSheetKey(key) ? sheetChoice({ declaration: b.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter), op, key, dropped }) : null;
+  const done = sheetDone ?? b.block.rowChoice(key, op);
   if (!done.ok) return { ok: false, say: `${done.why[0].toUpperCase()}${done.why.slice(1)}${/[.!?]$/.test(done.why) ? '' : '.'} Nothing was changed.`, refused: 'bad-row' };
-  const after = assembleAgain(b);
+  const droppedNow = sheetDone && sheetDone.ok ? sheetDone.dropped : dropped;
+  const after = assembleAgain(b, sheetDone && sheetDone.ok ? sheetDone.declaration : b.declaration);
   if (!after.ok) return { ok: false, say: after.say, refused: 'rebuild' };
   const target = readJson(planDir, 'target.json');
   const inputFactsText = readFileInside(planDir, 'input-facts.json');
@@ -159,7 +169,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const notChecked = [...oldList.filter((x) => !was.has(x)), ...after.notChecked.filter((x) => !oldList.includes(x) || !was.has(x))];
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
-  const record = isRec(b.record) ? b.record : {};
+  const { sheetDropped: _sd, ...record } = isRec(b.record) ? b.record : {};
   const logRow = { round: (Array.isArray(b.log?.log) ? b.log.log.length : 0) + 1, kind: 'row-edit-human', op, key, outcome: 'answered', at: new Date().toISOString() };
   // the files the new plan keeps as they were (read through the gateway), then the ones it changes; `spec.hash` last, so a folder with one is whole
   /** @type {Record<string, string>} */
@@ -184,8 +194,8 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'declaration.json': declarationText,
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
-      [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord() }),
-      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: cardOfBlock(b.block) }),
+      [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}) }),
+      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: withSheetCard(cardOfBlock(b.block), after.sheet, droppedNow) }),
       'spec.hash': `${h.hash}\n`,
     },
   };

@@ -2694,15 +2694,18 @@
   // M10b am2: what a job line that reads a sheet shows, drawn from the server's ONE block ({guardrails, checked: [{text, ...}], notChecked: [..] | "none"}): its
   // guardrails, "Checked:" with one line per sheet check (name, plain words, covers), then "Not checked:" with the guardrails no check covers, or "none".
   // Pure: the Chat plan card and the Job tab step rows both draw these strings; the server wrote every one of them.
-  function sheetBlockLines(sheet){
+  // M16 am4: with `onList` the checks are drawn as rows of the list (tags, Drop) by the caller, so this draws the rest
+  function sheetBlockLines(sheet, onList){
     if(!sheet) return [];
     var out = [];
     if((sheet.guardrails || []).length){
       out.push("Guardrails:");
       sheet.guardrails.forEach(function(g){ out.push("- " + g); });
     }
-    out.push("Checked:");
-    (sheet.checked || []).forEach(function(c){ out.push("- " + c.text); });
+    if(!onList){
+      out.push("Checked:");
+      (sheet.checked || []).forEach(function(c){ out.push("- " + c.text); });
+    }
     if(sheet.notChecked === "none" || !(sheet.notChecked || []).length) out.push("Not checked: none");
     else { out.push("Not checked:"); sheet.notChecked.forEach(function(g){ out.push("- " + g); }); }
     return out;
@@ -5878,7 +5881,7 @@
           checkedLines.push({text: "  " + r.text, by: r.by, op: r.drop ? "drop" : "", key: r.key});
         });
         // M10b am2: a line that reads a sheet: its guardrails, Checked (name, words, covers), Not checked
-        sheetBlockLines(c.sheet).forEach(function(t){ checkedLines.push("  " + t); });
+        sheetBlockLines(c.sheet, onList).forEach(function(t){ checkedLines.push("  " + t); });
       });
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
       // M16 item 5: the checks the agent suggests that are NOT in the job - code has proved each builds; none is checked unless the person adds it

@@ -206,7 +206,9 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   assert.equal(off.ok, true, JSON.stringify(off.reds));
   assert.equal(on.ok, true, JSON.stringify(on.reds));
   assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes, the sheet line untouched');
-  assert.ok(on.declaration.checkList.every((/** @type {any} */ x) => x.line !== 2), 'the sheet line has no row');
+  // M16 am4 (2) (was: the sheet line has no row): the sheet line's only rows are its sheet rows, one per close.sheet check; the block gives it none
+  assert.ok(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).every((/** @type {any} */ x) => x.kind === 'sheet'), 'the sheet line has only sheet rows');
+  assert.equal(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).length, on.declaration.steps.find((/** @type {any} */ st) => st.fromLine === 2).close.sheet.length);
 });
 
 test('flights (page): the fact part becomes close.cited with the source in reads, the picks ride beside it (close.picked, pickedLines), and the `$` numbers tie reaches the text line after it (R7)', async (t) => {
