@@ -101,3 +101,22 @@ test('an input that changed since the draft: the list is not rebuilt on guesswor
   assert.match(r.json().say, /^The inputs of this plan have changed since it was drafted/);
   assert.deepEqual(readdirSync(w.dir(id)).sort(), names);
 });
+
+test('Add on a line with no guardrail of the person\'s: the row is signed Not checked with the signed words (the class of a line comes from its guardrail), the plan still signs', async () => {
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_LEDGER: LEDGER } });
+  writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
+  const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
+  const g = await settle(w, id, ['green', 'red', 'stopped', 'questions-open']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
+  assert.equal(g.list.suggested.length, 1);
+  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
+  const after = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.equal(after.phase, 'green', JSON.stringify(after));
+  const decl = JSON.parse(read(w, id, `${after.plan}/declaration.json`));
+  assert.ok(decl.checkList.some((r) => r.state === 'not-checked' && /^This line has no guardrail of yours/.test(r.reason)), 'break: build the row on a line with no guardrail and the sign proof refuses the plan');
+  assert.ok(after.notChecked.items.some((x) => x.includes('This line has no guardrail of yours')), JSON.stringify(after.notChecked));
+  assert.equal(decl.steps.find((s) => s.fromLine === 3).close.class, 'hitl');
+  const signed = signDraft({ dir: path.join(w.dir(id), after.plan), approve: after.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
+  assert.equal(signed.ok, true, JSON.stringify(signed));
+});

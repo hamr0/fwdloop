@@ -85,3 +85,15 @@ test('(item 1) row readers: the by of a part and of a fact come from the row tha
   assert.equal(factByOf(d, 1, 'city'), 'agent');
   assert.equal(labelled('x', 'picked'), 'x [you picked]', 'a sheet row keeps its label');
 });
+
+import { readFileSync } from 'node:fs';
+
+test('(Must fail: a sheet job changes) a CSV job\'s sheet check keeps its own `[agent]` label even beside a list line; with its list on another line the sheet row is not retagged', () => {
+  const d = JSON.parse(readFileSync(new URL('./fixtures/m16-block/csv/signed-declaration.json', import.meta.url), 'utf8'));
+  const before = checkedLines(d)[1].sentences;
+  assert.ok(before.some((s) => s === 'rows where Amount > 500 [agent]'), JSON.stringify(before));
+  // the same plan with a list on line 1 only: line 2 (the sheet line) is not on the list, so its words do not move
+  const withList = { ...d, checkList: [row({ key: 'L1.$floor', line: 1, kind: 'floor', by: 'default' })] };
+  assert.deepEqual(checkedLines(withList)[1].sentences, before, 'break: tag every green line by row and this reds');
+  assert.equal(notCheckedLabelOf(d), NOT_CHECKED_LABEL);
+});

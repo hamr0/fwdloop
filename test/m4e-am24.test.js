@@ -495,7 +495,9 @@ test('P6: Your answers sit under their line; Checked is listed; Not checked alwa
   assert.deepEqual(none.blocks[1].lines, ['The drafter listed nothing.']);
   for (const st of [null, { ...green, phase: 'red' }, { ...green, phase: 'questions-open' }, { phase: 'green' }]) assert.equal(ex(st), null);
   // the answers and the lists are escaped, never raw html
-  assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(escapeXml\)/);
+  assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(extraLineHTML\)/);
+  // M16 item 5: a line is a string or a row of the list; both are escaped by the one function that draws a line
+  assert.match(fnSrc('extraLineHTML'), /escapeXml\(l\)[\s\S]*escapeXml\(l\.text\)[\s\S]*escapeXml\(l\.key\)/);
 });
 
 test('P7: the answer route is the same gated POST door as every author door (Host + Origin; no token or cookie, amendment 4 item 8): no / foreign Origin, foreign Host -> refused, nothing written; a GET is not a door', async () => {
