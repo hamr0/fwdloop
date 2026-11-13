@@ -142,5 +142,19 @@ export function readRecordFile(file) {
   } catch { return null; }
 }
 
+// borrowed-from: bareloop src/pickrecord.js@v0.56.0 (3383cce) (readRowChoices; read through readFileInside; writeRecordPart not taken, see the M16 p1 report)
+/**
+ * The Drop/Add choices a draft's person made on the confirm card (hamr 2026-11-13, N-2), carried the same way as the picks: tied to the line's words and the row's own name, never to a number.
+ * @param {string} file @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null}
+ */
+export function readRowChoices(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && (e.choice === 'drop' || e.choice === 'add')) : null;
+  } catch { return null; }
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);
