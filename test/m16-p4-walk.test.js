@@ -90,3 +90,31 @@ for (const width of [1280, 390, 320]) {
     ok(await chrome.ev(measure('#chat-extras')));
   });
 }
+
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}px: the Audit's Checks fold - folded, opens to Checks / Not checked / Always checked rows with tags and a state sign, no spill`, { skip: SKIP && 'no browser' }, async (t) => {
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    const w = await world();
+    const { flow } = await w.signedFlow();
+    assert.ok((await w.post('/api/author/run', { flow, inputs: w.inputs(), runId: 'r1' })).json().startId);
+    await until(async () => (await w.get(`/api/runs/${flow}/r1/audit`)).json()?.auditChecks?.always?.every((r) => r.result !== 'none') || null, 20000);
+    await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+    assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden', 20000), 'the page opened the newest run');
+    await chrome.ev('document.getElementById("tab-audit").click()');
+    assert.ok(await chrome.waitFor('!document.getElementById("audit-checks").hidden', 20000), 'the Checks fold is there for a plan with a list');
+    assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), true, 'folded on open');
+    await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").click()');
+    assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), false);
+    const shown = await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-check-row]")).map(function(r){ return {text: r.textContent.replace(/\\s+/g, " ").trim(), tags: r.querySelectorAll(".by").length, by: Array.from(r.querySelectorAll(".by")).map(function(x){return x.getAttribute("data-by");}), result: r.getAttribute("data-result")}; })');
+    assert.ok(shown.length >= 2 && shown.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
+    assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*Checks · \d+ passed/);
+    assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
+    await chrome.ev('document.getElementById("audit-checks").scrollIntoView()');
+    const m = await chrome.ev(measure('#audit-checks'));
+    console.log(`# walk m16-p4 audit ${width}px ${JSON.stringify(m)}`);
+    if (OUT) { mkdirSync(OUT, { recursive: true }); await chrome.screenshot(path.join(OUT, `m16-p4-audit-${width}.png`)); }
+    ok(m);
+  });
+}

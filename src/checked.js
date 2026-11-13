@@ -49,11 +49,8 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
     const out = [];
     const listed = onList.has(st?.fromLine);
     if (listed && cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
-      // M16: the facts the list built, each with the tag of its own row (the `~` rule, the `!` row)
-      const c = st.close.cited;
-      out.push(`Each result must be quoted word for word from the saved page "${c.source}", and the machine checks every quote, every value and the count against that copy.`,
-        ...(Array.isArray(c.facts) ? c.facts : []).map((/** @type {any} */ f) => tagged(factSentence(f, c.source), factByOf(declaration, st.fromLine, f.name) ?? 'agent')),
-        ...(countSentence(c) ? [tagged(/** @type {string} */ (countSentence(c)), countByOf(declaration, st.fromLine) ?? 'agent')] : []));
+      // M16: a list line states the quote check's lead, then each check as a row with the tag of its own row (below)
+      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`);
     } else if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
       // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
       out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited).map((r) => labelled(r, 'agent')));
@@ -70,21 +67,15 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       if (Number.isInteger(shape.linesPerInvoice)) out.push(labelled(`The output comes in blocks of ${shape.linesPerInvoice} lines.`, 'agent'));
       if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(labelled(`Every block carries: ${list(shape.mustCarry)}.`, 'agent'));
       // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
-      if (Array.isArray(shape.picked)) shape.picked.forEach((/** @type {any} */ c, /** @type {number} */ j) => out.push(listed ? tagged(`${plainWords(c)}.${keptOf(st.fromLine, c)}`, partByOf(declaration, st.fromLine, j) ?? 'agent') : labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked')));
+      if (!listed && Array.isArray(shape.picked)) for (const c of shape.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));
     } else {
       if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
       else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
     }
     // M10 am22 (1)(4): the checks the person picked for a fact line, beside its fact rows
-    if (cls === 'green' && Array.isArray(st.close.picked)) {
-      const at = st.close.cited && typeof st.close.cited === 'object' ? 1 : 0; // the fact part comes first in the close's part order
-      st.close.picked.forEach((/** @type {any} */ c, /** @type {number} */ j) => out.push(listed ? tagged(`${plainWords(c)}.${keptOf(st.fromLine, c)}`, partByOf(declaration, st.fromLine, at + j) ?? 'agent') : labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked')));
-    }
-    // M16 R7: the numbers tie of a list line, the `$` row's words
-    if (listed && Array.isArray(st.close.numbersFrom) && st.close.numbersFrom.length > 0) {
-      const pickedN = Array.isArray(st.close.picked) ? st.close.picked.length : Array.isArray(shape.picked) ? shape.picked.length : 0;
-      out.push(tagged(`${CARD_T.numbers} ${st.close.numbersFrom.join(', ')}.`, partByOf(declaration, st.fromLine, (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + pickedN) ?? 'default'));
-    }
+    if (!listed && cls === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));
+    // M16 item 5: the checks of a list line, one tagged sentence each, from the rows' own reader
+    if (listed) out.push(...listPartRows(declaration, st, keptOf).map((r) => tagged(r.text, r.by)));
     return {
       step: i + 1, line: Number.isInteger(st?.fromLine) ? st.fromLine : null, goal: typeof st?.goal === 'string' ? st.goal : '', class: String(cls), sentences: out,
       ...(sheet && cls === 'green' ? { sheet } : {}),
@@ -107,4 +98,29 @@ export function notCheckedView(items, declaration) {
   const block = notCheckedBlock(items, notCheckedLabelOf(declaration));
   const { notChecked, readNotes } = splitReadNotes(block.items, signedFactNames(declaration));
   return { label: block.label, items: notChecked, readNotes };
+}
+
+/**
+ * The checks of one list line's step as rows `{text, by, part}` in the close's part order (the quote check's facts and count, each picked check, the numbers tie), each with the `by` of the row that built it.
+ * ONE reader for the plan card's sentences and the Audit's Checks fold; `part` is the index the signed list's rows point at (src/checklistsign.js). Pure.
+ * @param {any} declaration @param {any} st the step @param {(line: number, c: any) => string} [keptOf]
+ * @returns {{text: string, by: 'you'|'agent'|'default', part: number}[]}
+ */
+export function listPartRows(declaration, st, keptOf = () => '') {
+  const close = st?.close && typeof st.close === 'object' ? st.close : {};
+  const line = st?.fromLine;
+  /** @type {{text: string, by: 'you'|'agent'|'default', part: number}[]} */
+  const out = [];
+  let idx = 0;
+  if (close.cited && typeof close.cited === 'object') {
+    const c = close.cited;
+    for (const f of Array.isArray(c.facts) ? c.facts : []) out.push({ text: factSentence(f, c.source), by: factByOf(declaration, line, f.name) ?? 'agent', part: idx });
+    const count = countSentence(c);
+    if (count) out.push({ text: count, by: countByOf(declaration, line) ?? 'agent', part: idx });
+    idx += 1;
+  }
+  const picked = Array.isArray(close.picked) ? close.picked : Array.isArray(close.shape?.picked) ? close.shape.picked : [];
+  for (const c of picked) { out.push({ text: `${plainWords(c)}.${keptOf(line, c)}`, by: partByOf(declaration, line, idx) ?? 'agent', part: idx }); idx += 1; }
+  if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) out.push({ text: `${CARD_T.numbers} ${close.numbersFrom.join(', ')}.`, by: partByOf(declaration, line, idx) ?? 'default', part: idx });
+  return out;
 }

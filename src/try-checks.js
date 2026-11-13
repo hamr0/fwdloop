@@ -50,7 +50,7 @@ export function closeRecords(step, artifact, closed, checkList = undefined) {
   const decl = Array.isArray(checkList) ? { checkList } : undefined;
   const listed = decl !== undefined && listLinesOf(decl).has(step?.fromLine);
   const hasCited = step?.close?.class === 'green' && !!step?.close?.cited;
-  const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback } : {});
+  const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback, part: idx } : {});
   const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
   const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
@@ -91,7 +91,7 @@ function factRecords(step, artifact, closed, partBy = undefined) {
   return (closed.checks ?? []).map((c, i) => {
     const id = String(/** @type {any} */ (c).id);
     const pk = /^pick(\d+)$/.exec(id);
-    if (partBy !== undefined) return { n: 3 + i, text: c.text, ok: c.ok, result: c.result, source, ...(pk ? { by: partBy(Number(pk[1]) - 1) ?? 'agent' } : {}) };
+    if (partBy !== undefined) return { n: 3 + i, text: c.text, ok: c.ok, result: c.result, source, ...(pk ? { by: partBy(Number(pk[1]) - 1) ?? 'agent', part: Number(pk[1]) - 1 } : {}) };
     return { n: 3 + i, text: id === 'keys' ? c.text : labelled(c.text, pk ? 'picked' : 'agent'), ok: c.ok, result: c.result, source };
   });
 }

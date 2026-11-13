@@ -43,6 +43,7 @@ import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, notCheckedLabelOf } from '../checked.js';
 import { LABEL_PICKED, tagOf } from '../checkwords.js';
 import { listLinesOf } from '../checklistsign.js';
+import { auditChecksOf } from '../auditchecks.js';
 import { panelQuestionText } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -2024,7 +2025,7 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, auditChecks: ReturnType<typeof auditChecksOf>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
   root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
@@ -2052,6 +2053,15 @@ export function getRunAudit({
     // never a second, client-side re-grouping.
     groups,
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result; null for a plan with no list
+    auditChecks: (() => {
+      if (!catalogue) return null;
+      const job = readRunJob({ root, name: flow, catalogue, runDir: run.runDir }).read;
+      if (!job.ok) return null;
+      const setup = readSetup(run.flowDir);
+      const sign = setup.present ? setup.rows.findLast((/** @type {any} */ r) => r.kind === 'sign') : undefined;
+      return auditChecksOf(job.declaration, readChecks(run.runDir), sign?.notChecked ?? null);
+    })(),
     // M8 item 6: what the planner was told from earlier runs, READ-ONLY (borrowed-from: bareloop src/panel/server.js@v0.46.0:1854): the exact block as the run's record kept it, `hints` = the same text split
     // into fields by learn.js's parseHintBlock (the one reader). Empty (no box) when the run was handed nothing: no record, or a run that reused its plan.
     learnings: (() => { const rec = readLearningsRecord(run.runDir); return rec === null ? [] : [{ phase: rec.phase, text: rec.text, chars: rec.text.length, ids: rec.ids, hints: parseHintBlock(rec.text) }]; })(),
