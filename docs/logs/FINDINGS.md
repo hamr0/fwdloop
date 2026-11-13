@@ -7233,3 +7233,10 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 ### F188c PRE-REGISTERED (2026-11-13, $0): bareguard #82 @ cc2d173, the same peer test
 - How: run2.mjs copied to run3.mjs, pointed at a fresh `git archive cc2d173` copy in /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82c. Same pairs and forced cases as F188b, same claim bar (each of the 22 saved cells checks: claimSchema requires the same key(s) as sheetAnswerProps, except a rows check with keyColumn may require {rows} OR {keys}; `{}` rejected by every one). Added forced case: a where entry with an unknown cmp -> groundedLiterals reports missing kind "invalid".
 - PASS if every pair identical, claim bar 22/22, every saved check validates against checkSchema, all forced cases caught. FAIL otherwise. Never change the bar.
+
+### F188c RESULT (2026-11-13, $0, `node poc/f188-bg82/run3.mjs`, log `poc/f188-bg82/result-3.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ cc2d173.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. Every saved check validates against checkSchema 35/35 (fwd's own 35/35); #82 never null.
+- **Claim bar: 22/22** (required keys match fwd's; rows with keyColumn rows OR keys); `{}` rejected 22/22. The F188b miss (rows without keyColumn lacking `required`) is closed.
+- **Forced cases, 4/4 caught:** not-a-column; sha-mismatch (stopped, fault.inputs ["t"]); literal not in the words (where[0].value); unknown cmp (groundedLiterals missing kind "invalid").
+- Nothing in src/ changed, nothing signed.
