@@ -7212,3 +7212,7 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Claim bar: 20/22 on the letter (FAIL).** `{}` rejected 22/22; the 3 `rows` checks with keyColumn get `anyOf [{rows},{keys}]` and match; the other 19 match fwd's required key. The 2 misses are `rows` checks without keyColumn (m10-walk-csv-4 line 2, m10b-expenses line 2): claimSchema has properties [rows], minProperties 1 and no `required`, fwd's box requires [rows]. In effect equal (the only property is rows and `{}` is rejected), but `required` is empty, so the letter of "requires the same key" is not met. Bar not changed; the ambiguity is the bar's wording, for hamr to rule.
 - **Forced cases, all caught (3/3).**
 - Nothing in src/ changed, nothing signed.
+
+## F189 (2026-11-13): does DeepSeek accept bareguard #82 claimSchema boxes as a forced tool's parameters? ([PRE-REGISTERED, paid, cap $0.03])
+- How: one forced call on deepseek-flash (thinking off, fwd's call path) per distinct claimSchema shape from fwd's 22 saved cells checks (327ea8d + required on single-key boxes).
+- Reported per shape: accepted (a tool call came back) / rejected (the provider error text) / answered-but-invalid (the reply breaks the schema, by fwd's hand validator from F188). Decides nothing for fwd; it is data for bareguard.
