@@ -466,7 +466,7 @@ export async function draft({
   mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcp = /** @type {any} */ (null),
-  // M16 S1-S4: build the check block over the job's step lines and run its turns (the suggest calls, the asks, the row-edit turn). OFF = the draft is exactly what it was; the declaration path runs either way (S5-S7 replace it)
+  // M16: build the check block over the job's step lines, run its turns and assemble the checks of those lines from its rows (S5-S7). OFF = the pre-M16 draft. NOT yet the default: flipping it fails 27 test files (see the P3b report)
   checkList = false,
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
@@ -850,7 +850,8 @@ export async function draft({
     if (!pageNotChecked.includes(line)) pageNotChecked.push(line);
   }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
-  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0) {
+  // a line with nothing to check (no `~` rule of the person's, no input text for a `!` row to be built from) has no list to edit: no turn is paid for it (M16 item 2, "every job line with checks")
+  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule'))) {
     const texts = block.texts;
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
@@ -1067,10 +1068,10 @@ export async function draft({
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;
     // M16 S7: a red on a check the BLOCK built is a fault of the build, not of the job: the draft stops in plain words, the AI is never asked to fix it (R2); reds on steps, reads, asks, send stay a revise
-    const faults = !verdict.ok && assembled ? verdict.reds.filter((r) => isBuildFault(r, linesNamedByReds([r], declaration, lineNums).filter((n) => assembled.built.has(n)))) : [];
+    const faults = !verdict.ok && assembled ? /** @type {string[]} */ (/** @type {any} */ (verdict).reds).filter((r) => isBuildFault(r, linesNamedByReds([r], declaration, lineNums).filter((n) => assembled.built.has(n)))) : [];
     if (faults.length) {
       entry.outcome = 'plan-red';
-      entry.reds = [...verdict.reds];
+      entry.reds = [.../** @type {any} */ (verdict).reds];
       log.push(entry);
       lastReds = [buildFaultWords(faults)];
       stop = 'plan-red';

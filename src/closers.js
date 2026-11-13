@@ -271,7 +271,7 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[] } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[], numbersFrom?: number[] } }} step
  * @param {unknown} artifact
  * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any, numbers?: {quotes: Record<string, string[]>, missing: number[]} }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it

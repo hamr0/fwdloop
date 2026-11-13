@@ -100,6 +100,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     if (row?.hidden) return null;
     return `line ${r.line}: ${r.kind === 'rule' && row?.text ? `"${row.text}"` : `${r.kind} ${r.key}`} - ${r.reason}`;
   }).filter((x) => x !== null);
+  /** @type {Record<string, any>} */
   const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList };
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
   return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), built };
