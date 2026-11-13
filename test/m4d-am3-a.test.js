@@ -16,10 +16,13 @@ async function wireBody(extra) {
     req.on('data', (c) => { raw += c; });
     req.on('end', () => {
       body = JSON.parse(raw);
+      // M16 (a): the list's own turns are answered empty by the name of the forced tool; the declaration turn is the last request
+      const asked = body.tools?.[0]?.function?.name ?? 'emit_declaration';
+      const answer = { emit_declaration: validArgs(), suggest_extra_checks: { extra: [] }, submit_edits: { edits: [] } }[asked];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
-          { id: 't1', type: 'function', function: { name: 'emit_declaration', arguments: JSON.stringify(validArgs()) } }] } }],
+          { id: 't1', type: 'function', function: { name: asked, arguments: JSON.stringify(answer) } }] } }],
         model: 'deepseek-flash', usage: { prompt_tokens: 1000, completion_tokens: 200, prompt_tokens_details: { cached_tokens: 0 } },
       }));
     });
@@ -62,7 +65,7 @@ function recProvider(replies) {
   const inner = p.generate.bind(p);
   p.schemas = [];
   p.generate = async (messages, tools, options) => {
-    p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters)));
+    if (tools[0]?.name === 'emit_declaration') p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters))); // M16 (a): the declaration rounds only
     return inner(messages, tools, options);
   };
   return p;
@@ -79,7 +82,7 @@ test('item 3: a cap cut-off on tries 1 and 2 opens the try-3 question; a questio
   assert.match(p.calls[2].messages.at(-1).content, /questions/);
   assert.deepEqual(r.questions, [{ line: 1, question: 'which file?' }], 'a cut-off names no line: every job line may be asked about');
   assert.equal(r.revisions, 2);
-  assert.match(r.log[0].outcome, /^structure: truncated/, 'still named truncation, never "no tool call"');
+  assert.match(r.log.find((e) => e.kind === 'first').outcome, /^structure: truncated/, 'still named truncation, never "no tool call"');
 });
 
 test('item 3: a cut-off try 1 then a validator red on try 2 also opens try 3', async () => {
@@ -100,5 +103,5 @@ test('item 3: one cut-off then a finished try 2 never opens questions; a cut-off
   assert.equal(r2.stop, 'structure');
   assert.match(r2.reds[0], /^truncated:/);
   assert.equal(r2.structureRetries, MAX_STRUCTURE_RETRIES);
-  assert.equal(r2.rounds, 3 + MAX_STRUCTURE_RETRIES, 'two failed tries, then try 3 with its structure retries');
+  assert.equal(r2.rounds, 2 + 3 + MAX_STRUCTURE_RETRIES, 'M16 (a): +2 the list\'s two turns; two failed tries, then try 3 with its structure retries');
 });
