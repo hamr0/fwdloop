@@ -103,7 +103,7 @@ for (const width of [1280, 390, 320]) {
     await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
     assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden', 20000), 'the page opened the newest run');
     await chrome.ev('document.getElementById("tab-audit").click()');
-    assert.ok(await chrome.waitFor('!document.getElementById("audit-checks").hidden', 20000), 'the Checks fold is there for a plan with a list');
+    assert.ok(await chrome.waitFor('!!document.querySelector("#audit-groups [data-testid=audit-checks-group]")', 20000), 'the Checks fold is there for a plan with a list');
     assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), true, 'folded on open');
     await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").click()');
     assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), false);
@@ -111,8 +111,8 @@ for (const width of [1280, 390, 320]) {
     assert.ok(shown.length >= 2 && shown.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
     assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*Checks · \d+ passed/);
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
-    await chrome.ev('document.getElementById("audit-checks").scrollIntoView()');
-    const m = await chrome.ev(measure('#audit-checks'));
+    await chrome.ev('document.querySelector("[data-testid=audit-checks-group]").scrollIntoView()');
+    const m = await chrome.ev(measure('[data-testid=audit-checks-group]'));
     console.log(`# walk m16-p4 audit ${width}px ${JSON.stringify(m)}`);
     if (OUT) { mkdirSync(OUT, { recursive: true }); await chrome.screenshot(path.join(OUT, `m16-p4-audit-${width}.png`)); }
     ok(m);

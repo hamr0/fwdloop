@@ -1530,7 +1530,6 @@
             </div>
             <div id="audit-filter-empty" class="hint" data-testid="audit-filter-empty" hidden style="padding:12px 0;"></div>
             <div id="audit-learnings" data-testid="audit-learnings" hidden></div>
-            <div id="audit-checks" data-testid="audit-checks" hidden></div>
             <div id="audit-groups" data-testid="audit-groups"></div>
             <div class="audit-table-scroll" id="audit-flat-wrap" hidden>
               <table data-testid="audit-table">
@@ -4085,7 +4084,7 @@
     box.appendChild(wrap);
   }
   // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result (server: `auditChecks`).
-  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape)
+  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape), appended inside #audit-groups
   // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
   function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
   function byTagOf(by){ return tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + tagWordOf(by) + '</span>'; }
@@ -4099,13 +4098,7 @@
     if(rows.some(function(r){ return r.result === "none"; })) return glyphClass("[\u00B7]");
     return glyphClass("[\u2713]");
   }
-  function renderAuditChecks(result){
-    var box = document.getElementById("audit-checks");
-    box.innerHTML = "";
-    var ac = result && result.auditChecks ? result.auditChecks : null;
-    var any = ac && ((ac.checks || []).length || (ac.notChecked || []).length || (ac.always || []).length);
-    box.hidden = !any;
-    if(!any) return;
+  function auditChecksEl(ac){
     var all = (ac.checks || []).concat(ac.always || []);
     var nPass = all.filter(function(r){ return r.result === "passed"; }).length;
     var nFail = all.filter(function(r){ return r.result === "failed"; }).length;
@@ -4132,7 +4125,7 @@
     btn.addEventListener("click", function(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); });
     if(auditExpanded["\u0000checks"] === true) paint(true);
     wrap.appendChild(btn); wrap.appendChild(body);
-    box.appendChild(wrap);
+    return wrap;
   }
   function renderAuditGroups(result){
     var runKey = currentFlow + "/" + currentRunId;
@@ -4183,6 +4176,9 @@
       container.appendChild(nrow);
       anyVisible = true;
     }
+    // hamr ruling A (2026-11-13): the card's own sections, one of the Audit's groups, after the schedule and the Needs-you line and before the step groups (bareloop v0.56.0 renderAuditGroups order)
+    var ac = result.auditChecks;
+    if(ac && ((ac.checks || []).length || (ac.notChecked || []).length || (ac.always || []).length)) container.appendChild(auditChecksEl(ac));
     var groups = (draftG ? [draftG] : []).concat(result.empty ? [] : (result.groups || []));
     groups.forEach(function(g){
       var rows = (g.rows || []).filter(auditRowMatchesFilter);
@@ -4286,7 +4282,6 @@
   function paintAudit(result){
     var anyGrouped = renderAuditGroups(result);
     renderAuditLearnings(result);
-    renderAuditChecks(result);
     var anyFlat = renderAuditFlat(result);
     var filterEmpty = document.getElementById("audit-filter-empty");
     var nothingMatched = auditViewMode === "flat" ? !anyFlat : !anyGrouped;
