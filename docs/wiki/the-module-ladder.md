@@ -3648,3 +3648,7 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 > **Must fail when:** the AI writes a check; a check reaches the plan that is not on the list; a Drop or Add calls the AI or spends; a sheet or Tickets job changes; an answer with an extra `}` is no longer repaired; a file is copied from a bareloop branch instead of the tag.
 > **Out of scope:** any change bareloop makes after v0.56.0; old runs are not repaired.
 > **Cap:** POCs and drafts about 30 cents; build $0.
+
+**M16 amendment 1 — SIGNED by hamr 2026-11-13 ("sign m16 am1"), the text exactly as shown.** Why: F185 POC 2 bar (c) FAIL: the block's `$` cited default reds m14-walk-5 run-5's accepted output on lines 1, 3 and 5 (`"cites" has nothing under "notes"`; fwd text artifacts carry no cites); POC 1 found the block adds rows to ask and send lines.
+
+> **M16 am1.** On fwdloop's lines the block's `$` cited default ("every claim is backed by a quote copied from <input>") is not added; fwd's own quote checks (a page-quoting step, M10 am7) stay as they are. The `$` floor default stays. The block is given step lines only; ask, send and sheet lines are not given to it. **Done when:** F185 POC 2 bar (c) passes on m14-walk-5 run-5. **Must fail when:** a cited row appears on a fwd writing line; an ask or send line gets a block row.
