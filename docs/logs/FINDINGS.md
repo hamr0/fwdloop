@@ -7279,3 +7279,10 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 ### F188g PRE-REGISTERED (2026-11-13, $0): installed bareguard ^0.36.0 (am4 Done-when 1)
 - How: bump package.json to `"bareguard": "^0.36.0"`, `npm install`, confirm node_modules/bareguard/package.json = 0.36.0. Then the same run4.mjs, unchanged, with BG82=/home/hamr/PycharmProjects/fwdloop/node_modules/bareguard. Now fwd's own functions use 0.36.0 too, so both sides are the installed package.
 - PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188g RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-7.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.36.0 installed from npm via package.json ^0.36.0; the log header names /home/hamr/PycharmProjects/fwdloop/node_modules/bareguard ("0.36.0"; its "8b40271" is the script's hardcoded label). fwd's own functions use the same installed package.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d-f.
+- Nothing in src/ changed, nothing signed.
