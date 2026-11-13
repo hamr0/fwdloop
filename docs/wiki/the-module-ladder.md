@@ -3709,6 +3709,7 @@ Peer state (2026-11-13):
 - No row-edit turn is paid for a job with nothing to edit (no `~` rule and no input text); the ledger-suggest call needs an input text, as in bareloop.
 - Only declaration rounds are "tries" in the draft's step list and the Audit (src/draft-steps.js `triesOf`); the list's ledger-suggest and row-edit turns are rounds, not tries the AI fixed.
 - The AI's notChecked list is kept beside the rows' reasons (M4e am24/am25 stand; R4 overridden).
+- Sheet rows (am4 (2), unsigned): a sheet check whose `covers` names one of the person's `~` rules is `[you]`, a sheet check that covers none (the AI added it) is `[agent]`; no sheet check is `[default]`. Drop is offered on `[agent]` sheet rows only; Add puts a dropped one back at its place (the dropped check is kept in picks-record.json `sheetDropped`). A plan whose list has no sheet row (drafted before am4) is not examined for sheet rows, so a saved sheet job reads as before. The Audit, Result tab and signed readout keep their `[agent]` sheet words.
 
 **M16 amendment 4 — SIGNED by hamr 2026-11-13 ("sign m16 am4"), the text exactly as shown.** Why: bareguard 0.36.0 shipped ruling #82. F188f PASS: on every saved sheet job, the published package checks exactly as fwd's own code does (16/16, 35/35, 27/27, forced 4/4). hamr 2026-11-13: sheet rows go on the same list, and only the card changes for a CSV job.
 
