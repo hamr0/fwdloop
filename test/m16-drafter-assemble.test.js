@@ -134,3 +134,76 @@ test('(R4) the AI\'s own notChecked is not kept for the lines of the list: the N
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.ok(!r.notChecked.includes('the garden is pretty'), 'break: keep cleanNotChecked(rawNotChecked) on the list path and this reds');
 });
+
+// ---- Tickets, CSV and the m14-walk-5 accepted output, with the list on ---------------------------------------------------------------------------------------------
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { closeByClass } from '../src/closers.js';
+import { textOf, rd } from './m16-drafter-fixture.mjs';
+
+test('m14-walk-5 (am1): the accepted run-5 outputs pass the checks the block built for lines 3 and 5, and a breaking output does not', async (t) => {
+  const r = await go(router(handlers(aiDecl())), walkProse(t, WALK));
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const step = (/** @type {number} */ n) => r.declaration.steps.find((/** @type {any} */ s) => s.fromLine === n);
+  const out = (/** @type {string} */ f) => JSON.parse(rd(`m14-walk-5/run-5/${f}`));
+  const ctx = { reads: {}, businessDate: '2026-11-13' };
+  assert.equal((await closeByClass(step(3), out('week_jobs.json'), ctx)).verdict, 'green');
+  assert.equal((await closeByClass(step(5), out('neighbour_note.json'), ctx)).verdict, 'green');
+  assert.equal((await closeByClass(step(3), { text: '1. one\n2. two' }, ctx)).verdict, 'red', 'the check can fail: two bullets are not exactly 3');
+  assert.equal((await closeByClass(step(5), { text: 'word '.repeat(90) }, ctx)).verdict, 'red');
+});
+
+test('Tickets: the plan with the list is the ticket job as before (same ticketFilter, same closes on the step lines), and it validates', async () => {
+  const prose = `1. Read the ticket and say what is broken,
+   guardrail: priority P1 or P2 only
+2. ask 30m: check it with me,
+   guardrail: nothing goes out before I accept
+3. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.25 per run
+guardrail: send at line 3 to file:poc/m0/out
+guardrail: source issues = page:https://github.com/flutter/flutter/issues
+`;
+  const decl = {
+    steps: [
+      { primitives: ['read'], reads: ['issues'], emits: 'ticket_note', fromLine: 1, close: { class: 'hitl' } },
+      { primitives: [], reads: ['ticket_note'], emits: 'ask_check', fromLine: 2, close: { class: 'hitl' } },
+      { primitives: ['write'], reads: ['ask_check'], emits: 'written', fromLine: 3, close: { class: 'hitl' } },
+    ],
+    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1', 'P2'] },
+  };
+  const mk = () => router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+  const base = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
+  const on = await go(mk(), prose, { ...base, checkPicks: [] });
+  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, ...base });
+  assert.equal(on.ok, true, JSON.stringify(on.reds));
+  assert.equal(off.ok, true, JSON.stringify(off.reds));
+  assert.deepEqual(on.declaration.ticketFilter, off.declaration.ticketFilter);
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes on every line');
+  assert.deepEqual(on.declaration.guardrailClasses, off.declaration.guardrailClasses);
+  assert.ok(Array.isArray(on.declaration.checkList) && on.declaration.checkList.every((/** @type {any} */ x) => x.line === 1), 'rows only on the step line');
+});
+
+test('CSV: the sheet line stays on the sheet path (same close.sheet and close.columns as the signed job), and the plan with the list validates', async (t) => {
+  const home = mkdtempSync(path.join(tmpdir(), 'fwdloop-m16c-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(path.join(home, 'out'));
+  const csv = path.join(home, 'base.csv');
+  writeFileSync(csv, rd('csv/file.csv'));
+  const prose = rd('csv/prose.txt').replace('file:/home/user/fwdloop-out', `file:${path.join(home, 'out')}`).replace('file:/home/user/work/base.csv', `file:${csv}`);
+  const signed = JSON.parse(rd('csv/signed-declaration.json'));
+  const { goal: _g, ...rest } = signed;
+  const decl = { ...rest, steps: signed.steps.map((/** @type {any} */ s) => { const { goal: _x, ...st } = s; return st; }) };
+  delete decl.inputFacts;
+  const sheetAns = textOf(JSON.stringify({ facts: [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }] }));
+  const mk = () => router({ map: sheetAns, submit_edits: NONE, suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', decl) });
+  const on = await go(mk(), prose, { checkPicks: [] });
+  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, offerQuestions: false });
+  assert.equal(off.ok, true, JSON.stringify(off.reds));
+  assert.equal(on.ok, true, JSON.stringify(on.reds));
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes, the sheet line untouched');
+  assert.ok(on.declaration.checkList.every((/** @type {any} */ x) => x.line !== 2), 'the sheet line has no row');
+});
