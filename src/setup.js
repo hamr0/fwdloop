@@ -56,7 +56,8 @@ function planRow(sessionDir, rel, kind, n) {
     structureRetries: Number.isInteger(log?.structureRetries) ? log.structureRetries : null,
     verdict, hash, gap,
     // M4d am15: every try of this plan (label, passed, the checker's raw refusals, the round's words), for the Audit Draft group; only when a retry happened
-    ...(Array.isArray(log?.log) && log.log.length > 1 ? { tries: triesOf(log.log) } : {}),
+    // M16: tries are the declaration rounds only (triesOf), so the list's own turns do not make a one-try draft look retried
+    ...(Array.isArray(log?.log) && triesOf(log.log).length > 1 ? { tries: triesOf(log.log) } : {}),
   };
 }
 

@@ -16,7 +16,7 @@ function recProvider(replies) {
   const inner = p.generate.bind(p);
   p.schemas = [];
   p.generate = async (messages, tools, options) => {
-    p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters)));
+    if (tools[0]?.name === 'emit_declaration') p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters))); // M16 (a): the declaration rounds only (the list's two turns are answered by fakeProvider)
     return inner(messages, tools, options);
   };
   return p;
