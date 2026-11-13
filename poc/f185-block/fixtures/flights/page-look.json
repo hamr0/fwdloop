@@ -1,0 +1,239 @@
+{
+  "pages": [
+    {
+      "role": "flights",
+      "address": "https://www.google.com/travel/flights?q=Flights+from+MAD+to+FCO+on+2026-11-25+one+way&hl=en&curr=USD",
+      "sha256": "aa3c22c4d4cf7cd36439a606e061bb2aaad150aeaf4a52534a8b212374b3668d",
+      "bytes": 32648,
+      "frozen": "flights.txt",
+      "attempts": 1,
+      "mapping": {
+        "facts": [
+          {
+            "name": "destination city",
+            "from": "line 2",
+            "shape": "place",
+            "words": [
+              "Rome"
+            ]
+          },
+          {
+            "name": "origin city",
+            "from": "line 2",
+            "shape": "place",
+            "words": [
+              "Madrid"
+            ]
+          },
+          {
+            "name": "origin airport name",
+            "from": "line 2",
+            "shape": "place",
+            "words": [
+              "Adolfo Suárez Madrid-Barajas Airport",
+              "MAD"
+            ]
+          },
+          {
+            "name": "destination airport name",
+            "from": "line 2",
+            "shape": "place",
+            "words": [
+              "Leonardo da Vinci International Airport",
+              "FCO"
+            ]
+          },
+          {
+            "name": "price label",
+            "from": "line 2 rule 1",
+            "shape": "money",
+            "words": [
+              "From"
+            ],
+            "currency": [
+              "$",
+              "US dollars"
+            ],
+            "unit": [
+              "US dollars"
+            ],
+            "reading": {
+              "op": "lt",
+              "value": 150
+            }
+          },
+          {
+            "name": "stop count",
+            "from": "line 2 rule 2",
+            "shape": "phrase",
+            "words": [
+              "Nonstop"
+            ]
+          },
+          {
+            "name": "bullet marker",
+            "from": "line 2 rule 3",
+            "shape": "phrase",
+            "words": [
+              "·"
+            ]
+          },
+          {
+            "name": "departure time label",
+            "from": "line 2",
+            "shape": "time",
+            "words": [
+              "Departure time:"
+            ]
+          },
+          {
+            "name": "price word",
+            "from": "line 2 rule 1",
+            "shape": "phrase",
+            "words": [
+              "$"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "look": {
+    "facts": [
+      {
+        "line": 2,
+        "name": "origin city",
+        "shape": "phrase",
+        "source": "flights",
+        "words": [
+          "Madrid"
+        ],
+        "phrase": "Madrid",
+        "phrases": [
+          "Adolfo Suárez Madrid"
+        ]
+      },
+      {
+        "line": 2,
+        "name": "origin airport name",
+        "shape": "phrase",
+        "source": "flights",
+        "words": [
+          "Adolfo Suárez Madrid-Barajas Airport",
+          "MAD"
+        ],
+        "phrase": "Adolfo Suárez Madrid-Barajas Airport",
+        "phrases": [
+          "Leaves Adolfo Suárez Madrid-Barajas Airport"
+        ]
+      },
+      {
+        "line": 2,
+        "name": "destination airport name",
+        "shape": "phrase",
+        "source": "flights",
+        "words": [
+          "Leonardo da Vinci International Airport",
+          "FCO"
+        ],
+        "phrase": "Leonardo da Vinci International Airport",
+        "phrases": [
+          "arrives at Leonardo da Vinci International Airport"
+        ]
+      },
+      {
+        "line": 2,
+        "name": "price label",
+        "shape": "money",
+        "source": "flights",
+        "words": [
+          "From"
+        ],
+        "labels": [
+          "From"
+        ],
+        "label": "From",
+        "unit": [
+          "US dollars"
+        ],
+        "currency": [
+          "$"
+        ],
+        "forRule": 1,
+        "reading": {
+          "op": "lt",
+          "value": 150
+        }
+      },
+      {
+        "line": 2,
+        "name": "stop count",
+        "shape": "phrase",
+        "source": "flights",
+        "words": [
+          "Nonstop"
+        ],
+        "phrase": "Nonstop",
+        "labels": [
+          "Nonstop"
+        ],
+        "label": "Nonstop",
+        "forRule": 2
+      },
+      {
+        "line": 2,
+        "name": "departure time label",
+        "shape": "time",
+        "source": "flights",
+        "words": [
+          "Departure time:"
+        ],
+        "labels": [
+          "Departure time:"
+        ],
+        "label": "Departure time:"
+      }
+    ],
+    "dropped": [
+      {
+        "line": 2,
+        "rule": 1,
+        "fact": "price label",
+        "word": "US dollars",
+        "reason": "r1l",
+        "other": "US dollars",
+        "source": "flights"
+      },
+      {
+        "line": 2,
+        "rule": 1,
+        "fact": "price word",
+        "word": "$",
+        "reason": "not-on-page",
+        "source": "flights"
+      },
+      {
+        "line": 2,
+        "rule": 1,
+        "fact": "price word",
+        "reason": "no-label",
+        "source": "flights"
+      },
+      {
+        "line": 2,
+        "fact": "destination city",
+        "other": "Rome",
+        "reason": "phrase-no-result",
+        "source": "flights"
+      },
+      {
+        "line": 2,
+        "rule": 3,
+        "fact": "bullet marker",
+        "other": "·",
+        "reason": "phrase-no-result",
+        "source": "flights"
+      }
+    ]
+  }
+}

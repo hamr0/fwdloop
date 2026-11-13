@@ -1,0 +1,92 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read",
+        "addressCells"
+      ],
+      "reads": [
+        "file"
+      ],
+      "emits": "expenses_sheet",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the expenses sheet,"
+    },
+    {
+      "primitives": [
+        "addressCells"
+      ],
+      "reads": [
+        "file"
+      ],
+      "emits": "expenses_over_500",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "columns": [
+          {
+            "source": "file",
+            "column": "Amount"
+          }
+        ],
+        "sheet": [
+          {
+            "id": "over-500-rows",
+            "rule": "cells",
+            "table": "file",
+            "claim": "expenses",
+            "op": "rows",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "covers": [
+              1
+            ]
+          }
+        ]
+      },
+      "goal": "list every expense over 500,"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "expenses_over_500"
+      ],
+      "emits": "accepted_expenses",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me,"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "accepted_expenses"
+      ],
+      "emits": "expenses_file",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "and once I accept, write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {
+    "file": []
+  }
+}

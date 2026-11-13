@@ -1,0 +1,10 @@
+1. Read the expenses sheet,
+2. list every expense over 500,
+   guardrail: Price over 500; use the column 'Amount' for 'Price'
+3. ask 30m: check it with me,
+4. and once I accept, write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 4 to file:/home/hamr/fwdloop-out
+guardrail: source file = file:/home/hamr/PycharmProjects/fwdloop/.claude/scratch/m10/csv/base.csv
