@@ -188,7 +188,7 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
   assert.ok(!p.names().includes('suggest_extra_checks'), 'a ticket job has no input text: no ledger call');
 });
 
-test('asks merged: a CSV job\'s sheet reading ask and the block\'s can\'t-check asks are one list under one cap', async (t) => {
+test('asks: a CSV job\'s line stays on the sheet path, so only the sheet\'s reading ask is asked', async (t) => {
   const home = mkdtempSync(path.join(tmpdir(), 'fwdloop-m16s-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   mkdirSync(path.join(home, 'out'));
@@ -211,8 +211,8 @@ guardrail: source aging = file:${csv}
   const mk = () => router({ map: sheetAns, suggest_checks: callOf('suggest_checks', { checks: [] }) });
   const two = await draft({ proseText: prose('tone is warm; reads kindly'), provider: mk(), rates: RATES, modelId: MODEL, checkList: true });
   assert.equal(two.stop, 'look-asks', two.reds.join('|'));
-  assert.deepEqual(two.questions.map((/** @type {any} */ q) => [q.line, q.ask]), [[1, 'reading'], [2, 'cant-check'], [2, 'cant-check']], 'the sheet\'s reading first, then the block\'s');
+  // M16 Must-fail ("a sheet or Tickets job changes") and am3 (5) ("Sheets stay out until bareguard ships ruling #82"): a CSV job's lines stay on the sheet path, so the block gives no can't-check ask on line 2
+  assert.deepEqual(two.questions.map((/** @type {any} */ q) => [q.line, q.ask]), [[1, 'reading']], 'only the sheet\'s reading ask; the block asks nothing on a CSV job\'s line');
   const three = await draft({ proseText: prose('tone is warm; reads kindly; no jargon'), provider: mk(), rates: RATES, modelId: MODEL, checkList: true });
-  assert.equal(three.stop, 'look-asks-too-many');
-  assert.match(three.reds[0], /^Your job has 4 rules I can't check or had to guess\./);
+  assert.equal(three.stop, 'look-asks', 'a third rule on the line adds no block ask on a CSV job, so the cap is not reached');
 });
