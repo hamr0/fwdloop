@@ -59,7 +59,7 @@ import {
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
 import { readRunSource } from './cited-source.js';
-import { citedLineOf, writeCitedLine } from './cited-record.js';
+import { citedLineOf, writeCitedLine, quotesOfLines } from './cited-record.js';
 import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
@@ -1159,7 +1159,9 @@ async function runStepTries({
     // said is written by the one writer, `writeSheetLine`, whatever the verdict.
     const sheetPart = step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) ? step.close.sheet : undefined;
     const sheet = sheetPart && runDir !== null ? readRunSheets(runDir, sheetPart) : undefined;
-    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source, sheet });
+    // M16 R7: a text step with the numbers tie (`close.numbersFrom`) is checked against the quotes the earlier lines' cited checks passed on, read from this run's own record
+    const numbers = Array.isArray(step?.close?.numbersFrom) && runDir !== null ? quotesOfLines(runDir, step.close.numbersFrom) : undefined;
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source, sheet, numbers });
     if (sheetPart && runDir !== null && closed.sheetRecord) writeSheetLine(runDir, { n: step.fromLine, try: attempt, checks: sheetPart, closed });
     if (citedPart && runDir !== null && closed.cited) {
       writeCitedLine(runDir, citedLineOf({

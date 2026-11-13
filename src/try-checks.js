@@ -48,7 +48,10 @@ export function closeRecords(step, artifact, closed) {
   const rows = factRecords(step, artifact, closed);
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
   const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
-  return [...rows, ...picks.map((/** @type {any} */ c, i) => ({ n: rows.length + 3 + i, text: labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step) }))];
+  const pickRows = picks.map((/** @type {any} */ c, i) => ({ n: rows.length + 3 + i, text: labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step) }));
+  // M16 R7: the numbers tie of a text line is one more row (its tag is the panel piece's, P4)
+  const tie = /** @type {any} */ (closed).numbersCheck;
+  return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step) }] : [])];
 }
 
 /** @param {any} step @param {any} artifact @param {any} closed */
