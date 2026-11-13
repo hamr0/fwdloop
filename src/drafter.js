@@ -462,7 +462,7 @@ export async function draft({
   draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]),
   checkPicks = /** @type {import('./checkpick.js').Pick[]} */ ([]),
   // M10 am17/am18: the picks of the plan this one follows (src/pickrecord.js entries), and a callback that is handed this draft's record (kept + newly answered) for the one writer
-  carriedPicks = /** @type {import('./pickrecord.js').Entry[]} */ ([]), onPickRecord = /** @type {((r: {picks: import('./pickrecord.js').Entry[], kept: {line: number, rule: number, ruleText: string, check: Record<string, any>|null}[]}) => void)|null} */ (null),
+  carriedPicks = /** @type {import('./pickrecord.js').Entry[]} */ ([]), carriedChoices = /** @type {any[]|null} */ (null), onChoices = /** @type {(rec: any[]) => void} */ (() => {}), onPickRecord = /** @type {((r: {picks: import('./pickrecord.js').Entry[], kept: {line: number, rule: number, ruleText: string, check: Record<string, any>|null}[]}) => void)|null} */ (null),
   learnHints = /** @type {{text: string, ids: string[]}|null} */ (null),
   mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
@@ -810,6 +810,9 @@ export async function draft({
     block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(lg.args?.extra) });
     block.reconcile();
   }
+  // borrowed-from: bareloop src/authorjob.js@v0.56.0 (3383cce)
+  // a Revise keeps the last draft's Drop/Add choices (the suggestions exist now); code still judges every one when the list is reconciled
+  if (block && Array.isArray(carriedChoices)) { block.carryChoices(carriedChoices); onChoices(block.choicesRecord()); block.reconcile(); }
   /** the questions of the block, merged below with the sheet's and the look's own, under one cap (M16 S3) */
   const blockAsks = block && offerQuestions ? questionsOfBlock(block, blockScoped) : [];
   if (block) pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));

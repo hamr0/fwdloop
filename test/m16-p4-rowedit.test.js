@@ -120,3 +120,38 @@ test('Add on a line with no guardrail of the person\'s: the row is signed Not ch
   const signed = signDraft({ dir: path.join(w.dir(id), after.plan), approve: after.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
 });
+
+test('a Revise keeps the last draft\'s Add: the row is still on the list in draft 2, still [agent] with a Drop, and the Revise books no new Suggested for it', async () => {
+  const { w, id, g } = await greenPlan();
+  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
+  const added = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.ok(added.list.rows.some((r) => r.by === 'agent' && /Rust engineer/.test(r.text)), JSON.stringify(added.list));
+  const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
+  const r = await w.post(`/api/author/${id}/revise`, { ...card, capUsd: card.capUsd + 1 });
+  assert.equal(r.status, 202, JSON.stringify(r.json()));
+  await until(async () => (await state(w, id)).plan !== added.plan);
+  const s = await settle(w, id, ['green', 'red', 'stopped', 'questions-open']);
+  await childGone(w, id);
+  assert.equal(s.phase, 'green', JSON.stringify(s.reds ?? s.questions ?? s));
+  assert.ok(s.list.rows.some((x) => x.by === 'agent' && /Rust engineer/.test(x.text) && x.drop === true), 'break: do not carry the choices and the Add is gone from draft 2');
+  assert.equal(s.list.suggested.length, 0);
+  assert.match(read(w, id, `${s.plan}/picks-record.json`), /"rowChoices"/);
+});
+
+test('a Revise keeps the last draft\'s Drop: Add then Drop on draft 1, and draft 2 still shows the suggestion as dropped, not offered afresh', async () => {
+  const { w, id, g } = await greenPlan();
+  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
+  const added = await settle(w, id, ['green', 'red', 'stopped']);
+  const row = added.list.rows.find((x) => x.by === 'agent' && /Rust engineer/.test(x.text));
+  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: row.key })).status, 200);
+  await until(async () => (await state(w, id)).plan !== added.plan);
+  const dropped = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.ok(dropped.list.suggested.some((x) => x.dropped === true), JSON.stringify(dropped.list));
+  const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
+  assert.equal((await w.post(`/api/author/${id}/revise`, { ...card, capUsd: card.capUsd + 1 })).status, 202);
+  await until(async () => (await state(w, id)).plan !== dropped.plan);
+  const s = await settle(w, id, ['green', 'red', 'stopped', 'questions-open']);
+  await childGone(w, id);
+  assert.equal(s.phase, 'green', JSON.stringify(s.reds ?? s.questions ?? s));
+  assert.ok(s.list.suggested.some((x) => x.dropped === true), 'break: do not carry the choices and the suggestion comes back offered afresh');
+});
