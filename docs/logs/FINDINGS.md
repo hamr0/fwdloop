@@ -7292,3 +7292,10 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - How: `node poc/f190-rescan/run.mjs <tree>` on two trees, JSON lines, diffed. BEFORE = `git archive 90260e4` (P4 done, bareguard 0.35.0 via its own `npm ci`). AFTER = `git archive HEAD` (5737ac3, bareguard 0.36.0, node_modules symlinked). Reads ~/.config/fwdloop/flows read-only. Counts, ids and fixed red-class words only; no job or cell text.
 - Per flow with a signature.json: (a) `readFlow` (signature check + `validateDeclaration` incl. `checkListReds`, the run door): ok/refused plus red classes. (b) per sheet check with a frozen input in a run folder (`readRunSheets`, the run path): `sheetCheckReds`, `sheetCheckWordReds`, and `tableChecksFailingOnInput` (table checks) red/green by flow/line/run/check id.
 - PASS if (i) AFTER refuses no flow that BEFORE accepted, and (ii) every sheet check's red/green is identical between the trees. FAIL otherwise, naming each difference by flow/line/check id. A refusal present in BOTH trees is reported and is not a FAIL of (i). The bar is not changed after the run.
+
+### F190 RESULT (2026-11-13, $0, `node poc/f190-rescan/run.mjs <tree>`, outputs `poc/f190-rescan/before.jsonl` and `after.jsonl`, [MEASURED]): PASS
+- BEFORE = 90260e4 (bareguard 0.35.0 via `npm ci`); AFTER = 5737ac3 (bareguard 0.36.0). Same data: 51 signed flows; 13 sheet jobs, 16 run folders with a frozen table, 35 check records (5 of them table checks).
+- (i) Run door (`readFlow`, incl. `checkListReds`): 51/51 accepted in BEFORE, 51/51 accepted in AFTER. Refused in either tree: 0.
+- (ii) Sheet checks: `sheetCheckReds` 35/35 green in both; `sheetCheckWordReds` 35/35 green in both; `tableChecksFailingOnInput` 5 table checks, 1 red in both (the same flow/line/check id: walk-m10am32-1 line 2 `each-customer-once`, a table check that already failed on its input before am4). Differences: 0. The two JSONL files are byte-identical (`diff` empty, 91 lines each).
+- The jsonl files hold flow names, line numbers, check ids and counts only (no red classes appeared; no job or cell text).
+- Nothing in src/ changed, nothing signed.
