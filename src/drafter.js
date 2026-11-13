@@ -796,7 +796,7 @@ export async function draft({
   }
   /** the questions of the block, merged below with the sheet's and the look's own, under one cap (M16 S3) */
   const blockAsks = block && offerQuestions ? questionsOfBlock(block, blockScoped) : [];
-  if (block) pageExtras.checkRows = ledgerRecord(block.rows);
+  if (block) pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
   // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
@@ -834,6 +834,37 @@ export async function draft({
   for (const n of settled?.notes ?? []) {
     const line = (n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason)) + keptNote(n);
     if (!pageNotChecked.includes(line)) pageNotChecked.push(line);
+  }
+  // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
+  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0) {
+    const texts = block.texts;
+    if (Object.keys(texts).length > 0) {
+      // the ledger-suggest call (bareloop authorjob.js@v0.56.0): extra `!` checks the inputs support, as `add` edits
+      const lg = await forcedTurn({ kind: 'ledger-suggest', system: LEDGER_SYSTEM, messages: [{ role: 'user', content: ledgerUserText(blockPlan.jobLines, texts) }], tool: { name: LEDGER_TOOL, description: 'Deliver the extra checks the inputs support (or an empty list). Call this exactly once.', schema: LEDGER_SCHEMA } });
+      if (lg.early) return lg.early;
+      block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(lg.args?.extra) });
+      block.reconcile();
+    }
+    // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
+    const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
+    /** @type {{role: string, content: string}[]} */
+    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: blockPlan.jobLines, look: lookReport, texts }) }];
+    const channel = rowEditChannel(false).tool({ calls: [] });
+    for (let rev = 0; ; rev += 1) {
+      const got = await forcedTurn({
+        kind: rev === 0 ? 'row-edit' : 'row-edit-revision', system: ROW_EDIT_SYSTEM, messages: turn, tool: { name: channel.name, description: channel.description, schema: channel.parameters },
+        attempts: 1 + MAX_STRUCTURE_RETRIES, repair: true, usable: repairedEditsReadable,
+      });
+      if (got.early) return got.early;
+      if (got.args === null) return earlyStop([String(got.entry?.outcome ?? 'structure').replace(/^structure: /, '')], 'structure');
+      const rec = block.applyDelta({ label: `row-edit-${rev + 1}`, edits: editsOf(got.args) });
+      block.reconcile();
+      got.entry.edits = editRecord(rec);
+      const refused = rec.edits.filter((e) => e.accepted !== true);
+      if (refused.length === 0 || rev >= MAX_REVISIONS) break;
+      turn = [...turn, { role: 'assistant', content: JSON.stringify(got.args) }, { role: 'user', content: `${renderRejectBlock(refused.map((e) => `edit ${String(e?.op)}: ${String(e.refusedBecause)}`))}\n\n${ROW_EDIT_REVISE}` }];
+    }
+    pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
   const factsBase = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;

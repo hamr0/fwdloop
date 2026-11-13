@@ -23,7 +23,7 @@ export function blockJobLines(prose, declaration, tiedSheetLines = []) {
 }
 
 /** a block over step lines only, with no `$` cited default (M16 am1). `texts`: label -> frozen text. */
-export function newJobBlock({ texts, jobLines, asks = true, countScope = undefined }) {
+export function newJobBlock({ texts, jobLines, asks = true, countScope = /** @type {((t: string) => boolean)|undefined} */ (undefined) }) {
   const block = new CheckBlock({ texts, labels: Object.keys(texts), asks, split: true, cited: false, ...(countScope ? { countScope } : {}) });
   block.fromJob(jobLines);
   return block;
