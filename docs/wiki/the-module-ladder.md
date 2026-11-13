@@ -3698,3 +3698,13 @@ Peer state (2026-11-13):
 - bareguard ruling #82 (sheet exports) peer-tested by fwd F186, F188/b/c/d (PASS on 8b40271), F189; fwd told guard fine to release.
 - bareloop holds sheets: once #82 ships, fwd builds sheet rows into the block first and bareloop copies them from fwd's tagged release (hamr, both sessions).
 - bareloop's Agree fix f148028e is on branch fix/after-0.56, not yet tagged (0.56.1 held).
+
+**fwd differences from v0.56.0 (am3 (1)) — not signed text (2026-11-13), M16 P3b.**
+- A line with no guardrail of the person's own carries only the numbers tie. The class of a line comes from its guardrail (M4d, signed), so any other check the list builds there (a `!` row added from Suggested, a ledger add) cannot be signed on it: its rows are signed Not checked, with "This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask." (`NO_GUARDRAIL_WORDS`, src/blockassemble.js). bareloop has no class per line.
+- A place the page-read grew to phrases is checked with every role phrase, one phrase fact each (M10 am7 item 2, R2c), not with the one word the block builds it from; and the words gate holds the plan only to the look facts the list built (a Suggested or Not-checked row is not held). bareloop v0.56.0 has no such rule.
+- The numbers tie (R7) reads the quotes the earlier lines' passed cited checks left in the run's own record (`cited` section of line-checks.json), through `close.numbersFrom`; an answer with no `text` is `unparseable` and quotes that cannot be read are `crash`, never a silent skip (bareloop skips a step with no text).
+- A text step the list gives a numbers tie is graded beside its class's own check: both reds are told, a third outcome of either is never turned green.
+- A job with a CSV input: a line with a rule that is not a count stays on the sheet path before the declaration exists, even when the sheet look tied none of its words (its sheet checks are M10b's, which item 4 leaves as they are). bareloop has no sheet path yet.
+- A rule the person answered with their own words, left, or left with no pick is told in fwd's signed table words (`not checked · "<rule>" — <reason>`, M10 am16 (5), src/pagedropwords.js), with "kept from last draft" (M10 am17 (6)); bareloop's reasons stand only for the other cases.
+- No row-edit turn is paid for a job with nothing to edit (no `~` rule and no input text); the ledger-suggest call needs an input text, as in bareloop.
+- Only declaration rounds are "tries" in the draft's step list and the Audit (src/draft-steps.js `triesOf`); the list's ledger-suggest and row-edit turns are rounds, not tries the AI fixed.
