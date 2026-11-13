@@ -125,6 +125,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
   }).filter((x) => x !== null);
   /** @type {Record<string, any>} */
   const listed = checkList.filter((r) => served.has(r.line)); // a line no step serves is refused as a line; its rows are not signed
+  /** @type {Record<string, any>} */
   const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList: listed };
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
   return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), built };
