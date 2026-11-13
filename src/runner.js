@@ -75,7 +75,9 @@ import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
-import { readRunInputs, writeRunStart } from './runfile.js';
+import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
+// borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
+import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
 import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
@@ -481,6 +483,36 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
     manifest.push(entry);
   }
   return { ok: true, manifest, skip };
+}
+
+/**
+ * M16 item 1: read every place-rule fact of the job's steps from the run's OWN frozen copy of its input, by code, before any provider call. `{ok:false, words}` = a rule
+ * was not found (bareloop's stop words); `{ok:true, rows, values}` = the rows to record in run.json and the key-to-value map to bind in memory. No place fact = nothing read.
+ * @param {string} runDir @param {any[]} steps @param {any[]} manifest freezeInputs' manifest
+ */
+export function readRunPlaceRules(runDir, steps, manifest) {
+  const facts = citedPlaceFactsOf(steps);
+  if (facts.length === 0) return { ok: /** @type {true} */ (true), rows: null, values: {} };
+  const read = readPlaceRules(facts.map((fact) => {
+    const entry = manifest.find((e) => e?.id === fact.source);
+    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, `inputs/${basename(entry.frozen)}`) : null;
+    return { fact, text: file && file.ok ? file.text : null, was: valueInWords(fact.place, fact.phrase) };
+  }));
+  if (!read.proceed) return { ok: /** @type {false} */ (false), words: stopWords(read.rows) };
+  return { ok: /** @type {true} */ (true), rows: read.rows.map(({ name: _n, ...r }) => r), values: read.values };
+}
+
+/**
+ * M16 item 1: the steps a RESUMED / continued run carries on with: the signed steps, each place fact's phrase set to the value its own run.json recorded at the start.
+ * A job with no place fact returns its steps as they are; a run whose record is missing or has a rule not found is `{ok:false, words: NO_PLACE_RECORD_WORDS}`.
+ * @param {string} runDir @param {any[]} steps
+ */
+export function stepsWithRecordedPlaces(runDir, steps) {
+  if (citedPlaceFactsOf(steps).length === 0) return { ok: /** @type {true} */ (true), steps };
+  const got = readRunRecord(runDir);
+  const values = got.ok && Array.isArray(got.rec.placeRules?.rows) ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: got.rec.placeRules.rows }]) : null;
+  if (values === null) return { ok: /** @type {false} */ (false), words: NO_PLACE_RECORD_WORDS };
+  return { ok: /** @type {true} */ (true), steps: bindCitedPlaceValues(steps, values) };
 }
 
 /**
@@ -1418,7 +1450,14 @@ export async function runFlow({
   }
 
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
-  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
+  // M16 item 1: the place-rule facts are read from this run's own frozen copy, before any provider call; a rule not found stops here at $0 (a skipped ticket reads nothing)
+  const placed = frozen.skip ? { ok: /** @type {true} */ (true), rows: null, values: {} } : readRunPlaceRules(runDir, declaration.steps, /** @type {any[]} */ (frozen.manifest));
+  if (!placed.ok) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: placed.words, spent: { value: 0 },
+    });
+  }
+  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null, placeRules: placed.rows ? { rows: placed.rows } : null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
   if (frozen.skip) {
     return haltRun({
@@ -1463,7 +1502,7 @@ export async function runFlow({
   /** @type {Array<{step:string|null, emits:string, artifact:unknown}>} */
   let unjudgedSinceLastAsk = [];
 
-  const steps = declaration.steps;
+  const steps = Object.keys(placed.values).length > 0 ? bindCitedPlaceValues(declaration.steps, placed.values) : declaration.steps;
   // M2 fix: the send's content is identified by IDENTITY (the artifact
   // emitted by a signed ask step), never by position in `reads` — every id
   // in a send step's `reads` names an earlier step, so picking `reads[0]`
@@ -2381,7 +2420,9 @@ export async function resumeRun({
     // like `missing` — never silently treated as "not done yet" and redone,
     // which could spend money or re-ask a human for a step that already
     // completed.
-    const { steps } = declaration;
+    const placedSteps = stepsWithRecordedPlaces(runDir, declaration.steps);
+    if (!placedSteps.ok) return { outcome: 'refused', red: placedSteps.words };
+    const steps = placedSteps.steps;
     for (let i = 0; i < state.stepIndex; i += 1) {
       const artifactResult = readArtifactResult(runDir, steps[i].emits);
       if (!artifactResult.ok) {
@@ -2885,7 +2926,9 @@ export async function continueRun({
       }
     }
 
-    const { steps } = declaration;
+    const placedSteps = stepsWithRecordedPlaces(runDir, declaration.steps);
+    if (!placedSteps.ok) return refused(placedSteps.words);
+    const steps = placedSteps.steps;
     if (halt.stepIndex > steps.length) return refused(`run "${runId}" halt.json names step ${halt.stepIndex}, past this flow's ${steps.length} steps`);
     /** @type {Record<string, any>} */
     const artifacts = {};

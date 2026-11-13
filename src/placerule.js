@@ -242,6 +242,37 @@ export function placeFactsOf(spec) {
 }
 
 /**
+ * fwd's shape of {@link placeFactsOf}: a place fact lives on a step's `close.cited.facts[]` (the fact part of a green step that quotes an input), not in a
+ * bareloop closeDecl stage. Same PlaceFact record (`stage` = the step's index, `part` = 0, `fact` = the fact's index); the key is the step's `emits` and the fact's name.
+ * Pure. @param {any[]} steps @returns {PlaceFact[]}
+ */
+export function citedPlaceFactsOf(steps) {
+  /** @type {PlaceFact[]} */
+  const out = [];
+  (Array.isArray(steps) ? steps : []).forEach((/** @type {any} */ st, /** @type {number} */ si) => {
+    const cited = st?.close?.class === 'green' ? st.close.cited : undefined;
+    if (!isRec(cited) || !Array.isArray(cited.facts)) return;
+    cited.facts.forEach((/** @type {any} */ f, /** @type {number} */ fi) => {
+      if (!isRec(f) || f.shape !== 'phrase' || !isRec(f.place)) return;
+      out.push({ key: `${String(st.emits ?? st.goal)}/${String(f.name)}`, name: String(f.name), source: String(cited.source), stage: si, part: 0, fact: fi, place: /** @type {PlaceRule} */ (f.place), phrase: String(f.phrase) });
+    });
+  });
+  return out;
+}
+
+/**
+ * A copy of the steps with each place fact's phrase replaced by the value the run read (fwd's shape of {@link bindPlaceValues}). The input is never touched, so the
+ * signed declaration and its hash stay as signed. A key with no value keeps the signed drafting words. @param {any[]} steps @param {Record<string, string>} values @returns {any[]}
+ */
+export function bindCitedPlaceValues(steps, values) {
+  const bound = structuredClone(steps);
+  for (const f of citedPlaceFactsOf(bound)) {
+    if (Object.hasOwn(values, f.key)) bound[f.stage].close.cited.facts[f.fact].phrase = values[f.key];
+  }
+  return bound;
+}
+
+/**
  * A copy of the spec with each place fact's phrase replaced by the value the run read. The input spec is never touched (the signed spec and its hash
  * stay as signed); the copy is for this run's planner and close only. A key with no value is left as the signed drafting words.
  * @param {any} spec @param {Record<string, string>} values place-fact key to the value read @returns {any}
