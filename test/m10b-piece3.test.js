@@ -93,7 +93,8 @@ test('no close.sheet is offered to a job without a CSV input (a document job), n
     await draft({ proseText: fx.prose, provider: p, rates: RATES, modelId: MODEL });
     const close = p.calls[0].schemas[0].properties.steps.items.properties.close.properties;
     assert.equal(close.sheet, undefined);
-    assert.ok(close.cited && close.columns, 'the older closes are unchanged');
+    // M16 item 5 replaces M10 am7 item 1 for list lines: close.cited is not offered any more (the list builds it); close.columns is unchanged
+    assert.ok(close.columns && close.cited === undefined, 'the older closes are unchanged but for the quote check the list builds');
     assert.ok(!p.calls[0].messages[0].content.includes('close.sheet'), 'and the drafter is not told of it');
   } finally { rmSync(fx.dir, { recursive: true, force: true }); }
   const menu = wiredMenu(['core']);
