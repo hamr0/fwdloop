@@ -96,7 +96,9 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
   // the class of a line with a guardrail is the class its close ended in; a hitl one says why in the rows' own Not-checked reasons
   for (const n of lineSet) {
     const mine = steps.find((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
-    if (!mine || !guarded(n)) continue;
+    // the classes of a list line are code's: a line with no guardrail of the person's has no class entry and no unjudgeable note, whatever the AI sent
+    if (!guarded(n)) { delete guardrailClasses[String(n)]; delete unjudgeable[String(n)]; continue; }
+    if (!mine) continue;
     guardrailClasses[String(n)] = mine.close.class;
     if (mine.close.class === 'hitl') unjudgeable[String(n)] = [...new Set(rowsOn(n).map((r) => notCheckedWords(r.reason, r)).filter(Boolean))].join(' ') || 'No check was picked for it, so you judge it at the Ask.';
     else delete unjudgeable[String(n)];

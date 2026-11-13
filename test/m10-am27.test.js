@@ -40,13 +40,14 @@ const plan = (over = {}) => ({
   guardrailClasses: {}, unjudgeable: {}, refused: [], ...over,
 });
 
-test('(1) the drafter\'s prompt never carries a count guardrail; a non-count guardrail still does', async (t) => {
+// M16 item 5 replaces M10 am27 (1) "a count guardrail never reaches the drafter" FOR THE LINES OF THE LIST: their count rules are shown like any other rule (the lines the list is not given keep am27 (1): hideCounts below)
+test('(1) M16 item 5: a list line\'s count rules reach the drafter beside its non-count rules', async (t) => {
   const p = fakeProvider([toolReply(plan())]);
   const r = await draft({ proseText: prose(t), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, r.reds.join('\n'));
   const sent = JSON.stringify(p.calls[0].messages);
-  assert.ok(!/exactly 3 bullets|under 80 words/.test(sent), 'a count reached the drafter');
-  assert.ok(sent.includes('keep it kind'), 'the non-count rule is still shown');
+  assert.ok(sent.includes('exactly 3 bullets') && sent.includes('under 80 words'), 'the counts are shown on a list line');
+  assert.ok(sent.includes('keep it kind'), 'the non-count rule is shown too');
 });
 
 test('(1) hideCounts: the page look sees only the non-count rules; a visible rule number maps back to the original one', () => {
@@ -96,12 +97,16 @@ test('(2) a repair never grants a primitive: every step keeps exactly its own pr
   assert.deepEqual(declaration.steps.map((s) => s.close.class), ['green', 'hitl']);
 });
 
-test('(2) a draft whose plan needs a repair carries the log of it on that round', async (t) => {
+// M16 item 5 replaces M10 am27 (2) "repairs" FOR LIST LINES: code overwrites the classes and notes of a list line, so the AI's note on line 5 is gone and nothing is logged as repaired
+test('(2) M16 item 5: a note the AI sent for a list line is overwritten by code, no repair is logged on that round', async (t) => {
   const bad = plan({ guardrailClasses: { 5: 'green' }, unjudgeable: { 5: 'the page cannot prove it' } });
   const p = fakeProvider([toolReply(bad)]);
   const r = await draft({ proseText: prose(t, JOB.replace(/\n~ [^\n]*/, '')), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
-  const round = r.log.find((e) => e.kind === 'draft' || e.round === 1);
-  assert.deepEqual(round.repaired, ['unjudgeable: dropped the entry for line 5 (its class is green; reason was: the page cannot prove it)']);
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  const round = r.log.find((e) => e.kind === 'first');
+  assert.equal(round.repaired, undefined);
+  assert.equal(r.declaration.unjudgeable['5'], undefined);
+  assert.equal(r.declaration.guardrailClasses['5'], undefined);
 });
 
 // ---- (3) a single count the suggestion call keeps nothing for gets the pick code builds from the guardrail's own number ----
@@ -145,14 +150,16 @@ test('(4) retentionOf: per line, cited facts written / kept / dropped, the pick 
   assert.deepEqual(retentionOf(null, final, [{ n: 1 }]), []);
 });
 
-test('(4) every draft round carries the record, one row per job line, in a plan with a pick and in one without', async (t) => {
+// M16 item 5 replaces M10 am27 (4) "the per-line record of AI checks" FOR LIST LINES: the declaration round still carries one row per job line, and the AI wrote no check on any of them
+test('(4) M16 item 5: the declaration round carries the record, one row per job line, none of them an AI check, in a plan with a pick and in one without', async (t) => {
   for (const picks of [undefined, [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }]]) {
     const p = fakeProvider([toolReply(plan())]);
     const r = await draft({ proseText: prose(t, ONE_COUNT), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false, ...(picks ? { checkPicks: picks } : {}) });
-    assert.equal(r.ok, true, r.reds.join('\n'));
-    const rec = r.log[0].retention;
+    assert.equal(r.ok, true, JSON.stringify(r.reds));
+    const rec = r.log.find((e) => e.kind === 'first').retention;
     assert.ok(Array.isArray(rec) && rec.length === 7, `a row per job line (got ${JSON.stringify(rec)})`);
     assert.deepEqual(rec.map((x) => x.line), [1, 2, 3, 4, 5, 6, 7]);
     assert.equal(rec.find((x) => x.line === 3).picks, picks !== undefined);
+    assert.ok(rec.every((x) => x.aiParts === 0), 'the AI wrote no check on a list line');
   }
 });
