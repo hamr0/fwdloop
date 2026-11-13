@@ -763,7 +763,7 @@ export async function draft({
   // a rule a kept page or sheet fact already serves (the look tied it: line + rule number) is settled by that fact and is not asked here
   const allShape = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
   // M16 S1: the lines the block is given (step lines; a sheet line the sheet look tied to a column stays on the sheet path, R6). Their rules go to the block; every other shape rule keeps today's path.
-  const blockPlan = blockOn ? blockJobLines(proseText, undefined, [...new Set(sheetFacts.filter((f) => f.forRule !== undefined).map((f) => f.line))]) : null;
+  const blockPlan = blockOn ? blockJobLines(proseText, undefined, [...new Set([...sheetFacts.filter((f) => f.forRule !== undefined), ...sheetAsks, ...sheetLooks.flatMap((l) => l.dropped)].map((x) => x.line))]) : null;
   if (blockPlan && !blockPlan.ok) return fail(blockPlan.reds.map((r) => `signed-text: ${r}`));
   const blockLineNums = new Set(blockPlan ? blockPlan.jobLines.map((l) => l.n) : []);
   const blockScoped = allShape.filter((r) => blockLineNums.has(r.line));
