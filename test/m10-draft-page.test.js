@@ -63,7 +63,7 @@ test('every map round is metered into the draft: rounds and cost count it, the b
   const books = [];
   const p = fakeProvider([mapReply(raw(3)), textReply()]);
   const r = await run(p, { onBook: (b) => books.push([b.inFlight, b.calls]) });
-  assert.equal(r.rounds, p.calls.length);
+  assert.equal(r.rounds, p.calls.length + p.blockCalls.length); // M16 (a): the list's own turns are metered rounds too
   assert.ok(r.costUsd > 0);
   assert.deepEqual(books.slice(0, 2), [[true, 1], [false, 1]], 'the map call is booked before and after, as any drafter call is');
   assert.equal(r.spendComplete, true);
@@ -191,7 +191,7 @@ test('draftToDir keeps the drafting copy and the page look beside the draft; the
   const nc = JSON.parse(readFileSync(path.join(dir, 'not-checked.json'), 'utf8')).notChecked;
   assert.ok(nc.some((l) => l.includes('"0 stops" is not written on the page.')), nc.join('\n'));
   const rows = readFileSync(path.join(dir, 'spend.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert.equal(rows[0].rounds, p.calls.length, 'the booked row counts the map round');
+  assert.equal(rows[0].rounds, p.calls.length + p.blockCalls.length, 'the booked row counts the map round'); // M16 (a): and the list's turns
   assert.ok(!existsSync(path.join(dir, 'spec.hash')), 'a red draft is not signable');
 });
 
