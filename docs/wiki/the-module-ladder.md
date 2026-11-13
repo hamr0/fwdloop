@@ -3660,3 +3660,41 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 **M16 amendment 3 — SIGNED by hamr 2026-11-13 ("sign m16 am3"), the text exactly as shown.** Why: the build plan (read-only, 2026-11-13) found the v0.56.0 block reaches ~38 bareloop files (~22k lines, incl. authorflow.js), trips fwd guard tests (`new RegExp` ban, node:fs pins), and fwd's older borrows differ from v0.56.0; fwd drafts in a child process, so Drop/Add cannot use a live session. hamr: port loop's code excluding sheets and finish it; when bareguard ships, fwd does the sheets first and loop copies them from fwd.
 
 > **M16 am3.** (1) The check block is ported, not copied whole: only the modules the block calls come over, each with its borrowed-from header; a `new RegExp` is rewritten as a literal and imports point at fwd's files, so fwd's guard tests stay as they are. Where a fwd file the block needs is an older borrow, it is brought up to v0.56.0 when its behaviour matches bareloop's; where a signed fwd rule differs, fwd's rule stays and the difference is listed. (2) The `$` numbers default ("the numbers tie after a fact line") comes with its check. (3) Place rules come with the fact fields they need (place, lang, decimal); the value read at run start rides the run's existing record, no new file. (4) Drop and Add rebuild the list at $0 from the draft's saved files and save it as a new draft; signing reads the new draft. (5) Sheets stay out until bareguard ships ruling #82; then fwd builds sheet rows into the block first, and bareloop copies them from fwd.
+
+**Build plan and rulings — not signed text (2026-11-13), M16.**
+
+Ground facts:
+- Source is bareloop tag v0.56.0 (3383cce) plus f148028e (am2). Copies carry `// borrowed-from: bareloop <path>@v0.56.0 (3383cce)`; checkblock.js header also names f148028e.
+- v0.56.0 set: checkblock.js, rowedit.js, placerule.js, checklist.js, blockasks.js (needs `questionsOfBlock`, `applyChoices`), questionbox.js; changed checkpick, rubricstep, facts, pickrecord, checkwords, pagemap, declaredclose, authorflow, authorjob, userrun, run, panel files.
+- Two fwd-only guards trip on a verbatim copy: `test/signed-text.test.js:695` bans `new RegExp(` in src/; `test/f48-guard-fs-imports.test.js` pins every node:fs import. Fix the code, never the guard.
+- fwd drafts in a child process (`fwdloop draft`); no live drafting session after a draft ends, so Drop/Add rebuilds the block at $0 from the draft folder.
+- Parity not met (merge, not replace): pagedropwords.js, pagerules.js, checkwords.js, pickrecord.js; checkpick.js is two modules under one name (rename on copy); pagebits/citedcheck/citedwords/pageask/pagemap are older partial copies.
+
+Pieces:
+- P1 vendor block + bareguard ^0.35.0: done (e7af913..714e919; full suite 4797 run, 4791 pass, 1 fail fixed in 714e919).
+- P2 adapter `src/blocklines.js` (step lines only; am1: no cited default row on fwd lines; kinds by `parseSignedText`, `csvRolesOf`, `sheetLineBlocks`): done (763f6b8).
+- P3 drafter integration (`src/drafter.js`, `src/blockdraft.js`, `src/authoring.js`): in progress (a3d2acb `blockJobLines` takes sheet-tied lines, `newJobBlock` takes countScope; df54635 blockdraft.js with `renderRejectBlock`, `setUpBlock`, build-fault words). P3a = S1-S4 running; P3b = S5-S7 + R7 + checkList next.
+  - Order in `draft()`: gates, page look, sheet look, then build block (`texts` = docs + pages, R5), pre-edits, asks via `questionsOfBlock` merged with sheet asks under MAX_LOOK_ASKS=3, row-edit turn, then emit_declaration.
+  - Assembly replaces `applyPicks` + `repairDeclaration`: fact part -> `close.cited`, countable part -> picked check; signed list = `block.signedRows()` into a new `checkList` key.
+  - CORRECTION: no flowType gate. Item 2 is "every job line with checks"; Tickets and MCP step lines go through the block. Tickets/CSV bar = signed Done-when "draft and run as before", NOT byte-identical declarations.
+  - Still to build: R7 numbers default (close field in CLOSE_ALLOWED, closer on earlier cited quotes, bareguard `numbersInQuote`); `checkList` + listMatchesClose-style check; `renderRejectBlock` shape vs bareloop's `{kind, reds}`.
+- P4 panel: tags `[you]/[agent]/[default]` in src/checkwords.js (callers checked.js, authoring.js, try-checks.js, panel/data.js, sheetblock.js); label "Not checked"; route `POST /api/author/:id/row-edit` rebuilds at $0, no provider call; Audit Checks fold. Not started.
+- P5 place rules at run start (`runFlow` after `freezeInputs`, stop `preflight-red` at $0, values on the run's existing record). Not started.
+- P6 removals: `hideCounts`, `repairDeclaration` (src/repairs.js), `retentionOf`, am16 chain for list lines, `CITED_PROP`, `LABEL_PICKED`/`labelled`. Not started.
+- P7 exit: flights job, m14-walk-5, a CSV job, card walk at 1280/390/320, Drop/Add at $0, Tickets/CSV as before, $0 rescan of signed jobs; drafts cap ~$0.30. Not started.
+
+Rulings R1-R9 (source: hamr 2026-11-13 "open questions follow do what bareloop does" plus the orchestrator's reading of signed text):
+- R1 am16's suggest call becomes the block's `pick` pre-edits; bareloop's ledger-suggest call is copied via fwd's call path.
+- R2 Only a red naming a block-built part is a build fault (stop, never sent to the AI); reds on steps/reads/asks/send/sheet/ticket parts go back to emit_declaration as today.
+- R3 Order of block build, asks and row-edit turn = bareloop v0.56.0's.
+- R4 The AI's notChecked list: as bareloop's rubric path.
+- R5 Doc inputs go into the block's texts.
+- R6 A step line whose `~` rule the sheet look tied to a real column is a sheet line: not given to the block.
+- R7 am3 (2): the numbers default comes with its check.
+- R8 M4d am39's repair wraps the row-edit reply, checker-gated.
+- R9 ticketFilter, ticketWatch, close.sheet, steps and reads are still written by emit_declaration.
+
+Peer state (2026-11-13):
+- bareguard ruling #82 (sheet exports) peer-tested by fwd F186, F188/b/c/d (PASS on 8b40271), F189; fwd told guard fine to release.
+- bareloop holds sheets: once #82 ships, fwd builds sheet rows into the block first and bareloop copies them from fwd's tagged release (hamr, both sessions).
+- bareloop's Agree fix f148028e is on branch fix/after-0.56, not yet tagged (0.56.1 held).
