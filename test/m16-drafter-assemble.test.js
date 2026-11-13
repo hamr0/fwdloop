@@ -207,3 +207,37 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes, the sheet line untouched');
   assert.ok(on.declaration.checkList.every((/** @type {any} */ x) => x.line !== 2), 'the sheet line has no row');
 });
+
+test('flights (page): the fact part becomes close.cited with the source in reads, the picks ride beside it (close.picked, pickedLines), and the `$` numbers tie reaches the text line after it (R7)', async (t) => {
+  const home = mkdtempSync(path.join(tmpdir(), 'fwdloop-m16f2-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(path.join(home, 'out'));
+  const prose = rd('flights/draft-prose.txt').replace('file:/home/user/fwdloop-out', `file:${path.join(home, 'out')}`);
+  const mapping = JSON.parse(rd('flights/page-look.json')).pages[0].mapping;
+  const decl = {
+    steps: [
+      { primitives: ['read'], reads: [], emits: 's1', fromLine: 1, close: { class: 'hitl' } },
+      { primitives: [], reads: [], emits: 's2', fromLine: 2, close: { class: 'green' } },
+      { primitives: [], reads: ['s2'], emits: 'a3', fromLine: 3, close: { class: 'hitl' } },
+      { primitives: ['read'], reads: ['a3'], emits: 's4', fromLine: 4, close: { class: 'hitl' } },
+      { primitives: [], reads: ['s4'], emits: 'a5', fromLine: 5, close: { class: 'hitl' } },
+      { primitives: ['write'], reads: ['a5'], emits: 'sent', fromLine: 6, close: { class: 'hitl' } },
+    ],
+    guardrailClasses: { 2: 'green' }, unjudgeable: {}, refused: [],
+  };
+  const p = router({ map: textOf(JSON.stringify(mapping)), suggest_extra_checks: LEDGER_NONE, submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+  const picks = [{ line: 2, rule: 3, check: { rule: 'listItems', value: 3 } }, { line: 2, rule: 4, check: { rule: 'maxWords', value: 80 } }];
+  const r = await draft({ proseText: prose, provider: p, rates: RATES, modelId: MODEL, checkList: true, offerQuestions: false, checkPicks: picks, draftDir: path.join(home, 'pages'), fetchPage: async (/** @type {string} */ u) => ({ ok: true, text: rd('flights/flights.txt'), url: u }) });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const step = (/** @type {number} */ n) => r.declaration.steps.find((/** @type {any} */ s) => s.fromLine === n);
+  assert.equal(step(2).close.class, 'green');
+  assert.equal(step(2).close.cited.source, 'flights');
+  assert.ok(step(2).close.cited.facts.length >= 2, 'the look\'s facts');
+  assert.ok(step(2).close.cited.facts.some((/** @type {any} */ f) => f.phrase === 'Adolfo Suárez Madrid'), 'a place is checked with its role phrase (fwd R2c), not the bare word the block built it from');
+  assert.ok(step(2).reads.includes('flights'), 'code added the source to the step\'s reads');
+  assert.deepEqual(step(2).close.picked, [{ rule: 'listItems', value: 3 }, { rule: 'maxWords', value: 80 }]);
+  assert.deepEqual(r.declaration.pickedLines, [2]);
+  assert.deepEqual(step(4).close, { class: 'hitl', numbersFrom: [2] }, 'break: drop the tie part in assembleFromBlock and this reds');
+  assert.deepEqual(checkListReds(r.declaration), []);
+  assert.ok(r.declaration.checkList.some((/** @type {any} */ x) => x.kind === 'numbers' && x.line === 4 && x.state === 'built'));
+});

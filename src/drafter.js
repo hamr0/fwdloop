@@ -1037,11 +1037,14 @@ export async function draft({
     // M10 am27 (4): what the drafter wrote vs what the final plan keeps, per job line (record only); drafted = the declaration as sent, before any code change
     entry.retention = retentionOf(captured, declaration, jobLines, [...(settled?.checks.keys() ?? [])]);
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
+    // M16: a look fact the list did not build (a Suggested `!` row, a Not-checked one) is not in the plan, so the words gate does not hold the plan to it (R2c asks every place phrase of the facts the plan checks)
+    const inPlan = block ? new Set(block.rows.filter((r) => r.state === 'built').flatMap((r) => (r.factNames ?? []).map((/** @type {string} */ nm) => `${r.line}:${nm}`))) : null;
+    const planLookFacts = inPlan ? look.facts.filter((f) => !blockLineNums.has(f.line) || inPlan.has(`${f.line}:${f.name}`)) : look.facts;
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
-      pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: look.facts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
+      pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: planLookFacts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
     // M4d am39: a brace-repaired answer the validator finds an unknown key in is not used; the round is a structure failure, as today
