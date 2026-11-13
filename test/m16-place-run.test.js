@@ -14,6 +14,10 @@ import { readAudit } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { sandboxSend } from './send-sandbox.js';
 import { NO_PLACE_RECORD_WORDS } from '../src/placerule.js';
+import { answerAsk } from '../src/ask.js';
+import { validateDeclaration } from '../src/declaration.js';
+import { parseSignedText } from '../src/signed-text.js';
+import { WIRED_VERBS } from '../src/primitives.js';
 
 const RULE = { kind: 'headingBetween', prefix: '## [', end: ']', shape: 'semver', skip: ['Unreleased'] };
 const LOG = (v) => `# Changelog\n\n## [Unreleased]\n\n## [${v}] - 2026-11-04\n\n- one\n\n## [0.54.1] - 2026-11-01\n`;
@@ -131,4 +135,31 @@ test('(P5) "was": run-2 shows run-1\'s value as "was" (read from run-1\'s run.js
   assert.equal(row.was, '0.55.0'); // break: use the drafting words (0.50.0) and this reads 0.50.0
   const first = JSON.parse(readFileSync(path.join(s.runDir, 'run.json'), 'utf8')).placeRules.rows[0];
   assert.equal(first.was, '0.50.0', 'run-1 has no earlier run: the drafting words');
+});
+
+test('(P5) end to end: park at the ask, answer redo, resumeRun: the resumed try is bound to the value run.json recorded (the signed 0.50.0 would red it)', async (t) => {
+  const s = setup(t, { logText: LOG('0.55.0'), quoteVersion: '0.55.0' });
+  const parked = await s.go();
+  assert.equal(parked.outcome, 'paused', JSON.stringify(parked));
+  const before = readAudit(s.runDir).filter((a) => a.step === 'release').length;
+  assert.equal(answerAsk({ runDir: s.runDir, askId: parked.askId, decision: 'redo', reason: 'again' }).ok, true);
+  const resumed = await resumeRun({ root: s.root, name: 'rel', runId: 'run-1', catalogue: s.catalogue, modelStep: s.modelStep, askStep: makeParkingAskStep(), sendStep: sendViaPrimitive, primitives: {}, businessDate: '2026-11-18' });
+  assert.notEqual(resumed.outcome, 'refused', JSON.stringify(resumed));
+  const tries = readAudit(s.runDir).filter((a) => a.step === 'release');
+  assert.ok(tries.length > before, 'the resumed leg made a new try of the quoting step'); // break: no rebind in resumeRun and that try reds on 0.50.0
+  assert.ok(tries.every((a) => a.verdict !== 'red'), JSON.stringify(tries.map((a) => [a.verdict, a.gap])));
+});
+
+test('(P5) draft time: a declaration with `place` on a cited phrase fact passes the validator (factShapeReds); a place on a non-phrase fact is refused', () => {
+  const signed = parseSignedText(sandboxSend(PROSE));
+  assert.ok(signed.ok);
+  if (!signed.ok) return;
+  const ctx = { arbiter: signed.arbiter, lines: signed.lines, catalogue: loadCatalogue().primitives, wired: WIRED_VERBS };
+  const ok = validateDeclaration(declOf(), ctx);
+  assert.equal(ok.ok, true, ok.ok ? '' : ok.reds.join('|'));
+  const bad = declOf();
+  bad.steps[0].close.cited.facts = [{ name: 'version', shape: 'number', place: RULE }];
+  const v = validateDeclaration(bad, ctx);
+  assert.equal(v.ok, false); // break: drop the place check in factShapeReds and this passes
+  assert.match(v.reds.join('|'), /only a phrase fact carries a place rule/);
 });
