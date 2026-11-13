@@ -3703,7 +3703,7 @@
     };
     if(out.known){
       t.checks.forEach(function(c){
-        var cell = { name: String(c.n), n: c.n, question: c.text, source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
+        var cell = { name: String(c.n), n: c.n, question: c.text + (c.by ? " " + tagWordOf(c.by) : ""), source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
         if(!c.ok && !out.red){
           var lines = gridGapLines(t.gap);
           out.red = { lines: lines.length ? lines : [c.text] };
@@ -4087,7 +4087,8 @@
   // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result (server: `auditChecks`).
   // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape)
   // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
-  function byTagOf(by){ return by === "you" ? ' <span class="by" data-testid="plan-by" data-by="you">[you]</span>' : by === "agent" ? ' <span class="by" data-testid="plan-by" data-by="agent">[agent]</span>' : by === "default" ? ' <span class="by" data-testid="plan-by" data-by="default">[default]</span>' : ""; }
+  function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
+  function byTagOf(by){ return tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + tagWordOf(by) + '</span>'; }
   function auditCheckRowHtml(r){
     var res = r.result === "passed" ? ["green", "passed"] : r.result === "failed" ? ["red", "failed"] : r.result === "not-checked" ? ["grey", "not checked"] : ["grey", "no result recorded"];
     return '<div class="audit-check-row" data-testid="audit-check-row" data-result="' + escapeXml(r.result) + '" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(r.text) + byTagOf(r.by) + " " + stateDotHTML(res[0], res[1], "audit-check-state") + "</div>";
