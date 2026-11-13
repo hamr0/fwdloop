@@ -68,3 +68,14 @@ test('(S3) the asks are capped: four rules code cannot check stop at $0 with the
   assert.deepEqual(r3.questions.map((/** @type {any} */ q) => q.ask), ['no-check', 'no-check', 'no-check']);
   assert.match(r3.questions[0].question, /^Line 1, guardrail "tone is warm": I can't check this\. Your own words, or Not checked\?/);
 });
+
+test('(S2) the suggest reply is the block\'s pre-edit where code has no check of its own: a rule code cannot read alone is asked as the AI\'s proposal, and without the pre-edit as "I can\'t check this"', async (t) => {
+  const prose = walkProse(t, (s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets and under 40 words'));
+  const p = router({ suggest_checks: callOf('suggest_checks', { checks: [{ line: 3, guardrail: 1, rule: 'listItems', value: 3 }] }) });
+  const r = await run(p, prose);
+  const q = r.questions.find((/** @type {any} */ x) => x.line === 3);
+  assert.deepEqual([q.ask, q.proposal, q.check], ['check', 'exactly 3 list items', { rule: 'listItems', value: 3 }]);
+  // the AI proposes nothing for it: the block has no check to offer and the ask is the can't-check one
+  const none = await run(router({ suggest_checks: callOf('suggest_checks', { checks: [] }) }), prose);
+  assert.equal(none.questions.find((/** @type {any} */ x) => x.line === 3).ask, 'no-check');
+});
