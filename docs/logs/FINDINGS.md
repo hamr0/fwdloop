@@ -7286,3 +7286,9 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Claim bar: 22/22**; `{}` rejected 22/22.
 - **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d-f.
 - Nothing in src/ changed, nothing signed.
+
+### F190 PRE-REGISTERED (2026-11-13, $0): rescan of every saved signed job, before vs after the bareguard 0.36.0 move (M16 Done-when; M16 am4 Done-when)
+- Why: M16 says "a $0 rescan of the good signed jobs refuses none"; am4 says "a $0 rescan of every saved sheet job gives the same reds and greens as before am4". Must fail: "a saved sheet job's red or green changes with no Drop or Add".
+- How: `node poc/f190-rescan/run.mjs <tree>` on two trees, JSON lines, diffed. BEFORE = `git archive 90260e4` (P4 done, bareguard 0.35.0 via its own `npm ci`). AFTER = `git archive HEAD` (5737ac3, bareguard 0.36.0, node_modules symlinked). Reads ~/.config/fwdloop/flows read-only. Counts, ids and fixed red-class words only; no job or cell text.
+- Per flow with a signature.json: (a) `readFlow` (signature check + `validateDeclaration` incl. `checkListReds`, the run door): ok/refused plus red classes. (b) per sheet check with a frozen input in a run folder (`readRunSheets`, the run path): `sheetCheckReds`, `sheetCheckWordReds`, and `tableChecksFailingOnInput` (table checks) red/green by flow/line/run/check id.
+- PASS if (i) AFTER refuses no flow that BEFORE accepted, and (ii) every sheet check's red/green is identical between the trees. FAIL otherwise, naming each difference by flow/line/check id. A refusal present in BOTH trees is reported and is not a FAIL of (i). The bar is not changed after the run.
