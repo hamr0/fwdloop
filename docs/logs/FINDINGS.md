@@ -7244,3 +7244,10 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 ### F188d PRE-REGISTERED (2026-11-13, $0): bareguard @ 8b40271, checkTables only
 - How: run3.mjs copied to run4.mjs pointed at a fresh `git archive 8b40271` copy in /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82d (node_modules symlinked to fwdloop's as in F188c). Run the full F188c set unchanged.
 - PASS if the full F188c bar holds again (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188d RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-4.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ 8b40271.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Same result as cc2d173; the checkTables change moved nothing here.
+- Nothing in src/ changed, nothing signed.
