@@ -77,7 +77,7 @@ import {
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
 import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
 // borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
-import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
+import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
 import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
@@ -488,15 +488,15 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
 /**
  * M16 item 1: read every place-rule fact of the job's steps from the run's OWN frozen copy of its input, by code, before any provider call. `{ok:false, words}` = a rule
  * was not found (bareloop's stop words); `{ok:true, rows, values}` = the rows to record in run.json and the key-to-value map to bind in memory. No place fact = nothing read.
- * @param {string} runDir @param {any[]} steps @param {any[]} manifest freezeInputs' manifest
+ * @param {string} runDir @param {any[]} steps @param {any[]} manifest freezeInputs' manifest @param {Record<string, string>} [earlier] key to the value the newest earlier run read ("was")
  */
-export function readRunPlaceRules(runDir, steps, manifest) {
+export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
   const facts = citedPlaceFactsOf(steps);
   if (facts.length === 0) return { ok: /** @type {true} */ (true), rows: null, values: {} };
   const read = readPlaceRules(facts.map((fact) => {
     const entry = manifest.find((e) => e?.id === fact.source);
     const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, `inputs/${basename(entry.frozen)}`) : null;
-    return { fact, text: file && file.ok ? file.text : null, was: valueInWords(fact.place, fact.phrase) };
+    return { fact, text: file && file.ok ? file.text : null, was: earlier[fact.key] ?? valueInWords(fact.place, fact.phrase) };
   }));
   if (!read.proceed) return { ok: /** @type {false} */ (false), words: stopWords(read.rows) };
   return { ok: /** @type {true} */ (true), rows: read.rows.map(({ name: _n, ...r }) => r), values: read.values };
@@ -1451,7 +1451,7 @@ export async function runFlow({
 
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
   // M16 item 1: the place-rule facts are read from this run's own frozen copy, before any provider call; a rule not found stops here at $0 (a skipped ticket reads nothing)
-  const placed = frozen.skip ? { ok: /** @type {true} */ (true), rows: null, values: {} } : readRunPlaceRules(runDir, declaration.steps, /** @type {any[]} */ (frozen.manifest));
+  const placed = frozen.skip ? { ok: /** @type {true} */ (true), rows: null, values: {} } : readRunPlaceRules(runDir, declaration.steps, /** @type {any[]} */ (frozen.manifest), lastRunPlaceRead({ flowDir, runId }));
   if (!placed.ok) {
     return haltRun({
       flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: placed.words, spent: { value: 0 },

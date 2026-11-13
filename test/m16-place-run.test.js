@@ -50,16 +50,17 @@ function setup(t, { logText, quoteVersion }) {
   const w = writeFlow({ root, name: 'rel', proseText: sandboxSend(PROSE), declaration: declOf(), signedBy: 'hamr', signedAt: '2026-11-13T10:00:00Z', catalogue });
   assert.equal(w.ok, true, JSON.stringify(w.reds));
   const calls = { n: 0 };
+  let quote = quoteVersion;
   const provider = {
     generate: async () => {
       calls.n += 1;
-      const rows = [{ quote: `## [${quoteVersion}] - 2026-11-04`, values: {} }];
+      const rows = [{ quote: `## [${quote}] - 2026-11-04`, values: {} }];
       return { text: null, toolCalls: [{ id: 'e', name: 'emit_artifact', arguments: { results: rows, done: true } }], usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: 'deepseek-flash' };
     },
   };
   const modelStep = makeLiveModelStep({ spendPath: path.join(base, 'spend.jsonl'), provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
   const go = () => runFlow({ root, name: 'rel', runId: 'run-1', catalogue, modelStep, askStep: makeParkingAskStep(), sendStep: sendViaPrimitive, primitives: {}, businessDate: '2026-11-18', sources: [{ id: 'log', path: input }] });
-  return { base, root, input, catalogue, calls, go, runDir: path.join(root, 'rel', 'runs', 'run-1'), modelStep };
+  return { setQuote: (v) => { quote = v; }, base, root, input, catalogue, calls, go, runDir: path.join(root, 'rel', 'runs', 'run-1'), modelStep };
 }
 
 test('(P5) a changelog-version fact reads the run\'s own frozen copy: the signed words (0.50.0) are replaced by 0.55.0 and the quote of 0.55.0 passes; no provider call before the read', async (t) => {
@@ -116,4 +117,18 @@ test('(P5) a resume reads the recorded value back from run.json and binds it; a 
   assert.deepEqual(none, { ok: false, words: NO_PLACE_RECORD_WORDS });
   assert.deepEqual(stepsWithRecordedPlaces(s.runDir, [{ emits: 'x', close: { class: 'hitl' } }]).ok, true, 'a job with no place fact needs no record');
   void resumeRun;
+});
+
+test('(P5) "was": run-2 shows run-1\'s value as "was" (read from run-1\'s run.json, newest earlier run first)', async (t) => {
+  const s = setup(t, { logText: LOG('0.55.0'), quoteVersion: '0.55.0' });
+  await s.go();
+  writeFileSync(s.input, LOG('0.56.0'));
+  s.setQuote('0.56.0');
+  const out = await runFlow({ root: s.root, name: 'rel', runId: 'run-2', catalogue: s.catalogue, modelStep: s.modelStep, askStep: makeParkingAskStep(), sendStep: sendViaPrimitive, primitives: {}, businessDate: '2026-11-18', sources: [{ id: 'log', path: s.input }] });
+  assert.notEqual(out.outcome, 'preflight-red', JSON.stringify(out));
+  const row = JSON.parse(readFileSync(path.join(s.root, 'rel', 'runs', 'run-2', 'run.json'), 'utf8')).placeRules.rows[0];
+  assert.equal(row.value, '0.56.0');
+  assert.equal(row.was, '0.55.0'); // break: use the drafting words (0.50.0) and this reads 0.50.0
+  const first = JSON.parse(readFileSync(path.join(s.runDir, 'run.json'), 'utf8')).placeRules.rows[0];
+  assert.equal(first.was, '0.50.0', 'run-1 has no earlier run: the drafting words');
 });

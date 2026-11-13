@@ -9,7 +9,8 @@
 // This module is the graduation (a REWRITE, never a copy) of the round-3 POC (F321). Pure except `lastPlaceRead`, which reads earlier runs' spines.
 
 import path from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside, readdirInside } from './flow.js';
+import { readRunRecord } from './runfile.js';
 
 /** the two rule kinds on the menu: the version in a heading, and the date on the same heading line */
 export const PLACE_KINDS = Object.freeze(['headingBetween', 'headingDateAfter']);
@@ -389,4 +390,24 @@ export function placeRuleLines(events) {
     if (r.found !== true) return `${name}: not found (${PLAIN_REASONS[/** @type {keyof typeof PLAIN_REASONS} */ (r.reason)] ?? 'the input could not be read'})`;
     return `${name}: ${r.value}${typeof r.was === 'string' && r.was !== r.value ? ` (was ${r.was})` : ''}`;
   });
+}
+
+/**
+ * fwd's "last read" (bareloop's lastPlaceRead reads spines; fwd has none): per fact key, the value the newest EARLIER run of the same flow recorded in its run.json
+ * `placeRules` (runs are `run-<n>`; at most {@link LAST_READ_LOOK} earlier runs are looked at; a run with no record, or an unreadable one, is skipped). Empty when none.
+ * @param {{flowDir: string, runId: string}} o @returns {Record<string, string>}
+ */
+export function lastRunPlaceRead({ flowDir, runId }) {
+  const num = (/** @type {string} */ id) => { const m = /^run-(\d+)$/.exec(id); return m === null ? null : Number(m[1]); };
+  const me = num(runId);
+  const earlier = readdirInside(flowDir, 'runs').map((id) => ({ id, n: num(id) })).filter((r) => r.n !== null && (me === null || /** @type {number} */ (r.n) < me))
+    .sort((a, b) => /** @type {number} */ (b.n) - /** @type {number} */ (a.n)).slice(0, LAST_READ_LOOK);
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const r of earlier) {
+    const got = readRunRecord(path.join(flowDir, 'runs', r.id));
+    const rows = got.ok && Array.isArray(got.rec.placeRules?.rows) ? got.rec.placeRules.rows : [];
+    for (const row of rows) if (isRec(row) && row.found === true && typeof row.value === 'string' && !Object.hasOwn(out, String(row.key))) out[String(row.key)] = row.value;
+  }
+  return out;
 }
