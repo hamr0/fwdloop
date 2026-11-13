@@ -7263,3 +7263,7 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Claim bar: 22/22**; `{}` rejected 22/22.
 - **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d; the checkTables path-resolution change moved nothing here.
 - Nothing in src/ changed, nothing signed.
+
+### F188f PRE-REGISTERED (2026-11-13, $0): published bareguard 0.36.0 from npm
+- How: the same run4.mjs, unchanged, with BG82= the extracted `npm pack bareguard@0.36.0` tarball (.claude/scratch/f188f/package, node_modules symlinked to fwdloop's as in F188c-e). Tarball version 0.36.0; `npm view bareguard@0.36.0 dist.integrity --prefer-online` = sha512-dplmYSBbBhMtcgV/xHiQEmK2rH/jBiyyak5qn8/2DBVyoJZQKnc7OtTQZVeItWX60Pe1LqCpaz3TIATebj8HQw==. This is the release of ruling #82.
+- PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
