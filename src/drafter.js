@@ -794,6 +794,14 @@ export async function draft({
     if (block) { block.applyDelta({ label: 'pre:check-suggest', pre: true, edits: pickEdits(sugRows, blockLineNums) }); block.reconcile(); }
     shapeAsks = checkAsks(sugRows.filter((r) => !blockLineNums.has(r.line)));
   }
+  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && Object.keys(block.texts).length > 0) {
+    const texts = block.texts;
+    // the ledger-suggest call, after the pick call and before the asks (bareloop authorjob.js@v0.56.0 order, R3): extra `!` checks the inputs support, as `add` edits
+    const lg = await forcedTurn({ kind: 'ledger-suggest', system: LEDGER_SYSTEM, messages: [{ role: 'user', content: ledgerUserText(blockPlan.jobLines, texts) }], tool: { name: LEDGER_TOOL, description: 'Deliver the extra checks the inputs support (or an empty list). Call this exactly once.', schema: LEDGER_SCHEMA } });
+    if (lg.early) return lg.early;
+    block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(lg.args?.extra) });
+    block.reconcile();
+  }
   /** the questions of the block, merged below with the sheet's and the look's own, under one cap (M16 S3) */
   const blockAsks = block && offerQuestions ? questionsOfBlock(block, blockScoped) : [];
   if (block) pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
@@ -838,13 +846,6 @@ export async function draft({
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
   if (block && blockPlan?.ok && blockPlan.jobLines.length > 0) {
     const texts = block.texts;
-    if (Object.keys(texts).length > 0) {
-      // the ledger-suggest call (bareloop authorjob.js@v0.56.0): extra `!` checks the inputs support, as `add` edits
-      const lg = await forcedTurn({ kind: 'ledger-suggest', system: LEDGER_SYSTEM, messages: [{ role: 'user', content: ledgerUserText(blockPlan.jobLines, texts) }], tool: { name: LEDGER_TOOL, description: 'Deliver the extra checks the inputs support (or an empty list). Call this exactly once.', schema: LEDGER_SCHEMA } });
-      if (lg.early) return lg.early;
-      block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(lg.args?.extra) });
-      block.reconcile();
-    }
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */

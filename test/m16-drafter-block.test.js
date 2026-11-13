@@ -15,10 +15,10 @@ const SUGGEST_BOTH = callOf('suggest_checks', { checks: [{ line: 3, guardrail: 1
 const run = (/** @type {any} */ provider, /** @type {string} */ proseText, /** @type {any} */ extra = {}) => draft({ proseText, provider, rates: RATES, modelId: MODEL, checkList: true, ...extra });
 
 test('(S1+S2) m14-walk-5: the block is built over the step lines only and the suggest reply is its pick pre-edit, asked as a proposal', async (t) => {
-  const p = router({ suggest_checks: SUGGEST_BOTH });
+  const p = router({ suggest_checks: SUGGEST_BOTH, suggest_extra_checks: callOf('suggest_extra_checks', { extra: [] }) });
   const r = await run(p, walkProse(t));
   assert.equal(r.stop, 'look-asks');
-  assert.deepEqual(p.names(), ['suggest_checks'], 'one paid call before the asks');
+  assert.deepEqual(p.names(), ['suggest_checks', 'suggest_extra_checks'], 'the pick call, then the ledger call, then the asks (R3)');
   // rows exist for the step lines 1, 3, 5 and for no ask (2, 4, 6) or send (7) line
   assert.deepEqual([...new Set(r.checkRows.map((/** @type {any} */ x) => x.line))].sort(), [1, 3, 5]);
   assert.ok(r.checkRows.some((/** @type {any} */ x) => x.key === 'L3.~1' && x.rowKind === 'rule'));
@@ -78,4 +78,19 @@ test('(S2) the suggest reply is the block\'s pre-edit where code has no check of
   // the AI proposes nothing for it: the block has no check to offer and the ask is the can't-check one
   const none = await run(router({ suggest_checks: callOf('suggest_checks', { checks: [] }) }), prose);
   assert.equal(none.questions.find((/** @type {any} */ x) => x.line === 3).ask, 'no-check');
+});
+
+test('(R3) the order is check-suggest, then ledger-suggest, then the asks; a draft the asks stop still paid and metered the ledger call', async (t) => {
+  const prose = walkProse(t, (s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets and under 40 words'));
+  const p = router({
+    suggest_checks: callOf('suggest_checks', { checks: [{ line: 3, guardrail: 1, rule: 'listItems', value: 3 }] }),
+    suggest_extra_checks: callOf('suggest_extra_checks', { extra: [] }),
+  });
+  const r = await run(p, prose);
+  assert.equal(r.stop, 'look-asks');
+  assert.deepEqual(p.names(), ['suggest_checks', 'suggest_extra_checks'], 'pick call, then ledger call, and nothing after the asks');
+  const led = r.log.find((/** @type {any} */ e) => e.kind === 'ledger-suggest');
+  assert.ok(led, 'the ledger round is in the log');
+  assert.equal(r.rounds, 2, 'both rounds metered');
+  assert.ok(r.costUsd > 0 && r.spendComplete === true);
 });

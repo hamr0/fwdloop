@@ -145,11 +145,12 @@ test('flights (page): the block gets the look\'s facts on the step line, the pag
   const mapping = JSON.parse(rd('flights/page-look.json')).pages[0].mapping;
   const p = router({
     map: textOf(JSON.stringify(mapping)),
+    suggest_extra_checks: LEDGER_NONE,
     suggest_checks: callOf('suggest_checks', { checks: [{ line: 2, guardrail: 3, rule: 'listItems', value: 3 }, { line: 2, guardrail: 4, rule: 'maxWords', value: 80 }] }),
   });
   const r = await draft({ proseText: prose, provider: p, rates: RATES, modelId: MODEL, checkList: true, draftDir: path.join(home, 'pages'), fetchPage: async (/** @type {string} */ u) => ({ ok: true, text: rd('flights/flights.txt'), url: u }) });
   assert.equal(r.stop, 'look-asks');
-  assert.deepEqual(p.names(), ['map', 'suggest_checks']);
+  assert.deepEqual(p.names(), ['map', 'suggest_checks', 'suggest_extra_checks']);
   assert.deepEqual(r.questions.map((/** @type {any} */ q) => [q.line, q.ask, q.ruleNo]), [[2, 'check', 3], [2, 'check', 4]]);
   const keys = r.checkRows.map((/** @type {any} */ x) => x.key);
   assert.ok(keys.includes('L2.fact.origin city') && keys.includes('L2.fact.origin airport name'), keys.join('|'));
