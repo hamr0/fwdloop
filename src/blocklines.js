@@ -8,22 +8,23 @@ import { CheckBlock } from './checkblock.js';
  * @param {string} prose the job's signed text (or the draft's prose)
  * @param {any} [declaration] the declaration, once there is one. Before it exists nothing in fwd says which line reads a sheet (sheetLineBlocks reads the steps' `reads` / `close.sheet`),
  *   so a sheet line is then given as a step line; the caller passes the declaration whenever it has one.
+ * @param {number[]} [tiedSheetLines] lines whose `~` rule the sheet look (src/sheetlook.js) tied to a real column: sheet lines before there is a declaration (M16 R6); they stay on fwd's sheet path
  * @returns {{ok: true, jobLines: {n: number, text: string, rules: string[]}[], skipped: {ask: number[], send: number[], sheet: number[]}}|{ok: false, reds: string[]}}
  */
-export function blockJobLines(prose, declaration) {
+export function blockJobLines(prose, declaration, tiedSheetLines = []) {
   const p = parseSignedText(prose);
   if (!p.ok) return { ok: false, reds: p.reds };
   const ask = p.arbiter.asks.map((a) => a.line);
   const send = p.arbiter.sends.map((s) => s.line);
   const lines = p.lines.map((l) => ({ n: l.n, guardrail: l.guardrail }));
-  const sheet = declaration ? sheetLineBlocks({ declaration, lines, csvRoles: csvRolesOf(p.arbiter) }).map((b) => b.line) : [];
+  const sheet = [...new Set([...(declaration ? sheetLineBlocks({ declaration, lines, csvRoles: csvRolesOf(p.arbiter) }).map((b) => b.line) : []), ...tiedSheetLines])];
   const jobLines = p.lines.filter((l) => !ask.includes(l.n) && !send.includes(l.n) && !sheet.includes(l.n)).map((l) => ({ n: l.n, text: l.text, rules: rulesOfLine(l) }));
   return { ok: true, jobLines, skipped: { ask, send, sheet } };
 }
 
 /** a block over step lines only, with no `$` cited default (M16 am1). `texts`: label -> frozen text. */
-export function newJobBlock({ texts, jobLines, asks = true }) {
-  const block = new CheckBlock({ texts, labels: Object.keys(texts), asks, split: true, cited: false });
+export function newJobBlock({ texts, jobLines, asks = true, countScope = undefined }) {
+  const block = new CheckBlock({ texts, labels: Object.keys(texts), asks, split: true, cited: false, ...(countScope ? { countScope } : {}) });
   block.fromJob(jobLines);
   return block;
 }
