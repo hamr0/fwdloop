@@ -108,8 +108,10 @@ function placeFacts(name, strips, mk) {
 }
 
 export class CheckBlock {
-  /** @param {{texts: Record<string, string>, labels: string[], maxTries?: number, countScope?: (ruleText: string) => boolean, asks?: boolean, split?: boolean}} o the frozen input texts, their labels, how many AI replies (tries) may still change a row, whether code scopes a counting `~` rule in (a pick is asked), and whether a person can be asked at all (`asks`: false = a rule code cannot settle is Not checked, a reading code proposes is built as the AI's proposal) */
-  constructor({ texts, labels, maxTries = 3, countScope = () => true, asks = true, split = false }) {
+  /** @param {{texts: Record<string, string>, labels: string[], maxTries?: number, countScope?: (ruleText: string) => boolean, asks?: boolean, split?: boolean, cited?: boolean}} o the frozen input texts, their labels, how many AI replies (tries) may still change a row, whether code scopes a counting `~` rule in (a pick is asked), and whether a person can be asked at all (`asks`: false = a rule code cannot settle is Not checked, a reading code proposes is built as the AI's proposal) */
+  constructor({ texts, labels, maxTries = 3, countScope = () => true, asks = true, split = false, cited = true }) {
+    // M16 am1: `cited: false` = no `$` cited default row on this job's lines (fwd's own quote checks stay as they are); the `$` floor stays
+    this.cited = cited;
     /** the product path sets it: `!` rows split into job-derived and suggested, a suggestion code cannot build is hidden (hamr 2026-11-13). Off, every `!` row is built as before (the older callers and their tests) */
     this.split = split;
     this.countScope = countScope;
@@ -470,13 +472,14 @@ export class CheckBlock {
 
   /** the `$` defaults of a line, decided from what the line ended with: a text line quotes its input (one input only) and ties its numbers to the fact lines before it */
   buildDefaults(/** @type {{n: number}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows, /** @type {Set<number>} */ factLines) {
-    const cited = this.rowsOn(l.n, 'cited')[0] ?? this.addRow({ key: `L${l.n}.$cited`, line: l.n, kind: 'cited', by: 'default', from: 'default', source: this.labels[0] });
+    // M16 am1: with `cited: false` the cited row is never added and the numbers default below still runs
+    const cited = !this.cited ? null : this.rowsOn(l.n, 'cited')[0] ?? this.addRow({ key: `L${l.n}.$cited`, line: l.n, kind: 'cited', by: 'default', from: 'default', source: this.labels[0] });
     const numbers = this.rowsOn(l.n, 'numbers')[0] ?? null;
-    cited.part = null;
-    if (factLines.has(l.n)) { cited.state = 'not-checked'; cited.reason = REASON.onePerLine; return; }
+    if (cited) cited.part = null;
+    if (factLines.has(l.n)) { if (cited) { cited.state = 'not-checked'; cited.reason = REASON.onePerLine; } return; }
     const only = this.labels.length === 1 ? this.labels[0] : null;
-    if (only) { lineParts.push({ text: defaultCitedText(only), class: 'countable', check: 'cited', source: only }); lineRows.push([cited.key]); cited.state = 'built'; cited.reason = null; }
-    else { cited.state = 'not-checked'; cited.reason = REASON.manyInputs; }
+    if (cited && only) { lineParts.push({ text: defaultCitedText(only), class: 'countable', check: 'cited', source: only }); lineRows.push([cited.key]); cited.state = 'built'; cited.reason = null; }
+    else if (cited) { cited.state = 'not-checked'; cited.reason = REASON.manyInputs; }
     const earlier = [...factLines].filter((n) => n < l.n);
     if (!earlier.length) return;
     const nr = numbers ?? this.addRow({ key: `L${l.n}.$numbers`, line: l.n, kind: 'numbers', by: 'default', from: 'default', after: earlier });
