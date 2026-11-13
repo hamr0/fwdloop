@@ -140,9 +140,10 @@ const CITED_PROP = Object.freeze({
  * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
  * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
  * M13 piece 4: `ticket` = `{flowType, tools}` for MCP (generic) and Tickets; then a step may carry `mcpTools` (an enum of the job's tools) and, for Tickets, the tool carries `ticketFilter` and `ticketWatch` (src/ticket-draft.js). The job's `mcp` block and `flowType` are set by code, never offered.
- * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o]
+ * M16 S5: `noCited` = the check block owns the quote checks of its lines, so the AI is offered no `close.cited` (it writes no check; code builds them from the list).
+ * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}, noCited?: boolean}} [o]
  */
-export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
+export function buildDeclarationSchema(menu, { sheets, ticket, noCited = false } = {}) {
   const sheetProp = sheets ? sheetChecksProp(sheets) : null;
   const ticketParts = ticket ? ticketSchemaParts(ticket) : null;
   return {
@@ -172,7 +173,7 @@ export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
               type: 'object',
               properties: {
                 class: { type: 'string', enum: [...CLASSES], description: "MUST equal the class of fromLine's guardrail in guardrailClasses; hitl when that line has no guardrail" },
-                cited: CITED_PROP,
+                ...(noCited ? {} : { cited: CITED_PROP }),
                 columns: COLUMNS_PROP,
                 ...(sheetProp ? { sheet: sheetProp } : {}),
               },
@@ -242,9 +243,9 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o] */
-export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticket = undefined } = {}) {
-  const s = buildDeclarationSchema(menu, { sheets, ticket });
+/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}, noCited?: boolean}} [o] */
+export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticket = undefined, noCited = false } = {}) {
+  const s = buildDeclarationSchema(menu, { sheets, ticket, noCited });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
   if (questions) {
     extra.questions = {
@@ -303,7 +304,8 @@ function cleanNotChecked(raw) {
 }
 
 // M10 am27 (1): at draft time a count guardrail is hidden from the AI (the page look and the drafter); code keeps the ORIGINAL rule numbers and text.
-const shownRules = (/** @type {string} */ guardrail) => lineRules({ rule: guardrail }).filter((r) => !isCountGuardrail(r)).join('; ');
+// M16 S5: not on a line the check block is given (`all`): its count rules are shown like any other (am27 (1) is replaced for the lines of the list)
+const shownRules = (/** @type {string} */ guardrail, all = false) => lineRules({ rule: guardrail }).filter((r) => all || !isCountGuardrail(r)).join('; ');
 
 /**
  * The job lines as the page look may see them (no count rule), and `toOriginal`, which takes a look fact's / dropped entry's visible rule number back to the guardrail's own number.
@@ -321,17 +323,17 @@ export function hideCounts(jobLines, shown = /** @type {Set<number>} */ (new Set
   return { seenLines, toOriginal };
 }
 
-function jobLinesText(lines, asks) {
+function jobLinesText(lines, asks, blockLines = /** @type {Set<number>} */ (new Set())) {
   const askLines = new Set(asks.map((a) => a.line));
   return lines
     .map((l) => `${l.n}. ${l.text}${askLines.has(l.n) ? ' [SIGNED ASK — a human stop]' : ''}`
-      + `${l.guardrail && shownRules(l.guardrail) ? ` [guardrail: ${shownRules(l.guardrail)}]` : ' [no guardrail]'}`)
+      + `${l.guardrail && shownRules(l.guardrail, blockLines.has(l.n)) ? ` [guardrail: ${shownRules(l.guardrail, blockLines.has(l.n))}]` : ' [no guardrail]'}`)
     .join('\n');
 }
 
 /** M4d amendment 8: the green step must read an input with cells, so the drafter is told the rule and which inputs have cells.
  *  M10 am7: and when the job signs a web page, how a green step checks quotes from it - every rule below is one the validator enforces at $0. */
-function greenReadRule(sources) {
+function greenReadRule(sources, noCited = false) {
   const csvRoles = (sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path)).map((s) => s.role);
   const pageRoles = (sources ?? []).filter((s) => s.kind === 'page').map((s) => s.role);
   // M10 piece 5 (item 2): a quote in a doc - a .docx / .md / .txt input is quoted the way a page is
@@ -339,12 +341,14 @@ function greenReadRule(sources) {
   const rule = '- A step whose line has a "green" guardrail must list the CSV input\'s role in its reads (for example reads: ["aging"]), because only an input with cells can be checked against its sheet; a text output of an earlier step has no cells. A green step that reads only other steps is refused.';
   const out = [csvRoles.length
     ? `${rule} CSV inputs in this job: ${csvRoles.join(', ')}. close.columns = [{source, column}] names the exact column(s) of the CSV header that the step's values come from. Where the Inputs list says a line "is column 'X'", that line's step must name that column. A step that has close.sheet is not held to close.columns by a word that merely matches a header (such as a bucket name); but when a line carries a rule "use the column 'X' for ...", at least one of that line's close.sheet checks must use that column. Leave close.columns out when the line names no column.`
-    : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length ? ' (unless it is about a web page, below)' : ''}.`];
-  if (docRoles.length) {
+    : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl"${pageRoles.length && !noCited ? ' (unless it is about a web page, below)' : ''}.`];
+  // M16 S5: the check block builds the quote checks of its lines; the drafter is told nothing of close.cited and offers none
+  if (noCited && docRoles.length) out.push(`- A document input (${docRoles.join(', ')}) is never listed in reads. A step that needs the document is granted "read" ("readDocx" for a .docx) and reads it by its role through that tool; its reads stay empty or hold only earlier outputs.`);
+  if (!noCited && docRoles.length) {
     out.push(`- A document input (${docRoles.join(', ')}) is never listed in reads by a step that does not quote it (only a green step with close.cited.source = that role lists it). A step that needs the document is granted "read" ("readDocx" for a .docx) and reads it by its role through that tool; its reads stay empty or hold only earlier outputs.`);
   }
   if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
-  if (pageRoles.length || docRoles.length) {
+  if (!noCited && (pageRoles.length || docRoles.length)) {
     out.push(
       `- ${[pageRoles.length ? `Web page inputs in this job: ${pageRoles.join(', ')}.` : '', docRoles.length ? `Document inputs in this job: ${docRoles.join(', ')}.` : ''].filter(Boolean).join(' ')} A step whose line asks for things found in one of them, and whose guardrail is about them, is "green" and checks quotes: it lists that input's role in its reads and carries close.cited = {source, facts, count}. close.cited is for a green step only.`,
       '- close.cited.count is how many results the line asks for ("List 3" is {min: 3, max: 3}); the number must be one the person said on the line or its guardrail, as digits or a word. close.cited.facts is one fact per thing every result must hold, at most 10; a fact name is letters and spaces only (no digit).',
@@ -382,7 +386,7 @@ function sheetRuleNumbers(lines, arbiter) {
   return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((q) => `${q.no}) ${q.r}`).join(' ')}`)];
 }
 
-export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
+export function buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines = /** @type {Set<number>} */ (new Set()), noCited = false }) {
   const askLines = arbiter.asks.map((a) => a.line);
   const sendLines = arbiter.sends.map((s) => s.line);
   return [
@@ -397,7 +401,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     '- Every numbered job line must be served by a step (fromLine = that line) or listed in "refused" with a reason.',
     '- guardrailClasses: for each job line that HAS a guardrail, classify its wording once: "green" (every figure must be checkable against its source: a sheet figure by the bareguard checks of the sheet), "softgreen" (the human declared a SHAPE the output must take), "hitl" (an ask/accept/review gate, or anything you are not sure of). When unsure, "hitl".',
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
-    ...greenReadRule(arbiter.sources),
+    ...greenReadRule(arbiter.sources, noCited),
     '- You write no check. A shape guardrail (a word count, a list size, headings) is settled before you draft: the human picks each check from a list and code puts the picked checks in the plan, so there is no close.shape for you to write. Still answer close.class and guardrailClasses as above; code sets the class of a line whose guardrail it settled from what the human picked.',
     '- The send line (the last line, when a Destination is set) writes out what the human accepted; it has no guardrail and no check of its own.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
@@ -411,7 +415,7 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo }) {
     ...(factsInfo.length ? factsInfo : ['- (none)']),
     '',
     'The numbered job lines:',
-    jobLinesText(lines, arbiter.asks),
+    jobLinesText(lines, arbiter.asks, blockLines),
     ...sheetRuleNumbers(lines, arbiter),
   ].join('\n');
 }
@@ -874,7 +878,7 @@ export async function draft({
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
   // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
   const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
-  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo });
+  const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines: blockLineNums, noCited: blockOn });
   // M8 item 5a: the earlier runs' notes go on the DRAFTER's system prompt only (F81's B arm), the one `system` every round of this draft uses (revise and structure retries too).
   // Absent or empty: the prompt is byte-identical to what it was.
   const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}${learnHints?.text ? `\n\n${learnHints.text}` : ''}`;
@@ -902,7 +906,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: flowType === 'plain' ? undefined : { flowType, tools: mcp.tools } });
+    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: flowType === 'plain' ? undefined : { flowType, tools: mcp.tools }, noCited: blockOn });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
