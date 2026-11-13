@@ -3708,3 +3708,4 @@ Peer state (2026-11-13):
 - A rule the person answered with their own words, left, or left with no pick is told in fwd's signed table words (`not checked · "<rule>" — <reason>`, M10 am16 (5), src/pagedropwords.js), with "kept from last draft" (M10 am17 (6)); bareloop's reasons stand only for the other cases.
 - No row-edit turn is paid for a job with nothing to edit (no `~` rule and no input text); the ledger-suggest call needs an input text, as in bareloop.
 - Only declaration rounds are "tries" in the draft's step list and the Audit (src/draft-steps.js `triesOf`); the list's ledger-suggest and row-edit turns are rounds, not tries the AI fixed.
+- The AI's notChecked list is kept beside the rows' reasons (M4e am24/am25 stand; R4 overridden).
