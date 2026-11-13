@@ -326,7 +326,8 @@ test('(xvi) Abandon stops the child by its recorded pid, makes no further model 
   const id = (await w.post('/api/author/draft', w.card())).json().draftId;
   const dir = w.dir(id);
   const live = path.join(dir, 'draft', 'draft-spend.json');
-  const rec = await until(() => { try { const j = JSON.parse(readFileSync(live, 'utf8')); return j.inFlight && j.rounds === 1 ? j : null; } catch { return null; } });
+  // M16 (a): the list's ledger-suggest and row-edit turns are rounds 1 and 2; the hung call is the declaration
+  const rec = await until(() => { try { const j = JSON.parse(readFileSync(live, 'utf8')); return j.inFlight && j.rounds === 3 ? j : null; } catch { return null; } });
   const pid = JSON.parse(readFileSync(path.join(dir, 'pid.json'), 'utf8'));
   assert.equal(isFwdloopAlive(pid.pid, pid.procStart), true);
   const before = spendSummary({ home: w.home }).total.usd;
