@@ -17,6 +17,8 @@ import {
 const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra });
 const DEAD = 'http://127.0.0.1:1';
 
+const dl = (r) => r.log.filter((e) => ['first', 'revision', 'structure-retry'].includes(e.kind)); // M16 (a): the list's two turns are extra log rows; these tests are about the declaration rounds
+
 test('A1: bare-agent 0.52 or later is installed (the installed-version pin lives in m4d-am7c-thinking-status.test.js)', () => {
   const v = JSON.parse(readFileSync(new URL('../node_modules/bare-agent/package.json', import.meta.url), 'utf8')).version;
   assert.match(v, /^0\.5[2-9]\.|^0\.[6-9]\d\./);
@@ -92,7 +94,7 @@ test('E1: thinkingApplied from the run is recorded on the round\'s log entry (an
   const p = fakeProvider([{ ...toolReply(validArgs()), thinkingApplied: false }]);
   const r = await run(p, { draftThinking: 'off' });
   assert.equal(r.ok, true);
-  assert.equal(r.log[0].thinkingApplied, false);
+  assert.equal(dl(r)[0].thinkingApplied, false);
 });
 
 test('E2: no thinkingApplied from the provider means the log entry carries none', async () => {

@@ -8,6 +8,8 @@ import {
 
 const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra });
 
+const dl = (r) => r.log.filter((e) => ['first', 'revision', 'structure-retry'].includes(e.kind)); // M16 (a): the list's two turns are extra log rows; these tests are about the declaration rounds
+
 test('am4: thinking off forces the tool, as before', async () => {
   const p = fakeProvider([toolReply(validArgs())]);
   const r = await run(p, { draftThinking: 'off' });
@@ -28,6 +30,6 @@ test('am4: thinking on, plain text on round 1, tool call on round 2 -> the struc
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(p.calls.length, 2);
   assert.equal(r.structureRetries, 1);
-  assert.equal(r.log[1].kind, 'structure-retry');
+  assert.equal(dl(r)[1].kind, 'structure-retry');
   assert.equal('toolChoice' in p.calls[1].options, false);
 });

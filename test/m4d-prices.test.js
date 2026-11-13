@@ -275,7 +275,7 @@ test('(xii) with a config price set: the model step, the drafter and a CLI resum
   const d = await withHome(home, () => withFake(U, () => draft({ proseText: job2Fixture().prose, slot: 'DEEPSEEK_API_KEY', model: 'deepseek-flash', env: { DEEPSEEK_API_KEY: KEY } })));
   assert.equal(d.ok, true, JSON.stringify(d.reds));
   assert.deepEqual(d.price, want);
-  close(d.costUsd, COST_SET_U);
+  close(d.costUsd, 3 * COST_SET_U); // M16 (a): three rounds at the same fake usage, the list's ledger-suggest and row-edit turns and the declaration
 
   // resume: a real `fwdloop resume` child; its model step is the live one (network call faked by --import)
   const root = tmp('root');
