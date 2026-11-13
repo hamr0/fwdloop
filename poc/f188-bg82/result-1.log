@@ -1,0 +1,20 @@
+bareguard under test: /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82 (0.35.0, 5b87539); fwd's own functions use its installed bareguard
+flows 51; signed 51; jobs with a close.sheet 13; sheet steps 13 (job line missing 0); checks 27 (cells 22, table 5, other 0); step-table sets skipped (no frozen input) 0
+vocabulary where.cmps equals fwd WHERE_CMPS as a set true (same order true); cmpKinds present true
+tableSha fwd-installed vs #82: 16/16; #82 vs sha recorded in run.json: 16/16
+sheetCheckColumns vs columnAt: 35/35 same column set
+sheetCheckReds vs checkTables: 16/16 same ok/red (both ok 16, both red 0)
+tableChecksFailingOnInput vs runTableChecks: 5/5 table checks same pass/fail (failing 1, of which stopped 0)
+sheetChecksProp vs checkSchema (hand validator, no JSON-schema dependency in fwd or bareguard): checks 35; valid against fwd's schema 35; valid against #82's schema (covers stripped) 35; #82 returned null 0; both valid but property sets differ 35
+sheetAnswerProps vs claimSchema: 21/22 same claim keys (decides); keys and required both same 19; required differs 3 (null/none 0; same keys but different type 5)
+sheetCheckWordReds vs groundedLiterals: 27/27 same ok/red (both ok 27, both red 0)
+  DIFF claims: m10-walk-csv-4 line 2 rows: keys fwd [rows] #82 [rows] req false
+  DIFF claims: type only: count.value fwd "number" #82 "integer"
+  DIFF claims: m10b-expenses line 2 rows: keys fwd [rows] #82 [rows] req false
+  DIFF claims: type only: countIf.value fwd "number" #82 "integer"
+  DIFF claims: m10b-expenses-a line 2 rows: keys fwd [rows] #82 [rows,keys] req false
+  DIFF claims: type only: uniqueCount.value fwd "number" #82 "integer"
+forced "header not a column": caught - #82 problems 1 (not-a-column 1, field "column"); fwd reds 1
+forced "table sha mismatch": caught - checkTables kinds [sha-mismatch]; runTableChecks verdict stopped, fault.inputs ["t"]
+forced "literal not in the words": caught - groundedLiterals missing 1 (where[0].value); groundedValues missing 1; fwd reds 1
+RESULT: FAIL
