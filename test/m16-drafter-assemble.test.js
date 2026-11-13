@@ -178,7 +178,7 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
   const mk = () => router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
   const base = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
   const on = await go(mk(), prose, { ...base, checkPicks: [] });
-  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, ...base });
+  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, checkList: false, ...base });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
   assert.equal(off.ok, true, JSON.stringify(off.reds));
   assert.deepEqual(on.declaration.ticketFilter, off.declaration.ticketFilter);
@@ -201,7 +201,7 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   const sheetAns = textOf(JSON.stringify({ facts: [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }] }));
   const mk = () => router({ map: sheetAns, submit_edits: NONE, suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', decl) });
   const on = await go(mk(), prose, { checkPicks: [] });
-  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, offerQuestions: false });
+  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, offerQuestions: false, checkList: false });
   assert.equal(off.ok, true, JSON.stringify(off.reds));
   assert.equal(on.ok, true, JSON.stringify(on.reds));
   assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes, the sheet line untouched');

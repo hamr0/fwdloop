@@ -466,8 +466,8 @@ export async function draft({
   mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcp = /** @type {any} */ (null),
-  // M16: build the check block over the job's step lines, run its turns and assemble the checks of those lines from its rows (S5-S7). OFF = the pre-M16 draft. NOT yet the default: flipping it fails 27 test files (see the P3b report)
-  checkList = false,
+  // M16: build the check block over the job's step lines, run its turns and assemble the checks of those lines from its rows (S5-S7). OFF = the pre-M16 draft (until P6)
+  checkList = true,
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
