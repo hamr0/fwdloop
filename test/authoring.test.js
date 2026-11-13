@@ -82,7 +82,8 @@ test('draft: a red draft still writes its dir (reds, cost, booked) but no spec.h
   assert.ok(log.reds.some((x) => x.includes('"forget"')));
   const rows = readSpendRows(path.join(dir, 'spend.jsonl'));
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].rounds, 3);
+  // M16 (a): two more metered rounds, the list's ledger-suggest and row-edit turns (the job's inputs are documents)
+  assert.equal(rows[0].rounds, 3 + 2);
   assert.ok(rows[0].costUsd > 0);
 });
 
@@ -120,14 +121,14 @@ test('draft: $0 refusals write nothing and spend nothing (bad key, missing input
 test('draft: budget exceeded stops, is priced, and is booked', async () => {
   const bad = validArgs();
   bad.steps[2].primitives = ['forget']; // never valid -> keeps asking for another round
-  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], capUsd: ceilingCostUsd(RATES) + 0.0002 });
+  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], capUsd: ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00036 }); // M16 (a): room for the list's two turns
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(provider.calls.length, 1, 'stopped before a second round');
   const row = readSpendRows(path.join(dir, 'spend.jsonl'))[0];
   assert.equal(row.stop, 'budget');
   assert.ok(row.costUsd > 0);
-  assert.equal(row.budgetUsd, Number(String(ceilingCostUsd(RATES) + 0.0002)), 'the row records the signed cap');
+  assert.equal(row.budgetUsd, Number(String(ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00036)), 'the row records the signed cap');
 });
 
 test('draft: an unpriced round is booked null, never 0', async () => {
@@ -603,7 +604,7 @@ function hookedProvider(hook) {
   return {
     ...inner,
     get lastMalformedToolCall() { return inner.lastMalformedToolCall; },
-    async generate(...a) { hook(); return inner.generate(...a); },
+    async generate(...a) { if (a[1]?.[0]?.name === 'emit_declaration') hook(); return inner.generate(...a); }, // M16 (a): the write failure is after the paid DECLARATION round, not the list's earlier turns
   };
 }
 
@@ -681,8 +682,9 @@ test('draft: validator-red then a thrown provider call books spendComplete:false
   assert.equal(rows.length, 1);
   assert.equal(rows[0].spendComplete, false);
   assert.equal(rows[0].stop, 'provider-red');
-  assert.equal(rows[0].rounds, 1, 'rounds = metered rounds');
-  assert.equal(rows[0].calls, 2, 'calls = provider calls made');
+  // M16 (a): +2 rounds and calls, the list's ledger-suggest and row-edit turns
+  assert.equal(rows[0].rounds, 1 + 2, 'rounds = metered rounds');
+  assert.equal(rows[0].calls, 2 + 2, 'calls = provider calls made');
   assert.ok(rows[0].costUsd > 0, 'the priced floor is kept');
   const lg = readJson(path.join(s.dir, 'log.json'));
   assert.equal(lg.spendComplete, false);
@@ -701,8 +703,8 @@ test('draft: a thrown call after a priced round returns spendComplete:false (dra
   const r = await draft({ proseText: fx.prose, provider: p, rates: RATES, modelId: MODEL });
   assert.equal(r.stop, 'provider-red');
   assert.equal(r.spendComplete, false);
-  assert.equal(r.calls, 2);
-  assert.equal(r.rounds, 1);
+  assert.equal(r.calls, 2 + 2); // M16 (a): +2, the list's two turns
+  assert.equal(r.rounds, 1 + 2);
   const g = await makeDraft();
   assert.equal(g.r.spendComplete, true);
   assert.equal(readSpendRows(path.join(g.dir, 'spend.jsonl'))[0].spendComplete, true);
