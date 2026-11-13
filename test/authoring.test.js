@@ -121,14 +121,14 @@ test('draft: $0 refusals write nothing and spend nothing (bad key, missing input
 test('draft: budget exceeded stops, is priced, and is booked', async () => {
   const bad = validArgs();
   bad.steps[2].primitives = ['forget']; // never valid -> keeps asking for another round
-  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], capUsd: ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00036 }); // M16 (a): room for the list's two turns
+  const { r, dir, provider } = await makeDraft({ replies: [toolReply(bad)], capUsd: ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00054 }); // M16 (a): room for the list's two turns
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(provider.calls.length, 1, 'stopped before a second round');
   const row = readSpendRows(path.join(dir, 'spend.jsonl'))[0];
   assert.equal(row.stop, 'budget');
   assert.ok(row.costUsd > 0);
-  assert.equal(row.budgetUsd, Number(String(ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00036)), 'the row records the signed cap');
+  assert.equal(row.budgetUsd, Number(String(ceilingCostUsd(RATES) + 0.0002 + 2 * 0.00054)), 'the row records the signed cap');
 });
 
 test('draft: an unpriced round is booked null, never 0', async () => {

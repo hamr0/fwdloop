@@ -108,7 +108,7 @@ test('(e1) the per-draft budget stops the next round, priced and returned', asyn
   const bad = validArgs();
   bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 + BLOCK * 0.00036 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 + BLOCK * 0.00054 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
   assert.equal(r.rounds, 1 + BLOCK);
