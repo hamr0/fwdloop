@@ -326,7 +326,7 @@ export function createAuthor(opts) {
     const view = notCheckedView(ncFile?.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
     const card = listLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`)?.checkCard : undefined;
-    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { rows: card.rows, suggested: card.suggested } : null;
+    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...listLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
     return {
       checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list } : {}),
     };

@@ -747,6 +747,9 @@
   .chat-question .q-err{color:var(--red);}
   .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
   .chat-extras:empty{display:none;}
+  /* M16 item 5: a row of the list wears the tag of its kind; Drop / Add sit after it and wrap with the text (bareloop's card controls) */
+  .chat-extras .by{color:var(--text-faint);font-size:12px;}
+  .chat-extras .row-op{min-height:28px;padding:2px 10px;font-size:12px;margin:2px 0 2px 6px;}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
@@ -5814,16 +5817,32 @@
       }
       // M10 am11: each check sentence is its own line (the step's label leads its first; the rest sit under it)
       var checkedLines = [];
+      // M16 item 5: a line with a list draws its lead sentence, then one row per built check with the tag of its row and, on an [agent] row, a Drop button (server: state.list, from the card the draft saved)
+      var list = state.list && Array.isArray(state.list.rows) ? state.list : null;
+      var listOn = {};
+      if(list) list.lines.forEach(function(n){ listOn[n] = true; });
       state.checked.forEach(function(c){
+        var onList = list !== null && c.line !== null && c.line !== undefined && listOn[c.line] === true;
         c.sentences.forEach(function(s, i){
+          if(onList && i > 0) return;
           checkedLines.push(i === 0 ? (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + s : "  " + s);
+        });
+        if(onList) list.rows.filter(function(r){ return r.line === c.line && r.state === "built"; }).forEach(function(r){
+          checkedLines.push({text: "  " + r.text, by: r.by, op: r.drop ? "drop" : "", key: r.key});
         });
         // M10b am2: a line that reads a sheet: its guardrails, Checked (name, words, covers), Not checked
         sheetBlockLines(c.sheet).forEach(function(t){ checkedLines.push("  " + t); });
       });
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
+      // M16 item 5: the checks the agent suggests that are NOT in the job - code has proved each builds; none is checked unless the person adds it
+      if(list && list.suggested.length){
+        blocks.push({id: "chat-suggested", head: "Suggested", sub: "not in your job, not checked unless you add it", lines: list.suggested.map(function(x){
+          return {text: "line " + x.line + " \u00b7 " + x.text + (x.dropped ? " (you dropped it)" : ""), by: "agent", op: "add", key: x.key};
+        })});
+      }
       var nc = state.notChecked || {};
-      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      var ncBy = nc.by && typeof nc.by === "object" ? nc.by : {};
+      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return ncBy[x] ? {text: "- " + x, by: ncBy[x], op: "", key: ""} : "- " + x; }) : ["The drafter listed nothing."]});
       // M10 am11: code's notes about written forms it did not use are their own list, after Not checked (none = no block)
       if(nc.readNotes && nc.readNotes.length) blocks.push({id: "chat-readnotes", head: "How the page was read", sub: "", lines: nc.readNotes.map(function(x){ return "- " + x; })});
       return {blocks: blocks};
@@ -6665,13 +6684,20 @@
         qAnswer.value = ""; qError.textContent = "";
       }
     }
+    // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]
+    function byTagOf(by){ return by === "you" ? ' <span class="by" data-testid="plan-by" data-by="you">[you]</span>' : by === "agent" ? ' <span class="by" data-testid="plan-by" data-by="agent">[agent]</span>' : by === "default" ? ' <span class="by" data-testid="plan-by" data-by="default">[default]</span>' : ""; }
+    // one line of a block: plain text, or a row of the list (its text, its tag, and Drop on an [agent] check / Add on a suggestion)
+    function extraLineHTML(l){
+      if(typeof l === "string") return escapeXml(l);
+      return escapeXml(l.text) + byTagOf(l.by) + (l.op ? ' <button type="button" class="btn row-op" data-testid="row-' + l.op + '" data-rowop="' + l.op + '" data-rowkey="' + escapeXml(l.key) + '">' + (l.op === "drop" ? "Drop" : "Add") + '</button>' : "");
+    }
     // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
     function renderExtras(state){
       if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
         return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
-          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(escapeXml).join("\n") : '') + '</div>';
+          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(extraLineHTML).join("\n") : '') + '</div>';
       }).join("") : "";
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }
@@ -6858,6 +6884,27 @@
 
     // Send (amendments 24/25): the answer to the question now open. A blank answer is refused by the server in plain words and the question stays open.
     // M10 am29: a choice button posts its own choice and nothing else; the box's button posts the box's words as a new rule (choice "rule"), never read as agree or drop it
+    // Drop / Add (M16 item 5): $0, no AI call. The server writes a new plan; a sign click on the old one is cleared (its hash is not the plan's now)
+    var rowBusy = false;
+    function doRowEdit(btn){
+      if(rowBusy || !sessionId || !lastState || lastState.phase !== "green") return;
+      rowBusy = true;
+      var id = sessionId;
+      var all = extrasEl.querySelectorAll("button.row-op");
+      for(var i = 0; i < all.length; i++) all[i].disabled = true;
+      authorPost("/api/author/" + id + "/row-edit", {op: btn.getAttribute("data-rowop"), key: btn.getAttribute("data-rowkey")}).then(function(r){
+        rowBusy = false;
+        if(id !== sessionId) return;
+        if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ chatActionFailed(refusalText(r)); for(var j = 0; j < all.length; j++) all[j].disabled = false; return; }
+        chatActionOk();
+        signInfo = null; signClickedOnce = false;
+        poll();
+      }).catch(function(){ rowBusy = false; for(var j = 0; j < all.length; j++) all[j].disabled = false; chatActionFailed(NETWORK_SAY); });
+    }
+    extrasEl.addEventListener("click", function(ev){
+      var t = ev.target && ev.target.closest ? ev.target.closest("button.row-op") : null;
+      if(t && extrasEl.contains(t)) doRowEdit(t);
+    });
     function doAnswer(choice){
       if(qBusy || !sessionId || !lastState || lastState.phase !== "questions-open") return;
       qBusy = true; qSend.disabled = true; qAgree.disabled = true; qDrop.disabled = true; qError.textContent = "";

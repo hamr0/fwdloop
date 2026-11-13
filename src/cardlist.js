@@ -1,3 +1,4 @@
+// borrowed-from: bareloop src/panel/jobplan.js@v0.56.0 (3383cce) (planFromConfirm: the card's suggested list and the checks under each line, from the block's own readers)
 // M16 P4 item 4 (docs/wiki/the-module-ladder.md, "M16" item 5): what the plan card shows of the list, written ONCE at draft time from the block's own rows (`renderCard`, `suggestedView`)
 // and kept in the draft's log.json as `checkCard`. The page only draws it (bareloop src/panel/jobplan.js@v0.56.0 reads the same two readers); it never decides a check.
 // What this throws away: the rows' proofs (`can`, `pick`, parts). Only the words, the tag, the reason and whether a Drop is offered survive.

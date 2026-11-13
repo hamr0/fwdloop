@@ -1,3 +1,5 @@
+// borrowed-from: bareloop src/panel/authorroutes.js@v0.56.0 (3383cce) (the row-edit route: op drop|add and a row key, the choice goes through the block's own rowChoice; the live session is replaced by the rebuild below)
+// borrowed-from: bareloop src/panel/authorsession.js@v0.56.0 (3383cce) (rowEdit: the refusal words are the block's own, the choices are kept as rowChoices in the picks record)
 // M16 P4 item 3 (docs/wiki/the-module-ladder.md, "M16" am3 (4)): Drop and Add on the plan card. fwd drafts in a child process, so no live check block outlives a draft: the panel REBUILDS the list at $0
 // from what the draft saved (its prose, the frozen page copies and the document inputs, page-look.json, picks-record.json, and the AI's edit replies in log.json), applies the person's choice through
 // the block's own `rowChoice`, assembles the checks again and hands back the files of a NEW plan. It makes no provider call, builds no provider, spawns nothing. The rebuild is only trusted when,
