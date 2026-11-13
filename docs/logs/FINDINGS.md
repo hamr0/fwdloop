@@ -7154,3 +7154,8 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - How: for every saved fwd job with a signed `close.sheet` (under ~/.config/fwdloop/flows, read in place), text = the job line plus its ~ rules joined (src/pagebits.js wordsSaidOn); each literal sheetCheckWordReds scans today (where number bounds, where date bounds, asOf) plus every row-math `b.const`, is graded twice: fwd numbersSaid grounding (bare OR amount for numbers, exact date token for dates) and the #82 reader written in poc/f186-reader/ from the spec text alone.
 - Reported: total literals, agree, each disagreement class with its count and which #82 divergence it hits, b.const count and how many are grounded under each reader, and every SIGNED job that numbersSaid grounds but #82 would refuse (named by flow name and line number only).
 - PASS if zero signed jobs are refused by #82 that numbersSaid grounds today. FAIL otherwise. Never change the bar after the run.
+
+### F186 RESULT (2026-11-13, $0, `node poc/f186-reader/run.mjs`, log `poc/f186-reader/result-1.log`, [MEASURED]): PASS
+- 51 flows scanned (all carry signature.json); 13 jobs / 13 steps with `close.sheet`; every step's job line found.
+- Literals 13 (number 7, date 0, asOf 6): agree 13 (all grounded under both readers), fwd grounds / #82 refuses 0, #82 grounds / fwd refuses 0. No divergence class (1-9) was hit by any real literal. Row-math `b.const`: 0 in saved jobs.
+- Signed jobs refused by #82 that numbersSaid grounds: none. Caveat: the sample is small (13 literals), so it shows no real-line cost, not that divergences 1-5 are harmless; reader probes on synthetic text (`1,0,0`, `-5`, `5k`, `.5`, `(5`, `$ 150`, `2026-02-30`, `3/4/2026`) behaved as the spec says.
