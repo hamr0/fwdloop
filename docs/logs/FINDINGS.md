@@ -7267,3 +7267,11 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 ### F188f PRE-REGISTERED (2026-11-13, $0): published bareguard 0.36.0 from npm
 - How: the same run4.mjs, unchanged, with BG82= the extracted `npm pack bareguard@0.36.0` tarball (.claude/scratch/f188f/package, node_modules symlinked to fwdloop's as in F188c-e). Tarball version 0.36.0; `npm view bareguard@0.36.0 dist.integrity --prefer-online` = sha512-dplmYSBbBhMtcgV/xHiQEmK2rH/jBiyyak5qn8/2DBVyoJZQKnc7OtTQZVeItWX60Pe1LqCpaz3TIATebj8HQw==. This is the release of ruling #82.
 - PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188f RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-6.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.36.0 from npm (integrity above).
+- Run note: BG82= pointed at the extracted tarball; the log header names that path (.claude/scratch/f188f/package, "0.36.0"). Its "8b40271" is the script's hardcoded label, not the tested code (script unchanged).
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d and F188e; the published release moved nothing here.
+- Nothing in src/ changed, nothing signed.
