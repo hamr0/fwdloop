@@ -36,7 +36,8 @@ import {
 } from './checkpick.js';
 // M16 (docs/wiki/the-module-ladder.md, "M16"): the check block's turns, wired beside the declaration path
 import { blockJobLines } from './blocklines.js';
-import { setUpBlock, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock } from './blockdraft.js';
+import { setUpBlock, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock, buildFaultWords, isBuildFault } from './blockdraft.js';
+import { assembleFromBlock } from './blockassemble.js';
 import { questionsOfBlock } from './blockasks.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf } from './rowedit.js';
@@ -838,8 +839,9 @@ export async function draft({
   // (shown on the plan card and carried as `unjudgeable`); the drafter writes no check of its own, whatever it sends is overwritten below.
   const allPicks = [...checkPicks, ...carried.picks];
   const allLeft = [...leftRules, ...carried.left];
-  // the declaration path settles every shape rule as before (S5 replaces it for the block's lines)
-  const settled = allShape.length ? settleRules(allShape, allPicks, allLeft) : null;
+  // the old path settles the shape rules of the lines the block is NOT given; a block line's checks come from the block's rows (assembleFromBlock, below)
+  const oldShape = block ? allShape.filter((r) => !blockLineNums.has(r.line)) : allShape;
+  const settled = oldShape.length ? settleRules(oldShape, allPicks, allLeft) : null;
   // the record this draft hands on: what it kept plus what the person just answered (numbered on this card); the block's rules and the other shape rules are one record
   onPickRecord?.({ picks: [...carried.kept.map((k) => k.entry), ...entriesFromAnswers(lines, allShape, checkPicks, leftRules)], kept: keptView });
   const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && (k.rule === n.rule || (k.entry.added !== null && sameWords(k.entry.added, n.text)))) ? ` (${KEPT_WORDS})` : '');
@@ -1021,7 +1023,15 @@ export async function draft({
       });
     }
     // M10 am16 (4): code sets the check of every line it settled, from the picks only; the drafter's own `close.shape` and class for such a line are gone
-    if (settled) Object.assign(declaration, applyPicks(declaration, allShape, settled, (n) => dropSentence({ line: n.line, fact: '', reason: n.reason })));
+    if (settled) Object.assign(declaration, applyPicks(declaration, oldShape, settled, (n) => dropSentence({ line: n.line, fact: '', reason: n.reason })));
+    // M16 S6: the checks of the block's lines are the block's built parts; whatever the AI wrote for them is gone, and the list that proves it is signed with the plan
+    delete declaration.checkList;
+    let assembled = null;
+    if (block && blockPlan?.ok) {
+      assembled = assembleFromBlock({ declaration, block, lines, lineSet: blockLineNums });
+      Object.assign(declaration, assembled.declaration);
+      if (assembled.declaration.pickedLines === undefined) delete declaration.pickedLines;
+    }
     // M10 am27 (2): the two mechanical plan mistakes (cited page not in reads; unjudgeable note on a green line) are repaired by code and logged on the round
     { const fixed = repairDeclaration(declaration, arbiter); if (fixed.repaired.length) { Object.assign(declaration, fixed.declaration); entry.repaired = fixed.repaired; } }
     // M10 am27 (4): what the drafter wrote vs what the final plan keeps, per job line (record only); drafted = the declaration as sent, before any code change
@@ -1048,10 +1058,21 @@ export async function draft({
     const verdict = planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...cleanNotChecked(rawNotChecked), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
+    // M16 R4 (bareloop's rubric path): the AI's own `notChecked` is not kept for the lines of the list; the Not-checked list is the rows'
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : cleanNotChecked(rawNotChecked)), ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])] };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;
+    // M16 S7: a red on a check the BLOCK built is a fault of the build, not of the job: the draft stops in plain words, the AI is never asked to fix it (R2); reds on steps, reads, asks, send stay a revise
+    const faults = !verdict.ok && assembled ? verdict.reds.filter((r) => isBuildFault(r, linesNamedByReds([r], declaration, lineNums).filter((n) => assembled.built.has(n)))) : [];
+    if (faults.length) {
+      entry.outcome = 'plan-red';
+      entry.reds = [...verdict.reds];
+      log.push(entry);
+      lastReds = [buildFaultWords(faults)];
+      stop = 'plan-red';
+      break;
+    }
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);

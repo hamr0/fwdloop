@@ -19,6 +19,16 @@ export function renderRejectBlock(reds, cap = REVISE_RED_CAP) {
 export const buildFaultWords = (reds) => `The plan code built from your checks did not pass its own gate (${reds.slice(0, 2).join('; ')}). That is a fault in the build, not in your job: nothing was spent on a close.`;
 
 /**
+ * Is this validator red about a check the BLOCK built (R2)? It names a line the block gave a check to (`builtLines`, from the red's own line number) and is about a close the code wrote: the quote check, a
+ * picked check, the numbers tie, the class, the list or the picked-lines record; or it is the cited words' own `line N:` red. A red on a step's primitives, reads, emits or an ask names none of those.
+ * @param {string} red @param {number[]} builtLines the lines the red names that the block built a check on
+ */
+export function isBuildFault(red, builtLines) {
+  if (builtLines.length === 0) return false;
+  return /close\.(?:cited|picked|shape|numbersFrom|class)|checkList|pickedLines/.test(red) || /^declaration: line \d+:/.test(red);
+}
+
+/**
  * The block of a draft (M16 item 2): the person's `~` rules and `$` defaults, then the look's facts, then the picks the person made (kept from the last draft, and just answered), reconciled once.
  * Fresh answers go through `carry` like the kept ones (the draft is a child process: the answer comes back as a pick or a left rule), and are not marked "kept".
  * `scoped`: the rules the pick path owns (src/checkpick.js offerRules over the block's lines); one the record folded into another ask (a broken pair's partner) is neither asked nor given the old check (bareloop authorjob.js@v0.56.0).

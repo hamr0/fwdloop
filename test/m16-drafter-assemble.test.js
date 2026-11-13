@@ -30,3 +30,107 @@ test('(S5) the prompt of a list job tells nothing of close.cited and shows the c
   assert.ok(on.includes('[guardrail: exactly 3 bullets]'), 'break: pass the block lines to shownRules and this reds');
   assert.ok(!on.includes('close.cited'));
 });
+
+// ---- S6 / S7 through draft(): the m14-walk-5 job with the list on --------------------------------------------------------------------------------------------------
+import { draft } from '../src/drafter.js';
+import { validateDeclaration } from '../src/declaration.js';
+import { loadCatalogue } from '../src/catalogue.js';
+import { WIRED_VERBS } from '../src/primitives.js';
+import { checkListReds } from '../src/checklistsign.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { RATES, MODEL } from './drafter-fixture.mjs';
+import { callOf, router } from './m16-drafter-fixture.mjs';
+
+const NONE = callOf('submit_edits', { edits: [] });
+const LEDGER_NONE = callOf('suggest_extra_checks', { extra: [] });
+const PICKS = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 }, added: 'at most 80 words' }];
+const WALK = (/** @type {string} */ s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets; exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: under 80 words; at most 80 words');
+/** the declaration an AI sends for the walk job, with checks of its own on lines 3 and 5 (which code must drop) */
+const aiDecl = () => ({
+  steps: [
+    { primitives: ['read'], reads: [], emits: 's1', fromLine: 1, close: { class: 'hitl' } },
+    { primitives: [], reads: ['s1'], emits: 'a2', fromLine: 2, close: { class: 'hitl' } },
+    { primitives: ['read'], reads: [], emits: 's3', fromLine: 3, close: { class: 'green', cited: { source: 'notes', facts: [{ name: 'job', shape: 'phrase', phrase: 'the AI wrote this' }] } } },
+    { primitives: [], reads: ['s3'], emits: 'a4', fromLine: 4, close: { class: 'hitl' } },
+    { primitives: ['read'], reads: [], emits: 's5', fromLine: 5, close: { class: 'softgreen', shape: { maxWords: 5 } } },
+    { primitives: [], reads: ['s5'], emits: 'a6', fromLine: 6, close: { class: 'hitl' } },
+    { primitives: ['write'], reads: ['a6'], emits: 'sent', fromLine: 7, close: { class: 'hitl' } },
+  ],
+  guardrailClasses: { 3: 'green', 5: 'softgreen' }, unjudgeable: {}, refused: [],
+});
+const go = (/** @type {any} */ p, /** @type {string} */ prose, /** @type {any} */ extra = {}) => draft({ proseText: prose, provider: p, rates: RATES, modelId: MODEL, checkList: true, offerQuestions: false, checkPicks: PICKS, ...extra });
+const handlers = (/** @type {any} */ decl) => ({ suggest_extra_checks: LEDGER_NONE, submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+
+test('(S6) the AI\'s own close checks on the list lines are dropped: the plan carries the block\'s picks (softgreen shape.picked), never the AI\'s cited / maxWords; the list is signed as checkList', async (t) => {
+  const r = await go(router(handlers(aiDecl())), walkProse(t, WALK));
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const step = (/** @type {number} */ n) => r.declaration.steps.find((/** @type {any} */ s) => s.fromLine === n);
+  assert.deepEqual(step(3).close, { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } }, 'break: stop dropping close.cited in assembleFromBlock and this reds');
+  assert.deepEqual(step(5).close, { class: 'softgreen', shape: { picked: [{ rule: 'maxWords', value: 80 }] } });
+  assert.deepEqual(step(1).close, { class: 'hitl' });
+  assert.deepEqual(r.declaration.guardrailClasses, { 3: 'softgreen', 5: 'softgreen' });
+  assert.ok(Array.isArray(r.declaration.checkList) && r.declaration.checkList.some((/** @type {any} */ x) => x.key === 'L3.~1' && x.state === 'built' && x.part.part === 0));
+  assert.deepEqual(checkListReds(r.declaration), []);
+  assert.equal(r.log.at(-1).args.steps[2].close.cited.facts[0].phrase, 'the AI wrote this', 'the AI\'s own reply is kept in the log as sent');
+});
+
+test('(S6) the plan with the list passes the validator and is refused when a check is not on the list: at sign and at run start (the same gate), $0, naming the line', async (t) => {
+  const r = await go(router(handlers(aiDecl())), walkProse(t, WALK));
+  const p = parseSignedText(walkProse(t, WALK));
+  assert.ok(p.ok);
+  if (!p.ok) return;
+  const ctx = { arbiter: p.arbiter, lines: p.lines, catalogue: loadCatalogue().primitives, wired: WIRED_VERBS };
+  assert.equal(validateDeclaration(r.declaration, ctx).ok, true);
+  const forged = structuredClone(r.declaration);
+  forged.steps.find((/** @type {any} */ s) => s.fromLine === 5).close.shape.picked.push({ rule: 'maxWords', value: 999 });
+  const v = validateDeclaration(forged, ctx);
+  assert.equal(v.ok, false, 'break: drop checkListReds from validateDeclaration and this greens');
+  assert.match(v.ok ? '' : v.reds.join('|'), /checkList line 5: the picked check 2 \(close\.picked\) is in the close but has no row on the list/);
+  const rowless = structuredClone(r.declaration);
+  rowless.checkList = rowless.checkList.filter((/** @type {any} */ x) => !(x.part && x.part.line === 3)); // the source row and its agreed follower both point at the part
+  assert.match(validateDeclaration(rowless, ctx).ok ? '' : /** @type {any} */ (validateDeclaration(rowless, ctx)).reds.join('|'), /checkList line 3: the picked check 1 \(close\.picked\) is in the close but has no row on the list/);
+  const phantom = structuredClone(r.declaration);
+  phantom.steps.find((/** @type {any} */ s) => s.fromLine === 3).close = { class: 'hitl' };
+  phantom.guardrailClasses[3] = 'hitl';
+  phantom.unjudgeable = { 3: 'x' };
+  assert.match(validateDeclaration(phantom, ctx).ok ? '' : /** @type {any} */ (validateDeclaration(phantom, ctx)).reds.join('|'), /checkList line 3: a row points at a check the close does not run \(L3\.~1\)/);
+});
+
+test('(S7) a part the block built that fails the gate stops the plan: plan-red in plain words, no further provider call, the AI is never asked to fix it', async (t) => {
+  const proto = CheckBlock.prototype;
+  const real = proto.reconcile;
+  // the block builds a pick the validator cannot read: the break is in what the block built, not in anything the AI sent
+  proto.reconcile = function patched(...a) {
+    const c = real.apply(this, a);
+    for (const part of c.parts) if (part.class === 'countable' && part.check === 'maxWords') part.check = 'notARule';
+    return c;
+  };
+  try {
+    const p = router(handlers(aiDecl()));
+    const r = await go(p, walkProse(t, WALK));
+    assert.equal(r.stop, 'plan-red');
+    assert.equal(r.ok, false);
+    assert.match(r.reds[0], /^The plan code built from your checks did not pass its own gate \(.*close\.shape.*\)\. That is a fault in the build, not in your job: nothing was spent on a close\.$/);
+    assert.equal(p.names().filter((n) => n === 'emit_declaration').length, 1, 'exactly one declaration turn: no revise, no further call');
+    assert.equal(r.revisions, 0);
+    assert.equal(r.log.at(-1).outcome, 'plan-red');
+  } finally { proto.reconcile = real; }
+});
+
+test('(S7) a red on something the AI wrote (a softgreen line granted write) is still a revise of the declaration turn, not a build fault', async (t) => {
+  const bad = aiDecl();
+  bad.steps[2].primitives = ['write'];
+  const good = aiDecl();
+  const p = router({ ...handlers(good), emit_declaration: [callOf('emit_declaration', bad), callOf('emit_declaration', good)] });
+  const r = await go(p, walkProse(t, WALK));
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.equal(r.revisions, 1);
+  assert.equal(p.names().filter((n) => n === 'emit_declaration').length, 2);
+});
+
+test('(R4) the AI\'s own notChecked is not kept for the lines of the list: the Not-checked list is the rows\'', async (t) => {
+  const p = router(handlers({ ...aiDecl(), notChecked: ['the garden is pretty'] }));
+  const r = await go(p, walkProse(t, WALK));
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.ok(!r.notChecked.includes('the garden is pretty'), 'break: keep cleanNotChecked(rawNotChecked) on the list path and this reds');
+});
