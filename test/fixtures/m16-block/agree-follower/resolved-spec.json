@@ -1,0 +1,237 @@
+{
+  "schema": "job-v1",
+  "job": "flight-nononstop",
+  "description": "flight-nononstop — authored through the bareloop panel (soft-green, text)",
+  "jobLines": [
+    {
+      "n": 1,
+      "text": "List 3 flights from Boston to Chicago",
+      "rule": "under $450; not a red-eye; no nonstop; departure time between 05:00 and 21:59",
+      "rules": [
+        "under $450",
+        "not a red-eye",
+        "no nonstop",
+        "departure time between 05:00 and 21:59"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "n": 1,
+      "label": "flights",
+      "value": "https://www.google.com/travel/flights?q=Flights+from+BOS+to+ORD+on+2026-11-20+one+way&hl=en&curr=USD"
+    }
+  ],
+  "provider": "openai-api",
+  "baseUrl": "https://api.deepseek.com/v1",
+  "model": "deepseek-flash",
+  "budgetUsd": 0.5,
+  "maxWallMs": 1800000,
+  "writeScope": [
+    "output/"
+  ],
+  "escalation": {
+    "mode": "decision-ready"
+  },
+  "goal": "Do the job below from the input files, then write one JSON file per numbered line.\n\nThe input files (label: file):\n  - flights: input/flights.txt\n\nFor each numbered job line N, write ONE file output/steps/N.json: a JSON object with exactly these keys.\n  \"text\"  — your answer for that line, as a string.\n  \"cites\" — an object: for each input you drew on, its label as the key and a list of {\"claim\", \"quote\"} as the value.\n            \"claim\" is one thing your text relies on; \"quote\" is words copied EXACTLY from that input (spacing and\n            ** or __ marks do not matter). Every number in a claim must also appear in its quote.\n  In each claim, copy every number, time and price exactly as the input writes it (for example \"9:27 AM\", not \"09:27\"),\n  because the check matches the numbers in your claim against your quote.\nA job line the brief below marks as a FACTS line is different: its file holds {\"results\": [{\"quote\": \"...\", \"values\":\n{\"<fact>\": \"<value>\"}}]} — one result per thing found, one quote copied exactly from the text of that one result, the values written as the quote\nwrites them; no \"cites\". It holds a \"text\" too only when the brief says it is also a TEXT line (the person asked for limits on the words, so\nthe same file carries both \"results\" and \"text\"). A line the brief marks as a TEXT line keeps \"text\" (free words), and every number in it\nmust be copied from a quote of an earlier facts line.\nWrite nothing outside output/, and never edit the files under input/. The file must be complete, valid JSON: a file cut\noff before its closing brace counts as not written.\n\nThe job, line by line:\n1. List 3 flights from Boston to Chicago\n   rule: under $450; not a red-eye; no nonstop; departure time between 05:00 and 21:59\n\nJob line 1 is a FACTS line. Write output/steps/1.json as {\"results\": [{\"quote\": \"...\", \"values\": {...}}]} and nothing else — no \"text\", no \"cites\".\n  One result per thing you find in the input \"flights\": exactly 3 results.\n  \"quote\": ONE quote per result, copied exactly from that result's own text in the input (at most 4000 characters) — never joined from two results.\n  \"values\": one entry per fact below, written exactly as the quote writes it (for example \"9:27 AM\", not \"09:27\"; \"389\", not \"389.00\").\n    - price — an amount in US dollars or $, right after \"From\", must be under 450 US dollars\n    - departure time — a time, right after \"Departure time:\", must be between 05:00 and 21:59\n    - origin — no value to write; the quote you copy must say \"Boston\"\n    - destination — no value to write; the quote you copy must say \"Chicago\"\n\nThe plan the person confirmed: Produce output/steps/1.json listing three Boston-to-Chicago flights taken from the flights input, each under $450, departing between 05:00 and 21:59, and neither a red-eye nor nonstop.",
+  "verdictType": "soft-green",
+  "closeDecl": {
+    "genre": "TEXT",
+    "lang": "text",
+    "stages": [
+      {
+        "name": "changed-from-seed",
+        "kind": "files-changed",
+        "params": {
+          "requireNonEmpty": true,
+          "allowPrefixes": [
+            "output/"
+          ]
+        }
+      },
+      {
+        "name": "line-1",
+        "kind": "rubric-step",
+        "fromLine": [
+          1
+        ],
+        "params": {
+          "step": 1,
+          "parts": [
+            {
+              "text": "price; departure time; origin; destination",
+              "class": "fact",
+              "source": "flights",
+              "facts": [
+                {
+                  "name": "price",
+                  "shape": "money",
+                  "anchor": "From",
+                  "unit": [
+                    "US dollars"
+                  ],
+                  "currency": [
+                    "$"
+                  ],
+                  "decimal": ".",
+                  "rule": {
+                    "op": "lt",
+                    "value": 450
+                  }
+                },
+                {
+                  "name": "departure time",
+                  "shape": "time",
+                  "anchor": "Departure time:",
+                  "rule": {
+                    "op": "between",
+                    "lo": "05:00",
+                    "hi": "21:59"
+                  }
+                },
+                {
+                  "name": "origin",
+                  "shape": "phrase",
+                  "phrase": "Boston"
+                },
+                {
+                  "name": "destination",
+                  "shape": "phrase",
+                  "phrase": "Chicago"
+                }
+              ],
+              "rules": [
+                1,
+                2,
+                4
+              ],
+              "count": {
+                "min": 3,
+                "max": 3
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "refused": [
+      {
+        "line": 1,
+        "rule": 3,
+        "reason": "it says what is not needed, so there is nothing to check"
+      }
+    ],
+    "list": [
+      {
+        "line": 1,
+        "key": "L1.~1",
+        "from": "rule",
+        "by": "you",
+        "kind": "rule",
+        "state": "built",
+        "rule": 1,
+        "part": {
+          "line": 1,
+          "part": 0
+        },
+        "facts": [
+          "price"
+        ]
+      },
+      {
+        "line": 1,
+        "key": "L1.~2",
+        "from": "rule",
+        "by": "you",
+        "kind": "rule",
+        "state": "built",
+        "rule": 2,
+        "part": {
+          "line": 1,
+          "part": 0
+        },
+        "facts": [
+          "departure time"
+        ]
+      },
+      {
+        "line": 1,
+        "key": "L1.~3",
+        "from": "rule",
+        "by": "you",
+        "kind": "rule",
+        "state": "not-checked",
+        "rule": 3,
+        "reason": "it says what is not needed, so there is nothing to check"
+      },
+      {
+        "line": 1,
+        "key": "L1.$floor",
+        "from": "default",
+        "by": "default",
+        "kind": "floor",
+        "state": "built"
+      },
+      {
+        "line": 1,
+        "key": "L1.fact.origin",
+        "from": "look",
+        "by": "agent",
+        "kind": "fact",
+        "state": "built",
+        "part": {
+          "line": 1,
+          "part": 0
+        },
+        "facts": [
+          "origin"
+        ]
+      },
+      {
+        "line": 1,
+        "key": "L1.fact.destination",
+        "from": "look",
+        "by": "agent",
+        "kind": "fact",
+        "state": "built",
+        "part": {
+          "line": 1,
+          "part": 0
+        },
+        "facts": [
+          "destination"
+        ]
+      },
+      {
+        "line": 1,
+        "key": "L1.$cited",
+        "from": "default",
+        "by": "default",
+        "kind": "cited",
+        "state": "not-checked",
+        "reason": "this line finds facts, so it has no text to quote"
+      },
+      {
+        "line": 1,
+        "key": "L1.count.3-3",
+        "from": "agent",
+        "by": "agent",
+        "kind": "count",
+        "state": "built",
+        "part": {
+          "line": 1,
+          "part": 0
+        }
+      },
+      {
+        "line": 1,
+        "key": "L1.~4",
+        "from": "rule",
+        "by": "you",
+        "kind": "rule",
+        "state": "built",
+        "rule": 4
+      }
+    ]
+  }
+}

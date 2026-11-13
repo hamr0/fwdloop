@@ -1,0 +1,764 @@
+{
+ "pages": {
+  "usd": "Flights\nPrice: $450 US dollars\nDeparture: 07:30\nSeats: 4\n",
+  "eur": "Flights\nPrice: €450 euros\nDeparture: 07:30\nSeats: 4\n",
+  "gbp": "Flights\nPrice: £450 pounds\nDeparture: 07:30\nSeats: 4\n"
+ },
+ "facts": {
+  "usd": {
+   "name": "price",
+   "shape": "money",
+   "words": [
+    "Price:"
+   ],
+   "unit": [
+    "US dollars"
+   ],
+   "currency": [
+    "$"
+   ]
+  },
+  "eur": {
+   "name": "price",
+   "shape": "money",
+   "words": [
+    "Price:"
+   ],
+   "unit": [
+    "euros"
+   ],
+   "currency": [
+    "€"
+   ]
+  },
+  "gbp": {
+   "name": "price",
+   "shape": "money",
+   "words": [
+    "Price:"
+   ],
+   "unit": [
+    "pounds"
+   ],
+   "currency": [
+    "£"
+   ]
+  },
+  "time": {
+   "name": "departure",
+   "shape": "time",
+   "words": [
+    "Departure:"
+   ]
+  }
+ },
+ "b7": [
+  {
+   "id": "m01",
+   "fact": "usd",
+   "rule": "under $450",
+   "expect": {
+    "op": "lt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m02",
+   "fact": "usd",
+   "rule": "below $450",
+   "expect": {
+    "op": "lt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m03",
+   "fact": "usd",
+   "rule": "less than $450",
+   "expect": {
+    "op": "lt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m04",
+   "fact": "usd",
+   "rule": "at most $450",
+   "expect": {
+    "op": "lte",
+    "value": 450
+   }
+  },
+  {
+   "id": "m05",
+   "fact": "usd",
+   "rule": "up to $500",
+   "expect": {
+    "op": "lte",
+    "value": 500
+   }
+  },
+  {
+   "id": "m06",
+   "fact": "usd",
+   "rule": "no more than $500",
+   "expect": {
+    "op": "lte",
+    "value": 500
+   }
+  },
+  {
+   "id": "m07",
+   "fact": "usd",
+   "rule": "over $450",
+   "expect": {
+    "op": "gt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m08",
+   "fact": "usd",
+   "rule": "above $450",
+   "expect": {
+    "op": "gt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m09",
+   "fact": "usd",
+   "rule": "more than $450",
+   "expect": {
+    "op": "gt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m10",
+   "fact": "usd",
+   "rule": "at least $200",
+   "expect": {
+    "op": "gte",
+    "value": 200
+   }
+  },
+  {
+   "id": "m11",
+   "fact": "usd",
+   "rule": "no less than $200",
+   "expect": {
+    "op": "gte",
+    "value": 200
+   }
+  },
+  {
+   "id": "m12",
+   "fact": "usd",
+   "rule": "between $100 and $300",
+   "expect": {
+    "op": "between",
+    "lo": 100,
+    "hi": 300
+   }
+  },
+  {
+   "id": "m13",
+   "fact": "usd",
+   "rule": "between $100 and 300",
+   "expect": null
+  },
+  {
+   "id": "m14",
+   "fact": "usd",
+   "rule": "under $450 or over $900",
+   "expect": null
+  },
+  {
+   "id": "m15",
+   "fact": "usd",
+   "rule": "over $450 but under $900",
+   "expect": null
+  },
+  {
+   "id": "m16",
+   "fact": "usd",
+   "rule": "between $100 and $300 or over $900",
+   "expect": null
+  },
+  {
+   "id": "m17",
+   "fact": "usd",
+   "rule": "not under $450",
+   "expect": null
+  },
+  {
+   "id": "m18",
+   "fact": "usd",
+   "rule": "around $400",
+   "expect": null
+  },
+  {
+   "id": "m19",
+   "fact": "usd",
+   "rule": "cheap",
+   "expect": null
+  },
+  {
+   "id": "m20",
+   "fact": "usd",
+   "rule": "450 dollars or less",
+   "expect": {
+    "op": "lte",
+    "value": 450
+   }
+  },
+  {
+   "id": "m21",
+   "fact": "usd",
+   "rule": "under 450",
+   "expect": null
+  },
+  {
+   "id": "m22",
+   "fact": "usd",
+   "rule": "under $1,200",
+   "expect": {
+    "op": "lt",
+    "value": 1200
+   }
+  },
+  {
+   "id": "m23",
+   "fact": "usd",
+   "rule": "between 06:00 and 10:30",
+   "expect": null
+  },
+  {
+   "id": "m24",
+   "fact": "eur",
+   "rule": "under €450",
+   "expect": {
+    "op": "lt",
+    "value": 450
+   }
+  },
+  {
+   "id": "m25",
+   "fact": "eur",
+   "rule": "450 euros or less",
+   "expect": {
+    "op": "lte",
+    "value": 450
+   }
+  },
+  {
+   "id": "m26",
+   "fact": "gbp",
+   "rule": "at most £300",
+   "expect": {
+    "op": "lte",
+    "value": 300
+   }
+  },
+  {
+   "id": "m27",
+   "fact": "usd",
+   "rule": "under £450",
+   "expect": null
+  },
+  {
+   "id": "m28",
+   "fact": "eur",
+   "rule": "under $450",
+   "expect": null
+  },
+  {
+   "id": "t01",
+   "fact": "time",
+   "rule": "between 06:00 and 10:30",
+   "expect": {
+    "op": "between",
+    "lo": "06:00",
+    "hi": "10:30"
+   }
+  },
+  {
+   "id": "t02",
+   "fact": "time",
+   "rule": "from 06:00 to 10:00",
+   "expect": {
+    "op": "between",
+    "lo": "06:00",
+    "hi": "10:00"
+   }
+  },
+  {
+   "id": "t03",
+   "fact": "time",
+   "rule": "between 5:00 and 9:30",
+   "expect": {
+    "op": "between",
+    "lo": "05:00",
+    "hi": "09:30"
+   }
+  },
+  {
+   "id": "t04",
+   "fact": "time",
+   "rule": "departure time between 05:00 and 21:59",
+   "expect": {
+    "op": "between",
+    "lo": "05:00",
+    "hi": "21:59"
+   }
+  },
+  {
+   "id": "t05",
+   "fact": "time",
+   "rule": "after 06:00",
+   "expect": null
+  },
+  {
+   "id": "t06",
+   "fact": "time",
+   "rule": "before 9pm",
+   "expect": null
+  },
+  {
+   "id": "t07",
+   "fact": "time",
+   "rule": "between 6am and 10:30 pm",
+   "expect": null
+  },
+  {
+   "id": "t08",
+   "fact": "time",
+   "rule": "between 5:00 PM and 9:00 PM",
+   "expect": null
+  },
+  {
+   "id": "t09",
+   "fact": "time",
+   "rule": "not between 05:00 and 21:59",
+   "expect": null
+  },
+  {
+   "id": "t10",
+   "fact": "time",
+   "rule": "between 06:00 and 10:00 or between 18:00 and 22:00",
+   "expect": null
+  },
+  {
+   "id": "t11",
+   "fact": "time",
+   "rule": "around 8:00",
+   "expect": null
+  },
+  {
+   "id": "t12",
+   "fact": "time",
+   "rule": "early",
+   "expect": null
+  },
+  {
+   "id": "t13",
+   "fact": "time",
+   "rule": "between 22:00 and 06:00",
+   "expect": null
+  },
+  {
+   "id": "t14",
+   "fact": "time",
+   "rule": "under $450",
+   "expect": null
+  }
+ ],
+ "b8": [
+  {
+   "id": "craft-money",
+   "page": "usd",
+   "lineText": "Pick a flight",
+   "rules": [
+    "under $450"
+   ],
+   "tied": {
+    "fact": "usd",
+    "forRule": 1
+   },
+   "adds": {
+    "a": {
+     "op": "add",
+     "kind": "fact",
+     "line": 1,
+     "name": "price",
+     "shape": "money",
+     "words": [
+      "Price:"
+     ],
+     "unit": [
+      "US dollars"
+     ],
+     "currency": [
+      "$"
+     ],
+     "source": "flights"
+    },
+    "b": {
+     "op": "add",
+     "kind": "fact",
+     "line": 1,
+     "name": "cost",
+     "shape": "money",
+     "words": [
+      "Price:"
+     ],
+     "unit": [
+      "US dollars"
+     ],
+     "currency": [
+      "$"
+     ],
+     "source": "flights"
+    },
+    "c": {
+     "op": "add",
+     "kind": "phrase",
+     "line": 1,
+     "name": "price",
+     "words": [
+      "Seats:"
+     ],
+     "source": "flights"
+    }
+   },
+   "control": {
+    "op": "add",
+    "kind": "phrase",
+    "line": 1,
+    "name": "seats",
+    "words": [
+     "Seats:"
+    ],
+    "source": "flights"
+   }
+  },
+  {
+   "id": "craft-time",
+   "page": "usd",
+   "lineText": "Pick a flight",
+   "rules": [
+    "between 06:00 and 10:00"
+   ],
+   "tied": {
+    "fact": "time",
+    "forRule": 1
+   },
+   "adds": {
+    "a": {
+     "op": "add",
+     "kind": "fact",
+     "line": 1,
+     "name": "departure",
+     "shape": "time",
+     "words": [
+      "Departure:"
+     ],
+     "source": "flights"
+    },
+    "b": {
+     "op": "add",
+     "kind": "fact",
+     "line": 1,
+     "name": "leaves",
+     "shape": "time",
+     "words": [
+      "Departure:"
+     ],
+     "source": "flights"
+    },
+    "c": {
+     "op": "add",
+     "kind": "phrase",
+     "line": 1,
+     "name": "departure",
+     "words": [
+      "Seats:"
+     ],
+     "source": "flights"
+    }
+   },
+   "control": {
+    "op": "add",
+    "kind": "phrase",
+    "line": 1,
+    "name": "cost",
+    "words": [
+     "Price:"
+    ],
+    "source": "flights"
+   }
+  },
+  {
+   "id": "craft-phrase",
+   "pageText": "Flights\nOrigin: Boston\nDestination: Chicago\nSeats: 4\n",
+   "lineText": "Describe the flight",
+   "rules": [
+    "mention Boston"
+   ],
+   "tiedRaw": {
+    "line": 1,
+    "name": "origin",
+    "shape": "phrase",
+    "words": [
+     "Boston"
+    ],
+    "forRule": 1,
+    "source": "flights"
+   },
+   "adds": {
+    "a": {
+     "op": "add",
+     "kind": "phrase",
+     "line": 1,
+     "name": "origin",
+     "words": [
+      "Boston"
+     ],
+     "source": "flights"
+    },
+    "b": {
+     "op": "add",
+     "kind": "phrase",
+     "line": 1,
+     "name": "start",
+     "words": [
+      "Boston"
+     ],
+     "source": "flights"
+    },
+    "c": {
+     "op": "add",
+     "kind": "phrase",
+     "line": 1,
+     "name": "origin",
+     "words": [
+      "Chicago"
+     ],
+     "source": "flights"
+    }
+   },
+   "control": {
+    "op": "add",
+    "kind": "phrase",
+    "line": 1,
+    "name": "destination",
+    "words": [
+     "Chicago"
+    ],
+    "source": "flights"
+   }
+  }
+ ],
+ "b9": [
+  {
+   "id": "z1-two-inputs-untied-rule",
+   "expect": false,
+   "labels": [
+    "a",
+    "b"
+   ],
+   "texts": {
+    "a": "Alpha one\n",
+    "b": "Beta two\n"
+   },
+   "lineText": "Summarise both",
+   "rules": [
+    "be funny"
+   ],
+   "look": [],
+   "answer": "drop"
+  },
+  {
+   "id": "z2-two-inputs-tied-words-absent",
+   "expect": false,
+   "labels": [
+    "a",
+    "b"
+   ],
+   "texts": {
+    "a": "Alpha one\n",
+    "b": "Beta two\n"
+   },
+   "lineText": "Summarise both",
+   "rules": [
+    "price under $450"
+   ],
+   "look": [
+    {
+     "line": 1,
+     "name": "price",
+     "shape": "money",
+     "words": [
+      "Price:"
+     ],
+     "unit": [
+      "US dollars"
+     ],
+     "currency": [
+      "$"
+     ],
+     "forRule": 1,
+     "source": "a"
+    }
+   ],
+   "answer": "drop"
+  },
+  {
+   "id": "z3-two-inputs-count-rule-dropped",
+   "expect": false,
+   "labels": [
+    "a",
+    "b"
+   ],
+   "texts": {
+    "a": "Alpha one\n",
+    "b": "Beta two\n"
+   },
+   "lineText": "Summarise both",
+   "rules": [
+    "at most 3 bullets"
+   ],
+   "look": [],
+   "answer": "drop"
+  },
+  {
+   "id": "z4-two-inputs-no-rules",
+   "expect": false,
+   "labels": [
+    "a",
+    "b"
+   ],
+   "texts": {
+    "a": "Alpha one\n",
+    "b": "Beta two\n"
+   },
+   "lineText": "Summarise both",
+   "rules": [],
+   "look": [],
+   "answer": "drop"
+  },
+  {
+   "id": "p1-one-input-default-cite",
+   "expect": true,
+   "labels": [
+    "a"
+   ],
+   "texts": {
+    "a": "Alpha one\n"
+   },
+   "lineText": "Summarise it",
+   "rules": [
+    "be funny"
+   ],
+   "look": [],
+   "answer": "drop"
+  },
+  {
+   "id": "p2-one-input-tied-money",
+   "expect": true,
+   "labels": [
+    "flights"
+   ],
+   "texts": {
+    "flights": "Flights\nPrice: $450 US dollars\n"
+   },
+   "lineText": "Pick a flight",
+   "rules": [
+    "under $450"
+   ],
+   "look": [
+    {
+     "line": 1,
+     "name": "price",
+     "shape": "money",
+     "words": [
+      "Price:"
+     ],
+     "unit": [
+      "US dollars"
+     ],
+     "currency": [
+      "$"
+     ],
+     "forRule": 1,
+     "source": "flights"
+    }
+   ],
+   "answer": "drop"
+  }
+ ],
+ "b10": [
+  {
+   "id": "cap-per-reply",
+   "page": "A1: x\nA2: x\nA3: x\nA4: x\nA5: x\nA6: x\nA7: x\nA8: x\n",
+   "label": "flights",
+   "lineText": "List the facts",
+   "replies": [
+    {
+     "label": "suggest",
+     "pre": true,
+     "words": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5"
+     ],
+     "expectKept": 3,
+     "expectCapRefused": 2
+    },
+    {
+     "label": "drafter",
+     "pre": false,
+     "words": [
+      "A6",
+      "A7",
+      "A8"
+     ],
+     "expectKept": 3,
+     "expectCapRefused": 0
+    }
+   ],
+   "combinedMayDiffer": true
+  },
+  {
+   "id": "under-cap-equal",
+   "page": "A1: x\nA2: x\nA3: x\nA4: x\n",
+   "label": "flights",
+   "lineText": "List the facts",
+   "replies": [
+    {
+     "label": "suggest",
+     "pre": true,
+     "words": [
+      "A1"
+     ],
+     "expectKept": 1,
+     "expectCapRefused": 0
+    },
+    {
+     "label": "drafter",
+     "pre": false,
+     "words": [
+      "A2",
+      "A3"
+     ],
+     "expectKept": 2,
+     "expectCapRefused": 0
+    }
+   ],
+   "combinedMayDiffer": false
+  }
+ ]
+}
