@@ -1937,6 +1937,7 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'revise') happened.push(r.verdict === 'red' ? 'revise red' : `revising${retry(r)}`);
       else if (r.kind === 'redraft') happened.push(r.verdict === 'red' ? 'redraft red' : `redrafting with your answers${retry(r)}`);
       else if (r.kind === 'human') happened.push('your answer');
+      else if (r.kind === 'rowedit') happened.push(r.op === 'drop' ? 'you dropped a check' : 'you added a check');
       else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
         const c = r.card && typeof r.card === 'object' ? r.card : {};
@@ -1946,6 +1947,8 @@ export function getDraftBlock(flowDir, runDir) {
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
       else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${youTag}` : ''}` }));
+      // M16 item 5: a Drop or an Add on the card: a human row, $0, no model
+      else if (r.kind === 'rowedit') rows.push(human(r, n, { action: r.op === 'drop' ? 'you dropped a check' : 'you added a check', gap: String(r.key ?? '') }));
       else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }

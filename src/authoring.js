@@ -308,6 +308,25 @@ export function draftKeyRefusal(slot, env) {
 }
 
 /**
+ * The ONE place a plan folder is claimed: its parent made if needed, then the folder itself, exclusively (an existing path throws EEXIST). `draftToDir` claims the folder of a draft with it and the
+ * panel claims the folder of a plan made by a Drop or an Add (src/planrebuild.js).
+ * @param {string} dir
+ */
+export function claimPlanDir(dir) {
+  mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
+  mkdirSync(dir);
+}
+
+/**
+ * The ONE writer of a plan folder's files: each `name` -> text, in the order given (a draft writes `spec.hash` last, so a folder with one is whole). `opts` is `writeFileSync`'s own
+ * (the panel's session files are exclusive, 0600).
+ * @param {string} dir @param {Record<string, string>} files @param {{flag?: string, mode?: number}} [opts]
+ */
+export function writePlanFiles(dir, files, opts = {}) {
+  for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text, opts);
+}
+
+/**
  * Draft into `dir`. $0 refusals (return {ok:false, wrote:false}, nothing on disk): bad key,
  * unreadable/blank prose, prose that contains the key, missing inputs / bad signed text, dir
  * already exists. After a paid round the dir is ALWAYS written — green (spec.hash present) or
@@ -351,8 +370,7 @@ export async function draftToDir({
   const exists = () => refuse([`draft: "${dir}" already exists — never overwritten, use a new dir`]);
   if (existsSync(dir)) return exists();
   try {
-    mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
-    mkdirSync(dir);
+    claimPlanDir(dir);
   } catch (e) {
     return e.code === 'EEXIST' ? exists() : refuse([`draft: cannot create "${dir}": ${e.code ?? e.message}`]);
   }
@@ -420,6 +438,7 @@ export async function draftToDir({
   const parsed = parseSignedText(prose.text); // the drafter already proved it parses
   if (!parsed.ok) return paidFail(`parse: ${parsed.reds.join('; ')}`);
   const dj = (o) => `${JSON.stringify(o, null, 2)}\n`;
+  /** @type {Record<string, string>} */
   const files = {};
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
@@ -431,12 +450,14 @@ export async function draftToDir({
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
   if (pickRecord !== null) files[RECORD_FILE] = scrub(dj(pickRecord), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
-  files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
+  files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [], ...(result.notCheckedBy && Object.keys(result.notCheckedBy).length ? { by: result.notCheckedBy } : {}) }), secrets); // M16 item 5: the tag of each line that tells a row
   if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
     revisions: result.revisions, thinking: result.thinking, inputs: result.inputs, log: result.log,
+    // M16 P4: what the plan card shows of the list (rows with tags and reasons, the suggestions), drawn by the page; Drop and Add rebuild it
+    ...(result.checkCard ? { checkCard: result.checkCard } : {}),
   }), secrets);
   let hash = null;
   if (result.ok) {
@@ -479,7 +500,7 @@ export async function draftToDir({
     });
     // M4d am32: the spend is booked, and the result files are about to be written: the monthly hold is given back now, so a draft never reads done while its hold is still held
     if (typeof onResult === 'function') onResult({ ok: result.ok });
-    for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
+    writePlanFiles(dir, files);
     if (pick !== null) writeModelRecord(dir, pick);
     leaks = sweepForSecrets(dir, secrets);
     if (leaks > 0) {

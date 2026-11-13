@@ -112,8 +112,11 @@ export function buildSetupRows({
       const card = readJson(sessionDir, `card-${n}.json`);
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
-      rows.push(planRow(sessionDir, `draft-${n}`, readJson(sessionDir, `redraft-${n}.json`) ? 'redraft' : 'revise', n));
-      rows.push(...humanRows(sessionDir, `draft-${n}`));
+      // M16 item 5: a plan made by a Drop or an Add of the person is booked as that, not as a redraft; it asked nothing, and what it kept is the earlier plan's row, not its own
+      const marker = readJson(sessionDir, `redraft-${n}.json`);
+      const rowEdit = marker && marker.rowEdit && typeof marker.rowEdit === 'object' ? marker.rowEdit : null;
+      rows.push({ ...planRow(sessionDir, `draft-${n}`, rowEdit ? 'rowedit' : marker ? 'redraft' : 'revise', n), ...(rowEdit ? { op: rowEdit.op, key: rowEdit.key } : {}) });
+      if (!rowEdit) rows.push(...humanRows(sessionDir, `draft-${n}`));
     }
   } else {
     const r = planRow(planDir, '.', 'draft', 0);

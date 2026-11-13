@@ -41,10 +41,10 @@ export function pickedOf(part) {
 /**
  * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>}} o
  *   `lineSet` = the lines the block was given; `lines` = the signed lines (a guardrail decides the class)
- * @returns {{declaration: Record<string, any>, notChecked: string[], built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
+ * @returns {{declaration: Record<string, any>, notChecked: string[], notCheckedBy: Record<string, 'you'|'agent'|'default'>, built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
  */
 export function assembleFromBlock({ declaration, block, lines, lineSet }) {
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], built: new Set() };
+  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], notCheckedBy: {}, built: new Set() };
   const c = block.reconcile();
   // fwd's signed R2c (M10 am7 item 2; bareloop v0.56.0 has no such rule, M16 am3 (1): fwd's rule stays): a place the page-read grew to phrases is checked with EVERY phrase, one phrase fact each,
   // not with the one word the block built it from
@@ -114,6 +114,8 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     }
     return isRec(r.part) && typeof idx === 'number' ? { ...r, part: { line: r.part.line, part: idx } } : r;
   });
+  /** @type {Record<string, 'you'|'agent'|'default'>} the tag of each Not-checked line, by the row it tells (M16 item 5: one tag per row) */
+  const notCheckedBy = {};
   const notChecked = checkList.filter((r) => r.state === 'not-checked' && r.kind !== 'floor').map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
@@ -121,12 +123,14 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     const row = own?.parent ? { ...own, cantAsked: block.rows.find((x) => x.key === own.parent)?.cantAsked === true, keptFromLast: own.keptFromLast ?? block.rows.find((x) => x.key === own.parent)?.keptFromLast } : own;
     // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
     const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)
-    return r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${r.kind} ${r.key} - ${notCheckedWords(r.reason, row)}${kept}`;
+    const line = r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${r.kind} ${r.key} - ${notCheckedWords(r.reason, row)}${kept}`;
+    if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
+    return line;
   }).filter((x) => x !== null);
   /** @type {Record<string, any>} */
   const listed = checkList.filter((r) => served.has(r.line)); // a line no step serves is refused as a line; its rows are not signed
   /** @type {Record<string, any>} */
   const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList: listed };
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
-  return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), built };
+  return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), notCheckedBy, built };
 }
