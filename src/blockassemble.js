@@ -12,8 +12,25 @@
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
 
 import { factsOfLook } from './citedcheck.js';
+import { REASON } from './checkblock.js';
+import { dropSentence } from './pagedropwords.js';
+import { KEPT_WORDS } from './pickrecord.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The words a Not-checked row says. A rule the person left, wrote in their own words, or left with no pick keeps fwd's signed table (M10 am16 (5): src/pagedropwords.js), the words the plan card and the
+ * Audit already had; any other reason is the block's own (what code could not build and why).
+ * @param {string|null|undefined} reason @param {{cantAsked?: boolean}} [row]
+ */
+export function notCheckedWords(reason, row = undefined) {
+  // a rule the person answered with their own words says so, whatever bareguard-free reason the block holds for it (a countable one reads "no rule can check this")
+  if (row?.cantAsked === true && (reason === REASON.noRule || reason === REASON.nothingOnPage)) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
+  if (reason === REASON.left) return dropSentence({ line: 0, fact: '', reason: 'person-left' });
+  if (reason === REASON.nothingOnPage) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
+  if (reason === REASON.noRule || reason === REASON.noPick || reason === REASON.cantCheck) return dropSentence({ line: 0, fact: '', reason: 'no-pick' });
+  return String(reason ?? 'not checked');
+}
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {
@@ -81,12 +98,12 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     const mine = steps.find((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
     if (!mine || !guarded(n)) continue;
     guardrailClasses[String(n)] = mine.close.class;
-    if (mine.close.class === 'hitl') unjudgeable[String(n)] = [...new Set(rowsOn(n).map((r) => String(r.reason ?? '')).filter(Boolean))].join(' ') || 'No check was picked for it, so you judge it at the Ask.';
+    if (mine.close.class === 'hitl') unjudgeable[String(n)] = [...new Set(rowsOn(n).map((r) => notCheckedWords(r.reason, r)).filter(Boolean))].join(' ') || 'No check was picked for it, so you judge it at the Ask.';
     else delete unjudgeable[String(n)];
   }
   const served = new Set(steps.filter((/** @type {any} */ st) => isRec(st)).map((/** @type {any} */ st) => st.fromLine));
   /** the signed list: the block's signed fields per row, the parts renumbered to the close's order, a row whose check cannot ride its line signed Not checked @type {any[]} */
-  const checkList = block.signedRows().filter((r) => served.has(r.line)).map((/** @type {any} */ r) => {
+  const checkList = block.signedRows().map((/** @type {any} */ r) => {
     const m = remap.get(r.line);
     const idx = isRec(r.part) && m ? m.get(r.part.part) : undefined;
     if (r.state === 'built' && r.kind !== 'floor' && (idx === null || idx === undefined)) {
@@ -96,12 +113,17 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     return isRec(r.part) && typeof idx === 'number' ? { ...r, part: { line: r.part.line, part: idx } } : r;
   });
   const notChecked = checkList.filter((r) => r.state === 'not-checked' && r.kind !== 'floor').map((r) => {
-    const row = block.rows.find((x) => x.key === r.key);
-    if (row?.hidden) return null;
-    return `line ${r.line}: ${r.kind === 'rule' && row?.text ? `"${row.text}"` : `${r.kind} ${r.key}`} - ${r.reason}`;
+    const own = block.rows.find((x) => x.key === r.key);
+    if (own?.hidden) return null;
+    // an agreed or carried `~` line shares its source's answer (a follower is told as the rule it follows)
+    const row = own?.parent ? { ...own, cantAsked: block.rows.find((x) => x.key === own.parent)?.cantAsked === true, keptFromLast: own.keptFromLast ?? block.rows.find((x) => x.key === own.parent)?.keptFromLast } : own;
+    // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
+    const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)
+    return r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${r.kind} ${r.key} - ${notCheckedWords(r.reason, row)}${kept}`;
   }).filter((x) => x !== null);
   /** @type {Record<string, any>} */
-  const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList };
+  const listed = checkList.filter((r) => served.has(r.line)); // a line no step serves is refused as a line; its rows are not signed
+  const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList: listed };
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
   return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), built };
 }
