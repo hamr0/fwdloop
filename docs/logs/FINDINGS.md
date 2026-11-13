@@ -7240,3 +7240,7 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Claim bar: 22/22** (required keys match fwd's; rows with keyColumn rows OR keys); `{}` rejected 22/22. The F188b miss (rows without keyColumn lacking `required`) is closed.
 - **Forced cases, 4/4 caught:** not-a-column; sha-mismatch (stopped, fault.inputs ["t"]); literal not in the words (where[0].value); unknown cmp (groundedLiterals missing kind "invalid").
 - Nothing in src/ changed, nothing signed.
+
+### F188d PRE-REGISTERED (2026-11-13, $0): bareguard @ 8b40271, checkTables only
+- How: run3.mjs copied to run4.mjs pointed at a fresh `git archive 8b40271` copy in /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82d (node_modules symlinked to fwdloop's as in F188c). Run the full F188c set unchanged.
+- PASS if the full F188c bar holds again (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
