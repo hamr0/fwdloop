@@ -42,7 +42,7 @@ import { cardOfBlock } from './cardlist.js';
 import { questionsOfBlock } from './blockasks.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf } from './rowedit.js';
-import { matchRecord, entriesFromAnswers, sameWords, KEPT_WORDS } from './pickrecord.js';
+import { matchRecord, entriesFromAnswers, KEPT_WORDS } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
@@ -716,7 +716,7 @@ export async function draft({
   const blockScoped = allShape.filter((r) => blockLineNums.has(r.line));
   // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
   const carried = matchRecord(carriedPicks, lines, allShape);
-  const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, added: k.entry.added, left: k.entry.left }));
+  const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, left: k.entry.left }));
   onPickRecord?.({ picks: carried.kept.map((k) => k.entry), kept: keptView });
   const askRules = carried.askRules;
   /** the block (M16 S1): the person's rules, the look, the picks kept and just answered, reconciled once */
@@ -727,7 +727,7 @@ export async function draft({
     block = setUpBlock({
       texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, jobLines: blockPlan.jobLines, look,
       kept: { picks: carried.picks.filter(inBlock), left: carried.left.filter(inBlock), askRules: carried.askRules.filter(inBlock) },
-      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', scoped: blockScoped, leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines, [...look.facts, ...sheetFacts]),
+      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines, [...look.facts, ...sheetFacts]),
     });
   }
   /** @type {ReturnType<typeof checkAsks>} */
@@ -774,7 +774,7 @@ export async function draft({
       return {
         ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(counted)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
         questions: tooMany ? [] : asks.map((a) => ({
-          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null, ...('check' in a && a.check ? { check: a.check } : {}), ...('pairRule' in a && typeof a.pairRule === 'number' ? { pairRule: a.pairRule } : {}),
+          line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null, ...('check' in a && a.check ? { check: a.check } : {}),
         })),
         droppedQuestions: [], notChecked: pageNotChecked, ...pageExtras,
       };
@@ -789,7 +789,7 @@ export async function draft({
   const settled = oldShape.length ? settleRules(oldShape, allPicks, allLeft) : null;
   // the record this draft hands on: what it kept plus what the person just answered (numbered on this card); the block's rules and the other shape rules are one record
   onPickRecord?.({ picks: [...carried.kept.map((k) => k.entry), ...entriesFromAnswers(lines, allShape, checkPicks, leftRules)], kept: keptView });
-  const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && (k.rule === n.rule || (k.entry.added !== null && sameWords(k.entry.added, n.text)))) ? ` (${KEPT_WORDS})` : '');
+  const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && k.rule === n.rule) ? ` (${KEPT_WORDS})` : '');
   for (const n of settled?.notes ?? []) {
     const line = (n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason)) + keptNote(n);
     personNotChecked.add(line);

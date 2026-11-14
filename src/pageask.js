@@ -77,9 +77,9 @@ const READING_ASKED = '. Agree?';
 const READING_ANSWER = ' Answer "agree"';
 const READING_TAIL = `${READING_ASKED}${READING_ANSWER}`;
 /** @param {number} n @returns {string} the rest of a reading ask after its answer words */
-const readingRest = (n) => `, or type your own reading (your answer is added as a new ~ rule on line ${n}).`;
+const readingRest = (n) => `, or type your own reading (your answer replaces that ~ rule on line ${n}).`;
 /** @param {number} n @returns {string} the answer words a can't-check ask ends with (said once, here, and cut in the panel) */
-const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer is added as a new ~ rule on line ${n}).`;
+const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer replaces that ~ rule on line ${n}).`;
 /** @param {number} n @param {string} rule @param {string} reading @returns {string} */
 export const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}${readingRest(n)}`;
 // borrowed-from: bareloop src/pagemap.js@v0.56.0 (3383cce) (cantCheckQuestion; readingQuestion above is exported for the block's asks)

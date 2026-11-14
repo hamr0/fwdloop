@@ -205,32 +205,31 @@ export function countCheck(text) {
 /** the can't-check ask, as the signed words say it */
 export const CANT_CHECK_WORDS = "I can't check this. Your own words, or Not checked?";
 /** how every answer is told, once (am2 item 2's words) */
-export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer is added as a new ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
+export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
 
 /**
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or
  * Not checked?` when nothing was kept. A proposal is not counted toward am1's cap; a can't-check ask is (am16 (5)).
  * @param {ReturnType<typeof rowsFromAnswer>} rows
- * @returns {{pairRule?: number, line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
+ * @returns {{line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
  */
 export function checkAsks(rows) {
   return rows.map((r) => {
-    const pair = typeof (/** @type {any} */ (r).pairRule) === 'number' ? { pairRule: /** @type {any} */ (r).pairRule } : {}; // M10 am21: the asked line is an edited added line
     if (r.check === null) {
-      return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
+      return { line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
     }
     const words = plainWords(/** @type {any} */ (r.check));
-    return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
+    return { line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
   });
 }
 
 // ---- the plan uses only the checks you picked (am16 (4)) -------------------------------------------------------------------------------------
 /**
- * @typedef {{line: number, rule: number, check: Record<string, any>|null, added?: string, own?: boolean}} Pick
- *   `check` = the check the person agreed to (null for their own words); `added` = the `~` rule the answer wrote on the line; `own` = their own words
+ * @typedef {{line: number, rule: number, check: Record<string, any>|null, own?: boolean}} Pick
+ *   `check` = the check the person agreed to (null for their own words); `own` = their own words
  */
 /**
- * Settle every scoped rule against the person's answers: a rule with a picked check is checked; the `~` line an agree wrote is covered by that pick; every other
+ * Settle every scoped rule against the person's answers: a rule with a picked check is checked (an answer replaced its rule, so one rule, one pick); every other
  * rule is Not checked, with the reason (`person-left` = they chose it, `own-words` = they gave their own words, `no-pick` = nothing was picked).
  * @param {ReturnType<typeof scopedRules>} rules @param {Pick[]} picks @param {{line: number, rule: number}[]} left
  * @returns {{checks: Map<number, Record<string, any>[]>, notes: {line: number, rule: number, text: string, reason: 'person-left'|'own-words'|'no-pick'}[]}}
@@ -240,13 +239,11 @@ export function settleRules(rules, picks, left) {
   const checks = new Map();
   /** @type {{line: number, rule: number, text: string, reason: 'person-left'|'own-words'|'no-pick'}[]} */
   const notes = [];
-  const sameText = (/** @type {string|undefined} */ a, /** @type {string} */ b) => typeof a === 'string' && norm(a) === norm(b);
   for (const r of rules) {
     const own = picks.find((p) => p.line === r.line && p.rule === r.rule);
     if (own?.check) { checks.set(r.line, [...(checks.get(r.line) ?? []), own.check]); continue; }
-    if (picks.some((p) => p.check && p.line === r.line && sameText(p.added, r.text))) continue;
     if (left.some((l) => l.line === r.line && l.rule === r.rule)) notes.push({ ...r, reason: 'person-left' });
-    else if (own?.own || picks.some((p) => !p.check && p.own && p.line === r.line && sameText(p.added, r.text))) notes.push({ ...r, reason: 'own-words' });
+    else if (own?.own) notes.push({ ...r, reason: 'own-words' });
     else notes.push({ ...r, reason: 'no-pick' });
   }
   return { checks, notes };

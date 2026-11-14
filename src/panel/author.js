@@ -798,7 +798,7 @@ export function createAuthor(opts) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
           const ch = x.k === v.openK ? choice : x.choice;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, ...(x.pairRule === undefined ? {} : { pairRule: x.pairRule }) };
+          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, proposal: x.proposal };
         });
         const adds = all.filter((x) => x.rule !== null);
         const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);

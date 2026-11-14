@@ -16,6 +16,7 @@ import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
 import { sameRuleWords } from '../blockpick.js';
+import { isColumnChoiceRule } from '../sheetoffer.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
@@ -134,7 +135,7 @@ export function appendAnswersToJob(job, answers) {
 }
 
 /**
- * M10 am21: the submitted job box with ONE `~` line of a job line replaced by the words of an answer (the edited added line the ask was about). Pure.
+ * M10 am21, M17 am1: the submitted job box with ONE `~` rule of a job line (a whole `~` line, or one `; ` part of it) replaced by the words of an answer. Pure.
  * @param {string} job @param {number} line the job line (step) number @param {string} oldText the `~` words to replace (case and spacing aside) @param {string} newText
  * @returns {{ job: string, replaced: boolean }}
  */
@@ -148,15 +149,27 @@ export function replaceRuleOnJob(job, line, oldText, newText) {
     if (!t.startsWith('~')) { step += 1; continue; }
     if (step === line && norm(t.slice(1)) === norm(oldText)) { raw[i] = `~ ${newText}`; return { job: raw.join('\n'), replaced: true }; }
   }
+  // the rule may be one `; ` part of a `~` line (a rule of its own): replace that part, keep the others in place
+  step = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    const t = raw[i].trim();
+    if (t === '') continue;
+    if (!t.startsWith('~')) { step += 1; continue; }
+    if (step !== line) continue;
+    const parts = t.slice(1).trim().split('; ');
+    const at = parts.findIndex((p) => norm(p) === norm(oldText));
+    if (parts.length > 1 && at >= 0) { parts[at] = newText; raw[i] = `~ ${parts.join('; ')}`; return { job: raw.join('\n'), replaced: true }; }
+  }
   return { job: String(job), replaced: false };
 }
 
 /**
- * THE one writer of what a set of answers does to the job box and to the picks (M4e am24, M10 am16 (4), M10 am21): an answer is one more `~` line under its job line
- * (`appendAnswersToJob`), EXCEPT the answer to an ask about an edited added line (`pairRule`), which REPLACES that line's words (the old added line never comes back).
- * Picks and left rules are numbered as the asks carried them; an edited-line pick is kept under its source's number (`pairRule`), with the edited words as `added`.
- * @param {string} job @param {{line: number, rule: string|null, left: boolean, check?: Record<string, any>|null, own?: boolean, ruleNo?: number, ruleText?: string, ask?: string, pairRule?: number}[]} all
- * @returns {{job: string, added: number, picks: {line: number, rule: number|undefined, check: Record<string, any>|null, added: string, own?: boolean}[], left: {line: number, rule: number|undefined}[]}}
+ * THE one writer of what a set of answers does to the job box and to the picks (M4e am24, M10 am16 (4); M17 am1 (a), one rule in, one rule out): an answer about one of the person's `~` rules
+ * (a look ask with a rule number) REPLACES that rule in place, the same line and the same rule number (`replaceRuleOnJob`), and never adds a line beside it. Only an answer that is about no
+ * rule (a drafter question, a sheet column ask) is still added word for word as a new `~` line (`appendAnswersToJob`). Picks and left rules are numbered as the asks carried them; a pick carries
+ * no `added` words, because its rule's words ARE the answer. A rule-about answer whose rule is no longer on the job line is not applied (the caller sees the count and refuses).
+ * @param {string} job @param {{line: number, rule: string|null, left: boolean, check?: Record<string, any>|null, own?: boolean, ruleNo?: number, ruleText?: string, ask?: string, proposal?: string|null}[]} all
+ * @returns {{job: string, added: number, picks: {line: number, rule: number|undefined, check: Record<string, any>|null, own?: boolean}[], left: {line: number, rule: number|undefined}[]}}
  */
 export function applyAnswers(job, all) {
   let out = job;
@@ -165,15 +178,16 @@ export function applyAnswers(job, all) {
   const appends = [];
   for (const x of all) {
     if (x.rule === null) continue;
-    if (typeof x.pairRule === 'number') {
+    // a column-choice ask (`use the column 'X' for 'Y'`) is the sheet path's own (M17 am2); here it is still one more `~` line
+    if (x.ask !== undefined && Number.isInteger(x.ruleNo) && !isColumnChoiceRule(x.proposal)) {
       const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), x.rule);
       if (r.replaced) { out = r.job; done += 1; }
     } else appends.push({ line: x.line, answer: x.rule });
   }
   const grown = appendAnswersToJob(out, appends);
   const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left)
-    .map((x) => ({ line: x.line, rule: x.pairRule ?? x.ruleNo, check: x.check ?? null, added: /** @type {string} */ (x.rule), ...(x.own ? { own: true } : {}) }));
-  const left = all.filter((x) => x.left).flatMap((x) => [{ line: x.line, rule: x.ruleNo }, ...(typeof x.pairRule === 'number' ? [{ line: x.line, rule: x.pairRule }] : [])]);
+    .map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, ...(x.own ? { own: true } : {}) }));
+  const left = all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo }));
   return { job: grown.job, added: grown.added + done, picks, left };
 }
 

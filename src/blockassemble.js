@@ -122,8 +122,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
   const notChecked = checkList.filter((r) => r.state === 'not-checked' && r.kind !== 'floor').map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
-    // an agreed or carried `~` line shares its source's answer (a follower is told as the rule it follows)
-    const row = own?.parent ? { ...own, cantAsked: block.rows.find((x) => x.key === own.parent)?.cantAsked === true, keptFromLast: own.keptFromLast ?? block.rows.find((x) => x.key === own.parent)?.keptFromLast } : own;
+    const row = own;
     // any other row is told in the words the card draws it with (renderCard; never the row's key)
     // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
     const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)

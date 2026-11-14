@@ -84,7 +84,7 @@ function humanRows(sessionDir, rel) {
     const [ask] = checkAsks([{ line: k.line, rule: k.rule, text: k.ruleText, check: k.check ?? null, why: null }]);
     return {
       kind: 'human', n: lookAnswered + i + 1, at: null, source: 'look', ask: ask.ask, question: ask.question, answer: KEPT_WORDS, line: k.line,
-      ruleNo: k.rule, ruleText: k.ruleText, proposal: ask.reading ?? null, rule: k.added ?? null,
+      ruleNo: k.rule, ruleText: k.ruleText, proposal: ask.reading ?? null, rule: k.ruleText ?? null,
     };
   });
   return [...answered, ...keptRows];

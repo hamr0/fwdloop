@@ -84,7 +84,7 @@ export function rebuildBlock({ planDir, asks }) {
     texts, jobLines: plan.jobLines, look,
     kept: { picks: matched.picks.filter(inBlock).filter(isKept), left: matched.left.filter(inBlock).filter(isKept), askRules: matched.askRules.filter(inBlock) },
     fresh: { picks: matched.picks.filter(inBlock).filter((x) => !isKept(x)), left: leftFresh },
-    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', scoped: allShape.filter(inBlock), leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines, look.facts),
+    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines, look.facts),
   });
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
   const askRules = allShape.filter((r) => !isKept(r));
