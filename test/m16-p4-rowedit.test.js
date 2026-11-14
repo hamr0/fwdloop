@@ -240,8 +240,20 @@ test('P4d: after a Drop it answer, Drop and Add rebuild the same plan at $0 (200
   assert.equal(drop.status, 200, drop.text);
   const d = await settle(w, id, ['green', 'red', 'stopped']);
   assert.notEqual(d.plan, a.plan);
-  assert.equal(d.hash, g.hash, 'Add then Drop gives the first plan back');
+  // not the first plan's hash: a dropped Suggested row reads "You dropped it." where the first plan never offered it as dropped
+  assert.ok(d.list.suggested.some((x) => x.key === sug.key && x.dropped === true), JSON.stringify(d.list));
   assert.deepEqual(chose(d), chose(g));
   assert.equal(draftingSpent(w.dir(id)).usd, spent, '$0');
   assert.equal(read(w, id, 'pid.json'), pid, 'no draft child');
+});
+
+test('P4d: after an own-words answer, Add rebuilds the plan at $0 (200, a new draft)', async () => {
+  const { w, id, g } = await flightsPlanAnswered({ choice: 'rule', answer: 'departs between 05:00 and 23:59' }, 'line 3: whether the tone suits the role');
+  const sug = g.list.suggested[0];
+  assert.ok(sug, JSON.stringify(g.list));
+  const add = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: sug.key });
+  assert.equal(add.status, 200, add.text);
+  const a = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.equal(a.phase, 'green');
+  assert.notEqual(a.plan, g.plan);
 });

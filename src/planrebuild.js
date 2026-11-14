@@ -76,10 +76,14 @@ export function rebuildBlock({ planDir, asks }) {
   const matched = matchRecord(Array.isArray(record.picks) ? record.picks : [], lines, allShape);
   const keptKeys = new Set((Array.isArray(record.kept) ? record.kept : []).map((/** @type {any} */ k) => `${k.line}:${k.rule}`));
   const isKept = (/** @type {{line: number, rule: number}} */ x) => keptKeys.has(`${x.line}:${x.rule}`);
+  // a rule the person answered Drop it: the draft was told it as `leftRules` and saved it as a `person-left` drop in page-look.json (its record holds no entry for a rule the look served);
+  // the rebuild reads that same saved drop, so the rule is the block's own `left` row again and its note keeps the person's words
+  const leftSaved = look.dropped.filter((/** @type {any} */ d) => d?.reason === 'person-left' && Number.isInteger(d.line) && Number.isInteger(d.rule)).map((/** @type {any} */ d) => ({ line: d.line, rule: d.rule }));
+  const leftFresh = [...matched.left.filter((x) => !isKept(x)), ...leftSaved.filter((x) => !matched.left.some((m) => m.line === x.line && m.rule === x.rule))].filter(inBlock);
   const block = setUpBlock({
     texts, jobLines: plan.jobLines, look,
     kept: { picks: matched.picks.filter(inBlock).filter(isKept), left: matched.left.filter(inBlock).filter(isKept), askRules: matched.askRules.filter(inBlock) },
-    fresh: { picks: matched.picks.filter(inBlock).filter((x) => !isKept(x)), left: matched.left.filter(inBlock).filter((x) => !isKept(x)) },
+    fresh: { picks: matched.picks.filter(inBlock).filter((x) => !isKept(x)), left: leftFresh },
     asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', scoped: allShape.filter(inBlock), leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines, look.facts),
   });
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
@@ -166,7 +170,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const oldNc = readJson(planDir, NOT_CHECKED_FILE)?.notChecked;
   const oldList = Array.isArray(oldNc) ? oldNc.filter((x) => typeof x === 'string') : [];
   const was = new Set(before.notChecked);
-  const notChecked = [...oldList.filter((x) => !was.has(x)), ...after.notChecked.filter((x) => !oldList.includes(x) || !was.has(x))];
+  const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
   const { sheetDropped: _sd, ...record } = isRec(b.record) ? b.record : {};
