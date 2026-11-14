@@ -45,14 +45,14 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   const decl = JSON.parse(readFileSync(path.join(w.dir(id), 'draft-1', 'declaration.json'), 'utf8'));
   assert.deepEqual(decl.steps.find((x) => x.fromLine === 3).close, { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } });
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
-  assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 bullets', 'exactly 3 list items']);
+  assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 list items'], 'the Agree REPLACED the asked rule (M17 am1)');
   const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
   assert.deepEqual([row.source, row.ask, row.line, row.proposal, row.rule], ['look', 'check', 3, 'exactly 3 list items', 'exactly 3 list items']);
   assert.ok(g.checked[2].sentences.includes('exactly 3 list items. [you]'), JSON.stringify(g.checked[2]));
   const signed = signDraft({ dir: path.join(w.dir(id), 'draft-1'), approve: g.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
-  // 3. the signed job: the agreed words are a new ~ line (the confirmation)
-  assert.match(readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8'), /guardrail: exactly 3 bullets; exactly 3 list items\n/);
+  // 3. the signed job: the agreed words are the rule (replaced in place)
+  assert.match(readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8'), /guardrail: exactly 3 list items\n/);
   // 2. the Audit: the setup record carries the row, the Draft block shows `you were asked` / `you said`
   const human = readSetup(signed.flowDir).rows.filter((r) => r.kind === 'human');
   assert.deepEqual(human.map((r) => [r.ask, r.line, r.answer, r.proposal, r.rule]), [['check', 3, 'agree', 'exactly 3 list items', 'exactly 3 list items']]);
@@ -69,7 +69,7 @@ test('own words: a `~` line word for word, no check, Not checked with its reason
   assert.equal(g1.phase, 'green', JSON.stringify(g1.reds ?? g1));
   const d1 = JSON.parse(readFileSync(path.join(own.w.dir(own.id), 'draft-1', 'declaration.json'), 'utf8'));
   assert.deepEqual(d1.steps.find((x) => x.fromLine === 3).close, { class: 'hitl' });
-  assert.ok(g1.notChecked.items.some((x) => x.includes('"exactly 3 bullets"') && x.includes('Your own words are on the line')), JSON.stringify(g1.notChecked));
+  assert.ok(g1.notChecked.items.some((x) => x.includes('"three short bullets"') && x.includes('Your own words are on the line')), JSON.stringify(g1.notChecked));
   const drop = await asked();
   assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, choice: 'drop' })).status, 202);
   const g2 = await greenAfter(drop.w, drop.id);
