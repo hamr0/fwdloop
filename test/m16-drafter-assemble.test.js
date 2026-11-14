@@ -42,8 +42,8 @@ import { callOf, router } from './m16-drafter-fixture.mjs';
 
 const NONE = callOf('submit_edits', { edits: [] });
 const LEDGER_NONE = callOf('suggest_extra_checks', { extra: [] });
-const PICKS = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 }, added: 'at most 80 words' }];
-const WALK = (/** @type {string} */ s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets; exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: under 80 words; at most 80 words');
+const PICKS = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 } }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 } }];
+const WALK = (/** @type {string} */ s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: at most 80 words'); // M17 am1: the Agree replaced the asked rule
 /** the declaration an AI sends for the walk job, with checks of its own on lines 3 and 5 (which code must drop) */
 const aiDecl = () => ({
   steps: [
@@ -86,7 +86,7 @@ test('(S6) the plan with the list passes the validator and is refused when a che
   assert.equal(v.ok, false, 'break: drop checkListReds from validateDeclaration and this greens');
   assert.match(v.ok ? '' : v.reds.join('|'), /checkList line 5: the picked check 2 \(close\.picked\) is in the close but has no row on the list/);
   const rowless = structuredClone(r.declaration);
-  rowless.checkList = rowless.checkList.filter((/** @type {any} */ x) => !(x.part && x.part.line === 3)); // the source row and its agreed follower both point at the part
+  rowless.checkList = rowless.checkList.filter((/** @type {any} */ x) => !(x.part && x.part.line === 3)); // the rule's row points at the part
   assert.match(validateDeclaration(rowless, ctx).ok ? '' : /** @type {any} */ (validateDeclaration(rowless, ctx)).reds.join('|'), /checkList line 3: the picked check 1 \(close\.picked\) is in the close but has no row on the list/);
   const phantom = structuredClone(r.declaration);
   phantom.steps.find((/** @type {any} */ s) => s.fromLine === 3).close = { class: 'hitl' };
