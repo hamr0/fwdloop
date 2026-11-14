@@ -40,7 +40,8 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
-import { checkedLines, notCheckedView, notCheckedLabelOf } from '../checked.js';
+import { checkedLines, notCheckedView, notCheckedLabelOf, listPartRows } from '../checked.js';
+import { EVERY_STEP_TEXTS } from '../try-checks.js';
 import { LABEL_PICKED, tagOf } from '../checkwords.js';
 import { listLinesOf } from '../checklistsign.js';
 import { auditChecksOf } from '../auditchecks.js';
@@ -2098,16 +2099,19 @@ export function getRunAudit({
  */
 function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /** @type {any[]|undefined} */ (undefined), csvRoles = /** @type {string[]} */ ([])) {
   const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line), lines: jobLines, csvRoles });
+  const onList = listLinesOf(declaration); // M16 P4c: a step on a list line carries its check rows apart (the page draws them under the job line, as bareloop's Job tab does)
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
+    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st).map((r) => ({ text: r.text, by: r.by })) : null;
     return {
       step: i + 1,
       line: Number.isInteger(st.fromLine) ? st.fromLine : null,
       reads: Array.isArray(st.reads) ? st.reads : [],
       makes: typeof st.emits === 'string' ? st.emits : null,
       mayDo: Array.isArray(st.primitives) ? st.primitives : [],
-      check: lines[i].sentences,
+      check: listRows ? lines[i].sentences.slice(0, lines[i].sentences.length - listRows.length) : lines[i].sentences,
+      ...(listRows ? { listRows } : {}),
       checkClass: lines[i].class,
       sheet: lines[i].sheet ?? null,
       ask: !!ak,
@@ -2123,7 +2127,10 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
   const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
-  return { steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded } };
+  return {
+    steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded, ...(onList.size > 0 && nc?.by && typeof nc.by === 'object' ? { by: nc.by } : {}) },
+    ...(onList.size > 0 ? { always: [...EVERY_STEP_TEXTS] } : {}),
+  };
 }
 
 /**

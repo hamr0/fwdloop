@@ -1,3 +1,4 @@
+// P4c: bareloop layout - the card's list is one plan view (#chat-plan), rows found by data-testid.
 // M16 P4 item 4 in a real headless browser, on the real panel, at 1280, 390 and 320 px: the plan card's list - every check row with exactly one tag, Drop only on an [agent] row, Add on a suggestion, the
 // controls POST row-edit (Add makes the row an [agent] check with a Drop, Drop gives the suggestion back), the document is not wider than the screen and no box spills (per-box numbers are printed).
 // Set FWDLOOP_WALK_OUT=<dir> for one screenshot per width. Skips only when no chromium is installed.
@@ -36,13 +37,10 @@ const ok = (m) => {
   assert.deepEqual(m.over, [], `boxes past the right edge: worst ${m.worst}px`);
 };
 const IDS = 'Array.from(document.querySelectorAll("[id]")).map(function(e){return e.id;}).filter(function(id,i,a){return a.indexOf(id)!==i;})';
-/** each row of the Checked / Suggested blocks: its text, how many tags, which buttons */
-const ROWS = `Array.from(document.querySelectorAll("#chat-checked, #chat-suggested")).map(function(b){
-  var out = [];
-  var kids = b.childNodes, cur = null;
-  b.innerHTML.split("\\n").slice(1).forEach(function(h){ var d = document.createElement("div"); d.innerHTML = h; out.push({text: d.textContent.replace(/\\s+/g, " ").trim(), tags: d.querySelectorAll(".by").length, by: Array.from(d.querySelectorAll(".by")).map(function(x){return x.getAttribute("data-by");}), op: Array.from(d.querySelectorAll("button")).map(function(x){return x.getAttribute("data-rowop");})}); });
-  return {id: b.id, rows: out};
-})`;
+/** P4c: bareloop layout - each check row and each suggestion row of the plan view: its text, how many tags, which buttons */
+const ROWS = `[{id: "chat-plan", rows: Array.from(document.querySelectorAll("#chat-plan [data-testid=plan-check], #chat-plan [data-testid=plan-suggest-row]")).map(function(d){
+  return {text: d.textContent.replace(/\\s+/g, " ").trim(), tags: d.querySelectorAll(".by").length, by: Array.from(d.querySelectorAll(".by")).map(function(x){return x.getAttribute("data-by");}), op: Array.from(d.querySelectorAll("button")).map(function(x){return x.getAttribute("data-rowop");})};
+})}]`;
 
 for (const width of [1280, 390, 320]) {
   test(`browser ${width}px: the plan card's list - tags, Drop, Add`, { skip: SKIP && 'no browser' }, async (t) => {
@@ -59,7 +57,7 @@ for (const width of [1280, 390, 320]) {
     await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
     assert.ok(await chrome.waitFor('!!document.querySelector("button[data-rowop=add]")'), 'the suggestion has an Add button');
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
-    let blocks = await chrome.ev(`(${ROWS})`);
+    let blocks = await chrome.ev(ROWS);
     const rows = blocks.flatMap((b) => b.rows).filter((r) => r.by.length || r.op.length);
     assert.ok(rows.every((r) => r.tags === 1), `every check row has exactly one tag: ${JSON.stringify(rows)}`);
     const you = rows.filter((r) => r.by[0] === 'you');
@@ -73,7 +71,7 @@ for (const width of [1280, 390, 320]) {
     // Add: a new plan, the suggestion is a check of the agent now, with a Drop
     await chrome.ev('document.querySelector("button[data-rowop=add]").click()');
     assert.ok(await chrome.waitFor('!!document.querySelector("button[data-rowop=drop]") && !document.querySelector("button[data-rowop=add]")'), 'Add made the row a check with a Drop');
-    blocks = await chrome.ev(`(${ROWS})`);
+    blocks = await chrome.ev(ROWS);
     const agent = blocks.flatMap((b) => b.rows).filter((r) => r.op.includes('drop'));
     assert.equal(agent.length, 1);
     assert.deepEqual([agent[0].by, agent[0].tags], [['agent'], 1]);
@@ -86,7 +84,7 @@ for (const width of [1280, 390, 320]) {
     // Drop: the suggestion is back, marked as dropped
     await chrome.ev('document.querySelector("button[data-rowop=drop]").click()');
     assert.ok(await chrome.waitFor('!!document.querySelector("button[data-rowop=add]") && !document.querySelector("button[data-rowop=drop]")'), 'Drop gave the suggestion back');
-    assert.match(await chrome.ev('document.getElementById("chat-suggested").textContent'), /\(you dropped it\)/);
+    assert.match(await chrome.ev('document.querySelector("#chat-plan [data-testid=plan-suggested]").textContent'), /\(you dropped it\)/);
     ok(await chrome.ev(measure('#chat-extras')));
   });
 }

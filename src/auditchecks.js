@@ -4,7 +4,7 @@
 // (the sheet and the older plans keep their own Audit rows), and the per-try history (the LAST try of a step is the one that closed it).
 import { listLinesOf } from './checklistsign.js';
 import { listPartRows } from './checked.js';
-import { EVERY_STEP } from './try-checks.js';
+import { EVERY_STEP, EVERY_STEP_TEXTS } from './try-checks.js';
 import { sheetRowsOf } from './sheetrows.js';
 
 /** the words of a row no result was recorded for: never "passed" */
@@ -48,9 +48,6 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
     return seen.length === 0 ? 'none' : seen.every((/** @type {any} */ c) => c.ok) ? 'passed' : 'failed';
   };
   /** @type {AuditCheckRow[]} */
-  const always = [
-    { text: "the output exists and isn't empty", by: 'default', result: every("the output exists and isn't empty") },
-    { text: 'the model said done: true', by: 'default', result: every('the model said done: true') },
-  ];
+  const always = EVERY_STEP_TEXTS.map((text) => ({ text, by: /** @type {'default'} */ ('default'), result: every(text) }));
   return { checks, notChecked: notRows, always };
 }

@@ -8,6 +8,8 @@ import { sheetRowKey } from './sheetrows.js';
 import { listLinesOf, partByOf } from './checklistsign.js';
 
 export const EVERY_STEP = 'every step';
+/** the words of the two checks every step has (#1 and #2 below): the Audit's "Always checked" rows, the plan card's and the Job tab's "Always checked" fold */
+export const EVERY_STEP_TEXTS = Object.freeze(["the output exists and isn't empty", 'the model said done: true']);
 
 /** The size words of a byte count: `412 B`, `7.9 KB`, `1.2 MB`. @param {number} n */
 export function sizeWords(n) {
