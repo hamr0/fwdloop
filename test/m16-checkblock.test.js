@@ -1,4 +1,4 @@
-// borrowed-from: bareloop tests/checkblock.test.js@v0.56.0 (3383cce + f148028e for the agree-follower tests), imports pointed at fwd's files, fixtures under test/fixtures/m16-block/
+// borrowed-from: bareloop tests/checkblock.test.js@v0.57.0 (c18df406; first ported from v0.56.0 3383cce + f148028e), imports pointed at fwd's files, fixtures under test/fixtures/m16-block/
 // hamr 2026-11-12: "goal again is simplfication and one flow one place ai suggestes ! code adds $ and code decides what worked/doable".
 // The CheckBlock (src/checkblock.js): the five invariants of the design, the POC's bars over COMMITTED fixtures (tests/fixtures/checkblock/, copied from the valid POC cases),
 // the mutants the POC used (each must break a bar), the per-reply cap, the already-on-the-list refusals with their own reasons (A3), the one-check rule and the two-sources door.
@@ -65,8 +65,8 @@ test('POC bars over 10 committed real cases: every agreed checkable row built, n
     assert.deepEqual(barsBroken(b), [], c.id);
     built += b.rows.filter((/** @type {any} */ r) => r.state === 'built' && r.kind !== 'floor').length;
     // the golden: the POC's own verdict per row (key, kind, by, state) for the same inputs, deltas and answers
-    // ruling 1: an agreed answer also writes its own `~` row (a follower), which the POC did not have: every golden row is there with its state, the extras are followers
-    assert.deepEqual(b.rows.filter((/** @type {any} */ r) => !r.parent).map((/** @type {any} */ r) => ({ key: r.key, kind: r.kind, by: r.by, state: r.state })), c.golden, c.id);
+    // one rule in, one rule out (hamr 2026-11-14): an agreed answer REPLACES the asked rule, so there is no extra row: the rows are exactly the golden rows
+    assert.deepEqual(b.rows.map((/** @type {any} */ r) => ({ key: r.key, kind: r.kind, by: r.by, state: r.state })), c.golden, c.id);
   }
   assert.ok(built >= 10, `the bars are not vacuous: ${built} built rows`);
 });
@@ -273,7 +273,6 @@ test('signedRows carries only the signed fields (never words), each row built or
   }
   const built = rows.filter((r) => r.state === 'built' && r.kind !== 'floor');
   assert.ok(built.length > 0 && built.every((r) => r.part && Number.isInteger(r.part.part)), JSON.stringify(built));
-  assert.ok(CARD_T.agreed);
 });
 
 // ---- hamr's rulings 2026-11-12: agree writes a `~` row with the SAME rule number a typed rule gets; the agreed fact is no AI proposal; carried picks; look drops show; retention shape
@@ -285,24 +284,26 @@ const flight = () => {
   return b;
 };
 
-test('agree on a reading adds a `~` row with the next rule number; the agreed fact carries both numbers and no aiProposal', () => {
+test('one rule in, one rule out: agree on a reading REPLACES the asked rule (same line, same number); the fact carries that one number and no aiProposal', () => {
   const b = flight();
   assert.equal(b.open.length, 1);
   assert.equal(b.open[0].ask, 'reading');
   assert.deepEqual(b.applyAnswer(b.open[0].key, 'agree'), { ok: true });
   b.reconcile();
   const rules = b.rows.filter((r) => r.kind === 'rule');
-  assert.deepEqual(rules.map((r) => r.rule), [1, 2]);
-  assert.equal(rules[1].by, 'you');
-  assert.match(rules[1].text, /departure/);
+  assert.deepEqual(rules.map((r) => r.rule), [1], 'one rule, not two');
+  assert.equal(rules[0].by, 'you');
+  assert.match(rules[0].text, /departure/);
+  assert.doesNotMatch(rules[0].text, /redeye/);
   assert.ok(rules.every((r) => r.state === 'built'), JSON.stringify(rules.map((r) => r.reason)));
   const part = b.closeCache.parts.find((/** @type {any} */ p) => p.class === 'fact');
-  assert.deepEqual(part.rules, [1, 2]);
+  assert.deepEqual(part.rules, [1]);
   assert.equal(part.facts[0].aiProposal, undefined);
   assert.equal(b.open.length, 0);
+  assert.deepEqual(b.jobLinesView([{ n: 1, text: 'Pick a flight' }])[0].rules, [rules[0].text], 'the job text is rebuilt from the list');
 });
 
-test('drop on a question leaves the rule Not checked and adds no row; a typed rule adds a typed row', () => {
+test('drop on a question leaves the rule Not checked and adds no row; typed words REPLACE the asked rule (one rule, typed)', () => {
   const b = flight();
   b.applyAnswer(b.open[0].key, 'drop'); b.reconcile();
   assert.equal(b.rows.filter((r) => r.kind === 'rule').length, 1);
@@ -311,10 +312,10 @@ test('drop on a question leaves the rule Not checked and adds no row; a typed ru
   c.fromJob([{ n: 1, text: 'Say it', rules: ['be nice'] }]); c.reconcile();
   assert.equal(c.open[0].ask, 'cant-check');
   c.applyAnswer(c.open[0].key, 'rule', 'mention x'); c.reconcile();
-  assert.deepEqual(c.rows.filter((r) => r.kind === 'rule').map((r) => [r.rule, r.origin]), [[1, 'job'], [2, 'typed']]);
+  assert.deepEqual(c.rows.filter((r) => r.kind === 'rule').map((r) => [r.rule, r.origin, r.text]), [[1, 'typed', 'mention x']]);
 });
 
-test('an agreed count pick: pick part carries the rule and its added line; carry() keeps a last draft pick as a follower and a left rule left', () => {
+test('an agreed count pick: pick part carries the rule and its added line; carry() keeps a last draft pick on the rule with those words and a left rule left', () => {
   const mk = () => { const b = new CheckBlock({ texts: { f: 'x' }, labels: ['f'] }); b.fromJob([{ n: 1, text: 'Summarise it', rules: ['exactly 3 bullets', 'under 80 words', 'exactly 3 bullets'] }]); return b; };
   const b = mk(); b.reconcile();
   const q = b.open.find((x) => x.ruleText === 'under 80 words');
@@ -324,7 +325,7 @@ test('an agreed count pick: pick part carries the rule and its added line; carry
   assert.equal(b.rows.find((r) => r.rule === 2)?.from, 'pick');
   const c = mk();
   const check = b.rows.find((r) => r.rule === 2).pick;
-  c.carry({ picks: [{ line: 1, rule: 2, check, added: 'at most 80 words' }], left: [{ line: 1, rule: 1 }] });
+  c.carry({ picks: [{ line: 1, rule: 2, check }], left: [{ line: 1, rule: 1 }] });
   c.reconcile();
   assert.equal(c.rows.find((r) => r.rule === 2)?.state, 'built');
   assert.equal(c.rows.find((r) => r.rule === 1)?.reason, REASON.left);
@@ -362,16 +363,14 @@ test('retention() has retentionOfList\'s shape and counts', () => {
   assert.equal(r[0].aiParts, r[0].kept + r[0].dropped);
 });
 
-// ---- live draft smwevmaaazskf (hamr 2026-11-13): an agreed answer's follower row must end with its parent's check, else Sign & run refuses ("a row points at a check the close does not run")
-test('after an agree, the follower row carries its parent\'s part and the signed list matches the close', () => {
+// ---- live draft smwevmaaazskf (hamr 2026-11-13), now one rule in, one rule out (2026-11-14): the agreed answer IS the asked rule, so its row carries its own part and the signed list matches the close
+test('after an agree, the replaced rule row carries its own part, there is no follower row, and the signed list matches the close', () => {
   const b = flight();
   b.applyAnswer(b.open[0].key, 'agree'); b.reconcile();
-  const follower = b.rows.find((r) => r.parent);
-  assert.ok(follower, 'the agreed answer is a follower row');
-  const parent = b.rows.find((r) => r.key === follower.parent);
-  assert.ok(parent?.part, 'the parent has its part');
-  assert.deepEqual(follower.part, parent.part);
-  assert.equal(follower.state, 'built');
+  assert.equal(b.rows.some((r) => 'parent' in r), false, 'no follower row exists');
+  const rule = b.rows.find((r) => r.kind === 'rule');
+  assert.ok(rule?.part, 'the rule has its part');
+  assert.equal(rule.state, 'built');
   assert.deepEqual(listMatchesClose({ stages: b.closeCache.stages, list: b.signedRows() }), { ok: true });
 });
 
@@ -395,8 +394,9 @@ test('real saved draft smwevmaaazskf: the agreed reading rebuilt from its saved 
   assert.ok(q, JSON.stringify(b.open));
   assert.deepEqual(b.applyAnswer(q.key, 'agree'), { ok: true });
   b.reconcile();
-  const follower = b.rows.find((r) => r.parent);
-  assert.ok(follower);
-  assert.deepEqual(follower.part, b.rows.find((r) => r.key === follower.parent)?.part);
+  const asked = b.rows.find((r) => r.key === q.rowKey);
+  assert.ok(asked?.part);
+  assert.equal(b.rows.filter((r) => r.kind === 'rule').length, 3, 'the three rules stay three: the answer replaced "not a red-eye"');
+  assert.equal(b.rows.some((r) => r.kind === 'rule' && /red-eye/.test(r.text)), false);
   assert.deepEqual(listMatchesClose({ stages: b.closeCache.stages, list: b.signedRows() }), { ok: true });
 });
