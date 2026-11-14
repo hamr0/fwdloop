@@ -1,0 +1,85 @@
+plans with at least one close.sheet check, identical prose+declaration counted once: 24 (8 signed flows, 16 saved drafts); unreadable CSV: 0
+- flow:m10-walk-csv-4: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- flow:m10b-aging: checks 2 built 2 surplus 0 refused 0 | rules 3 not-checked 0
+- flow:m10b-aging-2: checks 2 built 1 surplus 1 refused 0 | rules 3 not-checked 2
+- flow:m10b-aging-3: checks 1 built 1 surplus 0 refused 0 | rules 3 not-checked 2
+- flow:m10b-aging-5: checks 4 built 2 surplus 2 refused 0 | rules 6 not-checked 2
+- flow:walk-m16-csv: checks 2 built 1 surplus 1 refused 0 | rules 2 not-checked 0
+- flow:walk-m16-csv1: checks 2 built 1 surplus 1 refused 0 | rules 2 not-checked 0
+- flow:pw-csv(practice-walk): checks 2 built 1 surplus 1 refused 0 | rules 2 not-checked 0
+- draft:d-00mvkma344-0798/draft: checks 3 built 1 surplus 2 refused 0 | rules 1 not-checked 0
+- draft:d-00mvksbi9r-0e04/draft: checks 3 built 1 surplus 2 refused 0 | rules 1 not-checked 0
+- draft:d-00mvkskwc8-ae80/draft: checks 4 built 1 surplus 2 refused 1 (days-overdue-as-of:runTableChecks) | rules 2 not-checked 1
+- draft:d-00mvksot4p-3cb3/draft-3: checks 3 built 2 surplus 1 refused 0 | rules 3 not-checked 1
+- draft:d-00mvkswtk8-799b/draft: checks 3 built 2 surplus 1 refused 0 | rules 2 not-checked 0
+- draft:d-00mwcf1yvu-850d/draft-1: checks 2 built 1 surplus 1 refused 0 | rules 1 not-checked 0
+- draft:d-00mwci2whu-0a3e/draft-1: checks 2 built 1 surplus 1 refused 0 | rules 2 not-checked 0
+- draft:d-00mwci7xl7-d44d/draft-1: checks 2 built 1 surplus 1 refused 0 | rules 2 not-checked 1
+- draft:d-00mwcib8im-c20d/draft-5: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- draft:d-00mwdiofu9-df4f/draft: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- draft:d-00mwdiofu9-df4f/draft-2: checks 3 built 1 surplus 2 refused 0 | rules 3 not-checked 0
+- draft:d-00mwdiofu9-df4f/draft-4: checks 3 built 2 surplus 0 refused 1 (each-customer-once:runTableChecks) | rules 3 not-checked 0
+- draft:d-00mwdpb08d-774f/draft: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- draft:d-00mwg8sulg-7be9/draft: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- draft:d-00mwg8sulg-7be9/draft-1: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+- draft:d-00mwg8sulg-7be9/draft-2: checks 1 built 1 surplus 0 refused 0 | rules 2 not-checked 0
+TOTALS: checks 50 built 29 surplus 19 (covers none 1, rule held 18) refused 2 {"runTableChecks":2}; rules 55: built 33, column 13, Not checked 9
+vs F193: kept 30 / suggested 20 / Not-checked rows 8 on the same 24 plans (F193's kept count was without the build-time refusals)
+(b) checker self-test on a broken list: 3 violations flagged (all three planted faults flagged)
+
+== (c2) forced cases
+- ok  number not in the words: built 0, surplus 0 (), refused 1 (groundedLiterals: number 999 (where[0].value) is not in your words)
+- ok  date not in the words: built 0, surplus 0 (), refused 1 (groundedLiterals: date "2031-01-01" (asOf) is not in your words)
+- ok  column that is no header: built 0, surplus 0 (), refused 1 (columnAt: 'Nope' is not a column of "file")
+- ok  table check that fails on the sheet: built 0, surplus 0 (), refused 1 (runTableChecks: the table check already fails on the sheet)
+- ok  op outside the vocabulary: built 0, surplus 0 (), refused 1 (vocabulary: no cells op "regexMatch")
+- ok  covers a rule the line does not have: built 0, surplus 1 (it covers none of your rules), refused 0 ()
+- ok  covers a column rule: built 0, surplus 1 (it covers none of your rules), refused 0 ()
+- ok  second suggestion on a held rule: built 1, surplus 1 (a rule it covers already has a check), refused 0 ()
+- ok  AI id, claim and text are replaced or dropped: built 1, surplus 0 (), refused 0 ()
+(c) naive control (keep the AI check as it is): forced cases 1-5 would all be built = true; (c1) built checks with an ungrounded literal (line words): 0; (c3) built checks whose id/claim/keys are not code's: 0
+
+== (a) run-time: built set vs the signed set, frozen inputs, saved claims (line-checks.json), bareguard checkStep through closeSheet
+(a) letter pool (the named signed flows): {"recs":8,"checks":11,"a1Bad":0,"a2Diff":0,"a3Diff":0,"a3Refused":0,"a4":10,"a4Red":10,"a4Diff":0,"a4Skip":0,"redFull":0,"shaOk":8,"shaBad":0,"noRecs":0}
+(a) widened pool, report only (8 other signed flows): {"recs":15,"checks":18,"a1Bad":0,"a2Diff":1,"a3Diff":3,"a3Refused":3,"a4":17,"a4Red":17,"a4Diff":0,"a4Skip":0,"redFull":6,"shaOk":15,"shaBad":0,"noRecs":0}
+  DIFF flow-extra:m10b-expenses run-1 L2 try 1: full red vs built green
+  DIFF flow-extra:m10b-expenses run-2 L2 try 1: full red vs built green
+  DIFF flow-extra:walk-m10am29-2 run-1 L2 try 1: full green vs built red
+  DIFF flow-extra:walk-m10am29-2 run-1 L2: check customers-once signed green vs built red
+(a) controls: real red in the widened pool (full signed set red) 6; built set differs from it and the cause is the build-time refusal of a failing table check (am5 catch) 3; perturbations that went red on a signed check (letter pool) 10 of 10
+
+== reported only: lines whose built set has no cells check (src/sheetchecks.js sheetNoClaimReds would refuse the step: nothing to answer)
+table-only built lines over the 24 plans + 8 widened flows: 3 - draft:d-00mvkskwc8-ae80/draft L2 (a signed cells check went SURPLUS/refused); draft:d-00mwci7xl7-d44d/draft-1 L2 (a signed cells check went SURPLUS/refused); flow-extra:walk-m10am29-2 L2 (a signed cells check went SURPLUS/refused)
+
+== ruling 1 (column answer UPDATES the rule words in place; no `use the column` line): what it would do to the saved plans
+- flow:m10-walk-csv-4 L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- flow:walk-m16-csv L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- flow:walk-m16-csv1 L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- flow:pw-csv(practice-walk) L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- draft:d-00mwci2whu-0a3e/draft-1 L2: no other rule carries "amount owed" (answer for "Amount"): nothing to update in place (ruling 2 territory)
+- draft:d-00mwcib8im-c20d/draft-5 L2: no other rule carries "amount owed" (answer for "Amount"): nothing to update in place (ruling 2 territory)
+- draft:d-00mwdiofu9-df4f/draft L2: no other rule carries "amount owed" (answer for "Amount"): nothing to update in place (ruling 2 territory)
+- draft:d-00mwdiofu9-df4f/draft-2 L2: "balance due" -> "Amount" rewrites rule(s) 2; column rule was last (no renumbering); build after the update: same checks
+- draft:d-00mwdiofu9-df4f/draft-4 L2: "balance due" -> "Amount" rewrites rule(s) 2; column rule was last (no renumbering); build after the update: same checks
+- draft:d-00mwdpb08d-774f/draft L2: no other rule carries "amount owed" (answer for "Amount"): nothing to update in place (ruling 2 territory)
+- draft:d-00mwg8sulg-7be9/draft L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- draft:d-00mwg8sulg-7be9/draft-1 L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+- draft:d-00mwg8sulg-7be9/draft-2 L2: "Price" -> "Amount" rewrites rule(s) 1; column rule was last (no renumbering); build after the update: same checks
+ruling 1 totals: use-the-column rules 13: another rule carries the word 9 (column rule last 9); none does 4; rebuild after the in-place update gives the same checks 9, different 0
+
+== ruling 2 (a column word that is not a `~` rule becomes a `!` agent row, Drop/Add; not a `$`, not a rule-less ask)
+- draft:d-00mvksot4p-3cb3/draft-3: word "days past due" on L2 has no rule -> would be a `!` row [agent] naming column "Amount"; code builds no check from a column alone (no op, no claim), so it stays a Suggested row
+- draft:d-00mwcf1yvu-850d/draft-1: word "amount owed per customer" on L2 has no rule -> would be a `!` row [agent] naming column "Amount"; code builds no check from a column alone (no op, no claim), so it stays a Suggested row
+- draft:d-00mwci7xl7-d44d/draft-1: word "amount owed" on L2 has no rule -> would be a `!` row [agent] naming column "Amount"; code builds no check from a column alone (no op, no claim), so it stays a Suggested row
+ruling 2 totals: saved sheet asks 5: no rule 3 (these become `!` rows), tied to a rule 2 (ruling 1)
+
+builder: 'hitl' in code lines 0; class/declaration imports 0; git diff --stat src test: empty
+reported only: built checks 29: with no literal at all (tie to the rule is the AI tag, shown on the card) 15; carrying band bounds (not read by groundedLiterals) 2; a literal not in the covered rules' own words (stricter, rule-level) 1
+reported only: use-the-column rules 13: column used by a built check of the line 13; run-pool $ default tableSha(frozen) = recorded: 8 ok, 0 not (letter pool)
+
+== BARS
+BAR (a): PASS
+BAR (b): PASS
+BAR (c): PASS
+BAR (d): PASS (a report bar: the counts above are the finding)
+OVERALL: PASS
