@@ -164,6 +164,126 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 
 **Parked, not scheduled: a Not checked note shows a raw key** (hamr, 2026-11-14, unsigned; found in the M16 P7 practice walk). On m14-walk-5 (scratch copy pw-m14), Add on a Suggested line 3 fact also built `$numbers` default checks on lines 5 and 7; Drop on that fact turned both into Not checked, so the card's Not checked count went from 4 to 6 (draft-1 vs draft-3 `not-checked.json`, .claude/scratch/m16/practice-walk). *Correction 2026-11-14: this paragraph first said fwdloop waits on a bareloop fix. That was wrong.* The `loop` session ran bareloop's real CheckBlock at $0: after the Drop both rows go back to not-checked with no check behind them, which is bareloop's design (buildLine, src/checkblock.js:360-366, clears every row's part on each rebuild; pinned by bareloop tests/checkblock-add-drop-numbers.test.js, commit 23c0cdb1 on fix/after-0.56, unreleased). fwdloop's copy has the same reset (src/checkblock.js:393), so the leftover Not checked rows are copied behaviour, not a bug. fwdloop's own bug: a Not checked note with no rule text shows the raw key (`line 5: numbers L5.$numbers - not checked`, src/blockassemble.js:126) instead of words.
 
+**Next, not scheduled: one check flow** (hamr, 2026-11-14, unsigned DRAFT; module number: hamr picks; after M16 ships). DRAFT for hamr to edit. Not signed, not built. It needs its scope, exit and negative scenario signed by hamr before it starts.
+
+**hamr's words.**
+- "in the end we should have one place that reads ~ suggest ~ and add default $ that checks all and returns honest feedback on what is checkable, no side questions, no extra checks for guardrails"
+- Clarification: "read ~ suggest ! and default $ check all against code if checkable and suggest add/drop where it fits, asks extra clarification questions as needed"
+- "my goal again is one flow, one place to generate/check/accept/keep ~ ! $ and human approvs plan and code is honest on what it can/cannot check, extra asks to clarify a rule still comes in before card appears with add/drop"
+
+**Why.**
+- M16 copied bareloop's check block. Its item 4 ("stay as they are") and item 5 ("Every other signed text stands") kept the older per-case paths: pages (M10), sheets (M10b), Tickets (M12/M13), the AI's own notes (M4e am24/am25). The block sits beside them, and their output merges into one card.
+- The 2026-11-14 survey (`.claude/scratch/m16/survey/SURVEY.md`, a $0 read of repo `m16-check-list` @ 3f7e77c) found 23 paths outside the block: 4 ask (A1-A4), 8 add a check (B1-B8), 9 write a Not checked claim (C1-C9), 3 hide a rule (D1-D3).
+- Examples, each with its evidence:
+  1. Agree makes two rules for one meaning. m14 `prose-1.txt`: `guardrail: exactly 3 bullets; exactly 3 list items`. `draft-1/declaration.json` has `L3.~1 you built` and `L3.~2 you built`, both on part 0. Nothing says which covers which (B1).
+  2. The AI says the opposite of a check. Flights `draft/not-checked.json`: `price under $150 is not machine-checked [agent]`, while the same card shows `› check · "under $150" [you]` (C1).
+  3. One thing is said three times. Flights Not checked says "destination city" three times: a `[default]` page-look note, an `[agent]` row with a raw key, and the AI's own `destination city Rome is not verified`. "airport code" the same (C2).
+  4. Two Not checked claims that disagree. The CSV card (`practice-walk-2/c-card-d3.txt`) shows `Not checked: none` under line 2 and `Not checked · 2` at its end (C7).
+  5. A rule shown nowhere. A Tickets content rule such as "mention the reporter's name" is removed from the block by `ticketLeaveOut` (src/blockdraft.js:88). It gets no ask, no row, no note. Proved at $0 with one `node -e` call. No saved job has such a rule (D1).
+  6. "under 80 words" becomes `maxWords 80`. `draft-3/declaration.json` line 5 has `picked [{"rule":"maxWords","value":80}]`, so an 80-word answer passes. The prompt (src/checkpick.js:123) says "under N words ... use maxWords N" (B2).
+- The survey's summary table (copied; `kind`: a asks, b adds a check, c writes a Not checked claim, d hides a rule; file:line is src/ unless a path is given):
+
+| path | kind | screen? | signed text keeping it | bareloop v0.56.0 same? | example |
+|---|---|---|---|---|---|
+| A1 page-look asks, non-block lines (pageask.js:116, drafter.js:763) | a | Chat | M10 item 4, am1, am2 | no (block asks only) | none after M16; block's "on the page" words hit Tickets before aaa637d |
+| A2 sheet column offers (drafter.js:630) | a | Chat | M10 item 7, am8 | n/a (no sheets) | m10b-aging-2 "no column 'days past due'; 'Amount' has numbers…" |
+| A3 shape-pick asks, non-block lines (drafter.js:745) | a | Chat | M10 am16 (3) | no | none found |
+| A4 drafter try-3 questions (drafter.js:197/857) | a | Chat | M4e am24/am25, am32 A | no for rubric (wiped, authorflow:2359) | d-00mv5hai9f-6c7b "Which order should the card use?" |
+| B1 Agree appends a 2nd `~` rule + `[you]` row (pageask.js:175, authorcard.js:158) | b | card, readout, Job, signed prose | M10 am2 item 3, am16 (3) | yes (follower row, F318) | "exactly 3 bullets; exactly 3 list items" |
+| B2 under N → maxWords N (checkpick.js:123/72) | b | Chat, card | M10 am16 (1)-(2) | yes | "under 80 words" → maxWords 80 |
+| B3 R2c phrases replace the block word (blockassemble.js:54) | b | card ≠ readout/plan | M10 am7 item 2, M16 am3 (1) | no | card "Madrid" vs plan "Adolfo Suárez Madrid" |
+| B4 AI-written sheet checks as rows (sheetrows.js:102) | b | card, Job, Audit, Result | M16 item 4, am4, M10b am2 | n/a | pw-csv: rows + count both cover "Price over 500" |
+| B5 old pick path, non-block lines (drafter.js:788/963) | b | card | M10 am16 (4) | no | none found |
+| B6 ticketFilter/Watch typed by AI (ticket-draft.js:33) | b | readout | M16 item 4, M12/M13 | no (code from card pick) | "ticket filter: priority P1" |
+| B7 ledger `!` on a write line (in-block) | b | card Suggested | M16 item 1 | call yes; NO_GUARDRAIL no | "line 4 · fact · Select flight" |
+| B8 repairDeclaration (drafter.js:983, repairs.js) | b | round log only | M10 am27 (2) | unchecked | adds a cited source to `reads`, no check on screen |
+| C1 AI notChecked (drafter.js:1026) | c | card, Job, Result, Audit | M4e am24 item 6, am25, am40; unsigned L:3710 | no for rubric (wiped) | "price under $150 is not machine-checked [agent]" beside a `[you]` check |
+| C2 look drops [default] + block rows (pagelook.js:78, drafter.js:576) | c | card, Job, Result, Audit | M10 items 3, 5; M16 item 4 | yes (authorflow:2361+2366) | "destination city" ×3 |
+| C3 read note as Not checked in Audit (auditchecks.js:44) | c | Audit (code read, not seen) | M10 item 3, am40 | no (bareloop splits) | "US dollars was listed twice" |
+| C4 left/no-pick notes (drafter.js:596/793) | c | card, Job, Audit | M10 am2 item 3, am16 (5), am30 | rows only | "priority P1 only — You chose to leave it Not checked" vs ticket filter P1 |
+| C5 sheet-look drops (drafter.js:634) | c | card, Job, Audit, Result | M10 am8 item 1 | n/a | line 1 "expenses" — no column 'expenses' (no rule there) |
+| C6 uncoveredRules (sheetblock.js:122) | c | card, Job, Audit, Result | M10b am2 | n/a | "agree, why not" — no sheet check covers it |
+| C7 sheet block "Not checked: none" (sheetblock.js:112) | c | card, Result | M10b am2 | n/a | "Not checked: none" + "Not checked · 2" on one card |
+| C8 unjudgeable (blockassemble.js:106, checkpick.js:290) | c | none | declaration schema; M10 am16 (4) | n/a | in declaration.json only |
+| C9 cited fault as notChecked on Result (cited-record.js:105) | c | Result | M10 am9 (unchecked) | unchecked | none found |
+| D1 ticketLeaveOut (blockdraft.js:88) | d | nowhere | M16 item 4 (names only filter/watch) vs M10 item 5 "Never silent" | no | node: "mention the reporter's name" left out |
+| D2 column-choice rule (sheetoffer.js:93, sheetblock.js:112) | d | listed as guardrail, never as checked/not | M10 am8 items 1-2 | n/a | "use the column 'Amount' for 'Price'" + "Not checked: none" |
+| D3 `~` on an ask line (blocklines.js) | d | unchecked | unchecked | unchecked | none |
+
+**The flow (the goal).**
+1. One place reads the `~` rules. The AI suggests `!` checks. Code adds the `$` defaults.
+2. Code proves each one is checkable, or not.
+3. A rule code cannot settle is asked by the block, before the card shows. Agree, Drop it, or your own words.
+4. The card shows one list with Add and Drop. Not checked comes only from the block. It names each rule once with its reason. Nothing is silent.
+5. The human approves. The plan holds only the list.
+
+**What each old path becomes.** Draft; "open" goes under Open questions.
+- A1 page-look asks: feeds the block. The page look brings facts only; the block asks.
+- A2 sheet column offers: open (does the offer stay as the block's clarifying ask?).
+- A3 shape-pick asks on non-block lines: feeds the block. The block asks.
+- A4 drafter try-3 questions: open (the block's own asks may cover it; hamr: "extra asks to clarify a rule still comes in before card appears").
+- B1 Agree: deleted as a second rule. Agree replaces the rule's words; it never adds a second one.
+- B2 under N: open.
+- B3 R2c phrases replacing the block's word: open (card and plan must say the same words).
+- B4 AI-written sheet checks: open (M16's own signed exception; M16 am4 (2)(3) at L:3717).
+- B5 old pick path: deleted (the block is the one place).
+- B6 ticketFilter/ticketWatch typed by the AI: becomes block rows, checked by code at run start.
+- B7 ledger `!` on a write line: stays in the block. Its NO_GUARDRAIL words: open.
+- B8 repairDeclaration: open (adds no check; whether it stays).
+- C1 AI's own notChecked: deleted. Not checked comes from the block only.
+- C2 look drops as `[default]` notes: feeds the block. One note per rule.
+- C3 read note shown as Not checked in the Audit: becomes one split, as the card and Job tab already do.
+- C4 left/no-pick notes: becomes block rows.
+- C5 sheet-look drops: feeds the block. Words that are no rule are not a Not checked claim.
+- C6 uncoveredRules: becomes block rows.
+- C7 sheet block "Not checked: none": deleted. The one Not checked is the block's.
+- C8 unjudgeable: open (it agrees with the block today, and no screen reads it).
+- C9 cited fault on Result: open.
+- D1 ticketLeaveOut: becomes block rows. A Tickets content rule is listed, never hidden.
+- D2 column-choice rule: becomes a block row (the column lock stays; the card says so).
+- D3 `~` on an ask line: open (not traced).
+
+**Signed texts it would replace.** Line numbers are in `docs/wiki/the-module-ladder.md` (checked by grep, 2026-11-14).
+- M10 scope (L:2762), items 3, 4, 5, 7: asks, "Never silent", the sheet offers. Changes: the asks come from the block only; Not checked has one writer.
+- M10 am1 (L:2794) and am2 (L:2803, item 3 at L:2810-2817): how an ask shows up and Agree adding a new `~` line. Changes: Agree replaces, never adds.
+- M10 am7 (L:2858, item 2 / R2c): where the facts are signed. Changes: card and plan words match.
+- M10 am8 (L:2869-2875): column asks, the locked column. Changes: the offer is the block's ask (open); the column-choice rule becomes a row.
+- M10 am16 (L:3419-3421), items (1)-(5): shape picks. Changes: one path, the block; the old pick and ask paths go.
+- M10 am30 (L:3617) and am32 A (L:3628): Drop it and left-rule notes. Changes: the notes are block rows.
+- M10b am2 (L:2911): each guardrail shows what checked it; "Not checked: ... or none". Changes: one Not checked, from the block.
+- M4e am24 (L:2048, item 6 at L:2055), am25 (L:2062), am40 (L:2176): the AI's own Not checked, drafter questions, and the Not checked look. Changes: the AI's notes go; the questions come from the block.
+- M12 scope (L:3063) and M13 scope (L:3136), Tickets items (the ticketFilter/ticketWatch build notes sit at L:3116, "not signed text"). Changes: filter and watch become block rows.
+- M16 item 4 (L:3645) and item 5 (L:3646): "stay as they are" and "Every other signed text stands". Changes: this module replaces both. The unsigned note at L:3710 ("M4e am24/am25 stand; R4 overridden") goes with them.
+
+**Done when (draft).**
+- A flights page job, m14-walk-5, a CSV job and a Tickets job each draft and run green on deepseek-flash.
+- Every question comes from the block, before the card shows.
+- Each card's Not checked lists every unchecked `~` rule by name, once, and never contradicts a check row.
+- One guardrail gives one check. Agree replaces; it never adds.
+- No rule is silent.
+- A $0 rescan of the good signed jobs refuses none.
+
+**Must fail when (draft).**
+- A question comes from outside the block.
+- A Not checked line contradicts a check row, or repeats a rule.
+- A `~` rule shows nowhere.
+- Agree leaves two rules.
+- A check reaches the plan that is not on the list.
+
+**Order (draft).**
+1. Ship M16 first.
+2. A $0 POC on the riskiest part first: page-look questions asked from the block lose no quality. Pre-registered in FINDINGS before the run.
+3. Then one family at a time: pages, sheets, Tickets, deletes.
+
+**bareloop.** The survey's "bareloop same?" column: B1, B2 and C2 are in bareloop v0.56.0 too. Tell the `loop` session so both repos move together (hamr's word needed).
+
+**Open questions.** Not settled; hamr rules.
+- What does Not checked say for a Tickets filter row?
+- Do sheet column offers (A2) stay as the block's clarifying ask?
+- "Under N" as `maxWords N-1`, or a strict rule? (bareloop has the same.)
+- Old signed plans: rerun as they are, or refused?
+- A4 drafter questions, B3, B4, B7's NO_GUARDRAIL words, B8, C8, C9, D3: each is marked "open" above.
+
 **Next, not scheduled — first thing next: one per-line ledger** (hamr, 2026-11-10, unsigned draft; module number: hamr picks). DRAFT for hamr to edit. Not signed, not built, no module number. It needs its own scope, exit and negative scenario signed by hamr, and a $0 POC first, before anything is built.
 
 **Why.**
