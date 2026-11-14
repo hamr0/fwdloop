@@ -198,3 +198,50 @@ test('P4c: a Not-checked note code wrote is [default], a note the person chose i
   assert.ok(Object.values(by).includes('you'), `a note answering the person's own choice stays [you]: ${JSON.stringify(by)}`);
   assert.equal(by[g.notChecked.readNotes[0]], 'default', 'a note code wrote (the page look) reads [default]');
 });
+
+/** the flights job of the P4c test above, with one rule answered by `choice` (a button) */
+async function flightsPlanAnswered(answer, ai) {
+  const { fileURLToPath } = await import('node:url');
+  const { raw } = await import('./fixtures/m10-map/load.mjs');
+  const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'm10-map');
+  const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
+  const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt'), FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([ai]), FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST, FWDLOOP_TEST_DRAFT_LEDGER: LEDGER } });
+  writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
+  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept'].join('\n');
+  const id = (await w.post('/api/author/draft', w.card({ flowName: 'job2', job, inputs: `${w.card().inputs}\nflights: ${ADDRESS}` }))).json().draftId;
+  let g = await settle(w, id, ['questions-open', 'green', 'red', 'stopped']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'questions-open');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, ...answer })).status, 202);
+  g = await settle(w, id, ['green', 'red', 'stopped']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
+  return { w, id, g };
+}
+
+test('P4d: after a Drop it answer, Drop and Add rebuild the same plan at $0 (200, a new draft, no AI call), and the note still says the person chose Not checked (break: leave the left choice out of the rebuild and this reds)', async () => {
+  const { w, id, g } = await flightsPlanAnswered({ choice: 'drop' }, 'line 3: whether the tone suits the role');
+  const spent = draftingSpent(w.dir(id)).usd;
+  const pid = read(w, id, 'pid.json');
+  const chose = (s) => [...s.notChecked.items, ...s.notChecked.readNotes].filter((t) => /You chose to leave it Not checked/.test(t));
+  assert.ok(chose(g).length >= 1, JSON.stringify(g.notChecked));
+  const sug = g.list.suggested[0];
+  assert.ok(sug, JSON.stringify(g.list));
+  const add = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: sug.key });
+  assert.equal(add.status, 200, add.text);
+  const a = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.equal(a.phase, 'green');
+  assert.notEqual(a.plan, g.plan);
+  assert.deepEqual(chose(a), chose(g), 'the person\'s Not checked note is unchanged');
+  const row = a.list.rows.find((r) => r.by === 'agent' && r.drop === true);
+  assert.ok(row, JSON.stringify(a.list));
+  const drop = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: row.key });
+  assert.equal(drop.status, 200, drop.text);
+  const d = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.notEqual(d.plan, a.plan);
+  assert.equal(d.hash, g.hash, 'Add then Drop gives the first plan back');
+  assert.deepEqual(chose(d), chose(g));
+  assert.equal(draftingSpent(w.dir(id)).usd, spent, '$0');
+  assert.equal(read(w, id, 'pid.json'), pid, 'no draft child');
+});
