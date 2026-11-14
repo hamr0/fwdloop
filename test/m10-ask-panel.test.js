@@ -42,7 +42,7 @@ test('the draft stops before any drafting round with the look\'s question open; 
   assert.equal(s.total, 1, JSON.stringify(s.questions));
   assert.equal(s.questions[0].line, 1);
   assert.equal(s.questions[0].source, 'look', 'the state says the question came from the page look (the page draws it as one plain message)');
-  assert.equal(s.questions[0].question, 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).');
+  assert.equal(s.questions[0].question, 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer replaces that ~ rule on line 1).');
   const planDir = path.join(w.dir(id), 'draft');
   assert.equal(existsSync(path.join(planDir, 'declaration.json')), false, 'no plan was drafted');
   assert.equal(existsSync(path.join(planDir, 'spec.hash')), false);
@@ -65,14 +65,14 @@ test('a blank answer to a look question gets bareloop\'s sentence and leaves it 
   await greenAfter(w, id);
 });
 
-test('agree: the code\'s reading becomes a new ~ line under the job line, the original rule stays; the signed job and the approved plan carry it; the draft log row has proposal and rule as own fields', async () => {
+test('agree: the code\'s reading REPLACES the asked rule in place (M17 am1); the signed job and the approved plan carry it; the draft log row has proposal and rule as own fields', async () => {
   const { w, id } = await askWorld();
   const r = await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' });
   assert.equal(r.status, 202, r.text);
   const g = await greenAfter(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
-  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, [...READ_RULES, 'departure time between 05:00 and 23:59']);
+  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, ['under $150', 'departure time between 05:00 and 23:59', 'nonstop']);
   const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
   assert.deepEqual(
     [row.source, row.ask, row.line, row.answer, row.proposal, row.rule, typeof row.at, row.question.startsWith('Your line 1 says')],
@@ -81,32 +81,32 @@ test('agree: the code\'s reading becomes a new ~ line under the job line, the or
   const signed = signDraft({ dir: path.join(w.dir(id), 'draft-1'), approve: g.hash, signedBy: 'tester', env: {} });
   assert.equal(signed.ok, true, JSON.stringify(signed));
   const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');
-  assert.match(prose, /guardrail: under \$150; not a red-eye; nonstop; departure time between 05:00 and 23:59\n/);
+  assert.match(prose, /guardrail: under \$150; departure time between 05:00 and 23:59; nonstop\n/);
   const readout = readFileSync(path.join(w.dir(id), 'draft-1', 'readout.txt'), 'utf8');
   assert.match(readout, /departure time between 05:00 and 23:59/, 'the approved plan shows the new rule');
 });
 
-test('own words are taken word for word as the new ~ line', async () => {
+test('own words are taken word for word and replace the asked rule', async () => {
   const { w, id } = await askWorld();
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'leaves after 7 in the morning', choice: 'rule' })).status, 202);
   await greenAfter(w, id);
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
-  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails.at(-1), 'leaves after 7 in the morning');
+  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, ['under $150', 'leaves after 7 in the morning', 'nonstop']);
   const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
   assert.equal(row.rule, 'leaves after 7 in the morning');
   assert.equal(row.proposal, 'departure time between 05:00 and 23:59');
 });
 
-test('drop it (a can\'t-check ask): no ~ line is added; the rule is Not checked with the signed words on the plan, and the row says so', async () => {
+test('drop it (a can\'t-check ask): no ~ line is added or removed; the rule is Not checked with the signed words on the plan, and the row says so', async () => {
   const { w, id, s } = await askWorld([...READ_RULES, 'pays well']);
   assert.equal(s.total, 2);
-  assert.equal(s.questions[1].question, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer is added as a new ~ rule on line 1).');
+  assert.equal(s.questions[1].question, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer replaces that ~ rule on line 1).');
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 200);
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, choice: 'drop' })).status, 202);
   const g = await greenAfter(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
-  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, [...READ_RULES, 'pays well', 'departure time between 05:00 and 23:59'], 'only the agreed reading was added');
+  assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, ['under $150', 'departure time between 05:00 and 23:59', 'nonstop', 'pays well'], 'the agreed reading replaced its rule; nothing was added');
   assert.ok(g.notChecked.items.includes('not checked · "pays well" — You chose to leave it Not checked.'), JSON.stringify(g.notChecked));
   const row2 = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-2.json'), 'utf8'));
   assert.deepEqual([row2.source, row2.ask, row2.proposal, row2.rule, row2.answer], ['look', 'cant-check', null, null, 'drop it']);

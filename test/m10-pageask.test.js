@@ -11,7 +11,7 @@ import {
 import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
 
 const lookOf = async (n) => (await lookAtPage({ label: 'flights', text: PAGE, jobLines: JOB, callModel: async () => ({ text: raw(n) }) })).look;
-const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).';
+const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer replaces that ~ rule on line 1).';
 
 test('T1: a reading the person did not write is a reading ask, in bareloop\'s exact words', async () => {
   const asks = askableFromLook(await lookOf(3), JOB);
@@ -34,7 +34,7 @@ test('T2: a rule no kept fact carries is a can\'t-check ask, in bareloop\'s exac
   const asks = askableFromLook(look, jobLines);
   assert.equal(asks.length, 1);
   assert.deepEqual([asks[0].ask, asks[0].rule], ['cant-check', 2]);
-  assert.equal(asks[0].question, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer is added as a new ~ rule on line 1).');
+  assert.equal(asks[0].question, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer replaces that ~ rule on line 1).');
   assert.equal(asks[0].reading, undefined);
 });
 

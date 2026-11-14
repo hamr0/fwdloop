@@ -30,7 +30,7 @@ const fetcher = async (url) => ({ ok: true, text: PAGE, url });
 const run = (provider, extra = {}) => draft({
   proseText: prose(), provider, rates: RATES, modelId: MODEL, draftDir: path.join(tmp(), 'pages'), fetchPage: fetcher, ...extra,
 });
-const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).';
+const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer replaces that ~ rule on line 1).';
 
 test('a reading ask fires after the look and BEFORE any drafting round: one provider call (the map), no declaration', async () => {
   const p = fakeProvider([mapReply(raw(3)), textReply()]);
