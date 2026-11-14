@@ -1,0 +1,40 @@
+plans: 24 (8 signed flows, 16 drafts) + 8 widened flows
+(c) row checker self-test: flags a rule held by two rule-row checks, a check in no row, a check in two rows
+TOTALS over 32 plans: saved suggestions 67 = rule-row 38 + agent rows 26 + refused 3; agent rows covering no rule 1; multi-rule checks 6; rules covered only by an agent row 1 of 69
+F194 builder on the same data (control): built 38, hidden as SURPLUS 26 on 19 plans
+- forced ok  table first, cells second: rule rows [cells] agent rows [table] violations 0
+- forced ok  cells first, table second: rule rows [cells] agent rows [table] violations 0
+- forced ok  two cells on one rule: rule rows [cells] agent rows [cells] violations 0
+- forced ok  a built check that covers no rule: rule rows [] agent rows [cells] violations 0
+
+== (a) m10b-expenses run-1 and run-2, try 1
+- flow-extra:m10b-expenses run-1 L2 try 1: full red, F195 built red, F194 built green; red signed checks over-500-total on as agent row: true
+- flow-extra:m10b-expenses run-2 L2 try 1: full red, F195 built red, F194 built green; red signed checks over-500-total on as agent row: true
+- flow-extra:m10b-expenses-a run-1 L2 try 1: full red, F195 built red, F194 built red; red signed checks over500-count,over500-total,over500-rows on as agent row: false,true,true
+(a) records 3; control (F194's builder differs from the full set on at least one): true
+
+== (b) the F194 table-only lines
+- draft:d-00mvkskwc8-ae80/draft L2: F194 rule rows all table; F195 rule rows [cells], agent rows [table,table]
+- draft:d-00mwci7xl7-d44d/draft-1 L2: F194 rule rows all table; F195 rule rows [cells], agent rows [table]
+- flow-extra:walk-m10am29-2 L2: F194 rule rows all table; F195 rule rows [cells], agent rows [table]
+- walk-m10am29-2 run-1 L2 try 1: signed green, F195 built green, F194 built red
+(b) table-only lines 3; walk-m10am29-2 records 1; control (F194 rule rows are table-only on all): true
+
+== (e) F194 bar (a) on the 8 named signed flows with the F195 set
+letter pool: {"recs":8,"checks":16,"a1":0,"a2":0,"a3":0,"a4":14,"a4Red":14,"a4Diff":0,"a4Skip":0}
+widened pool (report): 15 records, full red 6; F195 verdict differs from the full set 3 (flow-extra:walk-m10am32-1 run-1 try 1: red vs green; flow-extra:walk-m10am32-1 run-1 try 2: red vs green; flow-extra:walk-m10am32-1 run-1 try 3: red vs green); F194 differs 6
+(e) controls: reds in the pools 6; perturbations red on a signed check 14 of 14
+
+builder 'hitl' in code lines 0; git diff --stat src test: src/blockasks.js  |  5 ++--
+ src/blockpick.js  | 12 +++++++-
+ src/checkblock.js | 88 ++++++++++++++++++++++++-------------------------------
+ src/pickrecord.js | 70 ++++++++++---------------------------------
+ 4 files changed, 68 insertions(+), 107 deletions(-)
+
+== BARS
+BAR (a): FAIL
+BAR (b): FAIL
+BAR (c): PASS
+BAR (d): PASS
+BAR (e): PASS
+OVERALL: FAIL
