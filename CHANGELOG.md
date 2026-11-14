@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-11-14
+
+One check list for every job (M16, signed 2026-11-13, amendments 1 to 4; exit signed 2026-11-14), copied from
+bareloop v0.56.0 and ported to fwdloop's files. What a line checks is now one list of rows, each tagged by who
+made it, on the plan card, the Job tab and the Audit. Also M13 am10 (signed 2026-11-14) and three small fixes.
+The POCs behind it (F185-F190) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- The check list (M16). Each job line gets rows, each tagged `[you]` (your `~` words), `[agent]` (the AI's pick)
+  or `[default]` (a floor the code adds). Two extra drafting turns at the drafter's price suggest more rows and
+  take your row edits. On the plan card a row from the agent has `Drop`, a `Suggested` block has `Add`, and
+  `Not checked` lines carry their reasons. The list is signed with the job (`checkList`) and the signed run checks
+  exactly its rows. The `$` numbers default (the numbers tie after a fact line) comes with it.
+  The cited default is not added on fwdloop lines, and ask, send and Tickets filter or watch lines get no rows.
+- `Drop` and `Add` rebuild the list at $0 from the draft's saved files and save it as a new draft (`POST
+  /api/author/:id/row-edit`); no AI call. A `Revise` or `Start over` keeps your last Drop and Add choices.
+- Place rules (a place, language or decimal on a fact line) are read at run start from the run's frozen input and
+  recorded in `run.json`; a resume or continue reuses them, and the run says what the place was before.
+- The Audit has a `Checks` fold: Checks, Not checked and Always checked, each row with its tag and its recorded
+  result.
+- A sheet job's checks are rows on the same list with tags and `Drop` / `Add` (M16 am4). A saved sheet job's reds and
+  greens are unchanged (a $0 rescan of 51 signed jobs gave the same output).
+
+### Changed
+- fwdloop needs bareguard `^0.36.0`. Sheet checks (`checkTables`, `runTableChecks`, `checkSchema`, `claimSchema`,
+  `groundedLiterals`, `columnAt`) run through it, and fwdloop's own copies are removed.
+- The old cited-part prompt lines and the `checkList: false` option are gone; the list owns the facts. An
+  `Agree` to words already on the line adds no copy (bareloop f148028e and F318).
+- A skipped By hand Tickets run says only `Nothing to do.`; the Run it anyway pointer stays on a job with a
+  new-ticket schedule (M13 am10).
+
+### Fixed
+- The last answer of a run-again draft was refused with the taken-flow-name message; the answer door now passes the
+  same run-of name as the draft and revise doors.
+- A draft question is offered only after the draft child has exited (a 409 `draft-live` race).
+- A `Drop` or `Add` after a `Drop it` answer rebuilds the same plan: the rebuild reads your Drop it and keeps the
+  Not checked note the unchanged list still makes.
+
 ## [0.32.0] - 2026-11-12
 
 A drafting answer with an extra `}` is repaired by code (M4d am39), a table check that already fails on the
