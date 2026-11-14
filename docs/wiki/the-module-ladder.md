@@ -3836,3 +3836,28 @@ Peer state (2026-11-13):
 > **Done when:** on the saved expenses runs, the check that caught the red is still on, as an `[agent]` row. On the 3 lines where the step's list went unchecked, it is now checked.
 >
 > **Must fail when:** a check the AI suggested and code could build is hidden without your Drop.
+
+**M17 am4 — SIGNED by hamr 2026-11-14 ("sign m17 am4."), the text exactly as shown.** Why: hamr 2026-11-14: "yes, i want them all cleaned, we already have their replacements, don't we?" Survey paths A1, A3, B3, B5, C1, C3, C4, C8 (`.claude/scratch/m16/survey/SURVEY.md`; the PRD's one check flow draft). Not in this amendment: A4 and B2 (no replacement yet), and B7's words, B8, C9, D3 (a $0 trace comes first).
+
+> **M17 am4 — the old per-case checks go; the list is the one place.**
+> 1. Removed, because the list already does each job:
+>    - questions asked outside the list (A1, A3): every line with `~` rules is a list line, so only the list asks;
+>    - the old pick path (B5);
+>    - card words that differ from the list's (B3): the card shows the list's words, the same as the plan;
+>    - the AI's own Not checked notes (C1), the "you left it" notes (C4) and the hidden "can't judge" record (C8): Not checked comes only from the list, each rule once, with its reason;
+>    - the Audit showing a reading note as Not checked (C3): the Audit splits them as the card and Job tab already do.
+> 2. Where a signed text keeps one of these paths, this wins for that path only. Those texts are listed in the PRD's one check flow draft, under "Signed texts it would replace". Every other signed text stands, including the answer buttons (M10 am32) and the third-try questions (M4e am25).
+>
+> **Done when:**
+> - The flights page job and m14-walk-5 each draft and run green on deepseek-flash.
+> - No question comes from outside the list.
+> - Each card's Not checked names each unchecked rule once and never contradicts a check row.
+> - The card and the plan say the same words.
+> - A $0 re-check of the good signed jobs refuses none.
+>
+> **Must fail when:**
+> - A question comes from outside the list.
+> - A Not checked line comes from anywhere but the list.
+> - A card word differs from the plan's.
+>
+> **Out of scope:** A4 (the AI's third-try questions, from bareloop's release); B2 (how "under N" is counted).
