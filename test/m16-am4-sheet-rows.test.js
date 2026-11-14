@@ -19,6 +19,7 @@ import { sheetCheckReds, sheetCheckWordReds } from '../src/sheetchecks.js';
 import { tableChecksFailingOnInput } from '../src/sheetrun.js';
 import { parseCsv, sheetTable } from '../src/csv.js';
 import { checkedLines } from '../src/checked.js';
+import { readSheetDropped, recordPath } from '../src/pickrecord.js';
 import { RATES, MODEL, fakeProvider, textReply, toolReply } from './drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -194,4 +195,36 @@ test('a draft with the list off gets no sheet rows (break: add sheet rows to eve
   const off = await draft({ proseText: PROSE, provider, rates: RATES, modelId: MODEL, checkList: false });
   assert.equal(off.ok, true, off.reds?.join('\n'));
   assert.equal(off.declaration.checkList, undefined);
+});
+
+test('a Revise keeps a sheet Drop: the new AI check with the same id starts dropped again, under Suggested with Add, and Add puts it back (hamr 2026-11-14; break: do not carry sheetDropped into the next draft)', async () => {
+  const { dir, work, root } = await csvPlan();
+  const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.bands' });
+  assert.equal(dropped.ok, true, dropped.say);
+  const dir2 = path.join(work, 'draft-1');
+  mkdirSync(dir2);
+  for (const [f, t] of Object.entries(dropped.files)) writeFileSync(path.join(dir2, f), t);
+  // the Revise: a fresh draft that follows draft-1 (`--carry <record>`), the AI writing the same three checks again
+  const carried = readSheetDropped(recordPath(dir2));
+  assert.deepEqual(carried.map((d) => d.key), ['L2.sheet.bands'], 'the record keeps the drop');
+  const dir3 = path.join(work, 'draft-2');
+  const provider = fakeProvider([NO_WORDS, toolReply(decl(CHECKS()))]);
+  const r = await draftToDir({ proseFile: path.join(work, 'prose.txt'), dir: dir3, root, name: 'aging', provider, rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY', carriedSheetDropped: carried });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const d = readJson(dir3, 'declaration.json');
+  assert.deepEqual(d.steps[1].close.sheet.map((c) => c.id), ['nodup', 'over'], 'the AI wrote bands again; it starts dropped');
+  assert.deepEqual(sheetRows(d).map((x) => x.key), ['L2.sheet.nodup', 'L2.sheet.over']);
+  assert.equal(validateDeclaration(d, doors(dir3)).ok, true);
+  const card = readJson(dir3, 'log.json').checkCard;
+  assert.deepEqual(card.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.bands', true]]);
+  assert.deepEqual(readSheetDropped(recordPath(dir3)).map((x) => x.key), ['L2.sheet.bands'], 'and the next Revise carries it again');
+  // Add puts it back where it was
+  const added = rowEditPlan({ planDir: dir3, op: 'add', key: 'L2.sheet.bands' });
+  assert.equal(added.ok, true, added.say);
+  assert.deepEqual(JSON.parse(added.files['declaration.json']).steps[1].close.sheet.map((c) => c.id), ['nodup', 'over', 'bands']);
+  // with no carried drop the same draft keeps all three (the carry is what drops it)
+  const dir4 = path.join(work, 'draft-3');
+  const r4 = await draftToDir({ proseFile: path.join(work, 'prose.txt'), dir: dir4, root, name: 'aging', provider: fakeProvider([NO_WORDS, toolReply(decl(CHECKS()))]), rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY' });
+  assert.equal(r4.ok, true);
+  assert.equal(readJson(dir4, 'declaration.json').steps[1].close.sheet.length, 3);
 });

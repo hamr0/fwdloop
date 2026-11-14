@@ -156,5 +156,19 @@ export function readRowChoices(file) {
   } catch { return null; }
 }
 
+/**
+ * The sheet checks the person dropped from a plan (hamr 2026-11-14: a Revise keeps a sheet Drop), carried like the page-row choices: the record's `sheetDropped` entries, each `{key, line, index, check, text}`;
+ * the next draft drops a new check with the same id again. Read through readFileInside; a missing or unreadable record is no record.
+ * @param {string} file @returns {{key: string, line: number, index: number, check: Record<string, any>, text: string}[]|null}
+ */
+export function readSheetDropped(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
+  } catch { return null; }
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);
