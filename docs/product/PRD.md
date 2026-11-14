@@ -170,6 +170,9 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 - "in the end we should have one place that reads ~ suggest ~ and add default $ that checks all and returns honest feedback on what is checkable, no side questions, no extra checks for guardrails"
 - Clarification: "read ~ suggest ! and default $ check all against code if checkable and suggest add/drop where it fits, asks extra clarification questions as needed"
 - "my goal again is one flow, one place to generate/check/accept/keep ~ ! $ and human approvs plan and code is honest on what it can/cannot check, extra asks to clarify a rule still comes in before card appears with add/drop"
+- "just to be clear on next move/prd, we are cleaning up any old judge that got replaced by new redesign for rules, ok?" (hamr, 2026-11-14)
+
+**Scope in one line.** Every old path that judges, asks about or reports on a rule, and that the check block now does, is removed; what the block cannot do yet feeds the block instead of judging on its own.
 
 **Why.**
 - M16 copied bareloop's check block. Its item 4 ("stay as they are") and item 5 ("Every other signed text stands") kept the older per-case paths: pages (M10), sheets (M10b), Tickets (M12/M13), the AI's own notes (M4e am24/am25). The block sits beside them, and their output merges into one card.
