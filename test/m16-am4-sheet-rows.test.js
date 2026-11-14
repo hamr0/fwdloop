@@ -190,13 +190,6 @@ test('with no Drop or Add a CSV job checks exactly as before am4: the close, the
   assert.equal(verdict(bad), verdict({ ...bad, checkList: pre.checkList }));
 });
 
-test('a draft with the list off gets no sheet rows (break: add sheet rows to every plan)', async () => {
-  const provider = fakeProvider([NO_WORDS, toolReply(decl(CHECKS()))]);
-  const off = await draft({ proseText: PROSE, provider, rates: RATES, modelId: MODEL, checkList: false });
-  assert.equal(off.ok, true, off.reds?.join('\n'));
-  assert.equal(off.declaration.checkList, undefined);
-});
-
 test('a Revise keeps a sheet Drop: the new AI check with the same id starts dropped again, under Suggested with Add, and Add puts it back (hamr 2026-11-14; break: do not carry sheetDropped into the next draft)', async () => {
   const { dir, work, root } = await csvPlan();
   const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.bands' });

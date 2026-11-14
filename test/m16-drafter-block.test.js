@@ -32,14 +32,6 @@ test('(S1+S2) m14-walk-5: the block is built over the step lines only and the su
   assert.ok(r.costUsd > 0 && r.spendComplete === true && r.rounds === r.calls, 'every round is metered');
 });
 
-test('(S1) checkList:false (the default until the flip, now explicit): the same job drafts as before (no block rows, the asks are the old path\'s)', async (t) => {
-  const p = router({ suggest_checks: SUGGEST_BOTH });
-  const r = await draft({ proseText: walkProse(t), provider: p, rates: RATES, modelId: MODEL, checkList: false });
-  assert.equal(r.stop, 'look-asks');
-  assert.equal(r.checkRows, undefined);
-  assert.deepEqual(r.questions.map((/** @type {any} */ q) => [q.line, q.ask]), [[3, 'check'], [5, 'check']]);
-});
-
 test('(S1) hideCounts: the lines the block takes show their count rules to the page look; every other line is hidden as before', () => {
   const lines = [{ n: 1, text: 'a', rule: 'under $150; exactly 3 bullets' }, { n: 2, text: 'b', rule: 'under 80 words' }];
   assert.deepEqual(hideCounts(lines).seenLines.map((l) => l.rule), ['under $150', undefined]);

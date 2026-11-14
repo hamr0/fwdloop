@@ -11,22 +11,21 @@ import { walkProse } from './m16-drafter-fixture.mjs';
 const menu = wiredMenu(['core']);
 const closeProps = (/** @type {any} */ s) => Object.keys(s.properties.steps.items.properties.close.properties);
 
-test('(S5) the declaration turn is offered no close.cited when the list is on; off, it is offered as before', () => {
-  assert.ok(closeProps(buildDeclarationSchema(menu)).includes('cited'));
-  assert.ok(!closeProps(buildDeclarationSchema(menu, { noCited: true })).includes('cited'), 'break: drop the noCited branch of buildDeclarationSchema and this reds');
-  assert.ok(!closeProps(buildRoundSchema(menu, { noCited: true })).includes('cited'));
+test('(S5) the declaration turn is offered no close.cited (the list owns the facts)', () => {
+  assert.ok(!closeProps(buildDeclarationSchema(menu)).includes('cited'), 'break: put CITED_PROP back into buildDeclarationSchema and this reds');
+  assert.ok(!closeProps(buildRoundSchema(menu)).includes('cited'));
 });
 
-test('(S5) the prompt of a list job tells nothing of close.cited and shows the count rules of the list lines; off, it is as before', (t) => {
+test('(S5) the prompt of a list job tells nothing of close.cited and shows the count rules of the list lines only', (t) => {
   const prose = walkProse(t, (s) => s.replace('1. Write 3 lines about my garden from the notes', '1. Write 3 lines about my garden from the notes\n   guardrail: exactly 3 bullets'));
   const p = parseSignedText(prose);
   assert.ok(p.ok);
   if (!p.ok) return;
   const args = { menu, lines: p.lines, arbiter: p.arbiter, factsInfo: [] };
   const off = buildSystemPrompt(args);
-  assert.ok(off.includes('close.cited'), 'a document input is quoted as before');
-  assert.ok(!off.includes('[guardrail: exactly 3 bullets]'), 'count rules are hidden from the AI as before (am27)');
-  const on = buildSystemPrompt({ ...args, blockLines: new Set([1, 3, 5]), noCited: true });
+  assert.ok(!off.includes('close.cited'));
+  assert.ok(!off.includes('[guardrail: exactly 3 bullets]'), 'count rules of a line the list is not given stay hidden (am27)');
+  const on = buildSystemPrompt({ ...args, blockLines: new Set([1, 3, 5]) });
   assert.ok(on.includes('[guardrail: exactly 3 bullets]'), 'break: pass the block lines to shownRules and this reds');
   assert.ok(!on.includes('close.cited'));
 });
@@ -179,12 +178,10 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
   const mk = () => router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
   const base = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
   const on = await go(mk(), prose, { ...base, checkPicks: [] });
-  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, checkList: false, ...base });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.equal(off.ok, true, JSON.stringify(off.reds));
-  assert.deepEqual(on.declaration.ticketFilter, off.declaration.ticketFilter);
-  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes on every line');
-  assert.deepEqual(on.declaration.guardrailClasses, off.declaration.guardrailClasses);
+  assert.deepEqual(on.declaration.ticketFilter, decl.ticketFilter);
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((s) => s.close), 'the closes the AI wrote stand on every line');
+  assert.deepEqual(on.declaration.guardrailClasses, decl.guardrailClasses);
   assert.ok(Array.isArray(on.declaration.checkList) && on.declaration.checkList.every((/** @type {any} */ x) => x.line === 1), 'rows only on the step line');
 });
 
@@ -202,10 +199,8 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   const sheetAns = textOf(JSON.stringify({ facts: [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }] }));
   const mk = () => router({ map: sheetAns, submit_edits: NONE, suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', decl) });
   const on = await go(mk(), prose, { checkPicks: [] });
-  const off = await draft({ proseText: prose, provider: mk(), rates: RATES, modelId: MODEL, offerQuestions: false, checkList: false });
-  assert.equal(off.ok, true, JSON.stringify(off.reds));
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), off.declaration.steps.map((/** @type {any} */ s) => s.close), 'the same closes, the sheet line untouched');
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((/** @type {any} */ s) => s.close), 'the same closes as the signed job, the sheet line untouched');
   // M16 am4 (2) (was: the sheet line has no row): the sheet line's only rows are its sheet rows, one per close.sheet check; the block gives it none
   assert.ok(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).every((/** @type {any} */ x) => x.kind === 'sheet'), 'the sheet line has only sheet rows');
   assert.equal(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).length, on.declaration.steps.find((/** @type {any} */ st) => st.fromLine === 2).close.sheet.length);

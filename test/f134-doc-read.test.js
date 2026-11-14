@@ -20,7 +20,7 @@ assert.equal(parsed.ok, true, JSON.stringify(parsed.reds));
 
 test('the drafter prompt says a document input is never listed in reads: grant read, read it by its role', () => {
   const p = buildSystemPrompt({ menu: cat.primitives.slice(0, 2), lines: parsed.lines, arbiter: parsed.arbiter, factsInfo: [] });
-  assert.match(p, /document input \(aging\) is never listed in reads by a step that does not quote it/);
+  assert.match(p, /document input \(aging\) is never listed in reads\. A step that needs the document is granted/);
   assert.match(p, /granted "read" \("readDocx" for a \.docx\) and reads it by its role/);
 });
 
