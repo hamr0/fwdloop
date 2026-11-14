@@ -3823,3 +3823,16 @@ Peer state (2026-11-13):
 > - A signed sheet job's result changes.
 >
 > **Out of scope:** page jobs (they wait for bareloop); doc jobs.
+
+**M17 am3 — SIGNED by hamr 2026-11-14 ("sign m17 am3"), the text exactly as shown.** Why: F194 build findings (docs/logs/FINDINGS.md): keeping one check per rule left the step's own list unchecked on 3 lines and hid a check that caught a red on m10b-expenses; hamr picked option B ("B, as long as they don't contradict #2 when agent asks clarification question at 3 tries questions and suggest a new rule, it gets added, loop building this"). Also rulings 2026-11-14, not signed text: a sheet column answer rewrites the `~` rule's own words in place ("Price over 500" + use Amount → "Amount over 500"); a column word from the job's prose that is no `~` rule becomes a `!` row suggested by the agent.
+
+> **M17 am3 — a second check on a rule is its own agent row.**
+> 1. When the AI suggests more than one check for one `~` rule, code keeps one on the rule's row (the one that checks the step's own answer, when there is one). Each other check that code can build becomes its own `[agent]` row on the list, on by default, with Drop. Code builds it on bareguard like every other check.
+> 2. M17's "Must fail when" lines read instead:
+>    - A rule's own row holds two checks.
+>    - A check sits on the list that is neither a rule's row nor an `[agent]` or `[default]` row.
+> 3. Questions the AI asks on its third try, and whether their answer replaces a rule or adds one, are not part of this. They come from bareloop's release.
+>
+> **Done when:** on the saved expenses runs, the check that caught the red is still on, as an `[agent]` row. On the 3 lines where the step's list went unchecked, it is now checked.
+>
+> **Must fail when:** a check the AI suggested and code could build is hidden without your Drop.
