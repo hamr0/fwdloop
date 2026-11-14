@@ -52,20 +52,27 @@ function run(Block, j) {
   return { before, after };
 }
 
+// M17 am1 (a): before any answer the port equals the v0.56.0 vendor row for row; AFTER an Agree it deliberately does not (bareloop v0.57.0 replaces the asked rule, the v0.56.0 vendor
+// appended a follower row), so the after side is held to the new rule instead, and compared to the vendor only where no answer changes a rule (the csv job).
+const ruleCount = (rows) => rows.filter((r) => r.kind === 'rule').reduce((m, r) => m.set(r.line, (m.get(r.line) ?? 0) + 1), new Map());
 for (const j of jobs) {
-  test(`parity: ${j.id}: rows, close and questions, before and after Agree, equal the vendor copy`, () => {
+  test(`parity: ${j.id}: rows, close and questions before an Agree equal the vendor copy; after it the rule count per line is unchanged (one rule in, one rule out)`, () => {
     const a = run(CheckBlock, j);
     const b = run(V.block.CheckBlock, j);
     assert.ok(a.before.rows.length > 0, 'the fixture builds rows (a test that compares two empty lists proves nothing)');
     assert.deepEqual(a.before, b.before);
-    assert.deepEqual(a.after, b.after);
+    assert.deepEqual(ruleCount(a.after.rows), ruleCount(a.before.rows), 'an Agree replaced rules, it added none');
+    assert.ok(a.after.rows.every((r) => r.parent === undefined && r.pairWith === undefined), 'no follower row');
+    if (j.id === 'csv') assert.deepEqual(a.after, b.after);
   });
 }
 
-test('parity: the agree path adds follower rows on the flights job, so the am2 lines are exercised', () => {
+test('parity: the Agree path on the flights job replaces the asked rules: the vendor (v0.56.0) grew follower rows there, the port grows none', () => {
   const a = run(CheckBlock, jobs[1]);
-  assert.ok(a.after.rows.some((r) => r.parent !== undefined), 'a follower row exists after Agree');
-  assert.ok(a.after.rows.filter((r) => r.parent !== undefined).every((r) => r.part !== null && r.part !== undefined), 'every follower has its parent part');
+  const v = run(V.block.CheckBlock, jobs[1]);
+  assert.ok(v.after.rows.some((r) => r.parent !== undefined), 'the v0.56.0 vendor does add follower rows on this job (so the test can fail)');
+  assert.equal(a.after.rows.some((r) => r.parent !== undefined), false);
+  assert.ok(a.after.rows.some((r) => r.kind === 'rule' && r.state === 'built' && r.pick), 'an answered rule is built with its pick');
 });
 
 // ---- the literals against the built patterns they replace -------------------------------------------------------------------------------------------------
