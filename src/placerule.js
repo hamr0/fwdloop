@@ -378,21 +378,6 @@ export function lastPlaceRead({ rows, job, workflowKey, runid }) {
 export const LAST_READ_LOOK = 25;
 
 /**
- * The Audit lines of a run's `place-rules` record, in plain words from code: "<name>: <value>" (with "(was <last>)" when the value is new) or
- * "<name>: not found (<reason>)". Null when the run has no record.
- * @param {any[]} events @returns {string[]|null}
- */
-export function placeRuleLines(events) {
-  const rec = Array.isArray(events) ? events.findLast((e) => isRec(e) && e.type === PLACE_EVENT && Array.isArray(e.rows)) : undefined;
-  if (rec === undefined) return null;
-  return rec.rows.filter(isRec).map((/** @type {any} */ r) => {
-    const name = String(r.key).split('/').pop();
-    if (r.found !== true) return `${name}: not found (${PLAIN_REASONS[/** @type {keyof typeof PLAIN_REASONS} */ (r.reason)] ?? 'the input could not be read'})`;
-    return `${name}: ${r.value}${typeof r.was === 'string' && r.was !== r.value ? ` (was ${r.was})` : ''}`;
-  });
-}
-
-/**
  * fwd's "last read" (bareloop's lastPlaceRead reads spines; fwd has none): per fact key, the value the newest EARLIER run of the same flow recorded in its run.json
  * `placeRules` (runs are `run-<n>`; at most {@link LAST_READ_LOOK} earlier runs are looked at; a run with no record, or an unreadable one, is skipped). Empty when none.
  * @param {{flowDir: string, runId: string}} o @returns {Record<string, string>}

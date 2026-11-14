@@ -1,4 +1,4 @@
-// borrowed-from: bareloop src/checklist.js@v0.56.0 (3383cce) (the row vocabulary, weekOnly/weekTokens with the three month patterns written as literals, ledgerRecord and the list call's text, schema and channel; the paid call runLedgerSuggest is NOT taken: it runs over bareloop's askStructured and makeCostBook (src/authorflow.js, which need src/text.js), and fwd meters its own calls)
+// borrowed-from: bareloop src/checklist.js@v0.56.0 (3383cce) (the row vocabulary, weekOnly/weekTokens with the three month patterns written as literals, ledgerRecord and the list call's text and schema; the paid call runLedgerSuggest is NOT taken: it runs over bareloop's askStructured and makeCostBook (src/authorflow.js, which need src/text.js), and fwd meters its own calls)
 // THE ROW VOCABULARY of a rubric job's one check list, and the call that suggests extra `!` checks. The list itself is the CheckBlock (src/checkblock.js): every check the job can have is a row there.
 //   `~` rows  the person's own rules (by: you; a settled pick builds the rule's check)
 //   `!` rows  checks the agent suggests once, only from what it sees in the inputs (by: agent): the look's kept facts that carry no `~` rule, plus the call's own
@@ -85,18 +85,6 @@ export const LEDGER_SCHEMA = Object.freeze({
   },
   required: ['extra'],
   additionalProperties: false,
-});
-
-export const ledgerChannel = () => ({
-  name: LEDGER_TOOL,
-  instruction: `Your reply did not deliver exactly one ${LEDGER_TOOL} call. Call ${LEDGER_TOOL} exactly once. Do not write the answer as text.`,
-  textPath: 'extra',
-  tool: (/** @type {{calls: any[]}} */ box) => ({
-    name: LEDGER_TOOL,
-    description: 'Deliver the extra checks the inputs support (or an empty list). Call this exactly once.',
-    parameters: LEDGER_SCHEMA,
-    execute: async (/** @type {any} */ args) => { box.calls.push(args); return 'received'; },
-  }),
 });
 
 /** @param {{n: number, text: string, rules?: string[], rule?: string}[]} jobLines @param {Record<string, string>} texts @returns {string} */
