@@ -803,7 +803,7 @@ export function createAuthor(opts) {
         const adds = all.filter((x) => x.rule !== null);
         const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
-        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
           if (other === id) continue;
