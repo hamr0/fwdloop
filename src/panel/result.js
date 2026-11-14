@@ -23,6 +23,7 @@ import { readLineSection, LINE_CHECKS_FILE } from '../line-checks.js';
 import { readChecks } from '../diary.js';
 import { sheetLineBlocks, csvRolesOf } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
+import { tagged } from '../checkwords.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -218,7 +219,7 @@ function checksOfLine(stepsOfLine, diary) {
   for (const st of stepsOfLine) {
     const rows = diary.filter((r) => r && r.step === st.emits && isInt(r.try) && Array.isArray(r.checks));
     const newest = rows.reduce((m, r) => (m === null || r.try >= m.try ? r : m), null);
-    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: c.text, result: isStr(c.result) ? c.result : null });
+    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: c.by === 'you' || c.by === 'agent' || c.by === 'default' ? tagged(c.text, c.by) : c.text, result: isStr(c.result) ? c.result : null }); // hamr 2026-11-14: a check the plan's list built carries the tag of its row
   }
   return out;
 }

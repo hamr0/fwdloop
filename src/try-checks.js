@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { serializeArtifact } from './ask.js';
 import { labelled } from './checkwords.js';
+import { sheetRowKey } from './sheetrows.js';
 import { listLinesOf, partByOf } from './checklistsign.js';
 
 export const EVERY_STEP = 'every step';
@@ -51,7 +52,7 @@ export function closeRecords(step, artifact, closed, checkList = undefined) {
   const listed = decl !== undefined && listLinesOf(decl).has(step?.fromLine);
   const hasCited = step?.close?.class === 'green' && !!step?.close?.cited;
   const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback, part: idx } : {});
-  const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
+  const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined, checkList).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
   const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
   const pickRows = picks.map((/** @type {any} */ c, /** @type {number} */ i) => ({ n: rows.length + 3 + i, text: listed ? c.text : labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + i, 'you') }));
@@ -61,8 +62,8 @@ export function closeRecords(step, artifact, closed, checkList = undefined) {
   return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + picked, 'default') }] : [])];
 }
 
-/** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label */
-function factRecords(step, artifact, closed, partBy = undefined) {
+/** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label @param {any[]} [checkList] the signed list: a sheet row on it gives its check's `by` */
+function factRecords(step, artifact, closed, partBy = undefined, checkList = undefined) {
   const source = lineSource(step);
   if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
     return [{
@@ -71,9 +72,12 @@ function factRecords(step, artifact, closed, partBy = undefined) {
   }
   if (step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) && Array.isArray(closed.checks)) {
     // M10b piece 2: each signed sheet check is its own row, worded by `sheetCheckSentence`, judged by bareguard
-    return closed.checks.map((c, i) => ({
-      n: 3 + i, text: labelled(c.text, 'agent'), ok: c.ok, result: c.result, source,
-    }));
+    // hamr 2026-11-14: a plan whose list has the sheet's rows draws each check with the `by` of its row (`~` = you, `!` = agent); an older plan keeps `[agent]`
+    return closed.checks.map((c, i) => {
+      const row = Array.isArray(checkList) ? checkList.find((/** @type {any} */ r) => r?.kind === 'sheet' && r.key === sheetRowKey(step.fromLine, String(c.id))) : undefined;
+      if (row && (row.by === 'you' || row.by === 'agent')) return { n: 3 + i, text: c.text, ok: c.ok, result: c.result, source, by: row.by, part: row.part.part };
+      return { n: 3 + i, text: labelled(c.text, 'agent'), ok: c.ok, result: c.result, source };
+    });
   }
   if (step?.close?.class === 'green' && step?.close?.cited) {
     const n = Array.isArray(artifact?.results) ? artifact.results.length : 0;

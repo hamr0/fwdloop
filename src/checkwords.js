@@ -39,3 +39,10 @@ export const TAG = Object.freeze({ you: '[you]', agent: '[agent]', default: '[de
 export const tagOf = (by) => (typeof by === 'string' && Object.hasOwn(TAG, by) ? TAG[by] : '');
 /** @param {string} text @param {unknown} by */
 export const tagged = (text, by) => (tagOf(by) === '' ? text : `${text} ${tagOf(by)}`);
+
+/**
+ * hamr 2026-11-14: ~ = [you], ! = [agent], $ = [default]. Where a SHEET check comes from, the ONE rule (the plan card's rows, the Job tab, the Audit, the Result tab and the signed readout all read it):
+ * a check whose `covers` names one of the person's `~` rules is `you`, a check that covers none (the AI added it) is `agent`; no code adds a `default` sheet check.
+ * @param {unknown[]} covers the person's rules the check covers @returns {'you'|'agent'}
+ */
+export const sheetByOf = (covers) => (Array.isArray(covers) && covers.length > 0 ? 'you' : 'agent');

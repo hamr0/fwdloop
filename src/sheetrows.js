@@ -6,6 +6,7 @@
 // Words are fwd's existing sheet-check words (src/sheetblock.js `sheetPlainText`); nothing here words a check. What this throws away: the check's fields (id, claim, range ...); a row keeps its line, tag, part and key.
 import { sheetLineBlocks, sheetPlainText } from './sheetblock.js';
 import { closePartsOf } from './checklistsign.js';
+import { sheetByOf } from './checkwords.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -33,7 +34,7 @@ export function sheetRowsOf({ declaration, lines, csvRoles }) {
     const block = sheetLineBlocks({ declaration: { steps: [st] }, lines, csvRoles })[0];
     if (!block) return;
     block.checked.forEach((e, j) => {
-      const by = e.covers.length > 0 ? 'you' : 'agent';
+      const by = sheetByOf(e.covers);
       const key = sheetRowKey(st.fromLine, e.id);
       const nums = Array.isArray(st.close.sheet[j]?.covers) ? st.close.sheet[j].covers.filter((/** @type {unknown} */ x) => Number.isInteger(x) && /** @type {number} */ (x) >= 1 && /** @type {number} */ (x) <= block.guardrails.length) : [];
       signed.push({

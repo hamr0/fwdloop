@@ -2060,7 +2060,7 @@ export function getRunAudit({
       if (!job.ok) return null;
       const setup = readSetup(run.flowDir);
       const sign = setup.present ? setup.rows.findLast((/** @type {any} */ r) => r.kind === 'sign') : undefined;
-      return auditChecksOf(job.declaration, readChecks(run.runDir), sign?.notChecked ?? null);
+      return auditChecksOf(job.declaration, readChecks(run.runDir), sign?.notChecked ?? null, { lines: job.lines, csvRoles: csvRolesOf(job.arbiter) });
     })(),
     // M8 item 6: what the planner was told from earlier runs, READ-ONLY (borrowed-from: bareloop src/panel/server.js@v0.46.0:1854): the exact block as the run's record kept it, `hints` = the same text split
     // into fields by learn.js's parseHintBlock (the one reader). Empty (no box) when the run was handed nothing: no record, or a run that reused its plan.

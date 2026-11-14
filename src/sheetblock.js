@@ -7,7 +7,7 @@
 // A green "found" is the step's OWN claimed value in plain words (a number, or a count of rows / days / bands / groups); a string claim (a looked-up cell) is never
 // repeated, because it is cell text. A red "found" is bareguard's gap words (row numbers and counts), never a cell's text.
 // Third outcomes, named: a line the run never reached (no record) carries no verdict; a check the record lacks carries none (the page shows no mark).
-import { labelled } from './checkwords.js';
+import { labelled, tagged, sheetByOf } from './checkwords.js';
 import { isDeepStrictEqual } from 'node:util';
 import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
@@ -76,6 +76,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
   const out = [];
   if (!isRec(declaration) || !Array.isArray(declaration.steps)) return out;
   const seen = new Set();
+  const onList = Array.isArray(declaration.checkList) && declaration.checkList.some((/** @type {any} */ r) => isRec(r) && r.kind === 'sheet');
   for (const st of declaration.steps) {
     if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || !Number.isInteger(st.fromLine) || seen.has(st.fromLine)) continue;
     const hasSheet = Array.isArray(st.close.sheet) && st.close.sheet.length > 0;
@@ -94,7 +95,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       const words = sheetCheckSentence(c);
       const cw = coversWords(rules);
       /** @type {any} */
-      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: labelled(sheetPlainText(name, words, cw), 'agent') }; // M10 am22 (4): the AI wrote every sheet check
+      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: onList ? tagged(sheetPlainText(name, words, cw), sheetByOf(rules)) : labelled(sheetPlainText(name, words, cw), 'agent') }; // hamr 2026-11-14: a plan whose list has sheet rows tags a check by where it comes from; an older plan keeps M10 am22 (4)'s `[agent]`
       const res = newest && Array.isArray(newest.results) ? newest.results.find((/** @type {any} */ r) => isRec(r) && r.id === c.id) : undefined;
       if (isRec(res) && typeof res.ok === 'boolean') {
         e.ok = res.ok;
