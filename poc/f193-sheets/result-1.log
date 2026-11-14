@@ -1,0 +1,49 @@
+plans with at least one close.sheet check, identical prose+declaration counted once: 24 (8 signed flows, 16 saved drafts)
+- flow:m10-walk-csv-4: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1, no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 0
+- flow:m10b-aging: checks 2 kept 2 suggested 0 | rules 3 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1, no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 0
+- flow:m10b-aging-2: checks 2 kept 1 suggested 1 | rules 3 (column 0) not-checked 2 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 0, no-rule notes 0, rule named twice 0, uncovered lines 1, saved NC items 0
+- flow:m10b-aging-3: checks 1 kept 1 suggested 0 | rules 3 (column 0) not-checked 2 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 0, no-rule notes 0, rule named twice 0, uncovered lines 2, saved NC items 0
+- flow:m10b-aging-5: checks 4 kept 2 suggested 2 | rules 6 (column 0) not-checked 2 dup 0 | TODAY rules-with-2-checks 3, [agent] rows 0, "Not checked: none" lines 0, no-rule notes 0, rule named twice 0, uncovered lines 2, saved NC items 0
+- flow:walk-m16-csv: checks 2 kept 1 suggested 1 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1, no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 0
+- flow:walk-m16-csv1: checks 2 kept 1 suggested 1 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1, no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 0
+- flow:pw-csv(practice-walk): checks 2 kept 1 suggested 1 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1, no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 0
+- draft:d-00mvkma344-0798/draft: checks 3 kept 1 suggested 2 | rules 1 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 1, rule named twice 0, uncovered lines 0, saved NC items 3
+- draft:d-00mvksbi9r-0e04/draft: checks 3 kept 1 suggested 2 | rules 1 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+- draft:d-00mvkskwc8-ae80/draft: checks 4 kept 2 suggested 2 | rules 2 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 2, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 1, rule named twice 0, uncovered lines 0, saved NC items 5
+- draft:d-00mvksot4p-3cb3/draft-3: checks 3 kept 2 suggested 1 | rules 3 (column 0) not-checked 1 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 0, no-rule notes 1, rule named twice 1, uncovered lines 1, saved NC items 7
+- draft:d-00mvkswtk8-799b/draft: checks 3 kept 2 suggested 1 | rules 2 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 1, "Not checked: none" lines 1 (beside a list), no-rule notes 1, rule named twice 0, uncovered lines 0, saved NC items 4
+- draft:d-00mwcf1yvu-850d/draft-1: checks 2 kept 1 suggested 1 | rules 1 (column 0) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 4
+- draft:d-00mwci2whu-0a3e/draft-1: checks 2 kept 1 suggested 1 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+- draft:d-00mwci7xl7-d44d/draft-1: checks 2 kept 1 suggested 1 | rules 2 (column 0) not-checked 1 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 0, no-rule notes 0, rule named twice 0, uncovered lines 1, saved NC items 5
+- draft:d-00mwcib8im-c20d/draft-5: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 1, rule named twice 0, uncovered lines 0, saved NC items 4
+- draft:d-00mwdiofu9-df4f/draft: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 1
+- draft:d-00mwdiofu9-df4f/draft-2: checks 3 kept 1 suggested 2 | rules 3 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 2, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 3
+- draft:d-00mwdiofu9-df4f/draft-4: checks 3 kept 2 suggested 1 | rules 3 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 1, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+- draft:d-00mwdpb08d-774f/draft: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+- draft:d-00mwg8sulg-7be9/draft: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+- draft:d-00mwg8sulg-7be9/draft-1: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 1, rule named twice 0, uncovered lines 0, saved NC items 3
+- draft:d-00mwg8sulg-7be9/draft-2: checks 1 kept 1 suggested 0 | rules 2 (column 1) not-checked 0 dup 0 | TODAY rules-with-2-checks 0, [agent] rows 0, "Not checked: none" lines 1 (beside a list), no-rule notes 0, rule named twice 0, uncovered lines 0, saved NC items 2
+TOTALS new: checks 50 kept 30 suggested 20 (covers none 1, rule already held 19); rules 55 (column rules 13); Not-checked rows 8
+TOTALS today (control): rules covered by 2+ checks 18 in 14 plans; [agent] rows 1 in 1 plans; "Not checked: none" lines 19, beside a list in 14 plans; no-rule C5 notes 6 in 6 plans; rules named 2+ times in saved lists 1
+
+== (c) column answers (sheet asks of the saved plans, page-look.json sheets[].asks)
+- draft:d-00mvksot4p-3cb3/draft-3: ask on L2 has no rule (word "days past due"): reported, not scored
+- draft:d-00mvksot4p-3cb3/draft-3: ask L2.3 word "days past due" -> column "Amount": NEW ok true (~ 3 -> 3, words unchanged, row column set); TODAY appendAnswersToJob adds 1 ~ line
+- draft:d-00mwcf1yvu-850d/draft-1: ask on L2 has no rule (word "amount owed per customer"): reported, not scored
+- draft:d-00mwci7xl7-d44d/draft-1: ask on L2 has no rule (word "amount owed"): reported, not scored
+- draft:d-00mwdiofu9-df4f/draft-2: ask L2.3 word "balance due" -> column "Amount": NEW ok true (~ 3 -> 3, words unchanged, row column set); TODAY appendAnswersToJob adds 1 ~ line
+asks in scored plans: 5 (tied to a rule 2, no rule 3); control: today's writer adds a line for 2, skips 0 (the rule words already on the line)
+
+== (d) run-time sheet results: kept set vs full signed set, F190 functions on each signed flow run folder (frozen inputs)
+(d) letter pool (the named signed flows): reds 0, kept checks compared 11, differences 0, runs 8
+  (a red exists) flow-extra:walk-m10am32-1 run-1 L2: full set sheetCheckReds 0, table checks failing on input 1 (each-customer-once); unattributed 0
+(d) widened by 8 other signed flows with a sheet check (report-only): reds 1, kept checks compared 22, differences 0, runs 18
+all pools: reds seen 1; negative control (a red check taken out of the kept set) [{"id":"each-customer-once","differs":true}]; signed flows with a frozen run input 15; runs 18; kept checks compared 22; differences 0; signed flows that would move a check to Suggested if re-drafted 10 (13 checks)
+adapter: 'hitl' in code lines 0; imports ["../f191-replace/vendor/checkblock.js","../../src/sheetblock.js","../../src/sheetchecks.js","../../src/sheetoffer.js"]; declaration/class imports 0; git diff --stat src test: empty
+
+== BARS
+BAR (a): PASS
+BAR (b): PASS
+BAR (c): PASS, flagged: answerColumn leaves the row words alone by construction; the bar proves no line is added and says nothing about where the column lives for a Revise or a run (see the report)
+BAR (d): PASS on the letter, flagged: the named signed flows hold 0 reds (green against green); the widened pool (walk-m10am32-1) holds 1 red and its negative control differs, so the comparison can fail
+OVERALL: PASS
