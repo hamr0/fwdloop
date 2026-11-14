@@ -1,0 +1,124 @@
+
+## walk-m16-m14/current
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 2; ~ per line card0 {"3":1,"5":1} -> grown {"3":2,"5":2}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3} added \"exactly 3 list items\"","L5.1 {\"rule\":\"maxWords\",\"value\":80} added \"at most 80 words\""]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 bullets
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ under 80 words
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 bullets\" + \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"under 80 words\" + \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines [3,3,5,5]; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 bullets\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"under 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":2,"5":2}
+
+## walk-m16-m14/ported
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 2; ~ per line card0 {"3":1,"5":1} -> grown {"3":1,"5":1}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3}","L5.1 {\"rule\":\"maxWords\",\"value\":80}"]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines []; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":1,"5":1}
+
+## m14-walk-5/current
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 2; ~ per line card0 {"3":1,"5":1} -> grown {"3":2,"5":2}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3} added \"exactly 3 list items\"","L5.1 {\"rule\":\"maxWords\",\"value\":80} added \"at most 80 words\""]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 bullets
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ under 80 words
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 bullets\" + \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"under 80 words\" + \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines [3,3,5,5]; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 bullets\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"under 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":2,"5":2}
+
+## m14-walk-5/ported
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 2; ~ per line card0 {"3":1,"5":1} -> grown {"3":1,"5":1}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3}","L5.1 {\"rule\":\"maxWords\",\"value\":80}"]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines []; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":1,"5":1}
+
+## live-failure/current
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L3 \"exactly 3 list items\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words","L5 \"at most 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 4; ~ per line card0 {"3":2,"5":2} -> grown {"3":2,"5":2}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3} added \"exactly 3 list items\"","L3.2 {\"rule\":\"listItems\",\"value\":3} added \"exactly 3 list items\"","L5.1 {\"rule\":\"maxWords\",\"value\":80} added \"at most 80 words\"","L5.2 {\"rule\":\"maxWords\",\"value\":80} added \"at most 80 words\""]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 bullets
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ under 80 words
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 bullets\" + \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"exactly 3 list items\" + \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"under 80 words\" + \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}","\"at most 80 words\" + \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines [3,3,5,5]; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 bullets\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"under 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":2,"5":2}
+
+## live-failure/ported
+  stage 1: stop look-asks; asked ["L3 \"exactly 3 bullets\" -> exactly 3 list items","L5 \"under 80 words\" -> at most 80 words"]; suggest call true
+  stage 2 (Agree): answers 2; ~ per line card0 {"3":2,"5":2} -> grown {"3":2,"5":2}; picks ["L3.1 {\"rule\":\"listItems\",\"value\":3}","L5.1 {\"rule\":\"maxWords\",\"value\":80}"]
+  stage 2 grown job:
+    | Write 3 lines about my garden from the notes
+    | Ask: check it with me
+    | List 3 jobs for this week from the notes
+    | ~ exactly 3 list items
+    | ~ exactly 3 list items
+    | Ask: check it with me
+    | Write a short closing note to my neighbour
+    | ~ at most 80 words
+    | ~ at most 80 words
+    | Ask: check it with me
+    | Write it out
+  stage 3 (redraft): stop validator; record ["\"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","\"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]
+  negative control (Revise with no carried picks): asked lines []; suggest call true
+  stage 4 (Revise): stop validator; asked []; suggest call false; kept ["L3.1 \"exactly 3 list items\" {\"rule\":\"listItems\",\"value\":3}","L5.1 \"at most 80 words\" {\"rule\":\"maxWords\",\"value\":80}"]; ~ per line after {"3":2,"5":2}
+  report-only sanity, not a pre-registered gate: a Revise with no carry asks on line 3/5 or calls the suggestion, every job and tree (so bar 1 can fail): true
+
+== BARS (PORTED), CONTROL (CURRENT)
+  bar 1: PORTED pass; CURRENT pass
+  bar 2: PORTED pass; CURRENT pass
+  bar 3: PORTED pass; CURRENT FAIL
+  PORTED reasons: none
+  CURRENT reasons: walk-m16-m14: ~ per line {"3":1,"5":1} -> {"3":2,"5":2} | m14-walk-5: ~ per line {"3":1,"5":1} -> {"3":2,"5":2}
+BAR 1: PASS
+BAR 2: PASS
+BAR 3: PASS
+  note: bar 3 second half (the Revise changes no ~ line) holds by construction: the Revise child is handed the grown job unchanged; the count is read from that job.
+
+SUMMARY {"1":"PASS","2":"PASS","3":"PASS"}
