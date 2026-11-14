@@ -285,6 +285,9 @@ export function createAuthor(opts) {
     // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
     const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
     if (q.open.length > 0) {
+      // the child writes its questions, THEN exits; `answer` refuses `draft-live` while it is alive, so a question is offered only once it has ended (one decider: what the phase offers, the answer door takes).
+      // A child never comes back to life, so a stale "alive" only delays the offer; asked AFTER the files were read, the questions are already on disk (C9's order is for a missing result)
+      if (childRunning(dir)) return { ...shared, phase: newest > 0 ? (cur.kind === 'answers' ? 'redrafting' : 'revising') : 'drafting' };
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
       const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
