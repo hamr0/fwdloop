@@ -38,12 +38,12 @@ const greenAfter = async (w, id) => { const g = await settleOn(w, id, ['green', 
 const answerRow = (w, id, k) => JSON.parse(readFileSync(path.join(w.dir(id), 'draft', `answer-${k}.json`), 'utf8'));
 const guardrails = (w, id) => parseJobBox(JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8')).job).steps[0].guardrails;
 
-test('the box: "agree, why not" with choice rule is a new ~ rule word for word, never read as agree; the row says rule', async () => {
+test('the box: "agree, why not" with choice rule REPLACES the asked rule word for word (M17 am1), never read as agree; the row says rule', async () => {
   const { w, id } = await askWorld();
   const r = await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'agree, why not', choice: 'rule' });
   assert.equal(r.status, 202, r.text);
   await greenAfter(w, id);
-  assert.deepEqual(guardrails(w, id), [...READ_RULES, 'agree, why not']);
+  assert.deepEqual(guardrails(w, id), ['under $150', 'agree, why not', 'nonstop']);
   const row = answerRow(w, id, 1);
   assert.deepEqual([row.choice, row.rule, row.answer], ['rule', 'agree, why not', 'agree, why not']);
 });
@@ -52,7 +52,7 @@ test('the box: a bare "yes" with choice rule is still the person\'s own rule', a
   const { w, id } = await askWorld();
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'yes', choice: 'rule' })).status, 202);
   await greenAfter(w, id);
-  assert.deepEqual(guardrails(w, id).at(-1), 'yes');
+  assert.deepEqual(guardrails(w, id), ['under $150', 'yes', 'nonstop']);
 });
 
 test('the Agree button: choice agree takes code\'s proposal; the typed words are not needed; the row says agree', async () => {
@@ -60,7 +60,7 @@ test('the Agree button: choice agree takes code\'s proposal; the typed words are
   const r = await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' });
   assert.equal(r.status, 202, r.text);
   await greenAfter(w, id);
-  assert.deepEqual(guardrails(w, id), [...READ_RULES, PROPOSAL]);
+  assert.deepEqual(guardrails(w, id), ['under $150', PROPOSAL, 'nonstop']);
   const row = answerRow(w, id, 1);
   assert.deepEqual([row.choice, row.rule, row.proposal], ['agree', PROPOSAL, PROPOSAL]);
 });
@@ -87,7 +87,7 @@ test('Drop it on a cant-check ask leaves the rule Not checked; agree there is re
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, choice: 'drop' })).status, 202);
   const g = await greenAfter(w, id);
   assert.ok(g.notChecked.items.some((x) => x.includes('"pays well"')), JSON.stringify(g.notChecked));
-  assert.deepEqual(guardrails(w, id), [...READ_RULES, 'pays well', PROPOSAL]);
+  assert.deepEqual(guardrails(w, id), ['under $150', PROPOSAL, 'nonstop', 'pays well']);
 });
 
 test('an unknown choice is refused bad-choice and nothing is saved', async () => {
@@ -123,7 +123,7 @@ test('the Agree button with its words alongside: takes the proposal and the row 
   const { w, id } = await askWorld();
   assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, answer: 'Agree.', choice: 'agree' })).status, 202);
   await greenAfter(w, id);
-  assert.deepEqual(guardrails(w, id), [...READ_RULES, PROPOSAL]);
+  assert.deepEqual(guardrails(w, id), ['under $150', PROPOSAL, 'nonstop']);
   assert.equal(answerRow(w, id, 1).choice, 'agree');
 });
 

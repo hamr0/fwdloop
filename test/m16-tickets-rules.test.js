@@ -1,5 +1,6 @@
 // M16 item 4 / Must-fail "a sheet or Tickets job changes": a Tickets job's ticket guardrails ("priority P1 only", "run a ticket again when its state changes") are
 // the declaration's own ticketFilter / ticketWatch. They are never rows of the check list: no "can't check" ask, no Not checked note. Stub providers, $0.
+// M17 am1 (a): the count guardrail is `exactly 3 bullets`, not `at most 3 words`: a rule whose words are already the check is settled as written, never asked.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { draft } from '../src/drafter.js';
@@ -8,7 +9,7 @@ import { callOf, router } from './m16-drafter-fixture.mjs';
 
 const PROSE = `1. Read the ticket
 2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
-   guardrail: priority P1 only; run a ticket again when its state changes; at most 3 words
+   guardrail: priority P1 only; run a ticket again when its state changes; exactly 3 bullets
 3. ask 1h: check the note with me
 4. Write it out
 
