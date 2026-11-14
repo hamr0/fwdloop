@@ -3768,3 +3768,31 @@ Peer state (2026-11-13):
 > **Out of scope:** page jobs; how "under N" words are counted; fixing old runs.
 >
 > **Cap:** first a $0 test on saved drafts, then about 30 cents for drafts and walks.
+
+**M17 am1 — SIGNED by hamr 2026-11-14 ("sign m17 am1"), the text exactly as shown.** Why: bareloop v0.57.0 (merge c18df406, tag pushed 2026-11-14) carries the one-rule-in-one-rule-out change hamr asked to copy at the M17 sign, plus the fixes the 2026-11-14 ruling put next after M16 (the `loop` session's list, 2026-11-14). hamr's question with the signature: "a new rule gets asked and approved gets added, why is this an issue?"
+
+> **M17 am1 — copy bareloop v0.57.0's check-list fixes.**
+> 1. fwdloop copies from bareloop's released tag v0.57.0 (c18df406), each file with its borrowed-from header:
+>    - (a) an answer replaces the rule it's about, never adds one beside it, and a rule whose words are already the check is not asked (2b2fa701, 094b896a);
+>    - (b) one Not checked row per rule (f2812ca0);
+>    - (c) the flights fixes A and B, their test and the money-line fix (fd943e49, 637e76ad, fa942d5d, 60226a39);
+>    - (d) the label colon fix (1583d563);
+>    - (e) the note question for fact lines (32352d82).
+> 2. Tickets: code sets the filter and watch from the card. A draft that carries them is refused, as in bareloop's `src/authorjob.js`. This is how M17 item 2(a) is built.
+> 3. The M17 sheet answers use the same replace rule.
+>
+> **Done when:**
+> - walk-m16-m14: an Agree leaves one rule on line 3, and a Revise asks nothing about it.
+> - The flights job re-walk does not prove "Rome" from the search box, and does not check euro prices against $150.
+> - A $0 re-check of the good signed jobs refuses none.
+>
+> **Must fail when:**
+> - An answer adds a `~` rule beside the one it answers.
+> - A rule shows twice in Not checked.
+> - A file is copied from a bareloop branch instead of the tag.
+>
+> **Out of scope:**
+> - The AI's third-try question that still adds a rule.
+> - bareloop's Tickets renumbering (96451a6e): not seen failing here.
+>
+> **Cap:** $0 test first, then about 30 cents for walks.
