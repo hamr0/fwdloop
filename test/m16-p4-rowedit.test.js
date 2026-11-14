@@ -155,3 +155,21 @@ test('a Revise keeps the last draft\'s Drop: Add then Drop on draft 1, and draft
   assert.equal(s.phase, 'green', JSON.stringify(s.reds ?? s.questions ?? s));
   assert.ok(s.list.suggested.some((x) => x.dropped === true), 'break: do not carry the choices and the suggestion comes back offered afresh');
 });
+
+test('P4c: the AI\'s own Not-checked note is tagged [agent] on the card state, and the tag survives a Drop/Add rebuild (break: drop the aiNotes map in src/drafter.js and this reds)', async () => {
+  const note = 'line 3: whether the tone suits the role';
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST, FWDLOOP_TEST_DRAFT_LEDGER: LEDGER, FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([note]) } });
+  writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  await settle(w, id, ['questions-open']);
+  await childGone(w, id);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
+  const g = await settle(w, id, ['green', 'red', 'stopped']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'green');
+  assert.ok(g.notChecked.items.includes(note), JSON.stringify(g.notChecked));
+  assert.equal(g.notChecked.by?.[note], 'agent');
+  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
+  const after = await until(async () => { const j = await state(w, id); return j?.phase === 'green' && j.plan !== g.plan ? j : null; });
+  assert.equal(after.notChecked.by?.[note], 'agent', 'the tag survives the rebuild');
+});

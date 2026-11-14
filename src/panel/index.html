@@ -478,6 +478,9 @@
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
   /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.47.1 417e80c, the learnings arrow only): a framed row, the header a full-width button with the arrow, chip and words inline; the arrow is the same ▶ / ▼ the other Audit folds draw (h4.audit-status-header::before), faint, a smaller gap on a phone */
   .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  /* borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :181-182 */
+  .audit-caret{flex:none;color:var(--text-faint);margin-right:.6em;}
+  @media (max-width: 640px){ .audit-caret{margin-right:.2em;} }
   .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
   .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
   .audit-part-toggle.audit-learn-fold::before{content:"\25B6  ";color:var(--text-faint);}
@@ -4124,14 +4127,14 @@
       items.map(function(x){ return "<li>" + escapeXml(x) + byTagOf(byOf(x)) + "</li>"; }).join("") + "</ul></details>";
   }
   function planViewHtml(plan, ctl){
-    var hasCheck = (plan.lines || []).some(function(l){ return (l.checks || []).length || (l.leads || []).some(function(x){ return x.machine; }); });
+    var hasCheck = (plan.lines || []).some(function(l){ return (l.checks || []).length; });
     var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">Done when every <b>\u203A</b> check passes</div>' : "");
     (plan.lines || []).forEach(function(l){
       h += '<div class="jl" data-testid="plan-line"><span class="num">' + escapeXml(String(l.n)) + "</span>" + escapeXml(l.text);
       (l.rules || []).forEach(function(r){ h += '<div class="sub">~ ' + escapeXml(r) + "</div>"; });
-      (l.leads || []).forEach(function(x){ h += '<div class="fold" data-testid="plan-lead"><span class="mk">\u203A</span> ' + (x.machine ? "check" : "not checked") + " \u00B7 " + escapeXml(x.text) + "</div>"; });
+      // fwdloop's own words under the line, plain grey after its `~` rows and before its checks: the line's lead sentence (src/checked.js) and a sheet line's block (hamr 2026-11-14)
+      (l.leads || []).concat(l.extra || []).forEach(function(t){ h += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
       (l.checks || []).forEach(function(c){ h += planCheckRowHtml(c.name, c.cls, c.by, ctl && c.drop && c.key ? ctl("drop", c.key) : ""); });
-      (l.extra || []).forEach(function(t){ h += '<div class="fold" data-testid="plan-sheet"><span class="mk">\u203A</span> ' + escapeXml(t) + "</div>"; });
       h += "</div>";
     });
     if((plan.suggested || []).length){
@@ -4155,20 +4158,24 @@
     if(rows.some(function(r){ return r.result === "none"; })) return glyphClass("[\u00B7]");
     return glyphClass("[\u2713]");
   }
+  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :1358 (auditCaret)
+  function auditCaret(open){ return '<span class="audit-caret">' + (open ? "\u25BC" : "\u25B6") + '</span>'; }
   function auditChecksEl(ac){
     var all = (ac.checks || []).concat(ac.always || []);
     var nPass = all.filter(function(r){ return r.result === "passed"; }).length;
     var nFail = all.filter(function(r){ return r.result === "failed"; }).length;
-    var head = "Checks \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
+    var head = "checks \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
     var wrap = document.createElement("div");
     wrap.className = "audit-part";
     wrap.setAttribute("data-testid", "audit-checks-group");
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "btn audit-part-toggle audit-learn-fold";
+    btn.className = "btn audit-part-toggle";
     btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("data-testid", "audit-checks-toggle");
-    btn.innerHTML = stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + " " + escapeXml(head);
+    // P4c: bareloop's header: the caret span, the state sign, the words (re-drawn on each toggle)
+    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + escapeXml(head); };
+    btn.innerHTML = headHtml(false);
     var body = document.createElement("div");
     body.className = "audit-part-body";
     body.hidden = true;
@@ -4178,7 +4185,7 @@
       return '<div data-testid="' + tid + '" style="margin:6px 0"><div><b>' + escapeXml(title) + "</b></div>" + rows.map(auditCheckRowHtml).join("") + "</div>";
     };
     body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
-    function paint(open){ body.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); }
+    function paint(open){ body.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); btn.innerHTML = headHtml(open); }
     btn.addEventListener("click", function(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); });
     if(auditExpanded["\u0000checks"] === true) paint(true);
     wrap.appendChild(btn); wrap.appendChild(body);
@@ -4436,11 +4443,15 @@
     fold.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
     fold.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
     fold.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
-    // M10 am11: each check sentence is its own row
-    if(st.ask || !(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : "")));
-    else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
-    // M10b am2: a step that reads a sheet shows its line's block under the check sentence
-    sheetBlockLines(st.sheet).forEach(function(t){ fold.appendChild(textDiv("plan-row", t)); });
+    if(st.ask) fold.appendChild(textDiv("plan-row", "check: ASK · waits " + plainWait(st.waitMs)));
+    // P4c: a plan with a list shows the lead sentence and the sheet block under its job line, not in the fold
+    else if(!(job.plan && job.plan.always)){
+      // M10 am11: each check sentence is its own row
+      if(!(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: "));
+      else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
+      // M10b am2: a step that reads a sheet shows its line's block under the check sentence
+      sheetBlockLines(st.sheet).forEach(function(t){ fold.appendChild(textDiv("plan-row", t)); });
+    }
     return fold;
   }
   // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
@@ -4517,8 +4528,10 @@
           cell.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
         });
         // M16 P4c: the checks of a list line sit under the job line as `\u203A check` rows with their tags (bareloop's Job tab); the step fold keeps the rest
+        // the line's lead sentence and a sheet block draw as plain grey lines first (hamr 2026-11-14), then the rows
         var listRowsHtml = "";
         ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
+          if(job.plan.always && !st.ask) (st.check || []).concat(sheetBlockLines(st.sheet, true)).forEach(function(t){ listRowsHtml += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
           (st.listRows || []).forEach(function(r){ listRowsHtml += planCheckRowHtml(r.text, "", r.by, ""); });
         });
         if(listRowsHtml){ var jpRows = document.createElement("div"); jpRows.className = "jp"; jpRows.innerHTML = listRowsHtml; cell.appendChild(jpRows); }
@@ -5932,7 +5945,7 @@
         var l = {n: pl.n, text: pl.text, rules: pl.rules || [], leads: [], checks: [], extra: []};
         state.checked.forEach(function(c){
           if(c.line !== pl.n) return;
-          if(c.sentences.length) l.leads.push({machine: c.class === "green" || c.class === "softgreen", text: c.sentences[0]});
+          if(c.sentences.length) l.leads.push(c.sentences[0]);
           sheetBlockLines(c.sheet, true).forEach(function(t){ l.extra.push(t); });
         });
         list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true}); });
