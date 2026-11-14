@@ -1546,7 +1546,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   }
   const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
   const endedPlain = endedWords({
-    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason,
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason, anywayOffered: newTicketScheduleOf(ctx.flowDir) !== null,
   });
   // M9 am7 item 1: ENDED opens with the run's local end date and time, then its outcome word, then today's reason (NEXT stays as it was)
   const ended = endedPlain === null ? null : {
@@ -1566,6 +1566,15 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
   const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
   return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
+}
+
+/**
+ * M13 am10: the job's schedule when it is a new-ticket one, else null. The one test for "the panel has Run it anyway here": the grid's `anyway` and the skipped run's next line both ask it.
+ * @param {string} flowDir
+ */
+function newTicketScheduleOf(flowDir) {
+  const sched = readSchedule(flowDir);
+  return sched && sched.trigger?.kind === 'new-ticket' ? sched : null;
 }
 
 /**
@@ -2366,8 +2375,8 @@ export function getJobGrid({
       reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,
     });
   }
-  const sched = readSchedule(flowDir);
-  const from = sched && sched.trigger?.kind === 'new-ticket' && typeof sched.from === 'string' ? sched.from : null;
+  const sched = newTicketScheduleOf(flowDir);
+  const from = sched && typeof sched.from === 'string' ? sched.from : null;
   const list = from !== null && ticketScheduleOf(flowDir, from) !== null ? getTicketList({
     root, flow, runId: from, catalogue,
   }) : null;
