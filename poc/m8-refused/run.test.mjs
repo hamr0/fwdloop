@@ -37,7 +37,13 @@ function ruleProvider(rule) {
   return {
     calls,
     lastMalformedToolCall: null,
-    async generate(messages) {
+    async generate(messages, tools) {
+      // M16: the list's own turns (ledger-suggest, row-edit) are answered empty, never with a declaration
+      const tn = tools?.[0]?.name;
+      if (tn === 'suggest_extra_checks' || tn === 'submit_edits') {
+        calls.push({ system: '', user: '', list: true });
+        return { text: '', toolCalls: [{ id: 'l1', name: tn, arguments: tn === 'submit_edits' ? { edits: [] } : { checks: [] } }], usage: { inputTokens: 900, outputTokens: 100 }, stopReason: 'tool_calls', model: MODEL };
+      }
       const system = messages.find((m) => m.role === 'system')?.content ?? '';
       const user = messages.filter((m) => m.role === 'user').at(-1)?.content ?? '';
       calls.push({ system, user });
@@ -60,17 +66,19 @@ test('B carries the block on every request, A on none; interleaved A,B; counts a
   assert.equal(records.length, 18);
   assert.deepEqual(records.slice(0, 4).map((r) => `${r.job}${r.arm}${r.n}`), ['j1A1', 'j1B1', 'j1A2', 'j1B2']);
   for (const r of records) {
-    assert.equal(r.requests.carriedHint, r.arm === 'B' ? r.requests.calls : 0, `${r.job}${r.arm}${r.n}`);
+    assert.equal(r.requests.carriedHint, r.arm === 'B' ? r.requests.drafterCalls : 0, `${r.job}${r.arm}${r.n}`);
     assert.ok(r.costUsd > 0, 'priced, never 0');
     assert.equal(r.ok, true);
   }
   // the requests the provider really saw
-  assert.equal(p.calls.filter((c) => c.system.includes(HINT_HEADER)).length, records.filter((r) => r.arm === 'B').reduce((s, r) => s + r.requests.calls, 0));
-  assert.equal(p.calls.filter((c) => !c.system.includes(HINT_HEADER)).length, records.filter((r) => r.arm === 'A').reduce((s, r) => s + r.requests.calls, 0));
+  assert.equal(p.calls.filter((c) => !c.list && c.system.includes(HINT_HEADER)).length, records.filter((r) => r.arm === 'B').reduce((s, r) => s + r.requests.drafterCalls, 0));
+  assert.equal(p.calls.filter((c) => !c.list && !c.system.includes(HINT_HEADER)).length, records.filter((r) => r.arm === 'A').reduce((s, r) => s + r.requests.drafterCalls, 0));
   const A = records.filter((r) => r.arm === 'A');
   const B = records.filter((r) => r.arm === 'B');
-  assert.ok(A.every((r) => r.refusalRounds === 1 && r.rounds === 2));
-  assert.ok(B.every((r) => r.refusalRounds === 0 && r.rounds === 1));
+  // M16: the list's two turns (ledger-suggest, row-edit) are not drafts' rounds
+  const draftRounds = (r) => r.roundLog.filter((e) => e.kind !== 'ledger-suggest' && e.kind !== 'row-edit').length;
+  assert.ok(A.every((r) => r.refusalRounds === 1 && draftRounds(r) === 2));
+  assert.ok(B.every((r) => r.refusalRounds === 0 && draftRounds(r) === 1));
   assert.equal(summary.verdict, 'HELPS');
   assert.equal(summary.pass, true);
   assert.ok(summary.ledgerTotalUsd > 0 && summary.ledgerTotalUsd < SPEND_STOP_USD);

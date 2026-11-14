@@ -56,7 +56,8 @@ function planRow(sessionDir, rel, kind, n) {
     structureRetries: Number.isInteger(log?.structureRetries) ? log.structureRetries : null,
     verdict, hash, gap,
     // M4d am15: every try of this plan (label, passed, the checker's raw refusals, the round's words), for the Audit Draft group; only when a retry happened
-    ...(Array.isArray(log?.log) && log.log.length > 1 ? { tries: triesOf(log.log) } : {}),
+    // M16: tries are the declaration rounds only (triesOf), so the list's own turns do not make a one-try draft look retried
+    ...(Array.isArray(log?.log) && triesOf(log.log).length > 1 ? { tries: triesOf(log.log) } : {}),
   };
 }
 
@@ -111,8 +112,11 @@ export function buildSetupRows({
       const card = readJson(sessionDir, `card-${n}.json`);
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
-      rows.push(planRow(sessionDir, `draft-${n}`, readJson(sessionDir, `redraft-${n}.json`) ? 'redraft' : 'revise', n));
-      rows.push(...humanRows(sessionDir, `draft-${n}`));
+      // M16 item 5: a plan made by a Drop or an Add of the person is booked as that, not as a redraft; it asked nothing, and what it kept is the earlier plan's row, not its own
+      const marker = readJson(sessionDir, `redraft-${n}.json`);
+      const rowEdit = marker && marker.rowEdit && typeof marker.rowEdit === 'object' ? marker.rowEdit : null;
+      rows.push({ ...planRow(sessionDir, `draft-${n}`, rowEdit ? 'rowedit' : marker ? 'redraft' : 'revise', n), ...(rowEdit ? { op: rowEdit.op, key: rowEdit.key } : {}) });
+      if (!rowEdit) rows.push(...humanRows(sessionDir, `draft-${n}`));
     }
   } else {
     const r = planRow(planDir, '.', 'draft', 0);
@@ -120,7 +124,9 @@ export function buildSetupRows({
   }
   // M4e amendment 36: the drafter's own "Not checked" list (the green plan folder's not-checked.json), kept word for word with its label. Not signed,
   // not in any hash. An unreadable or missing file is an empty list (a plan from before amendment 25 has none).
-  const notChecked = notCheckedBlock(readJson(planDir, 'not-checked.json')?.notChecked);
+  const ncFile = readJson(planDir, 'not-checked.json');
+  // M16 item 5: the tag of each line that tells a list row rides the sign row (the Audit's Checks fold draws it); a plan with no list has none
+  const notChecked = { ...notCheckedBlock(ncFile?.notChecked), ...(ncFile?.by && typeof ncFile.by === 'object' && !Array.isArray(ncFile.by) ? { by: ncFile.by } : {}) };
   rows.push({
     kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null, notChecked,
   });

@@ -478,6 +478,9 @@
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
   /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.47.1 417e80c, the learnings arrow only): a framed row, the header a full-width button with the arrow, chip and words inline; the arrow is the same ▶ / ▼ the other Audit folds draw (h4.audit-status-header::before), faint, a smaller gap on a phone */
   .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
+  /* borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :181-182 */
+  .audit-caret{flex:none;color:var(--text-faint);margin-right:.6em;}
+  @media (max-width: 640px){ .audit-caret{margin-right:.2em;} }
   .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
   .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
   .audit-part-toggle.audit-learn-fold::before{content:"\25B6  ";color:var(--text-faint);}
@@ -747,6 +750,30 @@
   .chat-question .q-err{color:var(--red);}
   .chat-extras{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
   .chat-extras:empty{display:none;}
+  /* M16 item 5: a row of the older blocks wears the tag of its kind */
+  .chat-extras .by{color:var(--text-faint);font-size:12px;}
+  /* M16 P4c: the plan view of bareloop's card and Job tab (borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :680-701): job lines numbered, `~` rows under, checks and folds; only the marker is blue */
+  .jp{white-space:normal;font-size:13px;}
+  .jp-legend{font-size:12px;color:var(--text-faint);margin:0 0 8px;}
+  .jp-legend b,.jp .mk{color:var(--plan);font-weight:700;}
+  /* a wrapped job line hangs: its text lines up after the number, not under it (the signed mock's gutter shape) */
+  .jp .jl{margin-bottom:8px;overflow-wrap:anywhere;padding-left:30px;text-indent:-30px;}
+  .jp .jl .sub,.jp .jl .fold{padding-left:0;text-indent:0;}
+  .jp .num{display:inline-block;text-indent:0;width:22px;text-align:right;color:var(--text-faint);margin-right:8px;}
+  .jp .sub{color:var(--text-dim);padding-left:30px;}
+  .jp .fold{padding-left:30px;color:var(--text);}
+  /* who added a check: the drafter's [agent] or the person's own [you picked] in the dim of a ~ row */
+  .jp .by{color:var(--text-dim);white-space:nowrap;}
+  /* the confirm card's Drop / Add: wraps with its row, a comfortable touch target, no horizontal scroll at phone width */
+  .jp .jp-btn{margin:2px 0 2px 8px;padding:4px 12px;min-height:32px;font-size:inherit;}
+  .jp .fold{overflow-wrap:anywhere;}
+  .jp-sug .lbl{display:block;margin-top:6px;font-weight:700;}
+  .jp details.fold{padding-left:0;margin:6px 0;}
+  .jp details>summary{cursor:pointer;list-style:none;font-weight:700;}
+  .jp details>summary::-webkit-details-marker{display:none;}
+  .jp details>summary::before{content:"\203A";color:var(--plan);font-weight:700;margin-right:6px;}
+  .jp details[open]>summary::before{content:"\2304";}
+  .jp details ul{margin:4px 0 0;padding-left:26px;color:var(--text-dim);}
   .msg.bot .who::before{content:"$ ";}
   .msg .who{font-size:11px;color:var(--text-faint);margin-bottom:3px;text-transform:none;font-weight:400;}
   /* the card's free-text boxes wrap (textarea): grow a few rows (fitBox), then scroll inside */
@@ -2691,15 +2718,18 @@
   // M10b am2: what a job line that reads a sheet shows, drawn from the server's ONE block ({guardrails, checked: [{text, ...}], notChecked: [..] | "none"}): its
   // guardrails, "Checked:" with one line per sheet check (name, plain words, covers), then "Not checked:" with the guardrails no check covers, or "none".
   // Pure: the Chat plan card and the Job tab step rows both draw these strings; the server wrote every one of them.
-  function sheetBlockLines(sheet){
+  // M16 am4: with `onList` the checks are drawn as rows of the list (tags, Drop) by the caller, so this draws the rest
+  function sheetBlockLines(sheet, onList){
     if(!sheet) return [];
     var out = [];
     if((sheet.guardrails || []).length){
       out.push("Guardrails:");
       sheet.guardrails.forEach(function(g){ out.push("- " + g); });
     }
-    out.push("Checked:");
-    (sheet.checked || []).forEach(function(c){ out.push("- " + c.text); });
+    if(!onList){
+      out.push("Checked:");
+      (sheet.checked || []).forEach(function(c){ out.push("- " + c.text); });
+    }
     if(sheet.notChecked === "none" || !(sheet.notChecked || []).length) out.push("Not checked: none");
     else { out.push("Not checked:"); sheet.notChecked.forEach(function(g){ out.push("- " + g); }); }
     return out;
@@ -3699,7 +3729,7 @@
     };
     if(out.known){
       t.checks.forEach(function(c){
-        var cell = { name: String(c.n), n: c.n, question: c.text, source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
+        var cell = { name: String(c.n), n: c.n, question: c.text + (c.by ? " " + tagWordOf(c.by) : ""), source: c.source, status: c.ok ? "pass" : "fail", number: c.ok && c.result ? c.result : null };
         if(!c.ok && !out.red){
           var lines = gridGapLines(t.gap);
           out.red = { lines: lines.length ? lines : [c.text] };
@@ -4080,6 +4110,87 @@
     wrap.appendChild(head); wrap.appendChild(list);
     box.appendChild(wrap);
   }
+  // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result (server: `auditChecks`).
+  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape), appended inside #audit-groups
+  // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
+  function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
+  function byTagOf(by){ return tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + tagWordOf(by) + '</span>'; }
+  // M16 P4c: the plan view of bareloop's card and Job tab, one drawing for both. `plan` = {lines: [{n, text, rules, leads, checks, extra}], suggested, notChecked, notCheckedBy, readNotes, alwaysOn}; the server wrote every string.
+  // `ctl` (the card only) draws the Drop / Add button of a row. fwdloop's own rows keep their place in bareloop's structure: a line's lead sentence (src/checked.js) and a sheet line's block draw as a row under their line.
+  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :4157-4196 (planViewHtml: the line, its `~` rows, `\u203A check` rows, Suggested, the Not checked / How the page was read / Always checked folds)
+  function planCheckRowHtml(name, cls, by, ctlHtml){
+    return '<div class="fold" data-testid="plan-check"><span class="mk">\u203A</span> check \u00B7 ' + escapeXml(name) + (cls ? " \u00B7 " + escapeXml(cls) : "") + byTagOf(by) + (ctlHtml || "") + "</div>";
+  }
+  function planFoldHtml(title, items, testid, byOf){
+    if(!items || !items.length) return "";
+    return '<details class="fold" data-testid="' + testid + '"><summary>' + escapeXml(title) + " \u00B7 " + items.length + "</summary><ul>" +
+      items.map(function(x){ return "<li>" + escapeXml(x) + byTagOf(byOf(x)) + "</li>"; }).join("") + "</ul></details>";
+  }
+  function planViewHtml(plan, ctl){
+    var hasCheck = (plan.lines || []).some(function(l){ return (l.checks || []).length; });
+    var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">Done when every <b>\u203A</b> check passes</div>' : "");
+    (plan.lines || []).forEach(function(l){
+      h += '<div class="jl" data-testid="plan-line"><span class="num">' + escapeXml(String(l.n)) + "</span>" + escapeXml(l.text);
+      (l.rules || []).forEach(function(r){ h += '<div class="sub">~ ' + escapeXml(r) + "</div>"; });
+      // fwdloop's own words under the line, plain grey after its `~` rows and before its checks: the line's lead sentence (src/checked.js) and a sheet line's block (hamr 2026-11-14)
+      (l.leads || []).concat(l.extra || []).forEach(function(t){ h += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
+      (l.checks || []).forEach(function(c){ h += planCheckRowHtml(c.name, c.cls, c.by, ctl && c.drop && c.key ? ctl("drop", c.key) : ""); });
+      h += "</div>";
+    });
+    if((plan.suggested || []).length){
+      h += '<div class="jl jp-sug" data-testid="plan-suggested"><span class="num"></span><span class="lbl">Suggested \u00B7 not in your job, not checked unless you add it</span>' + plan.suggested.map(function(x){
+        return '<div class="fold" data-testid="plan-suggest-row"><span class="mk">\u203A</span> line ' + escapeXml(String(x.line)) + " \u00B7 " + escapeXml(x.text) + byTagOf("agent") + (x.dropped ? " (you dropped it)" : "") + (ctl ? ctl("add", x.key) : "") + "</div>";
+      }).join("") + "</div>";
+    }
+    var ncBy = plan.notCheckedBy || {};
+    h += planFoldHtml("Not checked", plan.notChecked, "plan-notchecked", function(x){ return ncBy[x]; });
+    h += planFoldHtml("How the page was read", plan.readNotes, "plan-readnotes", function(){ return ""; });
+    h += planFoldHtml("Always checked", plan.alwaysOn, "plan-alwayson", function(){ return "default"; });
+    return h + "</div>";
+  }
+  function auditCheckRowHtml(r){
+    var res = r.result === "passed" ? ["green", "passed"] : r.result === "failed" ? ["red", "failed"] : r.result === "not-checked" ? ["grey", "not checked"] : ["grey", "no result recorded"];
+    return '<div class="audit-check-row" data-testid="audit-check-row" data-result="' + escapeXml(r.result) + '" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(r.text) + byTagOf(r.by) + " " + stateDotHTML(res[0], res[1], "audit-check-state") + "</div>";
+  }
+  // the fold's one state sign: any row failed = [\u2717]; else any row with no recorded result = [\u00B7]; else [\u2713] ("not checked" rows never move it)
+  function auditChecksSignClass(rows){
+    if(rows.some(function(r){ return r.result === "failed"; })) return glyphClass("[\u2717]");
+    if(rows.some(function(r){ return r.result === "none"; })) return glyphClass("[\u00B7]");
+    return glyphClass("[\u2713]");
+  }
+  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :1358 (auditCaret)
+  function auditCaret(open){ return '<span class="audit-caret">' + (open ? "\u25BC" : "\u25B6") + '</span>'; }
+  function auditChecksEl(ac){
+    var all = (ac.checks || []).concat(ac.always || []);
+    var nPass = all.filter(function(r){ return r.result === "passed"; }).length;
+    var nFail = all.filter(function(r){ return r.result === "failed"; }).length;
+    var head = "checks \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
+    var wrap = document.createElement("div");
+    wrap.className = "audit-part";
+    wrap.setAttribute("data-testid", "audit-checks-group");
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn audit-part-toggle";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("data-testid", "audit-checks-toggle");
+    // P4c: bareloop's header: the caret span, the state sign, the words (re-drawn on each toggle)
+    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + escapeXml(head); };
+    btn.innerHTML = headHtml(false);
+    var body = document.createElement("div");
+    body.className = "audit-part-body";
+    body.hidden = true;
+    body.setAttribute("data-testid", "audit-checks-body");
+    var sec = function(title, rows, tid){
+      if(!rows || !rows.length) return "";
+      return '<div data-testid="' + tid + '" style="margin:6px 0"><div><b>' + escapeXml(title) + "</b></div>" + rows.map(auditCheckRowHtml).join("") + "</div>";
+    };
+    body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
+    function paint(open){ body.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); btn.innerHTML = headHtml(open); }
+    btn.addEventListener("click", function(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); });
+    if(auditExpanded["\u0000checks"] === true) paint(true);
+    wrap.appendChild(btn); wrap.appendChild(body);
+    return wrap;
+  }
   function renderAuditGroups(result){
     var runKey = currentFlow + "/" + currentRunId;
     if(auditExpandedRun !== runKey){ auditExpanded = {}; auditExpandedRun = runKey; }
@@ -4129,6 +4240,9 @@
       container.appendChild(nrow);
       anyVisible = true;
     }
+    // hamr ruling A (2026-11-13): the card's own sections, one of the Audit's groups, after the schedule and the Needs-you line and before the step groups (bareloop v0.56.0 renderAuditGroups order)
+    var ac = result.auditChecks;
+    if(ac && ((ac.checks || []).length || (ac.notChecked || []).length || (ac.always || []).length)) container.appendChild(auditChecksEl(ac));
     var groups = (draftG ? [draftG] : []).concat(result.empty ? [] : (result.groups || []));
     groups.forEach(function(g){
       var rows = (g.rows || []).filter(auditRowMatchesFilter);
@@ -4329,11 +4443,15 @@
     fold.appendChild(textDiv("plan-row", "reads: " + ((st.reads || []).length ? st.reads.join(", ") : "nothing")));
     fold.appendChild(textDiv("plan-row", "makes: " + (st.makes || "unknown")));
     fold.appendChild(textDiv("plan-row", "may do: " + ((st.mayDo || []).length ? st.mayDo.join(", ") : "nothing (pure stop)")));
-    // M10 am11: each check sentence is its own row
-    if(st.ask || !(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: " + (st.ask ? "ASK · waits " + plainWait(st.waitMs) : "")));
-    else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
-    // M10b am2: a step that reads a sheet shows its line's block under the check sentence
-    sheetBlockLines(st.sheet).forEach(function(t){ fold.appendChild(textDiv("plan-row", t)); });
+    if(st.ask) fold.appendChild(textDiv("plan-row", "check: ASK · waits " + plainWait(st.waitMs)));
+    // P4c: a plan with a list shows the lead sentence and the sheet block under its job line, not in the fold
+    else if(!(job.plan && job.plan.always)){
+      // M10 am11: each check sentence is its own row
+      if(!(st.check || []).length) fold.appendChild(textDiv("plan-row", "check: "));
+      else st.check.forEach(function(s){ fold.appendChild(textDiv("plan-row", "check: " + s)); });
+      // M10b am2: a step that reads a sheet shows its line's block under the check sentence
+      sheetBlockLines(st.sheet).forEach(function(t){ fold.appendChild(textDiv("plan-row", t)); });
+    }
     return fold;
   }
   // The tail: any step that came from no listed line, then the folded Not-checked summary (its label comes from the payload, src/checked.js; always shown).
@@ -4344,6 +4462,15 @@
     tail.innerHTML = "";
     (plan.steps || []).filter(function(st){ return !placed[st.step]; }).forEach(function(st){ tail.appendChild(jobStepFold(st, job)); });
     var nc = plan.notChecked || {};
+    // M16 P4c: a plan with a list draws bareloop's three folds (Not checked, How the page was read, Always checked), each line tagged
+    if(plan.always && nc.recorded){
+      var jpFolds = document.createElement("div");
+      jpFolds.className = "jp";
+      var ncBy = nc.by || {};
+      jpFolds.innerHTML = planFoldHtml("Not checked", nc.items, "plan-notchecked", function(x){ return ncBy[x]; }) + planFoldHtml("How the page was read", nc.readNotes, "plan-readnotes", function(){ return ""; }) + planFoldHtml("Always checked", plan.always, "plan-alwayson", function(){ return "default"; });
+      tail.appendChild(jpFolds);
+      return;
+    }
     var fold = document.createElement("details");
     fold.className = "plan-fold plan-notchecked";
     var sum = document.createElement("summary");
@@ -4400,6 +4527,14 @@
         (job.sends || []).filter(function(sd){ return sd.line === l.line; }).forEach(function(sd){
           cell.appendChild(textDiv("ro-value sub", "~ writes out to " + (sd.target || "unknown")));
         });
+        // M16 P4c: the checks of a list line sit under the job line as `\u203A check` rows with their tags (bareloop's Job tab); the step fold keeps the rest
+        // the line's lead sentence and a sheet block draw as plain grey lines first (hamr 2026-11-14), then the rows
+        var listRowsHtml = "";
+        ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
+          if(job.plan.always && !st.ask) (st.check || []).concat(sheetBlockLines(st.sheet, true)).forEach(function(t){ listRowsHtml += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
+          (st.listRows || []).forEach(function(r){ listRowsHtml += planCheckRowHtml(r.text, "", r.by, ""); });
+        });
+        if(listRowsHtml){ var jpRows = document.createElement("div"); jpRows.className = "jp"; jpRows.innerHTML = listRowsHtml; cell.appendChild(jpRows); }
         ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
           placed[st.step] = true;
           cell.appendChild(jobStepFold(st, job));
@@ -5802,6 +5937,22 @@
         question: q.question, agree: false, drop: false
       };
     }
+    // pure: the plan view's model for a plan with a list: each job line with its `~` rules, its lead sentence (src/checked.js), the built rows of the list, a sheet line's block; then the suggestions and the three folds
+    function planOfState(state, list){
+      var nc = state.notChecked || {};
+      var plan = {lines: [], suggested: list.suggested || [], notChecked: nc.items || [], notCheckedBy: nc.by && typeof nc.by === "object" ? nc.by : {}, readNotes: nc.readNotes || [], alwaysOn: state.always || []};
+      (state.planLines || []).forEach(function(pl){
+        var l = {n: pl.n, text: pl.text, rules: pl.rules || [], leads: [], checks: [], extra: []};
+        state.checked.forEach(function(c){
+          if(c.line !== pl.n) return;
+          if(c.sentences.length) l.leads.push(c.sentences[0]);
+          sheetBlockLines(c.sheet, true).forEach(function(t){ l.extra.push(t); });
+        });
+        list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true}); });
+        plan.lines.push(l);
+      });
+      return plan;
+    }
     // pure: what sits beside a green plan: Your answers (only when the plan was drafted with some), Checked (the machine's sentences from the
     // typed checks) and Not checked (the drafter's own list, ALWAYS with its label), or null when there is no plan to show
     function extrasFor(state){
@@ -5812,6 +5963,12 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
+      // M16 P4c: a plan with a list draws bareloop's plan view (lines, checks with their tags, Suggested, the folds) in one bubble, from the card the draft saved (server: state.list, planLines, always)
+      var list = state.list && Array.isArray(state.list.rows) ? state.list : null;
+      if(list){
+        blocks.push({id: "chat-plan", plan: planOfState(state, list)});
+        return {blocks: blocks};
+      }
       // M10 am11: each check sentence is its own line (the step's label leads its first; the rest sit under it)
       var checkedLines = [];
       state.checked.forEach(function(c){
@@ -5819,11 +5976,12 @@
           checkedLines.push(i === 0 ? (c.line !== null && c.line !== undefined ? "line " + c.line : "step " + c.step) + ": " + s : "  " + s);
         });
         // M10b am2: a line that reads a sheet: its guardrails, Checked (name, words, covers), Not checked
-        sheetBlockLines(c.sheet).forEach(function(t){ checkedLines.push("  " + t); });
+        sheetBlockLines(c.sheet, false).forEach(function(t){ checkedLines.push("  " + t); });
       });
       blocks.push({id: "chat-checked", head: "Checked", sub: "built by the machine from the plan's checks", lines: checkedLines});
       var nc = state.notChecked || {};
-      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return "- " + x; }) : ["The drafter listed nothing."]});
+      var ncBy = nc.by && typeof nc.by === "object" ? nc.by : {};
+      blocks.push({id: "chat-notchecked", head: nc.label || "", sub: "", lines: (nc.items && nc.items.length) ? nc.items.map(function(x){ return ncBy[x] ? {text: "- " + x, by: ncBy[x], op: "", key: ""} : "- " + x; }) : ["The drafter listed nothing."]});
       // M10 am11: code's notes about written forms it did not use are their own list, after Not checked (none = no block)
       if(nc.readNotes && nc.readNotes.length) blocks.push({id: "chat-readnotes", head: "How the page was read", sub: "", lines: nc.readNotes.map(function(x){ return "- " + x; })});
       return {blocks: blocks};
@@ -6665,13 +6823,23 @@
         qAnswer.value = ""; qError.textContent = "";
       }
     }
+    // one line of a block: plain text, or a row with its tag
+    function extraLineHTML(l){
+      if(typeof l === "string") return escapeXml(l);
+      return escapeXml(l.text) + byTagOf(l.by);
+    }
+    // the Drop / Add button of the plan view (bareloop's control; the click is handled once on the extras box)
+    function planControlHTML(op, key){
+      return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (op === "add" ? "Add" : "Drop") + "</button>";
+    }
     // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
     function renderExtras(state){
       if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
-        return '<div class="msg" id="' + b.id + '" data-testid="' + b.id + '"><b class="readout-head">' + escapeXml(b.head) + '</b>' +
-          (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(escapeXml).join("\n") : '') + '</div>';
+        var inner = b.plan ? '<div class="who">fwdloop</div>' + planViewHtml(b.plan, planControlHTML)
+          : '<b class="readout-head">' + escapeXml(b.head) + '</b>' + (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(extraLineHTML).join("\n") : '');
+        return '<div class="msg' + (b.plan ? ' bot' : '') + '" id="' + b.id + '" data-testid="' + b.id + '">' + inner + '</div>';
       }).join("") : "";
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }
@@ -6858,6 +7026,27 @@
 
     // Send (amendments 24/25): the answer to the question now open. A blank answer is refused by the server in plain words and the question stays open.
     // M10 am29: a choice button posts its own choice and nothing else; the box's button posts the box's words as a new rule (choice "rule"), never read as agree or drop it
+    // Drop / Add (M16 item 5): $0, no AI call. The server writes a new plan; a sign click on the old one is cleared (its hash is not the plan's now)
+    var rowBusy = false;
+    function doRowEdit(btn){
+      if(rowBusy || !sessionId || !lastState || lastState.phase !== "green") return;
+      rowBusy = true;
+      var id = sessionId;
+      var all = extrasEl.querySelectorAll("button[data-rowop]");
+      for(var i = 0; i < all.length; i++) all[i].disabled = true;
+      authorPost("/api/author/" + id + "/row-edit", {op: btn.getAttribute("data-rowop"), key: btn.getAttribute("data-rowkey")}).then(function(r){
+        rowBusy = false;
+        if(id !== sessionId) return;
+        if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ chatActionFailed(refusalText(r)); for(var j = 0; j < all.length; j++) all[j].disabled = false; return; }
+        chatActionOk();
+        signInfo = null; signClickedOnce = false;
+        poll();
+      }).catch(function(){ rowBusy = false; for(var j = 0; j < all.length; j++) all[j].disabled = false; chatActionFailed(NETWORK_SAY); });
+    }
+    extrasEl.addEventListener("click", function(ev){
+      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-rowop]") : null;
+      if(t && extrasEl.contains(t)) doRowEdit(t);
+    });
     function doAnswer(choice){
       if(qBusy || !sessionId || !lastState || lastState.phase !== "questions-open") return;
       qBusy = true; qSend.disabled = true; qAgree.disabled = true; qDrop.disabled = true; qError.textContent = "";

@@ -81,7 +81,10 @@ const readingRest = (n) => `, or type your own reading (your answer is added as 
 /** @param {number} n @returns {string} the answer words a can't-check ask ends with (said once, here, and cut in the panel) */
 const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer is added as a new ~ rule on line ${n}).`;
 /** @param {number} n @param {string} rule @param {string} reading @returns {string} */
-const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}${readingRest(n)}`;
+export const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}${readingRest(n)}`;
+// borrowed-from: bareloop src/pagemap.js@v0.56.0 (3383cce) (cantCheckQuestion; readingQuestion above is exported for the block's asks)
+/** @param {number} n @param {string} rule @returns {string} the can't-check ask in its one spelling */
+export const cantCheckQuestion = (n, rule) => `Your line ${n} says "${rule}". I can't check this on the page. Drop it?${cantCheckTail(n)}`;
 /** @param {unknown} q a recorded question @returns {string|null} the reading a reading ask proposed, or null when it was another kind of question */
 export function readingOfQuestion(q) {
   const s = String(q ?? '');

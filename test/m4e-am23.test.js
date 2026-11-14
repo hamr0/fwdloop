@@ -127,6 +127,7 @@ test('23 the panel run door and Run again say the same plain sentence', async ()
   { const pf = path.join(bad.flowDir, 'prose.txt'); writeFileSync(pf, readFileSync(pf, 'utf8').replace('\n4. ask', '\n   guardrail: 3 sections, all under 600 words\n4. ask')); }
   resign(bad.flowDir, CASES[0][1] && ((d) => {
     // (M10 am16: a drafted flow carries no section check of its own; this flow is signed as an old one that does)
+    delete d.checkList; // an old flow has no checkList (M16)
     const st = d.steps.find((x) => x.fromLine === 3);
     st.close = { class: 'softgreen', shape: { sections: ['summary of work history blurb', 'professional skills', 'soft skills'] } };
     d.guardrailClasses['3'] = 'softgreen';

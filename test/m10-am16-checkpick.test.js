@@ -90,6 +90,8 @@ test('plain words: one fixed phrase per offered rule', () => {
     minWords: plainWords({ rule: 'minWords', value: 5 }),
     maxLines: plainWords({ rule: 'maxLines', value: 4 }),
     listItems: plainWords({ rule: 'listItems', value: 3 }),
+    maxListItems: plainWords({ rule: 'maxListItems', value: 3 }),
+    minListItems: plainWords({ rule: 'minListItems', value: 2 }),
     sections: plainWords({ rule: 'sections', names: ['A', 'B'] }),
     sectionOrder: plainWords({ rule: 'sectionOrder', names: ['A', 'B'] }),
     sectionWords: plainWords({ rule: 'sectionWords', names: ['A', 'B'], wordsPerSection: 90 }),
@@ -99,6 +101,8 @@ test('plain words: one fixed phrase per offered rule', () => {
   assert.deepEqual(Object.keys(says), [...OFFERED].sort((a, b) => Object.keys(says).indexOf(a) - Object.keys(says).indexOf(b)));
   assert.equal(says.maxWords, 'at most 80 words');
   assert.equal(says.listItems, 'exactly 3 list items');
+  assert.equal(says.maxListItems, 'at most 3 list items');
+  assert.equal(says.minListItems, 'at least 2 list items');
   assert.equal(says.sections, 'sections named A, B');
   assert.equal(says.blockLines, 'blocks of 3 lines, each carrying x');
   assert.equal(new Set(Object.values(says)).size, OFFERED.length);

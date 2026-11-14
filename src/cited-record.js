@@ -7,7 +7,7 @@
 // Extra keys the reader ignores and the separate checker (scripts/check-cited-run.mjs) reads: per line `check` {sha256 of the frozen text, the signed facts,
 // the count} and per row `values`.
 // Throws away: bareguard's evidence beyond the marks of the claim's own spans; nothing: a red line keeps its judged rows (am9); only a stopped check has none.
-import { writeLineSection } from './line-checks.js';
+import { writeLineSection, readLineSection } from './line-checks.js';
 import { moneyAs } from './pageask.js';
 import { factSentence, countSentence, CITED_ID } from './citedcheck.js';
 
@@ -116,4 +116,24 @@ export function citedLineOf({
  */
 export function writeCitedLine(runDir, line) {
   writeLineSection(runDir, 'cited', (had) => [...had.filter((/** @type {any} */ l) => isRec(l) && l.n !== line.n), line].sort((a, b) => a.n - b.n));
+}
+
+/**
+ * M16 R7: the quotes of earlier lines' PASSED cited checks, read from the run's own record (what the numbers tie of a later text line is checked against). A line with no record, or
+ * one that did not pass, is `missing`: the tie then reads "its answer is not there yet", a normal red, never a pass. Read through the safe gateway; an unreadable record is every line missing.
+ * @param {string} runDir @param {number[]} from @returns {{quotes: Record<string, string[]>, missing: number[]}}
+ */
+export function quotesOfLines(runDir, from) {
+  const sec = readLineSection(runDir, 'cited');
+  const lines = sec.ok ? sec.lines : [];
+  /** @type {Record<string, string[]>} */
+  const quotes = {};
+  /** @type {number[]} */
+  const missing = [];
+  for (const n of from) {
+    const l = lines.find((/** @type {any} */ x) => isRec(x) && x.n === n && x.passed === true && Array.isArray(x.rows));
+    if (l) quotes[String(n)] = l.rows.map((/** @type {any} */ r) => (isRec(r) && typeof r.quote === 'string' ? r.quote : '')).filter((/** @type {string} */ q) => q !== '');
+    else missing.push(n);
+  }
+  return { quotes, missing };
 }

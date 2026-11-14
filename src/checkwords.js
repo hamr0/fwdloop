@@ -1,7 +1,7 @@
 // M10 amendment 16: the ONE place a picked check is put in plain words (one fixed phrase per bareguard rule, written by code). The ask, the `~` line an agree writes,
 // the plan card (src/checked.js), the softgreen close's check list (src/closers.js) and the Audit all read it; nothing else writes these words.
 /** the rules of bareguard's list a person may pick here (text rules only: the ones a plain answer can be judged by) */
-export const OFFERED = Object.freeze(['nonEmpty', 'maxWords', 'minWords', 'maxLines', 'listItems', 'sections', 'sectionOrder', 'sectionWords', 'mustCarry', 'blockLines']);
+export const OFFERED = Object.freeze(['nonEmpty', 'maxWords', 'minWords', 'maxLines', 'listItems', 'maxListItems', 'minListItems', 'sections', 'sectionOrder', 'sectionWords', 'mustCarry', 'blockLines']);
 /** M10 am22 (4): who added a check, the ONE place these two words live. The plan card, the Job tab and the Audit trail write them after the check's words. */
 export const LABEL_AGENT = '[agent]';
 export const LABEL_PICKED = '[you picked]';
@@ -19,6 +19,9 @@ export function plainWords(c) {
     case 'minWords': return `at least ${c.value} words`;
     case 'maxLines': return `at most ${c.value} lines`;
     case 'listItems': return `exactly ${c.value} list items`;
+    // borrowed-from: bareloop src/checkwords.js@v0.56.0 (3383cce) (maxListItems, minListItems: bareguard 0.35)
+    case 'maxListItems': return `at most ${c.value} list items`;
+    case 'minListItems': return `at least ${c.value} list items`;
     case 'sections': return `sections named ${listOf(c.names ?? [])}`;
     case 'sectionOrder': return `sections named ${listOf(c.names ?? [])}, in that order`;
     case 'sectionWords': return `sections named ${listOf(c.names ?? [])}, each about ${c.wordsPerSection} words`;
@@ -27,3 +30,19 @@ export function plainWords(c) {
     default: return `a ${c.rule} check`;
   }
 }
+
+// M16 item 5 (docs/wiki/the-module-ladder.md, "M16"): the tag of a check on a list line is the `by` of its row, one spelling here for the readout, the plan card, the Audit and the Job tab
+// (replaces M10 am22 (4)'s `[you picked]` for list lines only; a sheet row keeps `labelled`).
+/** @type {Readonly<Record<string, string>>} */
+export const TAG = Object.freeze({ you: '[you]', agent: '[agent]', default: '[default]' });
+/** @param {unknown} by @returns {string} the tag of a row by `you` / `agent` / `default`, '' for anything else */
+export const tagOf = (by) => (typeof by === 'string' && Object.hasOwn(TAG, by) ? TAG[by] : '');
+/** @param {string} text @param {unknown} by */
+export const tagged = (text, by) => (tagOf(by) === '' ? text : `${text} ${tagOf(by)}`);
+
+/**
+ * hamr 2026-11-14: ~ = [you], ! = [agent], $ = [default]. Where a SHEET check comes from, the ONE rule (the plan card's rows, the Job tab, the Audit, the Result tab and the signed readout all read it):
+ * a check whose `covers` names one of the person's `~` rules is `you`, a check that covers none (the AI added it) is `agent`; no code adds a `default` sheet check.
+ * @param {unknown[]} covers the person's rules the check covers @returns {'you'|'agent'}
+ */
+export const sheetByOf = (covers) => (Array.isArray(covers) && covers.length > 0 ? 'you' : 'agent');

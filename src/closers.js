@@ -43,7 +43,7 @@
 // reading, flagged there as an interpretation call, not a rule from the
 // signed text).
 
-import { createRubric, checkStep } from 'bareguard';
+import { createRubric, checkStep, numbersInQuote } from 'bareguard';
 import { plainWords } from './checkwords.js';
 import { checkCited } from './citedcheck.js';
 import { closeSheet } from './sheetrun.js';
@@ -271,14 +271,52 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[] } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[], numbersFrom?: number[] } }} step
  * @param {unknown} artifact
- * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any }} ctx
+ * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any, numbers?: {quotes: Record<string, string[]>, missing: number[]} }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
  *   `sheet` (M10b piece 2) = the run's own tables and recorded `tableSha`s a step with `close.sheet` is checked on, from `readRunSheets`
  * @returns {Promise<CloseVerdict>}
  */
 export async function closeByClass(step, artifact, ctx) {
+  const base = await closeByClassOwn(step, artifact, ctx);
+  const from = step?.close?.numbersFrom;
+  return Array.isArray(from) && from.length > 0 ? withNumbers(base, closeNumbers(step, artifact, from, ctx.numbers)) : base;
+}
+
+/**
+ * M16 am3 (2), R7: the `$` numbers default of the check list. Every number in the answer's `text` must be in a quote an EARLIER line's cited check already passed (bareguard's `numbersInQuote`: a token match
+ * on the numbers, not a canonical compare, a documented limit; words are free). The quotes are the run's cited record of those lines (`ctx.numbers.quotes`, line -> quotes; `missing` = lines with none).
+ * Third outcomes: an answer with no `text` is `unparseable`, quotes that cannot be read (no record, a line not there yet) are `crash`; neither is ever green.
+ * What it throws away: only the numbers' token form is compared; a number written another way in the quote (1,000 vs 1000) is a bareguard question, not ours.
+ * @borrowed-from bareloop src/rubricstep.js@v0.56.0 (3383cce) gradeStep, PART 1b
+ * @param {any} step @param {unknown} artifact @param {number[]} from @param {{quotes: Record<string, string[]>, missing: number[]}|undefined} numbers
+ * @returns {{verdict: 'green'|'red'|'unparseable'|'crash', red: string|null, text: string}}
+ */
+export function closeNumbers(step, artifact, from, numbers) {
+  const text = artifact && typeof artifact === 'object' ? /** @type {any} */ (artifact).text : undefined;
+  const words = `every number in the text is in a quote checked on line ${from.join(', ')}`;
+  if (typeof text !== 'string') return { verdict: 'unparseable', red: `numbers check: the answer must be shaped {text: string} so its numbers can be read, got ${describeArtifact(artifact)}`, text: words };
+  if (!numbers) return { verdict: 'crash', red: `numbers check crashed: the quotes of line ${from.join(', ')} are not available to this run`, text: words };
+  const gone = from.filter((n) => numbers.missing.includes(n) || !Array.isArray(numbers.quotes[String(n)]));
+  if (gone.length) return { verdict: 'red', red: `line ${gone.join(', ')}'s answer is not there yet, so the numbers in line ${step.fromLine}'s text cannot be tied to it`, text: words };
+  const t = numbersInQuote(text, from.flatMap((n) => numbers.quotes[String(n)]).join('\n'));
+  if (!t.ok) return { verdict: 'red', red: `line ${step.fromLine}: "text" has number(s) ${t.missing.join(', ')} that no checked quote of line ${from.join(', ')} holds - use only numbers from those quotes, written as they write them`, text: words };
+  return { verdict: 'green', red: null, text: words };
+}
+
+/** the numbers tie beside the class's own verdict: red if either is red (both told); a third outcome of either is never turned into green, the class's own winning when it has one @param {any} base @param {ReturnType<typeof closeNumbers>} num @returns {CloseVerdict} */
+function withNumbers(base, num) {
+  const numbersCheck = { text: num.text, ok: num.verdict === 'green', result: num.verdict === 'green' ? null : num.verdict === 'red' ? num.red : num.verdict };
+  if (base.verdict === 'crash' || base.verdict === 'unparseable') return { ...base, numbersCheck };
+  if (num.verdict === 'crash' || num.verdict === 'unparseable') return { ...num, verdict: num.verdict, red: num.red, ...(base.cited ? { cited: base.cited } : {}), numbersCheck };
+  if (num.verdict === 'green') return { ...base, numbersCheck };
+  const reds = [...(base.verdict === 'red' ? [base.red] : []), num.red].filter(Boolean);
+  return { ...base, verdict: 'red', red: reds.join('\n'), ...(base.reds || reds.length > 1 ? { reds } : {}), numbersCheck };
+}
+
+/** @param {any} step @param {unknown} artifact @param {any} ctx @returns {Promise<CloseVerdict>} */
+async function closeByClassOwn(step, artifact, ctx) {
   const cls = step?.close?.class;
   if (cls === 'green' && Array.isArray(step?.close?.picked) && step.close.picked.length > 0) return await closeFactAndPicks(step, artifact, ctx);
   return await closeOne(step, artifact, ctx);

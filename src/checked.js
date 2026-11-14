@@ -10,9 +10,15 @@
 
 /** The label that always sits with the "Not checked" list (am41 item 3: the ONE place these words live; the Job tab and the Chat card read it off their payloads). */
 export const NOT_CHECKED_LABEL = "not checked (the AI's own reading)";
+/** M16 item 5 (replaces M4e am40/am41's words for the checks of a line on the list): the label of a plan that has a list */
+export const LIST_NOT_CHECKED_LABEL = 'Not checked';
+/** the label that sits with a plan's Not checked list: a plan with a list says "Not checked", an older plan keeps the words it was signed with @param {any} declaration */
+export const notCheckedLabelOf = (declaration) => (listLinesOf(declaration).size > 0 ? LIST_NOT_CHECKED_LABEL : NOT_CHECKED_LABEL);
 
-import { factRows } from './citedcheck.js';
-import { plainWords, labelled } from './checkwords.js';
+import { factRows, factSentence, countSentence } from './citedcheck.js';
+import { plainWords, labelled, tagged } from './checkwords.js';
+import { listLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
+import { CARD_T } from './checkblock.js';
 import { sheetCheckRows } from './sheetchecks.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { splitReadNotes, signedFactNames } from './pagedropwords.js';
@@ -30,7 +36,9 @@ const list = (xs) => xs.join(', ');
 export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvRoles = [], keptChecks = [], keptWords = '' } = {}) {
   const blocks = Array.isArray(lines) ? sheetLineBlocks({ declaration, lines, csvRoles }) : [];
   const steps = Array.isArray(declaration?.steps) ? declaration.steps : [];
+  const keptOf = (/** @type {number} */ line, /** @type {any} */ c) => (keptChecks.some((k) => k.line === line && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : '');
   if (Array.isArray(askLines)) hasAsk = askLines.length > 0;
+  const onList = listLinesOf(declaration); // M16: a line with a list shows each check with the tag of its row
   const lastAsk = Array.isArray(askLines) ? steps.reduce((m, st, i) => (askLines.includes(st?.fromLine) ? i : m), -1) : -1;
   return steps.map((st, i) => {
     const cls = st?.close?.class;
@@ -39,7 +47,11 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
     const shape = st?.close?.shape && typeof st.close.shape === 'object' ? st.close.shape : {};
     /** @type {string[]} */
     const out = [];
-    if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
+    const listed = onList.has(st?.fromLine);
+    if (listed && cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
+      // M16: a list line states the quote check's lead, then each check as a row with the tag of its own row (below)
+      out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`);
+    } else if (cls === 'green' && st.close.cited && typeof st.close.cited === 'object') {
       // M10 am7 item 1: the facts the drafter wrote, as plain rows written by code from the typed fields
       out.push(`Each result must be quoted word for word from the saved page "${st.close.cited.source}", and the machine checks every quote, every value and the count against that copy.`, ...factRows(st.close.cited).map((r) => labelled(r, 'agent')));
     } else if (cls === 'green' && Array.isArray(st.close.sheet)) {
@@ -55,13 +67,15 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       if (Number.isInteger(shape.linesPerInvoice)) out.push(labelled(`The output comes in blocks of ${shape.linesPerInvoice} lines.`, 'agent'));
       if (Array.isArray(shape.mustCarry) && shape.mustCarry.length > 0) out.push(labelled(`Every block carries: ${list(shape.mustCarry)}.`, 'agent'));
       // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
-      if (Array.isArray(shape.picked)) for (const c of shape.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`, 'picked'));
+      if (!listed && Array.isArray(shape.picked)) for (const c of shape.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));
     } else {
       if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
       else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
     }
     // M10 am22 (1)(4): the checks the person picked for a fact line, beside its fact rows
-    if (cls === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptChecks.some((k) => k.line === st.fromLine && plainWords(k.check) === plainWords(c)) ? ` (${keptWords})` : ''}`, 'picked'));
+    if (!listed && cls === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));
+    // M16 item 5: the checks of a list line, one tagged sentence each, from the rows' own reader
+    if (listed) out.push(...listPartRows(declaration, st, keptOf).map((r) => tagged(r.text, r.by)));
     return {
       step: i + 1, line: Number.isInteger(st?.fromLine) ? st.fromLine : null, goal: typeof st?.goal === 'string' ? st.goal : '', class: String(cls), sentences: out,
       ...(sheet && cls === 'green' ? { sheet } : {}),
@@ -69,10 +83,10 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
   });
 }
 
-/** The "Not checked" block the page shows: always the label, then the drafter's items (an empty list says the drafter listed nothing). @param {unknown} items */
-export function notCheckedBlock(items) {
+/** The "Not checked" block the page shows: always the label, then the drafter's items (an empty list says the drafter listed nothing). @param {unknown} items @param {string} [label] */
+export function notCheckedBlock(items, label = NOT_CHECKED_LABEL) {
   const clean = Array.isArray(items) ? items.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
-  return { label: NOT_CHECKED_LABEL, items: clean };
+  return { label, items: clean };
 }
 
 /**
@@ -81,7 +95,32 @@ export function notCheckedBlock(items) {
  * @param {unknown} items @param {any} declaration the plan's declaration (its cited facts are the signed ones)
  */
 export function notCheckedView(items, declaration) {
-  const block = notCheckedBlock(items);
+  const block = notCheckedBlock(items, notCheckedLabelOf(declaration));
   const { notChecked, readNotes } = splitReadNotes(block.items, signedFactNames(declaration));
   return { label: block.label, items: notChecked, readNotes };
+}
+
+/**
+ * The checks of one list line's step as rows `{text, by, part}` in the close's part order (the quote check's facts and count, each picked check, the numbers tie), each with the `by` of the row that built it.
+ * ONE reader for the plan card's sentences and the Audit's Checks fold; `part` is the index the signed list's rows point at (src/checklistsign.js). Pure.
+ * @param {any} declaration @param {any} st the step @param {(line: number, c: any) => string} [keptOf]
+ * @returns {{text: string, by: 'you'|'agent'|'default', part: number}[]}
+ */
+export function listPartRows(declaration, st, keptOf = () => '') {
+  const close = st?.close && typeof st.close === 'object' ? st.close : {};
+  const line = st?.fromLine;
+  /** @type {{text: string, by: 'you'|'agent'|'default', part: number}[]} */
+  const out = [];
+  let idx = 0;
+  if (close.cited && typeof close.cited === 'object') {
+    const c = close.cited;
+    for (const f of Array.isArray(c.facts) ? c.facts : []) out.push({ text: factSentence(f, c.source), by: factByOf(declaration, line, f.name) ?? 'agent', part: idx });
+    const count = countSentence(c);
+    if (count) out.push({ text: count, by: countByOf(declaration, line) ?? 'agent', part: idx });
+    idx += 1;
+  }
+  const picked = Array.isArray(close.picked) ? close.picked : Array.isArray(close.shape?.picked) ? close.shape.picked : [];
+  for (const c of picked) { out.push({ text: `${plainWords(c)}.${keptOf(line, c)}`, by: partByOf(declaration, line, idx) ?? 'agent', part: idx }); idx += 1; }
+  if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) out.push({ text: `${CARD_T.numbers} ${close.numbersFrom.join(', ')}.`, by: partByOf(declaration, line, idx) ?? 'default', part: idx });
+  return out;
 }

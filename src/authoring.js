@@ -23,8 +23,10 @@ import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { addedLinesOf } from './added-end.js';
-import { factRows } from './citedcheck.js';
-import { plainWords, labelled } from './checkwords.js';
+import { factRows, factSentence, countSentence } from './citedcheck.js';
+import { plainWords, labelled, tagged } from './checkwords.js';
+import { listLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
+import { CARD_T } from './checkblock.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -217,6 +219,7 @@ export function buildReadout({
   if (Array.isArray(declaration.ticketWatch) && declaration.ticketWatch.length) out.push(`  ticket watch: ${declaration.ticketWatch.join(', ')}`);
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
+  const onList = listLinesOf(declaration);
   const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
@@ -224,15 +227,26 @@ export function buildReadout({
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
-    if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
+    // M16: a list line's checks carry the tag of the row that built each (`[you]`, `[agent]`, `[default]`); any other line keeps today's words
+    const listed = onList.has(st.fromLine);
+    if (listed && st.close?.cited && typeof st.close.cited === 'object') {
+      const c = st.close.cited;
+      for (const f of Array.isArray(c.facts) ? c.facts : []) out.push(`     ${tagged(factSentence(f, c.source), factByOf(declaration, st.fromLine, f.name) ?? 'agent')}`);
+      if (countSentence(c)) out.push(`     ${tagged(/** @type {string} */ (countSentence(c)), countByOf(declaration, st.fromLine) ?? 'agent')}`);
+    } else if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
     // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
     if (Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M10 am16: the checks the person picked, signed with the readout, each in the one set of plain words (typed fields, never model prose)
-    if (Array.isArray(st.close?.shape?.picked)) for (const c of st.close.shape.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
+    if (Array.isArray(st.close?.shape?.picked)) st.close.shape.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
     // M10 am22 (1): the checks the person picked for a fact line are signed with the readout too, in the same words
-    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`);
+    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) st.close.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
+    // M16 R7: the numbers tie of a list line (the `$` row)
+    if (listed && Array.isArray(st.close?.numbersFrom) && st.close.numbersFrom.length > 0) {
+      const before = (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + (Array.isArray(st.close.picked) ? st.close.picked.length : Array.isArray(st.close.shape?.picked) ? st.close.shape.picked.length : 0);
+      out.push(`     ${tagged(`${CARD_T.numbers} ${st.close.numbersFrom.join(', ')}`, partByOf(declaration, st.fromLine, before) ?? 'default')}`);
+    }
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
     if (Array.isArray(shape?.sections) && shape.sections.length > 0) {
@@ -294,6 +308,25 @@ export function draftKeyRefusal(slot, env) {
 }
 
 /**
+ * The ONE place a plan folder is claimed: its parent made if needed, then the folder itself, exclusively (an existing path throws EEXIST). `draftToDir` claims the folder of a draft with it and the
+ * panel claims the folder of a plan made by a Drop or an Add (src/planrebuild.js).
+ * @param {string} dir
+ */
+export function claimPlanDir(dir) {
+  mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
+  mkdirSync(dir);
+}
+
+/**
+ * The ONE writer of a plan folder's files: each `name` -> text, in the order given (a draft writes `spec.hash` last, so a folder with one is whole). `opts` is `writeFileSync`'s own
+ * (the panel's session files are exclusive, 0600).
+ * @param {string} dir @param {Record<string, string>} files @param {{flag?: string, mode?: number}} [opts]
+ */
+export function writePlanFiles(dir, files, opts = {}) {
+  for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text, opts);
+}
+
+/**
  * Draft into `dir`. $0 refusals (return {ok:false, wrote:false}, nothing on disk): bad key,
  * unreadable/blank prose, prose that contains the key, missing inputs / bad signed text, dir
  * already exists. After a paid round the dir is ALWAYS written — green (spec.hash present) or
@@ -304,7 +337,7 @@ export function draftKeyRefusal(slot, env) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, checkPicks, carriedPicks, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
@@ -337,8 +370,7 @@ export async function draftToDir({
   const exists = () => refuse([`draft: "${dir}" already exists — never overwritten, use a new dir`]);
   if (existsSync(dir)) return exists();
   try {
-    mkdirSync(path.dirname(path.resolve(dir)), { recursive: true });
-    mkdirSync(dir);
+    claimPlanDir(dir);
   } catch (e) {
     return e.code === 'EEXIST' ? exists() : refuse([`draft: cannot create "${dir}": ${e.code ?? e.message}`]);
   }
@@ -382,9 +414,14 @@ export async function draftToDir({
   // M13 piece 4 (R1): the job's MCP is every tool of that server's newest OK check, read here by code (the server is never started); never checked = a $0 refusal in the drafter's pre-flight
   const mcp = flowType === 'plain' ? null : (mcpPick ?? (typeof mcpServer === 'string' ? mcpPickHere(mcpServer) : { ok: false, say: 'pick an MCP for this flow type' }));
   /** @type {{picks: object[], kept: object[]}|null} */
+  /** @type {any[]|null} */
+  let rowChoices = null; // a Revise's carried Drop/Add choices, handed back by draft() and kept in the same record
+  /** @type {any[]} */
+  let sheetDropped = []; // the sheet checks this plan has dropped (a Revise's carried ones, applied by draft()), kept in the same record
+  /** @type {any} */
   let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), onPickRecord: (r) => { pickRecord = r; },
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
     flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }),
   });
   if (result.stop === 'pre-flight') {
@@ -406,6 +443,7 @@ export async function draftToDir({
   const parsed = parseSignedText(prose.text); // the drafter already proved it parses
   if (!parsed.ok) return paidFail(`parse: ${parsed.reds.join('; ')}`);
   const dj = (o) => `${JSON.stringify(o, null, 2)}\n`;
+  /** @type {Record<string, string>} */
   const files = {};
   files['prose.txt'] = prose.text; // verbatim
   const targetText = dj({ root, name });
@@ -416,13 +454,15 @@ export async function draftToDir({
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
-  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj(pickRecord), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
-  files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [] }), secrets);
+  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj({ ...pickRecord, ...(rowChoices === null ? {} : { rowChoices }), ...(sheetDropped.length ? { sheetDropped } : {}) }), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
+  files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [], ...(result.notCheckedBy && Object.keys(result.notCheckedBy).length ? { by: result.notCheckedBy } : {}) }), secrets); // M16 item 5: the tag of each line that tells a row
   if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({
     ok: result.ok, stop: result.stop, reds: result.reds, rounds: result.rounds, calls: result.calls, costUsd: result.costUsd, spendComplete: result.spendComplete,
     modelId: result.modelId, modelReturned: result.modelReturned, structureRetries: result.structureRetries,
     revisions: result.revisions, thinking: result.thinking, inputs: result.inputs, log: result.log,
+    // M16 P4: what the plan card shows of the list (rows with tags and reasons, the suggestions), drawn by the page; Drop and Add rebuild it
+    ...(result.checkCard ? { checkCard: result.checkCard } : {}),
   }), secrets);
   let hash = null;
   if (result.ok) {
@@ -465,7 +505,7 @@ export async function draftToDir({
     });
     // M4d am32: the spend is booked, and the result files are about to be written: the monthly hold is given back now, so a draft never reads done while its hold is still held
     if (typeof onResult === 'function') onResult({ ok: result.ok });
-    for (const [f, text] of Object.entries(files)) writeFileSync(path.join(dir, f), text);
+    writePlanFiles(dir, files);
     if (pick !== null) writeModelRecord(dir, pick);
     leaks = sweepForSecrets(dir, secrets);
     if (leaks > 0) {

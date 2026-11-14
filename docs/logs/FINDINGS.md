@@ -7111,3 +7111,191 @@ Same model and shape every time, so it is a provider habit, not weather. Today e
 - **It can fail: yes.** All 12 caught variants are accepted by repair alone; only the validator step refuses them.
 - **Limits, stated plainly.** Small sample (12). Only the LAST key of an object escaping one level was tried, not several keys or a move into an array (that one is invalid JSON anyway). A moved key whose name is VALID at the parent level (e.g. a `close` key that is also a legal step key) would not be an unknown key; none occurred in these 12, and the schema was not searched for such name collisions. No page or sheet word maps were passed (as in POC 3).
 - Measures the rule only. Nothing in src/ changed, nothing signed.
+
+## F185 (2026-11-13): does bareloop v0.56.0's check block, copied as-is, build a correct list from fwdloop's real jobs? ([POC 1 PRE-REGISTERED, $0])
+- Why: M16 (signed 2026-11-13) copies the check block; fwd's job lines and page look differ from bareloop's.
+- How: copy `src/checkblock.js` and the files it imports from bareloop tag v0.56.0 into `poc/f185-block/vendor/` unchanged (header `// borrowed-from: bareloop <path>@v0.56.0 (3383cce)`); bareguard 0.35.0 installed in a scratch folder outside the repo; feed it three real saved fwd jobs at $0: a flights page job with its saved page-look reply, `m14-walk-5` (`~ exactly 3 bullets`, `~ under 80 words`), and a CSV job.
+- PASS if all of: (a) no throw on any of the three; (b) m14-walk-5: each `~` rule is a `[you]` row; `exactly 3 bullets` builds `listItems 3`; `under 80 words` builds a word limit naming 80 (79 or 80, reported); (c) flights: every `!` fact the saved look kept is an `[agent]` row whose words are on the saved page, or is Not checked with a reason; every `~` rule is a `[you]` row; (d) CSV job: its sheet line's checks are not turned into rows that differ from today's signed sheet checks (report exactly what the block does with them); (e) a `$` default row appears only where bareloop's rules add one, tagged `[default]`.
+- FAIL if any bar misses. The adapter code needed to map fwd's job/look shape into the block is reported (lines, what it maps); it decides nothing but sizes the build.
+
+### F185 POC 1 RESULT (2026-11-13, $0, `node poc/f185-block/run.mjs`, log `poc/f185-block/result-1.log`, [MEASURED]): FAIL
+
+Fixtures (read-only copies, `poc/f185-block/fixtures/`): `m14-walk-5` (signed prose + its notes), the flights draft `d-00mw9p09f3-9c72` (its prose has four `~` rules; its saved `page-look.json` and frozen `flights.txt`; not the signed flights-5 job, which has only two), CSV `m10-walk-csv-4` (prose, `file.csv`, signed declaration). Vendored closure: 40 files from the tag, unchanged (the static imports of `checkblock.js` reach `bare-agent` and `litectx`; both resolved from fwd's installed copies). bareguard 0.35.0 from a scratch install.
+
+- **(a) no throw: PASS.** All three jobs build, with `asks:false` and `asks:true` (split on, as bareloop's product path).
+- **(b1) each `~` rule is a `[you]` row: PASS** (`exactly 3 bullets`, `under 80 words`).
+- **(b2) `exactly 3 bullets` builds `listItems 3`: FAIL on the letter.** Built as given (no answer), the row is Not checked: "No rule can check this, so you judge it at Accept." With `asks:true` the block opens a question `L3.~1:check` with proposal `{"rule":"listItems","value":3}`; supplement (not a bar): after the person's typed Agree (`applyAnswer`, no AI) the row is built, part `{check:"listItems",value:3}`.
+- **(b3) `under 80 words` builds a word limit naming 80: FAIL on the letter**, same cause. Proposal `{"rule":"maxWords","value":80}`; after Agree built as `maxWords 80` (80, not 79). Note: Agree also appends a second `[you]` row ("exactly 3 list items", "at most 80 words") per pick.
+- **(c) flights: PASS.** `!` rows: `origin city` built (`Madrid`), `origin airport name` built (words cut to `Madrid`, on the page), `destination city` Not checked ("Rome" is on the page but in none of its results), `destination airport name` and `departure time label` are Suggested (not added unless the person adds). All four `~` rules are `[you]`: `under $150` and `nonstop` built (money reading `lt 150`, anchor "From"); `exactly 3 bullets` and `under 80 words` ask as above.
+- **(d) CSV: FAIL.** Today's signed sheet check is a `cells` row check (`Amount gt 500`, op rows). The block has no sheet check: both `~` rules (`Price over 500`, `use the column 'Amount' for 'Price'`) become `[you]` rows, Not checked, ask `cant-check` with no proposal (only Drop on offer). Today's built check is lost. Tabular lines need fwd's own sheet path kept beside the block.
+- **(e) `$` rows: PASS.** Every `$` row is `[default]`: a `floor` on every line (7 lines for m14-walk-5, ask and send lines included) and a `cited` row per line; `numbers` rows appear on flights lines 3-6. Note: `cited` is built for the CSV and the notes job (a "quote of the input" check on lines that quote nothing); on flights line 2 it is Not checked ("this line finds facts").
+- **Adapter size: 14 lines** (`jobLinesOf`: `N.` lines plus `guardrail: a; b` split on `; ` into `rules`; `lookOf`: fwd's saved `page-look.json` already holds `look: {facts, dropped}` with `line`, `forRule`, `reading`, so it is passed straight through).
+- **bareguard 0.34.1 throws** at import (`checkpick.js:171` `Cannot read properties of undefined (reading 'description')`, log `result-2-bg034.log`): the copy needs 0.35.0.
+- Measures the block on saved inputs only; no drafter, no run, nothing in src/ changed, nothing signed.
+
+### F185 POC 2 PRE-REGISTERED (2026-11-13, $0): step lines only into the block; sheet lines stay fwd's
+- How: the adapter decides each line's kind with fwdloop's OWN code in src/ (the same functions the drafter/runner use to tell an ask line, the send/Destination line, a sheet-reading line and a step line apart — name them in the result); it gives the block step lines only, and sends sheet lines through fwd's existing sheet path unchanged. Same three fixtures as POC 1.
+- PASS if all of: (a) ask lines and the send line get zero block rows; (b) the CSV job's sheet line gets zero block rows, and fwd's own sheet path on the same fixture still yields the job's signed sheet check (`Amount gt 500`, as in its signed declaration); (c) m14-walk-5: every row the block BUILDS for its step lines, run with real bareguard 0.35.0 checkStep (or the block's own check runner) on the REAL accepted output of a green m14-walk-5 run (from ~/.config/fwdloop/flows/m14-walk-5/runs or wherever its run folders are; read-only), passes — no false red, and the `$` cited row on its writing lines is reported by name with its verdict; (d) flights: the POC 1 bar (c) still holds on step lines only.
+- FAIL if any bar misses. If a kind cannot be decided by fwd's own src code, that bar FAILS (do not write a new regex classifier); report what is missing.
+
+### F185 POC 2 RESULT (2026-11-13, $0, `node poc/f185-block/run2.mjs`, log `poc/f185-block/result-3.log`, [MEASURED]): FAIL
+
+Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbiter.asks[].line`, `arbiter.sends[].line`, `arbiter.sources`), `csvRolesOf` and `sheetLineBlocks` (`src/sheetblock.js`; sheet lines need the signed declaration). A step line = every numbered line that is none of those. No new classifier written; adapter 18 lines. Block = POC 1's vendor copy, bareguard 0.35.0.
+
+- **(a) PASS.** Ask and send lines get 0 block rows in all three jobs (m14-walk-5 asks 2,4,6 send 7; flights asks 3,5 send 6; csv ask 3 send 4).
+- **(b) PASS.** CSV line 2 (the sheet line, by `sheetLineBlocks`) gets 0 block rows; fwd's own sheet path on the same fixture still yields the signed check `rows where Amount > 500` (id `over-500-rows`, nothing Not checked). Side note: CSV line 1 ("Read the expenses sheet", hitl, not a sheet line by fwd's code) goes to the block and gets a `$` floor and a `$` cited row.
+- **(c) FAIL.** Graded with the block's own runner `gradeStep` (real bareguard 0.35.0 `checkStep`) on run-5 of m14-walk-5 (outcome complete; inputs/notes.md identical to the fixture), each part alone. Built `~` rows after typed Agree: `listItems 3` on line 3 = green; `maxWords 80` on line 5 = green. The `$` cited row (`every claim is backed by a quote copied from "notes"`) on writing lines 1, 3 and 5 = RED on all three: `"cites" has nothing under "notes" - list each claim with a quote copied from that input`. fwd's accepted artifacts carry `text` only, no `cites`, so the default cited row is a false red on every fwd writing line. No `numbers` rows on this job.
+- **(d) PASS.** Flights on step lines 1, 2, 4 only: every `!` row is built with words on the page (`origin city`, `origin airport name` = Madrid) or Not checked / Suggested with a reason; all four `~` rules are `[you]` rows (`exactly 3 bullets` and `under 80 words` build after typed Agree as `listItems 3`, `maxWords 80`). Line 2 cited is Not checked ("this line finds facts"); lines 1 and 4 get a cited row; line 4 gets `numbers` tied to line 2.
+- **Known upstream bug seen (not worked around):** after Agree, each follower `~` row ("exactly 3 list items", "at most 80 words") is `built` with a null `part` (2 in m14-walk-5, 2 in flights). Bareloop fixes it in 0.56.1.
+- Limits: one green run (run-5) and one set of fixtures; cited was graded with fwd's artifact shape as saved. Nothing in src/ changed, nothing signed.
+
+## F186 (2026-11-13): does bareguard ruling #82's number reader ground the same sheet-check literals as fwd's numbersSaid? ([PRE-REGISTERED, $0])
+- Why: hamr ruled all checks live in bareguard; `groundedLiterals(check, text)` (#82) replaces fwd's sheetCheckWordReds (src/sheetchecks.js:175, reader src/citedwords.js:99 numbersSaid). The #82 reader is stricter on purpose (valid thousands groups only; sign only at token start; letters glued to a number ground nothing; .5 and (500) ground nothing).
+- How: for every saved fwd job with a signed `close.sheet` (under ~/.config/fwdloop/flows, read in place), text = the job line plus its ~ rules joined (src/pagebits.js wordsSaidOn); each literal sheetCheckWordReds scans today (where number bounds, where date bounds, asOf) plus every row-math `b.const`, is graded twice: fwd numbersSaid grounding (bare OR amount for numbers, exact date token for dates) and the #82 reader written in poc/f186-reader/ from the spec text alone.
+- Reported: total literals, agree, each disagreement class with its count and which #82 divergence it hits, b.const count and how many are grounded under each reader, and every SIGNED job that numbersSaid grounds but #82 would refuse (named by flow name and line number only).
+- PASS if zero signed jobs are refused by #82 that numbersSaid grounds today. FAIL otherwise. Never change the bar after the run.
+
+### F186 RESULT (2026-11-13, $0, `node poc/f186-reader/run.mjs`, log `poc/f186-reader/result-1.log`, [MEASURED]): PASS
+- 51 flows scanned (all carry signature.json); 13 jobs / 13 steps with `close.sheet`; every step's job line found.
+- Literals 13 (number 7, date 0, asOf 6): agree 13 (all grounded under both readers), fwd grounds / #82 refuses 0, #82 grounds / fwd refuses 0. No divergence class (1-9) was hit by any real literal. Row-math `b.const`: 0 in saved jobs.
+- Signed jobs refused by #82 that numbersSaid grounds: none. Caveat: the sample is small (13 literals), so it shows no real-line cost, not that divergences 1-5 are harmless; reader probes on synthetic text (`1,0,0`, `-5`, `5k`, `.5`, `(5`, `$ 150`, `2026-02-30`, `3/4/2026`) behaved as the spec says.
+
+## F187 (2026-11-13): does deepseek-flash answer bareloop's row-edit turn, called on fwd's real drafter path, with edits the copied block applies? ([PRE-REGISTERED, paid, cap $0.30])
+- How: 10 calls on deepseek-flash, thinking off: 5 on m14-walk-5 (its step lines), 5 on the flights draft (with its saved page look). Request text and reply schema are bareloop v0.56.0 rowedit.js unchanged; the reply is applied by the copied block.
+- PASS if all of: (a) at least 9 of 10 calls return a reply the block reads (a broken call = no tool call, unparseable, or length stop); (b) m14-walk-5: in every readable reply the final list has `exactly 3 bullets` built as listItems 3 and `under 80 words` built as a word limit naming 80, with no built check outside the list's rows; (c) flights: every readable reply ends with at least one built `[agent]` fact whose words are on the saved page, and every `~` rule is a `[you]` row; (d) total spend <= $0.30 with every round metered (no unknown cost).
+- Reported, deciding nothing: refused edits per call with their reasons; ops used; tokens; time per call.
+
+### F187 RESULT (2026-11-13, paid about $0.035 all runs ($0.0199 the deciding run), `node poc/f187-rowedit/run.mjs`, log `poc/f187-rowedit/result-1.log`, [MEASURED]): FAIL
+- Call path as fwd's drafter: `makeProvider('DEEPSEEK_API_KEY', {model:'deepseek-flash', ...LIVE_PROVIDER_OPTIONS})`, `new Loop({provider, rates, onLlmResult})`, tool = bareloop's `rowEditChannel` tool with execute swapped to capture + `HaltError` (the drafter's pattern), `maxTokens` 16000, `thinkingMode:'off'`, forced `toolChoice`. Request text/schema = vendor rowedit.js unchanged; reply applied by `applyDelta` + `reconcile`, block built `asks:false` as authorflow's own no-person fallback does at v0.56.0. Not copied: bareloop's `askStructured` retry wrapper (a call that does not deliver is counted broken, no retry). The saved flights look was given `prose:[]`, `notFound:[]` (fwd's saved look has only facts/dropped; `renderLookReport` needs both).
+- **(a) PASS: 10/10 readable.** 1.1 to 1.5 s per call; 10 rounds, all metered.
+- **(b) FAIL on the letter: 0/5.** Every reply had accepted `pick` edits (`listItems 3` on line 3, `maxWords 80` on line 5) but `editPick` only records a `pickProposal`; the row stays Not checked until the person's Agree, which needs `asks:true`. With `asks:false` nothing is built. No built check outside the list's rows.
+- **(c) PASS: 5/5.** Each flights reply ends with 4 built `[agent]` facts on the page (the look's own; the AI's adds were not what counted) and all `~` rules `[you]`.
+- **(d) PASS.** Whole deciding run $0.0199, 0 unmetered. Earlier crashed attempts (harness bugs: look shape, undefined var) spent about $0.015 more, included in the total.
+- Refused edits (reasons): `reading` "already on the list: the look or an earlier reading already reads that rule" (4, flights); `reading` "no look fact named ..." (2 m14); `count` "is not a row edit" (1 flights, the model used op `count` instead of add kind count); `reading` "not a legal reading for that fact shape" (1). Ops: add, pick, reading, count.
+- **Supplement, decides nothing** (`F187_ASKS=1`, `result-2-asks.log`, $0.006, 5 more m14 calls): block built `asks:true`, typed Agree after the reply: 5/5 built `listItems 3` and `maxWords 80`, no built check outside the list's rows. So the model's picks are right; the bar assumed no person's Agree.
+- Measures the model turn only. Nothing in src/ changed, nothing signed.
+
+### F187b PRE-REGISTERED (2026-11-13, paid, cap $0.10): the row-edit turn on the panel path (a person answers with Agree)
+- How: as F187, 10 calls on deepseek-flash thinking off (5 m14-walk-5, 5 flights), the block built `asks:true` and every question it raises answered with a typed Agree by the block's own applyAnswer; vendored block carries the am2 fix (f148028e).
+- PASS if all of: (a) at least 9 of 10 calls readable (broken = no tool call, unparseable, length stop); (b) m14-walk-5: every readable reply ends with `exactly 3 bullets` built as listItems 3 and `under 80 words` built as a word limit naming 80, no built check outside the list's rows, and no follower row with a null part; (c) flights: every `add` op the model sends is either built with words on the saved page or refused with a reason (none silently lost), and at least one model `add` is built across the 5 replies; every `~` rule is a `[you]` row; (d) total spend ≤ $0.10, every round metered.
+- Reported, deciding nothing: refused edits with reasons, ops used, time per call.
+
+### F187b RESULT (2026-11-13, paid about $0.06 all runs ($0.0199 the deciding run), `node poc/f187-rowedit/run2.mjs`, log `poc/f187-rowedit/result-3.log`, [MEASURED]): FAIL
+- Harness: run.mjs copied, block `asks:true`, `split:true`, typed Agree via `drive`; per-add log added. The vendored checkblock.js lacked the am2 fix (f148028e), so its 4-line diff was applied to `poc/f185-block/vendor/checkblock.js`. Spend beyond the deciding run: one crashed start (harness ReferenceError, 1 call), and a first full run ($0.0199, `result-3-first.log`) whose null-follower measure looked in the close map, where follower rows never sit; it falsely read a null part. The measure was changed to the row's own `part` and the run repeated. Bars untouched.
+- **(a) PASS: 10/10 readable**, 1.2 to 1.6 s per call, 10 rounds all metered.
+- **(b) PASS: 5/5.** `listItems 3` and `maxWords 80` built in every reply, no built check outside the list's rows, no follower row with a null part.
+- **(c) FAIL on the letter.** `~` rules all `[you]` (5/5), but no model `add` built with page words. Flights adds: 4, all `count`, all accepted into a row left Not checked with a reason ("a ~ rule already says it: line 2 rule 3 names the number"); none refused outright, none lost without a reason. No model fact or phrase add was sent in the deciding run (the first run had an `airline` fact held as Suggested and an `arrival time label` fact not built, with reasons). m14 adds: 9 `count`, all left Not checked with a reason ("a result count needs a fact to count" or "a ~ rule already says it"); reported, not decided.
+- **(d) PASS.** $0.0199 deciding run, 0 unmetered.
+- Refused edits: flights `reading` "already on the list" in every call. Ops: add (count), pick, reading.
+- Measures the model turn only. Nothing in src/ changed, nothing signed.
+
+## F188 (2026-11-13): does bareguard #82 (5b87539) give the same results as fwd's own sheet code on fwd's saved signed jobs? ([PRE-REGISTERED, $0])
+- How: for every saved signed fwd job with a `close.sheet` (~/.config/fwdloop/flows, read in place, found with fwd's own parser as poc/f186-reader/run.mjs does), with the table from its frozen input (src/csv.js sheetTable(parseCsv)), run each fwd function and its #82 replacement side by side: sheetCheckColumns vs vocabulary columnAt; sheetCheckReds vs checkTables; tableChecksFailingOnInput vs runTableChecks; sheetChecksProp vs checkSchema (does each saved close.sheet check validate against the new schema? use a JSON-schema validator only if fwd already depends on one, else bareguard's own if it exports one, else hand-check enum/required and say so); sheetAnswerProps (src/sheetclaims.js) vs claimSchema; sheetCheckWordReds vs groundedLiterals (text = wordsSaidOn(jobLine)). Plus one forced case each, built in the POC: a header that is not a column; a table sha mismatch (fault.inputs names it); a literal not in the words.
+- PASS if every function pair agrees on every saved job (same ok/red outcome; same column set; same failing table-check ids; every saved check validates; same claim keys), and each forced case is caught by #82. FAIL otherwise; every difference reported with its reason. Never change the bar.
+
+### F188 RESULT (2026-11-13, $0, `node poc/f188-bg82/run.mjs`, log `poc/f188-bg82/result-1.log`, [MEASURED]): FAIL
+- Data: 51 signed flows, 13 with a `close.sheet`, 27 checks (22 cells, 5 table), 16 (step, run) table sets. tableSha fwd vs #82 16/16, and #82 vs the sha in run.json 16/16.
+- **Agree on every saved job:** sheetCheckColumns vs `columnAt` 35/35 (same column set); sheetCheckReds vs checkTables 16/16 (all ok); tableChecksFailingOnInput vs runTableChecks 5/5 (1 failing, 0 stopped); sheetCheckWordReds vs groundedLiterals 27/27 (all ok; `where.cmps` equals fwd's WHERE_CMPS, same order, `cmpKinds` present).
+- **Schema:** no JSON-schema validator in fwd or bareguard, so a hand validator (type, enum, required, properties, additionalProperties, items, anyOf, min/max) was used. 35/35 saved checks validate against fwd's schema and 35/35 against #82's `checkSchema` (with `covers` stripped; `checkSchema` is closed, fwd adds `covers` itself). #82 never returned null.
+- **FAIL on the letter: claim keys 21/22.** One check differs: m10b-expenses-a `rows` op: fwd's box has `[rows]`, #82's `claimSchema` has `[rows, keys]` (rows and keys are both allowed, as the PRD's 11.4 says, since JSON schema without oneOf cannot forbid both). Related, not deciding: `required` differs on 3 `rows` checks (same reason: #82 requires neither), and `count`/`countIf`/`uniqueCount` `value` is `integer` in #82 and `number` in fwd (5 checks; #82 is stricter, which is as the PRD says).
+- Caller note, not a difference in results: `claimSchema` returns null for a check that still carries fwd's `covers` (refused as an unknown field), so fwd must pass `bareguardChecks(...)` to it as it already does to `createRubric`.
+- **Forced cases, all caught:** a header that is not a column (one `not-a-column`, field `column`; fwd also red); a table sha mismatch (`checkTables` gives `sha-mismatch` naming the table; `runTableChecks` is `stopped` with `fault.inputs` ["t"]); a literal not in the words (`groundedLiterals` missing `where[0].value`, `groundedValues` missing index 0, fwd also red).
+- Nothing in src/ changed, nothing signed.
+
+### F188b PRE-REGISTERED (2026-11-13, $0): bareguard #82 @ 327ea8d, the same peer test
+- How: poc/f188-bg82/run.mjs copied to run2.mjs pointed at a fresh `git archive 327ea8d` copy (scratch /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82b). All F188 pairs re-run unchanged. Claim bar replaced, as bareguard proposed and fwd accepts in writing here: for each of fwd's 22 saved cells checks, claimSchema (given bareguardChecks() output) requires the same box key(s) as fwd's sheetAnswerProps, except a `rows` check with keyColumn set may require {rows} OR {keys}; and `{}` is rejected by every one (hand validator honouring anyOf/required/minProperties).
+- PASS if every F188 pair other than claims is still identical, the claim bar holds 22/22, every saved check validates against checkSchema, and the 3 forced cases are still caught. FAIL otherwise. Never change the bar.
+
+### F188b RESULT (2026-11-13, $0, `node poc/f188-bg82/run2.mjs`, log `poc/f188-bg82/result-2.log`, [MEASURED]): FAIL
+- Same data as F188 (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ 327ea8d.
+- **Unchanged pairs, all identical:** tableSha 16/16 (and vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. Every saved check validates against checkSchema 35/35 (fwd's own schema 35/35); #82 never null.
+- **Claim bar: 20/22 on the letter (FAIL).** `{}` rejected 22/22; the 3 `rows` checks with keyColumn get `anyOf [{rows},{keys}]` and match; the other 19 match fwd's required key. The 2 misses are `rows` checks without keyColumn (m10-walk-csv-4 line 2, m10b-expenses line 2): claimSchema has properties [rows], minProperties 1 and no `required`, fwd's box requires [rows]. In effect equal (the only property is rows and `{}` is rejected), but `required` is empty, so the letter of "requires the same key" is not met. Bar not changed; the ambiguity is the bar's wording, for hamr to rule.
+- **Forced cases, all caught (3/3).**
+- Nothing in src/ changed, nothing signed.
+
+## F189 (2026-11-13): does DeepSeek accept bareguard #82 claimSchema boxes as a forced tool's parameters? ([PRE-REGISTERED, paid, cap $0.03])
+- How: one forced call on deepseek-flash (thinking off, fwd's call path) per distinct claimSchema shape from fwd's 22 saved cells checks (327ea8d + required on single-key boxes).
+- Reported per shape: accepted (a tool call came back) / rejected (the provider error text) / answered-but-invalid (the reply breaks the schema, by fwd's hand validator from F188). Decides nothing for fwd; it is data for bareguard.
+
+### F189 RESULT (2026-11-13, paid $0.0021, 7 calls, `poc/f189-claims/run.mjs`, log `poc/f189-claims/result-1.log`, [MEASURED]): all 7 accepted
+- 22 cells checks collapse to 7 distinct claimSchema shapes (327ea8d, plus `required:[key]` on the single-key boxes that lacked it). deepseek-flash, thinking off, forced tool `answer`, shape wrapped as one property.
+- | shape | keywords | ops | verdict |
+  |---|---|---|---|
+  | 1 | minProperties | rows (no keyColumn) | accepted, valid |
+  | 2 | plain | count/countIf/uniqueCount | accepted, valid |
+  | 3 | additionalProperties:schema + propertyNames.pattern | daysSince | accepted, valid |
+  | 4 | additionalProperties:schema + propertyNames.pattern | band | accepted, valid |
+  | 5 | plain | sumIf | accepted, valid |
+  | 6 | anyOf + minProperties | rows with keyColumn | accepted, valid |
+  | 7 | plain (array of objects) | groupTotals | accepted, valid |
+- No provider rejection; no answered-but-invalid reply (fwd's hand validator, extended for propertyNames.pattern and schema-valued additionalProperties). Unmetered 0. Decides nothing for fwd; data for bareguard.
+
+### F188c PRE-REGISTERED (2026-11-13, $0): bareguard #82 @ cc2d173, the same peer test
+- How: run2.mjs copied to run3.mjs, pointed at a fresh `git archive cc2d173` copy in /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82c. Same pairs and forced cases as F188b, same claim bar (each of the 22 saved cells checks: claimSchema requires the same key(s) as sheetAnswerProps, except a rows check with keyColumn may require {rows} OR {keys}; `{}` rejected by every one). Added forced case: a where entry with an unknown cmp -> groundedLiterals reports missing kind "invalid".
+- PASS if every pair identical, claim bar 22/22, every saved check validates against checkSchema, all forced cases caught. FAIL otherwise. Never change the bar.
+
+### F188c RESULT (2026-11-13, $0, `node poc/f188-bg82/run3.mjs`, log `poc/f188-bg82/result-3.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ cc2d173.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. Every saved check validates against checkSchema 35/35 (fwd's own 35/35); #82 never null.
+- **Claim bar: 22/22** (required keys match fwd's; rows with keyColumn rows OR keys); `{}` rejected 22/22. The F188b miss (rows without keyColumn lacking `required`) is closed.
+- **Forced cases, 4/4 caught:** not-a-column; sha-mismatch (stopped, fault.inputs ["t"]); literal not in the words (where[0].value); unknown cmp (groundedLiterals missing kind "invalid").
+- Nothing in src/ changed, nothing signed.
+
+### F188d PRE-REGISTERED (2026-11-13, $0): bareguard @ 8b40271, checkTables only
+- How: run3.mjs copied to run4.mjs pointed at a fresh `git archive 8b40271` copy in /tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/3ce0f482-5c76-4fdf-a7f3-a80f5a98d7a7/scratchpad/bg82d (node_modules symlinked to fwdloop's as in F188c). Run the full F188c set unchanged.
+- PASS if the full F188c bar holds again (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188d RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-4.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ 8b40271.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Same result as cc2d173; the checkTables change moved nothing here.
+- Nothing in src/ changed, nothing signed.
+
+### F188e PRE-REGISTERED (2026-11-13, $0): bareguard @ 10043d6, checkTables only
+- How: the same run4.mjs, unchanged, with BG= a fresh `git archive 10043d6` copy extracted to .claude/scratch/f188e/bg (node_modules symlinked to fwdloop's as in F188c/d). Only checkTables' path resolution changed upstream (longest-id match, a check must exist, a fail-closed backstop, odd ids -> one unplaced refusal).
+- PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188e RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-5.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.35.0 @ 10043d6.
+- Run note: run4.mjs reads its bareguard path from env `BG82`, not `BG`. My first run set `BG=` and so silently re-tested the old 8b40271 copy (log header named the bg82d path); it was discarded and re-run with `BG82=` pointing at the 10043d6 copy. The script is unchanged, so its log header still prints the hardcoded label "8b40271"; the path shown (.claude/scratch/f188e/bg) is the 10043d6 archive.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d; the checkTables path-resolution change moved nothing here.
+- Nothing in src/ changed, nothing signed.
+
+### F188f PRE-REGISTERED (2026-11-13, $0): published bareguard 0.36.0 from npm
+- How: the same run4.mjs, unchanged, with BG82= the extracted `npm pack bareguard@0.36.0` tarball (.claude/scratch/f188f/package, node_modules symlinked to fwdloop's as in F188c-e). Tarball version 0.36.0; `npm view bareguard@0.36.0 dist.integrity --prefer-online` = sha512-dplmYSBbBhMtcgV/xHiQEmK2rH/jBiyyak5qn8/2DBVyoJZQKnc7OtTQZVeItWX60Pe1LqCpaz3TIATebj8HQw==. This is the release of ruling #82.
+- PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188f RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-6.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.36.0 from npm (integrity above).
+- Run note: BG82= pointed at the extracted tarball; the log header names that path (.claude/scratch/f188f/package, "0.36.0"). Its "8b40271" is the script's hardcoded label, not the tested code (script unchanged).
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d and F188e; the published release moved nothing here.
+- Nothing in src/ changed, nothing signed.
+
+### F188g PRE-REGISTERED (2026-11-13, $0): installed bareguard ^0.36.0 (am4 Done-when 1)
+- How: bump package.json to `"bareguard": "^0.36.0"`, `npm install`, confirm node_modules/bareguard/package.json = 0.36.0. Then the same run4.mjs, unchanged, with BG82=/home/hamr/PycharmProjects/fwdloop/node_modules/bareguard. Now fwd's own functions use 0.36.0 too, so both sides are the installed package.
+- PASS if the F188d bar holds word for word (all pairs identical incl. sheetCheckReds vs checkTables 16/16, claim bar 22/22, {} rejected 22/22, checkSchema 35/35, forced cases 4/4 incl. not-a-column). FAIL otherwise. Never change the bar.
+
+### F188g RESULT (2026-11-13, $0, `node poc/f188-bg82/run4.mjs`, log `poc/f188-bg82/result-7.log`, [MEASURED]): PASS
+- Same data (51 flows, 13 sheet jobs, 27 checks: 22 cells, 5 table; 16 table sets). bareguard 0.36.0 installed from npm via package.json ^0.36.0; the log header names /home/hamr/PycharmProjects/fwdloop/node_modules/bareguard ("0.36.0"; its "8b40271" is the script's hardcoded label). fwd's own functions use the same installed package.
+- **Pairs, all identical:** tableSha 16/16 (vs run.json 16/16); sheetCheckColumns vs columnAt 35/35; sheetCheckReds vs checkTables 16/16; tableChecksFailingOnInput vs runTableChecks 5/5; sheetCheckWordReds vs groundedLiterals 27/27. checkSchema 35/35 (fwd's own 35/35); never null.
+- **Claim bar: 22/22**; `{}` rejected 22/22.
+- **Forced cases, 4/4 caught** (not-a-column, sha-mismatch, literal not in the words, unknown cmp). Identical to F188d-f.
+- Nothing in src/ changed, nothing signed.
+
+### F190 PRE-REGISTERED (2026-11-13, $0): rescan of every saved signed job, before vs after the bareguard 0.36.0 move (M16 Done-when; M16 am4 Done-when)
+- Why: M16 says "a $0 rescan of the good signed jobs refuses none"; am4 says "a $0 rescan of every saved sheet job gives the same reds and greens as before am4". Must fail: "a saved sheet job's red or green changes with no Drop or Add".
+- How: `node poc/f190-rescan/run.mjs <tree>` on two trees, JSON lines, diffed. BEFORE = `git archive 90260e4` (P4 done, bareguard 0.35.0 via its own `npm ci`). AFTER = `git archive HEAD` (5737ac3, bareguard 0.36.0, node_modules symlinked). Reads ~/.config/fwdloop/flows read-only. Counts, ids and fixed red-class words only; no job or cell text.
+- Per flow with a signature.json: (a) `readFlow` (signature check + `validateDeclaration` incl. `checkListReds`, the run door): ok/refused plus red classes. (b) per sheet check with a frozen input in a run folder (`readRunSheets`, the run path): `sheetCheckReds`, `sheetCheckWordReds`, and `tableChecksFailingOnInput` (table checks) red/green by flow/line/run/check id.
+- PASS if (i) AFTER refuses no flow that BEFORE accepted, and (ii) every sheet check's red/green is identical between the trees. FAIL otherwise, naming each difference by flow/line/check id. A refusal present in BOTH trees is reported and is not a FAIL of (i). The bar is not changed after the run.
+
+### F190 RESULT (2026-11-13, $0, `node poc/f190-rescan/run.mjs <tree>`, outputs `poc/f190-rescan/before.jsonl` and `after.jsonl`, [MEASURED]): PASS
+- BEFORE = 90260e4 (bareguard 0.35.0 via `npm ci`); AFTER = 5737ac3 (bareguard 0.36.0). Same data: 51 signed flows; 13 sheet jobs, 16 run folders with a frozen table, 35 check records (5 of them table checks).
+- (i) Run door (`readFlow`, incl. `checkListReds`): 51/51 accepted in BEFORE, 51/51 accepted in AFTER. Refused in either tree: 0.
+- (ii) Sheet checks: `sheetCheckReds` 35/35 green in both; `sheetCheckWordReds` 35/35 green in both; `tableChecksFailingOnInput` 5 table checks, 1 red in both (the same flow/line/check id: walk-m10am32-1 line 2 `each-customer-once`, a table check that already failed on its input before am4). Differences: 0. The two JSONL files are byte-identical (`diff` empty, 91 lines each).
+- The jsonl files hold flow names, line numbers, check ids and counts only (no red classes appeared; no job or cell text).
+- Nothing in src/ changed, nothing signed.

@@ -1,0 +1,14 @@
+1. Write 3 lines about my garden from the notes
+2. ask 1h: check it with me
+3. List 3 jobs for this week from the notes
+   guardrail: exactly 3 bullets
+4. ask 1h: check it with me
+5. Write a short closing note to my neighbour
+   guardrail: under 80 words
+6. ask 1h: check it with me
+7. Write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 7 to file:/home/user/fwdloop-out
+guardrail: source notes = file:/home/user/walk/m14-garden-notes.md

@@ -12,6 +12,9 @@ export function install(usage) {
     const names = tools.map((t) => t.name);
     const answered = messages.some((m) => m.role === 'tool');
     const base = { usage, model: 'deepseek-flash' };
+    // M16 (a): the check list's own turns, answered empty
+    if (names.includes('suggest_extra_checks')) return { ...base, text: '', toolCalls: [{ id: 'l1', name: 'suggest_extra_checks', arguments: { extra: [] } }], stopReason: 'tool_calls' };
+    if (names.includes('submit_edits')) return { ...base, text: '', toolCalls: [{ id: 'e1', name: 'submit_edits', arguments: { edits: [] } }], stopReason: 'tool_calls' };
     if (names.includes('emit_declaration')) {
       return {
         ...base, text: '', toolCalls: [{ id: 'd1', name: 'emit_declaration', arguments: validArgs() }], stopReason: 'tool_calls',

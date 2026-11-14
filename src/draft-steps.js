@@ -24,7 +24,9 @@ function money(log) {
  */
 export function triesOf(rounds) {
   let no = 0;
-  return (Array.isArray(rounds) ? rounds : []).map((e, i, all) => {
+  // M16: only the declaration rounds are tries; the list's own turns (ledger-suggest, row-edit) and the looks are not
+  const declared = (Array.isArray(rounds) ? rounds : []).filter((e) => ['first', 'revision', 'structure-retry'].includes(e?.kind));
+  return declared.map((e, i, all) => {
     const again = e?.kind === 'structure-retry' && i > 0;
     if (!again) no += 1;
     const passed = e?.outcome === 'valid';

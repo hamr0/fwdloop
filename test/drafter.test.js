@@ -13,6 +13,9 @@ import {
 
 // M4d am13: the draft's limit is the cap signed in the prose, so a test sets it there (`capUsd`), not through an option.
 const withCap = (prose, cap) => prose.replace('guardrail: cap $0.25 per run', `guardrail: cap $${cap} per run`);
+// M16 (a): the job's inputs are documents, so the list's ledger-suggest and row-edit turns are two more metered rounds before the declaration rounds these tests count
+const BLOCK = 2;
+const BLOCK_KINDS = ['ledger-suggest', 'row-edit'];
 const run = (provider, { capUsd, ...extra } = {}) => {
   const fx = job2Fixture();
   return draft({ proseText: capUsd === undefined ? fx.prose : withCap(fx.prose, capUsd), provider, rates: RATES, modelId: MODEL, ...extra });
@@ -22,7 +25,7 @@ test('(a) a valid forced tool call is accepted as-is, one metered round, no conv
   const p = fakeProvider([toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.equal(r.rounds, 1);
+  assert.equal(r.rounds, 1 + BLOCK);
   assert.equal(p.calls.length, 1, 'HaltError after capture: no second paid wrap-up round');
   assert.deepEqual(p.calls[0].options.toolChoice, { name: 'emit_declaration' });
   assert.ok(r.costUsd > 0, 'cost is priced, never 0');
@@ -57,7 +60,7 @@ test('(b3) an unwired verb that never gets fixed ends red after MAX_REVISIONS, d
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'validator');
   assert.equal(r.revisions, MAX_REVISIONS);
-  assert.equal(r.rounds, 1 + MAX_REVISIONS);
+  assert.equal(r.rounds, BLOCK + 1 + MAX_REVISIONS);
   assert.ok(r.reds.some((x) => x.includes('"forget"')));
 });
 
@@ -66,9 +69,9 @@ test('(c) malformed JSON -> a structure retry, both rounds metered', async () =>
   const r = await run(p);
   assert.equal(r.ok, true);
   assert.equal(r.structureRetries, 1);
-  assert.equal(r.rounds, 2);
+  assert.equal(r.rounds, BLOCK + 2);
   assert.match(p.calls[1].messages.at(-1).content, /not valid JSON \(bad json at 9\)/);
-  assert.equal(r.log[0].outcome.startsWith('structure:'), true);
+  assert.equal(r.log[BLOCK].outcome.startsWith('structure:'), true);
 });
 
 test('(c2) truncation is named truncation, not "no tool call"; structure retries are capped', async () => {
@@ -77,7 +80,7 @@ test('(c2) truncation is named truncation, not "no tool call"; structure retries
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'structure');
   assert.equal(r.structureRetries, MAX_STRUCTURE_RETRIES);
-  assert.equal(r.rounds, MAX_REVISIONS + 1 + MAX_STRUCTURE_RETRIES, 'M4d am3 A3: two cut-offs are two failed tries, try 3 then has its structure retries');
+  assert.equal(r.rounds, BLOCK + MAX_REVISIONS + 1 + MAX_STRUCTURE_RETRIES, 'M4d am3 A3: two cut-offs are two failed tries, try 3 then has its structure retries');
   assert.match(r.reds[0], /^truncated:/);
 });
 
@@ -95,7 +98,7 @@ test('(d) a validator red -> a revision whose prompt carries the reds; a fixed d
   const r = await run(p);
   assert.equal(r.ok, true);
   assert.equal(r.revisions, 1);
-  assert.equal(r.rounds, 2);
+  assert.equal(r.rounds, BLOCK + 2);
   const prompt = p.calls[1].messages.at(-1).content;
   assert.match(prompt, /REFUSED by the validator/);
   assert.match(prompt, /ask at line 4 has no step bound to it/);
@@ -105,10 +108,10 @@ test('(e1) the per-draft budget stops the next round, priced and returned', asyn
   const bad = validArgs();
   bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([toolReply(bad)]);
-  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
+  const r = await run(p, { capUsd: ceilingCostUsd(RATES) + 0.0002 + BLOCK * 0.00054 }); // round 1 fits; one done ($0.0005) + another ceiling round would cross
   assert.equal(r.ok, false);
   assert.equal(r.stop, 'budget');
-  assert.equal(r.rounds, 1);
+  assert.equal(r.rounds, 1 + BLOCK);
   assert.equal(p.calls.length, 1);
   assert.ok(r.costUsd > 0);
 });
@@ -143,10 +146,13 @@ test('draft() live path runs against a ticked Settings line and the wire carries
     req.on('data', (c) => { raw += c; });
     req.on('end', () => {
       body = JSON.parse(raw);
+      // M16 (a): the list's own turns (ledger-suggest, row-edit) are answered empty by the name of the forced tool; the declaration turn is the last request
+      const asked = body.tools?.[0]?.function?.name ?? 'emit_declaration';
+      const answer = { emit_declaration: validArgs(), suggest_extra_checks: { extra: [] }, submit_edits: { edits: [] } }[asked];
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         choices: [{ finish_reason: 'tool_calls', message: { content: '', tool_calls: [
-          { id: 't1', type: 'function', function: { name: 'emit_declaration', arguments: JSON.stringify(validArgs()) } }] } }],
+          { id: 't1', type: 'function', function: { name: asked, arguments: JSON.stringify(answer) } }] } }],
         model: 'deepseek-flash',
         usage: { prompt_tokens: 1000, completion_tokens: 200, prompt_tokens_details: { cached_tokens: 0 } },
       }));
@@ -219,7 +225,7 @@ test('(f1) a structure retry after a validator revision keeps the validator reds
   const p = fakeProvider([toolReply(bad), textReply(), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.deepEqual(r.log.map((e) => e.kind), ['first', 'revision', 'structure-retry']);
+  assert.deepEqual(r.log.map((e) => e.kind), [...BLOCK_KINDS, 'first', 'revision', 'structure-retry']);
   const retryUser = p.calls[2].messages.find((m) => m.role === 'user').content;
   assert.match(retryUser, /not a usable tool call/);
   assert.match(retryUser, /"forget"/, 'the validator red is still in the retry prompt');
@@ -230,7 +236,7 @@ test('(f2) a structure retry with no prior validator reds carries none, and a re
   bad.steps[2].primitives = ['forget'];
   const p = fakeProvider([textReply(), toolReply(bad), toolReply(validArgs())]);
   const r = await run(p);
-  assert.deepEqual(r.log.map((e) => e.kind), ['first', 'structure-retry', 'revision']);
+  assert.deepEqual(r.log.map((e) => e.kind), [...BLOCK_KINDS, 'first', 'structure-retry', 'revision']);
   const retryUser = p.calls[1].messages.find((m) => m.role === 'user').content;
   assert.ok(!/refused by the validator/.test(retryUser));
 });
@@ -241,8 +247,8 @@ test('(log) each try keeps the raw answer: parsed args per try, raw arguments wh
   const p = fakeProvider([malformedReply(), toolReply(bad), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.ok, true);
-  assert.equal(r.log[0].rawArguments, '{"steps":[}');
-  assert.equal(r.log[0].args, undefined);
-  assert.deepEqual(r.log[1].args.steps[2].primitives, ['forget'], 'the model\'s own declaration, not the code-overwritten one');
-  assert.deepEqual(r.log[2].args, validArgs());
+  assert.equal(r.log[BLOCK].rawArguments, '{"steps":[}');
+  assert.equal(r.log[BLOCK].args, undefined);
+  assert.deepEqual(r.log[BLOCK + 1].args.steps[2].primitives, ['forget'], 'the model\'s own declaration, not the code-overwritten one');
+  assert.deepEqual(r.log[BLOCK + 2].args, validArgs());
 });

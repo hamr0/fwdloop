@@ -39,7 +39,11 @@ test('the sign row carries notChecked {label, items} word for word', async () =>
   const d = await cliDraft(['whether the tone suits the reader', '  the JD match  ']);
   const s = sign(d);
   assert.equal(s.ok, true, JSON.stringify(s.reds));
-  assert.deepEqual(signRow(d).notChecked, { label: NOT_CHECKED_LABEL, items: ['whether the tone suits the reader', 'the JD match'] });
+  assert.deepEqual(signRow(d).notChecked, {
+    label: NOT_CHECKED_LABEL,
+    items: ['whether the tone suits the reader', 'the JD match'],
+    by: { 'whether the tone suits the reader': 'agent', 'the JD match': 'agent' },
+  });
 });
 
 test('a draft that listed nothing records the label and an empty list', async () => {

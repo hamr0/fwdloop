@@ -16,6 +16,8 @@ killChildrenAfter();
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const run = (provider, extra = {}) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra });
 
+const dl = (r) => r.log.filter((e) => ['first', 'revision', 'structure-retry'].includes(e.kind)); // M16 (a): the list's two turns are extra log rows; these tests are about the declaration rounds
+
 test('A: bare-agent 0.59.0 is installed and package.json asks for it', () => {
   const v = JSON.parse(readFileSync(new URL('../node_modules/bare-agent/package.json', import.meta.url), 'utf8')).version;
   assert.match(v, /^0\.52\.|^0\.5[3-9]\.|^0\.[6-9]\d\./);
@@ -63,8 +65,8 @@ test('D1: each round records its thinkingStatus (and thinkingApplied stays); the
   ]);
   const r = await run(p, { draftThinking: 'off' });
   assert.equal(r.ok, true);
-  assert.deepEqual(r.log.map((e) => e.thinkingStatus), ['unknown', 'ignored']);
-  assert.equal(r.log[1].thinkingApplied, false);
+  assert.deepEqual(dl(r).map((e) => e.thinkingStatus), ['unknown', 'ignored']);
+  assert.equal(dl(r)[1].thinkingApplied, false);
   assert.deepEqual(r.thinking, { asked: 'off', status: 'ignored', say: 'thinking on (the model thought anyway)' });
 });
 

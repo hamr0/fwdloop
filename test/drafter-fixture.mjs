@@ -47,10 +47,15 @@ export const malformedReply = () => ({ text: '', toolCalls: [], usage: usage(80)
 /** A scripted provider: replies[i] answers call i (the last repeats). Records every call. */
 export function fakeProvider(replies) {
   const calls = [];
+  const blockCalls = [];
   const provider = {
     lastMalformedToolCall: null,
     calls,
+    blockCalls,
     async generate(messages, tools, options) {
+      // M16 (a) missing stub: the check block's own turns (ledger-suggest, row-edit) get an empty answer and take no place in the declaration queue these scripts are about
+      const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [] } }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
+      if (blockTurn) { blockCalls.push(tools[0].name); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
       calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });
       const r = replies[Math.min(calls.length - 1, replies.length - 1)];
       this.lastMalformedToolCall = r.malformedToolCall ?? null;

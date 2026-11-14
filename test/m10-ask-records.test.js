@@ -68,7 +68,7 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   // M10 am29: the Audit row shows the question as the panel does (no `Answer "agree"…` tail); the stored question is whole
   assert.equal(shown[0].action, `you were asked: ${panelQuestionText(rows[0])}`);
   assert.ok(rows[0].question.includes('Answer "agree"') && !shown[0].action.includes('Answer "agree"'), shown[0].action);
-  assert.equal(shown[0].gap, 'you said: agree [you picked]');
+  assert.equal(shown[0].gap, 'you said: agree [you]');
   assert.equal(shown[1].gap, 'you said: drop it');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
   // 3. the signed job: the agreed reading is a new ~ line (the dropped rule adds none)

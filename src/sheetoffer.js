@@ -1,5 +1,5 @@
 // M10b piece 3 (docs/wiki/the-module-ladder.md "M10b scope" item 4): what the drafter is OFFERED for a sheet. Things, each once:
-//   - `sheetChecksProp`      the tool schema of `close.sheet`, GENERATED from bareguard's `rubricVocabulary` (fields, ops, date formats), never hand-copied. Every field that
+//   - `sheetChecksProp`      the tool schema of `close.sheet`: bareguard's `checkSchema` (fields, ops, date formats), never hand-copied, plus fwdloop's own `covers`. Every field that
 //                            names a column is a JSON-schema `enum` of the sheet's exact header strings, so the model can only pick one (code still re-checks, piece 1);
 //   - `sheetOpsBrief`        the plain list of every op with its summary, what it requires and allows, and bareguard's worked example check, generated the same way;
 //   - `isColumnChoiceRule`   the agreed-column rule, covered by the column lock.
@@ -7,80 +7,52 @@
 // stripped only on the way into bareguard (src/sheetchecks.js `bareguardChecks`) and read by src/sheetblock.js. A field type the vocabulary gains that this file does not know
 // THROWS at build time (a bareguard upgrade fails loud, it never silently drops a field).
 // Third outcomes, named: a sheet with no header (no enum can be built: no sheet schema is offered).
-import { rubricVocabulary } from 'bareguard';
-import {
-  SHEET_RULES, MAX_SHEET_CHECKS, COLUMN_STRING_FIELDS, COLUMN_OPERAND_FIELDS, COLUMN_CELL_FIELDS, COLUMN_LIST_FIELDS,
-} from './sheetchecks.js';
+import { rubricVocabulary, checkSchema } from 'bareguard';
+import { SHEET_RULES, MAX_SHEET_CHECKS } from './sheetchecks.js';
 import { columnRuleWords } from './sheetlook.js';
 
 const V = /** @type {any} */ (rubricVocabulary);
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-/** The comparisons of a `where` condition. bareguard publishes them only inside the `where` description (no list), so this is the one copy; a test proves each is named there. */
-export const WHERE_CMPS = Object.freeze(['gt', 'gte', 'lt', 'lte', 'eq', 'between', 'before', 'after', 'dateBetween', 'dateOn', 'equals', 'empty', 'notEmpty']);
+/** The comparisons of a `where` condition, as bareguard's vocabulary lists them. */
+export const WHERE_CMPS = Object.freeze([...V.rules.cells.fields.where.cmps]);
 
 /** @param {Record<string, {header: string[]}>} tables @returns {string[]} the exact header strings of every sheet, once each, in order */
 const headerUnion = (tables) => [...new Set(Object.values(tables).flatMap((t) => t.header))];
 
-/**
- * The JSON schema of one vocabulary field. `col` = the schema every column name uses (an enum of the header).
- * @param {string} key @param {any} f @param {Record<string, any>} col @param {string[]} roles @returns {Record<string, any>|null} null = not offered
- */
-function fieldSchema(key, f, col, roles) {
-  const d = f.description ? { description: f.description } : {};
-  if (key === 'table') return { type: 'string', enum: roles, description: 'the role of the CSV input this check reads (also in the step\'s reads)' };
-  if (key === 'claim') return { type: 'string', minLength: 1, maxLength: 128, description: 'a cells check only: a short name for the field that holds the step\'s answer to this check; the step is told the shape of the answer, never the check', };
-  if (COLUMN_STRING_FIELDS.includes(key)) return { ...col, ...d };
-  if (COLUMN_OPERAND_FIELDS.includes(key)) return { anyOf: [col, { type: 'object', properties: { const: { type: 'number' } }, required: ['const'], additionalProperties: false }], ...d };
-  switch (f.type) {
-    case 'name': case 'string': return { type: 'string', ...d };
-    case 'explanation': return null; // free text: never offered (a check carries no prose)
-    case 'date': return { type: 'string', ...d };
-    case 'integer': return { type: 'integer', ...d };
-    case 'number': return { type: 'number', ...d };
-    case 'boolean': return { type: 'boolean', ...d };
-    case 'enum': return { type: 'string', enum: f.enum, ...d };
-    case 'range': return { type: 'object', properties: { from: { type: 'integer' }, to: { type: 'integer' } }, required: ['from', 'to'], additionalProperties: false, ...d };
-    case 'cell': return { type: 'object', properties: { column: col, row: { type: 'integer' } }, required: ['column', 'row'], additionalProperties: false, ...d };
-    case 'condition-list': return { type: 'array', items: { type: 'object', properties: { column: col, cmp: { type: 'string', enum: [...WHERE_CMPS] }, value: {}, lo: {}, hi: {} }, required: ['column', 'cmp'], additionalProperties: false }, ...d };
-    case 'date-format-list': return { type: 'array', items: { type: 'object', properties: { column: col, format: { type: 'string', enum: V.cells.dateFormats } }, required: ['column', 'format'], additionalProperties: false }, ...d };
-    case 'band-list': return { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, gt: { type: 'number' }, gte: { type: 'number' }, lt: { type: 'number' }, lte: { type: 'number' } }, required: ['name'], additionalProperties: false }, ...d };
-    default: throw new Error(`sheetoffer: bareguard's rubricVocabulary has a field type "${f.type}" (${key}) this file does not know - add it before offering sheet checks`);
-  }
-}
+/** what the drafter is told about a field, in fwdloop's words where they steer a draft better than bareguard's */
+const DRAFTER_WORDS = Object.freeze({
+  id: 'a short unique name for this check',
+  rule: 'cells: the step gives a value that bareguard recomputes; table: bareguard judges the sheet itself',
+  table: 'the role of the CSV input this check reads (also in the step\'s reads)',
+  claim: 'a cells check only: a short name for the field that holds the step\'s answer to this check; the step is told the shape of the answer, never the check',
+  op: 'a cells op goes with rule "cells", a table op with rule "table" (listed in the system prompt)',
+});
 
 /**
- * The tool schema of `close.sheet`: a list of bareguard cells / table checks. Every field is a field of bareguard's vocabulary; every column-bearing field
- * (`column keyColumn groupColumn result a b from to cell where[].column dateFormats[].column`) is an enum of the sheet's exact header. `covers` is fwdloop's own field
- * (which `~` rules of the job line the check covers), kept and signed.
+ * The tool schema of `close.sheet`: a list of bareguard cells / table checks. The check's schema is bareguard's `checkSchema` (every column-bearing field an enum of the sheet's
+ * exact header, `table` an enum of the roles, one `op` enum); fwdloop drops what a check must not carry (the free-text `explanation` fields: a check carries no prose), puts its
+ * own words on id / rule / table / claim / op, and adds `covers` (which `~` rules of the job line the check covers), kept and signed.
  * @param {Record<string, {header: string[]}>} tables the drafting copy's table of each CSV input role
  * @returns {Record<string, any>|null} null when there is no sheet with a header to pick from
  */
 export function sheetChecksProp(tables) {
   const roles = Object.keys(tables);
-  const headers = headerUnion(tables);
-  if (roles.length === 0 || headers.length === 0) return null;
-  const col = { type: 'string', enum: headers };
+  const schema = /** @type {any} */ (checkSchema({ rules: /** @type {('cells'|'table')[]} */ ([...SHEET_RULES]), columns: headerUnion(tables), tables: roles }));
+  if (roles.length === 0 || schema === null) return null;
   /** @type {Record<string, any>} */
-  const props = {
-    id: { type: 'string', minLength: 1, description: 'a short unique name for this check' },
-    rule: { type: 'string', enum: [...SHEET_RULES], description: 'cells: the step gives a value that bareguard recomputes; table: bareguard judges the sheet itself' },
-  };
-  for (const r of SHEET_RULES) {
-    for (const [k, f] of Object.entries(V.rules[r].fields)) {
-      if (k === 'op' || props[k] !== undefined) continue;
-      const s = fieldSchema(k, f, col, roles);
-      if (s !== null) props[k] = s;
-    }
-  }
-  props.op = { type: 'string', enum: [...new Set(SHEET_RULES.flatMap((r) => Object.keys(V.rules[r].ops)))], description: 'a cells op goes with rule "cells", a table op with rule "table" (listed in the system prompt)' };
+  const props = { ...schema.properties };
+  for (const r of SHEET_RULES) for (const [k, f] of Object.entries(V.rules[r].fields)) if (/** @type {any} */ (f).type === 'explanation') delete props[k];
+  for (const [k, d] of Object.entries(DRAFTER_WORDS)) if (props[k]) props[k] = { ...props[k], description: d };
+  // the left operand `a` is offered the same two shapes as `b` (bareguard's own `b` schema; a `{const}` there is refused by createRubric, as before)
+  if (props.a && props.b?.anyOf) props.a = { ...props.b, description: props.a.description, anyOf: [props.a, props.b.anyOf[1]] };
   props.covers = { type: 'array', items: { type: 'integer', minimum: 1 }, description: 'the numbers of the line\'s ~ guardrail rules this check verifies (1 is its first rule); [] when it verifies none of them' };
   return {
     type: 'array',
     minItems: 1,
     maxItems: MAX_SHEET_CHECKS,
     description: 'only on a green step that reads a CSV input: the checks bareguard runs on the step\'s answer. Omit on any other step',
-    items: { type: 'object', properties: props, required: ['id', 'rule', 'table', 'op', 'covers'], additionalProperties: false },
+    items: { type: 'object', properties: props, required: [...schema.required, 'covers'], additionalProperties: false },
   };
 }
 

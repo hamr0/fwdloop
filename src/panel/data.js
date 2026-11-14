@@ -40,8 +40,11 @@ import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
-import { checkedLines, notCheckedView, NOT_CHECKED_LABEL } from '../checked.js';
-import { LABEL_PICKED } from '../checkwords.js';
+import { checkedLines, notCheckedView, notCheckedLabelOf, listPartRows } from '../checked.js';
+import { EVERY_STEP_TEXTS } from '../try-checks.js';
+import { LABEL_PICKED, tagOf } from '../checkwords.js';
+import { listLinesOf } from '../checklistsign.js';
+import { auditChecksOf } from '../auditchecks.js';
 import { panelQuestionText } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
@@ -1543,7 +1546,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   }
   const send = ctx.arbiter && Array.isArray(ctx.arbiter.sends) ? ctx.arbiter.sends.find((x) => x.target && typeof x.target.path === 'string') : undefined;
   const endedPlain = endedWords({
-    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason,
+    outcome, died, line, destination: send ? send.target.path : null, canResume: ctx.resumable === true && ctx.sameJob === true, home, skipReason: ctx.historyRow?.skipReason, anywayOffered: newTicketScheduleOf(ctx.flowDir) !== null,
   });
   // M9 am7 item 1: ENDED opens with the run's local end date and time, then its outcome word, then today's reason (NEXT stays as it was)
   const ended = endedPlain === null ? null : {
@@ -1563,6 +1566,15 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
   const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
   return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
+}
+
+/**
+ * M13 am10: the job's schedule when it is a new-ticket one, else null. The one test for "the panel has Run it anyway here": the grid's `anyway` and the skipped run's next line both ask it.
+ * @param {string} flowDir
+ */
+function newTicketScheduleOf(flowDir) {
+  const sched = readSchedule(flowDir);
+  return sched && sched.trigger?.kind === 'new-ticket' ? sched : null;
 }
 
 /**
@@ -1899,6 +1911,8 @@ export function draftTotals(modelRows, ctx = {}) {
  */
 export function getDraftBlock(flowDir, runDir) {
   const setup = readSetup(flowDir);
+  // M16 item 5: a plan with a list tags the rule a person's answer added `[you]` (a row's `by`), an older plan keeps `[you picked]`
+  const youTag = (() => { try { const d = readFileInside(flowDir, 'declaration.json'); return d.ok && listLinesOf(JSON.parse(d.text)).size > 0 ? tagOf('you') : LABEL_PICKED; } catch { return LABEL_PICKED; } })();
   const rows = [];
   const human = (r, attempt, extra) => ({
     attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
@@ -1934,6 +1948,7 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'revise') happened.push(r.verdict === 'red' ? 'revise red' : `revising${retry(r)}`);
       else if (r.kind === 'redraft') happened.push(r.verdict === 'red' ? 'redraft red' : `redrafting with your answers${retry(r)}`);
       else if (r.kind === 'human') happened.push('your answer');
+      else if (r.kind === 'rowedit') happened.push(r.op === 'drop' ? 'you dropped a check' : 'you added a check');
       else if (r.kind === 'sign') happened.push(`signed (${r.signedBy ?? 'you'})`);
       if (r.kind === 'card') {
         const c = r.card && typeof r.card === 'object' ? r.card : {};
@@ -1942,7 +1957,9 @@ export function getDraftBlock(flowDir, runDir) {
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
-      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${LABEL_PICKED}` : ''}` }));
+      else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${youTag}` : ''}` }));
+      // M16 item 5: a Drop or an Add on the card: a human row, $0, no model
+      else if (r.kind === 'rowedit') rows.push(human(r, n, { action: r.op === 'drop' ? 'you dropped a check' : 'you added a check', gap: String(r.key ?? '') }));
       else if (r.kind === 'draft') { rows.push(model(r, n, 'draft')); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'change') { rows.push(model(r, n, `change ${r.n}`)); rows.push(...tryRows(r, n)); }
       else if (r.kind === 'startover') { rows.push(model(r, n, 'start over')); rows.push(...tryRows(r, n)); }
@@ -2018,7 +2035,7 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
  * shared-sidecar contamination risk here the way bareloop's gate-audit
  * sidecar had). `null` when the flow/runId doesn't resolve (404).
  * @param {{root: string, flow: string, runId: string, scheduleRead?: (flow: string) => any, home?: string, catalogue?: any, resumeAttempt?: (flow: string, runId: string) => any, startingRun?: (flow: string, runId: string) => boolean, now?: () => number}} opts
- * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
+ * @returns {{flow:string, runId:string, rows:any[], groups:any[], draft:ReturnType<typeof getDraftBlock>, auditChecks: ReturnType<typeof auditChecksOf>, learnings: any[], needsLeft: string|null, schedule: ReturnType<typeof scheduleAuditWords>, empty:boolean, why:string|null}|null}
  */
 export function getRunAudit({
   root, flow, runId, scheduleRead, home, catalogue, resumeAttempt, startingRun, now = Date.now,
@@ -2046,6 +2063,15 @@ export function getRunAudit({
     // never a second, client-side re-grouping.
     groups,
     draft: getDraftBlock(run.flowDir, run.runDir),
+    // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result; null for a plan with no list
+    auditChecks: (() => {
+      if (!catalogue) return null;
+      const job = readRunJob({ root, name: flow, catalogue, runDir: run.runDir }).read;
+      if (!job.ok) return null;
+      const setup = readSetup(run.flowDir);
+      const sign = setup.present ? setup.rows.findLast((/** @type {any} */ r) => r.kind === 'sign') : undefined;
+      return auditChecksOf(job.declaration, readChecks(run.runDir), sign?.notChecked ?? null, { lines: job.lines, csvRoles: csvRolesOf(job.arbiter) });
+    })(),
     // M8 item 6: what the planner was told from earlier runs, READ-ONLY (borrowed-from: bareloop src/panel/server.js@v0.46.0:1854): the exact block as the run's record kept it, `hints` = the same text split
     // into fields by learn.js's parseHintBlock (the one reader). Empty (no box) when the run was handed nothing: no record, or a run that reused its plan.
     learnings: (() => { const rec = readLearningsRecord(run.runDir); return rec === null ? [] : [{ phase: rec.phase, text: rec.text, chars: rec.text.length, ids: rec.ids, hints: parseHintBlock(rec.text) }]; })(),
@@ -2082,16 +2108,19 @@ export function getRunAudit({
  */
 function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /** @type {any[]|undefined} */ (undefined), csvRoles = /** @type {string[]} */ ([])) {
   const lines = checkedLines(declaration, { askLines: asks.map((x) => x.line), lines: jobLines, csvRoles });
+  const onList = listLinesOf(declaration); // M16 P4c: a step on a list line carries its check rows apart (the page draws them under the job line, as bareloop's Job tab does)
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
+    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st).map((r) => ({ text: r.text, by: r.by })) : null;
     return {
       step: i + 1,
       line: Number.isInteger(st.fromLine) ? st.fromLine : null,
       reads: Array.isArray(st.reads) ? st.reads : [],
       makes: typeof st.emits === 'string' ? st.emits : null,
       mayDo: Array.isArray(st.primitives) ? st.primitives : [],
-      check: lines[i].sentences,
+      check: listRows ? lines[i].sentences.slice(0, lines[i].sentences.length - listRows.length) : lines[i].sentences,
+      ...(listRows ? { listRows } : {}),
       checkClass: lines[i].class,
       sheet: lines[i].sheet ?? null,
       ask: !!ak,
@@ -2107,7 +2136,10 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const nc = ofThisJob ? signRow?.notChecked : undefined;
   const recorded = !!nc && Array.isArray(nc.items);
   const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
-  return { steps, notChecked: { label: NOT_CHECKED_LABEL, items: view.items, readNotes: view.readNotes, recorded } };
+  return {
+    steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded, ...(onList.size > 0 && nc?.by && typeof nc.by === 'object' ? { by: nc.by } : {}) },
+    ...(onList.size > 0 ? { always: [...EVERY_STEP_TEXTS] } : {}),
+  };
 }
 
 /**
@@ -2343,8 +2375,8 @@ export function getJobGrid({
       reason: g.glyph === '[–]' ? g.label.replace(/^skipped — ?/, '') || null : null,
     });
   }
-  const sched = readSchedule(flowDir);
-  const from = sched && sched.trigger?.kind === 'new-ticket' && typeof sched.from === 'string' ? sched.from : null;
+  const sched = newTicketScheduleOf(flowDir);
+  const from = sched && typeof sched.from === 'string' ? sched.from : null;
   const list = from !== null && ticketScheduleOf(flowDir, from) !== null ? getTicketList({
     root, flow, runId: from, catalogue,
   }) : null;

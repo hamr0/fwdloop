@@ -16,7 +16,7 @@ function recProvider(replies) {
   const inner = p.generate.bind(p);
   p.schemas = [];
   p.generate = async (messages, tools, options) => {
-    p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters)));
+    if (tools[0]?.name === 'emit_declaration') p.schemas.push(JSON.parse(JSON.stringify(tools[0].parameters))); // M16 (a): the declaration rounds only (the list's two turns are answered by fakeProvider)
     return inner(messages, tools, options);
   };
   return p;
@@ -360,7 +360,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const g = await settleOn(w, id, ['green', 'red', 'stopped', 'questions-open']);
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g));
-  assert.equal(g.notChecked.label, NOT_CHECKED_LABEL);
+  assert.equal(g.notChecked.label, 'Not checked');
   assert.deepEqual(g.notChecked.items, ['whether the tone suits the role']);
   assert.deepEqual(g.notChecked.readNotes, [], 'no code note on this plan: the list is there and empty');
   assert.equal(g.checked.length, 5, 'one entry per step');
@@ -384,7 +384,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const w2 = await world();
   const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
-  assert.deepEqual(g2.notChecked, { label: NOT_CHECKED_LABEL, items: [], readNotes: [] });
+  assert.deepEqual(g2.notChecked, { label: 'Not checked', items: [], readNotes: [] });
 });
 
 // ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------
@@ -495,7 +495,11 @@ test('P6: Your answers sit under their line; Checked is listed; Not checked alwa
   assert.deepEqual(none.blocks[1].lines, ['The drafter listed nothing.']);
   for (const st of [null, { ...green, phase: 'red' }, { ...green, phase: 'questions-open' }, { phase: 'green' }]) assert.equal(ex(st), null);
   // the answers and the lists are escaped, never raw html
-  assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(escapeXml\)/);
+  assert.match(fnSrc('renderExtras'), /escapeXml\(b\.head\)[\s\S]*b\.lines\.map\(extraLineHTML\)/);
+  // M16 item 5: a line is a string or a row of the list; both are escaped by the one function that draws a line
+  // P4c: bareloop layout - the Drop / Add button is drawn by planControlHTML (its key escaped), no longer by extraLineHTML
+  assert.match(fnSrc('extraLineHTML'), /escapeXml\(l\)[\s\S]*escapeXml\(l\.text\)/);
+  assert.match(fnSrc('planControlHTML'), /escapeXml\(key\)/);
 });
 
 test('P7: the answer route is the same gated POST door as every author door (Host + Origin; no token or cookie, amendment 4 item 8): no / foreign Origin, foreign Host -> refused, nothing written; a GET is not a door', async () => {

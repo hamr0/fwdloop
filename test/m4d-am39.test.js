@@ -28,6 +28,8 @@ const malformed = (rawArguments) => ({
   text: '', toolCalls: [], usage: { inputTokens: 1000, outputTokens: 80 }, stopReason: 'tool_use', model: MODEL,
   malformedToolCall: { name: 'emit_declaration', rawArguments, error: 'Unexpected non-whitespace character after JSON at position 99' },
 });
+// M16 (a): the list's ledger-suggest and row-edit turns are two extra rounds in the log; these tests are about the declaration rounds
+const dl = (r) => r.log.filter((e) => ['first', 'revision', 'structure-retry'].includes(e.kind));
 const run = (provider) => draft({ proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL });
 const RETRY_WORDS = (why) => `Your last reply was not a usable tool call (${why}). Call emit_declaration now with a complete, valid JSON declaration.`;
 const WHY = "the tool call's arguments were not valid JSON (Unexpected non-whitespace character after JSON at position 99)";
@@ -39,10 +41,10 @@ test('(a) a valid plan plus one } goes green with no structure retry and the rep
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(r.structureRetries, 0);
   assert.equal(p.calls.length, 1, 'no extra round');
-  assert.equal(r.rounds, 1);
-  assert.deepEqual(r.log[0].braceRepair, { dropped: '}', used: true });
-  assert.equal(r.log[0].rawArguments, raw, 'the raw text is still kept');
-  assert.equal(r.log[0].outcome, 'valid');
+  assert.equal(r.rounds, 1 + 2); // + the list's two turns
+  assert.deepEqual(dl(r)[0].braceRepair, { dropped: '}', used: true });
+  assert.equal(dl(r)[0].rawArguments, raw, 'the raw text is still kept');
+  assert.equal(dl(r)[0].outcome, 'valid');
 });
 
 test('(b)+(c) a repaired answer with an unknown key is not used: today\'s structure retry, same words, logged used:false', async () => {
@@ -52,12 +54,12 @@ test('(b)+(c) a repaired answer with an unknown key is not used: today\'s struct
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(r.structureRetries, 1);
   assert.equal(p.calls.length, 2);
-  assert.deepEqual(r.log[0].braceRepair, { dropped: '}', used: false });
-  assert.equal(r.log[0].rawArguments, raw);
-  assert.equal(r.log[0].outcome, `structure: ${WHY}`);
-  assert.deepEqual(r.log.map((e) => e.kind), ['first', 'structure-retry']);
+  assert.deepEqual(dl(r)[0].braceRepair, { dropped: '}', used: false });
+  assert.equal(dl(r)[0].rawArguments, raw);
+  assert.equal(dl(r)[0].outcome, `structure: ${WHY}`);
+  assert.deepEqual(dl(r).map((e) => e.kind), ['first', 'structure-retry']);
   assert.equal(p.calls[1].messages.at(-1).content, RETRY_WORDS(WHY));
-  assert.equal(r.log[0].retention, undefined);
+  assert.equal(dl(r)[0].retention, undefined);
 });
 
 test('an unknown-key repair that goes on failing keeps the structure cap, then stops as structure', async () => {
@@ -77,7 +79,7 @@ test('any other validator red on a repaired answer goes back as a normal revisio
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.equal(r.structureRetries, 0);
   assert.equal(r.revisions, 1);
-  assert.deepEqual(r.log[0].braceRepair, { dropped: '}', used: true });
+  assert.deepEqual(dl(r)[0].braceRepair, { dropped: '}', used: true });
   assert.match(p.calls[1].messages.at(-1).content, /"forget"/);
 });
 
@@ -85,5 +87,5 @@ test('trailing junk that is not } is never repaired: today\'s structure retry', 
   const p = fakeProvider([malformed(`${JSON.stringify(validArgs())}]`), toolReply(validArgs())]);
   const r = await run(p);
   assert.equal(r.structureRetries, 1);
-  assert.equal(r.log[0].braceRepair, undefined);
+  assert.equal(dl(r)[0].braceRepair, undefined);
 });

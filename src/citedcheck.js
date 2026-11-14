@@ -18,6 +18,7 @@ import { createRubric, checkStep } from 'bareguard';
 import { plainWords } from './checkwords.js';
 import { asList, FACT_OPS, boundOk, MAX_CURRENCIES, MAX_UNITS, MAX_UNIT_CHARS } from './pagebits.js';
 import { ruleWords, moneyAs } from './pageask.js';
+import { placeRuleProblem } from './placerule.js';
 
 /** the shapes a fact may have (bareguard's value kinds, plus `phrase` = a presence decide) */
 export const FACT_SHAPES = Object.freeze(['money', 'number', 'date', 'time', 'phrase', 'text']);
@@ -29,7 +30,8 @@ export const CITED_ID = 'facts';
 
 /** every field a fact part may carry, and every field a fact may carry */
 const PART_FIELDS = Object.freeze(['source', 'facts', 'count']);
-const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anchor', 'until', 'rule']);
+// borrowed-from: bareloop src/facts.js@v0.56.0 (3383cce) (M16 am3 (3): the fields lang, decimal, place, aiProposal; FACT_LANGS, FACT_DECIMALS, moneyForms, factPartOf, factShapeReds, writtenSpans below; factDecides, factClaims, factSentence taken up to it)
+const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anchor', 'until', 'rule', 'aiProposal', 'lang', 'decimal', 'place']);
 const NAME_RE = /^[A-Za-z][A-Za-z _-]{0,63}$/;
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -102,6 +104,11 @@ export function factPartReds(part) {
     if (f.shape !== 'money' && (f.unit !== undefined || f.currency !== undefined)) reds.push(`${w} "${f.name}": only money has a unit or a currency`);
     if (f.shape === 'phrase') for (const k of ['anchor', 'until', 'rule']) if (f[k] !== undefined) reds.push(`${w} "${f.name}": a phrase is fixed words the quote must contain; it has no ${k}`);
     if (f.shape !== 'phrase' && f.phrase !== undefined) reds.push(`${w} "${f.name}": only a phrase fact carries phrase`);
+    // the four fields of bareloop v0.56.0 (M16 am3 (3)); each is checked only when present, so a fact without them is judged exactly as before
+    if (f.lang !== undefined && (f.shape !== 'date' || typeof f.lang !== 'string' || !Object.hasOwn(FACT_LANGS, f.lang))) reds.push(`${w} "${f.name}": lang is for a date fact, one of ${Object.keys(FACT_LANGS).join(', ')}`);
+    if (f.decimal !== undefined && ((f.shape !== 'number' && f.shape !== 'money') || !FACT_DECIMALS.includes(f.decimal))) reds.push(`${w} "${f.name}": decimal is for a number or money fact, "." or ","`);
+    if (f.place !== undefined) { const bad = f.shape === 'phrase' ? placeRuleProblem(f.place) : 'only a phrase fact carries a place rule'; if (bad !== null) reds.push(`${w} "${f.name}": ${bad}`); }
+    if (f.aiProposal !== undefined && typeof f.aiProposal !== 'boolean') reds.push(`${w} "${f.name}": aiProposal is true or false`);
     if (f.until !== undefined && (f.anchor === undefined || f.shape !== 'text')) reds.push(`${w} "${f.name}": until closes a text fact that has an anchor, and nothing else`);
     if (asList(f.currency).length > MAX_CURRENCIES) reds.push(`${w} "${f.name}": at most ${MAX_CURRENCIES} currencies`);
     if (asList(f.unit).length > MAX_UNITS || asList(f.unit).some((u) => u.length > MAX_UNIT_CHARS)) reds.push(`${w} "${f.name}": at most ${MAX_UNITS} units of ${MAX_UNIT_CHARS} characters`);
@@ -132,6 +139,8 @@ export function factDecides(part) {
     const d = { valueKind: f.shape };
     if (f.shape === 'money') { if (f.unit !== undefined) d.unit = f.unit; if (f.currency !== undefined) d.currency = f.currency; }
     if (f.anchor !== undefined) d.anchor = f.anchor;
+    if (f.lang !== undefined) d.lang = f.lang;
+    if (f.decimal !== undefined) d.decimal = f.decimal;
     if (f.until !== undefined) d.until = f.until;
     if (f.rule) {
       d.op = f.rule.op;
@@ -145,11 +154,12 @@ export function factDecides(part) {
  * The claims bareguard reads, built from the step's `results`. The claim TEXT is written here from the values the step gave (`name: value; name: value`),
  * a phrase fact contributes its own signed words. A result that is not an object, or has no string quote, still becomes a claim (an empty one) so
  * bareguard reds it by name rather than the result vanishing.
- * @param {any} part @param {unknown} results @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
+ * `asWritten` (bareloop v0.56.0): per result, per fact index, the value as the page writes it, for the claim's words of a date or amount a page form signs.
+ * @param {any} part @param {unknown} results @param {Record<number, string>[]} [asWritten] @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
  */
-export function factClaims(part, results) {
+export function factClaims(part, results, asWritten = []) {
   const list = Array.isArray(results) ? results : [];
-  return list.map((/** @type {any} */ r) => {
+  return list.map((/** @type {any} */ r, /** @type {number} */ i) => {
     const given = isRec(r) && isRec(r.values) ? r.values : null;
     /** @type {Record<string, any>} */
     const values = {};
@@ -160,7 +170,7 @@ export function factClaims(part, results) {
       const v = given && Object.hasOwn(given, f.name) ? given[f.name] : undefined;
       // a JSON number is the value as written ("389"): converted, never repaired; anything else is left for bareguard to red
       const s = typeof v === 'number' && Number.isFinite(v) ? String(v) : v;
-      if (typeof s === 'string') { values[`d${j}`] = s; said.push(`${f.name}: ${s}`); } else if (s !== undefined) values[`d${j}`] = s;
+      if (typeof s === 'string') { values[`d${j}`] = s; said.push(`${f.name}: ${asWritten[i]?.[j] ?? s}`); } else if (s !== undefined) values[`d${j}`] = s;
     });
     return { claim: said.join('; '), quote: isRec(r) && typeof r.quote === 'string' ? r.quote : '', values };
   });
@@ -184,18 +194,163 @@ export function buildCitedSpec(part, sha256) {
  * @param {any} f @param {string} source @returns {string}
  */
 export function factSentence(f, source) {
+  // PLACE RULES (v0.56.0): a check that reads WHERE the newest value sits, not what it is; the phrase shown is the signed drafting example
+  if (f.shape === 'phrase' && isRec(f.place)) return `${f.place.kind === 'headingDateAfter' ? 'date' : 'version'} in the newest "${f.place.prefix}" heading (last read ${f.phrase})`;
   /** @type {string[]} */
   const bits = [];
   if (f.shape === 'phrase') bits.push('phrase', `must say "${f.phrase}"`);
   else {
-    bits.push(f.shape === 'money' ? `money in ${[...asList(f.unit), ...asList(f.currency)].join(' or ')}` : f.shape);
+    bits.push(f.shape === 'money' ? `money in ${moneyForms(f).join(' or ')}` : f.shape);
+    if (f.lang !== undefined) bits.push(`month names in ${FACT_LANGS[/** @type {keyof typeof FACT_LANGS} */ (f.lang)] ?? f.lang}`);
+    if (f.decimal === ',') bits.push('decimal comma');
     if (f.rule) bits.push(ruleWords(f));
     else if (f.anchor === undefined) bits.push('as the quote writes it');
     if (f.anchor !== undefined) bits.push(f.until !== undefined ? `the words after "${f.anchor}" up to "${f.until}"` : `after "${f.anchor}"`);
   }
   bits.push(`quoted from "${source}"`);
-  return `fact · ${f.name} — ${bits.join(', ')}`;
+  return `fact · ${f.name} — ${bits.join(', ')}${f.aiProposal ? ' — AI\'s proposal — check it' : ''}`;
 }
+
+/** the languages whose month names bareguard 0.27 reads on a `date` fact (its `lang`), each with the name a person reads; absent `lang` = ISO YYYY-MM-DD only */
+export const FACT_LANGS = Object.freeze({ en: 'English', de: 'German', fr: 'French', es: 'Spanish', it: 'Italian', pt: 'Portuguese', nl: 'Dutch' });
+
+/** the decimal marks a number or money fact may sign (bareguard 0.27 `decimal`); absent = "." */
+export const FACT_DECIMALS = Object.freeze(['.', ',']);
+
+/** every field a part of class `fact` may carry (the shared ones are checked by rubricStepShapeReds) */
+export const FACT_PART_FIELDS = PART_FIELDS;
+
+const CURRENCY_SIGNS = ['$', '€', '£'];
+
+/** @param {any} f a money fact @returns {string[]} every form the page writes the amount in: the units first (as R1L reads them), then the currency signs */
+export const moneyForms = (f) => [...asList(f.unit), ...asList(f.currency)];
+
+/** @param {unknown} v @returns {v is string} */
+const nonEmpty = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** the `fact` part of a step's parameters, or null (a step has at most one) @param {any} params @returns {any|null} */
+export function factPartOf(params) {
+  const parts = Array.isArray(params?.parts) ? params.parts : [];
+  return parts.find((/** @type {any} */ p) => isRec(p) && p.class === 'fact') ?? null;
+}
+
+/**
+ * The SHAPE of a `fact` part (what it may carry), pushed as reds in the same form `rubricStepShapeReds` uses. Whether the
+ * bareguard rubric it builds is signable is asked of bareguard itself (`checkRubricParts` builds it once at drafting).
+ * @param {any} part @param {string} w the path prefix @param {(code: string, path: string, detail: string) => void} red
+ */
+export function factShapeReds(part, w, red) {
+  for (const k of Object.keys(part)) {
+    if (!['text', 'class', 'covers', 'rules', 'source', 'facts', 'count'].includes(k)) {
+      red('invalid-value', `${w}.${k}`, `"${k}" is not a field of a fact part — fields: text, class, covers, rules, ${FACT_PART_FIELDS.join(', ')}`);
+    }
+  }
+  if (!(nonEmpty(part.source) && part.source.length <= 128)) red('invalid-value', `${w}.source`, 'the label of the input the quotes come from');
+  if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) {
+    red('invalid-value', `${w}.facts`, `a list of 1 to ${MAX_FACTS} facts {name, shape, ...}`);
+  } else {
+    /** @type {Set<string>} */
+    const seen = new Set();
+    part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
+      const fw = `${w}.facts[${j}]`;
+      if (!isRec(f)) { red('invalid-value', fw, '{name, shape, ...}'); return; }
+      for (const k of Object.keys(f)) {
+        if (FACT_FIELDS.includes(k)) continue;
+        // L4 (smv710w8c3wdh, 3 of 3 tries): "covers" / "rules" are fields of the PART, written once, never of a fact inside it
+        red('invalid-value', `${fw}.${k}`, k === 'covers' || k === 'rules'
+          ? `"${k}" is a field of the PART, not of a fact - write the numbers once on the fact part ("${k}": [..]) and take it off every fact. Fact fields: ${FACT_FIELDS.join(', ')}`
+          : `"${k}" is not a field of a fact — fields: ${FACT_FIELDS.join(', ')}`);
+      }
+      if (!(typeof f.name === 'string' && NAME_RE.test(f.name))) red('invalid-value', `${fw}.name`, 'the fact\'s name: letters, spaces, "_" or "-" only (no digits), at most 64 characters');
+      else if (seen.has(f.name)) red('invalid-value', `${fw}.name`, `the name "${f.name}" is used twice on this line`);
+      else seen.add(f.name);
+      if (!FACT_SHAPES.includes(f.shape)) { red('invalid-value', `${fw}.shape`, `one of ${FACT_SHAPES.join(' | ')}`); return; }
+      if (Object.hasOwn(f, 'aiProposal') && typeof f.aiProposal !== 'boolean') red('invalid-value', `${fw}.aiProposal`, 'true when the AI turned the person\'s words into this number');
+      const has = (/** @type {string} */ k) => Object.hasOwn(f, k);
+      if (f.shape === 'money') {
+        if (!has('unit') && !has('currency')) red('invalid-value', `${fw}.unit`, 'money names at least one of unit (words the input writes after the amount, e.g. "US dollars") or currency ("$", "€" or "£"); each may be one value or a list');
+      } else if (has('unit') || has('currency')) red('invalid-value', `${fw}.${has('unit') ? 'unit' : 'currency'}`, 'only money has a unit or a currency');
+      if (has('unit')) {
+        const us = f.unit;
+        if (Array.isArray(us) ? us.length === 0 || us.some((/** @type {unknown} */ u) => !nonEmpty(u)) : !nonEmpty(us)) red('invalid-value', `${fw}.unit`, 'a non-empty string copied from the input, or a non-empty list of them');
+        else {
+          const list = asList(us);
+          if (list.length > MAX_UNITS) red('invalid-value', `${fw}.unit`, `at most ${MAX_UNITS} units (${list.length} given)`);
+          else if (list.some((u) => u.length > MAX_UNIT_CHARS)) red('invalid-value', `${fw}.unit`, `a unit is at most ${MAX_UNIT_CHARS} characters`);
+        }
+      }
+      if (has('currency')) {
+        const cs = f.currency;
+        if (Array.isArray(cs) ? cs.length === 0 || cs.some((/** @type {unknown} */ c) => !CURRENCY_SIGNS.includes(/** @type {string} */ (c))) : !CURRENCY_SIGNS.includes(cs)) red('invalid-value', `${fw}.currency`, 'one of $ | € | £, or a list of them');
+        else {
+          const list = asList(cs);
+          if (list.length > MAX_CURRENCIES) red('invalid-value', `${fw}.currency`, `at most ${MAX_CURRENCIES} currencies (${list.length} given)`);
+          else if (new Set(list).size !== list.length) red('invalid-value', `${fw}.currency`, 'the currencies are not repeated');
+        }
+      }
+      if (has('lang')) {
+        if (f.shape !== 'date') red('invalid-value', `${fw}.lang`, 'only a date fact carries lang (the language the page writes its month names in); leave it out for a date written 2026-10-26');
+        else if (typeof f.lang !== 'string' || !Object.hasOwn(FACT_LANGS, f.lang)) red('invalid-value', `${fw}.lang`, `one of ${Object.keys(FACT_LANGS).join(' | ')}`);
+      }
+      if (has('decimal')) {
+        if (f.shape !== 'number' && f.shape !== 'money') red('invalid-value', `${fw}.decimal`, 'only a number or money fact carries decimal (the mark the page writes before the decimals)');
+        else if (!FACT_DECIMALS.includes(f.decimal)) red('invalid-value', `${fw}.decimal`, 'one of "." | ","');
+      }
+      if (f.shape === 'phrase') {
+        if (!nonEmpty(f.phrase)) red('invalid-value', `${fw}.phrase`, 'the fixed words the quote must contain, copied from the input');
+        for (const k of ['anchor', 'until', 'rule']) if (has(k)) red('invalid-value', `${fw}.${k}`, 'a phrase is fixed words the quote must contain; it has no anchor, until or rule');
+      } else if (has('phrase')) red('invalid-value', `${fw}.phrase`, 'only a phrase fact carries phrase');
+      if (has('place')) {
+        const bad = f.shape === 'phrase' ? placeRuleProblem(f.place) : 'only a phrase fact carries a place rule';
+        if (bad !== null) red('invalid-value', `${fw}.place`, bad);
+      }
+      if (has('anchor') && !nonEmpty(f.anchor)) red('invalid-value', `${fw}.anchor`, 'a label copied VERBATIM from the input');
+      if (has('until') && !nonEmpty(f.until)) red('invalid-value', `${fw}.until`, 'a label copied VERBATIM from the input');
+      if (has('until') && !has('anchor') && f.shape !== 'phrase') red('invalid-value', `${fw}.until`, 'until needs an anchor');
+      if (has('until') && f.shape !== 'text' && f.shape !== 'phrase') red('invalid-value', `${fw}.until`, 'until closes a text fact only');
+      if (has('rule') && f.shape !== 'phrase') {
+        const r = f.rule;
+        if (f.shape === 'text') red('invalid-value', `${fw}.rule`, 'a text fact is bind only: it has no rule');
+        else if (!isRec(r) || !FACT_OPS.includes(r.op)) red('invalid-value', `${fw}.rule`, `{op: ${FACT_OPS.join(' | ')}, value} or {op: "between", lo, hi}`);
+        else if (r.op === 'between' ? !(boundOk(f.shape, r.lo) && boundOk(f.shape, r.hi) && !Object.hasOwn(r, 'value')) : !(boundOk(f.shape, r.value) && !Object.hasOwn(r, 'lo') && !Object.hasOwn(r, 'hi'))) {
+          red('invalid-value', `${fw}.rule`, r.op === 'between' ? 'between needs lo and hi (numbers for number/money, strings for date/time) and no value' : 'a comparison needs value (a number for number/money, a string for date/time)');
+        }
+      }
+    });
+  }
+  if (Object.hasOwn(part, 'count')) {
+    const c = part.count;
+    const ok = isRec(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (Object.hasOwn(c, 'min') || Object.hasOwn(c, 'max'))
+      && ['min', 'max'].every((k) => !Object.hasOwn(c, k) || (Number.isInteger(c[k]) && c[k] >= 1))
+      && (!Object.hasOwn(c, 'min') || !Object.hasOwn(c, 'max') || c.min <= c.max);
+    if (!ok) red('invalid-value', `${w}.count`, '{min?, max?} — how many results the person asked for (integers, 1 or more, min no more than max)');
+  }
+}
+
+/**
+ * Where bareguard read each page-form fact's value inside each quote, as the quote spells it: from `checkStep`'s `full.evidence` (one entry per
+ * claim: `text` = the normalized quote the decides ran on, `spans` = where each decide read its anchor, value and unit/currency). Only a fact that
+ * signs `lang` or `decimal` is looked up; the span is the decide's `value` span (the one equal to the claim's own value when bareguard flags it).
+ * @param {any} part @param {any[]|undefined} evidence @returns {(Record<number, string>|undefined)[]} per claim index
+ */
+export function writtenSpans(part, evidence) {
+  /** @type {(Record<number, string>|undefined)[]} */
+  const out = [];
+  for (const e of Array.isArray(evidence) ? evidence : []) {
+    if (!isRec(e) || !Number.isInteger(e.claim) || typeof e.text !== 'string' || !Array.isArray(e.spans)) continue;
+    /** @type {Record<number, string>} */
+    const row = {};
+    part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
+      if (f.lang === undefined && f.decimal === undefined) return;
+      const mine = e.spans.filter((/** @type {any} */ sp) => isRec(sp) && sp.decide === j && sp.role === 'value' && Number.isInteger(sp.start) && Number.isInteger(sp.end));
+      const sp = mine.find((/** @type {any} */ x) => x.matched === true) ?? mine[0];
+      if (sp) row[j] = e.text.slice(sp.start, sp.end);
+    });
+    if (Object.keys(row).length) out[e.claim] = row;
+  }
+  return out;
+}
+
 
 /** @param {any} part @returns {string|null} the "N results" row of a fact part */
 export function countSentence(part) {

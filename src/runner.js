@@ -59,7 +59,7 @@ import {
 import { configHome, configDoorHome } from './config.js';
 import { closeByClass, isCellsPath } from './closers.js';
 import { readRunSource } from './cited-source.js';
-import { citedLineOf, writeCitedLine } from './cited-record.js';
+import { citedLineOf, writeCitedLine, quotesOfLines } from './cited-record.js';
 import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
@@ -75,7 +75,9 @@ import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
-import { readRunInputs, writeRunStart } from './runfile.js';
+import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
+// borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
+import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
 import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
@@ -481,6 +483,36 @@ export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = []
     manifest.push(entry);
   }
   return { ok: true, manifest, skip };
+}
+
+/**
+ * M16 item 1: read every place-rule fact of the job's steps from the run's OWN frozen copy of its input, by code, before any provider call. `{ok:false, words}` = a rule
+ * was not found (bareloop's stop words); `{ok:true, rows, values}` = the rows to record in run.json and the key-to-value map to bind in memory. No place fact = nothing read.
+ * @param {string} runDir @param {any[]} steps @param {any[]} manifest freezeInputs' manifest @param {Record<string, string>} [earlier] key to the value the newest earlier run read ("was")
+ */
+export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
+  const facts = citedPlaceFactsOf(steps);
+  if (facts.length === 0) return { ok: /** @type {true} */ (true), rows: null, values: {} };
+  const read = readPlaceRules(facts.map((fact) => {
+    const entry = manifest.find((e) => e?.id === fact.source);
+    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, `inputs/${basename(entry.frozen)}`) : null;
+    return { fact, text: file && file.ok ? file.text : null, was: earlier[fact.key] ?? valueInWords(fact.place, fact.phrase) };
+  }));
+  if (!read.proceed) return { ok: /** @type {false} */ (false), words: stopWords(read.rows) };
+  return { ok: /** @type {true} */ (true), rows: read.rows.map(({ name: _n, ...r }) => r), values: read.values };
+}
+
+/**
+ * M16 item 1: the steps a RESUMED / continued run carries on with: the signed steps, each place fact's phrase set to the value its own run.json recorded at the start.
+ * A job with no place fact returns its steps as they are; a run whose record is missing or has a rule not found is `{ok:false, words: NO_PLACE_RECORD_WORDS}`.
+ * @param {string} runDir @param {any[]} steps
+ */
+export function stepsWithRecordedPlaces(runDir, steps) {
+  if (citedPlaceFactsOf(steps).length === 0) return { ok: /** @type {true} */ (true), steps };
+  const got = readRunRecord(runDir);
+  const values = got.ok && Array.isArray(got.rec.placeRules?.rows) ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: got.rec.placeRules.rows }]) : null;
+  if (values === null) return { ok: /** @type {false} */ (false), words: NO_PLACE_RECORD_WORDS };
+  return { ok: /** @type {true} */ (true), steps: bindCitedPlaceValues(steps, values) };
 }
 
 /**
@@ -893,6 +925,7 @@ function makeAuditRow({
  * @param {string|null} [opts.prevStepId] - the id of step stepNo-1 (null for step 1): the step a "stopped after step N-1" row is filed under
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
+ * @param {any[]} [opts.checkList] - M16 item 5: the plan's signed list; a list line's checks carry the row's `by`
  * @param {Record<string, any>} [opts.mcpGranted] - M13 item 5: this step's signed MCP tools, already bound to its bridge (`runStepRalph` builds them); handed to the model with the verbs
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
@@ -917,6 +950,8 @@ async function runStepTries({
   // the id of step stepNo-1 (null for step 1): a Stop before this step's first call words itself "after step N-1" and is filed under that step
   prevStepId = null,
   mcpGranted = {},
+  // M16 item 5: the signed list (declaration.checkList), so a check of a list line is tagged by its row in the Audit
+  checkList = undefined,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -1159,14 +1194,16 @@ async function runStepTries({
     // said is written by the one writer, `writeSheetLine`, whatever the verdict.
     const sheetPart = step?.close?.class === 'green' && Array.isArray(step?.close?.sheet) ? step.close.sheet : undefined;
     const sheet = sheetPart && runDir !== null ? readRunSheets(runDir, sheetPart) : undefined;
-    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source, sheet });
+    // M16 R7: a text step with the numbers tie (`close.numbersFrom`) is checked against the quotes the earlier lines' cited checks passed on, read from this run's own record
+    const numbers = Array.isArray(step?.close?.numbersFrom) && runDir !== null ? quotesOfLines(runDir, step.close.numbersFrom) : undefined;
+    const closed = await closeByClass(step, artifact, { reads: readsMap, businessDate, source, sheet, numbers });
     if (sheetPart && runDir !== null && closed.sheetRecord) writeSheetLine(runDir, { n: step.fromLine, try: attempt, checks: sheetPart, closed });
     if (citedPart && runDir !== null && closed.cited) {
       writeCitedLine(runDir, citedLineOf({
         n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
       }));
     }
-    tryChecks.push(...closeRecords(step, artifact, closed));
+    tryChecks.push(...closeRecords(step, artifact, closed, checkList));
     saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
@@ -1413,7 +1450,14 @@ export async function runFlow({
   }
 
   // M8b item 1: the run's start record, written once: the model it started on (M4d am33), the "Thinking on" box (M4d am25) and the frozen inputs
-  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null });
+  // M16 item 1: the place-rule facts are read from this run's own frozen copy, before any provider call; a rule not found stops here at $0 (a skipped ticket reads nothing)
+  const placed = frozen.skip ? { ok: /** @type {true} */ (true), rows: null, values: {} } : readRunPlaceRules(runDir, declaration.steps, /** @type {any[]} */ (frozen.manifest), lastRunPlaceRead({ flowDir, runId }));
+  if (!placed.ok) {
+    return haltRun({
+      flowDir, runDir, runId, capUsd, startedAt, now, nowMs: getNowMs, signatureHash: signature.flow, outcome: 'preflight-red', red: placed.words, spent: { value: 0 },
+    });
+  }
+  writeRunStart(runDir, { model: runModel ?? null, thinking: thinkingBox, inputs: /** @type {any[]} */ (frozen.manifest), rerun: rerunOf ?? null, placeRules: placed.rows ? { rows: placed.rows } : null });
   // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one, ends here: skipped, $0, nothing else runs
   if (frozen.skip) {
     return haltRun({
@@ -1458,7 +1502,7 @@ export async function runFlow({
   /** @type {Array<{step:string|null, emits:string, artifact:unknown}>} */
   let unjudgedSinceLastAsk = [];
 
-  const steps = declaration.steps;
+  const steps = Object.keys(placed.values).length > 0 ? bindCitedPlaceValues(declaration.steps, placed.values) : declaration.steps;
   // M2 fix: the send's content is identified by IDENTITY (the artifact
   // emitted by a signed ask step), never by position in `reads` — every id
   // in a send step's `reads` names an earlier step, so picking `reads[0]`
@@ -1474,6 +1518,7 @@ export async function runFlow({
 
   const result = await foldFromStep({
     mcpServer: declaration.mcp?.server ?? null,
+    checkList: declaration.checkList,
     i0: 0,
     steps,
     askLines,
@@ -1608,6 +1653,8 @@ async function runAskSlot({
   mcpServer = /** @type {string|null} */ (null),
   // M13 am9: set only for the Ask that shows the whole job; rebuilds `{text}` from the saved outputs after a redo changed one
   rebuildPrior = /** @type {null | (() => ({ok:true,value:any}|{ok:false,red:string}))} */ (null),
+  // M16 item 5: the signed list, handed on to a redo's tries
+  checkList = /** @type {any[]|undefined} */ (undefined),
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -1784,7 +1831,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1849,6 +1896,8 @@ async function foldFromStep({
   resumeRedone = 0,
   // M13 item 5: the job's signed `mcp.server`, for a step that grants MCP tools (`runStepRalph` starts its bridge)
   mcpServer = /** @type {string|null} */ (null),
+  // M16 item 5: the signed list (declaration.checkList): a list line's checks are tagged by their row in the Audit
+  checkList = /** @type {any[]|undefined} */ (undefined),
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
@@ -1989,6 +2038,7 @@ async function foldFromStep({
       // eslint-disable-next-line no-await-in-loop
       const askResult = await runAskSlot({
         mcpServer,
+        checkList,
         step,
         stepIndex: i,
         askSlot,
@@ -2062,7 +2112,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
@@ -2370,7 +2420,9 @@ export async function resumeRun({
     // like `missing` — never silently treated as "not done yet" and redone,
     // which could spend money or re-ask a human for a step that already
     // completed.
-    const { steps } = declaration;
+    const placedSteps = stepsWithRecordedPlaces(runDir, declaration.steps);
+    if (!placedSteps.ok) return { outcome: 'refused', red: placedSteps.words };
+    const steps = placedSteps.steps;
     for (let i = 0; i < state.stepIndex; i += 1) {
       const artifactResult = readArtifactResult(runDir, steps[i].emits);
       if (!artifactResult.ok) {
@@ -2678,6 +2730,7 @@ export async function resumeRun({
 
     const askResult = await runAskSlot({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       step,
       stepIndex: state.stepIndex,
       askSlot,
@@ -2734,6 +2787,7 @@ export async function resumeRun({
 
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       i0: state.stepIndex + 1,
       steps,
       askLines,
@@ -2872,7 +2926,9 @@ export async function continueRun({
       }
     }
 
-    const { steps } = declaration;
+    const placedSteps = stepsWithRecordedPlaces(runDir, declaration.steps);
+    if (!placedSteps.ok) return refused(placedSteps.words);
+    const steps = placedSteps.steps;
     if (halt.stepIndex > steps.length) return refused(`run "${runId}" halt.json names step ${halt.stepIndex}, past this flow's ${steps.length} steps`);
     /** @type {Record<string, any>} */
     const artifacts = {};
@@ -2940,6 +2996,7 @@ export async function continueRun({
 
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
+      checkList: declaration.checkList,
       i0: halt.stepIndex,
       resumeTries,
       steps,

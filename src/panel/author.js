@@ -36,8 +36,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, readQuestions, readoutHeadIndexes, scrub, signDraft,
+  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, readQuestions, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
+import { rowEditPlan } from '../planrebuild.js';
+import { cardLinesOf } from '../checklistsign.js';
+import { appendSpendRow } from '../provider.js';
 import { ruleOfAnswer, panelQuestionText, DROP_IT } from '../pageask.js';
 import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
@@ -49,6 +52,7 @@ import {
   applyAnswers, capFloorFor, capFloorOf, capFloorUsd, cardFields, checkCard, checkInputRows, parseInputLines, parseJobBox,
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
+import { EVERY_STEP_TEXTS } from '../try-checks.js';
 import { recordPath, RECORD_FILE, KEPT_WORDS } from '../pickrecord.js';
 import { csvRolesOf } from '../sheetblock.js';
 import {
@@ -132,6 +136,9 @@ export function createAuthor(opts) {
   };
 
   const readJson = readJsonFile;
+  /** every file text scrubbed of the keys, as the draft child writes them @param {Record<string, string>} files @param {string[]} keys */
+  const scrubbed = (files, keys) => Object.fromEntries(Object.entries(files).map(([f, t]) => [f, scrub(t, keys)]));
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
   /**
    * The monthly room for a cap, from the ONE read-only check the CLI's door also decides on (`checkMonthlyRoom`, src/monthly.js).
@@ -255,7 +262,8 @@ export function createAuthor(opts) {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
       if (kind === 'revise') reviseNo += 1;
       // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
-      const name = kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
+      const rowEdit = kind === 'answers' ? readJson(dir, `redraft-${n}.json`)?.rowEdit : undefined;
+      const name = rowEdit ? (rowEdit.op === 'drop' ? 'a check dropped' : 'a check added') : kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
       const res = resultOf(dir, `draft-${n}`, keys);
@@ -278,6 +286,9 @@ export function createAuthor(opts) {
     // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
     const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
     if (q.open.length > 0) {
+      // the child writes its questions, THEN exits; `answer` refuses `draft-live` while it is alive, so a question is offered only once it has ended (one decider: what the phase offers, the answer door takes).
+      // A child never comes back to life, so a stale "alive" only delays the offer; asked AFTER the files were read, the questions are already on disk (C9's order is for a missing result)
+      if (childRunning(dir)) return { ...shared, phase: newest > 0 ? (cur.kind === 'answers' ? 'redrafting' : 'revising') : 'drafting' };
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
       const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
@@ -315,7 +326,16 @@ export function createAuthor(opts) {
       ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
       ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),
     };
-    return { checked: checkedLines(decl, opts), notChecked: notCheckedView(readJson(dir, `${rel}/${NOT_CHECKED_FILE}`)?.notChecked, decl) };
+    const ncFile = readJson(dir, `${rel}/${NOT_CHECKED_FILE}`);
+    const view = notCheckedView(ncFile?.notChecked, decl);
+    // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
+    const card = cardLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`)?.checkCard : undefined;
+    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
+    // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
+    const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
+    return {
+      checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
+    };
   }
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
@@ -783,7 +803,7 @@ export function createAuthor(opts) {
         const adds = all.filter((x) => x.rule !== null);
         const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
-        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card));
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
           if (other === id) continue;
@@ -824,6 +844,55 @@ export function createAuthor(opts) {
       child.on('error', () => {});
       writePidFile(dir, child);
       return { status: 202, body: { ok: true, draftId: id, n, redrafting: true } };
+    },
+
+    /**
+     * `POST /api/author/:id/row-edit` body `{ op: 'drop'|'add', key }` (M16 item 5, am3 (4); hamr 2026-11-13 N-2): the plan card's Drop and Add. $0 and instant: the panel REBUILDS the list from the
+     * newest green plan's saved files (src/planrebuild.js), applies the choice through the block's own `rowChoice`, and writes a NEW plan folder `draft-<n>` (records are write-once, the old plan is
+     * never touched) booked as a plan of its own with a $0 spend row. It spawns no `fwdloop draft`, builds no provider, makes no call. Signing then reads the new plan (its hash). A refusal is plain
+     * words and writes nothing.
+     * @param {string} id @param {any} body
+     */
+    rowEdit(id, body) {
+      const { keys } = keysNow();
+      if (!ID_RE.test(id)) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
+      const dd = draftsDir();
+      const dir = dd === null ? null : join(dd, id);
+      const v = dir === null ? null : /** @type {any} */ (readDraft(dir, id, keys));
+      if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
+      if (v.phase !== 'green' || typeof v.plan !== 'string' || !Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-green', say: `This draft is ${v.phase}, not a finished plan, so its checks cannot be changed.` } };
+      const b = body && typeof body === 'object' ? body : {};
+      if (b.op !== 'drop' && b.op !== 'add') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
+      if (typeof b.key !== 'string' || b.key === '' || b.key.length > 200) return { status: 400, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
+      if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
+      // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
+      const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
+      const marker = cur === undefined ? null : readJson(dir, `redraft-${cur}.json`);
+      const asks = marker === null ? true : (marker.rowEdit ? marker.rowEdit.asks !== false : false);
+      const planDir = join(dir, v.plan);
+      const made = rowEditPlan({ planDir, op: b.op, key: b.key, asks });
+      if (!made.ok) return { status: 409, body: { ok: false, refused: made.refused ?? 'row-edit', say: made.say } };
+      const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
+      const at = new Date().toISOString();
+      const newDir = join(dir, `draft-${n}`);
+      const prose = readFileInside(planDir, 'prose.txt');
+      try {
+        claimPlanDir(newDir);
+        if (Object.keys(made.pages).length > 0) claimPlanDir(join(newDir, 'pages'));
+        writePlanFiles(newDir, scrubbed(made.files, keys));
+        writePlanFiles(newDir, scrubbed(made.pages, keys));
+        // the $0 book of this plan: no call was made, so no round and no cost (a known $0, not an unknown one)
+        appendSpendRow(join(newDir, 'spend.jsonl'), {
+          kind: 'draft', provider: null, price: null, model: readModelRecord(planDir)?.model ?? null, modelReturned: null, tokens: null, costUsd: 0, rounds: 0, calls: 0, spendComplete: true, stop: null, budgetUsd: null, startedAt: at, wallMs: 0,
+        });
+        writePlanFiles(dir, {
+          [`card-${n}.json`]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: prose.ok ? prose.text : '',
+          [`redraft-${n}.json`]: `${JSON.stringify({ fromPlan: v.plan, answers: [], rowEdit: { op: b.op, key: b.key, at, asks } })}\n`,
+        }, { flag: 'wx', mode: 0o600 });
+      } catch (e) {
+        return { status: 500, body: { ok: false, refused: 'write', say: `The changed plan could not be saved (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was changed.` } };
+      }
+      return { status: 200, body: { ok: true, draftId: id, n, plan: `draft-${n}`, hash: made.hash } };
     },
 
     /**

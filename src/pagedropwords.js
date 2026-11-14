@@ -6,13 +6,20 @@
 
 /** @typedef {import('./pagerules.js').Dropped} Dropped */
 
+// borrowed-from: bareloop src/pagedropwords.js@v0.56.0 (3383cce) (the four reasons the block's drops carry, and the sign-twice sentence by `d.other`; FACT_LANGS lives with the facts in src/citedcheck.js)
+import { FACT_LANGS } from './citedcheck.js';
+
+/** the two ways a sign listed twice can be used once (v0.56.0 spells the sentence from `d.other`; no other -> "currency", the sentence fwd has always written) */
+const SIGN_TWICE_AS = ['currency', 'unit'];
+
 /** reason code -> the plain sentence (`d.word` = the page's word, `d.fact` = the fact's name, `d.other` = what it was compared to) */
 const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'not-on-page': (d) => `"${d.word}" is not written on the page.`,
   'no-value': (d) => `The page never shows a number right after or right before "${d.word}".`,
+  'reads-no-amount': (d) => `The page never shows an amount next to "${d.word}", so it was not used to write the price.`,
   'n2': (d) => `"${d.word}" is written more than once inside one line of the page, so one result cannot show it once.`,
   'r1': (d) => `"${d.word}" does not show the same values as "${d.other}", so it was not used as a second way to read it.`,
-  'sign-twice': (d) => `"${d.word}" was listed twice, as a unit and as a currency; it is used once, as the currency.`,
+  'sign-twice': (d) => `"${d.word}" was listed twice, as a unit and as a currency; it is used once, as the ${SIGN_TWICE_AS.find((kind) => kind === d.other) ?? 'currency'}.`,
   'r1l': (d) => d.word === d.other
     ? `"${d.word}" was listed twice, as a unit and as a currency; it is used once, as the first way to write the price.`
     : `"${d.word}" does not show the same amounts as "${d.other}", so it was not used as a second way to write the price.`,
@@ -23,6 +30,9 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'limit-unit': (d) => `Only the first 10 units are used; "${d.word}" was left out.`,
   'unit-too-long': (d) => `"${d.word}" is longer than 100 characters, so it was not used.`,
   'reads-no-result': () => "the price rule could not read a price in the page's results, so it is not checked.",
+  'reads-no-time': (d) => `the page never shows a time right after "${d.other}", so it is not checked.`,
+  'lang-not-on-page': (d) => `the page shows no month name in ${FACT_LANGS[/** @type {keyof typeof FACT_LANGS} */ (d.other ?? '')] ?? d.other}, so the date is not checked.`,
+  'decimal-not-on-page': () => 'the page shows no amount written with a comma before the decimals, so it is not checked.',
   // borrowed-from: bareloop src/pagedropwords.js@c550dc8 (the phrase dry read's sentence)
   'phrase-no-result': (d) => `"${d.other}" is on the page but in none of its results, so it is not checked.`,
   'person-left': () => 'You chose to leave it Not checked.',

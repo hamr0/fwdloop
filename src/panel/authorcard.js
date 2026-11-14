@@ -15,6 +15,7 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
+import { sameRuleWords } from '../blockpick.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
@@ -95,7 +96,7 @@ export function parseJobBox(text) {
  * that line's own `~` lines (several answers for one line keep their order). The job box's own lines are untouched; the card -> prose path
  * (`cardToProse`) then writes the answer as that line's guardrail, so it reaches the signed text and the hash. Pure. An answer for a line
  * the box does not have is NOT added (the caller sees the count). An answer equal (exact string, after trim) to a `~` rule already on that line is not added
- * again, and still counts: it is taken, the line already says it.
+ * again (case, spacing and trailing punctuation aside; also not when it is one `; ` part of a `~` line), and still counts: it is taken, the line already says it.
  * @param {string} job @param {{ line: number, answer: string }[]} answers
  * @returns {{ job: string, added: number }}
  */
@@ -103,7 +104,7 @@ export function appendAnswersToJob(job, answers) {
   const raw = String(job).split('\n');
   /** @type {Map<number, number>} the index of the last non-empty box line that belongs to each step (its own line or a `~` under it) */
   const lastOf = new Map();
-  /** @type {Map<number, Set<string>>} the `~` rules each step already has */
+  /** @type {Map<number, string[]>} the `~` rules each step already has: a `~` line's whole words, and each `; ` part of it (a rule of its own) */
   const have = new Map();
   let step = 0;
   raw.forEach((l, i) => {
@@ -111,7 +112,7 @@ export function appendAnswersToJob(job, answers) {
     if (t === '') return;
     if (!t.startsWith('~')) step += 1;
     if (step > 0) lastOf.set(step, i);
-    if (step > 0 && t.startsWith('~')) have.set(step, (have.get(step) ?? new Set()).add(t.slice(1).trim()));
+    if (step > 0 && t.startsWith('~')) { const w = t.slice(1).trim(); have.set(step, [...(have.get(step) ?? []), w, ...w.split('; ').filter(Boolean)]); }
   });
   /** @type {Map<number, string[]>} */
   const after = new Map();
@@ -120,9 +121,11 @@ export function appendAnswersToJob(job, answers) {
     if (!lastOf.has(a.line)) continue;
     const at = /** @type {number} */ (lastOf.get(a.line));
     added += 1;
-    const rules = have.get(a.line) ?? new Set();
-    if (rules.has(a.answer.trim())) continue;
-    have.set(a.line, rules.add(a.answer.trim()));
+    const rules = have.get(a.line) ?? [];
+    // borrowed-from: bareloop src/panel/authorsession.js@v0.56.0 (3383cce) F318 0291e910
+    // words the line already holds as a rule (a whole `~` line or one `; ` part of it) add no second line; different words still add one
+    if (rules.some((t) => sameRuleWords(t, a.answer))) continue;
+    have.set(a.line, [...rules, a.answer.trim()]);
     after.set(at, [...(after.get(at) ?? []), `~ ${a.answer}`]);
   }
   const out = [];

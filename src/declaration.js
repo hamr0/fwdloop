@@ -44,6 +44,7 @@ import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheet
 import { lineRules } from './pagebits.js';
 import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
+import { checkListReds } from './checklistsign.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -65,6 +66,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'ticketFilter',
   'ticketWatch',
   'pickedLines',
+  'checkList',
   // step level
   'goal',
   'primitives',
@@ -81,6 +83,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'columns',
   'sheet',
   'picked',
+  'numbersFrom',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -91,9 +94,9 @@ const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
 // an ask's position, an ask's TTL, the egress allow-list...").
 const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trigger', 'skills']);
 
-const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch', 'pickedLines']);
+const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch', 'pickedLines', 'checkList']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked', 'numbersFrom']);
 
 /** M13 piece 4 (signed item 4): the job's flow type, set by code from the job card, signed with the job. */
 export const FLOW_TYPES = Object.freeze(['plain', 'mcp', 'tickets']);
@@ -587,6 +590,22 @@ function checkPickedKey(step, label, effectiveClass, reds, declaration) {
 }
 
 /**
+ * M16 am3 (2): `close.numbersFrom` is the numbers tie of a text step (the `$` default of the check list): the job lines, all EARLIER, whose checked quotes every number in this step's text must be in.
+ * Code sets it (src/blockassemble.js). Each line it names must be a green step that checks quotes (`close.cited`); a step that checks quotes has no text of its own to tie.
+ * @param {any} step @param {string} label @param {any[]} steps @param {string[]} reds
+ */
+function checkNumbersFromKey(step, label, steps, reds) {
+  const at = `declaration: ${label}.close.numbersFrom`;
+  const v = step.close.numbersFrom;
+  if (!Array.isArray(v) || v.length === 0 || !v.every((n) => Number.isInteger(n) && n > 0) || new Set(v).size !== v.length) { reds.push(`${at} must be a non-empty list of distinct job line numbers`); return; }
+  if (isPlainObject(step.close.cited)) reds.push(`${at}: line ${step.fromLine} checks quotes, so it has no text whose numbers could be tied to other lines`);
+  for (const n of v) {
+    if (!Number.isInteger(step.fromLine) || n >= step.fromLine) reds.push(`${at}: line ${n} is not before line ${step.fromLine}`);
+    else if (!steps.some((st) => isPlainObject(st) && st.fromLine === n && st.close?.class === 'green' && isPlainObject(st.close?.cited))) reds.push(`${at}: line ${n} is not a line that checks quotes, so its quotes cannot hold line ${step.fromLine}'s numbers`);
+  }
+}
+
+/**
  * M10 amendment 7 item 1: `close.cited` is the facts a green step checks its quotes against, written by the drafter (a fact part:
  * `{source, facts, count?}`, src/citedcheck.js). Its SHAPE is checked in every mode (a signed flow is read the same way). With `fitJobLine` the number rules
  * must be the person's own words on the job line; with `pageWords` (the drafting copy of each page and what the page-word map kept) every word is proved on
@@ -1027,6 +1046,7 @@ export function validateDeclaration(declaration, context = {}) {
         else if (fitJobLine === true && effectiveClass === 'green' && step.close.shape !== undefined && step.close.shape !== null) {
           reds.push(`declaration: ${label}.close.shape: a step that checks facts carries no count check of the drafter's own; only a check you picked (close.picked, on a line recorded in pickedLines) can sit beside its fact check`);
         }
+        if (step.close.numbersFrom !== undefined) checkNumbersFromKey(step, label, steps, reds);
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);
@@ -1098,6 +1118,9 @@ export function validateDeclaration(declaration, context = {}) {
       reads: reads ?? [],
     });
   });
+
+  // M16 item 2: the checks of a list line are the signed list's; a plan carrying one proves it here, at sign and at run start ($0)
+  reds.push(...checkListReds(declaration));
 
   // --- ask slots (ported from poc/m1/slots.mjs's checkAskSlots) --------------
   // (a) exactly one hitl step bound to each signed ask line.

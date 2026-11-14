@@ -6,7 +6,7 @@
 // `tableSha` (bareguard stops the check; the red names the input), any other stopped check.
 // Throws away: bareguard's `full` (expected values, evidence) is not kept - the red keeps the gaps, which name rows and counts and never a cell's text.
 import { basename } from 'node:path';
-import { createRubric, checkStep, renderGaps, tableSha } from 'bareguard';
+import { createRubric, checkStep, runTableChecks, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
 import { readFileInside } from './flow.js';
 import { readRunInputs } from './runfile.js';
@@ -105,10 +105,10 @@ export async function closeSheet(checks, artifact, sheet) {
 }
 
 /**
- * M10b am5: the `table` checks of a draft that already fail on the sheet the draft was made with. A table check judges the sheet itself, so bareguard's `checkStep` (the
- * run's own judge, `closeSheet`) can run it before anything is spent: $0, no model call. Only `table` checks run; a cells check judges the step's answer and never runs here.
- * Each check is read by its id, so bareguard's own `happened` check never counts; the answer handed over is non-empty, because an EMPTY one stops bareguard at `happened` before any
- * table check runs (the check would then read as passing).
+ * M10b am5: the `table` checks of a draft that already fail on the sheet the draft was made with. A table check judges the sheet itself, so bareguard's `runTableChecks`
+ * (the same evaluation path as the run's `checkStep`) can run it before anything is spent: $0, no model call, no answer needed. Only `table` checks run; a cells check judges
+ * the step's answer and never runs here. Each check is its own rubric, read by its id. Only a `red` verdict is a red here: a `stopped` check (bareguard could not read the
+ * sheet) or a rubric bareguard refuses is not reported (the draft's own sheet look and sheetCheckReds have said so).
  * @param {any} declaration the draft @param {Record<string, {header: string[], rows: any[]}>} tables the draft-time table of each CSV input, by role
  * @returns {Promise<string[]>} one red per failing check, in plan order
  */
@@ -120,11 +120,14 @@ export async function tableChecksFailingOnInput(declaration, tables) {
       if (!isRec(c) || c.rule !== 'table' || typeof c.table !== 'string' || !isRec(tables[c.table])) continue;
       const sha = tableSha(tables[c.table]);
       if (sha === null) continue; // bareguard cannot read the sheet as a table: the draft's own sheet look has said so
-      const sheet = { ok: /** @type {const} */ (true), tables: { [c.table]: tables[c.table] }, inputs: [{ name: c.table, sha256: sha }] };
-      const v = /** @type {any} */ (await closeSheet([c], { done: true }, sheet));
-      const row = Array.isArray(v.checks) ? v.checks.find((/** @type {any} */ r) => r.id === c.id) : undefined;
-      if (!row || row.ok) continue;
-      const what = String(row.result).startsWith(`${c.id}: `) ? String(row.result).slice(c.id.length + 2) : String(row.result);
+      let row;
+      try {
+        const rubric = createRubric({ schema: 1, goal: 'sheet', inputs: [{ name: c.table, sha256: sha }], checkpoints: { sheet: { gating: true, checks: bareguardChecks([c]) } }, maxReds: 3 });
+        row = runTableChecks(rubric, 'sheet', { [c.table]: tables[c.table] }).find((r) => r.id === c.id);
+      } catch { continue; }
+      if (!row || row.verdict !== 'red') continue;
+      const gaps = renderGaps(row.gaps);
+      const what = gaps.startsWith(`${c.id}: `) ? gaps.slice(c.id.length + 2) : gaps;
       reds.push(`line ${s.fromLine}: the table check "${sheetCheckName(c)}" already fails on the input "${c.table}" (${what}), so this step could never pass. A table check judges the input sheet itself; to check what the step gives, use a cells check.`);
     }
   }

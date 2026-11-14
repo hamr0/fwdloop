@@ -58,16 +58,16 @@ test('(xvi/xviii) a draft killed between rounds keeps the round it paid for, plu
     // ONE read per look: two reads could pair round 1's in-flight record (rounds 0) with the after-call record (rounds 1, not in flight) and leave the loop early
     for (;;) {
       rec = read();
-      if ((rec?.inFlight === true && rec?.rounds === 1) || Date.now() - t0 >= 20_000) break;
+      if ((rec?.inFlight === true && rec?.rounds === 3) || Date.now() - t0 >= 20_000) break;
       await sleep(20); // eslint-disable-line no-await-in-loop
     }
-    assert.equal(rec?.inFlight, true, 'round 2 is in flight');
+    assert.equal(rec?.inFlight, true, 'round 4 is in flight'); // M16 (a): the list's ledger-suggest and row-edit turns are rounds 1 and 2
   } finally {
     child.kill('SIGKILL'); // no exit hook runs: the monthly hold stays open, spend.jsonl is never written
   }
   await gone;
   assert.equal(existsSync(path.join(out, 'spend.jsonl')), false, 'killed before the final row');
-  const want = ROUND_USD + ceiling();
+  const want = 3 * ROUND_USD + ceiling(); // M16 (a): three paid rounds, the list's two turns and the declaration
   assert.ok(Math.abs(spendRowCost(rec).usd - want) < 1e-9);
   const sum = spendSummary({ home });
   assert.ok(Math.abs(sum.total.usd - want) < 1e-9, `total ${sum.total.usd} vs ${want}`);
@@ -137,7 +137,8 @@ test('drafter: onBook is told before and after each call, and a booking that fai
     proseText: fx.prose, provider: p, rates: RATES, modelId: MODEL, onBook: (b) => seen.push([b.inFlight, b.calls, b.metered.rounds]),
   });
   assert.equal(ok.ok, true);
-  assert.deepEqual(seen, [[true, 1, 0], [false, 1, 1]]);
+  // M16 (a): the list's ledger-suggest and row-edit turns are calls 1 and 2, the declaration is call 3
+  assert.deepEqual(seen, [[true, 1, 0], [false, 1, 1], [true, 2, 1], [false, 2, 2], [true, 3, 2], [false, 3, 3]]);
   const p2 = fakeProvider([toolReply(validArgs())]);
   await assert.rejects(draft({
     proseText: fx.prose, provider: p2, rates: RATES, modelId: MODEL, onBook: () => { throw new Error('disk full'); },

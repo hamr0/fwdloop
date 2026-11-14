@@ -197,6 +197,13 @@ const FIELD_META = {
   pickedLines: {
     level: 'top', required: false, needle: 'pickedLines', retype: () => 'one', invalid: () => [0],
   },
+  // M16: the signed check list (top) and the numbers tie of a text step (close)
+  checkList: {
+    level: 'top', required: false, needle: 'checkList', retype: () => 42, invalid: () => [42],
+  },
+  numbersFrom: {
+    level: 'close', required: false, needle: 'numbersFrom', retype: () => 42, invalid: () => [],
+  },
   picked: {
     level: 'close', required: false, needle: 'picked', retype: () => 42, invalid: () => [],
   },
@@ -314,6 +321,8 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'ticketFilter', level: 'top' },
   { field: 'ticketWatch', level: 'top' },
   { field: 'pickedLines', level: 'top' },
+  { field: 'checkList', level: 'top' },
+  { field: 'numbersFrom', level: 'close' },
   { field: 'picked', level: 'close' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },

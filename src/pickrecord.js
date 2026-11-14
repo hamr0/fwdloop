@@ -142,5 +142,33 @@ export function readRecordFile(file) {
   } catch { return null; }
 }
 
+// borrowed-from: bareloop src/pickrecord.js@v0.56.0 (3383cce) (readRowChoices; read through readFileInside; writeRecordPart not taken, see the M16 p1 report)
+/**
+ * The Drop/Add choices a draft's person made on the confirm card (hamr 2026-11-13, N-2), carried the same way as the picks: tied to the line's words and the row's own name, never to a number.
+ * @param {string} file @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null}
+ */
+export function readRowChoices(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && (e.choice === 'drop' || e.choice === 'add')) : null;
+  } catch { return null; }
+}
+
+/**
+ * The sheet checks the person dropped from a plan (hamr 2026-11-14: a Revise keeps a sheet Drop), carried like the page-row choices: the record's `sheetDropped` entries, each `{key, line, index, check, text}`;
+ * the next draft drops a new check with the same id again. Read through readFileInside; a missing or unreadable record is no record.
+ * @param {string} file @returns {{key: string, line: number, index: number, check: Record<string, any>, text: string}[]|null}
+ */
+export function readSheetDropped(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
+  } catch { return null; }
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);

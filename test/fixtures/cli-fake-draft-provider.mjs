@@ -95,6 +95,7 @@ export default function make() {
   const gen = provider.generate.bind(provider);
   let retriesDone = 0;
   provider.generate = async (messages, ...rest) => {
+    if (['suggest_extra_checks', 'submit_edits'].includes(rest[0]?.[0]?.name)) return gen(messages, ...rest); // M16 (a): the list's own turns are answered empty by fakeProvider, whatever the mode
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM && String(messages.find((m) => m.role === 'user')?.content).includes(SHEET_MARK)) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_SHEET ?? '{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the sheet-word call
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_MAP ?? tiedMap(messages.find((m) => m.role === 'user')?.content)), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round (FWDLOOP_TEST_DRAFT_MAP=<json> replaces the empty map)
     if (messages.find((m) => m.role === 'system')?.content === SUGGEST_SYSTEM) return { text: '', toolCalls: [{ id: 'sg', name: 'suggest_checks', arguments: JSON.parse(process.env.FWDLOOP_TEST_DRAFT_SUGGEST ?? '{"checks":[]}') }], usage: { inputTokens: 900, outputTokens: 100 }, stopReason: 'tool_calls', model: MODEL }; // the am16 suggestion call, not a drafting round

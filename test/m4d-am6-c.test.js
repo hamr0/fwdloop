@@ -88,7 +88,7 @@ test('C5: the drafter takes the thinking tick as an intent only: on lets the mod
   const run = async (draftThinking) => {
     const p = fakeProvider([toolReply(validArgs())]);
     const inner = p.generate.bind(p);
-    p.generate = async (m, t, options) => { seen.push(options); return inner(m, t, options); };
+    p.generate = async (m, t, options) => { if (t[0]?.name === 'emit_declaration') seen.push(options); /* M16 (a): the list's own turns are always forced, thinking off; this test is about the declaration round */ return inner(m, t, options); };
     const r = await draft({ proseText: job2Fixture().prose, provider: p, rates: RATES, modelId: MODEL, draftThinking });
     assert.equal(r.ok, true, JSON.stringify(r.reds));
   };

@@ -50,7 +50,7 @@ test('(1) one forced suggestion call, metered, before any drafting round; the as
   assert.deepEqual(p.calls[0].tools, ['suggest_checks']);
   assert.deepEqual(p.calls[0].options.toolChoice, { name: 'suggest_checks' });
   assert.equal(p.calls[0].options.thinkingMode, 'off');
-  assert.equal(r.calls, 1);
+  assert.equal(r.calls, 2, 'M16 (a): the suggest call, then the list\'s ledger-suggest call (R3)');
   assert.ok(r.costUsd > 0, 'the call was priced');
   assert.equal(r.log[0].kind, 'check-suggest');
   assert.deepEqual(r.questions.map((q) => [q.line, q.ask, q.ruleNo, q.proposal]), [[3, 'check', 1, 'exactly 3 list items'], [5, 'check', 1, 'at most 80 words']]);
