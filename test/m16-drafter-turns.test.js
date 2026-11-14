@@ -182,9 +182,11 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
   const r = await run(p, prose, { mcpServers: ['github'], flowType: 'tickets', mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.declaration.ticketFilter, { priority: ['P1', 'P2'] });
-  assert.deepEqual([...new Set(r.checkRows.map((/** @type {any} */ x) => x.line))], [1], 'rows only on the step line');
+  // the ticket guardrail is the filter's, not a row: the step line keeps its floor, and a list with no rule says so (the block's own empty-list marker, as for any job with no `~` rule)
+  assert.deepEqual([...new Set(r.checkRows.filter((/** @type {any} */ x) => x.rowKind !== 'empty').map((/** @type {any} */ x) => x.line))], [1], 'rows only on the step line');
   const sent = p.calls.find((c) => c.name === 'submit_edits');
-  assert.equal(sent?.messages[1].content.includes('ticketFilter'), false, 'the row-edit turn is not asked for the ticket filter (it stays the declaration turn\'s)');
+  // the only rule is the filter's, so the list has nothing to edit and no row-edit turn is paid; if one is sent it never asks for the filter
+  assert.notEqual(sent?.messages[1].content.includes('ticketFilter'), true, 'the row-edit turn is not asked for the ticket filter (it stays the declaration turn\'s)');
   assert.ok(!p.names().includes('suggest_extra_checks'), 'a ticket job has no input text: no ledger call');
 });
 

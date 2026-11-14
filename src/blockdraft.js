@@ -4,6 +4,7 @@
 import { redactSecrets } from './redact.js';
 import { newJobBlock } from './blocklines.js';
 import { EDIT_OPS } from './checkblock.js';
+import { isCountGuardrail } from './declaration.js';
 
 /** the cap of refusals one revise turn carries (bareloop REVISE_RED_CAP) */
 export const REVISE_RED_CAP = 20;
@@ -32,10 +33,12 @@ export function isBuildFault(red, builtLines) {
  * The block of a draft (M16 item 2): the person's `~` rules and `$` defaults, then the look's facts, then the picks the person made (kept from the last draft, and just answered), reconciled once.
  * Fresh answers go through `carry` like the kept ones (the draft is a child process: the answer comes back as a pick or a left rule), and are not marked "kept".
  * `scoped`: the rules the pick path owns (src/checkpick.js offerRules over the block's lines); one the record folded into another ask (a broken pair's partner) is neither asked nor given the old check (bareloop authorjob.js@v0.56.0).
- * @param {{texts: Record<string, string>, jobLines: any[], look: {facts: any[], dropped: any[]}, kept: {picks: any[], left: any[], askRules: any[]}, fresh: {picks: any[], left: {line: number, rule: number}[]}, asks: boolean, countScope: (t: string) => boolean, scoped?: {line: number, rule: number}[]}} o
+ * @param {{leaveOut?: {line: number, rule: number}[], texts: Record<string, string>, jobLines: any[], look: {facts: any[], dropped: any[]}, kept: {picks: any[], left: any[], askRules: any[]}, fresh: {picks: any[], left: {line: number, rule: number}[]}, asks: boolean, countScope: (t: string) => boolean, scoped?: {line: number, rule: number}[]}} o
  */
-export function setUpBlock({ texts, jobLines, look, kept, fresh, asks, countScope, scoped = [] }) {
+export function setUpBlock({ texts, jobLines, look, kept, fresh, asks, countScope, scoped = [], leaveOut = [] }) {
   const block = newJobBlock({ texts, jobLines, asks, countScope });
+  // M16 item 4: a Tickets job's own guardrails (the signed ticketFilter / ticketWatch) are not rows of the list; the rule numbers of the other rules stay as written
+  if (leaveOut.length) block.rows = block.rows.filter((r) => !(r.kind === 'rule' && leaveOut.some((x) => x.line === r.line && x.rule === r.rule)));
   // a rule the person left is the block's own `left` row (carry, below); the look's person-left drop would say it twice
   block.addLook(look.facts, look.dropped.filter((d) => d.reason !== 'person-left'));
   block.carry({ picks: kept.picks, left: kept.left }, kept.askRules);
@@ -75,3 +78,14 @@ export const repairedEditsReadable = (value) => Array.isArray(value?.edits) && v
 
 /** one applied reply as the round log keeps it: each edit, kept or refused with its own reason @param {{edits: any[]}} rec */
 export const editRecord = (rec) => rec.edits.map((e) => ({ op: e?.op, accepted: e.accepted === true, ...(e.accepted === true ? {} : { refusedBecause: e.refusedBecause }) }));
+
+/**
+ * M16 item 4 ("Tickets `ticketFilter` and `ticketWatch` stay as they are"): the rules of a Tickets job that are not the block's. Before M16 only a count guardrail of such a job (it signs a
+ * ticket page input, which routes its guardrails: src/checkpick.js codeScope) was picked or asked; every other rule ("priority P1 only", "run a ticket again when its state changes") was the
+ * declaration's own typed ticketFilter / ticketWatch, never asked and never listed as Not checked. A rule the look tied to a fact is still the block's.
+ * @param {string} flowType @param {{n: number, rules?: string[]}[]} jobLines @param {{line: number, forRule?: number}[]} facts @returns {{line: number, rule: number}[]}
+ */
+export function ticketLeaveOut(flowType, jobLines, facts) {
+  if (flowType !== 'tickets') return [];
+  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => !isCountGuardrail(x.t) && !facts.some((f) => f.line === x.line && f.forRule === x.rule)).map((x) => ({ line: x.line, rule: x.rule })));
+}

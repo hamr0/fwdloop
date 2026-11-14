@@ -36,7 +36,7 @@ import {
 } from './checkpick.js';
 // M16 (docs/wiki/the-module-ladder.md, "M16"): the check block's turns, wired beside the declaration path
 import { blockJobLines } from './blocklines.js';
-import { setUpBlock, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock, buildFaultWords, isBuildFault } from './blockdraft.js';
+import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock, buildFaultWords, isBuildFault } from './blockdraft.js';
 import { assembleFromBlock } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { questionsOfBlock } from './blockasks.js';
@@ -727,7 +727,7 @@ export async function draft({
     block = setUpBlock({
       texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, jobLines: blockPlan.jobLines, look,
       kept: { picks: carried.picks.filter(inBlock), left: carried.left.filter(inBlock), askRules: carried.askRules.filter(inBlock) },
-      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', scoped: blockScoped,
+      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', scoped: blockScoped, leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines, [...look.facts, ...sheetFacts]),
     });
   }
   /** @type {ReturnType<typeof checkAsks>} */
