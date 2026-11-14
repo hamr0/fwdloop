@@ -173,3 +173,28 @@ test('P4c: the AI\'s own Not-checked note is tagged [agent] on the card state, a
   const after = await until(async () => { const j = await state(w, id); return j?.phase === 'green' && j.plan !== g.plan ? j : null; });
   assert.equal(after.notChecked.by?.[note], 'agent', 'the tag survives the rebuild');
 });
+
+test('P4c: a Not-checked note code wrote is [default], a note the person chose is [you], the AI\'s is [agent]; every note of a list plan has exactly one tag (break: drop the noteBy map in src/drafter.js and this reds)', async () => {
+  const { fileURLToPath } = await import('node:url');
+  const { raw } = await import('./fixtures/m10-map/load.mjs');
+  const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'm10-map');
+  const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
+  const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
+  const ai = 'line 3: whether the tone suits the role';
+  const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt'), FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([ai]) } });
+  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept'].join('\n');
+  const id = (await w.post('/api/author/draft', w.card({ flowName: 'job2', job, inputs: `${w.card().inputs}\nflights: ${ADDRESS}` }))).json().draftId;
+  let g = await settle(w, id, ['questions-open', 'green', 'red', 'stopped']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'questions-open');
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'drop' })).status, 202); // the person leaves the rule Not checked
+  g = await settle(w, id, ['green', 'red', 'stopped']);
+  await childGone(w, id);
+  assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
+  const by = g.notChecked.by ?? {};
+  const untagged = [...g.notChecked.items, ...g.notChecked.readNotes].filter((t) => !['you', 'agent', 'default'].includes(by[t]));
+  assert.deepEqual(untagged, [], `every note has a tag: ${JSON.stringify(g.notChecked)}`);
+  assert.equal(by[ai], 'agent');
+  assert.ok(Object.values(by).includes('you'), `a note answering the person's own choice stays [you]: ${JSON.stringify(by)}`);
+  assert.equal(by[g.notChecked.readNotes[0]], 'default', 'a note code wrote (the page look) reads [default]');
+});

@@ -511,6 +511,8 @@ export async function draft({
   const look = { facts: [], dropped: [] };
   /** @type {string[]} */
   const pageNotChecked = [];
+  /** the notes in `pageNotChecked` that answer the person's own choice (left, own words, no pick): tagged [you]; every other note code writes is [default] (hamr 2026-11-14) */
+  const personNotChecked = new Set();
   /** @type {any[]} */
   const pageLooks = [];
   /** @type {Record<string, any>} */
@@ -591,7 +593,7 @@ export async function draft({
     if (left.length) {
       look.dropped.push(...left);
       const lines = left.map((d) => leftRuleLine(d.fact));
-      for (const x of lines) if (!pageNotChecked.includes(x)) pageNotChecked.push(x);
+      for (const x of lines) { personNotChecked.add(x); if (!pageNotChecked.includes(x)) pageNotChecked.push(x); }
       pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
     }
   }
@@ -790,6 +792,7 @@ export async function draft({
   const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && (k.rule === n.rule || (k.entry.added !== null && sameWords(k.entry.added, n.text)))) ? ` (${KEPT_WORDS})` : '');
   for (const n of settled?.notes ?? []) {
     const line = (n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason)) + keptNote(n);
+    personNotChecked.add(line);
     if (!pageNotChecked.includes(line)) pageNotChecked.push(line);
   }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
@@ -1021,7 +1024,10 @@ export async function draft({
     // M16: the AI's own `notChecked` is kept beside the rows' reasons (M4e am24/am25 stand; M16 item 5 does not name them)
     // P4c (hamr 2026-11-14): the AI's own note is an [agent] line (`!` = agent); it never overrides a tag a row already gave the same words
     const aiNotes = cleanNotChecked(rawNotChecked);
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...aiNotes, ...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}))])], ...(assembled ? { notCheckedBy: { ...Object.fromEntries(aiNotes.map((t) => [t, 'agent'])), ...assembled.notCheckedBy } } : {}) };
+    const uncovered = uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}));
+    // the tag of a note no row tells: the person's own choice [you], the AI's own note [agent], any other note code writes [default]; a row's own tag wins
+    const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, personNotChecked.has(t) ? 'you' : 'default']).concat(aiNotes.map((t) => [t, 'agent'])));
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...aiNotes, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;
