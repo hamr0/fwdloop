@@ -1,0 +1,58 @@
+data: m14 flows walk-m16-m14, walk-m16-m14b; saved answers per flow: 2, 2; block lines 1,3,5
+
+== BAR 1: one rule in, one rule out
+  (a) walk-m16-m14: CURRENT applyAnswers(card0, saved answers) === saved card 1: true; CURRENT block asks 2 (L3 "exactly 3 bullets"; L5 "under 80 words")
+      ~ rules in card0 2, saved card1 4
+  (a) walk-m16-m14b: CURRENT applyAnswers(card0, saved answers) === saved card 1: true; CURRENT block asks 2 (L3 "exactly 3 bullets"; L5 "under 80 words")
+      ~ rules in card0 2, saved card1 4
+  (b) walk-m16-m14: rule counts before {"1":0,"3":1,"5":1} after {"1":0,"3":1,"5":1}; rule no. kept and words = proposal: true; no parent/pairWith rows: true; job === expected (card0 with each asked rule replaced by its proposal): true
+      PORTED job text:
+        | Write 3 lines about my garden from the notes
+        | Ask: check it with me
+        | List 3 jobs for this week from the notes
+        | ~ exactly 3 list items
+        | Ask: check it with me
+        | Write a short closing note to my neighbour
+        | ~ at most 80 words
+        | Ask: check it with me
+        | Write it out
+  (b) walk-m16-m14b: rule counts before {"1":0,"3":1,"5":1} after {"1":0,"3":1,"5":1}; rule no. kept and words = proposal: true; no parent/pairWith rows: true; job === expected (card0 with each asked rule replaced by its proposal): true
+      PORTED job text:
+        | Write 3 lines about my garden from the notes
+        | Ask: check it with me
+        | List 3 jobs for this week from the notes
+        | ~ exactly 3 list items
+        | Ask: check it with me
+        | Write a short closing note to my neighbour
+        | ~ at most 80 words
+        | Ask: check it with me
+        | Write it out
+  (c) own words on L3: applied true; rules on line 3 [{"rule":1,"text":"exactly 3 items"}]
+  (d) flights CURRENT: ~ per line before {"1":0,"2":4,"4":0} after Agree-all {"1":0,"2":6,"4":0}; follower rows 2
+  (d) flights PORTED: open before 2; ~ per line before {"1":0,"2":4,"4":0} after Agree-all {"1":0,"2":4,"4":0}; follower rows 0; open after 0
+  (e) live-failure job (signed prose of walk-m16-m14): PORTED asks [{"line":3,"rowKey":"L3.~1","ask":"check","ruleText":"exactly 3 bullets"},{"line":5,"rowKey":"L5.~1","ask":"check","ruleText":"under 80 words"}]; ~ per line before {"1":0,"3":2,"5":2,"7":0} after Agree-all {"1":0,"3":2,"5":2,"7":0}; rules after [[],["exactly 3 list items","exactly 3 list items"],["at most 80 words","at most 80 words"],[]]
+BAR 1: PASS
+
+== BAR 2: an obvious count rule is not asked
+  fresh block from the post-Agree job, CURRENT: open on L3/L5 [{"line":3,"ruleText":"exactly 3 list items","ask":"check"},{"line":5,"ruleText":"at most 80 words","ask":"check"}]; rule rows [{"line":3,"text":"exactly 3 list items","state":"not-checked","hasPick":false},{"line":5,"text":"at most 80 words","state":"not-checked","hasPick":false}]
+  fresh block from the post-Agree job, PORTED: open on L3/L5 []; rule rows [{"line":3,"text":"exactly 3 list items","state":"built","hasPick":true},{"line":5,"text":"at most 80 words","state":"built","hasPick":true}]
+  obviousCheck("exactly 3 bullets") = null; ("exactly 3 list items") = {"rule":"listItems","value":3}; ("under 80 words") = null; ("at most 80 words") = {"rule":"maxWords","value":80}
+  REGISTERED Revise (original card-0 job + carry of the saved picks): matchRecord kept 0 picks, asks 2; open on L3/L5 [{"line":3,"ruleText":"exactly 3 bullets","ask":"check"},{"line":5,"ruleText":"under 80 words","ask":"check"}]
+  OBSERVATION (not registered): Revise on the replaced job + carry: kept 2 picks; open on L3/L5 0
+BAR 2: FAIL - registered Revise (original job + carry) asks 2 on L3/L5 (CURRENT asks 2 on the fresh post-Agree job)
+
+== BAR 3: Not checked names each rule once
+  m14/CURRENT: open after drop-all 0; signed rule rows duplicated per (line,rule): []; sentences naming a rule's words: [] (others exactly 1); Not-checked 2 sentences; saysRule true for every not-checked rule: null
+  m14/PORTED: open after drop-all 0; signed rule rows duplicated per (line,rule): []; sentences naming a rule's words: [] (others exactly 1); Not-checked 2 sentences; saysRule true for every not-checked rule: true
+  flights/CURRENT: open after drop-all 0; signed rule rows duplicated per (line,rule): []; sentences naming a rule's words: [{"key":"2.1","n":0},{"key":"2.2","n":0}] (others exactly 1); Not-checked 3 sentences; saysRule true for every not-checked rule: null
+  flights/PORTED: open after drop-all 0; signed rule rows duplicated per (line,rule): []; sentences naming a rule's words: [{"key":"2.1","n":0},{"key":"2.2","n":0}] (others exactly 1); Not-checked 3 sentences; saysRule true for every not-checked rule: true
+  CURRENT already names each rule once on this data: true (so the bar cannot show a gain; PASS stands on the letter, flagged)
+BAR 3: PASS
+  other fwd writers of Not-checked sentences for a `~` rule (read, not run): see the report; none is part of this bar.
+
+== BAR 4: $0 rescan of the good signed jobs (F190 method), BEFORE = HEAD, AFTER = HEAD + ported files
+  signed flows: BEFORE accepted 59/59; AFTER accepted 59/59; newly refused in AFTER: []; JSONL lines BEFORE 103 AFTER 103; byte-identical: true
+  F190 run path (flow.js, catalogue.js, signed-text.js, sheetchecks.js, sheetrun.js) imports 33 src files; of the four ported files it reaches: []
+BAR 4: PASS - VACUOUS for the block path: the F190 run path never imports the ported files
+
+SUMMARY {"1":"PASS","2":"FAIL","3":"PASS","4":"PASS"}
