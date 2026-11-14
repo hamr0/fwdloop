@@ -3796,3 +3796,30 @@ Peer state (2026-11-13):
 > - bareloop's Tickets renumbering (96451a6e): not seen failing here.
 >
 > **Cap:** $0 test first, then about 30 cents for walks.
+
+**M17 am2 — SIGNED by hamr 2026-11-14 ("sign m17 am2"), the text exactly as shown.** Why: hamr 2026-11-14: "one path for all jobs, be it a url, a sheet, a doc we have it's rubric, set it in the job as ~ ai checks what it can with pre read as ! then defaults per input type as default $ all go through code which is built on bareguard and honest about what it can do. any clarifications/substitution add drop replaces/removes from that one list one check"; and bareloop takes fwdloop's sheet jobs exactly as built, minus hitl (hamr, 2026-11-14).
+
+> **M17 am2 — sheet checks built by code, like every other check.** This replaces M17 item 1(b), and the parts of M16 am4 where the AI writes a sheet check.
+> 1. A sheet line goes through the same one path as every job:
+>    - your `~` rules;
+>    - the AI's `!` suggestions, from its first look at the sheet;
+>    - the `$` defaults a sheet input already gets (the column exists, and the sheet is the one frozen at run start).
+>
+>    Code builds every check on bareguard's sheet shapes (`checkTables`, `runTableChecks`, `checkSchema`, `claimSchema`, `groundedValues`, `groundedLiterals`, `columnAt`). A rule code cannot build shows in Not checked, with the reason.
+> 2. The AI never writes a sheet check. It only sends edits to the list, as on every other line.
+> 3. A column question, an Agree, your own words, a Drop or an Add replaces or removes that one row. Nothing is added beside it.
+> 4. An Ask is only a stop in the middle. Nothing else about a sheet line differs from bareloop.
+>
+> **Done when:**
+> - The CSV job and the aging job each draft and run green on deepseek-flash.
+> - No plan holds a sheet check the AI wrote.
+> - Each `~` rule shows as one row or one Not checked line.
+> - A $0 re-check of the signed sheet jobs gives the same reds and greens.
+>
+> **Must fail when:**
+> - The AI's draft carries a sheet check.
+> - A sheet rule is checked by anything but code on bareguard.
+> - A rule has two rows.
+> - A signed sheet job's result changes.
+>
+> **Out of scope:** page jobs (they wait for bareloop); doc jobs.
