@@ -3731,3 +3731,40 @@ Peer state (2026-11-13):
   - `86e6484`, `d22f570`: an Agree to words already on the line (a whole `~` rule or one `; ` part of it) adds no second copy; different words still add one (src/panel/authorcard.js `appendAnswersToJob`, borrowed from bareloop F318 0291e910). Test: `test/m16-agree-same-words.test.js`.
   - `8a516f8`: dead `placeRuleLines` and `ledgerChannel` deleted (self-review nits); no behaviour change.
   - `5dfdf94` (red test `b4e0fe4`): Drop and Add on the plan card after a Drop it answer now rebuild the same plan at $0 instead of refusing "The inputs of this plan have changed"; the rebuild reads the person-left drop saved in page-look.json and keeps the Not-checked note the unchanged list still makes (src/planrebuild.js `rebuildBlock`, `rowEditPlan`). Test: `test/m16-p4-rowedit.test.js` (P4d).
+
+## M17 — one check list for sheets and Tickets
+
+**M17 scope — SIGNED by hamr 2026-11-14 ("sign m17"), the text exactly as shown; the number M17 is hamr's pick.** hamr's words with the signature: "one thing we did with bareloop is that any rule gets updated after clarificatios get replaced, not added next to it, same amount got in ~ ! $ same out, we did it cleanly in bareloop and it solved problem of mixing up, ask loop after it releases. also ask it for anything else might be helpful/applicable for us #2 loop will take from you the sheet jobs as well after they release". Why: the one check flow draft in docs/product/PRD.md (survey `.claude/scratch/m16/survey/SURVEY.md`, paths A2, B4, B6, C5, C6, C7, D1, D2); bareloop has no sheet path, so this part is fwdloop's own.
+
+> **M?? — one check list for sheets and Tickets** (you pick the number)
+>
+> 1. **Sheets: one guardrail, one row.**
+>    - (a) The column question (A2) stays. It's still asked before the card shows. Your answer updates that rule's own row. It never adds a new `use the column 'X' for 'Y'` line (D2).
+>    - (b) The AI still writes sheet checks, as signed in M16 am4. But code keeps only one check per rule. A second check on the same rule, or a check that covers no rule, goes under **Suggested** with **Add** (B4).
+>    - (c) There is only one Not checked list. Three old notes go away:
+>      - the sheet's own "Not checked: none" (C7),
+>      - "no sheet check covers it" (C6),
+>      - "no column 'expenses'" notes for words that aren't a rule (C5).
+>
+>      A rule with no check shows once in Not checked, with its reason.
+> 2. **Tickets: nothing hidden.**
+>    - (a) The filter and watch show as rows on the list. Code checks them at run start (B6).
+>    - (b) A content rule like "mention the reporter's name" is listed as Not checked, with its reason. It's never hidden (D1).
+> 3. **Nothing else changes.** Page jobs wait for bareloop's release.
+>
+> **Done when:**
+> - The CSV job, the aging job and a Tickets job each draft and run green on deepseek-flash, on your real panel.
+> - Each card has one Not checked list, with each rule named once.
+> - A $0 re-check of the good signed sheet and Tickets jobs refuses none and gives the same reds and greens as before.
+>
+> **Must fail when:**
+> - A card shows two Not checked lists.
+> - One rule has two checks.
+> - A check that covers no rule sits on the list.
+> - A `~` rule shows nowhere.
+> - A sheet answer adds a `~` line.
+> - A signed job's result changes.
+>
+> **Out of scope:** page jobs; how "under N" words are counted; fixing old runs.
+>
+> **Cap:** first a $0 test on saved drafts, then about 30 cents for drafts and walks.
