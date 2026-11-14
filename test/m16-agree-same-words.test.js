@@ -7,8 +7,11 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { draftToDir, signDraft } from '../src/authoring.js';
+import { jobKeyOfCard } from '../src/jobkey.js';
+import { RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply } from './drafter-fixture.mjs';
 import { createAuthor } from '../src/panel/author.js';
-import { appendAnswersToJob, applyAnswers } from '../src/panel/authorcard.js';
+import { appendAnswersToJob, applyAnswers, cardToProse } from '../src/panel/authorcard.js';
 import { tickedConfig } from './m4e-world.mjs';
 
 const ID = 'd-0000000001-abcd';
@@ -59,4 +62,39 @@ test('appendAnswersToJob: new words still add a line (am2 item 3); words already
 test('applyAnswers: two Agrees to the words of the line\'s own rules leave the job text alone', () => {
   const all = [{ line: 1, rule: 'exactly 3 bullets', left: false }, { line: 1, rule: READING, left: false }];
   assert.equal(applyAnswers(JOB, all).job, JOB);
+});
+
+// ---- the sign side: with the job text unchanged, the re-drafted plan signs as a run of the same workflow ----
+const CARD = { flowName: 'job2', job: JOB, capUsd: '0.25', askWait: '1h', destination: '/tmp/out' };
+const AGREES = [{ line: 1, rule: 'exactly 3 bullets', left: false }, { line: 1, rule: READING, left: false }];
+
+test('the job key (what sign-as-run compares) is the signed one after the Agrees, and was NOT before the fix (the old grown text)', () => {
+  assert.equal(jobKeyOfCard(applyAnswers(JOB, AGREES).job), jobKeyOfCard(JOB));
+  assert.equal(cardToProse({ ...CARD, job: applyAnswers(JOB, AGREES).job }), cardToProse(CARD), 'the prose the redraft is given is the signed job\'s prose');
+  assert.notEqual(jobKeyOfCard(`${JOB}; ${READING}`), jobKeyOfCard(JOB), 'the live bug: a third copy is a different job');
+});
+
+test('a run-again re-draft whose answers changed nothing signs as a run of the same flow; a grown guardrail is refused "not the job of"', async () => {
+  const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-m16sr-'));
+  const root = path.join(work, 'flows');
+  const guard = 'at most 600 words; at most 600 words'; // a single `; ` guardrail, as the live line was
+  const draftInto = async (tag, g) => {
+    const fx = job2Fixture();
+    const proseFile = path.join(work, `${tag}.prose.txt`);
+    writeFileSync(proseFile, fx.proseG.replace('3 sections, all under 600 words', g));
+    const dir = path.join(work, tag);
+    const r = await draftToDir({ proseFile, dir, root, name: 'job2', provider: fakeProvider([toolReply(validArgs())]), rates: RATES, modelId: MODEL, env: {}, noQuestions: true });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    return { dir, hash: r.hash };
+  };
+  const v1 = await draftInto('d1', guard);
+  assert.equal(signDraft({ dir: v1.dir, approve: v1.hash, signedBy: 'alice' }).ok, true);
+  const same = await draftInto('d2', guard);
+  const ok = signDraft({ dir: same.dir, approve: same.hash, signedBy: 'alice', asRunOf: { flow: 'job2' } });
+  assert.equal(ok.ok, true, JSON.stringify(ok.reds));
+  assert.equal(ok.runId, 'run-1');
+  const grown = await draftInto('d3', `${guard}; at most 600 words`);
+  const bad = signDraft({ dir: grown.dir, approve: grown.hash, signedBy: 'alice', asRunOf: { flow: 'job2' } });
+  assert.equal(bad.ok, false);
+  assert.match(bad.reds.join('\n'), /not the job of "job2"/);
 });
