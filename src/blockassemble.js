@@ -12,11 +12,14 @@
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
 
 import { factsOfLook } from './citedcheck.js';
-import { REASON } from './checkblock.js';
+import { REASON, renderCard } from './checkblock.js';
 import { dropSentence } from './pagedropwords.js';
 import { KEPT_WORDS } from './pickrecord.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** the words the card draws a row with, without its `~` / `!` / `$` mark (the one renderer, src/checkblock.js renderCard) @param {Record<string, any>} row */
+const rowWords = (row) => String(renderCard([{ ...row, hidden: false, state: row.state === 'suggested' || row.state === 'dropped' ? 'not-checked' : row.state }])[0]?.text ?? '').slice(2);
 
 /**
  * The words a Not-checked row says. A rule the person left, wrote in their own words, or left with no pick keeps fwd's signed table (M10 am16 (5): src/pagedropwords.js), the words the plan card and the
@@ -121,9 +124,10 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     if (own?.hidden) return null;
     // an agreed or carried `~` line shares its source's answer (a follower is told as the rule it follows)
     const row = own?.parent ? { ...own, cantAsked: block.rows.find((x) => x.key === own.parent)?.cantAsked === true, keptFromLast: own.keptFromLast ?? block.rows.find((x) => x.key === own.parent)?.keptFromLast } : own;
+    // any other row is told in the words the card draws it with (renderCard; never the row's key)
     // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
     const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)
-    const line = r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${r.kind} ${r.key} - ${notCheckedWords(r.reason, row)}${kept}`;
+    const line = r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${rowWords(own ?? r)} - ${notCheckedWords(r.reason, row)}${kept}`;
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);
