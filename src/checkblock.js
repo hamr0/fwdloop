@@ -19,7 +19,7 @@ import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js'
 import { fitPlacePhrase } from './placerule.js';
 import { ruleWords } from './pageask.js';
 import { SIGNED_ROW_FIELDS } from './declaredclose.js';
-import { factSentence, countSentence } from './citedcheck.js';
+import { factSentence, countSentence, factsOfLook } from './citedcheck.js';
 
 /**
  * A row. `kind`: rule, fact, phrase, count, cited, numbers, floor. `by`: you (`~`), agent (`!`), default (`$`). A `~` row may carry `links` (the look's facts tied to it),
@@ -93,7 +93,7 @@ export function renderCard(rows) {
     else if (r.kind === 'cited') body = `${CARD_T.cited} "${r.source ?? CARD_T.theInput}"`;
     else if (r.kind === 'note') body = defaultNoteText(r.line);
     else if (r.kind === 'numbers') body = `${CARD_T.numbers} ${(r.after ?? []).join(', ')}`;
-    else body = `${r.kind} "${r.name ?? r.words?.[0] ?? ''}"${r.words?.length ? ` ${CARD_T.withWords} ${r.words.map((/** @type {string} */ w) => `"${w}"`).join(', ')}` : ''}`;
+    else body = `${r.kind} "${r.name ?? r.words?.[0] ?? ''}"${(r.grown ?? r.words)?.length ? ` ${CARD_T.withWords} ${(r.grown ?? r.words).map((/** @type {string} */ w) => `"${w}"`).join(', ')}` : ''}`;
     return { key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null, text: `${r.by === 'you' ? '~' : r.by === 'agent' ? '!' : '$'} ${body}` };
   });
 }
@@ -405,6 +405,7 @@ export class CheckBlock {
     for (const r of this.rowsOn(l.n)) {
       if (r.kind === 'floor') continue;
       r.part = null;
+      r.grown = undefined;
       if (!r.can?.ok) { r.state = 'not-checked'; r.reason = r.can?.why ?? 'not checked'; continue; }
       if (r.held) { r.state = 'suggested'; r.reason = r.choice === 'drop' ? REASON.dropped : REASON.suggested; continue; }
       if (r.can.how === 'pick') {
@@ -431,7 +432,19 @@ export class CheckBlock {
       };
       const reds = rubricStepShapeReds({ step: l.n, parts: [part] }, 'trial');
       if (reds.length) for (const x of [...factRows.map((f) => f.r), ...(countRow ? [countRow] : [])]) { x.state = 'not-checked'; x.reason = `code could not build the line's fact part: ${reds[0]?.detail}`; x.part = null; }
-      else { lineParts.push(part); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
+      else {
+        // M17 am4 (B3): the ONE writer of a place's grown phrases (fwd's signed R2c, M10 am7 item 2): the part holds EVERY phrase as a fact of its own, and the row holds the same words (`grown`),
+        // so the card (renderCard), the plan and the Job tab say what the plan checks. A place the look did not grow keeps the one word.
+        const src = factRows[0]?.src;
+        const grownOf = (/** @type {any} */ f) => {
+          const k = f && f.shape === 'phrase' ? /** @type {any[]} */ (this.lookFacts).find((x) => x.line === l.n && Array.isArray(x.phrases) && String(x.name) === f.name && (x.source === undefined || x.source === src)) : undefined;
+          return k ? factsOfLook(k) : null;
+        };
+        for (const { r } of factRows) {
+          const words = (r.factNames ?? []).flatMap((/** @type {string} */ n) => (grownOf(facts.find((f) => f.name === n)) ?? []).map((x) => String(x.phrase)));
+          r.grown = words.length ? words : undefined;
+        }
+        lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
     } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = REASON.countNeedsFact; }
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
     this.buildDefaults(l, lineParts, lineRows, factLines);

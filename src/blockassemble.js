@@ -14,7 +14,6 @@ export const ASK_LINE_REASON = 'you judge it at the Ask';
 /** what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail) */
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
 
-import { factsOfLook } from './citedcheck.js';
 import { REASON, renderCard } from './checkblock.js';
 import { dropSentence } from './pagedropwords.js';
 import { KEPT_WORDS } from './pickrecord.js';
@@ -53,12 +52,6 @@ export function pickedOf(part) {
 export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set() }) {
   if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], notCheckedBy: {}, built: new Set() };
   const c = block.reconcile();
-  // fwd's signed R2c (M10 am7 item 2; bareloop v0.56.0 has no such rule, M16 am3 (1): fwd's rule stays): a place the page-read grew to phrases is checked with EVERY phrase, one phrase fact each,
-  // not with the one word the block built it from
-  const placeFactsOf = (/** @type {any} */ part, /** @type {number} */ n) => {
-    const places = /** @type {any[]} */ (block.lookFacts).filter((k) => k.line === n && Array.isArray(k.phrases) && (k.source === undefined || k.source === part.source));
-    return part.facts.flatMap((/** @type {any} */ f) => { const k = f.shape === 'phrase' ? places.find((x) => String(x.name) === f.name) : undefined; return k ? factsOfLook(k) : [f]; });
-  };
   const partsOf = (/** @type {number} */ n) => c.map.filter((m) => m.line === n).map((m) => ({ ...c.parts[m.part], oldIndex: c.map.filter((x) => x.line === n).findIndex((x) => x.part === m.part) }));
   const guarded = (/** @type {number} */ n) => typeof lines.find((l) => l.n === n)?.guardrail === 'string' && String(lines.find((l) => l.n === n)?.guardrail).trim() !== '';
   /** @type {Set<number>} */ const built = new Set();
@@ -87,7 +80,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const close = { ...(sheet ? { sheet } : {}), ...(Array.isArray(old.columns) ? { columns: old.columns } : {}) };
     if (fact) {
       close.class = 'green';
-      close.cited = { source: fact.source, facts: placeFactsOf(fact, n), ...(isRec(fact.count) ? { count: fact.count } : {}) };
+      close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}) };
     } else close.class = sheet ? 'green' : picks.length ? 'softgreen' : 'hitl';
     if (picks.length) {
       const checks = picks.map(pickedOf);
