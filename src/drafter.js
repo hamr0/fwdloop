@@ -48,7 +48,6 @@ import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import { isCountGuardrail } from './declaration.js';
-import { repairDeclaration } from './repairs.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
@@ -1010,8 +1009,6 @@ export async function draft({
       Object.assign(declaration, assembled.declaration);
       if (assembled.declaration.pickedLines === undefined) delete declaration.pickedLines;
     }
-    // M10 am27 (2): the two mechanical plan mistakes (cited page not in reads; unjudgeable note on a green line) are repaired by code and logged on the round
-    { const fixed = repairDeclaration(declaration, arbiter); if (fixed.repaired.length) { Object.assign(declaration, fixed.declaration); entry.repaired = fixed.repaired; } }
     // M17 am2: the AI writes no sheet check. What it sent as `close.sheet` is a typed suggestion; code refuses or builds each one on bareguard (src/sheetbuild.js) and writes the checks, with its own ids
     /** @type {Awaited<ReturnType<typeof buildSheetChecks>>|null} */
     let sheetBuilt = null;
