@@ -128,11 +128,11 @@ test('(S7) a red on something the AI wrote (a softgreen line granted write) is s
 });
 
 // hamr ruling 2026-11-13: R4 (unsigned) is overridden; M16 item 5 does not name the AI's notChecked, so M4e am24/am25 stand and the list is kept beside the rows' reasons
-test('(am24/am25) the AI\'s own notChecked is kept beside the rows\' reasons for the lines of the list', async (t) => {
+test('(M17 am4, C1) the AI\'s own notChecked is not kept: a line it sends is on no card, the list\'s reasons are all there is', async (t) => {
   const p = router(handlers({ ...aiDecl(), notChecked: ['the garden is pretty'] }));
   const r = await go(p, walkProse(t, WALK));
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.ok(r.notChecked.includes('the garden is pretty'), 'break: drop cleanNotChecked(rawNotChecked) from the union and this reds');
+  assert.ok(!r.notChecked.includes('the garden is pretty'), 'break: put cleanNotChecked(rawNotChecked) back in the union and this reds');
 });
 
 // ---- Tickets, CSV and the m14-walk-5 accepted output, with the list on ---------------------------------------------------------------------------------------------
