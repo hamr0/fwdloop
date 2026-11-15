@@ -101,7 +101,7 @@ export function readingOfQuestion(q) {
 export function panelQuestionText(q) {
   const text = String(q.question);
   if (q.source !== 'look') return text;
-  const tails = [`${READING_ANSWER}${readingRest(q.line)}`, cantCheckTail(q.line), columnTail(q.line), ` ${HOW_TO_ANSWER(q.line, true)}`, ` ${HOW_TO_ANSWER(q.line, false)}`];
+  const tails = [`${READING_ANSWER}${readingRest(q.line)}`, cantCheckTail(q.line), columnTail(q.line), columnTail(q.line, true), ` ${HOW_TO_ANSWER(q.line, true)}`, ` ${HOW_TO_ANSWER(q.line, false)}`];
   const hit = tails.find((t) => text.endsWith(t));
   return hit === undefined ? text : text.slice(0, text.length - hit.length);
 }

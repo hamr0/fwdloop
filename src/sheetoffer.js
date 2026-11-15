@@ -95,3 +95,34 @@ export function isColumnChoiceRule(rule) {
   const head = columnRuleWords('', '').split("''")[0]; // "use the column '"
   return r.startsWith(head) && r.endsWith("'") && r.includes("' for '");
 }
+
+/**
+ * M17 ruling 1 (hamr 2026-11-14): the parts of an agreed column rule (`use the column 'Amount' for 'Price'`), read from the words code wrote ({@link columnRuleWords}); null for any other text.
+ * @param {unknown} rule @returns {{column: string, word: string}|null}
+ */
+export function columnChoiceParts(rule) {
+  if (!isColumnChoiceRule(rule)) return null;
+  const r = String(rule);
+  const head = "use the column '";
+  const mid = r.indexOf("' for '", head.length);
+  if (mid < 0) return null;
+  return { column: r.slice(head.length, mid), word: r.slice(mid + "' for '".length, r.length - 1) };
+}
+
+/**
+ * M17 ruling 1: the rule's own words with the job's word (case aside, whole word) swapped for the agreed column: "Price over 500" + Amount -> "Amount over 500". Null when the word is not in the rule.
+ * @param {string} text @param {string} word @param {string} column @returns {string|null}
+ */
+export function swapColumnWord(text, word, column) {
+  const w = word.trim().toLowerCase();
+  if (w === '') return null;
+  const low = text.toLowerCase();
+  const isWordChar = (/** @type {string|undefined} */ c) => c !== undefined && c.toLowerCase() !== c.toUpperCase() || (c !== undefined && c >= '0' && c <= '9');
+  let from = 0;
+  for (;;) {
+    const at = low.indexOf(w, from);
+    if (at < 0) return null;
+    if (!isWordChar(text[at - 1]) && !isWordChar(text[at + w.length])) return `${text.slice(0, at)}${column}${text.slice(at + w.length)}`;
+    from = at + 1;
+  }
+}

@@ -107,7 +107,7 @@ export function applySheetWords(text, words, jobLines, label) {
     // the person already named this column in a rule of the line (an answer they gave, or their own words): the word is that column, asked no more
     if (rules.some((r, i) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     asks.push({
-      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
+      line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line, at.rule !== undefined), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });
   }
   return { facts, asks, dropped };

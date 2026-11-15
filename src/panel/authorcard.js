@@ -16,7 +16,7 @@ import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
 import { sameRuleWords } from '../blockpick.js';
-import { isColumnChoiceRule } from '../sheetoffer.js';
+import { isColumnChoiceRule, columnChoiceParts, swapColumnWord } from '../sheetoffer.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
 import { parseSignedText } from '../signed-text.js';
@@ -178,9 +178,12 @@ export function applyAnswers(job, all) {
   const appends = [];
   for (const x of all) {
     if (x.rule === null) continue;
-    // a column-choice ask (`use the column 'X' for 'Y'`) is the sheet path's own (M17 am2); here it is still one more `~` line
-    if (x.ask !== undefined && Number.isInteger(x.ruleNo) && !isColumnChoiceRule(x.proposal)) {
-      const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), x.rule);
+    // M17 ruling 1: a column ask tied to one of the person's `~` rules rewrites THAT rule in place - agreed, the job's word is swapped for the column ("Price over 500" -> "Amount over 500"); the
+    // person's own words replace it like any other rule. A column word tied to no rule (the job's prose) is still one more `~` line
+    const parts = isColumnChoiceRule(x.proposal) && Number.isInteger(x.ruleNo) ? columnChoiceParts(x.rule) : null;
+    const swapped = parts ? swapColumnWord(String(x.ruleText ?? ''), parts.word, parts.column) : null;
+    if (x.ask !== undefined && Number.isInteger(x.ruleNo) && (!isColumnChoiceRule(x.proposal) || !isColumnChoiceRule(x.rule) || swapped !== null)) {
+      const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), swapped ?? x.rule);
       if (r.replaced) { out = r.job; done += 1; }
     } else appends.push({ line: x.line, answer: x.rule });
   }
