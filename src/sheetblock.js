@@ -13,6 +13,7 @@ import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
+import { NO_VALUE_WHY } from './ticketrows.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -123,7 +124,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
 }
 
 /**
- * The guardrail rules of a sheet step that no check covers, as the drafter's Not-checked lines (`line N: "rule" - no sheet check covers it`): the block's own
+ * The guardrail rules of a sheet step that no check covers, as the drafter's Not-checked lines (`line N: "rule" - <reason>`): the block's own
  * `notChecked`, one list for the plan card and the drafter's saved record.
  * M17 am2: `built` (the builder's answer, src/sheetbuild.js) gives the reason a rule is Not checked (the refusal that named it).
  * @param {any} declaration @param {Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>} lines @param {string[]} csvRoles @param {{notChecked: Record<string, string>}} [built] @returns {string[]}
@@ -131,7 +132,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
 export function uncoveredRules(declaration, lines, csvRoles, built) {
   if (csvRoles.length === 0) return [];
   return sheetLineBlocks({ declaration, lines, csvRoles }).flatMap((b) => (b.notChecked === 'none' ? [] : b.notChecked
-    .map((r) => `line ${b.line}: "${r}" \u2014 ${built?.notChecked[`line ${b.line}: "${r}"`] ?? 'no sheet check covers it'}`)));
+    .map((r) => `line ${b.line}: "${r}" \u2014 ${built?.notChecked[`line ${b.line}: "${r}"`] ?? NO_VALUE_WHY}`)));
 }
 
 /** @param {any} arbiter @returns {string[]} the roles of the signed sources that are a CSV file (the sheets a check reads) */

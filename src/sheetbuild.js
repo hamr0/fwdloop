@@ -3,18 +3,20 @@
 // Ported from poc/f195-agentrows/build.mjs (F195 PASS, $0); no class code, no send-back loop, no word-to-column guess, no per-case validator patch.
 //   refusals (each by bareguard, in this order): the vocabulary (rule, op), the line's sheets, the schema (a field of the rule), `columnAt` (a column of the sheet's header), `checkTables`
 //   (and its problems), `groundedLiterals` (a number or date in the person's own words), `claimSchema` (an answer box), and for a `table` check `runTableChecks` on the sheet frozen at draft time.
-//   placement (am3 item 1): every suggestion that passes all of them is BUILT. A cells (answer) check is placed before a table check, then in the order sent. It is a RULE ROW's check when none of the
-//   rules it covers is held by an earlier rule row, else (or when it covers no rule) its own `[agent]` row. Nothing is hidden; nothing sits beside a rule's row.
+//   placement (am3 item 1): every suggestion that passes all of them is BUILT. A cells (answer) check is placed before a table check, then in the order sent. A cells check is a RULE ROW's check when none of the
+//   rules it covers is held by an earlier rule row, else (or when it covers no rule) its own `[agent]` row. M17 am7: a `table` check reads only the input sheet, so it is never a rule row: it is always
+//   its own `[agent]` row, on by default, and covers no rule (a rule only a table check named is Not checked). Nothing is hidden; nothing sits beside a rule's row.
 // One writer per field: `id`, `claim`, `covers` and `table` (when absent and the line reads one sheet) are assigned here. A rule row's id is `l<line>r<rules>`, an agent row's `l<line>a<k>`; the claim is the id.
 // What this throws away: a suggestion's `id`, `claim`, `text` (and its `covers`: an agent row's is only the rule no rule row holds); a refused suggestion's check (only its reason is kept, on the rules it named).
 // Third outcomes, named: a suggestion that is not an object, names no rule or op bareguard has, a table it cannot read, a column that is no header: refused with that helper's words; a rule that no
-// check holds is Not checked with the last refusal that named it, or `no sheet check covers it`.
+// check holds is Not checked with the last refusal that named it, or the no-pick sentence (`NO_SUGGESTION`).
 import { rubricVocabulary, claimSchema, groundedLiterals } from 'bareguard';
 import { SHEET_RULES, sheetCheckColumns, sheetCheckReds, bareguardChecks } from './sheetchecks.js';
 import { tableChecksFailingOnInput } from './sheetrun.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { rulesOfLine } from './sheetblock.js';
 import { wordsSaidOn } from './pagebits.js';
+import { NO_VALUE_WHY } from './ticketrows.js';
 
 const V = /** @type {any} */ (rubricVocabulary);
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -22,8 +24,8 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 /** the fields of a suggestion code does not read: it names every check itself */
 export const SUGGESTION_DROPPED = Object.freeze(['id', 'claim', 'text', 'covers']);
 
-/** the words of a rule no check holds and nothing refused */
-export const NO_SUGGESTION = 'no sheet check covers it';
+/** M17 am7 item 2: the words of a rule no check holds and nothing refused: the one no-pick sentence (src/ticketrows.js), not a third copy */
+export const NO_SUGGESTION = NO_VALUE_WHY;
 
 /**
  * @param {any} ai a suggestion as the AI sent it @returns {{covers: number[], fields: Record<string, any>}}
@@ -87,10 +89,10 @@ export async function buildSheetLine({ line, tables, suggestions }) {
   /** @type {Placed[]} */
   const agentRows = [];
   for (const b of order) {
-    const asRule = b.nums.length > 0 && b.nums.every((n) => !held.has(n) && !coveredByAgent.has(n));
+    const asRule = b.fields.rule !== 'table' && b.nums.length > 0 && b.nums.every((n) => !held.has(n) && !coveredByAgent.has(n));
     const id = asRule ? `l${line.n}r${b.nums.join('_')}` : `l${line.n}a${agentRows.length + 1}`;
     // an [agent] row shows only a rule no rule row holds and no earlier [agent] row shows (F195's rule: never shown nowhere, never two rows); `row: 'agent'` is the tag's own typed field (src/sheetblock.js)
-    const shown = asRule ? b.nums : b.nums.filter((n) => !held.has(n) && !coveredByAgent.has(n));
+    const shown = asRule ? b.nums : b.fields.rule === 'table' ? [] : b.nums.filter((n) => !held.has(n) && !coveredByAgent.has(n));
     const check = { id, ...b.fields, ...(b.fields.rule === 'cells' ? { claim: id } : {}), covers: shown, ...(asRule ? {} : { row: 'agent' }) };
     if (asRule) { for (const n of b.nums) held.set(n, id); ruleRows.push({ check, covers: b.nums }); } else { for (const n of shown) coveredByAgent.set(n, id); agentRows.push({ check, covers: shown }); }
   }
@@ -133,7 +135,7 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     steps.push({ ...st, close: built.checks.length > 0 ? { ...close, sheet: built.checks } : close });
   }
   // M17 am5 / P5: a green step that reads a sheet and holds no check after the build (no suggestion, or none code could build) is REPORTED here, with each of its rules and the refusal that named it
-  // (else `no sheet check covers it`). What class such a step gets is the caller's to decide (src/blockassemble.js closeUnbuiltSheetSteps); this file writes no class.
+  // (else the no-pick sentence). What class such a step gets is the caller's to decide (src/blockassemble.js closeUnbuiltSheetSteps); this file writes no class.
   /** @type {{line: number, lost: string[]}[]} */
   const unbuilt = [];
   const roles = Object.keys(tables);
