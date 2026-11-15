@@ -20,7 +20,7 @@ const PROSE = readFileSync(new URL('./fixtures/m17-f196-aging/prose.txt', import
 // the sheet look's words, as the walk had them
 const LOOK = { facts: [
   { from: 'line 2', word: 'invoice', kind: 'other' }, { from: 'line 2 rule 1', word: 'invoice', kind: 'other' }, { from: 'line 2 rule 2', word: 'invoice', kind: 'other' },
-  { from: 'line 2', word: 'bucket', kind: 'other' }, { from: 'line 1', word: 'aging report', kind: 'other' },
+  { from: 'line 2 rule 2', word: 'bucket', kind: 'other' }, { from: 'line 2', word: 'bucket', kind: 'other' }, { from: 'line 1', word: 'aging report', kind: 'other' },
 ] };
 const reply = (text) => ({ ...textReply(text), usage: { inputTokens: 1000, outputTokens: 200 } });
 const ISO = [{ column: 'Due date', format: 'YYYY-MM-DD' }];
@@ -92,3 +92,13 @@ for (const width of [1280, 390, 320]) {
     assert.ok(await chrome.ev('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no horizontal scroll');
   });
 }
+
+test('B2 (walk d-00mwhx4jbm-fe4b): a look drop of a word inside a ~ rule never makes a Not checked line; a rule a check row holds shows nowhere, a prose word\'s drop stays', async () => {
+  const BANDS = [{ name: 'Current', lte: 0 }, { name: '1-30', gte: 1, lte: 30 }, { name: '31-60', gte: 31, lte: 60 }, { name: '61-90', gte: 61, lte: 90 }, { name: '90+', gt: 90 }];
+  const sug = [{ rule: 'table', table: 'aging', op: 'noDuplicates', column: 'Invoice #', covers: [1] }, { rule: 'cells', table: 'aging', claim: 'b', op: 'band', column: 'Due date', asOf: '2026-10-11', dateFormats: ISO, bands: BANDS, covers: [2, 3] }];
+  const { r } = await run(sug);
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2_3', 'l2r1']);
+  assert.deepEqual(r.notChecked.filter((t) => /every invoice|each invoice/.test(t)), [], 'every ~ rule is held by a row: none is in Not checked');
+  assert.ok(r.notChecked.some((t) => t.startsWith('line 2: "bucket"')), 'the prose word stays');
+});

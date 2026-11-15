@@ -1040,10 +1040,11 @@ export async function draft({
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     const uncovered = [...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined), ...(sheetHitl?.lost ?? [])];
     // the tag of a note no row tells: any note code writes is [default]; a row's own tag wins
-    // M17 am2: a `~` rule is ONE Not checked line with ONE reason: the build's (the refusal or "no sheet check covers it") wins over the sheet look's column drop of the same rule; a drop of a prose word is no rule and stays
+    // M17 am2 / am4: a sheet look's column drop of a word inside a `~` rule never makes a Not checked line of its own. A rule a check row holds shows nowhere here; a rule none holds shows ONCE, with the build's reason
+    // (`uncovered`). A drop of a prose word is no rule and stays.
     const ruleKey = (/** @type {string} */ t) => t.split(' \u2014 ')[0];
-    const ruled = new Set(uncovered.map(ruleKey));
-    const lookNotChecked = pageNotChecked.filter((t) => !(ruled.has(ruleKey(t)) && !t.endsWith('no sheet check covers it')));
+    const sheetRuleKeys = new Set(jobLines.filter((l) => sheetLineNums.includes(l.n)).flatMap((l) => lineRules(l).map((r) => `line ${l.n}: "${r}"`)));
+    const lookNotChecked = pageNotChecked.filter((t) => !sheetRuleKeys.has(ruleKey(t)));
     /** @type {Record<string, 'you'|'agent'|'default'>} */
     const noteBy = Object.fromEntries([...lookNotChecked, ...uncovered].map((t) => [t, 'default']));
     const ticketNotChecked = (ticketOnList?.notChecked ?? []).map((t) => `not checked · "${t.rule}" — ${t.reason}`);
