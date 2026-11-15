@@ -7449,3 +7449,10 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **(b) PASS.** 25 run records over both pools (letter 8, widened 17); current red 3; candidate verdict differs 0. **(c) PASS.** 75 checks built by the current builder, all still built by the candidate, none hidden, no rule row holds two; the checker self-test flags a double-held rule and a check in no row.
 - **(d) report, no pass mark:** 5 rules on 5 plans have a table check as their only rule-row holder; all read "every invoice appears exactly once": 3 `noDuplicates`, 1 `noEmpty`, 1 `rowCount`; count 1 per plan.
 - Weak spot: no run in the pools had a red from such a check, so (b) is shown only on green-from-table runs.
+
+
+### F197 bar (e) PRE-REGISTERED (2026-11-15, $0): how the rule shows once its table check moves (hamr picked option 2 after run 1)
+- Run 1 candidate showed the rule as covered by the table check's `[agent]` row (state `agent-row`): the card still suggests the rule is checked, one row lower. hamr picked: the rule shows in Not checked with "No check was picked for it, so you judge it at the Ask."; the table check is still built as its own `[agent]` row (runs, with Drop) and shows no `~` rule.
+- Candidate 2 (`poc/f197-tablerow/build-candidate-2.mjs`): candidate 1 plus one change: a `rule: 'table'` check's `[agent]` row never covers a `~` rule (its `covers` is empty), so a rule held only by a table check is Not checked.
+- **Bar (e)** on the 5 plans of the (d) report: candidate 2 shows each of the 5 rules in Not checked, on the real card path (the code that turns the built set into the card's Not checked lines, not the builder's state alone), with the words "No check was picked for it, so you judge it at the Ask."; its table check is built as an `[agent]` row covering no rule; no other rule of those plans changes how it shows. Control: candidate 1 fails this bar.
+- Bars (a)-(c) are re-run on candidate 2 ((a): rule 1 of `d-00mwhz6eab-cfc7` is Not checked, `l2r1` gone, the rowCount check is an `[agent]` row). Overall PASS only if (a), (b), (c) and (e) PASS. `git diff --stat src test` empty.
