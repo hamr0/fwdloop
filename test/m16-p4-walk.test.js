@@ -113,7 +113,7 @@ for (const width of [1280, 390, 320]) {
     const passedRows = shown.filter((r) => r.result !== 'not-checked');
     assert.ok(passedRows.length >= 2 && passedRows.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
     // P4c: bareloop layout - the header reads "checks · N passed", lowercase, after the caret and the state sign
-    assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*[▶▼]\s*checks · \d+ passed/);
+    assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*\[.\]\s*checks\s*·\s*\d+ passed/);   // the caret is the step fold's ::before, not text
     // hamr ask: only the word "checks" in the header is bold; the text itself is unchanged
     assert.deepEqual(await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-checks-toggle] b:not(.st-word)")).map(function(b){return b.textContent;})'), ['checks'], 'the word checks is bold');
     // hamr ask: the header word "checks" is the same size and color as the rows' "passed"
@@ -131,6 +131,27 @@ for (const width of [1280, 390, 320]) {
       assert.notEqual(g.glyph, grp.checks[1], 'the sign glyph keeps its own (green) color');
     }
     for (const g of grp.groups.filter((x) => /failed|stopped/.test(x.text))) assert.notEqual(g.style[1], grp.checks[1], `a failed/stopped word keeps its red/grey: ${JSON.stringify(g)}`);
+    // hamr ask: the checks fold row lines up with a step fold row - same box, height, caret x, [\u2713] x, text size, border
+    const ALIGN = `(function(){
+      function rc(e){ var r = e.getBoundingClientRect(); return {x: r.left, w: r.width, h: r.height}; }
+      var c = document.querySelector("[data-testid=audit-checks-group]"), ct = c.querySelector("[data-testid=audit-checks-toggle]");
+      var g = document.querySelector("#audit-groups .audit-group.audit-fold:not([data-testid=audit-checks-group]):not([data-testid=audit-group-schedule])"), gh = g.querySelector("h4.audit-status-header");
+      function mk(box, head, caret, glyph, rest){ var b = getComputedStyle(box); return {box: rc(box), head: rc(head), caretX: caret.x, glyphX: glyph.getBoundingClientRect().left, restFont: getComputedStyle(rest).fontSize, restLine: getComputedStyle(rest).lineHeight, border: [b.borderTopWidth, b.borderTopColor, b.borderLeftWidth, b.boxShadow]}; }
+      var stepCaret = document.createRange(); stepCaret.setStart(gh, 0); stepCaret.setEnd(gh, 0);
+      var sg = gh.querySelector(".audit-sign-glyph") || gh.querySelector(".dot");
+      var stepRest = gh.querySelector(".audit-fold-tail") || gh;
+      return {checks: mk(c, ct, {x: ct.getBoundingClientRect().left}, ct.querySelector(".dot, .audit-sign-glyph"), ct), step: mk(g, gh, {x: gh.getBoundingClientRect().left}, sg, stepRest), cdot: ct.querySelector(".dot, .audit-sign-glyph").className, sdot: sg.className, stepTailText: stepRest.textContent};
+    })()`;
+    await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").click()');   // fold it: the boxes are compared closed
+    assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), true);
+    const al = await chrome.ev(ALIGN);
+    console.log(`# align ${width}px ${JSON.stringify(al)}`);
+    const near = (a, b, msg) => assert.ok(Math.abs(a - b) <= 1, `${msg}: checks ${a} vs step ${b}`);
+    near(al.checks.box.x, al.step.box.x, 'box x'); near(al.checks.box.w, al.step.box.w, 'box width'); if (al.step.box.h < 40) near(al.checks.box.h, al.step.box.h, 'box height');   // the step row wraps to 2 lines on a phone (long step name): only a one-line step row has the one-line height
+    else assert.ok(al.checks.box.h <= al.step.box.h + 1, `a one-line checks row is not taller than a wrapped step row: ${al.checks.box.h} vs ${al.step.box.h}`);
+    near(al.checks.glyphX, al.step.glyphX, '[\u2713] x');
+    assert.deepEqual(al.checks.border, al.step.border, 'border width, color, shadow');
+    assert.equal(al.checks.restFont, al.step.restFont, 'rest-of-line font size');
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
     await chrome.ev('document.querySelector("[data-testid=audit-checks-group]").scrollIntoView()');
     const m = await chrome.ev(measure('[data-testid=audit-checks-group]'));

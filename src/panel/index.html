@@ -478,9 +478,6 @@
   .audit-group.audit-fold h4.audit-status-header::after{content:none;}
   /* M8 item 6: bareloop's learnings box, copied (borrowed-from: bareloop src/panel/index.html@v0.47.1 417e80c, the learnings arrow only): a framed row, the header a full-width button with the arrow, chip and words inline; the arrow is the same ▶ / ▼ the other Audit folds draw (h4.audit-status-header::before), faint, a smaller gap on a phone */
   .audit-part{border:1px solid var(--border);margin-bottom:6px;background:var(--panel2);}
-  /* borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :181-182 */
-  .audit-caret{flex:none;color:var(--text-faint);margin-right:.6em;}
-  @media (max-width: 640px){ .audit-caret{margin-right:.2em;} }
   .audit-part-toggle{width:100%;text-align:left;display:block;white-space:normal;min-height:44px;padding:8px 10px;}
   .audit-part-toggle::before,.audit-part-toggle::after{content:"";}
   .audit-part-toggle.audit-learn-fold::before{content:"\25B6  ";color:var(--text-faint);}
@@ -4174,26 +4171,31 @@
     if(rows.some(function(r){ return r.result === "none"; })) return glyphClass("[\u00B7]");
     return glyphClass("[\u2713]");
   }
-  // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :1358 (auditCaret)
-  function auditCaret(open){ return '<span class="audit-caret">' + (open ? "\u25BC" : "\u25B6") + '</span>'; }
   function auditChecksEl(ac){
     var all = (ac.checks || []).concat(ac.always || []);
     var nPass = all.filter(function(r){ return r.result === "passed"; }).length;
     var nFail = all.filter(function(r){ return r.result === "failed"; }).length;
     var head = " \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
+    // hamr ask: the same component as a step fold (div.audit-group.audit-fold + h4.audit-status-header, as the schedule fold is), so it lines up with the step rows by construction
     var wrap = document.createElement("div");
-    wrap.className = "audit-part";
+    wrap.className = "audit-group audit-fold closed";
     wrap.setAttribute("data-testid", "audit-checks-group");
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn audit-part-toggle";
-    btn.setAttribute("aria-expanded", "false");
+    var btn = document.createElement("h4");
+    btn.className = "audit-status-header";
+    btn.setAttribute("role", "button"); btn.setAttribute("tabindex", "0"); btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("data-testid", "audit-checks-toggle");
-    // P4c: bareloop's header: the caret span, the state sign, the words (re-drawn on each toggle)
-    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + "<b class=\"audit-checks-word\">checks</b>" + escapeXml(head); };
-    btn.innerHTML = headHtml(false);
+    btn.style.cursor = "pointer";
+    var signCls = auditChecksSignClass(all);
+    var sign = document.createElement("span"), signGlyph = document.createElement("span");
+    sign.setAttribute("data-testid", "audit-checks-state");
+    signGlyph.className = "audit-sign-glyph"; signGlyph.textContent = signCls === "green" ? "[\u2713]" : signCls === "red" ? "[\u2717]" : "[\u00B7]";
+    sign.className = "badge " + signCls + " sign-badge" + (signCls === "green" ? " audit-passed-word" : "");
+    sign.appendChild(signGlyph); btn.appendChild(sign);
+    var nm = document.createElement("span"); nm.className = "audit-fold-name keep"; nm.innerHTML = "<b class=\"audit-checks-word\">checks</b>"; btn.appendChild(nm);
+    var lead = document.createElement("span"); lead.textContent = "\u00b7"; btn.appendChild(lead);
+    var tl = document.createElement("span"); tl.className = "audit-fold-tail wrap"; tl.textContent = head.replace(/^ \u00B7 /, ""); btn.appendChild(tl);
     var body = document.createElement("div");
-    body.className = "audit-part-body";
+    body.className = "audit-fold-body";
     body.hidden = true;
     body.setAttribute("data-testid", "audit-checks-body");
     var sec = function(title, rows, tid){
@@ -4205,8 +4207,10 @@
       return '<div data-testid="audit-checks-readnotes" style="margin:6px 0"><div><b>How the page was read</b></div>' + notes.map(function(t){ return '<div class="audit-check-row" data-testid="audit-read-note" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(t) + "</div>"; }).join("") + "</div>";
     };
     body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + readSec(ac.readNotes) + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
-    function paint(open){ body.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); btn.innerHTML = headHtml(open); }
-    btn.addEventListener("click", function(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); });
+    function paint(open){ body.hidden = !open; wrap.classList.toggle("closed", !open); btn.setAttribute("aria-expanded", open ? "true" : "false"); }
+    function toggle(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); }
+    btn.addEventListener("click", toggle);
+    btn.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggle(); } });
     if(auditExpanded["\u0000checks"] === true) paint(true);
     wrap.appendChild(btn); wrap.appendChild(body);
     return wrap;
