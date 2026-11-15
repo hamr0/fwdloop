@@ -5,6 +5,59 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2026-11-15
+
+One check list for sheet jobs and Tickets jobs (M17, signed 2026-11-14, amendments 1 to 7). The check list from
+0.33.0 is now the only place checks live: sheet checks are built by code, Tickets filter and watch are rows on the
+list, and an answer replaces the rule it is about instead of adding one beside it. Copied from bareloop v0.57.0.
+The POCs behind it (F191-F197) and the practice walk (F196) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- An answer replaces its rule (M17 am1, bareloop v0.57.0). Agreeing to a reading, giving your own words, or
+  answering a column question rewrites that `~` rule in place; no rule is added beside it, and a rule whose words
+  are already the check is not asked. Each rule shows once in Not checked.
+- The note question: for a line that has facts but nothing to count, one extra forced drafting turn asks whether the
+  line also wants a note. Yes adds a `[default]` row that the output is not empty; no adds nothing.
+- Tickets filter and watch are rows on the list (am6). The AI suggests the value in the row-edit turn; code proves it
+  with the existing filter and watch checks and writes the run's filter and watch from the row. A draft that carries
+  its own filter or watch is refused at $0. A Tickets `~` rule that is neither is a list row, or shows once in
+  Not checked with its reason. Signed Tickets jobs run as before.
+- Sheet checks are built by code on bareguard (am2, am3). The AI only suggests checks on the row-edit reply; code
+  builds them with its own ids. A check goes on a rule's row, and a second check on the same rule is its own
+  `[agent]` row, on by default, with Drop. A draft that carries `close.sheet` is refused. A column you agree for a
+  word that is no `~` rule adds no line; it is told to the AI and kept across a Revise.
+- A `~` rule on an Ask line shows once in Not checked: "you judge it at the Ask" (am5).
+- A flights fix from bareloop: a money rule in another currency than the page is Not checked, and an added phrase
+  found in no result row is Not checked. A label the page writes with a colon is signed with it.
+
+### Changed
+- A check that reads only the input sheet (a `table` check such as "the sheet has 8 rows") never sits on a `~` rule's
+  row (am7). It is its own `[agent]` row with Drop and still runs; a rule only it named shows in Not checked as "No
+  check was picked for it, so you judge it at the Ask." This replaces "no sheet check covers it".
+- The old per-case check paths are removed (am4, am5): questions asked outside the list, the old pick path, the AI's
+  own Not checked notes, the "you left it" notes, the hidden "can't judge" record and the declaration repair. The card
+  shows the same words as the plan (a place's grown phrases, such as "Adolfo Suarez Madrid"), and the Audit splits
+  reading notes from Not checked as the card does.
+- A sheet job whose step has no built check becomes a human-checked step with its rules in Not checked.
+- A sheet line is tied to the headers its own words contain, by code. A rule tied to a header asks no column
+  question, and one word on the prose and on a rule is asked once (F196).
+
+### Fixed
+- The aging practice walk (F196): sheet checks named the send line and were refused; a `~` rule showed in Not
+  checked beside the check that held it; the old sheet block drew beside the list on the card.
+
+### Breaking
+- Plans signed before M17 still run as signed: a green sheet step with no `close.sheet` and no list is still refused
+  as before, and a plan that holds the old "can't judge" record is read as signed. A $0 rescan of the 59 signed flows
+  refuses none.
+- Two historical POC scripts, `poc/f163/replay.mjs` and `poc/f167/run.mjs`, no longer load (they imported a removed
+  function).
+
+### Known limits
+- A word of a job's prose that is no rule, such as "aging report", can show in Not checked as a missing column
+  (F198). Recorded, not fixed.
+- Page jobs wait for bareloop's third-try questions; how "under N" is counted is unchanged.
+
 ## [0.33.0] - 2026-11-14
 
 One check list for every job (M16, signed 2026-11-13, amendments 1 to 4; exit signed 2026-11-14), copied from
