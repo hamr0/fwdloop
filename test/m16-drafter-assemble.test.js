@@ -155,7 +155,7 @@ test('m14-walk-5 (am1): the accepted run-5 outputs pass the checks the block bui
   assert.equal((await closeByClass(step(5), { text: 'word '.repeat(90) }, ctx)).verdict, 'red');
 });
 
-test('Tickets: the plan with the list is the ticket job as before (same ticketFilter, same closes on the step lines), and it validates', async () => {
+test('Tickets: the plan with the list is the ticket job as before (same ticketFilter, now a ticket row; same closes on the step lines), and it validates', async () => {
   const prose = `1. Read the ticket and say what is broken,
    guardrail: priority P1 or P2 only
 2. ask 30m: check it with me,
@@ -173,13 +173,14 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
       { primitives: [], reads: ['ticket_note'], emits: 'ask_check', fromLine: 2, close: { class: 'hitl' } },
       { primitives: ['write'], reads: ['ask_check'], emits: 'written', fromLine: 3, close: { class: 'hitl' } },
     ],
-    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1', 'P2'] },
+    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [],
   };
-  const mk = () => router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+  const filter = { priority: ['P1', 'P2'] };
+  const mk = () => router({ submit_edits: callOf('submit_edits', { edits: [], ticketFilter: filter }), emit_declaration: callOf('emit_declaration', decl) });
   const base = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
   const on = await go(mk(), prose, { ...base, checkPicks: [] });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.deepEqual(on.declaration.ticketFilter, decl.ticketFilter);
+  assert.deepEqual(on.declaration.ticketFilter, filter);
   assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((s) => s.close), 'the closes the AI wrote stand on every line');
   assert.deepEqual(on.declaration.guardrailClasses, decl.guardrailClasses);
   assert.ok(Array.isArray(on.declaration.checkList) && on.declaration.checkList.every((/** @type {any} */ x) => x.line === 1), 'rows only on the step line');
