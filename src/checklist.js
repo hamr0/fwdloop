@@ -12,8 +12,6 @@ import { lineRules } from './pagebits.js';
 export const MAX_BANG = 3;
 /** the reason a check on a version or a date goes under Not checked: it is true only for the input as it is today */
 export const WEEK_ONLY_WORDS = 'It names a version or a date from the input, true only for the input as it is today, so you judge it at Accept.';
-/** the label of the list call, as the drafting book and the draft log see it */
-export const LEDGER_LABEL = 'ledger-suggest';
 export const LEDGER_TOOL = 'suggest_extra_checks';
 /** how much of each input the call is shown */
 const SHOWN_CHARS = 8000;
