@@ -336,7 +336,8 @@ describe('optional fields — removing them is NOT a red', () => {
   for (const { field, level } of OPTIONAL_FIELDS) {
     test(`removing "${field}" (optional, level: ${level}) still validates green`, () => {
       const decl = baseDeclaration();
-      if (level === 'step') delete decl.steps[0][field];
+      if (level === 'top') delete decl[field];
+      else if (level === 'step') delete decl.steps[0][field];
       else if (level === 'close') delete decl.steps[0].close[field];
       const result = run(decl);
       assert.equal(result.ok, true, result.ok ? '' : `expected green with "${field}" removed, got:\n${result.reds.join('\n')}`);
