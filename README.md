@@ -28,6 +28,20 @@ change.
 It is built mainly for that shape of work: gather, decide, pause, hand off, continue. Not a
 general agent. Not a chat bot. A workflow that a person can read, approve, rerun, and edit.
 
+## The machine that makes machines
+
+Like a CNC machine, fwdloop builds the thing that does the work, then lets a gauge it can't touch decide if the work is good, and stops for you where you said. Trust needs four things. Miss one and trust is zero. fwdloop has all four.
+
+**Intent.** You write the job as plain numbered lines, and `~` rules under each say what success means. Every rule gets a check or a written reason why not. You sign before a dollar is spent.
+
+**Guide rails, not just guardrails.** Guardrails stop the agent going off the road: a money cap per run, a monthly limit, a time limit on every Ask, and a send destination you signed that it can't move. Nothing leaves the machine without that signed destination and your accept in the same run. Guide rails keep it on the road: each new try hears what earlier tries in the run did; lessons from past runs go to the drafter and to retries; a rule it can't settle comes back as a question with buttons (Agree, Drop it, or your own words), not a guess.
+
+**Verification.** The check sits outside the agent's loop: code decides, built on bareguard. Anything code can't check is listed as Not checked, and you judge it at the Ask. A red step goes back with the real gap to be fixed, up to four tries a step, and two failed steps stop the run.
+
+**Evidence.** Every try, its cost and its check result is recorded, and the books balance to the cent. You can read it all in the Audit tab, including exactly what each try was told. Page facts are quoted from the page's own words.
+
+The one difference from a lights-out machine: a person stands at the gate. The run parks at your Ask, spending nothing, and only after your accept does it act on the world.
+
 ## See it
 
 A real past run: a job that reads a public flights page, lists 3 Madrid→Rome flights, asks a
