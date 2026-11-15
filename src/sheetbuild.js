@@ -109,7 +109,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
  * The declaration with every green sheet step's `close.sheet` REWRITTEN by code from what the AI suggested there (`buildSheetLine`). A step with no suggestion is left alone; a step none of whose
  * suggestions can be built loses `close.sheet` (its rules are Not checked with their reasons). Pure over the declaration it is given (a copy is returned).
  * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>}} o
- * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[]}>} `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
+ * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], hitlLines: number[], lost: string[]}>} `hitlLines`: the green steps left with no check (now hitl), `lost`: each of their rules as a Not-checked line. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
  *   rewritten line that no check holds
  */
 export async function buildSheetChecks({ declaration, lines, tables }) {
@@ -117,7 +117,7 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
   const notChecked = {};
   /** @type {{line: number, helper: string, why: string}[]} */
   const refused = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused };
+  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused, hitlLines: [], lost: [] };
   /** @type {Set<number>} */
   const done = new Set();
   const steps = [];
@@ -132,5 +132,22 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     const { sheet: _suggested, ...close } = st.close;
     steps.push({ ...st, close: built.checks.length > 0 ? { ...close, sheet: built.checks } : close });
   }
-  return { declaration: { ...declaration, steps }, notChecked, refused };
+  // M17 am5 / P5: a green step that reads a sheet and holds no check after the build (no suggestion, or none code could build) is a step with nothing to check it: its close is `hitl`, and each of its
+  // rules is Not checked with the refusal that named it, else `no sheet check covers it`. The old red "must carry close.sheet" stays for a plan signed before (the validator is not changed).
+  /** @type {number[]} */
+  const hitlLines = [];
+  /** @type {string[]} */
+  const lost = [];
+  const roles = Object.keys(tables);
+  const placed = steps.map((st) => {
+    if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || (Array.isArray(st.close.sheet) && st.close.sheet.length > 0) || isRec(st.close.cited) || !Number.isInteger(st.fromLine)) return st;
+    if (!Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => roles.includes(r)) || hitlLines.includes(st.fromLine)) return st;
+    const line = lines.find((l) => l.n === st.fromLine);
+    const rules = line ? rulesOfLine(line).filter((r) => !isColumnChoiceRule(r)) : [];
+    if (rules.length === 0) return st;
+    hitlLines.push(st.fromLine);
+    for (const r of rules) lost.push(`line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_SUGGESTION}`);
+    return { ...st, close: { class: 'hitl' } };
+  });
+  return { declaration: { ...declaration, steps: placed }, notChecked, refused, hitlLines, lost };
 }

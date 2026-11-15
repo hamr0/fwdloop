@@ -8,6 +8,9 @@
 // run-start gate prove (src/checklistsign.js). A fwd line keeps ONE close per line, whose class must equal the class its guardrail earns (signed, M4d): so a line with no guardrail of the
 // person's own can carry only the numbers tie; any other check the list built there cannot be signed on it and its rows are signed Not checked, with that reason.
 
+/** M17 am5 item 2 (D3): the reason a `~` rule on a signed Ask line is Not checked, the signed words */
+export const ASK_LINE_REASON = 'you judge it at the Ask';
+
 /** what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail) */
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
 
@@ -15,6 +18,7 @@ import { factsOfLook } from './citedcheck.js';
 import { REASON, renderCard } from './checkblock.js';
 import { dropSentence } from './pagedropwords.js';
 import { KEPT_WORDS } from './pickrecord.js';
+import { lineRules } from './pagebits.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -42,11 +46,11 @@ export function pickedOf(part) {
 }
 
 /**
- * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>}} o
- *   `lineSet` = the lines the block was given; `lines` = the signed lines (a guardrail decides the class)
+ * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>}} o
+ *   `lineSet` = the lines the block was given; `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2)
  * @returns {{declaration: Record<string, any>, notChecked: string[], notCheckedBy: Record<string, 'you'|'agent'|'default'>, built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
  */
-export function assembleFromBlock({ declaration, block, lines, lineSet }) {
+export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set() }) {
   if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], notCheckedBy: {}, built: new Set() };
   const c = block.reconcile();
   // fwd's signed R2c (M10 am7 item 2; bareloop v0.56.0 has no such rule, M16 am3 (1): fwd's rule stays): a place the page-read grew to phrases is checked with EVERY phrase, one phrase fact each,
@@ -130,6 +134,14 @@ export function assembleFromBlock({ declaration, block, lines, lineSet }) {
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);
+  for (const l of lines) {
+    if (!askLines.has(l.n) || typeof l.guardrail !== 'string') continue;
+    for (const rule of lineRules({ rule: l.guardrail })) {
+      const line = `not checked · "${rule}" — ${ASK_LINE_REASON}`;
+      if (!notChecked.includes(line)) notChecked.push(line);
+      notCheckedBy[line] = 'you';
+    }
+  }
   /** @type {Record<string, any>} */
   const listed = checkList.filter((r) => served.has(r.line)); // a line no step serves is refused as a line; its rows are not signed
   /** @type {Record<string, any>} */

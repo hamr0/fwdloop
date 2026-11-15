@@ -190,10 +190,12 @@ test('a guardrail rule no check covers shows under Not checked (F76 aging draft 
   const { r } = await run(dropped);
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — no sheet check covers it']);
-  // M10b piece 5: a green step with no close.sheet is the old cell cite; it no longer drafts, so there is no step left to list every rule for
+  // M17 am5 / P5: a green step the AI gave no sheet check is no red the AI cannot fix (it writes no close.sheet): the step is hitl and each of its rules is Not checked, with the list's own reason
   const none = await run(undefined);
-  assert.equal(none.r.ok, false);
-  assert.ok(none.r.reds.some((x) => x.includes("Line 2's check cannot cite cells any more")), none.r.reds.join('\n'));
+  assert.equal(none.r.ok, true, none.r.reds.join('\n'));
+  assert.equal(none.r.declaration.steps[1].close.class, 'hitl');
+  assert.equal(none.r.declaration.guardrailClasses['2'], 'hitl');
+  assert.deepEqual([...none.r.notChecked].sort(), ['line 2: "every invoice appears exactly once" \u2014 no sheet check covers it', 'line 2: "flag amounts over 500" \u2014 no sheet check covers it']);
 });
 
 test('the column choice an agreed ask wrote is not a rule to cover, and the header the drafter may pick from is the whole sheet', async () => {

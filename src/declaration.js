@@ -227,7 +227,7 @@ export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoic
 export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection', 'picked']);
 
 const SHAPE_TYPE_CHECKS = Object.freeze({
-  // M10 am16: the checks the person picked, set by code (src/checkpick.js applyPicks), each one a bareguard rule with only that rule's own fields
+  // M10 am16: the checks the person picked, set by code (src/blockassemble.js), each one a bareguard rule with only that rule's own fields
   picked: {
     expected: 'a non-empty array of checks, each an object with a text rule of bareguard\'s list',
     check: (v) => Array.isArray(v) && v.length > 0 && v.every((c) => isPlainObject(c) && typeof c.rule === 'string' && OFFERED_RULES.includes(c.rule)),
@@ -561,7 +561,7 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
 }
 
 /**
- * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/checkpick.js applyPicks).
+ * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/blockassemble.js).
  * @param {Record<string, any>} declaration @param {string[]} reds
  */
 function checkPickedLines(declaration, reds) {
@@ -572,7 +572,7 @@ function checkPickedLines(declaration, reds) {
 
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
- * applyPicks); here it must be a green step's, a list of bareguard text rules that builds into a check.
+* assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
  * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
  * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */

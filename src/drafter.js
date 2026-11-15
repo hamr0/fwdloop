@@ -22,7 +22,6 @@ import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from 
 import { readEveryStep } from './whole-job.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
-import { tableChecksFailingOnInput } from './sheetrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
 import { ticketSourcesOf, ticketFactsLines, mcpFactsLines, ticketSchemaParts, ticketReds, userMcpServers } from './ticket-draft.js';
 import { readInputFacts } from './input-facts.js';
@@ -30,9 +29,9 @@ import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
 import { lookAtPage, pageInfoLines } from './pagelook.js';
 import { lookAtSheet, sheetPrompt } from './sheetlook.js';
-import { leftRuleLine, dropRows, dropLine, dropSentence, pickNoteLine } from './pagedropwords.js';
+import { leftRuleLine, dropRows, dropLine } from './pagedropwords.js';
 import {
-  offerRules, rowsFromAnswer, checkAsks, settleRules, applyPicks, retentionOf, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText, codeScope,
+  offerRules, rowsFromAnswer, retentionOf, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText, codeScope,
 } from './checkpick.js';
 // M16 (docs/wiki/the-module-ladder.md, "M16"): the check block's turns, wired beside the declaration path
 import { blockJobLines } from './blocklines.js';
@@ -43,9 +42,9 @@ import { questionsOfBlock } from './blockasks.js';
 import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf, ticketFilterBlock } from './rowedit.js';
-import { matchRecord, entriesFromAnswers, KEPT_WORDS, columnEntries, columnsOnLines } from './pickrecord.js';
+import { matchRecord, entriesFromAnswers, columnEntries, columnsOnLines } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
-import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
+import { tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
 import { isCountGuardrail } from './declaration.js';
 import path from 'node:path';
@@ -171,25 +170,9 @@ export function buildDeclarationSchema(menu, { ticket } = {}) {
 
 const TOOL = 'emit_declaration';
 
-// ---- M4e amendments 24 + 25: questions (try 3 only) and "not checked" (every try) ---------------------------------
+// ---- M4e amendments 24 + 25: questions (try 3 only); the AI's own "not checked" notes are gone (M17 am4, C1) ---------------------------------
 // borrowed-from: fwdloop poc/am24-questions/draft.mjs@dda0e0f (prompts, linesNamedByReds, normalizeQuestions), adjusted to the product drafter.
 export const MAX_QUESTIONS = 2;
-
-/** What fwdloop's typed checks can really check (bareloop F174: give the model the real list, or "Not checked" is invented). */
-export const CHECKABLE = Object.freeze([
-  'green: a sheet figure is recomputed by bareguard from the saved sheet',
-  'softgreen: the output carries named section headings (sections), in order',
-  `softgreen: a word ceiling for the whole output (maxWords; ${WHOLE_OUTPUT_CEILING_RULE}) and per section (wordsPerSection)`,
-  'softgreen: a line count per invoice (linesPerInvoice) and fields every line must carry (mustCarry)',
-  'hitl: a human accepts or reviews at a signed ask — the machine checks only that the step happened',
-]);
-
-/** Offered on EVERY try (it is information, not asking). */
-export const NOTCHECKED_PROMPT = [
-  'notChecked (optional): a short list of things about the job that no check below will verify. These are the ONLY things fwdloop can check:',
-  ...CHECKABLE.map((c) => `- ${c}`),
-  'Anything the job asks for beyond those (tone, correctness of prose, completeness, matching a taste) is NOT checked: list it in "notChecked", a plain short phrase each. [] or leave out if nothing.',
-].join('\n');
 
 /** Try 3 only, and only after tries 1 and 2 both failed validation. No digit and no number word anywhere (a test greps this): the machine, not the prompt, bounds the count. */
 export const QUESTIONS_PROMPT = [
@@ -199,11 +182,12 @@ export const QUESTIONS_PROMPT = [
   'Still emit the complete corrected declaration.',
 ].join('\n');
 
-/** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
+/** The declaration schema plus, on try 3 only, `questions` (not in `required`). */
 /** @param {any[]} menu @param {{questions?: boolean, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o] */
 export function buildRoundSchema(menu, { questions = false, ticket = undefined } = {}) {
   const s = buildDeclarationSchema(menu, { ticket });
-  const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
+  /** @type {Record<string, any>} */
+  const extra = {};
   if (questions) {
     extra.questions = {
       type: 'array',
@@ -253,11 +237,6 @@ export function normalizeQuestions(raw, failedLines) {
     kept.push({ line: q.line, question: q.question.trim() });
   }
   return { kept, dropped };
-}
-
-/** `notChecked` as the model sent it: non-blank strings only, trimmed. Anything else is an empty list. */
-function cleanNotChecked(raw) {
-  return Array.isArray(raw) ? raw.filter((x) => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()) : [];
 }
 
 // M10 am27 (1): at draft time a count guardrail is hidden from the AI (the page look and the drafter); code keeps the ORIGINAL rule numbers and text.
@@ -500,8 +479,6 @@ export async function draft({
   const look = { facts: [], dropped: [] };
   /** @type {string[]} */
   const pageNotChecked = [];
-  /** the notes in `pageNotChecked` that answer the person's own choice (left, own words, no pick): tagged [you]; every other note code writes is [default] (hamr 2026-11-14) */
-  const personNotChecked = new Set();
   /** @type {any[]} */
   const pageLooks = [];
   /** @type {Record<string, any>} */
@@ -582,7 +559,6 @@ export async function draft({
     if (left.length) {
       look.dropped.push(...left);
       const lines = left.map((d) => leftRuleLine(d.fact));
-      for (const x of lines) { personNotChecked.add(x); if (!pageNotChecked.includes(x)) pageNotChecked.push(x); }
       pageInfo.push('  You chose to leave these Not checked; never claim them as checked:', ...lines.map((x) => `  - ${x}`));
     }
   }
@@ -699,14 +675,15 @@ export async function draft({
   // per guardrail, or none; code keeps what passes keep-or-drop. The call is metered, held and booked as a drafting round (the same `meterings`). The redraft after the answers
   // (offerQuestions false) makes no call: it settles every rule against the person's picks instead.
   // a rule a kept page or sheet fact already serves (the look tied it: line + rule number) is settled by that fact and is not asked here
-  const allShape = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
+  const shapeEverywhere = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
   // M16 S1: the lines the block is given (step lines; a sheet line the sheet look tied to a column stays on the sheet path, R6). Their rules go to the block; every other shape rule keeps today's path.
   // a job with a CSV input: a line with a rule that is not a count belongs to the sheet path even when the sheet look tied none of its words (its sheet checks are the drafter's, M10b, which the list leaves as they are; the declaration is not there yet to say it)
   const csvRuleLines = Object.keys(facts.sheets ?? {}).length ? jobLines.filter((l) => !askLines.has(l.n) && lineRules(l).some((r) => !isCountGuardrail(r))).map((l) => l.n) : [];
   const blockPlan = blockJobLines(proseText, undefined, [...new Set([...sheetFacts.filter((f) => f.forRule !== undefined), ...sheetAsks, ...sheetLooks.flatMap((l) => l.dropped)].map((x) => x.line)), ...csvRuleLines]);
   if (blockPlan && !blockPlan.ok) return fail(blockPlan.reds.map((r) => `signed-text: ${r}`));
   const blockLineNums = new Set(blockPlan ? blockPlan.jobLines.map((l) => l.n) : []);
-  const blockScoped = allShape.filter((r) => blockLineNums.has(r.line));
+  // M17 am4 (A3, B5): the list is the one place a shape rule is asked and picked; a line the list is not given (a sheet line) has no pick path of its own
+  const allShape = shapeEverywhere.filter((r) => blockLineNums.has(r.line));
   // M10 am17/am18: a guardrail whose pick is kept from the last draft skips the suggestion call and the asks; only the rest is suggested and asked. The model never sees a pick.
   const carried = matchRecord(carriedPicks, lines, allShape);
   const keptView = carried.kept.map((k) => ({ line: k.line, rule: k.rule, ruleText: k.entry.ruleText, check: k.entry.check, left: k.entry.left }));
@@ -723,16 +700,13 @@ export async function draft({
       fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines),
     });
   }
-  /** @type {ReturnType<typeof checkAsks>} */
-  let shapeAsks = [];
   if (askRules.length && offerQuestions) {
     const content = suggestUserText(lines, askRules);
     const got = await forcedTurn({ kind: 'check-suggest', system: SUGGEST_SYSTEM, messages: [{ role: 'user', content }], tool: { name: SUGGEST_TOOL, description: 'Suggest one check (or none) per guardrail.', schema: SUGGEST_SCHEMA } });
     if (got.early) return got.early;
     const sugRows = rowsFromAnswer(askRules, got.args);
-    // M16 S2 (R1): a kept check on a block line is a `pick` edit of the block, before any asks; the other rules keep today's path
+    // M16 S2 (R1): a kept check is a `pick` edit of the block, before any asks
     if (block) { block.applyDelta({ label: 'pre:check-suggest', pre: true, edits: pickEdits(sugRows, blockLineNums) }); block.reconcile(); }
-    shapeAsks = checkAsks(sugRows.filter((r) => !blockLineNums.has(r.line)));
   }
   if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && Object.keys(block.texts).length > 0) {
     const texts = block.texts;
@@ -746,22 +720,21 @@ export async function draft({
   // a Revise keeps the last draft's Drop/Add choices (the suggestions exist now); code still judges every one when the list is reconciled
   if (block && Array.isArray(carriedChoices)) { block.carryChoices(carriedChoices); onChoices(block.choicesRecord()); block.reconcile(); }
   /** the questions of the block, merged below with the sheet's and the look's own, under one cap (M16 S3) */
-  const blockAsks = block && offerQuestions ? questionsOfBlock(block, blockScoped) : [];
+  const blockAsks = block && offerQuestions ? questionsOfBlock(block, allShape) : [];
   if (block) pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
   // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
-  if ((pageSources.length || sheetAsks.length || shapeAsks.length || blockAsks.length) && offerQuestions) {
-    // M16 S3: a block line's asks come from the block (questionsOfBlock); the page's own asks are for the lines the block is not given
-    const pageAsks = pageSources.length ? askableFromLook({ facts: [...look.facts, ...sheetFacts] }, jobLines.filter((l) => !askLines.has(l.n) && !blockLineNums.has(l.n))) : [];
-    const lookAsks = [...[...pageAsks.filter((a) => a.ask === 'reading'), ...sheetAsks, ...blockAsks.filter((a) => a.ask === 'reading')].sort((a, b) => a.line - b.line), ...pageAsks.filter((a) => a.ask !== 'reading'), ...blockAsks.filter((a) => a.ask === 'cant-check')];
+  if ((sheetAsks.length || blockAsks.length) && offerQuestions) {
+    // M17 am4 (A1): a question comes from the list (questionsOfBlock) or is the sheet's column offer (M17 am1 1(a)); no question is asked outside the list
+    const lookAsks = [...[...sheetAsks, ...blockAsks.filter((a) => a.ask === 'reading')].sort((a, b) => a.line - b.line), ...blockAsks.filter((a) => a.ask === 'cant-check')];
     // am16 (3): a shape guardrail's ask follows, in line order. (5): a proposal is not an ask under am1; only a `can't check` ask counts toward the cap (the 4th stops drafting at $0).
     const blockShape = blockAsks.filter((a) => a.ask === 'no-check' || a.ask === 'check');
-    const asks = [...lookAsks, ...shapeAsks, ...blockShape];
+    const asks = [...lookAsks, ...blockShape];
     if (asks.length > 0) {
       const m = sumMeterings(meterings);
       const spent = m.costUsd === null || unmetered > 0 ? (m.costUsd === null ? 'unknown' : `at least ${usdText(m.costUsd)}`) : usdText(m.costUsd);
-      const counted = [...lookAsks, ...[...shapeAsks, ...blockShape].filter((a) => a.counted).map((a) => ({ ...a, reading: "I can't check this" }))];
+      const counted = [...lookAsks, ...blockShape.filter((a) => a.counted).map((a) => ({ ...a, reading: "I can't check this" }))];
       const tooMany = counted.length > MAX_LOOK_ASKS;
       if (tooMany && pageSources.length) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
       return {
@@ -773,21 +746,8 @@ export async function draft({
       };
     }
   }
-  // M10 am16 (4, 5): the plan carries only the checks the person picked. Every shape rule this call settles is either checked by a pick or Not checked with its reason
-  // (shown on the plan card and carried as `unjudgeable`); the drafter writes no check of its own, whatever it sends is overwritten below.
-  const allPicks = [...checkPicks, ...carried.picks];
-  const allLeft = [...leftRules, ...carried.left];
-  // the old path settles the shape rules of the lines the block is NOT given; a block line's checks come from the block's rows (assembleFromBlock, below)
-  const oldShape = block ? allShape.filter((r) => !blockLineNums.has(r.line)) : allShape;
-  const settled = oldShape.length ? settleRules(oldShape, allPicks, allLeft) : null;
-  // the record this draft hands on: what it kept plus what the person just answered (numbered on this card); the block's rules and the other shape rules are one record
+  // the record this draft hands on: what it kept plus what the person just answered (numbered on this card)
   onPickRecord?.({ picks: [...carried.kept.map((k) => k.entry), ...entriesFromAnswers(lines, allShape, checkPicks, leftRules)], kept: keptView });
-  const keptNote = (/** @type {{line: number, rule: number, text: string}} */ n) => (carried.kept.some((k) => k.line === n.line && k.rule === n.rule) ? ` (${KEPT_WORDS})` : '');
-  for (const n of settled?.notes ?? []) {
-    const line = (n.reason === 'person-left' ? leftRuleLine(n.text) : pickNoteLine(n.text, n.reason)) + keptNote(n);
-    personNotChecked.add(line);
-    if (!pageNotChecked.includes(line)) pageNotChecked.push(line);
-  }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
   // a line with nothing to check (no `~` rule of the person's, no input text for a `!` row to be built from) has no list to edit: no turn is paid for it (M16 item 2, "every job line with checks")
   // M10b piece 3: the drafting copy's table of each CSV input - the header the AI may pick from in its suggestions, the table bareguard's build and sign-time tests run over
@@ -848,11 +808,11 @@ export async function draft({
   const factsBase = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;
   const factsInfo = [...factsBase, ...ticketSources.flatMap((s) => ticketFactsLines(s.role)), ...(flowType === 'mcp' ? mcpFactsLines(mcp.server, mcp.tools) : [])];
 
-  // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
+  // `questions` only on try 3 (below).
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines: blockLineNums });
   // M8 item 5a: the earlier runs' notes go on the DRAFTER's system prompt only (F81's B arm), the one `system` every round of this draft uses (revise and structure retries too).
   // Absent or empty: the prompt is byte-identical to what it was.
-  const system = `${baseSystem}\n\n${NOTCHECKED_PROMPT}${learnHints?.text ? `\n\n${learnHints.text}` : ''}`;
+  const system = `${baseSystem}${learnHints?.text ? `\n\n${learnHints.text}` : ''}`;
   let structureRetries = 0;
   let revisions = 0;
   let lastReds = [];
@@ -966,9 +926,9 @@ export async function draft({
       entry.braceRepair = { dropped: fixed.dropped, used: true };
     }
 
-    // `notChecked` was offered on every try, so it is information and never reaches the validator. `questions` is stripped only where it was
+    // `notChecked` is offered on no try (M17 am4, C1): whatever the model sends for it is dropped here. `questions` is stripped only where it was
     // offered; sent when not offered it stays, and the validator reds it as an unknown key (a stray key, never a silent pass).
-    const { questions: rawQuestions, notChecked: rawNotChecked, ...captureRest } = /** @type {Record<string, any>} */ (captured);
+    const { questions: rawQuestions, notChecked: _aiNotes, ...captureRest } = /** @type {Record<string, any>} */ (captured);
     /** @type {Record<string, any>} */
     const declaration = { ...(askOpen ? captureRest : { ...captureRest, ...(rawQuestions === undefined ? {} : { questions: rawQuestions }) }), inputFacts: facts.inputFacts };
     // M13 piece 4: the flow type and the job's MCP (server + every tool of the newest OK check, R1) are set by code; whatever the model sent for them is overwritten.
@@ -989,23 +949,21 @@ export async function draft({
     }
     // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
     if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
-    // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the person's picks (applyPicks, next).
-    delete declaration.pickedLines; // the record of picked fact lines is code's too (applyPicks)
+    // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the list's built rows (assembleFromBlock).
+    delete declaration.pickedLines; // the record of picked fact lines is code's too (assembleFromBlock)
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => {
         if (!isPlainObject(st) || !isPlainObject(st.close) || (st.close.shape === undefined && st.close.picked === undefined)) return st;
-        // M10 am22 (3): `close.picked` is code's from the person's picks (applyPicks, next); one the drafter sent is dropped here too
+        // M10 am22 (3): `close.picked` is code's from the list (assembleFromBlock, next); one the drafter sent is dropped here too
         const { shape: _drop, picked: _dropPicked, ...close } = st.close;
         return { ...st, close };
       });
     }
-    // M10 am16 (4): code sets the check of every line it settled, from the picks only; the drafter's own `close.shape` and class for such a line are gone
-    if (settled) Object.assign(declaration, applyPicks(declaration, oldShape, settled, (n) => dropSentence({ line: n.line, fact: '', reason: n.reason })));
     // M16 S6: the checks of the block's lines are the block's built parts; whatever the AI wrote for them is gone, and the list that proves it is signed with the plan
     delete declaration.checkList;
     let assembled = null;
     if (block && blockPlan?.ok) {
-      assembled = assembleFromBlock({ declaration, block, lines, lineSet: blockLineNums });
+      assembled = assembleFromBlock({ declaration, block, lines, lineSet: blockLineNums, askLines });
       Object.assign(declaration, assembled.declaration);
       if (assembled.declaration.pickedLines === undefined) delete declaration.pickedLines;
     }
@@ -1028,6 +986,11 @@ export async function draft({
       const unplaced = sheetSuggested.filter((x) => !given.has(x.line)).map((x) => ({ line: x.line, helper: 'line', why: `line ${String(x.line)} has no green step that reads a sheet` }));
       sheetBuilt = await buildSheetChecks({ declaration, lines, tables: sheetTables });
       Object.assign(declaration, { steps: sheetBuilt.declaration.steps });
+      // M17 am5 / P5: a sheet step code built no check for is hitl (its rules are Not checked, below); its class on the line follows, whatever the AI sent
+      if (sheetBuilt.hitlLines.length && isPlainObject(declaration.guardrailClasses)) {
+        declaration.guardrailClasses = { ...declaration.guardrailClasses };
+        for (const n of sheetBuilt.hitlLines) declaration.guardrailClasses[String(n)] = 'hitl';
+      }
       if (sheetBuilt.refused.length || unplaced.length) entry.sheetRefused = [...unplaced, ...sheetBuilt.refused];
     }
     // M16 am4 (2): a sheet line's checks are rows on the same list (code builds them, src/sheetbuild.js; src/sheetrows.js reads them as rows)
@@ -1050,7 +1013,7 @@ export async function draft({
     if (block && flowType === 'tickets') { const w = withTicketRows({ declaration, lines }); ticketOnList = w.tickets; if (w.tickets.signed.length) Object.assign(declaration, { checkList: w.declaration.checkList }); }
     if (block) { const w = withSheetRows({ declaration, lines, csvRoles: csvRolesOf(arbiter) }); sheetOnList = w.sheet; if (w.sheet.signed.length) Object.assign(declaration, { checkList: w.declaration.checkList }); }
     // M10 am27 (4): what the drafter wrote vs what the final plan keeps, per job line (record only); drafted = the declaration as sent, before any code change
-    entry.retention = retentionOf(captured, declaration, jobLines, [...(settled?.checks.keys() ?? []), ...(assembled ? declaration.steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) || Array.isArray(st?.close?.shape?.picked)).map((/** @type {any} */ st) => st.fromLine) : [])]);
+    entry.retention = retentionOf(captured, declaration, jobLines, [...(assembled ? declaration.steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) || Array.isArray(st?.close?.shape?.picked)).map((/** @type {any} */ st) => st.fromLine) : [])]);
     // M10b piece 4: `covers` (which ~ rules a check verifies) stays on the check and is signed; the validator checks it, the plan card shows it
     // M16: a look fact the list did not build (a Suggested `!` row, a Not-checked one) is not in the plan, so the words gate does not hold the plan to it (R2c asks every place phrase of the facts the plan checks)
     const inPlan = block ? new Set(block.rows.filter((r) => r.state === 'built').flatMap((r) => (r.factNames ?? []).map((/** @type {string} */ nm) => `${r.line}:${nm}`))) : null;
@@ -1058,7 +1021,7 @@ export async function draft({
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
-      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column'), tables: sheetTables } : undefined,
+      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column' && !(sheetBuilt?.hitlLines ?? []).includes(f.line)), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: planLookFacts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
@@ -1071,21 +1034,17 @@ export async function draft({
       continue;
     }
     const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
-    // M10b am5: a `table` check that already fails on the sheet this draft was made with is a red ($0: bareguard's checkStep on the draft-time table, no model call)
-    const tableReds = verdict1.ok && sheetTables ? await tableChecksFailingOnInput(declaration, sheetTables) : [];
     const carriedRed = carriedTicketFields.length ? `declaration: the draft carries ${carriedTicketFields.map((f) => `"${f}"`).join(' and ')}, which code sets from the check on the list. Remove the field from the draft` : carriedSheet ? 'declaration: the draft carries "close.sheet", which code builds from the checks suggested on the list. Remove the field from the draft' : null;
-    const verdict = carriedRed ? { ok: false, reds: [carriedRed] } : planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
+    const verdict = carriedRed ? { ok: false, reds: [carriedRed] } : planRed ? { ok: false, reds: [planRed] } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    // M16: the AI's own `notChecked` is kept beside the rows' reasons (M4e am24/am25 stand; M16 item 5 does not name them)
-    // P4c (hamr 2026-11-14): the AI's own note is an [agent] line (`!` = agent); it never overrides a tag a row already gave the same words
-    const aiNotes = cleanNotChecked(rawNotChecked);
-    const uncovered = uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined);
-    // the tag of a note no row tells: the person's own choice [you], the AI's own note [agent], any other note code writes [default]; a row's own tag wins
-    const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, personNotChecked.has(t) ? 'you' : 'default']).concat(aiNotes.map((t) => [t, 'agent'])));
+    const uncovered = [...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined), ...(sheetBuilt?.lost ?? [])];
+    // the tag of a note no row tells: any note code writes is [default]; a row's own tag wins
+    /** @type {Record<string, 'you'|'agent'|'default'>} */
+    const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, 'default']));
     const ticketNotChecked = (ticketOnList?.notChecked ?? []).map((t) => `not checked · "${t.rule}" — ${t.reason}`);
     for (const t of ticketNotChecked) noteBy[t] = 'you';
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...ticketNotChecked, ...aiNotes, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...ticketNotChecked, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;
