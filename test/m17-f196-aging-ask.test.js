@@ -48,3 +48,9 @@ test('control (F196 W1): a rule with no column in its words and no such header i
   assert.equal(r.asks.length, 1);
   assert.match(r.asks[0].question, /\(your answer replaces that ~ rule on line 2\)\.$/);
 });
+
+test('F196 re-walk: the look returned no word "Due date" (only the prose and rule-3 asks) - rule 3 names the header, so code ties it: nothing is asked', () => {
+  const words = [WORDS[3], WORDS[4]];
+  const r = applySheetWords(CSV, words, JOB, 'aging');
+  assert.deepEqual(r.asks, []);
+});

@@ -85,11 +85,9 @@ export function applySheetWords(text, words, jobLines, label) {
   const seen = new Set();
   // the person's word is a header of the sheet: the word is theirs when the line or its `~` rules say it (a header the model picked in the person's place is not)
   const isYours = (/** @type {any} */ jl, /** @type {string} */ word) => jl !== undefined && wordForms(word).some((f) => countPhrase(wordsSaidOn(jl), f) > 0);
-  // F196: a rule whose own words already tie it to a header (a word of that rule IS a header the person said) is settled: its other words are asked no more (M10 am32, F180)
-  const tiedRules = new Set(words.flatMap((w) => {
-    const at = tieOf(w.from, jobLines);
-    return at.rule !== undefined && findColumn(text, w.word).kind === 'header' && isYours(jobLines.find((l) => l.n === at.line), w.word) ? [`${at.line}\u0000${at.rule}`] : [];
-  }));
+  // F196: a `~` rule whose own words contain a header of the sheet is tied to it by CODE (not by what the model returned): none of its words is asked (M10 am32, F180)
+  const headers = parseCsv(text).header;
+  const tiedRules = new Set(jobLines.flatMap((l) => lineRules(l).flatMap((r, i) => (headers.some((h) => h.trim() !== '' && countPhrase(r, h) > 0) ? [`${l.n}\u0000${i + 1}`] : []))));
   /** the words (line + word) a `~` rule asked about or settled: the line's own prose never asks that word again (one word, one question; the rule's ask wins) */
   const ruleWords = new Set();
   for (const w of words) {
