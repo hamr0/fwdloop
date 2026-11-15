@@ -197,6 +197,10 @@ export function holdsManyBounds(shape, text) {
   return false;
 }
 
+// borrowed-from: bareloop src/rubricstep.js@v0.57.0 (c18df406) (WHY_OTHER_CURRENCY, fd943e49)
+/** the plain reason a rule's amount is in a currency the page fact does not use; `readLimit` gives it and the check list reads it, one spelling */
+export const WHY_OTHER_CURRENCY = 'the amount is in another currency than the page fact';
+
 /**
  * The limit the person's own words give a fact of this shape: `{reading}` or `{why}` (a plain reason; the rule then stays Not checked).
  * @param {string} shape money or time @param {string} text the `~` rule's words @param {any} [fact] the look fact (its currency and unit lists must fit)
@@ -219,7 +223,7 @@ export function readLimit(shape, text, fact = {}) {
     if (/\b(?:not|never|outside|except|without)\b/i.test(t)) return { why: 'a negated limit (not, except, without) is not read' };
     const amts = [...t.matchAll(AMOUNT_ALL_RE)];
     if (!amts.length) return { why: 'no amount with a currency sign or word in the rule' };
-    for (const a of amts) if (!currencyFits(a[0], fact)) return { why: 'the amount is in another currency than the page fact' };
+    for (const a of amts) if (!currencyFits(a[0], fact)) return { why: WHY_OTHER_CURRENCY };
     if (holdsManyBounds('money', t)) return { why: 'more than one amount in the rule' };
     const b = MONEY_BETWEEN_RE.exec(t);
     if (b) { const lo = num(b[1], b[2]), hi = num(b[3], b[4]); return lo < hi ? { reading: { op: 'between', lo, hi } } : { why: 'a range whose end is not above its start is not read' }; }

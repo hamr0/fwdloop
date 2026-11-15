@@ -11,8 +11,9 @@
 import { countExact, countPhrase } from './pagebits.js';
 import { checkFactWords, keptSetOf } from './factwords.js';
 import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords, sameRuleWords } from './blockpick.js';
-import { dropRows } from './pagedropwords.js';
-import { boundInWords, rubricStepShapeReds, defaultCitedText, readLimit, holdsManyBounds, NEGATING_RE } from './rubricstep.js';
+import { dropRows, dropSentence } from './pagedropwords.js';
+import { phraseInNoResult } from './pagedry.js';
+import { boundInWords, rubricStepShapeReds, defaultCitedText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
 import { validReading } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
 import { fitPlacePhrase } from './placerule.js';
@@ -258,12 +259,16 @@ export class CheckBlock {
     const links = (r.links ?? []).filter((/** @type {any} */ l) => !(negated && isPhrase(l)) && l.words.some((/** @type {string} */ w) => proved(this.textOf(l.source), w)));
     const said = this.said(r.line);
     let ownWhy = null;
+    let otherCurrency = false;
     for (const l of links) {
       let reading = l.reading;
       let ownWords = false;
       if (l.shape === 'money' || l.shape === 'time') {
         // the person's words win (hamr 2026-11-13): code's reading of the `~` words beats the look's and the AI's; theirs is used only when code cannot read the words
         const rd = this.wordsReading(l, r.text);
+        // fwdloop run walk-m16-flights run-1: "under $150" on a euro fact fell back to the look's reading and checked 150 euros; a bound in another currency than the page fact is never replaced by the look's or the AI's reading
+        const lim = !rd && l.shape === 'money' ? readLimit('money', r.text, l) : null;
+        if (lim && 'why' in lim && lim.why === WHY_OTHER_CURRENCY) { otherCurrency = true; continue; }
         if (rd) { reading = rd; ownWords = true; }
         else if (reading === undefined) {
           const own = readLimit(l.shape, r.text, l);
@@ -291,6 +296,7 @@ export class CheckBlock {
       r.can = { ok: true, how: 'fact', link: l, reading: undefined };
       return;
     }
+    if (otherCurrency) { r.can = { ok: false, why: `the amount in your rule is in another currency than the page's prices, so it is not checked.` }; return; }
     if (r.links?.length && !links.length) { r.can = { ok: false, why: REASON.lookNoWords }; return; }
     if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: r.aiReason ?? r.lookWhy ?? REASON.nothingOnPage }; return; }
     if (r.links?.length) { r.can = { ok: false, why: r.aiReason ?? `the look tied a fact to this rule but gave no limit, and ${ownWhy ? `in your words ${ownWhy}` : 'your own words give none code can read'}, so you judge it at Accept.` }; return; }
@@ -329,6 +335,12 @@ export class CheckBlock {
       if (fits.some((x) => x === null)) { r.can = { ok: false, why: WEEK_ONLY_WORDS }; return; }
       r.can = { ok: true, how: 'place', strips: fits[0] ?? [] };
       return;
+    }
+    // fwdloop run walk-m16-flights run-1: "Rome" was on the page (search box, toggles) but in no result row, so no run could pass it. When the line's look reads result rows (a money fact), a phrase in none of them is refused with the look's own sentence (one owner: pagedry.js + pagedropwords.js)
+    // (a look fact already went through the same dry read in pagemap.js, so only the AI's own adds are read here)
+    if (r.from === 'agent' && (r.shape ?? 'phrase') === 'phrase') {
+      const money = this.lookFacts.filter((/** @type {any} */ f) => f.line === r.line && f.shape === 'money' && (!r.source || !f.source || f.source === r.source));
+      if (phraseInNoResult(text, money, provedWords[0])) { r.can = { ok: false, why: dropSentence({ line: r.line, fact: r.name ?? provedWords[0], other: provedWords[0], reason: 'phrase-no-result' }) }; return; }
     }
     r.can = { ok: true, how: 'bang', word: provedWords[0] };
   }
