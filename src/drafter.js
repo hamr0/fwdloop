@@ -41,7 +41,7 @@ import { assembleFromBlock } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { questionsOfBlock } from './blockasks.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
-import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf } from './rowedit.js';
+import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf, ticketFilterBlock } from './rowedit.js';
 import { matchRecord, entriesFromAnswers, KEPT_WORDS } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
@@ -728,7 +728,7 @@ export async function draft({
     block = setUpBlock({
       texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, jobLines: blockPlan.jobLines, look,
       kept: { picks: carried.picks.filter(inBlock), left: carried.left.filter(inBlock), askRules: carried.askRules.filter(inBlock) },
-      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines, [...look.facts, ...sheetFacts]),
+      fresh: { picks: checkPicks.filter(inBlock), left: leftRules.filter(inBlock) }, asks: offerQuestions, countScope: (t) => codeScope(arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(flowType, blockPlan.jobLines),
     });
   }
   /** @type {ReturnType<typeof checkAsks>} */
@@ -806,7 +806,7 @@ export async function draft({
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */
-    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: blockPlan.jobLines, look: lookReport, texts }) }];
+    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: blockPlan.jobLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') }];
     const channel = rowEditChannel(flowType === 'tickets').tool({ calls: [] });
     for (let rev = 0; ; rev += 1) {
       const got = await forcedTurn({

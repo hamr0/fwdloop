@@ -12,6 +12,34 @@ import { rubricVocabulary } from 'bareguard';
 // borrowed-from: bareloop src/ticketfilter.js@v0.56.0 (3383cce) (TICKET_FILTER_SCHEMA_WORDS only: the one sentence; fwd's own ticketFilter schema, src/ticket-draft.js, words it another way)
 export const TICKET_FILTER_SCHEMA_WORDS = 'REQUIRED when a job line names a priority or a label (leave it out only when none does). The person signs it; code decides at run start. Listing the line under "refused" does not filter anything: only this key does';
 
+// borrowed-from: bareloop src/ticketfilter.js@v0.57.0 (c18df406) (TICKET_FILTER_EXAMPLE, ticketPerRunFacts, TICKET_READ_FACT, ticketFilterBlock: verbatim)
+/** a legal filter, as the drafter is shown it */
+export const TICKET_FILTER_EXAMPLE = '{"priority": ["P1"], "labels": ["bug"]}';
+
+/**
+ * The facts a person-facing turn must not ask about (R5 finding F285): the confirm turn asked "which ticket, and is it P1?" in 5 of 10 live drafts. ONE owner of these words;
+ * the confirm prompt and the drafting prompt both carry them, for a Tickets job only.
+ * @returns {string}
+ */
+export function ticketPerRunFacts() {
+  return 'THIS JOB READS A TICKET. The ticket is picked per run (typed on the run card, later the newest new ticket) and is never known when the job is drafted, so NEVER ask the person which ticket it is, or what its priority or labels are. '
+    + 'A job line that names a priority or a label (for example "only priority P1 tickets") is decided by code at run start from the ticket\'s own labels, through the job\'s ticketFilter: it is not a question for the person and not something you can check, so do not turn it into a question.';
+}
+
+
+export const TICKET_READ_FACT = 'A step that reads the ticket input still lists "read" in its tools: the ticket is already frozen at run start, but reading it is a grant, so a step without "read" cannot see it.';
+
+/**
+ * What the drafter is told when the job reads tickets (appended to the authoring prompt only then; a plain job's prompt is untouched).
+ * Adapted from fwd's `ticketFactsLines` (v0.29.0): the same MUST, the same "never invent a label".
+ * @returns {string}
+ */
+export function ticketFilterBlock() {
+  return `${ticketPerRunFacts()} ${TICKET_READ_FACT}\n\nTHE TICKET FILTER — this job reads one ticket per run. Code, not you, decides at run start whether a ticket runs or is skipped, from the ticket's labels and state; a closed ticket always skips.
+When a job line (or its ~ rule) names a priority or a label (for example "only priority P1 tickets", "only tickets with priority P1 count", "only issues labelled bug"), you MUST add a top-level "ticketFilter" beside "stages": ${TICKET_FILTER_EXAMPLE}. "priority" is a list of values from P0 to P3, "labels" is a list of label names; each key is optional, and at least one is required. Never invent a label: use only the names the job lines give. Leave "ticketFilter" out entirely when no job line names a priority or a label.
+The filter decides whether a run starts, not whether the work is good, so it is not a check. The job line that names the priority or label has no stage: list it under "refused" with the reason "decided by the ticket filter before the run starts" AND add the ticketFilter: the refused entry alone does not filter anything, only the ticketFilter does. A person reads and signs the filter; you never set the job's server or tools.`;
+}
+
 /** the tool a row-edit reply is delivered through */
 export const ROW_EDIT_TOOL = 'submit_edits';
 /** what an acknowledged reply returns (the loop ends the call the moment the tool fires) */

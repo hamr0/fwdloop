@@ -77,10 +77,10 @@ export const editRecord = (rec) => rec.edits.map((e) => ({ op: e?.op, accepted: 
 /**
  * M16 item 4 ("Tickets `ticketFilter` and `ticketWatch` stay as they are"): the rules of a Tickets job that are not the block's. Before M16 only a count guardrail of such a job (it signs a
  * ticket page input, which routes its guardrails: src/checkpick.js codeScope) was picked or asked; every other rule ("priority P1 only", "run a ticket again when its state changes") was the
- * declaration's own typed ticketFilter / ticketWatch, never asked and never listed as Not checked. A rule the look tied to a fact is still the block's.
- * @param {string} flowType @param {{n: number, rules?: string[]}[]} jobLines @param {{line: number, forRule?: number}[]} facts @returns {{line: number, rule: number}[]}
+ * declaration's own typed ticketFilter / ticketWatch, never asked and never listed as Not checked. Since M17 am6 these rules are ticket rows (src/ticketrows.js), so one the look tied to a fact is left out of the block too: it shows once, as the ticket row.
+ * @param {string} flowType @param {{n: number, rules?: string[]}[]} jobLines @returns {{line: number, rule: number}[]}
  */
-export function ticketLeaveOut(flowType, jobLines, facts) {
+export function ticketLeaveOut(flowType, jobLines) {
   if (flowType !== 'tickets') return [];
-  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => ticketRuleField(x.t) !== null && !isCountGuardrail(x.t) && !facts.some((f) => f.line === x.line && f.forRule === x.rule)).map((x) => ({ line: x.line, rule: x.rule })));
+  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => ticketRuleField(x.t) !== null && !isCountGuardrail(x.t)).map((x) => ({ line: x.line, rule: x.rule })));
 }

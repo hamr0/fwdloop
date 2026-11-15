@@ -8,7 +8,7 @@ import { RATES, MODEL } from './drafter-fixture.mjs';
 import { callOf, router } from './m16-drafter-fixture.mjs';
 
 test('ticketLeaveOut hides only the filter and watch rules, never a content rule', () => {
-  const out = ticketLeaveOut('tickets', [{ n: 2, rules: ['priority P1 only', "mention the reporter's name", 'at most 3 words', 'run a ticket again when its state changes'] }], []);
+  const out = ticketLeaveOut('tickets', [{ n: 2, rules: ['priority P1 only', "mention the reporter's name", 'at most 3 words', 'run a ticket again when its state changes'] }]);
   assert.deepEqual(out, [{ line: 2, rule: 1 }, { line: 2, rule: 4 }]);
 });
 
