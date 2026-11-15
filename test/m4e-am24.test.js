@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  draft, QUESTIONS_PROMPT, NOTCHECKED_PROMPT, normalizeQuestions, linesNamedByReds, buildRoundSchema,
+  draft, QUESTIONS_PROMPT, normalizeQuestions, linesNamedByReds, buildRoundSchema,
 } from '../src/drafter.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
@@ -86,23 +86,19 @@ test('A5: no number appears in the prompt, the added line or the questions schem
   const p = recProvider([toolReply(bad()), toolReply(bad()), toolReply(validArgs())]);
   await run(p);
   assert.doesNotMatch(QUESTIONS_PROMPT, NUMBERISH);
-  assert.doesNotMatch(NOTCHECKED_PROMPT, NUMBERISH);
   assert.doesNotMatch(JSON.stringify(p.schemas[2].properties.questions), NUMBERISH);
-  assert.doesNotMatch(JSON.stringify(p.schemas[2].properties.notChecked), NUMBERISH);
+  assert.equal(p.schemas[2].properties.notChecked, undefined, 'M17 am4 (C1): no notChecked is offered');
   const base = p.calls[0].messages[0].content;
   assert.ok(p.calls[2].messages[0].content.startsWith(base), 'the system prompt is the same on every try');
 });
 
-test('A6: notChecked is stripped before validation, comes from the round that produced the plan, and blanks are dropped', async () => {
-  const p = recProvider([toolReply(bad({ notChecked: ['from try one'] })), toolReply(validArgs()) ]);
-  const r1 = await run(p);
-  assert.equal(r1.ok, true, JSON.stringify(r1.reds));
-  assert.deepEqual(r1.notChecked, [], 'try 2 sent none: the plan\'s notChecked is try 2\'s, not try 1\'s');
-  assert.equal(r1.declaration.notChecked, undefined);
-  const p2 = recProvider([toolReply({ ...validArgs(), notChecked: ['tone', '  ', 7, ' wording '] })]);
-  const r2 = await run(p2);
-  assert.deepEqual(r2.notChecked, ['tone', 'wording']);
-  assert.ok(p2.calls[0].messages[0].content.includes(NOTCHECKED_PROMPT));
+test('A6 (M17 am4, C1): the AI is offered no notChecked; one it sends is stripped before validation and never reaches the plan', async () => {
+  const p = recProvider([toolReply({ ...validArgs(), notChecked: ['tone', '  ', 7, ' wording '] })]);
+  const r = await run(p);
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.notChecked, []);
+  assert.equal(r.declaration.notChecked, undefined);
+  assert.equal(p.schemas[0].properties.notChecked, undefined);
 });
 
 test('A7: offerQuestions:false (the redraft after an answer) never offers questions, even on try 3', async () => {

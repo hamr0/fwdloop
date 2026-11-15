@@ -2,7 +2,7 @@
 // The one sentence about the ceiling stays in the prompt's Not-checked list (information for notChecked), and never says "smallest".
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { NOTCHECKED_PROMPT, buildDeclarationSchema, WHOLE_OUTPUT_CEILING_RULE } from '../src/drafter.js';
+import { buildDeclarationSchema, buildRoundSchema, WHOLE_OUTPUT_CEILING_RULE } from '../src/drafter.js';
 import { wiredMenu } from '../src/primitives.js';
 
 test('the drafter schema offers no shape and no maxWords: the drafter writes no check (am16 (4))', () => {
@@ -11,8 +11,8 @@ test('the drafter schema offers no shape and no maxWords: the drafter writes no 
   assert.doesNotMatch(JSON.stringify(schema), /"maxWords"|"mustCarry"|"linesPerInvoice"/);
 });
 
-test('the Not-checked prompt carries the ceiling sentence, never "smallest"', () => {
+test('the ceiling sentence is the rule the list reads, and the AI is offered no notChecked (M17 am4, C1)', () => {
   assert.equal(WHOLE_OUTPUT_CEILING_RULE, "use the guardrail's ceiling for the whole output");
-  assert.ok(NOTCHECKED_PROMPT.includes(WHOLE_OUTPUT_CEILING_RULE));
-  assert.doesNotMatch(NOTCHECKED_PROMPT, /smallest/i);
+  const schema = /** @type {any} */ (buildRoundSchema(wiredMenu(['core'])));
+  assert.equal(schema.properties.notChecked, undefined);
 });
