@@ -54,6 +54,7 @@ import { parseCsv, sheetTable } from './csv.js';
 import { sheetChecksProp, sheetOfferRules } from './sheetoffer.js';
 import { uncoveredRules, csvRolesOf } from './sheetblock.js';
 import { withSheetRows, withSheetCard, sheetChoice } from './sheetrows.js';
+import { TICKET_FIELDS, ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
@@ -797,13 +798,16 @@ export async function draft({
   }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
   // a line with nothing to check (no `~` rule of the person's, no input text for a `!` row to be built from) has no list to edit: no turn is paid for it (M16 item 2, "every job line with checks")
-  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule'))) {
+  /** M17 am6: the Tickets filter and watch the AI suggested as an edit of the list: the last legal value of each, and what was refused (code proves each, src/ticketrows.js) @type {{ticketFilter?: any, ticketWatch?: any, refused: Record<string, string>}} */
+  const ticketProposal = { refused: {} };
+  const ticketRuleOnJob = flowType === 'tickets' && blockPlan?.ok === true && blockPlan.jobLines.some((l) => (l.rules ?? []).some((t) => ticketRuleField(t) !== null));
+  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule') || ticketRuleOnJob)) {
     const texts = block.texts;
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */
     let turn = [{ role: 'user', content: rowEditUserText({ jobLines: blockPlan.jobLines, look: lookReport, texts }) }];
-    const channel = rowEditChannel(false).tool({ calls: [] });
+    const channel = rowEditChannel(flowType === 'tickets').tool({ calls: [] });
     for (let rev = 0; ; rev += 1) {
       const got = await forcedTurn({
         kind: rev === 0 ? 'row-edit' : 'row-edit-revision', system: ROW_EDIT_SYSTEM, messages: turn, tool: { name: channel.name, description: channel.description, schema: channel.parameters },
@@ -811,6 +815,11 @@ export async function draft({
       });
       if (got.early) return got.early;
       if (got.args === null) return earlyStop([String(got.entry?.outcome ?? 'structure').replace(/^structure: /, '')], 'structure');
+      for (const f of TICKET_FIELDS) {
+        if (flowType !== 'tickets' || got.args[f] === undefined) continue;
+        const reds = proposalReds(f, got.args[f]);
+        if (reds.length === 0) { ticketProposal[f] = got.args[f]; delete ticketProposal.refused[f]; } else ticketProposal.refused[f] = reds[0];
+      }
       const rec = block.applyDelta({ label: `row-edit-${rev + 1}`, edits: editsOf(got.args) });
       block.reconcile();
       got.entry.edits = editRecord(rec);
@@ -953,6 +962,14 @@ export async function draft({
     declaration.flowType = flowType;
     if (flowType === 'plain') delete declaration.mcp;
     else declaration.mcp = { server: mcp.server, tools: [...mcp.tools] };
+    // M17 am6: the Tickets filter and watch are checks on the list. A draft that carries one is refused (a red naming the field, $0); code writes each from the value the AI suggested on the list,
+    // proved by src/ticketrows.js, and only when a rule of that kind is on the job
+    const carriedTicketFields = TICKET_FIELDS.filter((f) => Object.hasOwn(captureRest, f));
+    for (const f of TICKET_FIELDS) delete declaration[f];
+    if (flowType === 'tickets') {
+      const kinds = new Set(lines.flatMap((l) => (typeof l.guardrail === 'string' ? l.guardrail.split('; ') : []).map((t) => ticketRuleField(t.trim()))));
+      for (const f of TICKET_FIELDS) if (kinds.has(f) && ticketProposal[f] !== undefined) declaration[f] = ticketProposal[f];
+    }
     // M6a amendment 1 (F50): the goal is the signed line, set by the machine; whatever the model sent is overwritten.
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
@@ -993,6 +1010,9 @@ export async function draft({
       }
       onSheetDropped(sheetDroppedNow);
     }
+    /** @type {ReturnType<typeof withTicketRows>['tickets']|null} */
+    let ticketOnList = null;
+    if (block && flowType === 'tickets') { const w = withTicketRows({ declaration, lines }); ticketOnList = w.tickets; if (w.tickets.signed.length) Object.assign(declaration, { checkList: w.declaration.checkList }); }
     if (block) { const w = withSheetRows({ declaration, lines, csvRoles: csvRolesOf(arbiter) }); sheetOnList = w.sheet; if (w.sheet.signed.length) Object.assign(declaration, { checkList: w.declaration.checkList }); }
     // M10 am27 (4): what the drafter wrote vs what the final plan keeps, per job line (record only); drafted = the declaration as sent, before any code change
     entry.retention = retentionOf(captured, declaration, jobLines, [...(settled?.checks.keys() ?? []), ...(assembled ? declaration.steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) || Array.isArray(st?.close?.shape?.picked)).map((/** @type {any} */ st) => st.fromLine) : [])]);
@@ -1018,7 +1038,8 @@ export async function draft({
     const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
     // M10b am5: a `table` check that already fails on the sheet this draft was made with is a red ($0: bareguard's checkStep on the draft-time table, no model call)
     const tableReds = verdict1.ok && sheetTables ? await tableChecksFailingOnInput(declaration, sheetTables) : [];
-    const verdict = planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
+    const carriedRed = carriedTicketFields.length ? `declaration: the draft carries ${carriedTicketFields.map((f) => `"${f}"`).join(' and ')}, which code sets from the check on the list. Remove the field from the draft` : null;
+    const verdict = carriedRed ? { ok: false, reds: [carriedRed] } : planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     // M16: the AI's own `notChecked` is kept beside the rows' reasons (M4e am24/am25 stand; M16 item 5 does not name them)
@@ -1027,7 +1048,9 @@ export async function draft({
     const uncovered = uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}));
     // the tag of a note no row tells: the person's own choice [you], the AI's own note [agent], any other note code writes [default]; a row's own tag wins
     const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, personNotChecked.has(t) ? 'you' : 'default']).concat(aiNotes.map((t) => [t, 'agent'])));
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...aiNotes, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
+    const ticketNotChecked = (ticketOnList?.notChecked ?? []).map((t) => `not checked · "${t.rule}" — ${t.reason}`);
+    for (const t of ticketNotChecked) noteBy[t] = 'you';
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...ticketNotChecked, ...aiNotes, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;
@@ -1046,7 +1069,7 @@ export async function draft({
       log.push(entry);
       const m = sumMeterings(meterings);
       return {
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras, ...(block ? { checkCard: sheetOnList ? withSheetCard(cardOfBlock(block), sheetOnList, sheetDroppedNow) : cardOfBlock(block) } : {}),
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras, ...(block ? { checkCard: (() => { const c = sheetOnList ? withSheetCard(cardOfBlock(block), sheetOnList, sheetDroppedNow) : cardOfBlock(block); return ticketOnList?.card.length ? withSheetCard(c, { card: ticketOnList.card }) : c; })() } : {}),
       };
     }
     lastReds = [...verdict.reds];

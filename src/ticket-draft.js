@@ -1,6 +1,6 @@
 // M12 piece 3 (docs/wiki/the-module-ladder.md, "M12 scope (restart)" item 4): what the DRAFTER is told about a ticket role, and what it may suggest.
 // A ticket role is a signed page input (`source <role> = page:<address>`) whose address is a GitHub issues list: it is never fetched at draft (one ticket is read
-// per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read), and MUST add a `ticketFilter` (priority / label names) when a guardrail names a priority or a label; a human
+// per run through the job's MCP tools). The drafter may SUGGEST the job's `mcp`/`mcpTools` (issue_read), and (M17 am6) suggests the `ticketFilter` / `ticketWatch` as an edit of the list's row-edit turn, never as a top-level field; code proves it (src/ticketrows.js), a human
 // signs it and code decides at run. The first facts line is F90c's, the line that made the drafter read a ticket role at all (FINDINGS F90c, F92).
 import { discoverServers } from 'bare-agent/mcp';
 import { startableMcpServers } from './mcp-sources.js';
@@ -30,8 +30,6 @@ export function ticketFactsLines(role) {
     `- ${role}: one ticket's text (a signed input, already frozen at run start; read it by listing "${role}" in a step's reads, do not fetch it)`,
     `  A step that reads "${role}" still lists "read" in its primitives: the ticket is frozen, but reading it is a grant.`,
     `  Flow type: Tickets. The ticket is already frozen under "${role}" by the job's own tools ("${TICKET_TOOL}" reads it, "${LOOK_TOOL}" looks for new ones); no step needs them. A step lists a tool in "mcpTools" ONLY if that step calls the tool live; leave "mcpTools" out of every other step. The job's server and tool list are set by the program, not by you.`,
-    '  When a guardrail names a priority or a label (for example "priority P1 only", "only tickets with priority P1 count", "only issues labelled bug"), you MUST add a top-level "ticketFilter": {"priority": [P0 to P3 values], "labels": [label names]} for it; leave it out only when no guardrail names a priority or a label, and such a guardrail stays hitl. A human signs it and code decides at run; never invent a label.',
-    '  You may SUGGEST a top-level "ticketWatch": ["state", "labels"] (one or both) ONLY for a guardrail that says to run a ticket again when its state or its labels change. Any other thing to watch cannot be put there: leave it out and it stays hitl.',
   ];
 }
 
@@ -47,28 +45,13 @@ export function mcpFactsLines(server, tools) {
 export const LOOK_TOOL = 'list_issues';
 
 /**
- * The schema parts a job with an MCP adds (M13 piece 4): per-step `mcpTools` (an enum of the job's tool names) for MCP (generic) and Tickets, and for Tickets the top-level
- * `ticketFilter` and `ticketWatch`. The job's own `mcp` block and `flowType` are NOT offered: code sets them.
+ * The schema parts a job with an MCP adds (M13 piece 4): per-step `mcpTools` (an enum of the job's tool names) for MCP (generic) and Tickets, and no top-level `ticketFilter` or `ticketWatch` (M17 am6: they are checks on the list, suggested in the
+ * row-edit turn, src/rowedit.js; a draft that carries one is refused). The job's own `mcp` block and `flowType` are NOT offered: code sets them.
  * @param {{flowType: 'mcp'|'tickets', tools: string[]}} o
  */
 export function ticketSchemaParts({ flowType, tools }) {
   const step = { mcpTools: { type: 'array', items: { type: 'string', enum: tools }, description: 'the MCP tools this step calls LIVE (exact names); omit on every step that calls none' } };
-  if (flowType !== 'tickets') return { top: {}, step };
-  return {
-    top: {
-      ticketFilter: {
-        type: 'object',
-        properties: {
-          priority: { type: 'array', items: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'] }, description: 'priorities a ticket must have; only when a guardrail names them' },
-          labels: { type: 'array', items: { type: 'string' }, description: 'label names, one of which a ticket must carry; only when a guardrail names them' },
-        },
-        additionalProperties: false,
-        description: 'required when a guardrail names a priority or a label: put those values here; leave it out only when no guardrail names one',
-      },
-      ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'optional: suggest only for a guardrail that says to run a ticket again when its state or its labels change' },
-    },
-    step,
-  };
+  return { top: {}, step };
 }
 
 /**

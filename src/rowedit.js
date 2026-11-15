@@ -92,6 +92,7 @@ const rowEditSchema = (ticket) => ({
         additionalProperties: false,
         description: TICKET_FILTER_SCHEMA_WORDS,
       },
+      ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'REQUIRED when a job line says to run a ticket again when its state or its labels change (the fields that change); leave it out otherwise. The person signs it; code runs the look' },
     } : {}),
   },
   required: ['edits'],

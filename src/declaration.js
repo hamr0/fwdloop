@@ -45,6 +45,7 @@ import { lineRules } from './pagebits.js';
 import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { checkListReds } from './checklistsign.js';
+import { ticketListReds } from './ticketrows.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -159,7 +160,7 @@ function checkMcp(declaration, reds) {
 /** M12 piece 3 (item 4): the signed label filter, `ticketFilter: {priority?: ['P0'..'P3'], labels?: [names]}`; optional, and only on a job that lists MCP tools.
  *  Pure data: code decides at run (src/ticket-labels.js); the drafter may only suggest it and a human signs it.
  *  @param {Record<string, any>} declaration @param {string[]} reds */
-function checkTicketFilter(declaration, reds) {
+export function checkTicketFilter(declaration, reds) {
   if (!Object.hasOwn(declaration, 'ticketFilter')) return;
   const f = declaration.ticketFilter;
   if (!isPlainObject(f) || Object.keys(f).length === 0) {
@@ -186,7 +187,7 @@ function checkTicketFilter(declaration, reds) {
 
 /** M12 piece 3 (signed item 7): the ticket fields a schedule may watch, `ticketWatch: ['state'|'labels']`; optional, only on a job that lists MCP tools, typed values only.
  *  The scheduler compares (src/trigger-tickets.js); the drafter may suggest, a human signs. @param {Record<string, any>} declaration @param {string[]} reds */
-function checkTicketWatch(declaration, reds) {
+export function checkTicketWatch(declaration, reds) {
   if (!Object.hasOwn(declaration, 'ticketWatch')) return;
   const w = declaration.ticketWatch;
   if (!Array.isArray(w) || w.length === 0) { reds.push(`declaration: "ticketWatch" must be a non-empty list of fields (${WATCHABLE.join(' and ')})`); return; }
@@ -1121,6 +1122,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // M16 item 2: the checks of a list line are the signed list's; a plan carrying one proves it here, at sign and at run start ($0)
   reds.push(...checkListReds(declaration));
+  reds.push(...ticketListReds(declaration));
 
   // --- ask slots (ported from poc/m1/slots.mjs's checkAskSlots) --------------
   // (a) exactly one hitl step bound to each signed ask line.
