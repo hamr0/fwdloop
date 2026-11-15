@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
-import { panelQuestionText, askableFromLook } from '../src/pageask.js';
+import { panelQuestionText, readingQuestion, cantCheckQuestion } from '../src/pageask.js';
 import { checkAsks } from '../src/checkpick.js';
 import { columnQuestion } from '../src/sheetfind.js';
 
@@ -34,11 +34,10 @@ test('the view shows the question without the CLI\'s answer tail (the server\'s 
 
 const READ_Q = { source: 'look', line: 4 };
 test('panelQuestionText cuts exactly the known tails of each ask kind and nothing else; the stored text is never changed', () => {
-  const reading = askableFromLook({ facts: [{ line: 4, forRule: 1, name: 'price', shape: 'money', unit: ['US dollars'], reading: { op: 'lt', value: 450 } }] }, [{ n: 4, rules: ['under $400'] }]);
-  assert.equal(reading[0].ask, 'reading');
-  assert.equal(panelQuestionText({ ...READ_Q, question: reading[0].question }), 'Your line 4 says "under $400". I read it as: price under 450 US dollars. Agree?');
-  const cant = askableFromLook({ facts: [] }, [{ n: 4, rules: ['pays well'] }]);
-  assert.equal(panelQuestionText({ ...READ_Q, question: cant[0].question }), 'Your line 4 says "pays well". I can\'t check this on the page. Drop it?');
+  const reading = readingQuestion(4, 'under $400', 'price under 450 US dollars');
+  assert.equal(panelQuestionText({ ...READ_Q, question: reading }), 'Your line 4 says "under $400". I read it as: price under 450 US dollars. Agree?');
+  const cant = cantCheckQuestion(4, 'pays well');
+  assert.equal(panelQuestionText({ ...READ_Q, question: cant }), 'Your line 4 says "pays well". I can\'t check this on the page. Drop it?');
   const [prop, none] = checkAsks([{ line: 4, rule: 1, text: 'exactly 3 bullets', check: { rule: 'listItems', value: 3 }, why: null }, { line: 4, rule: 2, text: 'feels right', check: null, why: null }]);
   assert.match(prop.question, /Answer "agree" to use it/);
   assert.equal(panelQuestionText({ ...READ_Q, question: prop.question }), `Line 4, guardrail "exactly 3 bullets": I propose ${prop.reading}.`);
