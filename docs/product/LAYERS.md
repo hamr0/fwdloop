@@ -1,9 +1,9 @@
 # fwdloop — the layer map (plain language)
 
 > What this page is: one short map of the flow, the layers, and what happens when things go wrong.
-> Rewritten 2026-10-08; shape borrowed from bareloop docs/product/LAYERS.md (origin/main, c57d199 + 1b8115c).
+> Rewritten 2026-10-08. Updated 2026-11-15 (the one check list, status to v0.34.0); shape borrowed from bareloop docs/product/LAYERS.md (origin/main, c57d199 + 1b8115c).
 > The PRD is the contract; this is the map. Status diaries live in the PRD and `docs/logs/FINDINGS.md`, not here.
-> Jump to: **harness vs arbiter** (in "The shell") · **how many rungs** (near the end).
+> Jump to: **harness vs arbiter** (in "The shell") · **the one check list (~ ! $)** (after "The flow") · **how many rungs** (near the end).
 
 ---
 
@@ -21,13 +21,15 @@ The machine never decides your work is good. It makes sure that what you said wo
 
 ```
 YOU (panel Chat tab, or the CLI)
-  │  describe the job: numbered lines, "how I'd know" beside each (or blank)
+  │  describe the job: numbered lines, "how I'd know" (the ~ rules) beside each (or blank)
   ▼
 SCOUT looks at the real files, a saved web page or a sheet (read only) · DRAFTER writes steps, no tools,
 each step names the one line of yours it serves
   │
   ▼
-THE TABLE: your lines and the steps for them. You answer in plain words; redraft.
+THE CARD (the plan): your lines and the steps for them, and under each line ONE list of checks,
+each row tagged ~ [you], ! [agent] or $ [default]. A question comes with buttons
+(Agree · Drop it · your own words); the answer replaces its rule in the list; redraft.
   │
   ▼
 CHECKS at $0 before any money: files exist · no secret in the text ·
@@ -64,8 +66,62 @@ ENDED:  passed · failed · stopped · expired
 NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set When on a job with one good run; the panel starts it while it is open. A schedule is its own signed file (`schedule.json` beside the job, with one queue file), so setting or cancelling one never re-signs the job (M9 am20, released in 0.20.0).]
   │  Learnings from ended runs lean the next draft, and a step's retry, redo or rerun
   │  (one block, at most 2,000 characters). They lean, never judge: the close alone judges.
-  They are handed on a retry, a redo at an ask and a rerun's first try, never on any other first try, even with the Chat-box hatch.  [M8, on branch `learnings`]
+  They are handed on a retry, a redo at an ask and a rerun's first try, never on any other first try, even with the Chat-box hatch.  [M8, released in 0.24.0]
 ```
+
+---
+
+## The one check list (~ ! $)
+
+Since M16 (0.33.0) and M17 (0.34.0) there is **one list of checks per job line, and nowhere else.**
+Every surface shows the same list: the plan card, the Job tab, the Audit "Checks" fold, the Result tab.
+Copied from bareloop (M16 from v0.56.0, M17 from v0.57.0), with fwdloop's own parts kept.
+
+**Three kinds of row, each wearing a tag:**
+
+| tag | who made it | what it means | what you can do |
+|---|---|---|---|
+| `~` **[you]** | you, in your own words | your own rule. One rule is one row, never two | keep it, or reword it |
+| `!` **[agent]** | the AI suggested it; code proved it and built it | on by default | **Drop** it (and Add it back) |
+| `$` **[default]** | code's own floor | the step's answer is not empty, the model said `done:true`, a page fact is quoted, numbers tie back to the quotes | nothing; it is the floor |
+
+**Who does what.** The AI only *suggests* (on a row-edit turn). Code proves each suggestion and builds
+the check itself, on **bareguard**. The AI never writes a check. A check code cannot build is not faked.
+
+**One in, one out.** When something asks you a question and you answer it, the answer **replaces** the
+rule it is about. Agree to a reading, type your own words, or answer a column question: the `~` rule is
+rewritten in place. Nothing is added beside it. The same number of rules comes out as went in. A rule whose
+words already are the check is not asked at all. The AI naming a new rule is the only way to add one.
+
+**Questions are buttons.** Agree, Drop it, or your own words. Only the button's typed code counts; the machine
+never reads "agree" or "drop" out of what you typed. If the AI said "can't find X, found Y" and you Agree,
+the AI's reading becomes a `!` row (it replaces in place; nobody asks what it checks).
+
+**Not checked.** A rule that no check holds shows **once** in Not checked, with its reason. The usual
+reason: "No check was picked for it, so you judge it at the Ask." On a rule that sits on an Ask line:
+"you judge it at the Ask." The machine never invents a check, and never says covered when it is not.
+
+**By job type:**
+
+| job | how the list is built |
+|---|---|
+| **page** (read a web page) | facts quoted from the page; a rule code can tie to a quote becomes a check. Money in another currency than the page, or a phrase found in no result row, is Not checked. |
+| **sheet** (a CSV) | a cells check reads the step's own answer; code builds it on bareguard's helpers (M10b, M17). A second check on the same rule is its own `!` row with Drop. A **table** check reads only the input sheet ("the sheet has 8 rows"), so it is its own `!` row and **never covers your `~` rule** (M17 am7); a rule only it named is Not checked. A sheet step with no built check becomes a human-checked step. |
+| **Tickets** | the filter and the watch are rows on the list: the AI suggests the value, code proves it and writes the run's filter and watch from the row. Content rules are Not checked. |
+| **line with no guardrail of yours** | only the numbers tie; other checks cannot be signed there and show Not checked with the reason. |
+
+**Still waiting, not built.** (1) The AI's third-try questions that name the rule they are about, so an answer
+can replace or add (waits for bareloop's release; today such an answer adds a rule). (2) The Tickets filter rule is
+still found by a fixed table of words (waits for the same bareloop change).
+
+**Parked.** "under N words" means `maxWords N`, so N passes (needs hamr's ruling on "under"). A word of a job's
+prose that is no rule (such as "aging report") can show in Not checked as a missing column (F198, recorded, not fixed).
+What was proven, by number: F185-F190 (the M16 copy and bareguard's sheet helpers), F191-F197 (one in, one out,
+code-built sheet checks, the table row), F196 (the aging practice walk), F198.
+
+*The kid version:* one clipboard per chore. Some lines mom wrote (`~`). Some a helper pencilled in and mom's
+rulebook proved (`!`; mom can rub it out). Some are printed on every clipboard (`$`). A wrong answer
+fixes the line it was about; it never starts a second line.
 
 ---
 
@@ -115,7 +171,7 @@ So in fwdloop terms:
 
 - **Built on:** the rule "something came out, and it was not empty", plus a typed `done` flag from the model.
 - **Does:** each step proves it happened. Then one of three checks: sums that point to their source (**green**), a shape you described (**softgreen**), or you look (**hitl**, a human check).
-- **Whose checks:** fwdloop owns the "something came out" rule, the typed `done` flag, page and document quotes (cited checks, with the column lock) and the ask. A sheet's checks and softgreen shapes are **bareguard's**: for a CSV sheet the drafter suggests checks from bareguard's own list, you sign them, bareguard judges, and the step only gives values in its typed boxes (M10b). bareguard's defaults equal fwdloop's closers. A step never writes its own formula.
+- **Whose checks:** fwdloop owns the "something came out" rule, the typed `done` flag, page and document quotes (cited checks, with the column lock) and the ask. Every other check is **bareguard's**: code builds it from one list of `~` `!` `$` rows (see "The one check list"), you sign it, bareguard judges, and the step only gives values in its typed boxes. For a CSV sheet the AI only suggests, code builds (M10b, M17). bareguard's defaults equal fwdloop's closers. A step never writes its own formula.
 - **Survives:** the run's records. Nothing is judged by a model.
 - **Status:** built.
 
@@ -158,8 +214,9 @@ So in fwdloop terms:
 
 ### Layer 6 and on — in-run tools, learnings, triggers, real IO
 
-- **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10), and a sheet's checks from bareguard (M10b). Mail and chat are not built.
-- **Status:** in progress, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6, M7, M9, M10 and M11 are released. M8 is built on branch `learnings`, not yet released.
+- **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10), and a sheet's checks from bareguard (M10b).
+- **Does (since then):** outside tools through MCP and tickets that start a run (M12); one setup for outside sources (M13); the carry memo, in-run memory told to every try (M14); one friendly `.md` result for every job (M15); one check list for every job line (M16, M17).
+- **Status:** released through v0.34.0, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6 to M17 are released (M16 in 0.33.0, M17 in 0.34.0). Mail and chat are not built.
 
 ### Who keeps what
 
@@ -173,7 +230,7 @@ So in fwdloop terms:
 | the answer to an ask | you | once |
 | learnings (notes from ended runs) | code, at run end, in one ledger per user (`~/.config/fwdloop`, mode 600) | nobody; seeded once from past runs with `fwdloop learn seed`; handed only when `learningHints` is on |
 | thinking per try | code (try 1 off, retries on) | you, only with the Chat-box "Thinking on" box; it is kept with the job |
-| a sheet's checks | bareguard judges; the drafter suggests, you sign | you |
+| a job's checks (the `~` `!` `$` list) | code builds on bareguard, bareguard judges; the AI only suggests | you: your `~` rules, Drop or Add a `!` row, and the signature |
 | the monthly limit | Settings | you, up or down |
 | providers, models, prices, base URLs | Settings (none live in code) | you; a model is usable only when ticked with both prices |
 
@@ -270,32 +327,38 @@ still be wrong. So it hears "crooked", never "2mm off".
 
 ## How many rungs
 
-There are **21 rungs** on `docs/wiki/the-module-ladder.md`: 12 main modules (M0 to M11) and 9
-sub-rungs (M0a, M0b, M4a, M4b, M4c, M4c-fix, M4d, M4e, M6a). Counted with grep on its headings.
-M6b was folded into M4e. A rung starts only when its scope, exit and negative are signed by hamr.
+`docs/wiki/the-module-ladder.md` holds **18 main modules (M0 to M17)** and the sub-rungs under them
+(M0a, M0b, M4a to M4e, M4c-fix, M6a, M8b, M10b). Counts and every signed text are there; this table is only
+the state. M6b was folded into M4e. A rung starts only when its scope, exit and negative are signed by hamr.
+Latest release: **v0.34.0** (2026-11-15).
 
 | rung | what | state |
 |---|---|---|
-| M0a, M0b | go/no-go: scout, drafter, run it, close it | released (0.1.0 to 0.3.0) |
-| M0 | the go/no-go as a whole | released |
+| M0a, M0b, M0 | go/no-go: scout, drafter, run it, close it | released (0.1.0 to 0.3.0) |
 | M1 | declaration, validator, hash | released (0.4.0) |
 | M2 | the runner | released (0.5.0) |
 | M3 | ask, park, resume, CLI | released (0.6.0) |
 | M4 | the panel (parent of M4a to M4e) | released in parts |
 | M4a | read-only panel | released (0.7.0) |
-| M4b | answer doors, resume | released (0.9.0); amendments 4-6 (the launcher: a bare `fwdloop` menu, start / stop / restart / status / install, the panel's start time) signed 2026-10-24 to 2026-10-25, built on branch `launcher`, not yet released |
-| M4c | answers read clearly, stuck runs | released (0.10.0) |
-| M4c-fix | the fix list, cleared | released (0.11.0) |
-| M4d | Settings | released (0.12.0); amendments 3-11 (providers from your keys, models and prices, thinking, plan-checker rules, Chat step list) released (0.16.0); amendments 12-21 (one cap and one shared pot for drafting and the run, plain one-line Chat steps, version header and reload bar, Start over keeps the pot, one key-name rule) released (0.17.0); amendments 22-24 (the thinking note shows ticked or not, a Cap at or below what the earlier draft spent is red and refuses Draft) released (0.20.0); amendments 25-29 (thinking per step with the Chat box as the hatch, thinking words in Audit and on the Job tab, the three run diaries and the Audit fold) released (0.21.0); amendments 30-33 (try numbers after a Redo, a draft frees its cap, a run picks its model) released (0.22.0) |
+| M4b | answer doors, resume; the launcher (a bare `fwdloop` menu, start / stop / restart / status / install); all jobs in one folder | released (0.9.0); launcher in 0.25.0; one folder in 0.26.0 |
+| M4c, M4c-fix | answers read clearly, stuck runs; the fix list | released (0.10.0, 0.11.0) |
+| M4d | Settings | released (0.12.0 on); amendments through 0.32.0 (see the ladder and `CHANGELOG.md`) |
 | M4e | Chat card: draft, sign, run | released (0.13.0, 0.14.0) |
-| M6a | authoring backend (draft, sign) | released (0.8.0) |
 | M5 | dry-run, accept, versions | closed, signed 2026-10-10 (Accept is sign; dry run waits for a real outside send) |
-| M6 | edit a flow, add turns | released (0.15.0); amendments 5-10 (a changed job is a new workflow, Run again is the one door, a red run always drafts, each run keeps its own plan) released (0.20.0) |
+| M6a | authoring backend (draft, sign) | released (0.8.0) |
+| M6 | edit a flow, add turns, Reuse | released (0.15.0); amendments through 0.25.0 |
 | M7 | in-run tools (one run's memory) | released (0.17.0) |
-| M8 | learnings (notes from earlier runs, handed to the drafter and to retries) | signed 2026-10-23, amendments 1-8 signed to 2026-10-24, exit signed 2026-10-24; built on branch `learnings`, not yet released; M8b (a tidy run folder: `run.json`, `diary.jsonl`, `line-checks.json`) signed 2026-10-24, built on branch `launcher`, not yet released |
-| M9 | triggers (clock, file watch) and the run summary | released (0.18.0); amendments 6-20 (schedule on the Job tab and in Audit, a run at its ask is not busy, the schedule's own signed file) released (0.20.0); amendments 21-23 (run time in the Run tab summary, the schedule header) released (0.21.0); inbox-poll and flow handover not built |
-| M10 | real IO: read a web page, a sheet or a document, cited checks, code-forced asks (mail, chat, page actions not in this scope) | released (0.22.0), exit signed 2026-10-22; M10b (a sheet's checks are bareguard's cells checks) released (0.23.0), its aging-job exit walk still open |
-| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0, 0.19.1); amendments 5-15 (search finds older runs, Needs you tags and Remove, job · run in the top lists, empty Inbox) released (0.20.0); amendments 16-21 (Scheduled has its own search, the scheduled chip, Scheduled below the search box, the chip's size measured to match ✓ by ink height) released (0.21.0); amendment 22 (Reopen is also on the Run tab) signed 2026-10-24, built on branch `learnings`, not yet released |
+| M8 | learnings (notes from earlier runs, handed to the drafter and to retries) | released (0.24.0); M8b, a tidy run folder, released (0.25.0) |
+| M9 | triggers (clock, file watch) and the run summary | released (0.18.0, amendments through 0.21.0); inbox-poll and flow handover not built |
+| M10 | real IO: read a web page, a sheet or a document, cited checks, code-forced asks (mail, chat, page actions not in this scope) | released (0.22.0); amendments through 0.32.0 |
+| M10b | a sheet's checks are bareguard's | released (0.23.0); exit signed 2026-10-26 (0.26.0); a table check that fails on the input is refused at draft time (0.32.0) |
+| M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0 on; Reopen on the Run tab in 0.24.0) |
+| M12 | outside tools through MCP, and tickets that start a run | released (0.27.0) |
+| M13 | one setup for outside sources | released (0.28.0); later amendments see the ladder |
+| M14 | the carry memo (memory in one run) | released (0.29.0) |
+| M15 | one friendly `.md` result for every job | released (0.29.0) |
+| M16 | one check list (`~` `!` `$`), copied from bareloop v0.56.0 | released (0.33.0); exit signed 2026-11-14 |
+| M17 | one check list for sheets and Tickets; an answer replaces its rule | released (0.34.0); exit: see the ladder |
 
 ---
 
@@ -318,6 +381,7 @@ The one place implementation names appear:
 | the arbiter keys | `src/declaration.js` (`ARBITER_KEYS`), read by `src/flow.js` |
 | the harness (steps, strikes, caps, halts, stop) | `src/runner.js` |
 | the checks (green, softgreen, hitl) | `src/closers.js` |
+| the one check list (rows, tags, Drop and Add, replace on answer) | `src/checkblock.js`, `src/blockassemble.js`, `src/blockdraft.js`, `src/planrebuild.js`; sheet rows `src/sheetbuild.js`; Tickets rows `src/ticketrows.js` |
 | a sheet's checks (bareguard's), cited page quotes | `src/sheetchecks.js`, `src/sheetrun.js`, `src/sheetclaims.js`, `src/sheetoffer.js` (what the drafter is offered), `src/sheetblock.js` (what a sheet job line shows); `src/citedcheck.js` (the cited check), `src/cited-record.js`, `src/pagebits.js` |
 | thinking per try | `src/thinking.js`, `src/model-step.js` |
 | the description (drafter, catalogue) | `src/drafter.js`, `src/catalogue.js` |
