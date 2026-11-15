@@ -3937,3 +3937,17 @@ Peer state (2026-11-13):
 > **Must fail when:**
 > - The filter or watch comes from anything but a proven check on its rule's row.
 > - A signed Tickets job's filter changes.
+
+**M17 am7 — SIGNED by hamr 2026-11-15 ("sign m17 am7,"), the text exactly as shown.** Why: F197 ($0): on hamr's walk draft `d-00mwhz6eab-cfc7` a `table` check (rowCount n:8, reads only the frozen input) sat on the row of `~ every invoice appears exactly once` as if it checked the step's answer. Run 1 (bars a-c PASS) moved it to an `[agent]` row but still showed the rule as covered; hamr picked option 2 (the rule goes to Not checked). Run 2 FAIL on the letter (bar e): the card showed "no sheet check covers it", not the picked words; item 2 settles which words.
+
+> **M17 am7 — a check that reads only the input sheet never covers your rule.**
+> 1. A sheet check that reads only the input sheet (a `table` check, such as "the sheet has 8 rows" or "no duplicate Invoice #") gives the same result whatever the step answers. Code never puts it on a `~` rule's row. It is its own `[agent]` row, on by default, with Drop, and it still runs.
+> 2. A `~` rule that no check holds shows once in Not checked with: "No check was picked for it, so you judge it at the Ask." This replaces "no sheet check covers it". A rule whose check was refused keeps the refusal as its reason.
+>
+> **Done when:**
+> - On hamr's aging draft `d-00mwhz6eab-cfc7`, "the sheet has 8 rows" is an `[agent]` row with Drop, and "every invoice appears exactly once" is in Not checked with the words above.
+> - On the saved runs of F194/F195, no line's verdict changes.
+>
+> **Must fail when:**
+> - A `table` check sits on a `~` rule's row.
+> - A card shows "no sheet check covers it".
