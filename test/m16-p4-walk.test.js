@@ -114,6 +114,8 @@ for (const width of [1280, 390, 320]) {
     assert.ok(passedRows.length >= 2 && passedRows.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
     // P4c: bareloop layout - the header reads "checks · N passed", lowercase, after the caret and the state sign
     assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*[▶▼]\s*checks · \d+ passed/);
+    // hamr ask: only the word "checks" in the header is bold; the text itself is unchanged
+    assert.deepEqual(await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-checks-toggle] b:not(.st-word)")).map(function(b){return b.textContent;})'), ['checks'], 'the word checks is bold');
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
     await chrome.ev('document.querySelector("[data-testid=audit-checks-group]").scrollIntoView()');
     const m = await chrome.ev(measure('[data-testid=audit-checks-group]'));

@@ -4166,7 +4166,7 @@
     var all = (ac.checks || []).concat(ac.always || []);
     var nPass = all.filter(function(r){ return r.result === "passed"; }).length;
     var nFail = all.filter(function(r){ return r.result === "failed"; }).length;
-    var head = "checks \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
+    var head = " \u00B7 " + nPass + " passed" + (nFail ? " \u00B7 " + nFail + " failed" : "") + ((ac.notChecked || []).length ? " \u00B7 " + ac.notChecked.length + " not checked" : "");
     var wrap = document.createElement("div");
     wrap.className = "audit-part";
     wrap.setAttribute("data-testid", "audit-checks-group");
@@ -4176,7 +4176,7 @@
     btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("data-testid", "audit-checks-toggle");
     // P4c: bareloop's header: the caret span, the state sign, the words (re-drawn on each toggle)
-    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + escapeXml(head); };
+    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + "<b>checks</b>" + escapeXml(head); };
     btn.innerHTML = headHtml(false);
     var body = document.createElement("div");
     body.className = "audit-part-body";
