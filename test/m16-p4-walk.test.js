@@ -121,6 +121,16 @@ for (const width of [1280, 390, 320]) {
     console.log(`# checks word ${width}px ${JSON.stringify(wordStyle)}`);
     assert.equal(wordStyle.rowText, 'passed');
     assert.deepEqual(wordStyle.head, wordStyle.row, 'the word checks matches the rows\' passed in size, color, weight');
+    // hamr ask: every passed state word in an Audit group header (step groups, the run summary row) is the same as the word "checks": size, weight, color; the [\u2713] sign keeps its green
+    const grp = await chrome.ev('(function(){ var c = getComputedStyle(document.querySelector("[data-testid=audit-checks-toggle] b:not(.st-word)")); var out = {checks: [c.fontSize, c.color, c.fontWeight], groups: []}; document.querySelectorAll("[data-testid=audit-group-state]").forEach(function(e){ var s = getComputedStyle(e), g = e.querySelector(".audit-sign-glyph"); out.groups.push({text: e.textContent, cls: e.className, style: [s.fontSize, s.color, s.fontWeight], glyph: g ? getComputedStyle(g).color : null}); }); out.green = getComputedStyle(document.documentElement).getPropertyValue("--green"); return out; })()');
+    console.log(`# group passed word ${width}px ${JSON.stringify(grp)}`);
+    const passedGroups = grp.groups.filter((g) => /passed/.test(g.text));
+    assert.ok(passedGroups.length >= 1, JSON.stringify(grp));
+    for (const g of passedGroups) {
+      assert.deepEqual(g.style, grp.checks, `a passed group word matches the checks word: ${JSON.stringify(g)}`);
+      assert.notEqual(g.glyph, grp.checks[1], 'the sign glyph keeps its own (green) color');
+    }
+    for (const g of grp.groups.filter((x) => /failed|stopped/.test(x.text))) assert.notEqual(g.style[1], grp.checks[1], `a failed/stopped word keeps its red/grey: ${JSON.stringify(g)}`);
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
     await chrome.ev('document.querySelector("[data-testid=audit-checks-group]").scrollIntoView()');
     const m = await chrome.ev(measure('[data-testid=audit-checks-group]'));

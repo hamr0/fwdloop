@@ -601,6 +601,10 @@
   .st-word{font-weight:700;color:var(--text);}
   .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
   .audit-checks-word{font-size:12px;font-weight:700;color:var(--text);}
+  /* hamr ask: a passed group's / the run summary's "passed" word = the checks word; the sign glyph stays green. Placed after the phone rule so it also wins at 390/320 */
+  .audit-group h4.audit-status-header > .badge.audit-passed-word{font-size:12px;font-weight:700;color:var(--text);}
+  .audit-group h4.audit-status-header > .badge.audit-passed-word .audit-sign-glyph{color:var(--green);}
+  .audit-group.audit-fold h4.audit-status-header > .badge.audit-passed-word{font-size:12px;}
   /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
   #result-body{min-width:0;overflow-wrap:anywhere;}
   .rs-ok{color:var(--green);font-weight:700;}
@@ -3593,7 +3597,16 @@
       var stateSpan = document.createElement("span");
       stateSpan.className = "badge " + auditStateClass(p.state) + " sign-badge";
       stateSpan.setAttribute("data-testid", "audit-group-state");
-      stateSpan.textContent = p.status;
+      var signEnd = p.status.indexOf(" ");
+      if(p.state === "done" && p.status.charAt(0) === "[" && signEnd > 0){
+        // hamr ask: the "passed" word is the same as the checks header's word (12px, text color); the [\u2713] sign keeps its green
+        stateSpan.className += " audit-passed-word";
+        var glyph = document.createElement("span");
+        glyph.className = "audit-sign-glyph";
+        glyph.textContent = p.status.slice(0, signEnd);
+        stateSpan.appendChild(glyph);
+        stateSpan.appendChild(document.createTextNode(p.status.slice(signEnd)));
+      } else stateSpan.textContent = p.status;
       h4.appendChild(stateSpan);
       var dotSpan = document.createElement("span");
       dotSpan.className = "audit-fold-dot";
