@@ -3809,6 +3809,12 @@ Peer state (2026-11-13):
 - Tests: new `test/m17-flights-bang-currency.test.js` (bareloop's two test files, plus the Done-when job and the borrowed-from tag check) on the euro page `test/fixtures/m16-block/flights-eur/`; new `test/m17-label-colon.test.js` (page rules and fwd's money dry read; fwd has no time dry read, so bareloop's `dryReadTimes` cases are not copied) on `test/fixtures/m17-time-label-colon/`.
 - (e), the note question (32352d82), is not built: fwd has no confirm turn (no "carry text" line to derive), a line's close class must equal the class its guardrail earns (M4d), `src/blockassemble.js` signs a countable part only on a line with a guardrail of the person's, and a `note` kind is not in fwd's signed row kinds. It waits for hamr's ruling.
 
+**Built after signing — not signed text (2026-11-15), M17 piece P3, item 2(b) only (D1); 2(a) and am1 item 2 NOT built (they wait for hamr's ruling on how code gets the filter and watch).**
+- fwd's card has no filter or watch input, and bareloop v0.57.0 does not set them from the card either (its drafter proposes the filter, the person signs it; `src/authorjob.js` only refuses them in the spec draft). So "code sets the filter and watch from the card" has no pick to copy.
+- Built: `ticketLeaveOut` (`src/blockdraft.js`) now leaves out only a rule that names a priority (P0 to P3), a label, or a state / labels change (`isTicketFilterOrWatchRule`). Any other Tickets rule is a row of the list, and with no check it shows once in Not checked with its reason. Filter and watch rules are handled as before.
+- Rescan ($0, read-only): `poc/m17-p3-rescan/` (`run.mjs`, `before.jsonl`) lists each signed Tickets flow's readFlow result, filter, watch, and the verdict of `decideTicket` on each run's frozen ticket.
+- Test: `test/m17-p3-tickets-content.test.js`.
+
 
 **M17 am2 — SIGNED by hamr 2026-11-14 ("sign m17 am2"), the text exactly as shown.** Why: hamr 2026-11-14: "one path for all jobs, be it a url, a sheet, a doc we have it's rubric, set it in the job as ~ ai checks what it can with pre read as ! then defaults per input type as default $ all go through code which is built on bareguard and honest about what it can do. any clarifications/substitution add drop replaces/removes from that one list one check"; and bareloop takes fwdloop's sheet jobs exactly as built, minus hitl (hamr, 2026-11-14).
 
@@ -3884,3 +3890,19 @@ Peer state (2026-11-13):
 > **Done when:** a job with a `~` rule on its Ask line shows that rule once in Not checked; no draft log holds a `repaired` entry.
 >
 > **Must fail when:** a `~` rule on an Ask line shows nowhere; a Not checked reason is dropped by a repair.
+
+**M17 am6 — SIGNED by hamr 2026-11-15 ("sign m17 am6."), the text exactly as shown.** Why: the P3 build stopped before any code (2026-11-15): M17 am1 item 2 rested on a wrong relay of bareloop (bareloop v0.57.0 `src/authorjob.js` refuses a spec draft carrying `ticketFilter`/`ticketWatch`, but its drafter proposes the filter through the row-edit tool, code checks it with `ticketFilterReds`, and the person signs it; no card pick sets it). fwd's card has no filter or watch input. The orchestrator relayed the claim without reading bareloop's code; retracted here.
+
+> **M17 am6 — the Tickets filter and watch are checks on the list.** This replaces M17 am1 item 2, which rested on a wrong reading of bareloop (bareloop's drafter suggests the filter and code proves it; no card pick sets it).
+> 1. A Tickets `~` rule about which tickets to take ("priority P1 only") or what to watch ("state") is a rule row on the list. Its check is the filter or the watch. The AI suggests it as an edit to the list, and code proves it with fwdloop's existing filter checks and builds it. Code writes the run's filter and watch from those rows.
+> 2. The AI never types a separate filter or watch. A draft that carries one is refused at $0.
+> 3. The 15-minute look and the run use the filter and watch exactly as today.
+>
+> **Done when:**
+> - A Tickets job drafts with its filter and watch shown as rows on their rules.
+> - A draft carrying its own filter is refused at $0.
+> - The signed Tickets jobs run the same.
+>
+> **Must fail when:**
+> - The filter or watch comes from anything but a proven check on its rule's row.
+> - A signed Tickets job's filter changes.
