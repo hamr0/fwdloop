@@ -237,6 +237,13 @@ test('flights (page): the fact part becomes close.cited with the source in reads
   assert.equal(step(2).close.cited.source, 'flights');
   assert.ok(step(2).close.cited.facts.length >= 2, 'the look\'s facts');
   assert.ok(step(2).close.cited.facts.some((/** @type {any} */ f) => f.phrase === 'Adolfo Suárez Madrid'), 'a place is checked with its role phrase (fwd R2c), not the bare word the block built it from');
+  // M17 am4 (B3): the card says the words the plan checks (the row holds the grown phrase; the part and the card read it from there)
+  const grownPlaces = r.look.facts.filter((/** @type {any} */ k) => Array.isArray(k.phrases) && k.phrases.length).flatMap((/** @type {any} */ k) => k.phrases);
+  const cardText = r.checkCard.rows.map((/** @type {any} */ x) => x.text).join('\n');
+  assert.ok(grownPlaces.includes('Adolfo Suárez Madrid'));
+  const checked = step(2).close.cited.facts.map((/** @type {any} */ f) => f.phrase).filter((/** @type {string} */ ph) => grownPlaces.includes(ph));
+  assert.ok(checked.length >= 1);
+  for (const phrase of checked) assert.ok(cardText.includes(`"${phrase}"`), `the card says "${phrase}", as the plan does: ${cardText}`);
   assert.ok(step(2).reads.includes('flights'), 'code added the source to the step\'s reads');
   assert.deepEqual(step(2).close.picked, [{ rule: 'listItems', value: 3 }, { rule: 'maxWords', value: 80 }]);
   assert.deepEqual(r.declaration.pickedLines, [2]);

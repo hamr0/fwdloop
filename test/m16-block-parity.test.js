@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseSignedText } from '../src/signed-text.js';
 import { csvRolesOf, sheetLineBlocks } from '../src/sheetblock.js';
-import { CheckBlock } from '../src/checkblock.js';
+import { CheckBlock, renderCard } from '../src/checkblock.js';
 import * as CL from '../src/checklist.js';
 import * as RS from '../src/rubricstep.js';
 import * as LS from '../src/labelscan.js';
@@ -45,7 +45,8 @@ function run(Block, j) {
   const b = new Block({ texts: j.texts, labels: Object.keys(j.texts), asks: true, split: true });
   b.fromJob(stepLines(j.prose, j.decl));
   const lk = j.look?.look ?? { facts: [], dropped: [] };
-  b.addLook(lk.facts, lk.dropped);
+  // fwd's signed R2c (M10 am7 item 2; M17 am4 B3) is the one deliberate difference from the vendor: a grown place's phrases are held by the row and the part. The parity runs on the look without them; the R2c test below holds the rest.
+  b.addLook(lk.facts.map((/** @type {any} */ f) => { const { phrases: _p, ...rest } = f; return rest; }), lk.dropped);
   const before = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open) };
   b.drive({ answer: (q) => (q.offers.agree ? { choice: 'agree' } : null) });
   const after = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open), signed: plain(b.signedRows()) };
@@ -97,4 +98,21 @@ test('parity: the limit reader (five patterns written as literals) equals the ve
 test('parity: the label scan (the date finder written as a literal) equals the vendor on every fixture text', () => {
   for (const j of jobs) for (const [label, text] of Object.entries(j.texts)) assert.deepEqual(LS.scanLabels(text), V.labels.scanLabels(text), `${j.id}/${label}`);
   for (const s of SAMPLES) assert.deepEqual(LS.scanLabels(`Price from ${s} 12\nDate ${s} 5`), V.labels.scanLabels(`Price from ${s} 12\nDate ${s} 5`), s);
+});
+
+// M17 am4 (B3): fwd's R2c at the block: the row and the part of a grown place hold the same phrases (one writer, buildLine), so the card, the plan and the Job tab say the same words
+test('B3: a place the look grew to phrases is held by the row (`grown`) and the part alike; the card line says the part\'s phrases (break: show r.words in renderCard and this reds)', () => {
+  const j = jobs[1];
+  const b = new CheckBlock({ texts: j.texts, labels: Object.keys(j.texts), asks: true, split: true });
+  b.fromJob(stepLines(j.prose, j.decl));
+  b.addLook(j.look.look.facts, j.look.look.dropped);
+  const close = b.reconcile();
+  const partPhrases = close.parts.flatMap((p) => (p.class === 'fact' ? p.facts : [])).filter((f) => f.shape === 'phrase').map((f) => f.phrase);
+  const place = j.look.look.facts.find((f) => Array.isArray(f.phrases) && f.phrases.length);
+  assert.ok(place, 'the fixture has a grown place (so the test can fail)');
+  for (const ph of place.phrases) assert.ok(partPhrases.includes(ph), `the part holds ${ph}`);
+  const card = renderCard(b.rows).map((r) => r.text).join('\n');
+  for (const ph of place.phrases) assert.ok(card.includes(`"${ph}"`), `the card says ${ph}: ${card}`);
+  const row = b.rows.find((r) => r.grown?.includes(place.phrases[0]));
+  assert.ok(row, 'the row holds the phrase');
 });
