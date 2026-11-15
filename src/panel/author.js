@@ -770,7 +770,7 @@ export function createAuthor(opts) {
       // space (one `~` line is one line) instead of refused. Every other question keeps its own gate (blank, one line).
       const look = q.source === 'look';
       // hamr 2026-11-07 (ruling 2A): a leading `~` the person typed is dropped quietly (the job line adds its own); the ONE place, so a tilde-only answer is a blank answer
-      // M10 am29: the button used rides as a typed `choice`; absent = the words reading (CLI and old pages). agree needs a proposal, drop/agree are look asks only.
+      // M10 am29: the button used rides as a typed `choice`. agree needs a proposal, drop/agree are look asks only.
       const choice = b.choice;
       // M10 am32 A: every new answer carries its button's choice; an answer with none is refused before anything is written (old answer files are still read by the readers)
       if (choice === undefined) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'This page is out of date. Reload it and answer again. Nothing was saved.' } };
