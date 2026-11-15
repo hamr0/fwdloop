@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { draft } from '../src/drafter.js';
 import { validateDeclaration } from '../src/declaration.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import * as pageask from '../src/pageask.js';
+import * as checkpick from '../src/checkpick.js';
 import { RATES, MODEL, fakeProvider, toolReply, textReply } from './drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -63,4 +65,10 @@ test('P4 leftover: the old red stays for a plan signed before (a green sheet ste
   const d = { ...decl(), unjudgeable: {}, inputFacts: {} };
   const v = validateDeclaration(d, { arbiter: { sources: [{ role: 'aging', kind: 'file', path: AGING_CSV }], asks: [{ line: 3 }], sends: [{ line: 4 }] }, lines: [{ n: 2, text: 'x', guardrail: 'flag amounts over 500' }], fitJobLine: true, verbatimGoals: false, catalogue: loadCatalogue().primitives });
   assert.ok(!v.ok && v.reds.some((x) => x.includes('cannot cite cells any more')), JSON.stringify(v.reds));
+});
+
+test('am4 (A1, A3, B5): no function in src asks a question or settles a pick outside the list (their exports are gone)', () => {
+  assert.equal(/** @type {any} */ (pageask).askableFromLook, undefined);
+  assert.equal(/** @type {any} */ (checkpick).settleRules, undefined);
+  assert.equal(/** @type {any} */ (checkpick).applyPicks, undefined);
 });
