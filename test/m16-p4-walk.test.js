@@ -116,6 +116,11 @@ for (const width of [1280, 390, 320]) {
     assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*[▶▼]\s*checks · \d+ passed/);
     // hamr ask: only the word "checks" in the header is bold; the text itself is unchanged
     assert.deepEqual(await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-checks-toggle] b:not(.st-word)")).map(function(b){return b.textContent;})'), ['checks'], 'the word checks is bold');
+    // hamr ask: the header word "checks" is the same size and color as the rows' "passed"
+    const wordStyle = await chrome.ev('(function(){ var h = document.querySelector("[data-testid=audit-checks-toggle] b:not(.st-word)"), p = document.querySelector("[data-testid=audit-check-row][data-result=passed] .st-word"), a = getComputedStyle(h), b = getComputedStyle(p); return {head: [a.fontSize, a.color, a.fontWeight], row: [b.fontSize, b.color, b.fontWeight], rowText: p.textContent}; })()');
+    console.log(`# checks word ${width}px ${JSON.stringify(wordStyle)}`);
+    assert.equal(wordStyle.rowText, 'passed');
+    assert.deepEqual(wordStyle.head, wordStyle.row, 'the word checks matches the rows\' passed in size, color, weight');
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');
     await chrome.ev('document.querySelector("[data-testid=audit-checks-group]").scrollIntoView()');
     const m = await chrome.ev(measure('[data-testid=audit-checks-group]'));

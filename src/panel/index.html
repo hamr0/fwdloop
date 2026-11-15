@@ -600,6 +600,7 @@
   /* M10 am4: the Result tab. borrowed-from: bareloop src/panel/index.html@2959217 :188 :192 :397-408 (the Your-call card's rules are below, am5 item 2) */
   .st-word{font-weight:700;color:var(--text);}
   .step-state{display:inline-flex;align-items:center;gap:2px;font-size:12px;}
+  .audit-checks-word{font-size:12px;font-weight:700;color:var(--text);}
   /* PRD v1.107 Part 6: the Result tab. Boxes are the Job tab's own (.job-card, .field, .ro-value, .field-row); text wraps, nothing scrolls the page. */
   #result-body{min-width:0;overflow-wrap:anywhere;}
   .rs-ok{color:var(--green);font-weight:700;}
@@ -4176,7 +4177,7 @@
     btn.setAttribute("aria-expanded", "false");
     btn.setAttribute("data-testid", "audit-checks-toggle");
     // P4c: bareloop's header: the caret span, the state sign, the words (re-drawn on each toggle)
-    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + "<b>checks</b>" + escapeXml(head); };
+    var headHtml = function(open){ return auditCaret(open) + stateDotHTML(auditChecksSignClass(all), "", "audit-checks-state") + "<b class=\"audit-checks-word\">checks</b>" + escapeXml(head); };
     btn.innerHTML = headHtml(false);
     var body = document.createElement("div");
     body.className = "audit-part-body";
