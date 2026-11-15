@@ -73,6 +73,9 @@ export const repairedEditsReadable = (value) => Array.isArray(value?.edits) && v
 /** one applied reply as the round log keeps it: each edit, kept or refused with its own reason @param {{edits: any[]}} rec */
 export const editRecord = (rec) => rec.edits.map((e) => ({ op: e?.op, accepted: e.accepted === true, ...(e.accepted === true ? {} : { refusedBecause: e.refusedBecause }) }));
 
+/** M17 P3 (item 2(b), D1): the rule names what the signed ticketFilter or ticketWatch decides: a priority (P0 to P3), a label, or a state / labels change. Any other Tickets rule is a content rule: a row of the list, Not checked when no check is picked. @param {string} t */
+export const isTicketFilterOrWatchRule = (t) => /\bp[0-3]\b/i.test(t) || /\blabel(?:l?ed|s)?\b/i.test(t) || /\b(?:state|labels)\b[^;]*\bchange/i.test(t);
+
 /**
  * M16 item 4 ("Tickets `ticketFilter` and `ticketWatch` stay as they are"): the rules of a Tickets job that are not the block's. Before M16 only a count guardrail of such a job (it signs a
  * ticket page input, which routes its guardrails: src/checkpick.js codeScope) was picked or asked; every other rule ("priority P1 only", "run a ticket again when its state changes") was the
@@ -81,5 +84,5 @@ export const editRecord = (rec) => rec.edits.map((e) => ({ op: e?.op, accepted: 
  */
 export function ticketLeaveOut(flowType, jobLines, facts) {
   if (flowType !== 'tickets') return [];
-  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => !isCountGuardrail(x.t) && !facts.some((f) => f.line === x.line && f.forRule === x.rule)).map((x) => ({ line: x.line, rule: x.rule })));
+  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => isTicketFilterOrWatchRule(x.t) && !isCountGuardrail(x.t) && !facts.some((f) => f.line === x.line && f.forRule === x.rule)).map((x) => ({ line: x.line, rule: x.rule })));
 }
