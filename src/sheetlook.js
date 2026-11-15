@@ -83,6 +83,15 @@ export function applySheetWords(text, words, jobLines, label) {
   /** @type {import('./pagerules.js').Dropped[]} */
   const dropped = [];
   const seen = new Set();
+  // the person's word is a header of the sheet: the word is theirs when the line or its `~` rules say it (a header the model picked in the person's place is not)
+  const isYours = (/** @type {any} */ jl, /** @type {string} */ word) => jl !== undefined && wordForms(word).some((f) => countPhrase(wordsSaidOn(jl), f) > 0);
+  // F196: a rule whose own words already tie it to a header (a word of that rule IS a header the person said) is settled: its other words are asked no more (M10 am32, F180)
+  const tiedRules = new Set(words.flatMap((w) => {
+    const at = tieOf(w.from, jobLines);
+    return at.rule !== undefined && findColumn(text, w.word).kind === 'header' && isYours(jobLines.find((l) => l.n === at.line), w.word) ? [`${at.line}\u0000${at.rule}`] : [];
+  }));
+  /** the words (line + word) a `~` rule asked about or settled: the line's own prose never asks that word again (one word, one question; the rule's ask wins) */
+  const ruleWords = new Set();
   for (const w of words) {
     const at = tieOf(w.from, jobLines);
     const key = `${at.line}\u0000${at.rule ?? ''}\u0000${w.word.toLowerCase()}`;
@@ -97,7 +106,7 @@ export function applySheetWords(text, words, jobLines, label) {
     if (found.kind === 'header') {
       // a real header is kept only when the word is the PERSON'S: in the line or its ~ rules. A header the model picked in the person's place is not a check the person
       // asked for (live walk 2026-10-21: "Price over 500" kept as "Amount", nothing asked)
-      if (jl === undefined || !wordForms(w.word).some((f) => countPhrase(wordsSaidOn(jl), f) > 0)) dropped.push({ ...rec, reason: 'word-not-yours' });
+      if (!isYours(jl, w.word)) dropped.push({ ...rec, reason: 'word-not-yours' });
       else facts.push(fact(found.column));
       continue;
     }
@@ -106,11 +115,13 @@ export function applySheetWords(text, words, jobLines, label) {
     if (found.kind === 'none') { dropped.push({ ...rec, reason: 'no-fit', other: String(found.rows) }); continue; }
     // the person already named this column in a rule of the line (an answer they gave, or their own words): the word is that column, asked no more
     if (rules.some((r, i) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
+    if (at.rule !== undefined) ruleWords.add(`${at.line}\u0000${w.word.toLowerCase()}`);
+    if (at.rule !== undefined && tiedRules.has(`${at.line}\u0000${at.rule}`)) continue;
     asks.push({
       line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line, at.rule !== undefined), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });
   }
-  return { facts, asks, dropped };
+  return { facts, asks: asks.filter((a) => a.rule !== null || !ruleWords.has(`${a.line}\u0000${a.word.toLowerCase()}`)), dropped };
 }
 
 /**

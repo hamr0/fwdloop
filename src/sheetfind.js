@@ -44,9 +44,9 @@ export function findColumn(csvText, word) {
 
 /**
  * The question, as signed (item 7's example, then am8 item 1's answer words):
- * `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line N).`
+ * `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer becomes the agent's check on line N).`
  * @param {string} word @param {FoundAsk} found @param {number} line @returns {string}
  */
 export const columnQuestion = (word, found, line, tied = false) => `no column '${word}'; '${found.column}' has numbers in ${found.numbers} of ${found.rows} rows. Use it?${columnTail(line, tied)}`;
 /** @param {number} line @param {boolean} [tied] the question is about one of the person's `~` rules (M17 ruling 1: the answer replaces that rule; the words are the page asks' own) @returns {string} the answer words the column question ends with (M10 am29: the panel cuts exactly this) */
-export const columnTail = (line, tied = false) => (tied ? ` Answer "agree", or type your own words (your answer replaces that ~ rule on line ${line}).` : ` Answer "agree", or type your own words (your answer is added as a new ~ rule on line ${line}).`);
+export const columnTail = (line, tied = false) => (tied ? ` Answer "agree", or type your own words (your answer replaces that ~ rule on line ${line}).` : ` Answer "agree", or type your own words (your answer becomes the agent's check on line ${line}).`);
