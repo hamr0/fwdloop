@@ -62,14 +62,14 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   assert.equal(shown[0].gap, 'you said: agree [you]');
 });
 
-test('own words: a `~` line word for word, no check, Not checked with its reason; drop it: no line, Not checked as the person chose', async () => {
+test('own words (M17 am1 ruling: bareloop\'s reason for a countable own-words rule): the rule is replaced word for word, no check, Not checked with its reason; drop it: no line, Not checked as the person chose', async () => {
   const own = await asked();
   assert.equal((await own.w.post(`/api/author/${own.id}/answer`, { k: 1, answer: 'three short bullets', choice: 'rule' })).status, 202);
   const g1 = await greenAfter(own.w, own.id);
   assert.equal(g1.phase, 'green', JSON.stringify(g1.reds ?? g1));
   const d1 = JSON.parse(readFileSync(path.join(own.w.dir(own.id), 'draft-1', 'declaration.json'), 'utf8'));
   assert.deepEqual(d1.steps.find((x) => x.fromLine === 3).close, { class: 'hitl' });
-  assert.ok(g1.notChecked.items.some((x) => x.includes('"three short bullets"') && x.includes('Your own words are on the line')), JSON.stringify(g1.notChecked));
+  assert.ok(g1.notChecked.items.some((x) => x.includes('"three short bullets"') && x.includes('No check was picked for it')), JSON.stringify(g1.notChecked));
   const drop = await asked();
   assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, choice: 'drop' })).status, 202);
   const g2 = await greenAfter(drop.w, drop.id);

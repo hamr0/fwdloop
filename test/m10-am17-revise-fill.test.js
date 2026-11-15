@@ -22,7 +22,7 @@ const childGone = (w, id) => until(() => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
 
-test('browser: after an answer-redraft, Revise shows the newest card (the ~ answer line); a cap-only Draft asks nothing', { skip: SKIP && 'no browser' }, async (t) => {
+test('browser: after an answer-redraft with own words that are no count, Revise shows the newest card (the ~ answer line); a cap-only Draft asks nothing (M17 am1 ruling: a countable own-words rule is asked again)', { skip: SKIP && 'no browser' }, async (t) => {
   const chrome = await launchChrome();
   if (!chrome) { t.skip('no chromium installed'); return; }
   CLOSERS.push(async () => chrome.close());
@@ -32,12 +32,12 @@ test('browser: after an answer-redraft, Revise shows the newest card (the ~ answ
   await childGone(w, id);
   await chrome.open(`http://127.0.0.1:${w.h.port}/`, 1280);
   assert.ok(await chrome.waitFor('!document.getElementById("chat-question").hidden'), 'the Chat box shows the question');
-  assert.ok(!(await chrome.ev('document.getElementById("jf-job").value')).includes('~ three short bullet points'));
-  await chrome.ev('var a = document.getElementById("chat-q-answer"); a.value = "three short bullet points"; a.dispatchEvent(new Event("input")); document.getElementById("chat-q-send").click()');
+  assert.ok(!(await chrome.ev('document.getElementById("jf-job").value')).includes('~ keep it short and kind'));
+  await chrome.ev('var a = document.getElementById("chat-q-answer"); a.value = "keep it short and kind"; a.dispatchEvent(new Event("input")); document.getElementById("chat-q-send").click()');
   assert.equal((await settle(w, id, ['green'])).phase, 'green');
   await childGone(w, id);
   const card1 = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
-  assert.ok(card1.job.includes('~ three short bullet points'), 'the redraft wrote the answer as a ~ line');
+  assert.ok(card1.job.includes('~ keep it short and kind'), 'the redraft wrote the answer as a ~ line');
   assert.ok(await chrome.waitFor('!document.getElementById("chat-revise-btn").disabled'), 'Revise is offered');
   await chrome.ev('document.getElementById("chat-revise-btn").click()');
   assert.ok(await chrome.waitFor('!document.getElementById("jf-job").readOnly'), 'the Job box opened');
@@ -50,5 +50,5 @@ test('browser: after an answer-redraft, Revise shows the newest card (the ~ answ
   await childGone(w, id);
   assert.equal(s.phase, 'green', JSON.stringify(s.questions ?? s.reds ?? s));
   const card2 = JSON.parse(readFileSync(path.join(w.dir(id), 'card-2.json'), 'utf8'));
-  assert.ok(card2.job.includes('~ three short bullet points'), 'card-2 keeps the ~ answer line');
+  assert.ok(card2.job.includes('~ keep it short and kind'), 'card-2 keeps the ~ answer line');
 });

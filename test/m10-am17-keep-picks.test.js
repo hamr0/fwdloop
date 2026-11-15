@@ -146,9 +146,9 @@ test('am18 an earlier `~` rule deleted renumbers the rule; the pick is still car
   assert.deepEqual(x.rec.kept.map((k) => [k.line, k.rule]), [[1, 1]]);
 });
 
-test('am17 (6) a kept pick is marked `kept from last draft` on the plan card row of a Not checked line', async (t) => {
-  const own = [{ lineWords: HEAD[2].toLowerCase(), occurrence: 0, ruleText: 'exactly 3 bullets', check: null, own: true, left: false }];
-  const lines = [...HEAD, '~ exactly 3 bullets', 'Ask 1h: check it with me', 'Write it out'];
+test('am17 (6) a kept own-words pick that is no count is marked `kept from last draft` on the plan card row of a Not checked line (M17 am1 ruling: countable own words are asked again)', async (t) => {
+  const own = [{ lineWords: HEAD[2].toLowerCase(), occurrence: 0, ruleText: 'keep it short and kind', check: null, own: true, left: false }];
+  const lines = [...HEAD, '~ keep it short and kind', 'Ask 1h: check it with me', 'Write it out'];
   const p = fakeProvider([plan(), plan(), plan()]);
   const r = await draft({ proseText: prose(t, lines), provider: p, rates: RATES, modelId: MODEL, carriedPicks: own });
   assert.equal(p.calls.some((c) => c.tools[0] === 'suggest_checks'), false);
@@ -173,4 +173,12 @@ test('am17 (6) a kept pick is a human row of the setup record, the same shape as
     [5, 'check', KEPT_WORDS, 1, 'at most 80 words', 'at most 80 words', 'at most 80 words'],
   ]);
   assert.match(rows[0].question, /^Line 3, guardrail "exactly 3 list items": I propose exactly 3 list items\./);
+});
+
+test('M17 am1 ruling: a kept own-words pick whose words are a count (`exactly 3 bullets`) is asked again on a Revise, as bareloop v0.57.0 does', async (t) => {
+  const own = [{ lineWords: HEAD[2].toLowerCase(), occurrence: 0, ruleText: 'exactly 3 bullets', check: null, own: true, left: false }];
+  const lines = [...HEAD, '~ exactly 3 bullets', 'Ask 1h: check it with me', 'Write it out'];
+  const r = await draft({ proseText: prose(t, lines), provider: fakeProvider([plan(), plan(), plan()]), rates: RATES, modelId: MODEL, carriedPicks: own });
+  assert.equal(r.stop, 'look-asks');
+  assert.deepEqual((r.questions ?? []).map((q) => [q.line, q.ruleText]), [[3, 'exactly 3 bullets']]);
 });
