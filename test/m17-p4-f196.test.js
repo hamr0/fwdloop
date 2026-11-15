@@ -3,12 +3,16 @@
 //   B  a `~` rule showed twice in Not checked (the sheet look's column drop and "no sheet check covers it")
 //   C  the card drew the old sheet block (Guardrails / Not checked: none) beside the list rows
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { draft } from '../src/drafter.js';
 import { checkedLines } from '../src/checked.js';
 import { parseSignedText } from '../src/signed-text.js';
 import { csvRolesOf } from '../src/sheetblock.js';
+import path from 'node:path';
+import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
+import { world } from './m10-am4-world.mjs';
 import { RATES, MODEL, fakeProvider, toolReply, textReply } from './drafter-fixture.mjs';
 
 const CSV_PATH = new URL('../fixtures/ar-aging.csv', import.meta.url).pathname;
@@ -60,3 +64,30 @@ test('C: a plan whose sheet checks code built has no old sheet block for the car
   const old = { ...r.declaration, steps: r.declaration.steps.map((s) => (s.fromLine === 2 ? { ...s, close: { ...s.close, sheet: s.close.sheet.map((c) => ({ ...c, id: 'days-since' })) } } : s)) };
   assert.equal(checkedLines(old, { lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) }).find((l) => l.line === 2).sheet.codeBuilt, false);
 });
+
+// C in a real browser (1280, 390, 320): the page's own planOfState draws a plan with a list; the old sheet block (Guardrails / Not checked: none) is not among its lines for a code-built plan, and still is for an older one
+const PAGE = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
+const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
+const CLOSERS = [];
+after(() => Promise.all(CLOSERS.map((c) => c())));
+for (const width of [1280, 390, 320]) {
+  test(`browser ${width}px: the plan card of a code-built sheet plan draws the list only, no old sheet block`, { skip: SKIP && 'no browser' }, async (t) => {
+    const chrome = await launchChrome();
+    if (!chrome) { t.skip('no chromium installed'); return; }
+    CLOSERS.push(async () => chrome.close());
+    const { r } = await run();
+    const parsed = parseSignedText(PROSE);
+    const csvRoles = csvRolesOf(parsed.arbiter);
+    const checked = checkedLines(r.declaration, { lines: parsed.lines, csvRoles });
+    const old = checked.map((c) => (c.sheet ? { ...c, sheet: { ...c.sheet, codeBuilt: false } } : c));
+    const w = await world();
+    await chrome.open(`http://127.0.0.1:${w.port}/`, width);
+    const src = `${cutFn(PAGE, 'sheetBlockLines', '  ')}\n${cutFn(PAGE, 'planOfState', '    ')}`;
+    const extra = (c) => chrome.ev(`(function(){ ${src}
+      var p = planOfState({checked: ${JSON.stringify(c)}, planLines: [{n: 2, text: "x", rules: []}], notChecked: {items: []}, always: []}, {rows: [], suggested: []});
+      return p.lines[0].extra; })()`);
+    assert.deepEqual(await extra(checked), [], 'a code-built plan: nothing beside the list rows');
+    assert.ok((await extra(old)).includes('Not checked: none') || (await extra(old)).includes('Guardrails:'), 'an older plan keeps what it showed');
+    assert.ok(await chrome.ev('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no horizontal scroll');
+  });
+}
