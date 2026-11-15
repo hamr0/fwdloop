@@ -3868,3 +3868,13 @@ Peer state (2026-11-13):
 > - A card word differs from the plan's.
 >
 > **Out of scope:** A4 (the AI's third-try questions, from bareloop's release); B2 (how "under N" is counted).
+
+**M17 am5 — SIGNED by hamr 2026-11-15 ("sign m17 am5"), the text exactly as shown.** Why: the $0 trace of the four untraced survey paths (2026-11-14): B7 and C9 stay (B7 is an honest signing refusal, not a judge; C9 shows a check that stopped); B8 drops a Not checked reason (`.drafts/d-00mwaukwqt-3faf/draft-1/log.json`); D3 is silent (src/blocklines.js skips ask lines). Ruling with the signature (hamr, 2026-11-15, the A/B on the M17 P1 clash): "B" — follow bareloop v0.57.0: a person's own countable words may be asked again on a Revise (bareloop `cantAsked = !isCountable(words)`), and their Not checked reason is bareloop's; this wins over M10 am17 (1)(2) and M10 am16 (5) for list lines. hamr: "goal is if you ask on something and offer correction you replace it as agreed".
+
+> **M17 am5 — two more old paths.**
+> 1. The old declaration repair (B8) goes. The list sets each line's reads and its Not checked reasons.
+> 2. A `~` rule on an Ask line (D3) shows on the list as Not checked, with the reason "you judge it at the Ask". It is never skipped silently.
+>
+> **Done when:** a job with a `~` rule on its Ask line shows that rule once in Not checked; no draft log holds a `repaired` entry.
+>
+> **Must fail when:** a `~` rule on an Ask line shows nowhere; a Not checked reason is dropped by a repair.
