@@ -3951,3 +3951,5 @@ Peer state (2026-11-13):
 > **Must fail when:**
 > - A `table` check sits on a `~` rule's row.
 > - A card shows "no sheet check covers it".
+
+**Built after signing — not signed text (2026-11-15), M17 am7.** `src/sheetbuild.js`: a `rule: 'table'` check is never a rule row and its `[agent]` row covers no rule (a rule only a table check named is Not checked); `NO_SUGGESTION` is now `NO_VALUE_WHY` from `src/ticketrows.js` (the no-pick sentence, one copy); `src/sheetblock.js` `uncoveredRules` falls back to the same constant. Tests: new `test/m17-am7-table-row.test.js` (red on HEAD before the change); expectations updated where am7 changes the behaviour: `m10b-am5`, `m10b-piece3`, `m10b-piece4`, `m16-am4-sheet-route`, `m16-am4-sheet-rows`, `m16-tags-origin`, `m17-p4-f196`, `m17-p4-sheet-build`, `m17-p5-sheet-line`. Commits: a206b9d9 (red test), 7db8b90a (src), 5fe046b9 (test updates).
