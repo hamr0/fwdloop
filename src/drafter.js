@@ -36,7 +36,7 @@ import {
 // M16 (docs/wiki/the-module-ladder.md, "M16"): the check block's turns, wired beside the declaration path
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock, buildFaultWords, isBuildFault } from './blockdraft.js';
-import { assembleFromBlock } from './blockassemble.js';
+import { assembleFromBlock, closeUnbuiltSheetSteps } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { questionsOfBlock } from './blockasks.js';
 import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
@@ -967,6 +967,8 @@ export async function draft({
     /** @type {Awaited<ReturnType<typeof buildSheetChecks>>|null} */
     let sheetBuilt = null;
     let carriedSheet = false;
+    /** @type {ReturnType<typeof closeUnbuiltSheetSteps>|null} */
+    let sheetHitl = null;
     if (sheetTables) {
       // M17 am2 item 2: a declaration that carries `close.sheet` is refused (a red naming the field, no check run); the suggestions are the row-edit reply's, put on the step that reads the sheet by code
       const roles = Object.keys(sheetTables);
@@ -982,11 +984,10 @@ export async function draft({
       const unplaced = sheetSuggested.filter((x) => !given.has(x.line)).map((x) => ({ line: x.line, helper: 'line', why: `line ${String(x.line)} has no green step that reads a sheet` }));
       sheetBuilt = await buildSheetChecks({ declaration, lines, tables: sheetTables });
       Object.assign(declaration, { steps: sheetBuilt.declaration.steps });
-      // M17 am5 / P5: a sheet step code built no check for is hitl (its rules are Not checked, below); its class on the line follows, whatever the AI sent
-      if (sheetBuilt.hitlLines.length && isPlainObject(declaration.guardrailClasses)) {
-        declaration.guardrailClasses = { ...declaration.guardrailClasses };
-        for (const n of sheetBuilt.hitlLines) declaration.guardrailClasses[String(n)] = 'hitl';
-      }
+      // M17 am5 / P5: a sheet step the builder built no check for is closed here (its class is the assembly's decision), its rules Not checked below
+      const closed = closeUnbuiltSheetSteps(declaration, sheetBuilt.unbuilt);
+      Object.assign(declaration, closed.declaration);
+      sheetHitl = closed;
       if (sheetBuilt.refused.length || unplaced.length) entry.sheetRefused = [...unplaced, ...sheetBuilt.refused];
     }
     // M16 am4 (2): a sheet line's checks are rows on the same list (code builds them, src/sheetbuild.js; src/sheetrows.js reads them as rows)
@@ -1017,7 +1018,7 @@ export async function draft({
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
-      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column' && !(sheetBuilt?.hitlLines ?? []).includes(f.line)), tables: sheetTables } : undefined,
+      sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column' && !(sheetHitl?.lines ?? []).includes(f.line)), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: planLookFacts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },
     });
     // M13 piece 4 (F105 rewritten): a generic MCP job whose steps call none of its tools is fed back like any validator red (the run would refuse it at $0, by the same sentence)
@@ -1034,7 +1035,7 @@ export async function draft({
     const verdict = carriedRed ? { ok: false, reds: [carriedRed] } : planRed ? { ok: false, reds: [planRed] } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
-    const uncovered = [...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined), ...(sheetBuilt?.lost ?? [])];
+    const uncovered = [...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined), ...(sheetHitl?.lost ?? [])];
     // the tag of a note no row tells: any note code writes is [default]; a row's own tag wins
     /** @type {Record<string, 'you'|'agent'|'default'>} */
     const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, 'default']));

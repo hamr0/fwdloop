@@ -145,3 +145,22 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
   return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), notCheckedBy, built };
 }
+
+/**
+ * M17 am5 / P5: a green sheet step the builder (src/sheetbuild.js) reported as holding no built check has nothing to check it: its close becomes `hitl` (the class is decided here, never in the sheet files),
+ * the class on its line follows, and its rules are the Not-checked lines the builder gave. A plan signed before M17 is never passed through here.
+ * @param {Record<string, any>} declaration @param {{line: number, lost: string[]}[]} unbuilt
+ * @returns {{declaration: Record<string, any>, lines: number[], lost: string[]}}
+ */
+export function closeUnbuiltSheetSteps(declaration, unbuilt) {
+  if (!isRec(declaration) || !Array.isArray(declaration.steps) || unbuilt.length === 0) return { declaration, lines: [], lost: [] };
+  const lines = unbuilt.map((u) => u.line);
+  const steps = declaration.steps.map((/** @type {any} */ st) => (isRec(st) && lines.includes(st.fromLine) && isRec(st.close) && st.close.class === 'green' ? { ...st, close: { class: 'hitl' } } : st));
+  /** @type {Record<string, any>} */
+  const out = { ...declaration, steps };
+  if (isRec(declaration.guardrailClasses)) {
+    out.guardrailClasses = { ...declaration.guardrailClasses };
+    for (const n of lines) out.guardrailClasses[String(n)] = 'hitl';
+  }
+  return { declaration: out, lines, lost: unbuilt.flatMap((u) => u.lost) };
+}

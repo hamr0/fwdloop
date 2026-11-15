@@ -1,6 +1,6 @@
 // M17 am2 + am3 (docs/wiki/the-module-ladder.md "M17 am2", "M17 am3"): the ONE builder of the sheet checks of a line. The AI never writes a sheet check: what it sends in the declaration round's
 // `close.sheet` is read here only as a typed SUGGESTION (bareguard's rule fields plus the `covers` numbers); code refuses or builds every one on bareguard's shapes and writes the check itself.
-// Ported from poc/f195-agentrows/build.mjs (F195 PASS, $0); no class or hitl code, no send-back loop, no word-to-column guess, no per-case validator patch.
+// Ported from poc/f195-agentrows/build.mjs (F195 PASS, $0); no class code, no send-back loop, no word-to-column guess, no per-case validator patch.
 //   refusals (each by bareguard, in this order): the vocabulary (rule, op), the line's sheets, the schema (a field of the rule), `columnAt` (a column of the sheet's header), `checkTables`
 //   (and its problems), `groundedLiterals` (a number or date in the person's own words), `claimSchema` (an answer box), and for a `table` check `runTableChecks` on the sheet frozen at draft time.
 //   placement (am3 item 1): every suggestion that passes all of them is BUILT. A cells (answer) check is placed before a table check, then in the order sent. It is a RULE ROW's check when none of the
@@ -109,7 +109,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
  * The declaration with every green sheet step's `close.sheet` REWRITTEN by code from what the AI suggested there (`buildSheetLine`). A step with no suggestion is left alone; a step none of whose
  * suggestions can be built loses `close.sheet` (its rules are Not checked with their reasons). Pure over the declaration it is given (a copy is returned).
  * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>}} o
- * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], hitlLines: number[], lost: string[]}>} `hitlLines`: the green steps left with no check (now hitl), `lost`: each of their rules as a Not-checked line. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
+ * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], unbuilt: {line: number, lost: string[]}[]}>} `unbuilt`: the green sheet steps left with no check, each with its rules as Not-checked lines. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
  *   rewritten line that no check holds
  */
 export async function buildSheetChecks({ declaration, lines, tables }) {
@@ -117,7 +117,7 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
   const notChecked = {};
   /** @type {{line: number, helper: string, why: string}[]} */
   const refused = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused, hitlLines: [], lost: [] };
+  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused, unbuilt: [] };
   /** @type {Set<number>} */
   const done = new Set();
   const steps = [];
@@ -132,22 +132,18 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     const { sheet: _suggested, ...close } = st.close;
     steps.push({ ...st, close: built.checks.length > 0 ? { ...close, sheet: built.checks } : close });
   }
-  // M17 am5 / P5: a green step that reads a sheet and holds no check after the build (no suggestion, or none code could build) is a step with nothing to check it: its close is `hitl`, and each of its
-  // rules is Not checked with the refusal that named it, else `no sheet check covers it`. The old red "must carry close.sheet" stays for a plan signed before (the validator is not changed).
-  /** @type {number[]} */
-  const hitlLines = [];
-  /** @type {string[]} */
-  const lost = [];
+  // M17 am5 / P5: a green step that reads a sheet and holds no check after the build (no suggestion, or none code could build) is REPORTED here, with each of its rules and the refusal that named it
+  // (else `no sheet check covers it`). What class such a step gets is the caller's to decide (src/blockassemble.js closeUnbuiltSheetSteps); this file writes no class.
+  /** @type {{line: number, lost: string[]}[]} */
+  const unbuilt = [];
   const roles = Object.keys(tables);
-  const placed = steps.map((st) => {
-    if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || (Array.isArray(st.close.sheet) && st.close.sheet.length > 0) || isRec(st.close.cited) || !Number.isInteger(st.fromLine)) return st;
-    if (!Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => roles.includes(r)) || hitlLines.includes(st.fromLine)) return st;
+  for (const st of steps) {
+    if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || (Array.isArray(st.close.sheet) && st.close.sheet.length > 0) || isRec(st.close.cited) || !Number.isInteger(st.fromLine)) continue;
+    if (!Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => roles.includes(r)) || unbuilt.some((u) => u.line === st.fromLine)) continue;
     const line = lines.find((l) => l.n === st.fromLine);
     const rules = line ? rulesOfLine(line).filter((r) => !isColumnChoiceRule(r)) : [];
-    if (rules.length === 0) return st;
-    hitlLines.push(st.fromLine);
-    for (const r of rules) lost.push(`line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_SUGGESTION}`);
-    return { ...st, close: { class: 'hitl' } };
-  });
-  return { declaration: { ...declaration, steps: placed }, notChecked, refused, hitlLines, lost };
+    if (rules.length === 0) continue;
+    unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_SUGGESTION}`) });
+  }
+  return { declaration: { ...declaration, steps }, notChecked, refused, unbuilt };
 }
