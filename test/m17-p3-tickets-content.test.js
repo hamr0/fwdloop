@@ -1,5 +1,5 @@
 // M17 item 2(b) (D1): a Tickets content rule ("mention the reporter's name") is never hidden: it is a row of the list and, with no check, one Not checked row. The filter and watch rules stay
-// as they are (not rows) until the filter/watch ruling. Stub providers, $0.
+// are ticket rows (M17 am6, src/ticketrows.js), never Not checked while a value was suggested. Stub providers, $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ticketLeaveOut } from '../src/blockdraft.js';
@@ -25,7 +25,7 @@ guardrail: source issues = page:https://github.com/hamr0/hol-guard/issues
 `;
 const TICKET = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
 
-test('Tickets draft: the content rule is on the list and in Not checked once; the filter and watch rules are not', async () => {
+test('Tickets draft: the content rule is on the list and in Not checked once; the filter and watch rules are ticket rows, not Not checked', async () => {
   const decl = {
     steps: [
       { primitives: ['read'], reads: ['issues'], emits: 'ticket_text', fromLine: 1, close: { class: 'hitl' } },
@@ -33,14 +33,14 @@ test('Tickets draft: the content rule is on the list and in Not checked once; th
       { primitives: [], reads: ['triage_note'], emits: 'note_check', fromLine: 3, close: { class: 'hitl' } },
       { primitives: ['write'], reads: ['note_check'], emits: 'written', fromLine: 4, close: { class: 'hitl' } },
     ],
-    guardrailClasses: { 2: 'softgreen' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1'] }, ticketWatch: ['state'],
+    guardrailClasses: { 2: 'softgreen' }, unjudgeable: {}, refused: [],
   };
-  const p = router({ suggest_checks: callOf('suggest_checks', { checks: [] }), submit_edits: callOf('submit_edits', { edits: [] }), emit_declaration: callOf('emit_declaration', decl) });
+  const p = router({ suggest_checks: callOf('suggest_checks', { checks: [] }), submit_edits: callOf('submit_edits', { edits: [], ticketFilter: { priority: ['P1'] }, ticketWatch: ['state'] }), emit_declaration: callOf('emit_declaration', decl) });
   const r = await draft({ proseText: PROSE, provider: p, rates: RATES, modelId: MODEL, checkList: true, offerQuestions: false, ...TICKET });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const text = JSON.stringify([r.notChecked, r.checkRows]);
   assert.equal(JSON.stringify(r.notChecked).split("mention the reporter's name").length - 1, 1, `Not checked must name the content rule once: ${JSON.stringify(r.notChecked)}`);
   const rows = r.checkRows.filter((/** @type {any} */ x) => x.rowKind === 'rule');
   assert.deepEqual(rows.map((/** @type {any} */ x) => [x.words[0], x.state]), [["mention the reporter's name", 'not-checked']], `the list's rule rows: ${JSON.stringify(rows)}`);
-  assert.ok(!/priority P1 only|state changes/.test(text), `a filter or watch rule is on the list: ${text}`);
+  assert.ok(!/priority P1 only|state changes/.test(JSON.stringify(r.notChecked)), `a filter or watch rule is in Not checked: ${JSON.stringify(r.notChecked)}`);
 });

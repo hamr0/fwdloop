@@ -1,17 +1,18 @@
-// The Tickets drafter's prompt says it MUST add a ticketFilter for a priority/label guardrail; the tool schema's description must not say "optional" (F151).
+// M17 am6: the Tickets filter is suggested through the row-edit turn's `ticketFilter` property; its description says required (F151), never optional, and the declaration prompt no longer tells the drafter to add a top-level one.
 // $0: pure functions, no network.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { ticketFactsLines, ticketSchemaParts } from '../src/ticket-draft.js';
+import { rowEditChannel } from '../src/rowedit.js';
 
-test('ticketFilter schema description says required, not optional', () => {
-  const d = ticketSchemaParts({ flowType: 'tickets', tools: ['issue_read'] }).top.ticketFilter.description;
+test('the row-edit ticketFilter description says required, not optional', () => {
+  const d = rowEditChannel(true).tool({ calls: [] }).parameters.properties.ticketFilter.description;
   assert.doesNotMatch(d, /optional|suggest only/i);
   assert.match(d, /required/i);
 });
 
-test('prompt and schema agree: the prompt says MUST add a top-level ticketFilter', () => {
-  const lines = ticketFactsLines('issues');
-  assert.ok(lines.some((l) => l.includes('MUST add a top-level "ticketFilter"')));
+test('the declaration offers no top-level filter or watch and the prompt does not ask for one', () => {
+  assert.deepEqual(ticketSchemaParts({ flowType: 'tickets', tools: ['issue_read'] }).top, {});
+  assert.ok(!ticketFactsLines('issues').some((l) => /ticketFilter|ticketWatch/.test(l)));
 });
