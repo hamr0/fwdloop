@@ -1,6 +1,6 @@
 // M17 P4, F196 practice-walk bugs (draft d-00mwhwe36y-35d3, the aging job), $0: the real prose and the real sheet-look words, fake providers.
 //   A  the row-edit turn showed the AI the send line (4) beside the sheet line (2) and let `line` be any integer; the AI sent all four sheetChecks with "line": 4
-//   B  a `~` rule showed twice in Not checked (the sheet look's column drop and "no sheet check covers it")
+//   B  a `~` rule showed twice in Not checked (the sheet look's column drop and the no-pick words)
 //   C  the card drew the old sheet block (Guardrails / Not checked: none) beside the list rows
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
@@ -52,8 +52,8 @@ test('B: each ~ rule is ONE Not checked line with ONE reason (the build\'s wins 
   const { r } = await run();
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const mine = (rule) => r.notChecked.filter((t) => t.startsWith(`line 2: "${rule}"`));
-  assert.deepEqual(mine('every invoice appears exactly once'), ['line 2: "every invoice appears exactly once" — no sheet check covers it']);
-  assert.deepEqual(mine('each invoice is in one bucket'), ['line 2: "each invoice is in one bucket" — no sheet check covers it']);
+  assert.deepEqual(mine('every invoice appears exactly once'), ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual(mine('each invoice is in one bucket'), ['line 2: "each invoice is in one bucket" — No check was picked for it, so you judge it at the Ask.']);
   assert.ok(r.notChecked.some((t) => t.startsWith('line 2: "bucket"') || t.startsWith('line 2: "invoice"')), 'a prose word is no rule: its drop stays');
 });
 
@@ -93,12 +93,13 @@ for (const width of [1280, 390, 320]) {
   });
 }
 
-test('B2 (walk d-00mwhx4jbm-fe4b): a look drop of a word inside a ~ rule never makes a Not checked line; a rule a check row holds shows nowhere, a prose word\'s drop stays', async () => {
+test('B2 (walk d-00mwhx4jbm-fe4b): a look drop of a word inside a ~ rule never makes a Not checked line; a rule a cells row holds shows nowhere, a prose word\'s drop stays', async () => {
   const BANDS = [{ name: 'Current', lte: 0 }, { name: '1-30', gte: 1, lte: 30 }, { name: '31-60', gte: 31, lte: 60 }, { name: '61-90', gte: 61, lte: 90 }, { name: '90+', gt: 90 }];
   const sug = [{ rule: 'table', table: 'aging', op: 'noDuplicates', column: 'Invoice #', covers: [1] }, { rule: 'cells', table: 'aging', claim: 'b', op: 'band', column: 'Due date', asOf: '2026-10-11', dateFormats: ISO, bands: BANDS, covers: [2, 3] }];
   const { r } = await run(sug);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2_3', 'l2r1']);
-  assert.deepEqual(r.notChecked.filter((t) => /every invoice|each invoice/.test(t)), [], 'every ~ rule is held by a row: none is in Not checked');
+  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2_3', 'l2a1']);
+  // M17 am7: the table check is an [agent] row and holds no rule, so rule 1 is Not checked ONCE (the no-pick words); the cells check's rules 2 and 3 show nowhere
+  assert.deepEqual(r.notChecked.filter((t) => /every invoice|each invoice/.test(t)), ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
   assert.ok(r.notChecked.some((t) => t.startsWith('line 2: "bucket"')), 'the prose word stays');
 });

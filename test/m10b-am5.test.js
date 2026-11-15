@@ -70,7 +70,7 @@ test('through the real draft path: the bad table check is refused by code at bui
   assert.equal(draftCalls(stuck).length, 1, 'no second try: a refused suggestion is no red');
   assert.deepEqual(r.log.find((e) => e.sheetRefused)?.sheetRefused, [{ line: 2, helper: 'runTableChecks', why: 'the table check already fails on the sheet' }], 'the refusal is in the round log');
   // the cells check holds rule 1; the table check's refusal names only rule 1, which is held, so the one Not checked rule is rule 2, as before
-  assert.deepEqual(r.notChecked, ['line 2: "total the balance due" \u2014 no sheet check covers it']);
+  assert.deepEqual(r.notChecked, ['line 2: "total the balance due" \u2014 No check was picked for it, so you judge it at the Ask.']);
   // a rule whose only suggestion is the bad table check shows it with the reason
   const only = await draft({ proseText: prose, provider: fakeProvider([NO_WORDS, toolReply(decl([BAD, { ...CELLS, covers: [2] }]))]), rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.deepEqual(only.notChecked, ['line 2: "every customer appears exactly once" \u2014 suggestion refused: runTableChecks: the table check already fails on the sheet']);

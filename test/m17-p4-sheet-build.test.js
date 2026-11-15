@@ -113,10 +113,10 @@ test('am2 must-fail through the real draft: the saved plan holds code-named chec
   const sheet = r.declaration.steps[1].close.sheet;
   const text = JSON.stringify(sheet);
   for (const w of ['ai-over', 'nodup', 'madeUp', '"bad"']) assert.equal(text.includes(w), false, w);
-  assert.deepEqual(sheet.map((c) => c.id), ['l2r2', 'l2r1']);
+  assert.deepEqual(sheet.map((c) => c.id), ['l2r2', 'l2a1']);
   assert.equal(r.log.find((e) => e.sheetRefused).sheetRefused[0].helper, 'vocabulary');
-  // the card shows each rule once: two [you] rows, no Not checked
-  assert.deepEqual(r.notChecked, []);
+  // the card shows each rule once: rule 2 is a [you] row; M17 am7: the table check is an [agent] row, so rule 1 is Not checked, once, with the no-pick words
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
 });
 
 test('am3 must-fail through the real draft: a second buildable check on a rule is on the list as an [agent] row, on, with Drop', async () => {
@@ -124,7 +124,7 @@ test('am3 must-fail through the real draft: a second buildable check on a rule i
   const r = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, toolReply(decl(sug))]), rates: RATES, modelId: MODEL });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const rows = r.checkCard.rows.filter((x) => x.line === 2);
-  assert.deepEqual(rows.map((x) => [x.by, x.drop]), [['you', false], ['you', false], ['agent', true]]);
+  assert.deepEqual(rows.map((x) => [x.by, x.drop]), [['you', false], ['agent', true], ['agent', true]]);
   assert.equal(r.declaration.steps[1].close.sheet.length, 3, 'nothing hidden');
 });
 
@@ -184,8 +184,8 @@ test('ruling 2 through the draft: the AI is told the agreed column, its suggesti
   const told = p.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n');
   assert.ok(told.includes("the word 'price' means the column 'Amount'"));
   const rows = r.checkCard.rows.filter((x) => x.line === 2);
-  assert.deepEqual(rows.map((x) => [x.by, x.drop]), [['you', false], ['agent', true]], 'the [agent] row (with Drop) beside the rule\'s own row');
-  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => [c.id, c.row, c.covers]), [['l2r1', undefined, [1]], ['l2a1', 'agent', []]]);
+  assert.deepEqual(rows.map((x) => [x.by, x.drop]), [['agent', true], ['agent', true]], 'M17 am7: the line has no ~ rule and a table check is never a rule row: both are [agent] rows (with Drop)');
+  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => [c.id, c.row, c.covers]), [['l2a1', 'agent', []], ['l2a2', 'agent', []]]);
   // told nothing, the AI's same suggestion is still an [agent] row; the told words are absent
   const p2 = fakeProvider([PRICE, toolReply(decl(sug))]);
   await draft({ proseText: PROSE_NO_RULE, provider: p2, rates: RATES, modelId: MODEL, offerQuestions: false });
@@ -225,7 +225,7 @@ test('am3 must-fail: a Revise keeps a Drop only for the very same check; a diffe
   // another check takes the id l2a1: it is NOT dropped
   const other = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, toolReply(decl([...base, { ...ROWS, covers: [] }]))]), rates: RATES, modelId: MODEL, carriedSheetDropped: dropped });
   assert.equal(other.ok, true, JSON.stringify(other.reds));
-  assert.deepEqual(other.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2r1', 'l2a1']);
+  assert.deepEqual(other.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2a1', 'l2a2']);
   assert.equal(other.checkCard.suggested.length, 0, 'nothing is hidden or shown as dropped');
 });
 
