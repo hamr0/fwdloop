@@ -54,7 +54,9 @@ export function fakeProvider(replies) {
     blockCalls,
     async generate(messages, tools, options) {
       // M16 (a) missing stub: the check block's own turns (ledger-suggest, row-edit) get an empty answer and take no place in the declaration queue these scripts are about
-      const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [] } }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
+      // M17 p2e: the note question (one more turn of the list, when a line is facts-only) is answered "no" for every line it names, so it too stays out of the declaration queue
+      const noteLines = tools[0]?.name === 'answer_note_question' ? [...String(messages.find((m) => /^LINE \d+:/m.test(String(m.content)))?.content ?? '').matchAll(/^LINE (\d+):/gm)].map((m) => ({ line: Number(m[1]), writtenWords: 'no' })) : null;
+      const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [] }, answer_note_question: noteLines ? { lines: noteLines } : undefined }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
       if (blockTurn) { blockCalls.push(tools[0].name); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
       calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });
       const r = replies[Math.min(calls.length - 1, replies.length - 1)];
