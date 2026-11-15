@@ -147,11 +147,6 @@ export function buildDeclarationSchema(menu, { ticket } = {}) {
         additionalProperties: { type: 'string', enum: [...CLASSES] },
         description: 'one class per job line that HAS a guardrail, keyed by line number as a string',
       },
-      unjudgeable: {
-        type: 'object',
-        additionalProperties: { type: 'string' },
-        description: 'line number -> reason, only for a guardrail whose wording resisted judgment (its class stays hitl); {} if none',
-      },
       refused: {
         type: 'array',
         items: {
@@ -163,7 +158,7 @@ export function buildDeclarationSchema(menu, { ticket } = {}) {
         description: 'job lines that cannot be served at all, with a reason; [] if none',
       },
     },
-    required: ['steps', 'guardrailClasses', 'unjudgeable', 'refused'],
+    required: ['steps', 'guardrailClasses', 'refused'],
     additionalProperties: false,
   };
 }
@@ -950,6 +945,7 @@ export async function draft({
     // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
     if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
     // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the list's built rows (assembleFromBlock).
+    delete declaration.unjudgeable; // M17 am4 (C8): the hidden can't-judge record is gone; a line's Not checked reasons are the list's rows
     delete declaration.pickedLines; // the record of picked fact lines is code's too (assembleFromBlock)
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => {

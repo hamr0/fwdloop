@@ -3,7 +3,7 @@
 //   a fact part        -> close.cited = {source, facts, count}, class green; the source is added to the step's reads by code
 //   a countable part   -> a picked check (M10 am22 (1)-(3)): close.shape.picked on a softgreen step, close.picked on a fact (or sheet) step with the line in pickedLines
 //   the numbers tie    -> close.numbersFrom (M16 am3 (2), R7)
-//   no part            -> hitl, and `unjudgeable` carries the rows' Not-checked reasons
+//   no part            -> hitl; the rows' Not-checked reasons are the list's own (no `unjudgeable` record, M17 am4)
 // Whatever the AI wrote for these checks (close.cited, close.shape, close.picked, close.class) is dropped. The block's signed rows become the declaration's `checkList`, which the sign and the
 // run-start gate prove (src/checklistsign.js). A fwd line keeps ONE close per line, whose class must equal the class its guardrail earns (signed, M4d): so a line with no guardrail of the
 // person's own can carry only the numbers tie; any other check the list built there cannot be signed on it and its rows are signed Not checked, with that reason.
@@ -67,8 +67,6 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   /** @type {Set<number>} */ const notSignable = new Set();
   /** @type {Set<number>} */ const pickedLines = new Set(Array.isArray(declaration.pickedLines) ? declaration.pickedLines : []);
   const guardrailClasses = isRec(declaration.guardrailClasses) ? { ...declaration.guardrailClasses } : {};
-  const unjudgeable = isRec(declaration.unjudgeable) ? { ...declaration.unjudgeable } : {};
-  const rowsOn = (/** @type {number} */ n) => block.rows.filter((r) => r.line === n && r.kind !== 'floor' && !r.hidden && r.state === 'not-checked');
   const steps = declaration.steps.map((/** @type {any} */ st) => {
     const n = st?.fromLine;
     if (!isRec(st) || !Number.isInteger(n) || !lineSet.has(n)) return st;
@@ -103,12 +101,10 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   // the class of a line with a guardrail is the class its close ended in; a hitl one says why in the rows' own Not-checked reasons
   for (const n of lineSet) {
     const mine = steps.find((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
-    // the classes of a list line are code's: a line with no guardrail of the person's has no class entry and no unjudgeable note, whatever the AI sent
-    if (!guarded(n)) { delete guardrailClasses[String(n)]; delete unjudgeable[String(n)]; continue; }
+    // the classes of a list line are code's: a line with no guardrail of the person's has no class entry, whatever the AI sent
+    if (!guarded(n)) { delete guardrailClasses[String(n)]; continue; }
     if (!mine) continue;
     guardrailClasses[String(n)] = mine.close.class;
-    if (mine.close.class === 'hitl') unjudgeable[String(n)] = [...new Set(rowsOn(n).map((r) => notCheckedWords(r.reason, r)).filter(Boolean))].join(' ') || 'No check was picked for it, so you judge it at the Ask.';
-    else delete unjudgeable[String(n)];
   }
   const served = new Set(steps.filter((/** @type {any} */ st) => isRec(st)).map((/** @type {any} */ st) => st.fromLine));
   /** the signed list: the block's signed fields per row, the parts renumbered to the close's order, a row whose check cannot ride its line signed Not checked @type {any[]} */
@@ -145,7 +141,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   /** @type {Record<string, any>} */
   const listed = checkList.filter((r) => served.has(r.line)); // a line no step serves is refused as a line; its rows are not signed
   /** @type {Record<string, any>} */
-  const out = { ...declaration, steps, guardrailClasses, ...(Object.keys(unjudgeable).length || isRec(declaration.unjudgeable) ? { unjudgeable } : {}), checkList: listed };
+  const out = { ...declaration, steps, guardrailClasses, checkList: listed };
   if (pickedLines.size) out.pickedLines = [...pickedLines].sort((a, b) => a - b); else delete out.pickedLines;
   return { declaration: out, notChecked: /** @type {string[]} */ (notChecked), notCheckedBy, built };
 }

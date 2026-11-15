@@ -67,7 +67,7 @@ test('(2) M16 item 5: a note the AI sent for a list line is overwritten by code,
   assert.equal(r.ok, true, r.reds.join('\n'));
   const round = r.log.find((e) => e.kind === 'first');
   assert.equal(round.repaired, undefined);
-  assert.equal(r.declaration.unjudgeable['5'], undefined);
+  assert.equal(r.declaration.unjudgeable, undefined, 'M17 am4 (C8): a new plan carries no unjudgeable record');
   assert.equal(r.declaration.guardrailClasses['5'], undefined);
 });
 

@@ -819,10 +819,10 @@ export function validateDeclaration(declaration, context = {}) {
     reds.push('declaration: "guardrailClasses" must be an object keyed by line number');
   }
 
-  // --- unjudgeable (REQUIRED; {} is fine) ------------------------------------
+  // --- unjudgeable (M17 am4, C8: a new plan carries none; a plan signed before holds it and is read as signed) ---
   let unjudgeable = {};
   if (!Object.prototype.hasOwnProperty.call(declaration, 'unjudgeable')) {
-    reds.push('declaration: "unjudgeable" is required (an object keyed by line number; {} is fine)');
+    // nothing to read
   } else if (Array.isArray(declaration.unjudgeable) && declaration.unjudgeable.length === 0) {
     // am41 item 1 (F63): an empty list carries no data; it counts as {}. A non-empty list falls to the red below.
   } else if (isPlainObject(declaration.unjudgeable)) {
