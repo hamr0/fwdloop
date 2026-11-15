@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { draft } from '../src/drafter.js';
 import { validateDeclaration } from '../src/declaration.js';
+import { loadCatalogue } from '../src/catalogue.js';
 import { RATES, MODEL, fakeProvider, toolReply, textReply } from './drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,6 @@ test('P4 leftover: a green sheet step with no sheet check built is hitl, each ru
 
 test('P4 leftover: the old red stays for a plan signed before (a green sheet step with no close.sheet and no list is still refused by the validator)', () => {
   const d = { ...decl(), unjudgeable: {}, inputFacts: {} };
-  const v = validateDeclaration(d, { arbiter: { sources: [{ role: 'aging', kind: 'file', path: AGING_CSV }], asks: [{ line: 3 }], sends: [{ line: 4 }] }, lines: [{ n: 2, text: 'x', guardrail: 'flag amounts over 500' }], fitJobLine: true, verbatimGoals: false });
+  const v = validateDeclaration(d, { arbiter: { sources: [{ role: 'aging', kind: 'file', path: AGING_CSV }], asks: [{ line: 3 }], sends: [{ line: 4 }] }, lines: [{ n: 2, text: 'x', guardrail: 'flag amounts over 500' }], fitJobLine: true, verbatimGoals: false, catalogue: loadCatalogue().primitives });
   assert.ok(!v.ok && v.reds.some((x) => x.includes('cannot cite cells any more')), JSON.stringify(v.reds));
 });
