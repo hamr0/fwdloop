@@ -31,8 +31,6 @@ export const stripAgreeLead = (text) => {
   return m ? m[1].trim() : String(text ?? '');
 };
 
- *   `reading` = the plain words an `agree` writes as a `~` rule (a reading ask only) */
-
 /** @param {unknown} n @param {string} shape @param {any} f @returns {string} one bound, as the person would say it */
 function sayBound(n, shape, f) {
   if (shape === 'money') return moneyAs(f, /** @type {string|number} */ (n), false);
