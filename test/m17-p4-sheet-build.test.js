@@ -152,3 +152,57 @@ test('edge case through the real draft: that rule is not in Not checked, the car
   assert.deepEqual(rows.map((x) => x.by), ['you', 'agent']);
   assert.ok(rows[1].text.includes('covers "flag amounts over 500"'), rows[1].text);
 });
+
+// ruling 2 (hamr 2026-11-15): an agreed column for a word that is no `~` rule adds no `~` line; the check is the AI's suggestion, one `!` [agent] row built by code
+// the line keeps one ~ rule of its own (a line with no guardrail is never green); the word 'price' is in the prose, in no rule
+const PROSE_NO_RULE = PROSE.replace('; flag amounts over 500', '').replace('Put each invoice in its overdue bucket as of 2026-10-11', 'List every invoice over 500 by its price');
+const PROSE_ASK = { line: 2, rule: "use the column 'Amount' for 'price'", left: false, ruleNo: undefined, ruleText: 'List every invoice over 500 by its price', ask: 'reading', proposal: "use the column 'Amount' for 'price'" };
+
+test('ruling 2: Agree on a word that is no ~ rule appends no ~ line (the job is unchanged) and hands the column on, typed', () => {
+  const job = '1. Read the aging report\n2. List every invoice over 500 by its price\n3. Write it out';
+  const r = applyAnswers(job, [PROSE_ASK]);
+  assert.equal(r.job, job, 'no ~ line');
+  assert.deepEqual(r.columns, [{ line: 2, word: 'price', column: 'Amount' }]);
+  assert.equal(r.added, 1, 'the answer counts, so the panel does not refuse the redraft');
+  // the person's own words for it are still a ~ rule they wrote
+  const own = applyAnswers(job, [{ ...PROSE_ASK, rule: 'the price is the Amount column' }]);
+  assert.match(own.job, /~ the price is the Amount column/);
+});
+
+test('ruling 2 through the draft: the AI is told the agreed column, its suggestion on it is one [agent] row (Drop offered), nothing is a ~ rule', async () => {
+  const sug = [{ ...NODUP, covers: [1] }, { ...ROWS, covers: [] }];
+  const PRICE = reply(JSON.stringify({ facts: [{ from: 'line 2', word: 'price', kind: 'number' }] })); // the sheet look: 'price' is a word of the prose, no column
+  const p = fakeProvider([PRICE, toolReply(decl(sug))]);
+  const r = await draft({ proseText: PROSE_NO_RULE, provider: p, rates: RATES, modelId: MODEL, offerQuestions: false, columnAnswers: [{ line: 2, word: 'price', column: 'Amount' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const told = p.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n');
+  assert.ok(told.includes("the word 'price' means the column 'Amount'"));
+  const rows = r.checkCard.rows.filter((x) => x.line === 2);
+  assert.deepEqual(rows.map((x) => [x.by, x.drop]), [['you', false], ['agent', true]], 'the [agent] row (with Drop) beside the rule\'s own row');
+  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => [c.id, c.row, c.covers]), [['l2r1', undefined, [1]], ['l2a1', 'agent', []]]);
+  // told nothing, the AI's same suggestion is still an [agent] row; the told words are absent
+  const p2 = fakeProvider([PRICE, toolReply(decl(sug))]);
+  await draft({ proseText: PROSE_NO_RULE, provider: p2, rates: RATES, modelId: MODEL, offerQuestions: false });
+  assert.equal(p2.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n').includes('the person agreed'), false);
+});
+
+test('ruling 2: when the AI suggested no check for the agreed word, no row is added', async () => {
+  const { buildSheetChecks } = await import('../src/sheetbuild.js');
+  const d = decl(undefined);
+  const out = await buildSheetChecks({ declaration: d, lines: [{ n: 2, text: 'List every invoice over 500 by its price' }], tables: TABLES });
+  assert.equal(out.declaration.steps[1].close.sheet, undefined);
+});
+
+test('am2 item 2 must-fail: a declaration that carries close.sheet is red, naming the field, and is revised; code builds nothing from it', async () => {
+  const sug = [{ ...ROWS, covers: [2] }];
+  const carried = { ...toolReply(decl(sug)), carrySheet: true };
+  const p = fakeProvider([NO_WORDS, carried, toolReply(decl(sug))]);
+  const r = await draft({ proseText: PROSE, provider: p, rates: RATES, modelId: MODEL });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const first = r.log.find((e) => e.outcome?.startsWith('validator'));
+  assert.ok(first, JSON.stringify(r.log.map((e) => e.outcome)));
+  assert.ok(first.reds[0].includes('"close.sheet"'), first.reds[0]);
+  assert.equal(JSON.stringify(r.declaration.steps[1].close.sheet).includes('"x"'), false, 'the carried check is not in the plan');
+  const stuck = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, carried]), rates: RATES, modelId: MODEL });
+  assert.equal(stuck.ok, false, 'a draft that keeps carrying it is never accepted');
+});

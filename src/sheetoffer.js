@@ -136,3 +136,6 @@ export function swapColumnWord(text, word, column) {
     from = at + 1;
   }
 }
+
+/** M17 ruling 2: what the AI is told of a column the person agreed for a word of the job's prose (no `~` rule): the word and the column, typed @param {{line: number, word: string, column: string}} c @returns {string} */
+export const agreedColumnWords = (c) => `- The person agreed that on line ${c.line} the word '${c.word}' means the column '${c.column}'. If a check on that line needs it, suggest it on that column.`;

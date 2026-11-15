@@ -169,18 +169,23 @@ export function replaceRuleOnJob(job, line, oldText, newText) {
  * rule (a drafter question, a sheet column ask) is still added word for word as a new `~` line (`appendAnswersToJob`). Picks and left rules are numbered as the asks carried them; a pick carries
  * no `added` words, because its rule's words ARE the answer. A rule-about answer whose rule is no longer on the job line is not applied (the caller sees the count and refuses).
  * @param {string} job @param {{line: number, rule: string|null, left: boolean, check?: Record<string, any>|null, own?: boolean, ruleNo?: number, ruleText?: string, ask?: string, proposal?: string|null}[]} all
- * @returns {{job: string, added: number, picks: {line: number, rule: number|undefined, check: Record<string, any>|null, own?: boolean}[], left: {line: number, rule: number|undefined}[]}}
+ * @returns {{job: string, added: number, picks: {line: number, rule: number|undefined, check: Record<string, any>|null, own?: boolean}[], left: {line: number, rule: number|undefined}[], columns: {line: number, word: string, column: string}[]}}
  */
 export function applyAnswers(job, all) {
   let out = job;
   let done = 0;
   /** @type {{ line: number, answer: string }[]} */
   const appends = [];
+  /** @type {{line: number, word: string, column: string}[]} */
+  const columns = [];
   for (const x of all) {
     if (x.rule === null) continue;
     // M17 ruling 1: a column ask tied to one of the person's `~` rules rewrites THAT rule in place - agreed, the job's word is swapped for the column ("Price over 500" -> "Amount over 500"); the
     // person's own words replace it like any other rule. A column word tied to no rule (the job's prose) is still one more `~` line
     const parts = isColumnChoiceRule(x.proposal) && Number.isInteger(x.ruleNo) ? columnChoiceParts(x.rule) : null;
+    // M17 ruling 2: an agreed column for a word that is no `~` rule (the job's prose) adds NO `~` line; it is told to the AI, whose check (if it suggests one) is a `!` `[agent]` row built by code
+    const proseCol = isColumnChoiceRule(x.proposal) && !Number.isInteger(x.ruleNo) && isColumnChoiceRule(x.rule) ? columnChoiceParts(x.rule) : null;
+    if (proseCol) { columns.push({ line: x.line, word: proseCol.word, column: proseCol.column }); continue; }
     const swapped = parts ? swapColumnWord(String(x.ruleText ?? ''), parts.word, parts.column) : null;
     if (x.ask !== undefined && Number.isInteger(x.ruleNo) && (!isColumnChoiceRule(x.proposal) || !isColumnChoiceRule(x.rule) || swapped !== null)) {
       const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), swapped ?? x.rule);
@@ -191,7 +196,7 @@ export function applyAnswers(job, all) {
   const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left)
     .map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, ...(x.own ? { own: true } : {}) }));
   const left = all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo }));
-  return { job: grown.job, added: grown.added + done, picks, left };
+  return { job: grown.job, added: grown.added + done + columns.length, picks, left, columns };
 }
 
 /**

@@ -811,7 +811,7 @@ export function createAuthor(opts) {
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
         // M10 am16 (4): what a shape guardrail's answers picked, for the redraft: the check an agree took, or the person's own words (a `~` rule, no check). A rule left Not checked rides `left`.
-        redraft = { vet, all, picks: grown.picks, left: grown.left };
+        redraft = { vet, all, picks: grown.picks, left: grown.left, columns: grown.columns };
       }
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
@@ -833,7 +833,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...(redraft.columns.length ? ['--columns', JSON.stringify(redraft.columns)] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });
