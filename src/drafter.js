@@ -54,7 +54,8 @@ import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
 import { sheetChecksProp, sheetOfferRules } from './sheetoffer.js';
 import { uncoveredRules, csvRolesOf } from './sheetblock.js';
-import { withSheetRows, withSheetCard, sheetChoice } from './sheetrows.js';
+import { withSheetRows, withSheetCard, sheetChoice, keyOfSameCheck } from './sheetrows.js';
+import { buildSheetChecks } from './sheetbuild.js';
 import { TICKET_FIELDS, ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
@@ -1013,14 +1014,21 @@ export async function draft({
     }
     // M10 am27 (2): the two mechanical plan mistakes (cited page not in reads; unjudgeable note on a green line) are repaired by code and logged on the round
     { const fixed = repairDeclaration(declaration, arbiter); if (fixed.repaired.length) { Object.assign(declaration, fixed.declaration); entry.repaired = fixed.repaired; } }
-    // M16 am4 (2): a sheet line's checks are rows on the same list (the AI wrote them; code only reads them as rows, src/sheetrows.js)
+    // M17 am2: the AI writes no sheet check. What it sent as `close.sheet` is a typed suggestion; code refuses or builds each one on bareguard (src/sheetbuild.js) and writes the checks, with its own ids
+    /** @type {Awaited<ReturnType<typeof buildSheetChecks>>|null} */
+    let sheetBuilt = null;
+    if (sheetTables) { sheetBuilt = await buildSheetChecks({ declaration, lines, tables: sheetTables }); Object.assign(declaration, { steps: sheetBuilt.declaration.steps }); if (sheetBuilt.refused.length) entry.sheetRefused = sheetBuilt.refused; }
+    // M16 am4 (2): a sheet line's checks are rows on the same list (code builds them, src/sheetbuild.js; src/sheetrows.js reads them as rows)
     let sheetOnList = null;
     /** @type {any[]} */
     let sheetDroppedNow = [];
     if (block) {
       // hamr 2026-11-14: a Revise keeps a sheet Drop - a new check with the id of a carried dropped one starts dropped again (only an `[agent]` row can be dropped; one that now covers a `~` rule stays)
       for (const d of carriedSheetDropped) {
-        const r = sheetChoice({ declaration, lines, csvRoles: csvRolesOf(arbiter), op: 'drop', key: d.key, dropped: sheetDroppedNow });
+        // M17 am3: code names every check, so the Drop is kept for the very same check (its typed fields), never for an id that may name another one now
+        const key = keyOfSameCheck(declaration, d);
+        if (key === null) continue;
+        const r = sheetChoice({ declaration, lines, csvRoles: csvRolesOf(arbiter), op: 'drop', key, dropped: sheetDroppedNow });
         if (r.ok) { Object.assign(declaration, { steps: r.declaration.steps }); sheetDroppedNow = r.dropped; }
       }
       onSheetDropped(sheetDroppedNow);
@@ -1060,7 +1068,7 @@ export async function draft({
     // M16: the AI's own `notChecked` is kept beside the rows' reasons (M4e am24/am25 stand; M16 item 5 does not name them)
     // P4c (hamr 2026-11-14): the AI's own note is an [agent] line (`!` = agent); it never overrides a tag a row already gave the same words
     const aiNotes = cleanNotChecked(rawNotChecked);
-    const uncovered = uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}));
+    const uncovered = uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined);
     // the tag of a note no row tells: the person's own choice [you], the AI's own note [agent], any other note code writes [default]; a row's own tag wins
     const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, personNotChecked.has(t) ? 'you' : 'default']).concat(aiNotes.map((t) => [t, 'agent'])));
     const ticketNotChecked = (ticketOnList?.notChecked ?? []).map((t) => `not checked · "${t.rule}" — ${t.reason}`);

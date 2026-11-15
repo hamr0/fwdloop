@@ -135,33 +135,37 @@ test('valid checks draft, KEEP covers (signed), and show one plan-card row per c
   assert.equal(r.ok, true, r.reds.join('\n'));
   const sheet = r.declaration.steps[1].close.sheet;
   assert.equal(sheet.length, 3);
-  assert.deepEqual(sheet.map((c) => c.covers), [[1], [2], []], 'M10b piece 4: covers is kept on the check, so it is signed');
+  // M17 am2/am3: code builds and names every check (a cells check before a table check); a rule row's check covers its rule, an [agent] row's covers none
+  assert.deepEqual(sheet.map((c) => [c.id, c.covers]), [['l2r2', [2]], ['l2r1', [1]], ['l2a1', []]], 'M10b piece 4: covers is kept on the check, so it is signed');
   const rows = checkedLines(r.declaration).find((x) => x.line === 2).sentences;
   for (const c of sheet) assert.ok(rows.includes(`${sheetCheckSentence(c)} [agent]`), sheetCheckSentence(c));
   assert.equal(rows.length, 1 + sheet.length, 'a lead sentence, then one row per check');
   assert.deepEqual(r.notChecked, []);
 });
 
-test('a number in a check that is not in the job line or its guardrail is refused, naming the line', async () => {
+// M17 am2: a suggestion carrying a number the person never wrote is refused by code (bareguard's groundedLiterals) at build: no red, the rule is Not checked with the refusal
+test('a number in a check that is not in the job line or its guardrail is refused by code, the rule it covers is Not checked with the reason', async () => {
   const c = CHECKS(); c[1].where[0].value = 700;
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('number 700') && x.includes('not in your words')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.equal(r.declaration.steps[1].close.sheet.some((x) => JSON.stringify(x).includes('700')), false, 'the check with 700 is not in the plan');
+  assert.deepEqual(r.notChecked, ['line 2: "flag amounts over 500" \u2014 suggestion refused: groundedLiterals: number 700 (where[0].value) is not in your words']);
   const said = CHECKS(); said[1].where[0].value = 30; // 30 sits inside "1-30": a number the person wrote
-  assert.equal((await run(said)).r.ok, true);
+  assert.deepEqual((await run(said)).r.notChecked, []);
   const part = CHECKS(); part[1].where[0].value = 50; // 50 only sits inside "500": not said
-  assert.equal((await run(part)).r.ok, false);
+  assert.equal((await run(part)).r.notChecked.length, 1);
 });
 
-test('an asOf (or a date value) not written in the job is refused, naming the line', async () => {
+test('an asOf (or a date value) not written in the job is refused by code (M17 am2): the check is not built, the refusal is in the round log or on the rule it covers', async () => {
   const c = CHECKS(); c[2].asOf = '2026-11-30';
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('date 2026-11-30') && x.includes('not a date in your words')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.equal(r.declaration.steps[1].close.sheet.some((x) => x.op === 'band'), false);
+  assert.ok(r.log.find((e) => e.sheetRefused).sheetRefused.some((x) => x.helper === 'groundedLiterals' && x.why.includes('date "2026-11-30"')), JSON.stringify(r.log.map((e) => e.sheetRefused)));
   const d = CHECKS(); d[1].where = [{ column: 'Due date', cmp: 'before', value: '2026-09-09' }]; d[1].dateFormats = ISO;
   const dd = await run(d);
-  assert.equal(dd.r.ok, false);
-  assert.ok(dd.r.reds.some((x) => x.includes('date 2026-09-09')), dd.r.reds.join('\n'));
+  assert.equal(dd.r.ok, true, dd.r.reds.join('\n'));
+  assert.deepEqual(dd.r.notChecked, ['line 2: "flag amounts over 500" \u2014 suggestion refused: groundedLiterals: date "2026-09-09" (where[0].value) is not in your words']);
 });
 
 test('a step whose sheet checks are all table checks has nothing to answer: refused at the line, and the drafter was told', async () => {
@@ -170,11 +174,13 @@ test('a step whose sheet checks are all table checks has nothing to answer: refu
   assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('every sheet check on this step is a table check')), r.reds.join('\n'));
 });
 
-test('covers that names a rule the line does not have is refused, naming the line and the check', async () => {
+test('covers that names a rule the line does not have covers none (M17 am2): the check is built as an [agent] row, and the rule it did not hold is Not checked', async () => {
   const c = CHECKS(); c[0].covers = [3];
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes("line 2") && x.includes("'nodup'") && x.includes('covers')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  const nodup = r.declaration.steps[1].close.sheet.find((x) => x.op === 'noDuplicates');
+  assert.deepEqual([nodup.id, nodup.covers], ['l2a2', []]);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 no sheet check covers it']);
 });
 
 test('a guardrail rule no check covers shows under Not checked (F76 aging draft 1: noDuplicates dropped); a step with no close.sheet is refused', async () => {

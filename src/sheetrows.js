@@ -7,6 +7,7 @@
 import { sheetLineBlocks, sheetPlainText } from './sheetblock.js';
 import { closePartsOf } from './checklistsign.js';
 import { sheetByOf } from './checkwords.js';
+import { isDeepStrictEqual } from 'node:util';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -57,6 +58,22 @@ export function withSheetCard(card, sheet, dropped = []) {
 
 /** the dropped sheet checks the picks record keeps: `{key, line, index, check, text}` @returns {any[]} */
 export const droppedSheetOf = (/** @type {any} */ record) => (isRec(record) && Array.isArray(record.sheetDropped) ? record.sheetDropped.filter((d) => isRec(d) && typeof d.key === 'string' && isRec(d.check) && Number.isInteger(d.line)) : []);
+
+/** the fields that say what a check is: all but the names code gives it (id, claim) and the rules it covers */
+const checkBody = (/** @type {any} */ c) => { const { id: _i, claim: _c, covers: _v, ...rest } = c; return rest; };
+
+/**
+ * M17 am3: the key of the check of the line that IS a dropped one (same typed fields; code names every check, so an id says nothing across drafts), or null. A Revise keeps a Drop only for the very same check.
+ * @param {any} declaration @param {{line: number, check: any}} d a record of `droppedSheetOf` @returns {string|null}
+ */
+export function keyOfSameCheck(declaration, d) {
+  for (const st of isRec(declaration) && Array.isArray(declaration.steps) ? declaration.steps : []) {
+    if (!isRec(st) || st.fromLine !== d.line || !isRec(st.close) || !Array.isArray(st.close.sheet)) continue;
+    const hit = st.close.sheet.find((/** @type {any} */ c) => isRec(c) && isDeepStrictEqual(checkBody(c), checkBody(d.check)));
+    if (hit) return sheetRowKey(d.line, String(hit.id));
+  }
+  return null;
+}
 
 /**
  * The person's Drop or Add on a sheet row, applied to the declaration (a copy). Same words as the block's own refusals (src/checkblock.js `rowChoice`).
