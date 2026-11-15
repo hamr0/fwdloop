@@ -27,16 +27,16 @@ const run = (provider, extra = {}) => draft({
   proseText: job2Fixture().prose, provider, rates: RATES, modelId: MODEL, ...extra,
 });
 
-test('A1: tries 1 and 2 never carry a questions property; try 3 does; notChecked is offered on every try', async () => {
+test('A1: tries 1 and 2 never carry a questions property; try 3 does; notChecked is offered on no try (M17 am4, C1)', async () => {
   const p = recProvider([toolReply(bad()), toolReply(bad()), toolReply(validArgs())]);
   await run(p);
   assert.equal(p.calls.length, 3);
   for (const i of [0, 1]) {
     assert.equal(p.schemas[i].properties.questions, undefined, `try ${i + 1} has no way to ask`);
-    assert.ok(p.schemas[i].properties.notChecked, `try ${i + 1} offers notChecked`);
+    assert.equal(p.schemas[i].properties.notChecked, undefined, `try ${i + 1} offers no notChecked`);
   }
-  assert.ok(p.schemas[2].properties.questions && p.schemas[2].properties.notChecked);
-  assert.ok(!p.schemas[2].required.includes('questions') && !p.schemas[2].required.includes('notChecked'));
+  assert.ok(p.schemas[2].properties.questions && p.schemas[2].properties.notChecked === undefined);
+  assert.ok(!p.schemas[2].required.includes('questions'));
   for (const c of p.calls.slice(0, 2)) assert.ok(!c.messages.some((m) => String(m.content).includes(QUESTIONS_PROMPT)), 'no asking line before try 3');
   assert.ok(p.calls[2].messages.at(-1).content.endsWith(QUESTIONS_PROMPT));
 });
@@ -96,7 +96,7 @@ test('A6 (M17 am4, C1): the AI is offered no notChecked; one it sends is strippe
   const p = recProvider([toolReply({ ...validArgs(), notChecked: ['tone', '  ', 7, ' wording '] })]);
   const r = await run(p);
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.deepEqual(r.notChecked, []);
+  assert.deepEqual(r.notChecked.filter((x) => !x.endsWith('you judge it at the Ask')), []);
   assert.equal(r.declaration.notChecked, undefined);
   assert.equal(p.schemas[0].properties.notChecked, undefined);
 });
@@ -357,7 +357,8 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g));
   assert.equal(g.notChecked.label, 'Not checked');
-  assert.deepEqual(g.notChecked.items, ['whether the tone suits the role']);
+  // M17 am4 (C1): the AI's note is dropped (the child still sends it); M17 am5 (D3): the Ask line's ~ rule is the list's one Not checked line
+  assert.deepEqual(g.notChecked.items, ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask']);
   assert.deepEqual(g.notChecked.readNotes, [], 'no code note on this plan: the list is there and empty');
   assert.equal(g.checked.length, 5, 'one entry per step');
   assert.ok(g.checked.every((c) => c.sentences.length > 0));
@@ -380,7 +381,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const w2 = await world();
   const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
-  assert.deepEqual(g2.notChecked, { label: 'Not checked', items: [], readNotes: [] });
+  assert.deepEqual(g2.notChecked, { label: 'Not checked', items: ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask'], by: { ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask']: 'you' }, readNotes: [] });
 });
 
 // ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------
