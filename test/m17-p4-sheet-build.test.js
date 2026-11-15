@@ -206,3 +206,19 @@ test('am2 item 2 must-fail: a declaration that carries close.sheet is red, namin
   const stuck = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, carried]), rates: RATES, modelId: MODEL });
   assert.equal(stuck.ok, false, 'a draft that keeps carrying it is never accepted');
 });
+
+test('am3 must-fail: a Revise keeps a Drop only for the very same check; a different check that now has the same code-given id is not hidden', async () => {
+  const BANDS = [{ name: 'Current', lte: 0 }, { name: '1-30', gte: 1, lte: 30 }];
+  const band = { rule: 'cells', table: 'aging', claim: 'b', op: 'band', column: 'Due date', asOf: '2026-10-11', dateFormats: [{ column: 'Due date', format: 'YYYY-MM-DD' }], bands: BANDS, covers: [] };
+  const dropped = [{ key: 'L2.sheet.l2a1', line: 2, index: 2, check: { id: 'l2a1', ...band, claim: 'l2a1', row: 'agent' }, text: 'band' }];
+  const base = [{ ...COUNT, covers: [2] }, { ...NODUP, covers: [1] }];
+  // the same band check again: it starts dropped (gone from the close)
+  const same = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, toolReply(decl([...base, band]))]), rates: RATES, modelId: MODEL, carriedSheetDropped: dropped });
+  assert.equal(same.ok, true, JSON.stringify(same.reds));
+  assert.equal(same.declaration.steps[1].close.sheet.some((c) => c.op === 'band'), false);
+  // another check takes the id l2a1: it is NOT dropped
+  const other = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, toolReply(decl([...base, { ...ROWS, covers: [] }]))]), rates: RATES, modelId: MODEL, carriedSheetDropped: dropped });
+  assert.equal(other.ok, true, JSON.stringify(other.reds));
+  assert.deepEqual(other.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2r1', 'l2a1']);
+  assert.equal(other.checkCard.suggested.length, 0, 'nothing is hidden or shown as dropped');
+});
