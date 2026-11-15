@@ -54,3 +54,13 @@ test('F196 re-walk: the look returned no word "Due date" (only the prose and rul
   const r = applySheetWords(CSV, words, JOB, 'aging');
   assert.deepEqual(r.asks, []);
 });
+
+test('F196 panel walk: the look returned ONLY the prose ask for "days past due"; rule 3 says that word and names the header Due date - nothing is asked', () => {
+  const r = applySheetWords(CSV, [WORDS[3]], JOB, 'aging');
+  assert.deepEqual(r.asks, []);
+});
+
+test('F196 panel walk control: a prose word no tied rule says is still asked (rule 3 names Due date but not "balance")', () => {
+  const r = applySheetWords(CSV, [{ from: 'line 2', word: 'balance', kind: 'number' }], JOB, 'aging');
+  assert.equal(r.asks.length, 1);
+});

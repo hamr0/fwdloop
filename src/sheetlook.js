@@ -115,6 +115,8 @@ export function applySheetWords(text, words, jobLines, label) {
     if (rules.some((r, i) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     if (at.rule !== undefined) ruleWords.add(`${at.line}\u0000${w.word.toLowerCase()}`);
     if (at.rule !== undefined && tiedRules.has(`${at.line}\u0000${at.rule}`)) continue;
+    // F196: the line's prose word that a tied `~` rule of the line also says is settled by that rule (one word, one question, whichever the look tied the ask to)
+    if (at.rule === undefined && rules.some((r, i) => tiedRules.has(`${at.line}\u0000${i + 1}`) && wordForms(w.word).some((f) => countPhrase(r, f) > 0))) continue;
     asks.push({
       line: at.line, rule: at.rule ?? null, source: 'look', ask: 'reading', ruleText, question: columnQuestion(w.word, found, at.line, at.rule !== undefined), reading: columnRuleWords(w.word, found.column), word: w.word, column: found.column,
     });
