@@ -34,7 +34,7 @@ const withSheet = async (fn, text = CSV) => {
   try { return await fn(csv); } finally { rmSync(dir, { recursive: true, force: true }); }
 };
 const run = (provider, csv, extra = {}) => draft({ proseText: prose(csv, extra.guard), provider, rates: RATES, modelId: MODEL, ...extra, guard: undefined });
-const ASK_Q = `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 1).`;
+const ASK_Q = `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer replaces that ~ rule on line 1).`;
 
 // Done when (signed): the CSV case asks once
 test('a job word that is no column asks once, in the signed words, after the one sheet call and before any drafting round', () => withSheet(async (csv) => {
