@@ -40,6 +40,7 @@ import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits, repairedEditsReadab
 import { assembleFromBlock } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { questionsOfBlock } from './blockasks.js';
+import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf, ticketFilterBlock } from './rowedit.js';
 import { matchRecord, entriesFromAnswers, KEPT_WORDS } from './pickrecord.js';
@@ -828,6 +829,20 @@ export async function draft({
       turn = [...turn, { role: 'assistant', content: JSON.stringify(got.args) }, { role: 'user', content: `${renderRejectBlock(refused.map((e) => `edit ${String(e?.op)}: ${String(e.refusedBecause)}`))}\n\n${ROW_EDIT_REVISE}` }];
     }
     pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
+  }
+  // M17 am1 1(e): the note question, ONE forced turn, only when a line of the list is facts-only after the AI's edits (src/noteask.js). The typed answer goes to the block; code decides what it means.
+  // The answers ride the turn's log entry (`notes`), the one place the replay (src/planrebuild.js) reads them from, a failed turn included.
+  if (block && blockPlan?.ok) {
+    const asked = block.factOnlyLines();
+    if (asked.length > 0) {
+      const askedLines = blockPlan.jobLines.filter((l) => asked.includes(l.n)).map((l) => ({ n: l.n, text: l.text }));
+      const nq = await forcedTurn({ kind: NOTE_KIND, system: NOTE_SYSTEM, messages: [{ role: 'user', content: notePrompt(askedLines) }], tool: { name: NOTE_TOOL, description: 'Say, for each line, whether it also asks for written words.', schema: NOTE_SCHEMA } });
+      if (nq.early) return nq.early;
+      const answers = noteAnswers(asked, nq.args, askedLines);
+      nq.entry.notes = answers;
+      block.setNotes(answers);
+      pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows));
+    }
   }
   // The page lines go on the drafter's list of inputs: the first line of a page's block replaces the plain line readInputFacts wrote for it.
   const factsBase = pageInfo.length ? [...facts.info.filter((l) => !pageSources.some((s) => l.startsWith(`- ${s.role}: a web page`))), ...pageInfo] : facts.info;

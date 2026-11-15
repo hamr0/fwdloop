@@ -13,7 +13,7 @@ import { checkFactWords, keptSetOf } from './factwords.js';
 import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords, sameRuleWords } from './blockpick.js';
 import { dropRows, dropSentence } from './pagedropwords.js';
 import { phraseInNoResult } from './pagedry.js';
-import { boundInWords, rubricStepShapeReds, defaultCitedText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
+import { boundInWords, rubricStepShapeReds, defaultCitedText, defaultNoteText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
 import { validReading } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
 import { fitPlacePhrase } from './placerule.js';
@@ -91,6 +91,7 @@ export function renderCard(rows) {
     if (r.kind === 'rule') body = `"${r.text}"${r.pick && !sameRuleWords(r.text, plainWords(r.pick)) ? ` -> ${plainWords(r.pick)}` : ''}`;
     else if (r.kind === 'count') body = `${CARD_T.count} ${r.min ?? ''}-${r.max ?? ''}`;
     else if (r.kind === 'cited') body = `${CARD_T.cited} "${r.source ?? CARD_T.theInput}"`;
+    else if (r.kind === 'note') body = defaultNoteText(r.line);
     else if (r.kind === 'numbers') body = `${CARD_T.numbers} ${(r.after ?? []).join(', ')}`;
     else body = `${r.kind} "${r.name ?? r.words?.[0] ?? ''}"${r.words?.length ? ` ${CARD_T.withWords} ${r.words.map((/** @type {string} */ w) => `"${w}"`).join(', ')}` : ''}`;
     return { key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null, text: `${r.by === 'you' ? '~' : r.by === 'agent' ? '!' : '$'} ${body}` };
@@ -140,6 +141,8 @@ export class CheckBlock {
     this.deltaLog = [];
     /** @type {any} */
     this.closeCache = null;
+    /** @type {Map<number, 'yes'|'no'|'failed'>} the note question's answer per facts-only line (src/noteask.js; code decides what it means) */
+    this.notes = new Map();
   }
 
   textOf(/** @type {string|undefined} */ source) { return this.texts[source ?? this.labels[0] ?? ''] ?? Object.values(this.texts)[0] ?? ''; }
@@ -479,7 +482,7 @@ export class CheckBlock {
     const cited = !this.cited ? null : this.rowsOn(l.n, 'cited')[0] ?? this.addRow({ key: `L${l.n}.$cited`, line: l.n, kind: 'cited', by: 'default', from: 'default', source: this.labels[0] });
     const numbers = this.rowsOn(l.n, 'numbers')[0] ?? null;
     if (cited) cited.part = null;
-    if (factLines.has(l.n)) { if (cited) { cited.state = 'not-checked'; cited.reason = REASON.onePerLine; } return; }
+    if (factLines.has(l.n)) { if (cited) { cited.state = 'not-checked'; cited.reason = REASON.onePerLine; } this.buildNote(l, lineParts, lineRows); return; }
     const only = this.labels.length === 1 ? this.labels[0] : null;
     if (cited && only) { lineParts.push({ text: defaultCitedText(only), class: 'countable', check: 'cited', source: only }); lineRows.push([cited.key]); cited.state = 'built'; cited.reason = null; }
     else if (cited) { cited.state = 'not-checked'; cited.reason = REASON.manyInputs; }
@@ -489,6 +492,29 @@ export class CheckBlock {
     lineParts.push({ text: 'every number in the text is in a checked quote', class: 'countable', check: 'numbersFromFacts', from: earlier });
     lineRows.push([nr.key]); nr.state = 'built'; nr.reason = null; nr.part = null;
   }
+
+  // borrowed-from: bareloop src/checkblock.js@v0.57.0 (c18df406) (buildNote, factOnlyLines, setNotes)
+  /**
+   * The `$` note row of a facts-only line: the one note question said yes -> a countable nonEmpty text part sits beside the facts (the existing keep-both shape), so the brief
+   * is FACTS AND TEXT and text-present is floored; no -> nothing; the call failed -> a Not checked row in plain words. One owner of the row and its part.
+   */
+  buildNote(/** @type {{n: number}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows) {
+    const ans = this.notes.get(l.n);
+    if (ans !== 'yes' && ans !== 'failed') return;
+    const row = this.rowsOn(l.n, 'note')[0] ?? this.addRow({ key: `L${l.n}.$note`, line: l.n, kind: 'note', by: 'default', from: 'default' });
+    if (ans === 'failed') { row.state = 'not-checked'; row.reason = `could not ask whether line ${l.n} also wants a note`; row.part = null; return; }
+    lineParts.push({ text: defaultNoteText(l.n), class: 'countable', check: 'nonEmpty' });
+    lineRows.push([row.key]); row.state = 'built'; row.reason = null;
+  }
+
+  /** the job lines that ended up facts-only (a fact part and no text beside it): the lines the note question is about. Reconciles first. @returns {number[]} */
+  factOnlyLines() {
+    const c = this.reconcile();
+    return c.stages.filter((/** @type {any} */ st) => st.params.parts.some((/** @type {any} */ p) => p.class === 'fact') && !st.params.parts.some((/** @type {any} */ p) => p.class === 'countable')).map((/** @type {any} */ st) => st.params.step);
+  }
+
+  /** the note question's answers, `{line, answer: 'yes'|'no'|'failed'}`; the whole list is reconciled again @param {{line: number, answer: 'yes'|'no'|'failed'}[]} answers */
+  setNotes(answers) { for (const a of answers) this.notes.set(a.line, a.answer); this.reconcile(); }
 
   // 5. the code-forced questions for rows code cannot settle (a person answers; the CHOICE decides, never the words). Cap 3 is the caller's (MAX_QUESTIONS).
   ask() {

@@ -239,6 +239,10 @@ export function readLimit(shape, text, fact = {}) {
 /** the words of the default cited check code adds to a text line of a one-input job (the one list's `$` row); the card reads a part with exactly these words as `[default]` @param {string} label @returns {string} */
 export const defaultCitedText = (label) => `every claim is backed by a quote copied from "${label}"`;
 
+// borrowed-from: bareloop src/rubricstep.js@v0.57.0 (c18df406) (defaultNoteText)
+/** the words of the default note check code adds to a facts line that also asks for written words (the one list's `$` row); the card reads a part with exactly these words as `[default]` @param {number} n the job line @returns {string} */
+export const defaultNoteText = (n) => `line ${n} writes a note — the note must be there`;
+
 
 // borrowed-from: bareloop src/rubricstep.js@v0.56.0 (3383cce) (listMatchesClose: the signing door's test of the list against the close; bareloop's stages shape, the block's own closeCache.stages; fwd's close is shaped differently, so wiring it to fwd's close is a later piece)
 /**

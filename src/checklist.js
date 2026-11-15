@@ -41,7 +41,7 @@ export function weekTokens(t) {
 }
 
 /**
- * @typedef {{key: string, line: number, kind: 'rule'|'fact'|'cited'|'count'|'phrase'|'numbers'|'floor', from: 'rule'|'pick'|'look'|'agent'|'default', by: 'you'|'agent'|'default',
+ * @typedef {{key: string, line: number, kind: 'rule'|'fact'|'cited'|'count'|'phrase'|'numbers'|'note'|'floor', from: 'rule'|'pick'|'look'|'agent'|'default', by: 'you'|'agent'|'default',
  *   words: string[], text?: string, rule?: number, part?: {line: number, part: number}, source?: string, name?: string, min?: number, max?: number, pick?: string, after?: number[],
  *   state: 'listed'|'built'|'not-checked'|'dropped', reason: string|null, forRule?: number, reading?: import('./pagerules.js').Reading}} Row
  */

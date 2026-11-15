@@ -14,6 +14,7 @@ import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft
 import { assembleFromBlock } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { editsOf } from './rowedit.js';
+import { NOTE_KIND } from './noteask.js';
 import { offerRules, rowsFromAnswer, codeScope } from './checkpick.js';
 import { matchRecord, readRowChoices, RECORD_FILE } from './pickrecord.js';
 import { listLinesOf, cardLinesOf } from './checklistsign.js';
@@ -90,6 +91,8 @@ export function rebuildBlock({ planDir, asks }) {
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
   const askRules = allShape.filter((r) => !isKept(r));
   for (const e of Array.isArray(log?.log) ? log.log : []) {
+    // the note question's answers ride its entry, a failed turn's too (a `failed` answer is a Not checked row, so it must replay)
+    if (isRec(e) && e.kind === NOTE_KIND) { block.setNotes(notesOfEntry(e)); continue; }
     if (!isRec(e) || e.outcome !== 'answered' || !isRec(e.args)) continue;
     if (e.kind === 'check-suggest') block.applyDelta({ label: 'pre:check-suggest', pre: true, edits: pickEdits(rowsFromAnswer(askRules, e.args), blockLineNums) });
     else if (e.kind === 'ledger-suggest') block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(e.args.extra) });
@@ -136,6 +139,9 @@ function assembleAgain(b, from = b.declaration) {
   if (!verdict.ok) return { ok: false, say: `The changed list did not pass the plan's checks (${String(verdict.reds[0])}). Nothing was changed.` };
   return { ok: true, declaration: a.declaration, notChecked: a.notChecked, notCheckedBy: a.notCheckedBy, sheet: withSheet.sheet, tickets: withTickets.tickets };
 }
+
+/** the answers a note-question entry of the draft's log recorded; only well-formed ones (a line, yes|no|failed) @param {any} e @returns {{line: number, answer: 'yes'|'no'|'failed'}[]} */
+const notesOfEntry = (e) => (Array.isArray(e.notes) ? e.notes.filter((/** @type {any} */ a) => isRec(a) && Number.isInteger(a.line) && (a.answer === 'yes' || a.answer === 'no' || a.answer === 'failed')) : []);
 
 /** the plan's list and the closes it checks, as one comparable string (the proof that the rebuild is the saved plan) @param {any} d */
 const fingerprint = (d) => JSON.stringify([d.checkList ?? null, (d.steps ?? []).map((/** @type {any} */ s) => [s?.fromLine, s?.close])]);
