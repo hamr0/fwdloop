@@ -56,7 +56,7 @@ The POCs behind it (F191-F197) and the practice walk (F196) are in `docs/logs/FI
 ### Known limits
 - A word of a job's prose that is no rule, such as "aging report", can show in Not checked as a missing column
   (F198). Recorded, not fixed.
-- Page jobs wait for bareloop's third-try questions; how "under N" is counted is unchanged.
+- The AI's third-try questions (an answer that replaces a rule or adds a new one) wait for bareloop's release; how "under N" is counted is unchanged.
 
 ## [0.33.0] - 2026-11-14
 
