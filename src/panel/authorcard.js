@@ -183,10 +183,11 @@ export function applyAnswers(job, all) {
     // M17 ruling 1: a column ask tied to one of the person's `~` rules rewrites THAT rule in place - agreed, the job's word is swapped for the column ("Price over 500" -> "Amount over 500"); the
     // person's own words replace it like any other rule. A column word tied to no rule (the job's prose) is still one more `~` line
     const parts = isColumnChoiceRule(x.proposal) && Number.isInteger(x.ruleNo) ? columnChoiceParts(x.rule) : null;
-    // M17 ruling 2: an agreed column for a word that is no `~` rule (the job's prose) adds NO `~` line; it is told to the AI, whose check (if it suggests one) is a `!` `[agent]` row built by code
-    const proseCol = isColumnChoiceRule(x.proposal) && !Number.isInteger(x.ruleNo) && isColumnChoiceRule(x.rule) ? columnChoiceParts(x.rule) : null;
-    if (proseCol) { columns.push({ line: x.line, word: proseCol.word, column: proseCol.column }); continue; }
     const swapped = parts ? swapColumnWord(String(x.ruleText ?? ''), parts.word, parts.column) : null;
+    // M17 ruling 2: an agreed column for a word that is no `~` rule (the job's prose) adds NO `~` line; it is told to the AI, whose check (if it suggests one) is a `!` `[agent]` row built by code
+    // and so is an agreed column for a word that is not in the tied rule's text (nothing to rewrite): never a new line
+    const proseCol = isColumnChoiceRule(x.proposal) && isColumnChoiceRule(x.rule) && (!Number.isInteger(x.ruleNo) || swapped === null) ? columnChoiceParts(x.rule) : null;
+    if (proseCol) { columns.push({ line: x.line, word: proseCol.word, column: proseCol.column }); continue; }
     if (x.ask !== undefined && Number.isInteger(x.ruleNo) && (!isColumnChoiceRule(x.proposal) || !isColumnChoiceRule(x.rule) || swapped !== null)) {
       const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), swapped ?? x.rule);
       if (r.replaced) { out = r.job; done += 1; }

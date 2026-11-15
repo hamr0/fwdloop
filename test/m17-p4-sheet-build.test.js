@@ -2,7 +2,11 @@
 // Fake providers, the synthetic sheet test/fixtures/m10b-sheets/aging.csv, $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { draftToDir } from '../src/authoring.js';
+import { readColumns, recordPath } from '../src/pickrecord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { draft } from '../src/drafter.js';
@@ -11,6 +15,8 @@ import { parseCsv, sheetTable } from '../src/csv.js';
 import { applyAnswers } from '../src/panel/authorcard.js';
 import { columnChoiceParts, swapColumnWord } from '../src/sheetoffer.js';
 import { sheetByCheck } from '../src/sheetblock.js';
+import { columnEntries, columnsOnLines } from '../src/pickrecord.js';
+import { parseSignedText } from '../src/signed-text.js';
 import { RATES, MODEL, fakeProvider, toolReply, textReply } from './drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -221,4 +227,52 @@ test('am3 must-fail: a Revise keeps a Drop only for the very same check; a diffe
   assert.equal(other.ok, true, JSON.stringify(other.reds));
   assert.deepEqual(other.declaration.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2r1', 'l2a1']);
   assert.equal(other.checkCard.suggested.length, 0, 'nothing is hidden or shown as dropped');
+});
+
+test('ruling 2 across a Revise: the agreed column is kept in the picks record (tied to the line\'s words), is not asked or declined again, and is told to the AI again', async () => {
+  const PRICE = reply(JSON.stringify({ facts: [{ from: 'line 2', word: 'price', kind: 'number' }] }));
+  const lines = parseSignedText(PROSE_NO_RULE).lines;
+  const entries = columnEntries(lines, [{ line: 2, word: 'price', column: 'Amount' }]);
+  assert.deepEqual(entries.map((e) => [e.lineWords, e.occurrence, e.word, e.column]), [[lines[1].text.toLowerCase(), 0, 'price', 'Amount']]);
+  // control: with no carried answer the word is asked again
+  const asked = await draft({ proseText: PROSE_NO_RULE, provider: fakeProvider([PRICE, toolReply(decl([]))]), rates: RATES, modelId: MODEL });
+  assert.equal(asked.stop, 'look-asks');
+  // carried: not asked, not Not checked as declined, told again, and handed on to the next record
+  let rec = null;
+  const p = fakeProvider([PRICE, toolReply(decl([{ ...NODUP, covers: [1] }, { ...ROWS, covers: [] }]))]);
+  const r = await draft({ proseText: PROSE_NO_RULE, provider: p, rates: RATES, modelId: MODEL, carriedColumns: entries, onColumns: (x) => { rec = x; } });
+  assert.notEqual(r.stop, 'look-asks');
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.equal(r.notChecked.some((t) => t.includes('price')), false, 'not declined into Not checked');
+  assert.ok(p.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n').includes("the word 'price' means the column 'Amount'"));
+  assert.deepEqual(rec, entries);
+  assert.deepEqual(columnsOnLines(entries, lines), [{ line: 2, word: 'price', column: 'Amount' }]);
+  // a line whose words changed no longer carries it
+  assert.deepEqual(columnsOnLines(entries, lines.map((l) => ({ ...l, text: `${l.text} now` }))), []);
+});
+
+test('ruling 1 fallback: a rule-tied column answer whose word is not in the rule\'s text appends no ~ line and keeps the rule; the column goes to the AI', () => {
+  const job = '1. Read the sheet\n2. Flag the big ones\n~ under 5000\n3. Write it out';
+  const ask = { line: 2, rule: "use the column 'Amount' for 'Price'", left: false, ruleNo: 1, ruleText: 'under 5000', ask: 'reading', proposal: "use the column 'Amount' for 'Price'" };
+  const r = applyAnswers(job, [ask]);
+  assert.equal(r.job, job, 'no ~ line, the rule is as written');
+  assert.deepEqual(r.columns, [{ line: 2, word: 'Price', column: 'Amount' }]);
+});
+
+test('ruling 2: the draft writes the agreed columns into the plan\'s own picks record (no new file), and the next draft reads them back', async () => {
+  const work = mkdtempSync(path.join(tmpdir(), 'fwdloop-m17p4-'));
+  const proseFile = path.join(work, 'prose.txt');
+  writeFileSync(proseFile, PROSE_NO_RULE);
+  mkdirSync(path.join(work, 'flows'));
+  const PRICE = reply(JSON.stringify({ facts: [{ from: 'line 2', word: 'price', kind: 'number' }] }));
+  const dir = path.join(work, 'draft');
+  const r = await draftToDir({ proseFile, dir, root: path.join(work, 'flows'), name: 'aging', provider: fakeProvider([PRICE, toolReply(decl([{ ...NODUP, covers: [1] }, { ...ROWS, covers: [] }]))]), rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY', noQuestions: true, columnAnswers: [{ line: 2, word: 'price', column: 'Amount' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  const got = readColumns(recordPath(dir));
+  assert.deepEqual(got?.map((e) => [e.word, e.column]), [['price', 'Amount']]);
+  // the next draft (a Revise carries that record) is not asked again and writes it on
+  const dir2 = path.join(work, 'draft-1');
+  const r2 = await draftToDir({ proseFile, dir: dir2, root: path.join(work, 'flows'), name: 'aging', provider: fakeProvider([PRICE, toolReply(decl([{ ...NODUP, covers: [1] }, { ...ROWS, covers: [] }]))]), rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY', carriedColumns: got ?? undefined });
+  assert.equal(r2.ok, true, JSON.stringify(r2.reds));
+  assert.deepEqual(readColumns(recordPath(dir2))?.map((e) => [e.word, e.column]), [['price', 'Amount']]);
 });

@@ -43,7 +43,7 @@ import { questionsOfBlock } from './blockasks.js';
 import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf, ticketFilterBlock } from './rowedit.js';
-import { matchRecord, entriesFromAnswers, KEPT_WORDS } from './pickrecord.js';
+import { matchRecord, entriesFromAnswers, KEPT_WORDS, columnEntries, columnsOnLines } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { askableFromLook, tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
@@ -389,7 +389,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
 export async function draft({
   proseText, slot, model, provider: injected, rates: injectedRates, modelId: injectedModelId, env,
   priorSpend = /** @type {((ceilingUsd: number) => number)|null} */ (null), skills = DRAFT_SKILLS, makeProviderFn = makeProvider, onBook, offerQuestions = true, draftThinking = /** @type {'on'|'off'} */ ('off'),
-  draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]), columnAnswers = /** @type {{line: number, word: string, column: string}[]} */ ([]),
+  draftDir = /** @type {string|null} */ (null), fetchPage = undefined, leftRules = /** @type {{line: number, rule: number}[]} */ ([]), columnAnswers = /** @type {{line: number, word: string, column: string}[]} */ ([]), carriedColumns = /** @type {any[]} */ ([]), onColumns = /** @type {(rec: any[]) => void} */ (() => {}),
   checkPicks = /** @type {import('./checkpick.js').Pick[]} */ ([]),
   // M10 am17/am18: the picks of the plan this one follows (src/pickrecord.js entries), and a callback that is handed this draft's record (kept + newly answered) for the one writer
   carriedPicks = /** @type {import('./pickrecord.js').Entry[]} */ ([]), carriedChoices = /** @type {any[]|null} */ (null), carriedSheetDropped = /** @type {any[]} */ ([]), onSheetDropped = /** @type {(rec: any[]) => void} */ (() => {}), onChoices = /** @type {(rec: any[]) => void} */ (() => {}), onPickRecord = /** @type {((r: {picks: import('./pickrecord.js').Entry[], kept: {line: number, rule: number, ruleText: string, check: Record<string, any>|null}[]}) => void)|null} */ (null),
@@ -596,6 +596,9 @@ export async function draft({
   const docxRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && String(s.path).toLowerCase().endsWith('.docx') && Array.isArray(facts.inputFacts[s.role])).map((s) => s.role);
   const sheetRoles = sheetJobLines.some((l) => lineRules(l).length > 0) ? [...Object.keys(facts.sheets ?? {}), ...docxRoles] : [];
   /** @type {any[]} */
+  // M17 ruling 2: the columns the person agreed for a word (just now, or kept in the record from the last draft, tied to the line's words); such a word is never asked or declined again, and is told to the AI
+  const effColumns = [...columnAnswers, ...columnsOnLines(carriedColumns, lines).filter((c) => !columnAnswers.some((f) => f.line === c.line && f.word.toLowerCase() === c.word.toLowerCase()))];
+  onColumns(columnEntries(lines, effColumns));
   const sheetAsks = [];
   /** @type {any[]} */
   const sheetFacts = [];
@@ -615,11 +618,12 @@ export async function draft({
       };
     }
     // The redraft after the answers never asks: an offer the person's words did not take is Not checked, with that reason (never dropped silently).
-    const declined = offerQuestions ? [] : got.asks.map((a) => ({ line: a.line, ...(a.rule === null ? {} : { rule: a.rule }), fact: a.word, reason: 'column-declined', other: `"${a.column}"`, source: role }));
+    const asksNow = got.asks.filter((a) => !effColumns.some((c) => c.line === a.line && c.word.toLowerCase() === a.word.toLowerCase()));
+    const declined = offerQuestions ? [] : asksNow.map((a) => ({ line: a.line, ...(a.rule === null ? {} : { rule: a.rule }), fact: a.word, reason: 'column-declined', other: `"${a.column}"`, source: role }));
     const dropped = [...got.dropped, ...declined];
-    sheetAsks.push(...got.asks); // asked only when the asks block below is open (offerQuestions)
+    sheetAsks.push(...asksNow); // asked only when the asks block below is open (offerQuestions)
     sheetFacts.push(...got.facts);
-    sheetLooks.push({ role, attempts: got.attempts, facts: got.facts, asks: got.asks.map((a) => ({ line: a.line, rule: a.rule, word: a.word, column: a.column })), dropped });
+    sheetLooks.push({ role, attempts: got.attempts, facts: got.facts, asks: asksNow.map((a) => ({ line: a.line, rule: a.rule, word: a.word, column: a.column })), dropped });
     const lost = dropRows(dropped).map((row) => dropLine(row, jobLines, lineRules));
     for (const l of lost) if (!pageNotChecked.includes(l)) pageNotChecked.push(l);
     pageInfo.push(
@@ -803,7 +807,7 @@ export async function draft({
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */
-    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: shownLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') + (sheetTurn ? `\n\nTHE SHEET CHECKS\n${sheetOfferRules(sheetRoleList).join('\n')}${columnAnswers.length ? `\n${columnAnswers.map((c) => agreedColumnWords(c)).join('\n')}` : ''}` : '') }];
+    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: shownLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') + (sheetTurn ? `\n\nTHE SHEET CHECKS\n${sheetOfferRules(sheetRoleList).join('\n')}${effColumns.length ? `\n${effColumns.map((c) => agreedColumnWords(c)).join('\n')}` : ''}` : '') }];
     const channel = rowEditChannel(flowType === 'tickets', sheetTurn ? sheetSuggestProp(sheetTables ?? {}) : null).tool({ calls: [] });
     for (let rev = 0; ; rev += 1) {
       const got = await forcedTurn({

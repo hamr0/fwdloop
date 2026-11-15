@@ -132,5 +132,31 @@ export function readSheetDropped(file) {
   } catch { return null; }
 }
 
+/**
+ * M17 ruling 2: the columns a person agreed for a word of the job's prose (or a word that is not in the rule it was asked about), kept in the same record as the picks and carried like them:
+ * tied to the job line's WORDS (and its order among equal lines), never to a number. `columns` entries are `{lineWords, occurrence, word, column}`.
+ * @param {string} file @returns {{lineWords: string, occurrence: number, word: string, column: string}[]|null}
+ */
+export function readColumns(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.columns) ? j.columns.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string') : null;
+  } catch { return null; }
+}
+
+/** @param {{n: number, text: string}[]} lines @param {{line: number, word: string, column: string}[]} cols @returns {{lineWords: string, occurrence: number, word: string, column: string}[]} the answers as the record keeps them */
+export function columnEntries(lines, cols) {
+  const keys = lineKeys(lines);
+  return cols.flatMap((c) => { const k = keys.get(c.line); return k === undefined ? [] : [{ ...k, word: c.word, column: c.column }]; });
+}
+
+/** @param {{lineWords: string, occurrence: number, word: string, column: string}[]} entries @param {{n: number, text: string}[]} lines @returns {{line: number, word: string, column: string}[]} the record's answers whose job line is still on the card (same words, same order) */
+export function columnsOnLines(entries, lines) {
+  const byKey = new Map([...lineKeys(lines)].map(([n, k]) => [`${k.lineWords}#${k.occurrence}`, n]));
+  return entries.flatMap((e) => { const n = byKey.get(`${e.lineWords}#${e.occurrence}`); return n === undefined ? [] : [{ line: n, word: e.word, column: e.column }]; });
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);

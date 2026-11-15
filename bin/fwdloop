@@ -52,7 +52,7 @@ import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
-import { readRecordFile, readRowChoices, readSheetDropped } from '../src/pickrecord.js';
+import { readRecordFile, readRowChoices, readSheetDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
@@ -936,10 +936,11 @@ async function cmdDraft(rest) {
   let carriedChoices;
   /** @type {any[]|undefined} */
   let carriedSheetDropped;
+  let carriedColumns;
   if (values.carry !== undefined) {
     const abs = resolve(values.carry);
     const g = readFileInside(dirname(abs), basename(abs));
-    if (g.ok) { carriedPicks = readRecordFile(abs) ?? undefined; carriedChoices = readRowChoices(abs) ?? undefined; carriedSheetDropped = readSheetDropped(abs) ?? undefined; } // a missing or unreadable record is no record: every guardrail is asked, as before
+    if (g.ok) { carriedPicks = readRecordFile(abs) ?? undefined; carriedChoices = readRowChoices(abs) ?? undefined; carriedSheetDropped = readSheetDropped(abs) ?? undefined; carriedColumns = readColumns(abs) ?? undefined; } // a missing or unreadable record is no record: every guardrail is asked, as before
   }
 
   let injected = {};
@@ -1005,6 +1006,7 @@ async function cmdDraft(rest) {
     ...(carriedPicks === undefined ? {} : { carriedPicks }),
     ...(carriedChoices === undefined ? {} : { carriedChoices }),
     ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }),
+    ...(carriedColumns === undefined ? {} : { carriedColumns }),
     draftThinking: values.thinking === true ? 'on' : 'off',
     flowType,
     ...(values.mcp ? { mcpServer: values.mcp } : {}),
