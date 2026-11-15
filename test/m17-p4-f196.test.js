@@ -40,9 +40,10 @@ test('A: the row-edit turn shows the AI the job\'s sheet line by its job number,
   const { p } = await run();
   const turn = p.blockTurns.find((t) => t.name === 'submit_edits');
   const text = turn.messages.map((m) => String(m.content)).join('\n');
-  assert.match(text, /^2\. For each invoice/m);
-  assert.equal(/^4\. /m.test(text.split('THE SHEET CHECKS')[0]), false, 'the send line is not a line the AI is shown');
-  assert.equal(/^3\. /m.test(text.split('THE SHEET CHECKS')[0]), false, 'nor the ask line');
+  const job = text.split("THE JOB (the person's own words)")[1].split('INPUT')[0];
+  assert.match(job, /^2\. For each invoice/m);
+  assert.equal(/^4\. /m.test(job), false, 'the send line is not a line the AI is shown');
+  assert.equal(/^3\. /m.test(job), false, 'nor the ask line');
   assert.ok(text.includes("The job's sheet lines are 2"), 'and it is told which lines are sheet lines');
   assert.deepEqual(turn.schema.properties.sheetChecks.items.properties.line.enum, [2], 'a typed lock: line 4 cannot be named');
 });
