@@ -10,7 +10,7 @@ import { buildSheetLine } from '../src/sheetbuild.js';
 import { parseCsv, sheetTable } from '../src/csv.js';
 import { applyAnswers } from '../src/panel/authorcard.js';
 import { columnChoiceParts, swapColumnWord } from '../src/sheetoffer.js';
-import { sheetByOf } from '../src/checkwords.js';
+import { sheetByCheck } from '../src/sheetblock.js';
 import { RATES, MODEL, fakeProvider, toolReply, textReply } from './drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -49,8 +49,8 @@ test('am3 must-fail: a rule row never holds two checks, no rule is on two rule r
   assert.equal(r.ruleRows.length + r.agentRows.length, sug.length - r.refused.length, 'built + refused = suggested');
   assert.equal(r.refused.length, 0);
   assert.equal(new Set(r.checks.map((c) => c.id)).size, r.checks.length, 'every check has its own id: one row each');
-  for (const a of r.agentRows) assert.equal(sheetByOf(a.check.covers), 'agent', 'an agent row is tagged [agent]');
-  for (const a of r.ruleRows) assert.equal(sheetByOf(a.check.covers), 'you');
+  for (const a of r.agentRows) assert.equal(sheetByCheck(a.check, []), 'agent', 'an agent row is tagged [agent]');
+  for (const a of r.ruleRows) assert.equal(sheetByCheck(a.check, ['x']), 'you');
   assert.ok(r.checks.every((c) => /^l2[ra]/.test(c.id)), 'code names every check');
 });
 
@@ -133,4 +133,22 @@ test('ruling 1: a column answer tied to a ~ rule rewrites the rule\'s own words 
   assert.deepEqual(columnChoiceParts("use the column 'Amount' for 'Price'"), { column: 'Amount', word: 'Price' });
   assert.equal(swapColumnWord('price over 500', 'Price', 'Amount'), 'Amount over 500');
   assert.equal(swapColumnWord('priced over 500', 'Price', 'Amount'), null, 'whole words only');
+});
+
+test('edge case (F195): a multi-rule suggestion one of whose rules a rule row holds is an [agent] row that shows the rule no rule row holds; that rule is not Not checked, and shows once', async () => {
+  const r = await build([{ ...COUNT, covers: [1] }, { ...ROWS, covers: [1, 2] }, { ...NODUP, covers: [2] }]);
+  assert.deepEqual(r.rows.map((x) => [x.state, x.id]), [['built', 'l2r1'], ['agent-row', 'l2a1']]);
+  const a1 = r.agentRows[0].check;
+  assert.deepEqual([a1.row, a1.covers], ['agent', [2]], 'tagged [agent], shows rule 2 only (rule 1 stays on its rule row)');
+  assert.deepEqual(r.agentRows[1].check.covers, [], 'a later check on the shown rule shows no rule: a rule never has two rows');
+});
+
+test('edge case through the real draft: that rule is not in Not checked, the card shows the check once as an [agent] row with the rule\'s words', async () => {
+  const sug = [{ ...COUNT, covers: [1] }, { ...ROWS, covers: [1, 2] }];
+  const r = await draft({ proseText: PROSE, provider: fakeProvider([NO_WORDS, toolReply(decl(sug))]), rates: RATES, modelId: MODEL });
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.notChecked, []);
+  const rows = r.checkCard.rows.filter((x) => x.line === 2);
+  assert.deepEqual(rows.map((x) => x.by), ['you', 'agent']);
+  assert.ok(rows[1].text.includes('covers "flag amounts over 500"'), rows[1].text);
 });

@@ -6,7 +6,7 @@
 //   placement (am3 item 1): every suggestion that passes all of them is BUILT. A cells (answer) check is placed before a table check, then in the order sent. It is a RULE ROW's check when none of the
 //   rules it covers is held by an earlier rule row, else (or when it covers no rule) its own `[agent]` row. Nothing is hidden; nothing sits beside a rule's row.
 // One writer per field: `id`, `claim`, `covers` and `table` (when absent and the line reads one sheet) are assigned here. A rule row's id is `l<line>r<rules>`, an agent row's `l<line>a<k>`; the claim is the id.
-// What this throws away: a suggestion's `id`, `claim`, `text` (and an agent row's `covers`); a refused suggestion's check (only its reason is kept, on the rules it named).
+// What this throws away: a suggestion's `id`, `claim`, `text` (and its `covers`: an agent row's is only the rule no rule row holds); a refused suggestion's check (only its reason is kept, on the rules it named).
 // Third outcomes, named: a suggestion that is not an object, names no rule or op bareguard has, a table it cannot read, a column that is no header: refused with that helper's words; a rule that no
 // check holds is Not checked with the last refusal that named it, or `no sheet check covers it`.
 import { rubricVocabulary, claimSchema, groundedLiterals } from 'bareguard';
@@ -87,10 +87,12 @@ export async function buildSheetLine({ line, tables, suggestions }) {
   /** @type {Placed[]} */
   const agentRows = [];
   for (const b of order) {
-    const asRule = b.nums.length > 0 && b.nums.every((n) => !held.has(n));
+    const asRule = b.nums.length > 0 && b.nums.every((n) => !held.has(n) && !coveredByAgent.has(n));
     const id = asRule ? `l${line.n}r${b.nums.join('_')}` : `l${line.n}a${agentRows.length + 1}`;
-    const check = { id, ...b.fields, ...(b.fields.rule === 'cells' ? { claim: id } : {}), covers: asRule ? b.nums : [] };
-    if (asRule) { for (const n of b.nums) held.set(n, id); ruleRows.push({ check, covers: b.nums }); } else { for (const n of b.nums) if (!coveredByAgent.has(n)) coveredByAgent.set(n, id); agentRows.push({ check, covers: b.nums }); }
+    // an [agent] row shows only a rule no rule row holds and no earlier [agent] row shows (F195's rule: never shown nowhere, never two rows); `row: 'agent'` is the tag's own typed field (src/sheetblock.js)
+    const shown = asRule ? b.nums : b.nums.filter((n) => !held.has(n) && !coveredByAgent.has(n));
+    const check = { id, ...b.fields, ...(b.fields.rule === 'cells' ? { claim: id } : {}), covers: shown, ...(asRule ? {} : { row: 'agent' }) };
+    if (asRule) { for (const n of b.nums) held.set(n, id); ruleRows.push({ check, covers: b.nums }); } else { for (const n of shown) coveredByAgent.set(n, id); agentRows.push({ check, covers: shown }); }
   }
   /** @type {RuleState[]} */
   const rows = rules.map((text, i) => {
@@ -107,17 +109,15 @@ export async function buildSheetLine({ line, tables, suggestions }) {
  * The declaration with every green sheet step's `close.sheet` REWRITTEN by code from what the AI suggested there (`buildSheetLine`). A step with no suggestion is left alone; a step none of whose
  * suggestions can be built loses `close.sheet` (its rules are Not checked with their reasons). Pure over the declaration it is given (a copy is returned).
  * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>}} o
- * @returns {Promise<{declaration: any, notChecked: Record<string, string>, agentCovered: string[], refused: {line: number, helper: string, why: string}[]}>} `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
- *   rewritten line that no check holds; `agentCovered`: the `line N: "rule"` keys whose only check is an `[agent]` row (a multi-rule suggestion one of whose rules a rule row already held)
+ * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[]}>} `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
+ *   rewritten line that no check holds
  */
 export async function buildSheetChecks({ declaration, lines, tables }) {
   /** @type {Record<string, string>} */
   const notChecked = {};
-  /** @type {string[]} */
-  const agentCovered = [];
   /** @type {{line: number, helper: string, why: string}[]} */
   const refused = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, agentCovered, refused };
+  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused };
   /** @type {Set<number>} */
   const done = new Set();
   const steps = [];
@@ -128,12 +128,9 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     if (!line) { steps.push(st); continue; }
     const built = await buildSheetLine({ line, tables, suggestions: st.close.sheet });
     for (const x of built.refused) refused.push({ line: st.fromLine, ...x });
-    for (const r of built.rows) {
-      if (r.state === 'not-checked') notChecked[`line ${st.fromLine}: "${r.text}"`] = /** @type {string} */ (r.reason);
-      else if (r.state === 'agent-row') agentCovered.push(`line ${st.fromLine}: "${r.text}"`);
-    }
+    for (const r of built.rows) if (r.state === 'not-checked') notChecked[`line ${st.fromLine}: "${r.text}"`] = /** @type {string} */ (r.reason);
     const { sheet: _suggested, ...close } = st.close;
     steps.push({ ...st, close: built.checks.length > 0 ? { ...close, sheet: built.checks } : close });
   }
-  return { declaration: { ...declaration, steps }, notChecked, agentCovered, refused };
+  return { declaration: { ...declaration, steps }, notChecked, refused };
 }

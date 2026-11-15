@@ -178,7 +178,7 @@ test('with no Drop or Add a CSV job checks exactly as before am4: the close, the
   assert.deepEqual(d.steps, pre.steps);
   // M17 am2: code writes the checks (it names them and sets `covers`); the typed fields are the AI's suggestion exactly
   const [nodup, over, bands] = CHECKS();
-  assert.deepEqual(d.steps[1].close.sheet, [{ ...over, id: 'l2r2', claim: 'l2r2' }, { ...nodup, id: 'l2r1' }, { ...bands, id: 'l2a1', claim: 'l2a1', covers: [] }], 'the sheet checks are signed as code built them');
+  assert.deepEqual(d.steps[1].close.sheet, [{ ...over, id: 'l2r2', claim: 'l2r2' }, { ...nodup, id: 'l2r1' }, { ...bands, id: 'l2a1', claim: 'l2a1', covers: [], row: 'agent' }], 'the sheet checks are signed as code built them');
   const tables = { aging: sheetTable(parseCsv(readFileSync(AGING_CSV, 'utf8'))) };
   const line = { n: 2, text: 'x', guardrail: 'every invoice appears exactly once; flag amounts over 500' };
   const verdict = (x) => JSON.stringify([sheetCheckReds(x.steps[1].close.sheet, 2, tables), sheetCheckWordReds(x.steps[1].close.sheet, line)]);
