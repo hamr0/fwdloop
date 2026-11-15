@@ -78,8 +78,9 @@ export function sheetOpsBrief() {
  * The rules the validator enforces on `close.sheet`, as lines for the drafter (every one of them is a refusal at $0 in src/declaration.js / src/sheetchecks.js).
  * @param {string[]} roles the CSV input roles @returns {string[]}
  */
-export function sheetOfferRules(roles) {
+export function sheetOfferRules(roles, lineNums = /** @type {number[]} */ ([])) {
   return [
+    ...(lineNums.length ? [`- The job's sheet lines are ${lineNums.join(', ')} (the lines shown with their ~ rules that are not on the list's own rows): "line" in a sheetChecks suggestion is one of those numbers, exactly as shown. The checks of a sheet line are sent only in sheetChecks: an edit that names a sheet line is refused.`] : []),
     `- M17: you write NO sheet check in the declaration (it has no "close.sheet"). A job line whose step reads a CSV input (${roles.join(', ')}) and has a guardrail about values in it lists that input's role in the step's reads and gets its checks from your row-edit reply: "sheetChecks", 1 to ${MAX_SHEET_CHECKS} suggestions, each a bareguard check object from the ops below with "line" = the job line's number and "table" = the CSV input's role. Suggest the checks the line's guardrail needs and nothing else; code builds each one on bareguard or refuses it with its reason, and the person sees every one and can drop it.`,
     '- A column name in a suggestion is picked from the sheet\'s header, spelled exactly; the tool only lets you pick a header name.',
     '- A number in a where condition (gt, gte, lt, lte, eq, between) must be a number the person wrote on that job line or its guardrail; a date (asOf, and the values of before, after, dateOn, dateBetween) must be a date they wrote there as YYYY-MM-DD. Never make a number or a date up: if the person gave none, leave that condition out.',
@@ -91,12 +92,12 @@ export function sheetOfferRules(roles) {
 
 /**
  * M17 am2 item 2: the row-edit reply's `sheetChecks` property: bareguard's `checkSchema` items (src/sheetoffer.js `sheetChecksProp`) plus the job line each suggestion is for. Typed suggestions only; code builds or refuses each.
- * @param {Record<string, {header: string[]}>} tables @returns {Record<string, any>|null}
+ * @param {Record<string, {header: string[]}>} tables @param {number[]} [lineNums] the job's sheet lines: `line` can only name one of them @returns {Record<string, any>|null}
  */
-export function sheetSuggestProp(tables) {
+export function sheetSuggestProp(tables, lineNums = /** @type {number[]} */ ([])) {
   const p = sheetChecksProp(tables);
   if (p === null) return null;
-  return { ...p, description: 'suggested sheet checks, only for a job line whose step reads a CSV input: code builds or refuses each one on bareguard; you never write a check into the plan', items: { ...p.items, properties: { line: { type: 'integer', minimum: 1, description: 'the number of the job line this check is for' }, ...p.items.properties }, required: ['line', ...p.items.required] } };
+  return { ...p, description: 'suggested sheet checks, only for a job line whose step reads a CSV input: code builds or refuses each one on bareguard; you never write a check into the plan', items: { ...p.items, properties: { line: { type: 'integer', ...(lineNums.length ? { enum: lineNums } : { minimum: 1 }), description: 'the number of the job line this check is for (one of the sheet lines shown)' }, ...p.items.properties }, required: ['line', ...p.items.required] } };
 }
 
 /** @param {unknown} rule @returns {boolean} true for the `use the column 'X' for 'Y'` rule an agreed column ask writes ({@link columnRuleWords}) */

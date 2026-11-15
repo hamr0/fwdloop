@@ -753,16 +753,19 @@ export async function draft({
   const ticketProposal = { refused: {} };
   const ticketRuleOnJob = flowType === 'tickets' && blockPlan?.ok === true && blockPlan.jobLines.some((l) => (l.rules ?? []).some((t) => ticketRuleField(t) !== null));
   const sheetRoleList = sheetTables ? Object.keys(sheetTables) : [];
-  const sheetTurn = sheetRoleList.length > 0 && jobLines.some((l) => !askLines.has(l.n));
+  // the sheet lines: a line with `~` rules the list's own rows do not take (and no ask or send line); the AI names a sheet line by its job number, and only one of these
+  const sendLines = new Set(arbiter.sends.map((x) => x.line));
+  const sheetLineNums = sheetRoleList.length > 0 ? jobLines.filter((l) => !askLines.has(l.n) && !sendLines.has(l.n) && !blockLineNums.has(l.n) && lineRules(l).length > 0).map((l) => l.n) : [];
+  const sheetTurn = sheetLineNums.length > 0;
   if (block && blockPlan?.ok && (blockPlan.jobLines.length > 0 || sheetTurn) && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule') || ticketRuleOnJob || sheetTurn)) {
     // M17 am2: with a CSV input the turn also shows the sheet lines and the sheets; the sheet checks come back as typed suggestions
     const texts = { ...block.texts, ...(facts.sheets ?? {}) };
-    const shownLines = sheetTurn ? jobLines.filter((l) => !askLines.has(l.n)) : blockPlan.jobLines;
+    const shownLines = sheetTurn ? jobLines.filter((l) => blockLineNums.has(l.n) || sheetLineNums.includes(l.n)) : blockPlan.jobLines;
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */
-    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: shownLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') + (sheetTurn ? `\n\nTHE SHEET CHECKS\n${sheetOfferRules(sheetRoleList).join('\n')}${effColumns.length ? `\n${effColumns.map((c) => agreedColumnWords(c)).join('\n')}` : ''}` : '') }];
-    const channel = rowEditChannel(flowType === 'tickets', sheetTurn ? sheetSuggestProp(sheetTables ?? {}) : null).tool({ calls: [] });
+    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: shownLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') + (sheetTurn ? `\n\nTHE SHEET CHECKS\n${sheetOfferRules(sheetRoleList, sheetLineNums).join('\n')}${effColumns.length ? `\n${effColumns.map((c) => agreedColumnWords(c)).join('\n')}` : ''}` : '') }];
+    const channel = rowEditChannel(flowType === 'tickets', sheetTurn ? sheetSuggestProp(sheetTables ?? {}, sheetLineNums) : null).tool({ calls: [] });
     for (let rev = 0; ; rev += 1) {
       const got = await forcedTurn({
         kind: rev === 0 ? 'row-edit' : 'row-edit-revision', system: ROW_EDIT_SYSTEM, messages: turn, tool: { name: channel.name, description: channel.description, schema: channel.parameters },
@@ -1037,11 +1040,15 @@ export async function draft({
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };
     const uncovered = [...uncoveredRules(declaration, jobLines, Object.keys(facts.sheets ?? {}), sheetBuilt ?? undefined), ...(sheetHitl?.lost ?? [])];
     // the tag of a note no row tells: any note code writes is [default]; a row's own tag wins
+    // M17 am2: a `~` rule is ONE Not checked line with ONE reason: the build's (the refusal or "no sheet check covers it") wins over the sheet look's column drop of the same rule; a drop of a prose word is no rule and stays
+    const ruleKey = (/** @type {string} */ t) => t.split(' \u2014 ')[0];
+    const ruled = new Set(uncovered.map(ruleKey));
+    const lookNotChecked = pageNotChecked.filter((t) => !(ruled.has(ruleKey(t)) && !t.endsWith('no sheet check covers it')));
     /** @type {Record<string, 'you'|'agent'|'default'>} */
-    const noteBy = Object.fromEntries([...pageNotChecked, ...uncovered].map((t) => [t, 'default']));
+    const noteBy = Object.fromEntries([...lookNotChecked, ...uncovered].map((t) => [t, 'default']));
     const ticketNotChecked = (ticketOnList?.notChecked ?? []).map((t) => `not checked · "${t.rule}" — ${t.reason}`);
     for (const t of ticketNotChecked) noteBy[t] = 'you';
-    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...pageNotChecked, ...(assembled ? assembled.notChecked : []), ...ticketNotChecked, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
+    extras = { questions: asked.kept, droppedQuestions: asked.dropped, notChecked: [...new Set([...lookNotChecked, ...(assembled ? assembled.notChecked : []), ...ticketNotChecked, ...uncovered])], ...(assembled ? { notCheckedBy: { ...noteBy, ...assembled.notCheckedBy } } : {}) };
     if (asked.dropped.length) entry.droppedQuestions = asked.dropped;
     // the declaration the model sent, as parsed, before any code overwrite (log.json keeps it per try)
     entry.args = captured;

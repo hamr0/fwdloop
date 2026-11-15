@@ -2721,6 +2721,8 @@
   // M16 am4: with `onList` the checks are drawn as rows of the list (tags, Drop) by the caller, so this draws the rest
   function sheetBlockLines(sheet, onList){
     if(!sheet) return [];
+    // M17 am4 (C7): a plan whose sheet checks code built shows the list only: its rows and its one Not checked list, never this block beside them
+    if(onList && sheet.codeBuilt === true) return [];
     var out = [];
     if((sheet.guardrails || []).length){
       out.push("Guardrails:");
