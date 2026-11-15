@@ -62,8 +62,9 @@ test('am2 must-fail: a suggestion bareguard refuses is never built; its rule is 
     [{ ...ROWS, where: [{ column: 'Amount', cmp: 'gt', value: 777 }], covers: [2] }, 'groundedLiterals'],
     [{ rule: 'table', table: 'aging', op: 'noDuplicates', column: 'Customer', covers: [2] }, 'runTableChecks'],
   ];
+  const dup = { aging: sheetTable(parseCsv('Invoice #,Customer,Due date,Amount\nINV-1,A,2026-01-01,5\nINV-2,A,2026-01-02,6\n')) };
   for (const [s, helper] of cases) {
-    const r = await build([s]);
+    const r = await buildSheetLine({ line: LINE, tables: helper === 'runTableChecks' ? dup : TABLES, suggestions: [s] });
     assert.equal(r.checks.length, 0, helper);
     assert.equal(r.refused[0].helper, helper);
     assert.equal(r.rows[1].state, 'not-checked');

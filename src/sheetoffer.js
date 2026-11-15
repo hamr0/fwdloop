@@ -80,13 +80,23 @@ export function sheetOpsBrief() {
  */
 export function sheetOfferRules(roles) {
   return [
-    `- A green step whose line has a guardrail about values in a CSV input (${roles.join(', ')}) lists that input's role in its reads and carries close.sheet = a list of 1 to ${MAX_SHEET_CHECKS} checks, each a bareguard check object from the ops below, with "table" = the CSV input's role. Write the checks the line's guardrail needs and nothing else; the person signs them. close.sheet is for a green step only.`,
-    '- A column name in a check is picked from the sheet\'s header, spelled exactly; the tool only lets you pick a header name. A check that bareguard refuses (a wrong field for the op, overlapping bands, a missing dateFormats entry) is refused at $0 naming the job line.',
+    `- M17: you write NO sheet check in the declaration (it has no "close.sheet"). A job line whose step reads a CSV input (${roles.join(', ')}) and has a guardrail about values in it lists that input's role in the step's reads and gets its checks from your row-edit reply: "sheetChecks", 1 to ${MAX_SHEET_CHECKS} suggestions, each a bareguard check object from the ops below with "line" = the job line's number and "table" = the CSV input's role. Suggest the checks the line's guardrail needs and nothing else; code builds each one on bareguard or refuses it with its reason, and the person sees every one and can drop it.`,
+    '- A column name in a suggestion is picked from the sheet\'s header, spelled exactly; the tool only lets you pick a header name.',
     '- A number in a where condition (gt, gte, lt, lte, eq, between) must be a number the person wrote on that job line or its guardrail; a date (asOf, and the values of before, after, dateOn, dateBetween) must be a date they wrote there as YYYY-MM-DD. Never make a number or a date up: if the person gave none, leave that condition out.',
-    '- A "cells" check names "claim", a short name for the answer the step gives; the step is told only the shape of the answer, never the check. A "table" check has no claim and judges the input sheet itself, so it must already hold on that sheet (one that fails on it is refused); to check what a step gives, use a cells check. If every check of a step is a table check the step has nothing to answer and the line is refused: pair a table check with at least one cells check.',
-    '- "covers" on each check lists the numbers of the line\'s guardrail rules (the ~ parts, counted from 1 in the order shown) that this check really verifies; [] if none. A guardrail rule that no check covers is shown to the person as Not checked, so cover every rule you can with a real check, and never claim a rule a check does not verify. A rule shaped like "use the column \'X\' for \'Y\'" is a column choice, not a rule to cover.',
+    '- A "cells" check names "claim", any short name (code renames it); the step is told only the shape of the answer, never the check. A "table" check has no claim and judges the input sheet itself, so it must already hold on that sheet; to check what a step gives, use a cells check. If every check of a step is a table check the step has nothing to answer: suggest at least one cells check too.',
+    '- "covers" on each suggestion lists the numbers of the line\'s guardrail rules (the ~ parts, counted from 1 in the order shown) that this check really verifies; [] if none. A guardrail rule that no check covers is shown to the person as Not checked, so cover every rule you can with a real check, and never claim a rule a check does not verify. A rule shaped like "use the column \'X\' for \'Y\'" is a column choice, not a rule to cover.',
     ...sheetOpsBrief(),
   ];
+}
+
+/**
+ * M17 am2 item 2: the row-edit reply's `sheetChecks` property: bareguard's `checkSchema` items (src/sheetoffer.js `sheetChecksProp`) plus the job line each suggestion is for. Typed suggestions only; code builds or refuses each.
+ * @param {Record<string, {header: string[]}>} tables @returns {Record<string, any>|null}
+ */
+export function sheetSuggestProp(tables) {
+  const p = sheetChecksProp(tables);
+  if (p === null) return null;
+  return { ...p, description: 'suggested sheet checks, only for a job line whose step reads a CSV input: code builds or refuses each one on bareguard; you never write a check into the plan', items: { ...p.items, properties: { line: { type: 'integer', minimum: 1, description: 'the number of the job line this check is for' }, ...p.items.properties }, required: ['line', ...p.items.required] } };
 }
 
 /** @param {unknown} rule @returns {boolean} true for the `use the column 'X' for 'Y'` rule an agreed column ask writes ({@link columnRuleWords}) */

@@ -105,8 +105,8 @@ export function rowEditUserText({ jobLines, look, texts }) {
   return out.join('\n');
 }
 
-/** @param {boolean} ticket @returns {Record<string, any>} the tool's schema: the edits list (each edit judged by code, so an item is any object), and for a Tickets job the optional ticketFilter */
-const rowEditSchema = (ticket) => ({
+/** @param {boolean} ticket @param {Record<string, any>|null} [sheetChecks] M17 am2: with a CSV input, the optional `sheetChecks` suggestions (src/sheetoffer.js `sheetSuggestProp`) @returns {Record<string, any>} the tool's schema: the edits list (each edit judged by code, so an item is any object), and for a Tickets job the optional ticketFilter */
+const rowEditSchema = (ticket, sheetChecks = null) => ({
   type: 'object',
   properties: {
     edits: { type: 'array', items: { type: 'object', properties: { op: { enum: ['add', 'reading', 'pick', 'not-checkable'] } }, required: ['op'] }, description: 'row edits; each is judged on its own' },
@@ -122,20 +122,21 @@ const rowEditSchema = (ticket) => ({
       },
       ticketWatch: { type: 'array', items: { type: 'string', enum: ['state', 'labels'] }, description: 'REQUIRED when a job line says to run a ticket again when its state or its labels change (the fields that change); leave it out otherwise. The person signs it; code runs the look' },
     } : {}),
+    ...(sheetChecks ? { sheetChecks } : {}),
   },
   required: ['edits'],
   additionalProperties: false,
 });
 
-/** @param {boolean} ticket the channel `askStructured` reads (src/authorflow.js) */
-export const rowEditChannel = (ticket = false) => ({
+/** @param {boolean} ticket the channel `askStructured` reads (src/authorflow.js) @param {Record<string, any>|null} [sheetChecks] */
+export const rowEditChannel = (ticket = false, sheetChecks = null) => ({
   name: ROW_EDIT_TOOL,
   instruction: `Your reply did not deliver exactly one ${ROW_EDIT_TOOL} call. Call ${ROW_EDIT_TOOL} exactly once, with the edits list as its arguments. Do not write the answer as text.`,
   textPath: 'edits',
   tool: (/** @type {{calls: any[]}} */ box) => ({
     name: ROW_EDIT_TOOL,
     description: 'Deliver your row edits (or an empty list). Call this exactly once.',
-    parameters: rowEditSchema(ticket),
+    parameters: rowEditSchema(ticket, sheetChecks),
     execute: async (/** @type {any} */ args) => { box.calls.push(args); return ROW_EDIT_ACK; },
   }),
 });

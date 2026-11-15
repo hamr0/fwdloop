@@ -52,7 +52,7 @@ import { repairDeclaration } from './repairs.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
-import { sheetChecksProp, sheetOfferRules } from './sheetoffer.js';
+import { sheetSuggestProp, sheetOfferRules } from './sheetoffer.js';
 import { uncoveredRules, csvRolesOf } from './sheetblock.js';
 import { withSheetRows, withSheetCard, sheetChoice, keyOfSameCheck } from './sheetrows.js';
 import { buildSheetChecks } from './sheetbuild.js';
@@ -99,14 +99,12 @@ const COLUMNS_PROP = Object.freeze({
 });
 
 /**
- * The forced tool's parameter schema. `menu` = wiredMenu(). `sheets` (M10b piece 3, optional) = the drafting copy's table of each CSV input role: with it a step may carry
- * `close.sheet`, and every column a check names is an enum of that sheet's exact header (src/sheetoffer.js); without it (no CSV input) no sheet property exists.
+ * The forced tool's parameter schema. `menu` = wiredMenu(). M17 am2: the AI is offered no `close.sheet` (it suggests sheet checks on the row-edit reply, src/rowedit.js; code builds them, src/sheetbuild.js).
  * M13 piece 4: `ticket` = `{flowType, tools}` for MCP (generic) and Tickets; then a step may carry `mcpTools` (an enum of the job's tools) and, for Tickets, the tool carries `ticketFilter` and `ticketWatch` (src/ticket-draft.js). The job's `mcp` block and `flowType` are set by code, never offered.
  * M16 item 5: the AI is offered no `close.cited` (the list owns the facts; code builds them from its rows).
- * @param {any[]} menu @param {{sheets?: Record<string, {header: string[]}>, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o]
+ * @param {any[]} menu @param {{ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o]
  */
-export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
-  const sheetProp = sheets ? sheetChecksProp(sheets) : null;
+export function buildDeclarationSchema(menu, { ticket } = {}) {
   const ticketParts = ticket ? ticketSchemaParts(ticket) : null;
   return {
     type: 'object',
@@ -136,7 +134,6 @@ export function buildDeclarationSchema(menu, { sheets, ticket } = {}) {
               properties: {
                 class: { type: 'string', enum: [...CLASSES], description: "MUST equal the class of fromLine's guardrail in guardrailClasses; hitl when that line has no guardrail" },
                 columns: COLUMNS_PROP,
-                ...(sheetProp ? { sheet: sheetProp } : {}),
               },
               required: ['class'],
               additionalProperties: false,
@@ -204,9 +201,9 @@ export const QUESTIONS_PROMPT = [
 ].join('\n');
 
 /** The declaration schema plus the optional `notChecked` (every try) and, on try 3 only, `questions`. Neither is in `required`. */
-/** @param {any[]} menu @param {{questions?: boolean, sheets?: Record<string, {header: string[]}>|undefined, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o] */
-export function buildRoundSchema(menu, { questions = false, sheets = undefined, ticket = undefined } = {}) {
-  const s = buildDeclarationSchema(menu, { sheets, ticket });
+/** @param {any[]} menu @param {{questions?: boolean, ticket?: {flowType: 'mcp'|'tickets', tools: string[]}}} [o] */
+export function buildRoundSchema(menu, { questions = false, ticket = undefined } = {}) {
+  const s = buildDeclarationSchema(menu, { ticket });
   const extra = { notChecked: { type: 'array', items: { type: 'string' }, description: 'what the job asks for that no typed check verifies' } };
   if (questions) {
     extra.questions = {
@@ -304,7 +301,6 @@ function greenReadRule(sources) {
     : `${rule} This job signs no CSV input, so a guardrail that needs a sheet check cannot be classed green here: class it "hitl".`];
   // M16 S5: the check block builds the quote checks of its lines; the drafter is told nothing of close.cited and offers none
   if (docRoles.length) out.push(`- A document input (${docRoles.join(', ')}) is never listed in reads. A step that needs the document is granted "read" ("readDocx" for a .docx) and reads it by its role through that tool; its reads stay empty or hold only earlier outputs.`);
-  if (csvRoles.length) out.push(...sheetOfferRules(csvRoles)); // M10b piece 3: close.sheet and every rule the validator enforces on it
   return out;
 }
 
@@ -321,14 +317,6 @@ const WHEN_TO_USE = Object.freeze({
 function whenToUse(menu) {
   const on = new Set(menu.map((e) => e.verb));
   return Object.entries(WHEN_TO_USE).filter(([verb]) => on.has(verb)).map(([, line]) => line);
-}
-
-/** M10b piece 3: with a CSV input, the guardrail rules of each line by number (the numbers `covers` names), in the order the validator counts them. Otherwise nothing. */
-function sheetRuleNumbers(lines, arbiter) {
-  const csvRoles = (arbiter.sources ?? []).filter((s) => s.kind === 'file' && isCellsPath(s.path));
-  if (csvRoles.length === 0) return [];
-  const rows = lines.map((l) => ({ n: l.n, rules: lineRules(l.guardrail ? { rule: l.guardrail } : {}).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r)) })).filter((x) => x.rules.length > 0);
-  return rows.length === 0 ? [] : ['', 'The guardrail rules by number (what "covers" counts):', ...rows.map((x) => `- line ${x.n}: ${x.rules.map((q) => `${q.no}) ${q.r}`).join(' ')}`)];
 }
 
 export function buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines = /** @type {Set<number>} */ (new Set()) }) {
@@ -361,7 +349,6 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines 
     '',
     'The numbered job lines:',
     jobLinesText(lines, arbiter.asks, blockLines),
-    ...sheetRuleNumbers(lines, arbiter),
   ].join('\n');
 }
 
@@ -800,16 +787,24 @@ export async function draft({
   }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
   // a line with nothing to check (no `~` rule of the person's, no input text for a `!` row to be built from) has no list to edit: no turn is paid for it (M16 item 2, "every job line with checks")
+  // M10b piece 3: the drafting copy's table of each CSV input - the header the AI may pick from in its suggestions, the table bareguard's build and sign-time tests run over
+  const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
+  /** M17 am2: the sheet checks the AI suggested on the row-edit reply (typed, each with its job line); code builds or refuses each (src/sheetbuild.js) @type {any[]} */
+  let sheetSuggested = [];
   /** M17 am6: the Tickets filter and watch the AI suggested as an edit of the list: the last legal value of each, and what was refused (code proves each, src/ticketrows.js) @type {{ticketFilter?: any, ticketWatch?: any, refused: Record<string, string>}} */
   const ticketProposal = { refused: {} };
   const ticketRuleOnJob = flowType === 'tickets' && blockPlan?.ok === true && blockPlan.jobLines.some((l) => (l.rules ?? []).some((t) => ticketRuleField(t) !== null));
-  if (block && blockPlan?.ok && blockPlan.jobLines.length > 0 && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule') || ticketRuleOnJob)) {
-    const texts = block.texts;
+  const sheetRoleList = sheetTables ? Object.keys(sheetTables) : [];
+  const sheetTurn = sheetRoleList.length > 0 && jobLines.some((l) => !askLines.has(l.n));
+  if (block && blockPlan?.ok && (blockPlan.jobLines.length > 0 || sheetTurn) && (Object.keys(block.texts).length > 0 || block.rows.some((r) => r.kind === 'rule') || ticketRuleOnJob || sheetTurn)) {
+    // M17 am2: with a CSV input the turn also shows the sheet lines and the sheets; the sheet checks come back as typed suggestions
+    const texts = { ...block.texts, ...(facts.sheets ?? {}) };
+    const shownLines = sheetTurn ? jobLines.filter((l) => !askLines.has(l.n)) : blockPlan.jobLines;
     // the row-edit turn (bareloop ROW_EDIT_SYSTEM / rowEditUserText as copied): a revise only when an edit was refused, at most MAX_REVISIONS; a refused edit costs the others nothing
     const lookReport = pageSources.length ? { prose: [], notFound: [], facts: look.facts, dropped: look.dropped } : null;
     /** @type {{role: string, content: string}[]} */
-    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: blockPlan.jobLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') }];
-    const channel = rowEditChannel(flowType === 'tickets').tool({ calls: [] });
+    let turn = [{ role: 'user', content: rowEditUserText({ jobLines: shownLines, look: lookReport, texts }) + (flowType === 'tickets' ? `\n\n${ticketFilterBlock()}` : '') + (sheetTurn ? `\n\nTHE SHEET CHECKS\n${sheetOfferRules(sheetRoleList).join('\n')}` : '') }];
+    const channel = rowEditChannel(flowType === 'tickets', sheetTurn ? sheetSuggestProp(sheetTables ?? {}) : null).tool({ calls: [] });
     for (let rev = 0; ; rev += 1) {
       const got = await forcedTurn({
         kind: rev === 0 ? 'row-edit' : 'row-edit-revision', system: ROW_EDIT_SYSTEM, messages: turn, tool: { name: channel.name, description: channel.description, schema: channel.parameters },
@@ -822,6 +817,7 @@ export async function draft({
         const reds = proposalReds(f, got.args[f]);
         if (reds.length === 0) { ticketProposal[f] = got.args[f]; delete ticketProposal.refused[f]; } else ticketProposal.refused[f] = reds[0];
       }
+      if (sheetTurn && Array.isArray(got.args.sheetChecks)) sheetSuggested = got.args.sheetChecks.filter((/** @type {any} */ x) => x && typeof x === 'object' && !Array.isArray(x));
       const rec = block.applyDelta({ label: `row-edit-${rev + 1}`, edits: editsOf(got.args) });
       block.reconcile();
       got.entry.edits = editRecord(rec);
@@ -850,8 +846,6 @@ export async function draft({
   const factsInfo = [...factsBase, ...ticketSources.flatMap((s) => ticketFactsLines(s.role)), ...(flowType === 'mcp' ? mcpFactsLines(mcp.server, mcp.tools) : [])];
 
   // `notChecked` is offered on every try (information, not asking); `questions` only on try 3 (below).
-  // M10b piece 3: the drafting copy's table of each CSV input - the header the drafter may pick from, the table bareguard's sign-time test runs over
-  const sheetTables = Object.keys(facts.sheets ?? {}).length ? Object.fromEntries(Object.entries(facts.sheets).map(([role, t]) => [role, sheetTable(parseCsv(t))])) : undefined;
   const baseSystem = buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines: blockLineNums });
   // M8 item 5a: the earlier runs' notes go on the DRAFTER's system prompt only (F81's B arm), the one `system` every round of this draft uses (revise and structure retries too).
   // Absent or empty: the prompt is byte-identical to what it was.
@@ -880,7 +874,7 @@ export async function draft({
     // Amendment 25: a lock is a mechanism. Only try 3 of 3, and only when tries 1 and 2 BOTH failed validation (`revisions` counts the
     // validator's refusals fed back), gets the `questions` property; the redraft after an answer passes offerQuestions:false and never does.
     const askOpen = offerQuestions && revisions === MAX_REVISIONS;
-    const schema = buildRoundSchema(menu, { questions: askOpen, sheets: sheetTables, ticket: flowType === 'plain' ? undefined : { flowType, tools: mcp.tools } });
+    const schema = buildRoundSchema(menu, { questions: askOpen, ticket: flowType === 'plain' ? undefined : { flowType, tools: mcp.tools } });
     const tool = {
       name: TOOL,
       description: 'Emit the flow declaration over the granted primitives, or refuse lines you cannot serve.',
@@ -1017,7 +1011,24 @@ export async function draft({
     // M17 am2: the AI writes no sheet check. What it sent as `close.sheet` is a typed suggestion; code refuses or builds each one on bareguard (src/sheetbuild.js) and writes the checks, with its own ids
     /** @type {Awaited<ReturnType<typeof buildSheetChecks>>|null} */
     let sheetBuilt = null;
-    if (sheetTables) { sheetBuilt = await buildSheetChecks({ declaration, lines, tables: sheetTables }); Object.assign(declaration, { steps: sheetBuilt.declaration.steps }); if (sheetBuilt.refused.length) entry.sheetRefused = sheetBuilt.refused; }
+    let carriedSheet = false;
+    if (sheetTables) {
+      // M17 am2 item 2: a declaration that carries `close.sheet` is refused (a red naming the field, no check run); the suggestions are the row-edit reply's, put on the step that reads the sheet by code
+      const roles = Object.keys(sheetTables);
+      const given = new Set();
+      declaration.steps = (Array.isArray(declaration.steps) ? declaration.steps : []).map((/** @type {any} */ st) => {
+        if (!isPlainObject(st) || !isPlainObject(st.close)) return st;
+        const { sheet: carried, ...close } = st.close;
+        if (carried !== undefined) carriedSheet = true;
+        const mine = close.class === 'green' && Array.isArray(st.reads) && st.reads.some((/** @type {string} */ r) => roles.includes(r)) && !given.has(st.fromLine) ? sheetSuggested.filter((x) => x.line === st.fromLine).map(({ line: _l, ...x }) => x) : [];
+        if (mine.length) given.add(st.fromLine);
+        return { ...st, close: mine.length ? { ...close, sheet: mine } : close };
+      });
+      const unplaced = sheetSuggested.filter((x) => !given.has(x.line)).map((x) => ({ line: x.line, helper: 'line', why: `line ${String(x.line)} has no green step that reads a sheet` }));
+      sheetBuilt = await buildSheetChecks({ declaration, lines, tables: sheetTables });
+      Object.assign(declaration, { steps: sheetBuilt.declaration.steps });
+      if (sheetBuilt.refused.length || unplaced.length) entry.sheetRefused = [...unplaced, ...sheetBuilt.refused];
+    }
     // M16 am4 (2): a sheet line's checks are rows on the same list (code builds them, src/sheetbuild.js; src/sheetrows.js reads them as rows)
     let sheetOnList = null;
     /** @type {any[]} */
@@ -1061,7 +1072,7 @@ export async function draft({
     const planRed = verdict1.ok ? findMcpPlanRed(declaration) : null;
     // M10b am5: a `table` check that already fails on the sheet this draft was made with is a red ($0: bareguard's checkStep on the draft-time table, no model call)
     const tableReds = verdict1.ok && sheetTables ? await tableChecksFailingOnInput(declaration, sheetTables) : [];
-    const carriedRed = carriedTicketFields.length ? `declaration: the draft carries ${carriedTicketFields.map((f) => `"${f}"`).join(' and ')}, which code sets from the check on the list. Remove the field from the draft` : null;
+    const carriedRed = carriedTicketFields.length ? `declaration: the draft carries ${carriedTicketFields.map((f) => `"${f}"`).join(' and ')}, which code sets from the check on the list. Remove the field from the draft` : carriedSheet ? 'declaration: the draft carries "close.sheet", which code builds from the checks suggested on the list. Remove the field from the draft' : null;
     const verdict = carriedRed ? { ok: false, reds: [carriedRed] } : planRed ? { ok: false, reds: [planRed] } : tableReds.length ? { ok: false, reds: tableReds } : verdict1;
     lastDecl = declaration;
     const asked = askOpen ? normalizeQuestions(rawQuestions, failedLines) : { kept: [], dropped: [] };

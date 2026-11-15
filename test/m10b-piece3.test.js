@@ -67,10 +67,13 @@ function columnEnums(node, out = []) {
   return out;
 }
 
-test('the tool schema offers close.sheet for a CSV job, and every column-bearing field is an enum of the sheet\'s exact header', async () => {
+// M17 am2 item 2: the declaration offers no close.sheet; the row-edit reply offers `sheetChecks` (each with its job line), the same bareguard schema
+test('the declaration offers no close.sheet; the row-edit reply offers sheetChecks, and every column-bearing field is an enum of the sheet\'s exact header', async () => {
   const { p } = await run(CHECKS());
-  const sheet = draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet;
-  assert.ok(sheet, 'close.sheet is offered');
+  assert.equal(draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet, undefined);
+  const sheet = p.blockTurns.find((t) => t.name === 'submit_edits').schema.properties.sheetChecks;
+  assert.ok(sheet, 'sheetChecks is offered');
+  assert.ok(sheet.items.required.includes('line') && sheet.items.properties.line.type === 'integer');
   const props = sheet.items.properties;
   for (const k of ['column', 'keyColumn', 'groupColumn', 'result']) assert.deepEqual(props[k].enum, HEADER, k);
   assert.deepEqual(props.where.items.properties.column.enum, HEADER);
@@ -99,17 +102,17 @@ test('no close.sheet is offered to a job without a CSV input (a document job), n
   } finally { rmSync(fx.dir, { recursive: true, force: true }); }
   const menu = wiredMenu(['core']);
   assert.equal(buildDeclarationSchema(menu).properties.steps.items.properties.close.properties.sheet, undefined);
-  assert.equal(buildRoundSchema(menu, { sheets: {} }).properties.steps.items.properties.close.properties.sheet, undefined);
-  assert.ok(buildRoundSchema(menu, { sheets: { aging: { header: HEADER } } }).properties.steps.items.properties.close.properties.sheet);
+  assert.equal(buildRoundSchema(menu, { sheets: { aging: { header: HEADER } } }).properties.steps.items.properties.close.properties.sheet, undefined, 'never, even with a sheet');
 });
 
 test('every WHERE_CMPS entry is named in bareguard\'s own where description (a drift guard: the list is the one hand copy)', () => {
   for (const c of WHERE_CMPS) assert.ok(V.rules.cells.fields.where.description.includes(`"${c}"`), c);
 });
 
-test('the drafter is told every op with its worked example, generated from the vocabulary, and every rule the validator enforces', async () => {
+test('the AI is told every op with its worked example, generated from the vocabulary, and every rule code enforces, on the row-edit turn (the declaration prompt no longer asks for close.sheet)', async () => {
   const { p } = await run(CHECKS());
-  const sys = draftCall(p).messages[0].content;
+  assert.equal(draftCall(p).messages[0].content.includes('close.sheet is for a green step only'), false);
+  const sys = p.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n');
   let n = 0;
   for (const rule of ['cells', 'table']) {
     for (const [op, o] of Object.entries(V.rules[rule].ops)) {
@@ -124,9 +127,8 @@ test('the drafter is told every op with its worked example, generated from the v
     'every check of a step is a table check', // all-table refusal
     'Not checked', // a rule no check covers
     'dateFormats', // a date column needs its format
-    'close.sheet is for a green step only',
     'picked from the sheet\'s header',
-    'The guardrail rules by number', 'line 2: 1) every invoice appears exactly once 2) flag amounts over 500',
+    '~ rule 1: every invoice appears exactly once', '~ rule 2: flag amounts over 500',
   ]) assert.ok(sys.includes(w), w);
 });
 
@@ -203,7 +205,7 @@ test('the column choice an agreed ask wrote is not a rule to cover, and the head
   const r = await draft({ proseText: prose(`flag amounts over 500; ${columnRuleWords('Price', 'Amount')}`), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.notChecked, [], 'the mapping rule is a column choice; the other rule is covered');
-  assert.deepEqual(draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet.items.properties.column.enum, HEADER);
+  assert.deepEqual(p.blockTurns.find((t) => t.name === 'submit_edits').schema.properties.sheetChecks.items.properties.column.enum, HEADER);
 });
 
 test('the older asks still ask once: a word that is no column asks, before any drafting round and any sheet schema is sent', async () => {

@@ -198,10 +198,14 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   const decl = { ...rest, steps: signed.steps.map((/** @type {any} */ s) => { const { goal: _x, ...st } = s; return st; }) };
   delete decl.inputFacts;
   const sheetAns = textOf(JSON.stringify({ facts: [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }] }));
-  const mk = () => router({ map: sheetAns, submit_edits: NONE, suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', decl) });
+  // M17 am2 item 2: the signed job's sheet checks come back as the AI's typed suggestions on the row-edit reply, never in the declaration; code builds them (its own ids, the claim is the id)
+  const suggested = decl.steps.flatMap((/** @type {any} */ s) => (s.close.sheet ?? []).map((/** @type {any} */ c) => ({ ...c, line: s.fromLine })));
+  const bare = { ...decl, steps: decl.steps.map((/** @type {any} */ s) => { const { sheet: _s, ...close } = s.close; return { ...s, close }; }) };
+  const mk = () => router({ map: sheetAns, submit_edits: callOf('submit_edits', { edits: [], sheetChecks: suggested }), suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', bare) });
   const on = await go(mk(), prose, { checkPicks: [] });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((/** @type {any} */ s) => s.close), 'the same closes as the signed job, the sheet line untouched');
+  const typed = (/** @type {any} */ c) => { const { id: _i, claim: _c, covers: _v, ...rest } = c; return rest; };
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => [s.fromLine, s.close.class, s.close.columns, (s.close.sheet ?? []).map(typed)]), decl.steps.map((/** @type {any} */ s) => [s.fromLine, s.close.class, s.close.columns, (s.close.sheet ?? []).map(typed)]), 'the same closes as the signed job (the sheet checks as code built them), the sheet line untouched');
   // M16 am4 (2) (was: the sheet line has no row): the sheet line's only rows are its sheet rows, one per close.sheet check; the block gives it none
   assert.ok(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).every((/** @type {any} */ x) => x.kind === 'sheet'), 'the sheet line has only sheet rows');
   assert.equal(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).length, on.declaration.steps.find((/** @type {any} */ st) => st.fromLine === 2).close.sheet.length);

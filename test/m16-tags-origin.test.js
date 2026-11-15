@@ -85,7 +85,7 @@ import { auditChecksOf } from '../src/auditchecks.js';
 import { tagged } from '../src/checkwords.js';
 
 /** a green closer's per-check results for the three checks, as closeByClass hands them */
-const closedOf = () => ({ verdict: 'green', checks: CHECKS().map((c) => ({ id: c.id, text: `${c.id} words`, ok: true, result: null })) });
+const closedOf = () => ({ verdict: 'green', checks: ['l2r2', 'l2r1', 'l2a1'].map((id) => ({ id, text: `${id} words`, ok: true, result: null })) });
 
 test('a CSV plan: the same check carries the same tag on the card, the Job tab, the Audit grid and fold, the Result tab and the readout (break: let one surface say [agent] for every sheet check)', async () => {
   const { dir } = await csvPlan();
