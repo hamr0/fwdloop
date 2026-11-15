@@ -44,20 +44,43 @@ export const textReply = (text = 'sure') => ({ text, toolCalls: [], usage: usage
 export const truncatedReply = () => ({ text: '{"steps":[', toolCalls: [], usage: usage(16000), stopReason: 'max_tokens', model: MODEL });
 export const malformedReply = () => ({ text: '', toolCalls: [], usage: usage(80), stopReason: 'tool_use', model: MODEL, malformedToolCall: { name: 'emit_declaration', rawArguments: '{"steps":[}', error: 'bad json at 9' } });
 
+/**
+ * M17 am2 item 2: the AI suggests sheet checks on the row-edit reply (`sheetChecks`, each with its job line), never in the declaration. A test still writes its sheet checks as a step's `close.sheet` in the script;
+ * this fixture moves them, as the AI now would: the declaration reply loses them (unless the reply has `carrySheet: true`, a draft that carries the field), the row-edit reply gets them with the step's line.
+ * @param {any[]} replies @returns {any[]}
+ */
+const sheetSuggestionsOf = (replies) => {
+  for (const r of replies) {
+    const steps = r?.toolCalls?.[0]?.arguments?.steps;
+    const out = (Array.isArray(steps) ? steps : []).flatMap((st) => (Array.isArray(st?.close?.sheet) ? st.close.sheet.map((c) => ({ ...c, line: st.fromLine })) : []));
+    if (out.length) return out;
+  }
+  return [];
+};
+const withoutSheet = (r) => {
+  if (r?.carrySheet === true || !Array.isArray(r?.toolCalls?.[0]?.arguments?.steps)) return r;
+  const args = { ...r.toolCalls[0].arguments, steps: r.toolCalls[0].arguments.steps.map((st) => { if (!st?.close || st.close.sheet === undefined) return st; const { sheet: _s, ...close } = st.close; return { ...st, close }; }) };
+  return { ...r, toolCalls: [{ ...r.toolCalls[0], arguments: args }, ...r.toolCalls.slice(1)] };
+};
+
 /** A scripted provider: replies[i] answers call i (the last repeats). Records every call. */
 export function fakeProvider(replies) {
   const calls = [];
   const blockCalls = [];
+  const blockTurns = []; // M17 am2: each list turn's tool schema and messages, for tests that read what the AI is offered and told
   const provider = {
     lastMalformedToolCall: null,
     calls,
     blockCalls,
+    blockTurns,
     async generate(messages, tools, options) {
       // M16 (a) missing stub: the check block's own turns (ledger-suggest, row-edit) get an empty answer and take no place in the declaration queue these scripts are about
-      const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [] } }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
-      if (blockTurn) { blockCalls.push(tools[0].name); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
+      // M17 p2e: the note question (one more turn of the list, when a line is facts-only) is answered "no" for every line it names, so it too stays out of the declaration queue
+      const noteLines = tools[0]?.name === 'answer_note_question' ? [...String(messages.find((m) => /^LINE \d+:/m.test(String(m.content)))?.content ?? '').matchAll(/^LINE (\d+):/gm)].map((m) => ({ line: Number(m[1]), writtenWords: 'no' })) : null;
+      const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [], ...(tools[0]?.parameters?.properties?.sheetChecks ? { sheetChecks: sheetSuggestionsOf(replies) } : {}) }, answer_note_question: noteLines ? { lines: noteLines } : undefined }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
+      if (blockTurn) { blockCalls.push(tools[0].name); blockTurns.push({ name: tools[0].name, schema: tools[0].parameters, messages: JSON.parse(JSON.stringify(messages)) }); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
       calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });
-      const r = replies[Math.min(calls.length - 1, replies.length - 1)];
+      const r = withoutSheet(replies[Math.min(calls.length - 1, replies.length - 1)]);
       this.lastMalformedToolCall = r.malformedToolCall ?? null;
       return r;
     },

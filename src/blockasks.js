@@ -1,10 +1,11 @@
+// borrowed-from: bareloop src/blockasks.js@v0.57.0 (c18df406)
 // borrowed-from: bareloop src/blockasks.js@v0.56.0 (3383cce)
 // The questions of the check block, as the answer gate reads them (`answerQuestions`, src/questionbox.js): ONE spelling of the question words, written by code from a row that
 // code could not settle (reading | cant-check | check). The block's `open` list is the source; the person's CHOICE (agree | drop | rule) goes back through `block.applyAnswer`.
 import { readingQuestion, cantCheckQuestion } from './pageask.js';
 import { plainWords, HOW_TO_ANSWER, CANT_CHECK_WORDS } from './checkpick.js';
 
-/** @typedef {{key: string, rowKey: string, line: number, rule: number, source: 'look', ask: 'reading'|'cant-check'|'no-check'|'check', ruleText: string, question: string, counted: boolean, reading?: string, check?: Record<string, any>, pairRule?: number}} BlockAsk */
+/** @typedef {{key: string, rowKey: string, line: number, rule: number, source: 'look', ask: 'reading'|'cant-check'|'no-check'|'check', ruleText: string, question: string, counted: boolean, reading?: string, check?: Record<string, any>}} BlockAsk */
 
 /**
  * The questions the block has open, in the order the person meets them: the look's readings, then the look's can't-checks, then the pick path's asks (a proposal or a can't-check about a rule the pick path owns) in rule order (a proposal is not counted toward the 3-ask cap).
@@ -17,7 +18,7 @@ export function questionsOfBlock(block, scoped = []) {
   return block.open.map((/** @type {any} */ q) => {
     const row = block.rows.find((r) => r.key === q.rowKey);
     const rule = Number(row?.rule);
-    const base = { key: q.key, rowKey: q.rowKey, line: q.line, rule, source: /** @type {'look'} */ ('look'), ruleText: String(q.ruleText), ...(row?.pairWith !== undefined ? { pairRule: row.pairWith } : {}) };
+    const base = { key: q.key, rowKey: q.rowKey, line: q.line, rule, source: /** @type {'look'} */ ('look'), ruleText: String(q.ruleText) };
     if (q.ask === 'reading') return { ...base, ask: /** @type {'reading'} */ ('reading'), counted: true, reading: String(q.proposal), question: readingQuestion(q.line, String(q.ruleText), String(q.proposal)) };
     if (q.ask === 'check') {
       const words = plainWords(q.proposal);

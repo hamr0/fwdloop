@@ -61,14 +61,17 @@ const reply = (text) => ({ ...textReply(text), usage: { inputTokens: 1000, outpu
 const NO_WORDS = reply(JSON.stringify({ facts: [] }));
 const draftCalls = (p) => p.calls.filter((c) => c.tools[0] === 'emit_declaration');
 
-test('through the real draft path: the bad table check is not green, the red reaches the next try, and a fix goes green at no extra round', async () => {
+// M17 am2: the table check that already fails on the sheet is no longer a red sent back to the AI; code refuses that suggestion at build (runTableChecks) and its rule is Not checked with the reason
+test('through the real draft path: the bad table check is refused by code at build, never in the plan; its rule is Not checked with the reason, and nothing is sent back', async () => {
   const stuck = fakeProvider([NO_WORDS, toolReply(decl([BAD, CELLS]))]);
   const r = await draft({ proseText: prose, provider: stuck, rates: RATES, modelId: MODEL, offerQuestions: false });
-  assert.equal(r.ok, false, 'a red left on the last try fails the draft');
-  assert.ok(r.reds.includes(RED_BAD), JSON.stringify(r.reds));
-  const fixed = fakeProvider([NO_WORDS, toolReply(decl([BAD, CELLS])), toolReply(decl([GOOD, CELLS]))]);
-  const ok = await draft({ proseText: prose, provider: fixed, rates: RATES, modelId: MODEL, offerQuestions: false });
-  assert.equal(ok.ok, true, JSON.stringify(ok.reds));
-  assert.equal(draftCalls(fixed).length, 2, 'two drafting rounds: the red is fed to the next try, nothing else is metered');
-  assert.ok(JSON.stringify(draftCalls(fixed)[1].messages).includes('already fails on the input'), 'try 2 is told the red');
+  assert.equal(r.ok, true, JSON.stringify(r.reds));
+  assert.deepEqual(r.declaration.steps[1].close.sheet.map((c) => c.op), ['uniqueCount'], 'only the cells check is built');
+  assert.equal(draftCalls(stuck).length, 1, 'no second try: a refused suggestion is no red');
+  assert.deepEqual(r.log.find((e) => e.sheetRefused)?.sheetRefused, [{ line: 2, helper: 'runTableChecks', why: 'the table check already fails on the sheet' }], 'the refusal is in the round log');
+  // the cells check holds rule 1; the table check's refusal names only rule 1, which is held, so the one Not checked rule is rule 2, as before
+  assert.deepEqual(r.notChecked, ['line 2: "total the balance due" \u2014 No check was picked for it, so you judge it at the Ask.']);
+  // a rule whose only suggestion is the bad table check shows it with the reason
+  const only = await draft({ proseText: prose, provider: fakeProvider([NO_WORDS, toolReply(decl([BAD, { ...CELLS, covers: [2] }]))]), rates: RATES, modelId: MODEL, offerQuestions: false });
+  assert.deepEqual(only.notChecked, ['line 2: "every customer appears exactly once" \u2014 suggestion refused: runTableChecks: the table check already fails on the sheet']);
 });

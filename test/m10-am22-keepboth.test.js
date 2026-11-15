@@ -10,7 +10,6 @@ import { applyPageWords, lookFactOf } from '../src/pagelook.js';
 import { PAGE, raw, JOB } from './fixtures/m10-map/load.mjs';
 import { closeByClass } from '../src/closers.js';
 import { sha256Text } from '../src/citedcheck.js';
-import { scopedRules, settleRules, applyPicks } from '../src/checkpick.js';
 
 const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR&hl=en&curr=USD';
 const prose = (guard = 'under $150; departure time between 05:00 and 23:59; nonstop') => `1. List 3 flights from Amsterdam to London,
@@ -87,16 +86,6 @@ test('(1) a fact line with a picked at most 80 words: green only when facts AND 
 test('(1) a line without picks closes as before; text on it is not judged', async () => {
   const r = await closeByClass(stepWith(null), { results: good, text: words(500) }, { reads: {}, businessDate: '', source });
   assert.equal(r.verdict, 'green', 'no picks: text is not judged, exactly as before');
-});
-
-test('(1) applyPicks keeps a pick on a green line: close.picked beside the fact close, the line stays green, pickedLines records it', () => {
-  const decl = { steps: [{ fromLine: 1, close: { class: 'green', cited: factPart } }, { fromLine: 2, close: { class: 'hitl' } }], guardrailClasses: { 1: 'green' }, unjudgeable: {} };
-  const rules = [{ line: 1, rule: 1, text: 'under 80 words' }];
-  const settled = settleRules(rules, [{ line: 1, rule: 1, check: { rule: 'maxWords', value: 80 } }], []);
-  const out = applyPicks(decl, rules, settled, () => 'x');
-  assert.deepEqual(out.steps[0].close, { class: 'green', cited: factPart, picked: [{ rule: 'maxWords', value: 80 }] });
-  assert.equal(out.guardrailClasses['1'], 'green');
-  assert.deepEqual(out.pickedLines, [1]);
 });
 
 test('(1) the validator accepts close.picked on a fact step (a list of text rules) and refuses it on a step that checks no facts', () => {

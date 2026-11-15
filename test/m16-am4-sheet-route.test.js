@@ -77,25 +77,25 @@ test('CSV plan through the door: Drop of the [agent] sheet row, then Add, cost $
   const { w, id, logFile } = await csvSession();
   const g = await settleGreen(w, id);
   const orig = sheetKeys(g);
-  assert.deepEqual(orig, ['L2.sheet.nodup|you', 'L2.sheet.over|you', 'L2.sheet.bands|agent'], JSON.stringify(g.list));
+  assert.deepEqual(orig, ['L2.sheet.l2r2|you', 'L2.sheet.l2a1|agent', 'L2.sheet.l2a2|agent'], JSON.stringify(g.list));
   assert.equal(g.list.suggested.length, 0);
   const spent = draftingSpent(w.dir(id)).usd;
   const pidBefore = existsSync(path.join(w.dir(id), 'pid.json')) ? read(w, id, 'pid.json') : null;
   const first = readFileSync(path.join(w.dir(id), g.plan, 'declaration.json'), 'utf8');
 
-  const drop = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: 'L2.sheet.bands' });
+  const drop = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: 'L2.sheet.l2a1' });
   assert.equal(drop.status, 200, drop.text);
   const dropped = await settleGreen(w, id);
   assert.notEqual(dropped.plan, g.plan, 'break: write the old plan in place and this reds');
   assert.equal(readFileSync(path.join(w.dir(id), g.plan, 'declaration.json'), 'utf8'), first, 'the old plan is never touched');
-  assert.deepEqual(sheetKeys(dropped), ['L2.sheet.nodup|you', 'L2.sheet.over|you']);
-  assert.deepEqual(dropped.list.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.bands', true]], 'the dropped [agent] sheet row is offered back (Suggested, with Add)');
+  assert.deepEqual(sheetKeys(dropped), ['L2.sheet.l2r2|you', 'L2.sheet.l2a2|agent']);
+  assert.deepEqual(dropped.list.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.l2a1', true]], 'the dropped [agent] sheet row is offered back (Suggested, with Add)');
   const row = JSON.parse(readFileSync(path.join(w.dir(id), dropped.plan, 'spend.jsonl'), 'utf8').trim().split('\n').at(-1));
   assert.equal(row.costUsd, 0, 'break: book a cost on a Drop and this reds');
   assert.equal(row.calls, 0);
   assert.equal(row.rounds, 0);
 
-  const add = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: 'L2.sheet.bands' });
+  const add = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: 'L2.sheet.l2a1' });
   assert.equal(add.status, 200, add.text);
   const added = await settleGreen(w, id);
   assert.notEqual(added.plan, dropped.plan);

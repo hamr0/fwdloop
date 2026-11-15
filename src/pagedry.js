@@ -83,6 +83,31 @@ export async function dryReadMoney(text, facts) {
   return { facts: kept, dropped, reads, results };
 }
 
+// borrowed-from: bareloop src/pagedry.js@v0.57.0 (c18df406) (resultQuotes, phraseInNoResult: 637e76ad)
+/**
+ * The page's RESULT LINES: the lines the given money facts read (`moneyResultLines`), each quote once. Empty when no money fact reads a line (the result lines are then unknown).
+ * The one owner of "what is a result row" for phrase facts, shared by the dry read below and by the check list's `!` rows (`phraseInNoResult`).
+ * @param {string} text @param {KeptFact[]} facts @returns {string[]}
+ */
+export function resultQuotes(text, facts) {
+  /** @type {Set<string>} */
+  const quotes = new Set();
+  for (const k of facts) if (k.shape === 'money') for (const r of moneyResultLines(text, k)) quotes.add(r.quote);
+  return [...quotes];
+}
+
+/**
+ * Is this phrase in the page but in NONE of its result lines (the `phrase-no-result` case)? Sync, for a `!` row the check list is about to build.
+ * True only when result lines exist and no line holds the words (case and spacing aside, a plain substring: it never refuses a phrase the run's presence check could pass).
+ * With no result line known nothing is guessed (false).
+ * @param {string} text @param {KeptFact[]} moneyFacts the line's money facts @param {string} words @returns {boolean}
+ */
+export function phraseInNoResult(text, moneyFacts, words) {
+  const rows = resultQuotes(text, moneyFacts);
+  const w = words.replace(/\s+/g, ' ').trim().toLowerCase();
+  return rows.length > 0 && w !== '' && !rows.some((q) => q.replace(/\s+/g, ' ').toLowerCase().includes(w));
+}
+
 /**
  * The same "can it read" for PHRASE facts (bareloop c550dc8; our failure: m10-walk-flights-3, "Rome" was on the page only in "Track prices from Madrid to
  * Rome" switches, in none of the 18 result lines, so no result could ever say it). A kept phrase fact is read against the page's RESULT LINES = the lines
@@ -94,9 +119,7 @@ export async function dryReadMoney(text, facts) {
  * @returns {Promise<{facts: KeptFact[], dropped: Dropped[], reads: Record<string, number>}>} `reads` = result lines that said the phrase, per fact name
  */
 export async function dryReadPhrases(text, facts) {
-  /** @type {Set<string>} */
-  const quotes = new Set();
-  for (const k of facts) if (k.shape === 'money') for (const r of moneyResultLines(text, k)) quotes.add(r.quote);
+  const quotes = resultQuotes(text, facts);
   /** @type {KeptFact[]} */
   const kept = [];
   /** @type {Dropped[]} */
@@ -104,7 +127,7 @@ export async function dryReadPhrases(text, facts) {
   /** @type {Record<string, number>} */
   const reads = {};
   for (const k of facts) {
-    if (k.shape !== 'phrase' || quotes.size === 0 || !k.words.length) { kept.push(k); continue; }
+    if (k.shape !== 'phrase' || quotes.length === 0 || !k.words.length) { kept.push(k); continue; }
     const part = { source: SOURCE, facts: factsOfLook({ name: CLAIM, shape: 'phrase', words: [k.words[0]] }) };
     let n = 0;
     for (const quote of quotes) {

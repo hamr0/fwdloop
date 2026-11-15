@@ -48,7 +48,7 @@ test('Start over on an unchanged job after both revises asks nothing and keeps t
 test('Start over with one changed guardrail asks that one only', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST } });
   const { id, card } = await twoRevisesDone(w);
-  const r = await w.post('/api/author/draft', { ...card, job: card.job.replace('~ exactly 3 bullets', '~ exactly 4 bullets'), startedOverFrom: id });
+  const r = await w.post('/api/author/draft', { ...card, job: card.job.replace('~ exactly 3 list items', '~ exactly 4 bullets'), startedOverFrom: id });
   assert.equal(r.status, 202, JSON.stringify(r.json()));
   const s = await settled(w, r.json().draftId);
   assert.equal(s.phase, 'questions-open', JSON.stringify(s.reds ?? s));

@@ -52,7 +52,7 @@ import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
-import { readRecordFile, readRowChoices, readSheetDropped } from '../src/pickrecord.js';
+import { readRecordFile, readRowChoices, readSheetDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
@@ -885,6 +885,7 @@ async function cmdDraft(rest) {
       'no-questions': { type: 'boolean' },
       // M10 piece 3: the rules the person left Not checked ("drop it"), as `<line>.<rule>` pairs, e.g. `1.2,3.1` (the panel passes this to the redraft after the answers)
       left: { type: 'string' },
+      columns: { type: 'string' },
       // M10 am16: the checks the person picked and the answers that were not a pick, as JSON (the panel passes this to the redraft after the answers)
       picks: { type: 'string' },
       // M10 am17: the record file of the plan this draft follows (a Revise, or the redraft after the answers); its kept picks skip the suggestion and the asks
@@ -914,6 +915,14 @@ async function cmdDraft(rest) {
     leftRules.push({ line: Number(m[1]), rule: Number(m[2]) });
   }
 
+  // M17 ruling 2: the columns the person agreed for words that are no `~` rule, `[{line, word, column}]`; told to the AI on the list turn, never a `~` line
+  /** @type {any[]} */
+  let columnAnswers = [];
+  if (values.columns !== undefined) {
+    try { columnAnswers = JSON.parse(values.columns); } catch { columnAnswers = []; }
+    if (!Array.isArray(columnAnswers) || columnAnswers.some((x) => !x || !Number.isInteger(x.line) || typeof x.word !== 'string' || typeof x.column !== 'string')) fail('draft: --columns takes a JSON list of {line, word, column}');
+  }
+
   /** @type {any[]|undefined} */
   let checkPicks;
   if (values.picks !== undefined) {
@@ -927,10 +936,11 @@ async function cmdDraft(rest) {
   let carriedChoices;
   /** @type {any[]|undefined} */
   let carriedSheetDropped;
+  let carriedColumns;
   if (values.carry !== undefined) {
     const abs = resolve(values.carry);
     const g = readFileInside(dirname(abs), basename(abs));
-    if (g.ok) { carriedPicks = readRecordFile(abs) ?? undefined; carriedChoices = readRowChoices(abs) ?? undefined; carriedSheetDropped = readSheetDropped(abs) ?? undefined; } // a missing or unreadable record is no record: every guardrail is asked, as before
+    if (g.ok) { carriedPicks = readRecordFile(abs) ?? undefined; carriedChoices = readRowChoices(abs) ?? undefined; carriedSheetDropped = readSheetDropped(abs) ?? undefined; carriedColumns = readColumns(abs) ?? undefined; } // a missing or unreadable record is no record: every guardrail is asked, as before
   }
 
   let injected = {};
@@ -991,10 +1001,12 @@ async function cmdDraft(rest) {
     name: values.name,
     noQuestions: values['no-questions'] === true,
     ...(leftRules.length ? { leftRules } : {}),
+    ...(columnAnswers.length ? { columnAnswers } : {}),
     ...(checkPicks === undefined ? {} : { checkPicks }),
     ...(carriedPicks === undefined ? {} : { carriedPicks }),
     ...(carriedChoices === undefined ? {} : { carriedChoices }),
     ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }),
+    ...(carriedColumns === undefined ? {} : { carriedColumns }),
     draftThinking: values.thinking === true ? 'on' : 'off',
     flowType,
     ...(values.mcp ? { mcpServer: values.mcp } : {}),

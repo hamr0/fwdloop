@@ -36,7 +36,7 @@ export function checkListReds(declaration) {
   const lines = [...new Set([...list.filter((r) => Number.isInteger(r.line)).map((r) => /** @type {number} */ (r.line)), ...sheetLines])].sort((a, b) => a - b);
   const stepsOn = (/** @type {number} */ n) => steps.filter((st) => st.fromLine === n);
   const partsOn = (/** @type {number} */ n) => stepsOn(n).flatMap((st) => closePartsOf(st, sheetListed));
-  const built = list.filter((r) => r.state === 'built' && r.kind !== 'floor');
+  const built = list.filter((r) => r.state === 'built' && r.kind !== 'floor' && r.kind !== 'ticket');
   /** @type {string[]} */
   const reds = [];
   for (const r of built) {

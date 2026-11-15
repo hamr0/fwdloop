@@ -1,0 +1,34 @@
+{"k":"flow","flow":"pw-tickets","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"pw-tickets","run":"run-1","input":"issues.txt","verdict":{"outcome":"skip","reason":"no P1 label"}}
+{"k":"ticket","flow":"pw-tickets","run":"run-2","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"flow","flow":"pw-tickets-2","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"pw-tickets-2","run":"run-1","input":"issues.txt","verdict":{"outcome":"skip","reason":"no P1 label"}}
+{"k":"flow","flow":"ticket-triage","ok":true,"reds":0,"flowType":null,"filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["issue_read"]}
+{"k":"ticket","flow":"ticket-triage","run":"run-1","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-2","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-3","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-4","input":"issues.txt","verdict":{"outcome":"skip","reason":"closed"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-5","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-6","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-7","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage","run":"run-8","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"flow","flow":"ticket-triage-2","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"ticket-triage-2","run":"run-1","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"flow","flow":"ticket-triage-3","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"ticket-triage-3","run":"run-1","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"flow","flow":"ticket-triage-4","ok":true,"reds":0,"flowType":"tickets","filter":null,"watch":null,"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-1","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-2","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-3","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-4","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-5","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-6","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"ticket","flow":"ticket-triage-4","run":"run-7","input":"issues.txt","verdict":{"outcome":"run"}}
+{"k":"flow","flow":"ticket-triage-5","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"ticket-triage-5","run":"run-1","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage-5","run":"run-2","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage-5","run":"run-3","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage-5","run":"run-4","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"flow","flow":"ticket-triage-6","ok":true,"reds":0,"flowType":"tickets","filter":{"priority":["P1"]},"watch":["state"],"mcpTools":["get_label","issue_read","list_issue_fields","list_issue_types","list_issues","search_issues"]}
+{"k":"ticket","flow":"ticket-triage-6","run":"run-1","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}
+{"k":"ticket","flow":"ticket-triage-6","run":"run-2","input":"issues.txt","verdict":{"outcome":"skip","reason":"priority P3, not P1"}}

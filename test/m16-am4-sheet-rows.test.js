@@ -83,13 +83,13 @@ const doors = (dir) => {
 test('a CSV plan\'s sheet checks are rows on the list: [you] where a check covers a rule of the person\'s, [agent] where it covers none (break: leave the sheet checks off the list, or tag every one [agent])', async () => {
   const { dir } = await csvPlan();
   const d = readJson(dir, 'declaration.json');
-  assert.deepEqual(tags(d), { 'L2.sheet.nodup': 'you', 'L2.sheet.over': 'you', 'L2.sheet.bands': 'agent' });
+  assert.deepEqual(tags(d), { 'L2.sheet.l2r2': 'you', 'L2.sheet.l2a1': 'agent', 'L2.sheet.l2a2': 'agent' });
   assert.deepEqual(sheetRows(d).map((r) => r.part.part), [0, 1, 2], 'each row points at its own check, in the close\'s order');
   assert.deepEqual(validateDeclaration(d, doors(dir)).ok, true);
   // the card the draft saved: the same three rows, words from fwd\'s sheet-check words, Drop offered on the [agent] row only
   const card = readJson(dir, 'log.json').checkCard;
   const rows = card.rows.filter((r) => r.line === 2);
-  assert.deepEqual(rows.map((r) => [r.key, r.by, r.drop]), [['L2.sheet.nodup', 'you', false], ['L2.sheet.over', 'you', false], ['L2.sheet.bands', 'agent', true]]);
+  assert.deepEqual(rows.map((r) => [r.key, r.by, r.drop]), [['L2.sheet.l2r2', 'you', false], ['L2.sheet.l2a1', 'agent', true], ['L2.sheet.l2a2', 'agent', true]]);
   const lead = checkedLines(d, { lines: doors(dir).lines, csvRoles: ['aging'] }).find((l) => l.line === 2);
   assert.ok(lead.sheet.checked.every((c, i) => c.text.startsWith(rows[i].text)), 'the row words are the sheet block\'s own words');
   assert.ok(cardLinesOf(d).has(2), 'the card draws a list on the sheet line');
@@ -99,8 +99,8 @@ test('a CSV plan\'s sheet checks are rows on the list: [you] where a check cover
 test('a sheet check that is not on the list is refused at sign and at the run-start door (break: let checkListReds skip the sheet parts)', async () => {
   const { dir } = await csvPlan();
   const d = readJson(dir, 'declaration.json');
-  const missing = { ...d, checkList: d.checkList.filter((r) => r.key !== 'L2.sheet.bands') };
-  assert.ok(checkListReds(missing).some((r) => r.includes('line 2') && r.includes('bands')), checkListReds(missing).join('\n'));
+  const missing = { ...d, checkList: d.checkList.filter((r) => r.key !== 'L2.sheet.l2a1') };
+  assert.ok(checkListReds(missing).some((r) => r.includes('line 2') && r.includes('l2a1')), checkListReds(missing).join('\n'));
   // the door sign and the run start share
   const v = validateDeclaration(missing, doors(dir));
   assert.equal(v.ok, false);
@@ -127,37 +127,37 @@ test('Drop of an [agent] sheet row: $0, no provider call, a NEW plan without tha
   const { dir, provider } = await csvPlan();
   const calls = provider.calls.length;
   const before = snapshot(dir);
-  // a [you] row: no Drop
-  const refused = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.nodup' });
+  // a [you] row: no Drop (M17 am7: the table check is an [agent] row, so the [you] row is the cells check on rule 2)
+  const refused = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.l2r2' });
   assert.equal(refused.ok, false);
   assert.match(refused.say, /rule you wrote/);
-  const made = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.bands' });
+  const made = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.l2a1' });
   assert.equal(made.ok, true, made.say);
   assert.equal(provider.calls.length, calls, 'a Drop calls no AI');
   assert.deepEqual(snapshot(dir), before, 'the old plan is never written');
   const nd = JSON.parse(made.files['declaration.json']);
-  assert.deepEqual(nd.steps[1].close.sheet.map((c) => c.id), ['nodup', 'over']);
-  assert.deepEqual(sheetRows(nd).map((r) => r.key), ['L2.sheet.nodup', 'L2.sheet.over']);
+  assert.deepEqual(nd.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2a2']);
+  assert.deepEqual(sheetRows(nd).map((r) => r.key), ['L2.sheet.l2r2', 'L2.sheet.l2a2']);
   assert.deepEqual(validateDeclaration(nd, doors(dir)).ok, true);
   assert.equal(made.files['spec.hash'].trim(), made.hash);
   assert.notEqual(made.hash, before['spec.hash'].trim());
   // the card: the dropped check is offered back (Add), the other rows stay
   const card = JSON.parse(made.files['log.json']).checkCard;
-  assert.deepEqual(card.rows.filter((r) => r.line === 2).map((r) => r.key), ['L2.sheet.nodup', 'L2.sheet.over']);
-  assert.deepEqual(card.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.bands', true]]);
+  assert.deepEqual(card.rows.filter((r) => r.line === 2).map((r) => r.key), ['L2.sheet.l2r2', 'L2.sheet.l2a2']);
+  assert.deepEqual(card.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.l2a1', true]]);
 });
 
 test('Add re-adds a dropped [agent] sheet row at its place; the list is the one it was (break: Add puts it at the end, or does not clear the dropped record)', async () => {
   const [nodup, over, bands] = CHECKS();
   const { dir } = await csvPlan([nodup, bands, over]); // the AI's own check sits in the middle
-  const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.bands' });
+  const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.l2a1' });
   assert.equal(dropped.ok, true, dropped.say);
   // the new plan folder, as the panel writes it (records are write-once)
   const work2 = tmp();
   const dir2 = path.join(work2, 'draft-1');
   mkdirSync(dir2);
   for (const [f, t] of Object.entries(dropped.files)) writeFileSync(path.join(dir2, f), t);
-  const added = rowEditPlan({ planDir: dir2, op: 'add', key: 'L2.sheet.bands' });
+  const added = rowEditPlan({ planDir: dir2, op: 'add', key: 'L2.sheet.l2a1' });
   assert.equal(added.ok, true, added.say);
   const nd = JSON.parse(added.files['declaration.json']);
   const old = readJson(dir, 'declaration.json');
@@ -166,7 +166,7 @@ test('Add re-adds a dropped [agent] sheet row at its place; the list is the one 
   assert.equal(added.hash, readFileSync(path.join(dir, 'spec.hash'), 'utf8').trim(), 'Drop then Add is the plan it began as');
   assert.equal(JSON.parse(added.files['log.json']).checkCard.suggested.length, 0);
   // Add of something that was never dropped is refused, writing nothing
-  const bad = rowEditPlan({ planDir: dir, op: 'add', key: 'L2.sheet.bands' });
+  const bad = rowEditPlan({ planDir: dir, op: 'add', key: 'L2.sheet.l2a1' });
   assert.equal(bad.ok, false);
 });
 
@@ -176,7 +176,9 @@ test('with no Drop or Add a CSV job checks exactly as before am4: the close, the
   // the pre-am4 shape: the same declaration with no sheet rows on the list
   const pre = { ...d, checkList: d.checkList.filter((r) => r.kind !== 'sheet') };
   assert.deepEqual(d.steps, pre.steps);
-  assert.deepEqual(d.steps[1].close.sheet, CHECKS(), 'the AI\'s sheet checks are signed as it wrote them');
+  // M17 am2: code writes the checks (it names them and sets `covers`); the typed fields are the AI's suggestion exactly
+  const [nodup, over, bands] = CHECKS();
+  assert.deepEqual(d.steps[1].close.sheet, [{ ...over, id: 'l2r2', claim: 'l2r2' }, { ...bands, id: 'l2a1', claim: 'l2a1', covers: [], row: 'agent' }, { ...nodup, id: 'l2a2', covers: [], row: 'agent' }], 'the sheet checks are signed as code built them');
   const tables = { aging: sheetTable(parseCsv(readFileSync(AGING_CSV, 'utf8'))) };
   const line = { n: 2, text: 'x', guardrail: 'every invoice appears exactly once; flag amounts over 500' };
   const verdict = (x) => JSON.stringify([sheetCheckReds(x.steps[1].close.sheet, 2, tables), sheetCheckWordReds(x.steps[1].close.sheet, line)]);
@@ -186,35 +188,35 @@ test('with no Drop or Add a CSV job checks exactly as before am4: the close, the
   assert.equal(validateDeclaration(d, doors(dir)).ok, true);
   assert.equal(validateDeclaration(pre, doors(dir)).ok, true, 'a plan whose list has no sheet rows (from before am4) is not examined for them');
   // a red stays red: a sheet check that fails on the sheet fails the same with or without its row
-  const bad = { ...d, steps: d.steps.map((st) => (st.fromLine === 2 ? { ...st, close: { ...st.close, sheet: st.close.sheet.map((c) => (c.id === 'over' ? { ...c, where: [{ column: 'Amount', cmp: 'gt', value: 5000000 }] } : c)) } } : st)) };
+  const bad = { ...d, steps: d.steps.map((st) => (st.fromLine === 2 ? { ...st, close: { ...st.close, sheet: st.close.sheet.map((c) => (c.id === 'l2r2' ? { ...c, where: [{ column: 'Amount', cmp: 'gt', value: 5000000 }] } : c)) } } : st)) };
   assert.equal(verdict(bad), verdict({ ...bad, checkList: pre.checkList }));
 });
 
 test('a Revise keeps a sheet Drop: the new AI check with the same id starts dropped again, under Suggested with Add, and Add puts it back (hamr 2026-11-14; break: do not carry sheetDropped into the next draft)', async () => {
   const { dir, work, root } = await csvPlan();
-  const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.bands' });
+  const dropped = rowEditPlan({ planDir: dir, op: 'drop', key: 'L2.sheet.l2a1' });
   assert.equal(dropped.ok, true, dropped.say);
   const dir2 = path.join(work, 'draft-1');
   mkdirSync(dir2);
   for (const [f, t] of Object.entries(dropped.files)) writeFileSync(path.join(dir2, f), t);
   // the Revise: a fresh draft that follows draft-1 (`--carry <record>`), the AI writing the same three checks again
   const carried = readSheetDropped(recordPath(dir2));
-  assert.deepEqual(carried.map((d) => d.key), ['L2.sheet.bands'], 'the record keeps the drop');
+  assert.deepEqual(carried.map((d) => d.key), ['L2.sheet.l2a1'], 'the record keeps the drop');
   const dir3 = path.join(work, 'draft-2');
   const provider = fakeProvider([NO_WORDS, toolReply(decl(CHECKS()))]);
   const r = await draftToDir({ proseFile: path.join(work, 'prose.txt'), dir: dir3, root, name: 'aging', provider, rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY', carriedSheetDropped: carried });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   const d = readJson(dir3, 'declaration.json');
-  assert.deepEqual(d.steps[1].close.sheet.map((c) => c.id), ['nodup', 'over'], 'the AI wrote bands again; it starts dropped');
-  assert.deepEqual(sheetRows(d).map((x) => x.key), ['L2.sheet.nodup', 'L2.sheet.over']);
+  assert.deepEqual(d.steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2a2'], 'the AI suggested the band check again; it starts dropped');
+  assert.deepEqual(sheetRows(d).map((x) => x.key), ['L2.sheet.l2r2', 'L2.sheet.l2a2']);
   assert.equal(validateDeclaration(d, doors(dir3)).ok, true);
   const card = readJson(dir3, 'log.json').checkCard;
-  assert.deepEqual(card.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.bands', true]]);
-  assert.deepEqual(readSheetDropped(recordPath(dir3)).map((x) => x.key), ['L2.sheet.bands'], 'and the next Revise carries it again');
+  assert.deepEqual(card.suggested.map((x) => [x.key, x.dropped === true]), [['L2.sheet.l2a1', true]]);
+  assert.deepEqual(readSheetDropped(recordPath(dir3)).map((x) => x.key), ['L2.sheet.l2a1'], 'and the next Revise carries it again');
   // Add puts it back where it was
-  const added = rowEditPlan({ planDir: dir3, op: 'add', key: 'L2.sheet.bands' });
+  const added = rowEditPlan({ planDir: dir3, op: 'add', key: 'L2.sheet.l2a1' });
   assert.equal(added.ok, true, added.say);
-  assert.deepEqual(JSON.parse(added.files['declaration.json']).steps[1].close.sheet.map((c) => c.id), ['nodup', 'over', 'bands']);
+  assert.deepEqual(JSON.parse(added.files['declaration.json']).steps[1].close.sheet.map((c) => c.id), ['l2r2', 'l2a1', 'l2a2']);
   // with no carried drop the same draft keeps all three (the carry is what drops it)
   const dir4 = path.join(work, 'draft-3');
   const r4 = await draftToDir({ proseFile: path.join(work, 'prose.txt'), dir: dir4, root, name: 'aging', provider: fakeProvider([NO_WORDS, toolReply(decl(CHECKS()))]), rates: RATES, modelId: MODEL, env: {}, slot: 'DEEPSEEK_API_KEY' });

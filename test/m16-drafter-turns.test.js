@@ -40,7 +40,7 @@ test('(S2) a ledger reply that is no count or phrase adds nothing (the block jud
   assert.ok(!r.checkRows.some((/** @type {any} */ x) => x.key.includes('words no input holds') && x.state === 'built'));
 });
 
-test('(S3) the answers ride the redraft: the person\'s Agree (the panel\'s answer shape: a pick + the added ~ line) builds the same rows as the block\'s own applyAnswer', () => {
+test('(S3) the answers ride the redraft: the person\'s Agree (the panel\'s answer shape: a pick, the rule replaced in place, M17 am1) builds the same rows as the block\'s own applyAnswer', () => {
   const texts = { notes: rd('m14-walk-5/notes.md') };
   const CHECK = { rule: 'listItems', value: 3 };
   // the block's own path: the suggest call's pick pre-edit, then the typed Agree
@@ -51,25 +51,27 @@ test('(S3) the answers ride the redraft: the person\'s Agree (the panel\'s answe
   const asks = questionsOfBlock(A, [{ line: 3, rule: 1 }]);
   assert.deepEqual(asks.map((a) => a.ask), ['check']);
   assert.deepEqual(applyChoices(A, [{ key: asks[0].key, choice: 'agree' }]), []);
-  // the panel's path: the redraft's prose holds the added `~` line, and the pick comes back as {line, rule, check, added}
+  // the panel's path: the redraft's prose holds the REPLACED rule (one rule in, one rule out), and the pick comes back as {line, rule, check}
   const B = setUpBlock({
-    texts, jobLines: [{ n: 3, text: 'List 3 jobs for this week from the notes', rules: ['exactly 3 bullets', 'exactly 3 list items'] }], look: { facts: [], dropped: [] },
-    kept: { picks: [], left: [], askRules: [] }, fresh: { picks: [{ line: 3, rule: 1, check: CHECK, added: 'exactly 3 list items' }], left: [] }, asks: false, countScope: () => true, scoped: [{ line: 3, rule: 1 }, { line: 3, rule: 2 }],
+    texts, jobLines: [{ n: 3, text: 'List 3 jobs for this week from the notes', rules: ['exactly 3 list items'] }], look: { facts: [], dropped: [] },
+    kept: { picks: [], left: [], askRules: [] }, fresh: { picks: [{ line: 3, rule: 1, check: CHECK }], left: [] }, asks: false, countScope: () => true,
   });
   const byKey = (/** @type {any[]} */ rows) => [...rows].sort((a, b) => a.key.localeCompare(b.key));
   assert.deepEqual(byKey(B.signedRows()), byKey(A.signedRows()), 'the same signed rows');
   assert.deepEqual(byKey(B.reconcile() && B.rows).map((x) => [x.key, x.state, x.text ?? null, x.parent ?? null, x.from]), byKey(A.rows).map((x) => [x.key, x.state, x.text ?? null, x.parent ?? null, x.from]));
-  assert.ok(A.rows.some((x) => x.key === 'L3.~2' && x.parent === 'L3.~1' && x.state === 'built'), 'the agreed follower is built and points at its source (am2)');
+  assert.ok(A.rows.some((x) => x.key === 'L3.~1' && x.state === 'built' && x.text === 'exactly 3 list items'), 'the replaced rule is built, in place');
+  assert.equal(A.rows.some((x) => x.key === 'L3.~2'), false, 'no follower row: an answer adds no rule');
 });
 
-test('(S3) the redraft through draft(): the answered picks are carried into the block (source built, follower built), and no suggest call is paid', async (t) => {
-  const prose = walkProse(t, (s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets; exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: under 80 words; at most 80 words'));
+test('(S3) the redraft through draft(): the answered picks are carried into the block (the replaced rule built, no follower), and no suggest call is paid', async (t) => {
+  const prose = walkProse(t, (s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: at most 80 words'));
   const p = router({ suggest_extra_checks: LEDGER_NONE, submit_edits: NONE });
-  const picks = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 }, added: 'at most 80 words' }];
+  const picks = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 } }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 } }];
   const r = await run(p, prose, { checkPicks: picks });
   assert.ok(!p.names().includes('suggest_checks'), 'the redraft pays no suggest call');
   const row = (/** @type {string} */ k) => r.checkRows.find((/** @type {any} */ x) => x.key === k);
-  for (const k of ['L3.~1', 'L3.~2', 'L5.~1', 'L5.~2']) assert.equal(row(k)?.state, 'built', k);
+  for (const k of ['L3.~1', 'L5.~1']) assert.equal(row(k)?.state, 'built', k);
+  for (const k of ['L3.~2', 'L5.~2']) assert.equal(row(k), undefined, `${k}: no second rule`);
 });
 
 test('(S4) the row-edit turn: one forced call, thinking off, bareloop\'s system text and job text unchanged, edits applied alone', async (t) => {
@@ -158,7 +160,7 @@ test('flights (page): the block gets the look\'s facts on the step line, the pag
   assert.ok(r.checkRows.filter((/** @type {any} */ x) => x.rowKind === 'cited').length === 0, 'am1');
 });
 
-test('Tickets: the block is built over the step line; ticketFilter is still the declaration turn\'s own and reaches the plan untouched', async () => {
+test('Tickets: the block is built over the step line; the filter is the AI\'s suggestion on the list (M17 am6), proved by code, and reaches the plan as a ticket row', async () => {
   const prose = `1. Read the ticket and say what is broken,
    guardrail: priority P1 or P2 only
 2. ask 30m: check it with me,
@@ -176,17 +178,16 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
       { primitives: [], reads: ['ticket_note'], emits: 'ask_check', fromLine: 2, close: { class: 'hitl' } },
       { primitives: ['write'], reads: ['ask_check'], emits: 'written', fromLine: 3, close: { class: 'hitl' } },
     ],
-    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1', 'P2'] },
+    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [],
   };
-  const p = router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+  const p = router({ submit_edits: callOf('submit_edits', { edits: [], ticketFilter: { priority: ['P1', 'P2'] } }), emit_declaration: callOf('emit_declaration', decl) });
   const r = await run(p, prose, { mcpServers: ['github'], flowType: 'tickets', mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.declaration.ticketFilter, { priority: ['P1', 'P2'] });
-  // the ticket guardrail is the filter's, not a row: the step line keeps its floor, and a list with no rule says so (the block's own empty-list marker, as for any job with no `~` rule)
+  // the ticket guardrail is a ticket row of the signed list (src/ticketrows.js), not a row of the block: the block's rows stay on the step line's floor
   assert.deepEqual([...new Set(r.checkRows.filter((/** @type {any} */ x) => x.rowKind !== 'empty').map((/** @type {any} */ x) => x.line))], [1], 'rows only on the step line');
-  const sent = p.calls.find((c) => c.name === 'submit_edits');
-  // the only rule is the filter's, so the list has nothing to edit and no row-edit turn is paid; if one is sent it never asks for the filter
-  assert.notEqual(sent?.messages[1].content.includes('ticketFilter'), true, 'the row-edit turn is not asked for the ticket filter (it stays the declaration turn\'s)');
+  assert.deepEqual(r.declaration.checkList.filter((/** @type {any} */ x) => x.kind === 'ticket').map((/** @type {any} */ x) => [x.field, x.state]), [['ticketFilter', 'built']]);
+  assert.ok(p.names().includes('submit_edits'), 'the row-edit turn carries the filter suggestion');
   assert.ok(!p.names().includes('suggest_extra_checks'), 'a ticket job has no input text: no ledger call');
 });
 

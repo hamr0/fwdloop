@@ -205,95 +205,29 @@ export function countCheck(text) {
 /** the can't-check ask, as the signed words say it */
 export const CANT_CHECK_WORDS = "I can't check this. Your own words, or Not checked?";
 /** how every answer is told, once (am2 item 2's words) */
-export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer is added as a new ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
+export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
 
 /**
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or
  * Not checked?` when nothing was kept. A proposal is not counted toward am1's cap; a can't-check ask is (am16 (5)).
  * @param {ReturnType<typeof rowsFromAnswer>} rows
- * @returns {{pairRule?: number, line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
+ * @returns {{line: number, rule: number, source: 'look', ask: 'check'|'no-check', ruleText: string, question: string, reading?: string, check?: Record<string, any>, counted: boolean}[]}
  */
 export function checkAsks(rows) {
   return rows.map((r) => {
-    const pair = typeof (/** @type {any} */ (r).pairRule) === 'number' ? { pairRule: /** @type {any} */ (r).pairRule } : {}; // M10 am21: the asked line is an edited added line
     if (r.check === null) {
-      return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
+      return { line: r.line, rule: r.rule, source: 'look', ask: 'no-check', ruleText: r.text, counted: true, question: `Line ${r.line}, guardrail "${r.text}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(r.line, false)}` };
     }
     const words = plainWords(/** @type {any} */ (r.check));
-    return { ...pair, line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
+    return { line: r.line, rule: r.rule, source: 'look', ask: 'check', ruleText: r.text, counted: false, reading: words, check: r.check, question: `Line ${r.line}, guardrail "${r.text}": I propose ${words}. ${HOW_TO_ANSWER(r.line, true)}` };
   });
 }
 
-// ---- the plan uses only the checks you picked (am16 (4)) -------------------------------------------------------------------------------------
+// ---- the shape of a pick (M10 am16); the plan's checks are built by the list (src/checkblock.js), not here -------------------------------------------------------------------------------------
 /**
- * @typedef {{line: number, rule: number, check: Record<string, any>|null, added?: string, own?: boolean}} Pick
- *   `check` = the check the person agreed to (null for their own words); `added` = the `~` rule the answer wrote on the line; `own` = their own words
+ * @typedef {{line: number, rule: number, check: Record<string, any>|null, own?: boolean}} Pick
+ *   `check` = the check the person agreed to (null for their own words); `own` = their own words
  */
-/**
- * Settle every scoped rule against the person's answers: a rule with a picked check is checked; the `~` line an agree wrote is covered by that pick; every other
- * rule is Not checked, with the reason (`person-left` = they chose it, `own-words` = they gave their own words, `no-pick` = nothing was picked).
- * @param {ReturnType<typeof scopedRules>} rules @param {Pick[]} picks @param {{line: number, rule: number}[]} left
- * @returns {{checks: Map<number, Record<string, any>[]>, notes: {line: number, rule: number, text: string, reason: 'person-left'|'own-words'|'no-pick'}[]}}
- */
-export function settleRules(rules, picks, left) {
-  /** @type {Map<number, Record<string, any>[]>} */
-  const checks = new Map();
-  /** @type {{line: number, rule: number, text: string, reason: 'person-left'|'own-words'|'no-pick'}[]} */
-  const notes = [];
-  const sameText = (/** @type {string|undefined} */ a, /** @type {string} */ b) => typeof a === 'string' && norm(a) === norm(b);
-  for (const r of rules) {
-    const own = picks.find((p) => p.line === r.line && p.rule === r.rule);
-    if (own?.check) { checks.set(r.line, [...(checks.get(r.line) ?? []), own.check]); continue; }
-    if (picks.some((p) => p.check && p.line === r.line && sameText(p.added, r.text))) continue;
-    if (left.some((l) => l.line === r.line && l.rule === r.rule)) notes.push({ ...r, reason: 'person-left' });
-    else if (own?.own || picks.some((p) => !p.check && p.own && p.line === r.line && sameText(p.added, r.text))) notes.push({ ...r, reason: 'own-words' });
-    else notes.push({ ...r, reason: 'no-pick' });
-  }
-  return { checks, notes };
-}
-
-/**
- * Overwrite the drafter's check on every step of a line this call settles (a green step, which another signed part settles, is left alone): a line with picked checks
- * is softgreen and carries exactly those checks; a line with none is hitl. Whatever `close.shape` the drafter wrote is gone. Pure: returns a new declaration.
- * @param {any} declaration @param {ReturnType<typeof scopedRules>} rules @param {ReturnType<typeof settleRules>} settled
- * @param {(note: {line: number, reason: 'person-left'|'own-words'|'no-pick'}) => string} sentence the one table's words for a reason
- */
-export function applyPicks(declaration, rules, settled, sentence) {
-  if (!declaration || !Array.isArray(declaration.steps)) return declaration;
-  const lineSet = new Set(rules.map((r) => r.line));
-  const green = (/** @type {number} */ n) => declaration.steps.some((/** @type {any} */ st) => st?.fromLine === n && st?.close?.class === 'green');
-  const mine = (/** @type {number} */ n) => lineSet.has(n) && !green(n);
-  const steps = declaration.steps.map((/** @type {any} */ st) => {
-    // M10 am22 (1): a fact line keeps its fact close and adds the person's picks to it (`close.picked`); the line stays green
-    if (st && typeof st === 'object' && lineSet.has(st.fromLine) && green(st.fromLine)) {
-      const { picked: _own, ...close } = st.close ?? {};
-      const kept = settled.checks.get(st.fromLine) ?? [];
-      return { ...st, close: kept.length && st.close?.class === 'green' ? { ...close, picked: kept } : close };
-    }
-    if (!st || typeof st !== 'object' || !mine(st.fromLine)) return st;
-    const picked = settled.checks.get(st.fromLine) ?? [];
-    return { ...st, close: picked.length ? { class: 'softgreen', shape: { picked } } : { class: 'hitl' } };
-  });
-  const out = { ...declaration, steps };
-  // M10 am22 (3): the record of the fact lines that carry the person's picks, written here and nowhere else; whatever the drafter sent for it is gone
-  const pickedLines = [...new Set(steps.filter((/** @type {any} */ st) => Array.isArray(st?.close?.picked) && st.close.class === 'green').map((/** @type {any} */ st) => st.fromLine))].sort((a, b) => a - b);
-  if (pickedLines.length) out.pickedLines = pickedLines; else delete out.pickedLines;
-  const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-  if (isRec(declaration.guardrailClasses)) {
-    out.guardrailClasses = { ...declaration.guardrailClasses };
-    const un = isRec(declaration.unjudgeable) ? { ...declaration.unjudgeable } : {};
-    for (const n of lineSet) {
-      if (!mine(n) || !declaration.steps.some((/** @type {any} */ st) => st?.fromLine === n)) continue;
-      const has = (settled.checks.get(n) ?? []).length > 0;
-      out.guardrailClasses[String(n)] = has ? 'softgreen' : 'hitl';
-      if (has) delete un[String(n)];
-      else un[String(n)] = [...new Set(settled.notes.filter((x) => x.line === n).map(sentence))].join(' ') || 'No check was picked for it, so you judge it at the Ask.';
-    }
-    if (isRec(declaration.unjudgeable) || Object.keys(un).length) out.unjudgeable = un;
-  }
-  return out;
-}
-
 // borrowed-from: bareloop src/checkpick.js@0408a8f (retentionOf, 890affa; adapted to fwdloop's one close per line: a unit is one cited fact of the line's step)
 /**
  * M10 am27 (4) RETENTION record of one draft (record only, counts, no words). Per job line: `aiParts` = the cited facts the drafter wrote on that line (a `cited` close counts once per

@@ -13,6 +13,7 @@ import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
+import { NO_VALUE_WHY } from './ticketrows.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -56,6 +57,12 @@ export function sheetFoundWords(check, claims) {
   return null;
 }
 
+/** M17 am2: a check code built has code's own name: `l<line>r<rules>` (a rule row's) or `l<line>a<k>` (an `[agent]` row's); a plan whose checks all have one is an M17 plan (its card shows the list only) @param {unknown} id */
+export const isCodeBuiltId = (id) => typeof id === 'string' && /^l\d+[ra]\d+(_\d+)*$/.test(id);
+
+/** M17 am3: who a sheet check comes from: code's `row: 'agent'` (a second check on a rule, its own `[agent]` row) is `agent` whatever it shows; else the one rule (`sheetByOf`) @param {any} c @param {string[]} rules */
+export const sheetByCheck = (c, rules) => (c?.row === 'agent' ? 'agent' : sheetByOf(rules));
+
 /** @param {any} l a job line `{rules?, guardrail?, rule?}` @returns {string[]} its `~` rules, numbered from 1 by position */
 export const rulesOfLine = (l) => lineRules({ ...(Array.isArray(l?.rules) ? { rules: l.rules } : {}), rule: l?.guardrail ?? l?.rule });
 
@@ -70,7 +77,7 @@ export const coversWords = (rules) => rules.map((r) => `covers "${r}"`).join(' Â
  * older `close.columns` / `close.cited` check (then every guardrail is Not checked).
  * @param {{declaration: any, lines: Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>, csvRoles?: string[], record?: any}} o
  *   `record` = the `sheet` section of `line-checks.json` (`{lines: [...]}`), only after a run
- * @returns {Array<{line: number, guardrails: string[], checked: Array<{id: string, name: string, words: string, covers: string[], coversWords: string, text: string, ok?: boolean, found?: string}>, notChecked: string[]|'none'}>}
+ * @returns {Array<{line: number, codeBuilt: boolean, guardrails: string[], checked: Array<{id: string, name: string, words: string, covers: string[], coversWords: string, by: 'you'|'agent', text: string, ok?: boolean, found?: string}>, notChecked: string[]|'none'}>}
  */
 export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
   const out = [];
@@ -95,7 +102,8 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       const words = sheetCheckSentence(c);
       const cw = coversWords(rules);
       /** @type {any} */
-      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, text: onList ? tagged(sheetPlainText(name, words, cw), sheetByOf(rules)) : labelled(sheetPlainText(name, words, cw), 'agent') }; // hamr 2026-11-14: a plan whose list has sheet rows tags a check by where it comes from; an older plan keeps M10 am22 (4)'s `[agent]`
+      const by = sheetByCheck(c, rules);
+      const e = { id: typeof c.id === 'string' ? c.id : '', name, words, covers: rules, coversWords: cw, by, text: onList ? tagged(sheetPlainText(name, words, cw), by) : labelled(sheetPlainText(name, words, cw), 'agent') }; // hamr 2026-11-14: a plan whose list has sheet rows tags a check by where it comes from; an older plan keeps M10 am22 (4)'s `[agent]`
       const res = newest && Array.isArray(newest.results) ? newest.results.find((/** @type {any} */ r) => isRec(r) && r.id === c.id) : undefined;
       if (isRec(res) && typeof res.ok === 'boolean') {
         e.ok = res.ok;
@@ -110,19 +118,21 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
       return e;
     });
     const notChecked = guardrails.filter((r, i) => !isColumnChoiceRule(r) && !covered.has(i + 1));
-    out.push({ line: st.fromLine, guardrails, checked, notChecked: notChecked.length === 0 ? /** @type {'none'} */ ('none') : notChecked });
+    out.push({ line: st.fromLine, guardrails, checked, codeBuilt: hasSheet && st.close.sheet.every((/** @type {any} */ c) => isCodeBuiltId(c?.id)), notChecked: notChecked.length === 0 ? /** @type {'none'} */ ('none') : notChecked });
   }
   return out;
 }
 
 /**
- * The guardrail rules of a sheet step that no check covers, as the drafter's Not-checked lines (`line N: "rule" - no sheet check covers it`): the block's own
+ * The guardrail rules of a sheet step that no check covers, as the drafter's Not-checked lines (`line N: "rule" - <reason>`): the block's own
  * `notChecked`, one list for the plan card and the drafter's saved record.
- * @param {any} declaration @param {Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>} lines @param {string[]} csvRoles @returns {string[]}
+ * M17 am2: `built` (the builder's answer, src/sheetbuild.js) gives the reason a rule is Not checked (the refusal that named it).
+ * @param {any} declaration @param {Array<{n: number, rules?: string[], guardrail?: string, rule?: string}>} lines @param {string[]} csvRoles @param {{notChecked: Record<string, string>}} [built] @returns {string[]}
  */
-export function uncoveredRules(declaration, lines, csvRoles) {
+export function uncoveredRules(declaration, lines, csvRoles, built) {
   if (csvRoles.length === 0) return [];
-  return sheetLineBlocks({ declaration, lines, csvRoles }).flatMap((b) => (b.notChecked === 'none' ? [] : b.notChecked.map((r) => `line ${b.line}: "${r}" \u2014 no sheet check covers it`)));
+  return sheetLineBlocks({ declaration, lines, csvRoles }).flatMap((b) => (b.notChecked === 'none' ? [] : b.notChecked
+    .map((r) => `line ${b.line}: "${r}" \u2014 ${built?.notChecked[`line ${b.line}: "${r}"`] ?? NO_VALUE_WHY}`)));
 }
 
 /** @param {any} arbiter @returns {string[]} the roles of the signed sources that are a CSV file (the sheets a check reads) */

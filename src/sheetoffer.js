@@ -78,15 +78,26 @@ export function sheetOpsBrief() {
  * The rules the validator enforces on `close.sheet`, as lines for the drafter (every one of them is a refusal at $0 in src/declaration.js / src/sheetchecks.js).
  * @param {string[]} roles the CSV input roles @returns {string[]}
  */
-export function sheetOfferRules(roles) {
+export function sheetOfferRules(roles, lineNums = /** @type {number[]} */ ([])) {
   return [
-    `- A green step whose line has a guardrail about values in a CSV input (${roles.join(', ')}) lists that input's role in its reads and carries close.sheet = a list of 1 to ${MAX_SHEET_CHECKS} checks, each a bareguard check object from the ops below, with "table" = the CSV input's role. Write the checks the line's guardrail needs and nothing else; the person signs them. close.sheet is for a green step only.`,
-    '- A column name in a check is picked from the sheet\'s header, spelled exactly; the tool only lets you pick a header name. A check that bareguard refuses (a wrong field for the op, overlapping bands, a missing dateFormats entry) is refused at $0 naming the job line.',
+    ...(lineNums.length ? [`- The job's sheet lines are ${lineNums.join(', ')} (the lines shown with their ~ rules that are not on the list's own rows): "line" in a sheetChecks suggestion is one of those numbers, exactly as shown. The checks of a sheet line are sent only in sheetChecks: an edit that names a sheet line is refused.`] : []),
+    `- M17: you write NO sheet check in the declaration (it has no "close.sheet"). A job line whose step reads a CSV input (${roles.join(', ')}) and has a guardrail about values in it lists that input's role in the step's reads and gets its checks from your row-edit reply: "sheetChecks", 1 to ${MAX_SHEET_CHECKS} suggestions, each a bareguard check object from the ops below with "line" = the job line's number and "table" = the CSV input's role. Suggest the checks the line's guardrail needs and nothing else; code builds each one on bareguard or refuses it with its reason, and the person sees every one and can drop it.`,
+    '- A column name in a suggestion is picked from the sheet\'s header, spelled exactly; the tool only lets you pick a header name.',
     '- A number in a where condition (gt, gte, lt, lte, eq, between) must be a number the person wrote on that job line or its guardrail; a date (asOf, and the values of before, after, dateOn, dateBetween) must be a date they wrote there as YYYY-MM-DD. Never make a number or a date up: if the person gave none, leave that condition out.',
-    '- A "cells" check names "claim", a short name for the answer the step gives; the step is told only the shape of the answer, never the check. A "table" check has no claim and judges the input sheet itself, so it must already hold on that sheet (one that fails on it is refused); to check what a step gives, use a cells check. If every check of a step is a table check the step has nothing to answer and the line is refused: pair a table check with at least one cells check.',
-    '- "covers" on each check lists the numbers of the line\'s guardrail rules (the ~ parts, counted from 1 in the order shown) that this check really verifies; [] if none. A guardrail rule that no check covers is shown to the person as Not checked, so cover every rule you can with a real check, and never claim a rule a check does not verify. A rule shaped like "use the column \'X\' for \'Y\'" is a column choice, not a rule to cover.',
+    '- A "cells" check names "claim", any short name (code renames it); the step is told only the shape of the answer, never the check. A "table" check has no claim and judges the input sheet itself, so it must already hold on that sheet; to check what a step gives, use a cells check. If every check of a step is a table check the step has nothing to answer: suggest at least one cells check too.',
+    '- "covers" on each suggestion lists the numbers of the line\'s guardrail rules (the ~ parts, counted from 1 in the order shown) that this check really verifies; [] if none. A guardrail rule that no check covers is shown to the person as Not checked, so cover every rule you can with a real check, and never claim a rule a check does not verify. A rule shaped like "use the column \'X\' for \'Y\'" is a column choice, not a rule to cover.',
     ...sheetOpsBrief(),
   ];
+}
+
+/**
+ * M17 am2 item 2: the row-edit reply's `sheetChecks` property: bareguard's `checkSchema` items (src/sheetoffer.js `sheetChecksProp`) plus the job line each suggestion is for. Typed suggestions only; code builds or refuses each.
+ * @param {Record<string, {header: string[]}>} tables @param {number[]} [lineNums] the job's sheet lines: `line` can only name one of them @returns {Record<string, any>|null}
+ */
+export function sheetSuggestProp(tables, lineNums = /** @type {number[]} */ ([])) {
+  const p = sheetChecksProp(tables);
+  if (p === null) return null;
+  return { ...p, description: 'suggested sheet checks, only for a job line whose step reads a CSV input: code builds or refuses each one on bareguard; you never write a check into the plan', items: { ...p.items, properties: { line: { type: 'integer', ...(lineNums.length ? { enum: lineNums } : { minimum: 1 }), description: 'the number of the job line this check is for (one of the sheet lines shown)' }, ...p.items.properties }, required: ['line', ...p.items.required] } };
 }
 
 /** @param {unknown} rule @returns {boolean} true for the `use the column 'X' for 'Y'` rule an agreed column ask writes ({@link columnRuleWords}) */
@@ -95,3 +106,37 @@ export function isColumnChoiceRule(rule) {
   const head = columnRuleWords('', '').split("''")[0]; // "use the column '"
   return r.startsWith(head) && r.endsWith("'") && r.includes("' for '");
 }
+
+/**
+ * M17 ruling 1 (hamr 2026-11-14): the parts of an agreed column rule (`use the column 'Amount' for 'Price'`), read from the words code wrote ({@link columnRuleWords}); null for any other text.
+ * @param {unknown} rule @returns {{column: string, word: string}|null}
+ */
+export function columnChoiceParts(rule) {
+  if (!isColumnChoiceRule(rule)) return null;
+  const r = String(rule);
+  const head = "use the column '";
+  const mid = r.indexOf("' for '", head.length);
+  if (mid < 0) return null;
+  return { column: r.slice(head.length, mid), word: r.slice(mid + "' for '".length, r.length - 1) };
+}
+
+/**
+ * M17 ruling 1: the rule's own words with the job's word (case aside, whole word) swapped for the agreed column: "Price over 500" + Amount -> "Amount over 500". Null when the word is not in the rule.
+ * @param {string} text @param {string} word @param {string} column @returns {string|null}
+ */
+export function swapColumnWord(text, word, column) {
+  const w = word.trim().toLowerCase();
+  if (w === '') return null;
+  const low = text.toLowerCase();
+  const isWordChar = (/** @type {string|undefined} */ c) => c !== undefined && c.toLowerCase() !== c.toUpperCase() || (c !== undefined && c >= '0' && c <= '9');
+  let from = 0;
+  for (;;) {
+    const at = low.indexOf(w, from);
+    if (at < 0) return null;
+    if (!isWordChar(text[at - 1]) && !isWordChar(text[at + w.length])) return `${text.slice(0, at)}${column}${text.slice(at + w.length)}`;
+    from = at + 1;
+  }
+}
+
+/** M17 ruling 2: what the AI is told of a column the person agreed for a word of the job's prose (no `~` rule): the word and the column, typed @param {{line: number, word: string, column: string}} c @returns {string} */
+export const agreedColumnWords = (c) => `- The person agreed that on line ${c.line} the word '${c.word}' means the column '${c.column}'. If a check on that line needs it, suggest it on that column.`;

@@ -8,7 +8,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { draft } from '../src/drafter.js';
 import { tooManyAsksText } from '../src/pageask.js';
 import {
-  RATES, MODEL, fakeProvider, textReply,
+  RATES, MODEL, fakeProvider, textReply, toolReply,
 } from './drafter-fixture.mjs';
 import { PAGE, raw } from './fixtures/m10-map/load.mjs';
 
@@ -30,7 +30,16 @@ const fetcher = async (url) => ({ ok: true, text: PAGE, url });
 const run = (provider, extra = {}) => draft({
   proseText: prose(), provider, rates: RATES, modelId: MODEL, draftDir: path.join(tmp(), 'pages'), fetchPage: fetcher, ...extra,
 });
-const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer is added as a new ~ rule on line 1).';
+// a plan for the job above: M17 am4 - Not checked is the list's, so it reads on a draft that reaches the list's assembly (a refused draft has none)
+const planOf = () => ({
+  steps: [
+    { primitives: ['read'], reads: [], emits: 'flights_list', fromLine: 1, close: { class: 'hitl' } },
+    { primitives: [], reads: ['flights_list'], emits: 'ok', fromLine: 2, close: { class: 'hitl' } },
+    { primitives: ['write'], reads: ['flights_list', 'ok'], emits: 'sent', fromLine: 3, close: { class: 'hitl' } },
+  ],
+  guardrailClasses: {}, refused: [],
+});
+const READ_Q = 'Your line 1 says "not a red-eye". I read it as: departure time between 05:00 and 23:59. Agree? Answer "agree", or type your own reading (your answer replaces that ~ rule on line 1).';
 
 test('a reading ask fires after the look and BEFORE any drafting round: one provider call (the map), no declaration', async () => {
   const p = fakeProvider([mapReply(raw(3)), textReply()]);
@@ -100,12 +109,13 @@ test('no page input, no look ask (a CSV-only job is unchanged)', async () => {
 
 // must fail (signed): a guardrail dropped with no reason
 test('a rule the person left ("drop it") is Not checked with the signed words, the drafter is told, and no fact serves it', async () => {
-  const p = fakeProvider([mapReply(raw(3)), textReply()]);
+  const p = fakeProvider([mapReply(raw(3)), toolReply(planOf())]);
   const r = await run(p, { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
+  assert.equal(r.ok, true, r.reds.join('\n'));
   assert.ok(!r.look.facts.some((f) => f.line === 1 && f.forRule === 2));
   assert.ok(r.look.dropped.some((d) => d.line === 1 && d.rule === 2 && d.reason === 'person-left'));
   assert.ok(r.notChecked.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
-  assert.ok(p.calls[1].messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
+  assert.ok(p.calls.find((c) => c.tools[0] === 'emit_declaration').messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
 });
 
 test('a left rule that does not exist on the job is ignored, not invented', async () => {
@@ -114,8 +124,10 @@ test('a left rule that does not exist on the job is ignored, not invented', asyn
 });
 
 test('am2 item 3: the plan card row for a left rule reads exactly `not checked · "<rule>" — You chose to leave it Not checked.`, and no other row uses that prefix', async () => {
-  const r = await run(fakeProvider([mapReply(raw(3)), textReply()]), { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
+  const r = await run(fakeProvider([mapReply(raw(3)), toolReply(planOf())]), { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
+  assert.equal(r.ok, true, r.reds.join('\n'));
   const left = r.notChecked.filter((x) => x.endsWith('You chose to leave it Not checked.'));
   assert.deepEqual(left, ['not checked · "not a red-eye" — You chose to leave it Not checked.']);
-  assert.ok(r.notChecked.filter((x) => x.startsWith('not checked · ')).length === 1, 'page drops keep their own line form');
+  // M17 am5 (D3): the job's Ask line carries a ~ rule, which the list shows as Not checked with the signed reason; every other `not checked · ` row is that one
+  assert.deepEqual(r.notChecked.filter((x) => x.startsWith('not checked · ') && !x.endsWith('You chose to leave it Not checked.')), ['not checked · "nothing goes out before I accept" \u2014 you judge it at the Ask']);
 });

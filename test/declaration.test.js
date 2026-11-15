@@ -146,7 +146,7 @@ const FIELD_META = {
     level: 'top', required: true, needle: '"guardrailClasses"', invalidNeedle: 'guardrailClasses', retype: () => [], invalid: () => ({ 1: 'blue' }),
   },
   unjudgeable: {
-    level: 'top', required: true, needle: '"unjudgeable"', invalidNeedle: 'unjudgeable', retype: () => ['x'], invalid: () => ({ 3: 'no guardrail on line 3' }),
+    level: 'top', required: false, needle: '"unjudgeable"', invalidNeedle: 'unjudgeable', retype: () => ['x'], invalid: () => ({ 3: 'no guardrail on line 3' }),
   },
   refused: {
     level: 'top', required: true, needle: '"refused"', invalidNeedle: 'refused', retype: () => ({}), invalid: () => [{ line: 99, reason: 'nope' }],
@@ -322,6 +322,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'ticketWatch', level: 'top' },
   { field: 'pickedLines', level: 'top' },
   { field: 'checkList', level: 'top' },
+  { field: 'unjudgeable', level: 'top' },
   { field: 'numbersFrom', level: 'close' },
   { field: 'picked', level: 'close' },
   { field: 'class', level: 'close' },

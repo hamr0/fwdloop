@@ -106,7 +106,12 @@ for (const width of [1280, 390, 320]) {
     await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").click()');
     assert.equal(await chrome.ev('document.querySelector("[data-testid=audit-checks-body]").hidden'), false);
     const shown = await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-check-row]")).map(function(r){ return {text: r.textContent.replace(/\\s+/g, " ").trim(), tags: r.querySelectorAll(".by").length, by: Array.from(r.querySelectorAll(".by")).map(function(x){return x.getAttribute("data-by");}), result: r.getAttribute("data-result")}; })');
-    assert.ok(shown.length >= 2 && shown.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
+    // M17 am5 (D3): the job's Ask line carries a ~ rule, one Not checked row [you] with the signed reason; every other row is a default check that passed
+    const notRows = shown.filter((r) => r.result === 'not-checked');
+    assert.deepEqual(notRows.map((r) => [r.by, r.tags]), [[['you'], 1]], JSON.stringify(shown));
+    assert.match(notRows[0].text, /you judge it at the Ask/);
+    const passedRows = shown.filter((r) => r.result !== 'not-checked');
+    assert.ok(passedRows.length >= 2 && passedRows.every((r) => r.tags === 1 && r.by[0] === 'default' && r.result === 'passed'), JSON.stringify(shown));
     // P4c: bareloop layout - the header reads "checks · N passed", lowercase, after the caret and the state sign
     assert.match(await chrome.ev('document.querySelector("[data-testid=audit-checks-toggle]").textContent'), /^\s*[▶▼]\s*checks · \d+ passed/);
     assert.deepEqual(await chrome.ev(IDS), [], 'element ids are unique');

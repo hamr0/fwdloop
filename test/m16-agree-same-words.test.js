@@ -39,13 +39,15 @@ function runAgainDraft() {
   return { dir, author };
 }
 
-test('a run-again draft whose Agree gives words already on the line grows no copy of them, and the redraft starts (break: drop the same-words guard in appendAnswersToJob)', () => {
+// M17 am1 (a): the live bug's two copies came from an Agree APPENDING a line. Now an Agree REPLACES the asked rule (one rule in, one rule out); the job `exactly 3 bullets; exactly 3 list items`
+// keeps its two rules, the first one's words are the proposal. (Words the line already holds are still never added as a copy by `appendAnswersToJob`, tested below.)
+test('a run-again draft: an Agree replaces the asked rule in place and adds no line; the redraft starts', () => {
   const { dir, author } = runAgainDraft();
   assert.equal(author.answer(ID, { k: 1, choice: 'agree' }).status, 200);
   const r = author.answer(ID, { k: 2, choice: 'agree' });
   assert.equal(r.status, 202, JSON.stringify(r.body));
   const grown = JSON.parse(readFileSync(path.join(dir, 'card-1.json'), 'utf8')).job;
-  assert.equal(grown, JOB, 'the job text is the signed job text, no third copy');
+  assert.equal(grown, 'Read my resume\n~ exactly 3 list items; exactly 3 list items', 'rule 1 was replaced in place; still two rules, no third copy');
 });
 
 test('appendAnswersToJob: new words still add a line (am2 item 3); words already on the line, alone or one part of a `; ` line, add nothing and still count', () => {

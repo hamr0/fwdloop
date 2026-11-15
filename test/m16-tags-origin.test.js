@@ -85,34 +85,34 @@ import { auditChecksOf } from '../src/auditchecks.js';
 import { tagged } from '../src/checkwords.js';
 
 /** a green closer's per-check results for the three checks, as closeByClass hands them */
-const closedOf = () => ({ verdict: 'green', checks: CHECKS().map((c) => ({ id: c.id, text: `${c.id} words`, ok: true, result: null })) });
+const closedOf = () => ({ verdict: 'green', checks: ['l2r2', 'l2a1', 'l2a2'].map((id) => ({ id, text: `${id} words`, ok: true, result: null })) });
 
 test('a CSV plan: the same check carries the same tag on the card, the Job tab, the Audit grid and fold, the Result tab and the readout (break: let one surface say [agent] for every sheet check)', async () => {
   const { dir } = await csvPlan();
   const d = readJson(dir, 'declaration.json');
   const { lines, arbiter } = doors(dir);
-  const expect = { nodup: 'you', over: 'you', bands: 'agent' };
+  const expect = { over: 'you', bands: 'agent', nodup: 'agent' };
   const tagWord = (by) => `[${by}]`;
   // plan card (the rows the draft saved)
   const card = readJson(dir, 'log.json').checkCard.rows.filter((r) => r.line === 2);
-  assert.deepEqual(card.map((r) => r.by), ['you', 'you', 'agent']);
+  assert.deepEqual(card.map((r) => r.by), ['you', 'agent', 'agent']);
   // Job tab and Result tab block: the block's own text
   const block = checkedLines(d, { lines, csvRoles: ['aging'] }).find((l) => l.line === 2).sheet;
-  assert.deepEqual(block.checked.map((c) => c.text.match(/\[(you|agent|default)\]$/)?.[0]), ['[you]', '[you]', '[agent]']);
+  assert.deepEqual(block.checked.map((c) => c.text.match(/\[(you|agent|default)\]$/)?.[0]), ['[you]', '[agent]', '[agent]']);
   // the readout
   const readout = buildReadout({ declaration: d, arbiter, lines, name: 'aging', modelId: MODEL, costUsd: 0, rounds: 1, spendComplete: true, root: '/x' });
   const sheetLines = readout.split('\n').filter((l) => l.includes('sheet check:'));
-  assert.deepEqual(sheetLines.map((l) => l.match(/\[(you|agent|default)\]$/)?.[0]), ['[you]', '[you]', '[agent]']);
+  assert.deepEqual(sheetLines.map((l) => l.match(/\[(you|agent|default)\]$/)?.[0]), ['[you]', '[agent]', '[agent]']);
   // Audit grid rows (the run's tries) and the Result tab's reading of them
   const step = d.steps.find((st) => st.fromLine === 2);
   const grid = closeRecords(step, { claims: {} }, closedOf(), d.checkList);
-  assert.deepEqual(grid.map((r) => r.by), ['you', 'you', 'agent']);
+  assert.deepEqual(grid.map((r) => r.by), ['you', 'agent', 'agent']);
   assert.ok(grid.every((r) => !/\[(you|agent)\]/.test(r.text)), 'the page draws the tag from `by`, once');
   assert.deepEqual(grid.map((r) => tagged(r.text, r.by).match(/\[\w+\]$/)[0]), Object.values(expect).map(tagWord));
   // Audit Checks fold: the recorded results are found by the row's part
   const diary = [{ step: step.emits, try: 1, checks: grid }];
   const fold = auditChecksOf(d, diary, null, { lines, csvRoles: ['aging'] });
-  assert.deepEqual(fold.checks.map((r) => [r.by, r.result]), [['you', 'passed'], ['you', 'passed'], ['agent', 'passed']]);
+  assert.deepEqual(fold.checks.map((r) => [r.by, r.result]), [['you', 'passed'], ['agent', 'passed'], ['agent', 'passed']]);
 });
 
 test('an old plan with no checkList keeps its old words: every sheet check says [agent] (break: tag an unlisted plan by covers)', async () => {

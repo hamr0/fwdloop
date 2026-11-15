@@ -45,6 +45,7 @@ import { lineRules } from './pagebits.js';
 import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { checkListReds } from './checklistsign.js';
+import { ticketListReds } from './ticketrows.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -159,7 +160,7 @@ function checkMcp(declaration, reds) {
 /** M12 piece 3 (item 4): the signed label filter, `ticketFilter: {priority?: ['P0'..'P3'], labels?: [names]}`; optional, and only on a job that lists MCP tools.
  *  Pure data: code decides at run (src/ticket-labels.js); the drafter may only suggest it and a human signs it.
  *  @param {Record<string, any>} declaration @param {string[]} reds */
-function checkTicketFilter(declaration, reds) {
+export function checkTicketFilter(declaration, reds) {
   if (!Object.hasOwn(declaration, 'ticketFilter')) return;
   const f = declaration.ticketFilter;
   if (!isPlainObject(f) || Object.keys(f).length === 0) {
@@ -186,7 +187,7 @@ function checkTicketFilter(declaration, reds) {
 
 /** M12 piece 3 (signed item 7): the ticket fields a schedule may watch, `ticketWatch: ['state'|'labels']`; optional, only on a job that lists MCP tools, typed values only.
  *  The scheduler compares (src/trigger-tickets.js); the drafter may suggest, a human signs. @param {Record<string, any>} declaration @param {string[]} reds */
-function checkTicketWatch(declaration, reds) {
+export function checkTicketWatch(declaration, reds) {
   if (!Object.hasOwn(declaration, 'ticketWatch')) return;
   const w = declaration.ticketWatch;
   if (!Array.isArray(w) || w.length === 0) { reds.push(`declaration: "ticketWatch" must be a non-empty list of fields (${WATCHABLE.join(' and ')})`); return; }
@@ -226,7 +227,7 @@ export const SHAPE_KEYS = Object.freeze(['maxWords', 'sections', 'linesPerInvoic
 export const MACHINE_SHAPE_KEYS = Object.freeze(['wordsPerSection', 'picked']);
 
 const SHAPE_TYPE_CHECKS = Object.freeze({
-  // M10 am16: the checks the person picked, set by code (src/checkpick.js applyPicks), each one a bareguard rule with only that rule's own fields
+  // M10 am16: the checks the person picked, set by code (src/blockassemble.js), each one a bareguard rule with only that rule's own fields
   picked: {
     expected: 'a non-empty array of checks, each an object with a text rule of bareguard\'s list',
     check: (v) => Array.isArray(v) && v.length > 0 && v.every((c) => isPlainObject(c) && typeof c.rule === 'string' && OFFERED_RULES.includes(c.rule)),
@@ -560,7 +561,7 @@ function checkShapeBuilds(shape, label, reds, redsBefore) {
 }
 
 /**
- * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/checkpick.js applyPicks).
+ * M10 am22 (3): `pickedLines` is the record of the fact lines that carry the person's picks: a list of line numbers. Code writes it (src/blockassemble.js).
  * @param {Record<string, any>} declaration @param {string[]} reds
  */
 function checkPickedLines(declaration, reds) {
@@ -571,7 +572,7 @@ function checkPickedLines(declaration, reds) {
 
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
- * applyPicks); here it must be a green step's, a list of bareguard text rules that builds into a check.
+   * assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
  * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
  * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */
@@ -818,10 +819,10 @@ export function validateDeclaration(declaration, context = {}) {
     reds.push('declaration: "guardrailClasses" must be an object keyed by line number');
   }
 
-  // --- unjudgeable (REQUIRED; {} is fine) ------------------------------------
+  // --- unjudgeable (M17 am4, C8: a new plan carries none; a plan signed before holds it and is read as signed) ---
   let unjudgeable = {};
   if (!Object.prototype.hasOwnProperty.call(declaration, 'unjudgeable')) {
-    reds.push('declaration: "unjudgeable" is required (an object keyed by line number; {} is fine)');
+    // nothing to read
   } else if (Array.isArray(declaration.unjudgeable) && declaration.unjudgeable.length === 0) {
     // am41 item 1 (F63): an empty list carries no data; it counts as {}. A non-empty list falls to the red below.
   } else if (isPlainObject(declaration.unjudgeable)) {
@@ -1121,6 +1122,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // M16 item 2: the checks of a list line are the signed list's; a plan carrying one proves it here, at sign and at run start ($0)
   reds.push(...checkListReds(declaration));
+  reds.push(...ticketListReds(declaration));
 
   // --- ask slots (ported from poc/m1/slots.mjs's checkAskSlots) --------------
   // (a) exactly one hitl step bound to each signed ask line.

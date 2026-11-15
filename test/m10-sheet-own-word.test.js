@@ -23,7 +23,7 @@ test('the real case: the look named "Amount" for the rule "Price over 500" - the
 test('the person\'s own word "Price" (named by the look) asks once in the signed words', () => {
   const r = applySheetWords(CSV, [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }], JOB, 'expenses');
   assert.equal(r.asks.length, 1);
-  assert.equal(r.asks[0].question, `no column 'Price'; 'Amount' has numbers in 12 of 12 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 2).`);
+  assert.equal(r.asks[0].question, `no column 'Price'; 'Amount' has numbers in 12 of 12 rows. Use it? Answer "agree", or type your own words (your answer replaces that ~ rule on line 2).`);
 });
 
 test('a header the person did say is kept, case aside, with no ask', () => {

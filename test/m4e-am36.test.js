@@ -35,21 +35,24 @@ const sign = (d) => signDraft({
 });
 const signRow = (d) => readSetup(path.join(d.root, 'job2')).rows.find((x) => x.kind === 'sign');
 
-test('the sign row carries notChecked {label, items} word for word', async () => {
+// M17 am4 (C1) / am5 (D3): the AI's own notes are dropped; the sign row carries the list's Not checked lines, here the one ~ rule on the job's Ask line
+const ASK_RULE_LINE = 'not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask';
+
+test('the sign row carries notChecked {label, items} word for word; an AI note is not in it', async () => {
   const d = await cliDraft(['whether the tone suits the reader', '  the JD match  ']);
   const s = sign(d);
   assert.equal(s.ok, true, JSON.stringify(s.reds));
   assert.deepEqual(signRow(d).notChecked, {
     label: NOT_CHECKED_LABEL,
-    items: ['whether the tone suits the reader', 'the JD match'],
-    by: { 'whether the tone suits the reader': 'agent', 'the JD match': 'agent' },
+    items: [ASK_RULE_LINE],
+    by: { [ASK_RULE_LINE]: 'you' },
   });
 });
 
-test('a draft that listed nothing records the label and an empty list', async () => {
+test('a draft whose list has only the Ask line\'s rule records the label and that one line', async () => {
   const d = await cliDraft(null);
   assert.equal(sign(d).ok, true);
-  assert.deepEqual(signRow(d).notChecked, { label: NOT_CHECKED_LABEL, items: [] });
+  assert.deepEqual(signRow(d).notChecked, { label: NOT_CHECKED_LABEL, items: [ASK_RULE_LINE], by: { [ASK_RULE_LINE]: 'you' } });
 });
 
 test('"Not checked" is not signed: editing it after the draft does not break the approved hash, and the signed files never carry it', async () => {

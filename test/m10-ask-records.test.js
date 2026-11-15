@@ -71,9 +71,9 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   assert.equal(shown[0].gap, 'you said: agree [you]');
   assert.equal(shown[1].gap, 'you said: drop it');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
-  // 3. the signed job: the agreed reading is a new ~ line (the dropped rule adds none)
+  // 3. the signed job: the agreed reading REPLACES its rule in place (the dropped rule is left as it is)
   const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');
-  assert.match(prose, /guardrail: under \$150; not a red-eye; nonstop; pays well; departure time between 05:00 and 23:59\n/);
+  assert.match(prose, /guardrail: under \$150; departure time between 05:00 and 23:59; nonstop; pays well\n/);
 });
 
 test('a flow with no look question has no human row (the Audit of every older flow is unchanged)', async () => {

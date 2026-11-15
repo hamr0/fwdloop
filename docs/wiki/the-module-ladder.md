@@ -3731,3 +3731,225 @@ Peer state (2026-11-13):
   - `86e6484`, `d22f570`: an Agree to words already on the line (a whole `~` rule or one `; ` part of it) adds no second copy; different words still add one (src/panel/authorcard.js `appendAnswersToJob`, borrowed from bareloop F318 0291e910). Test: `test/m16-agree-same-words.test.js`.
   - `8a516f8`: dead `placeRuleLines` and `ledgerChannel` deleted (self-review nits); no behaviour change.
   - `5dfdf94` (red test `b4e0fe4`): Drop and Add on the plan card after a Drop it answer now rebuild the same plan at $0 instead of refusing "The inputs of this plan have changed"; the rebuild reads the person-left drop saved in page-look.json and keeps the Not-checked note the unchanged list still makes (src/planrebuild.js `rebuildBlock`, `rowEditPlan`). Test: `test/m16-p4-rowedit.test.js` (P4d).
+
+## M17 — one check list for sheets and Tickets
+
+**M17 scope — SIGNED by hamr 2026-11-14 ("sign m17"), the text exactly as shown; the number M17 is hamr's pick.** hamr's words with the signature: "one thing we did with bareloop is that any rule gets updated after clarificatios get replaced, not added next to it, same amount got in ~ ! $ same out, we did it cleanly in bareloop and it solved problem of mixing up, ask loop after it releases. also ask it for anything else might be helpful/applicable for us #2 loop will take from you the sheet jobs as well after they release". Why: the one check flow draft in docs/product/PRD.md (survey `.claude/scratch/m16/survey/SURVEY.md`, paths A2, B4, B6, C5, C6, C7, D1, D2); bareloop has no sheet path, so this part is fwdloop's own.
+
+> **M?? — one check list for sheets and Tickets** (you pick the number)
+>
+> 1. **Sheets: one guardrail, one row.**
+>    - (a) The column question (A2) stays. It's still asked before the card shows. Your answer updates that rule's own row. It never adds a new `use the column 'X' for 'Y'` line (D2).
+>    - (b) The AI still writes sheet checks, as signed in M16 am4. But code keeps only one check per rule. A second check on the same rule, or a check that covers no rule, goes under **Suggested** with **Add** (B4).
+>    - (c) There is only one Not checked list. Three old notes go away:
+>      - the sheet's own "Not checked: none" (C7),
+>      - "no sheet check covers it" (C6),
+>      - "no column 'expenses'" notes for words that aren't a rule (C5).
+>
+>      A rule with no check shows once in Not checked, with its reason.
+> 2. **Tickets: nothing hidden.**
+>    - (a) The filter and watch show as rows on the list. Code checks them at run start (B6).
+>    - (b) A content rule like "mention the reporter's name" is listed as Not checked, with its reason. It's never hidden (D1).
+> 3. **Nothing else changes.** Page jobs wait for bareloop's release.
+>
+> **Done when:**
+> - The CSV job, the aging job and a Tickets job each draft and run green on deepseek-flash, on your real panel.
+> - Each card has one Not checked list, with each rule named once.
+> - A $0 re-check of the good signed sheet and Tickets jobs refuses none and gives the same reds and greens as before.
+>
+> **Must fail when:**
+> - A card shows two Not checked lists.
+> - One rule has two checks.
+> - A check that covers no rule sits on the list.
+> - A `~` rule shows nowhere.
+> - A sheet answer adds a `~` line.
+> - A signed job's result changes.
+>
+> **Out of scope:** page jobs; how "under N" words are counted; fixing old runs.
+>
+> **Cap:** first a $0 test on saved drafts, then about 30 cents for drafts and walks.
+
+**M17 am1 — SIGNED by hamr 2026-11-14 ("sign m17 am1"), the text exactly as shown.** Why: bareloop v0.57.0 (merge c18df406, tag pushed 2026-11-14) carries the one-rule-in-one-rule-out change hamr asked to copy at the M17 sign, plus the fixes the 2026-11-14 ruling put next after M16 (the `loop` session's list, 2026-11-14). hamr's question with the signature: "a new rule gets asked and approved gets added, why is this an issue?"
+
+> **M17 am1 — copy bareloop v0.57.0's check-list fixes.**
+> 1. fwdloop copies from bareloop's released tag v0.57.0 (c18df406), each file with its borrowed-from header:
+>    - (a) an answer replaces the rule it's about, never adds one beside it, and a rule whose words are already the check is not asked (2b2fa701, 094b896a);
+>    - (b) one Not checked row per rule (f2812ca0);
+>    - (c) the flights fixes A and B, their test and the money-line fix (fd943e49, 637e76ad, fa942d5d, 60226a39);
+>    - (d) the label colon fix (1583d563);
+>    - (e) the note question for fact lines (32352d82).
+> 2. Tickets: code sets the filter and watch from the card. A draft that carries them is refused, as in bareloop's `src/authorjob.js`. This is how M17 item 2(a) is built.
+> 3. The M17 sheet answers use the same replace rule.
+>
+> **Done when:**
+> - walk-m16-m14: an Agree leaves one rule on line 3, and a Revise asks nothing about it.
+> - The flights job re-walk does not prove "Rome" from the search box, and does not check euro prices against $150.
+> - A $0 re-check of the good signed jobs refuses none.
+>
+> **Must fail when:**
+> - An answer adds a `~` rule beside the one it answers.
+> - A rule shows twice in Not checked.
+> - A file is copied from a bareloop branch instead of the tag.
+>
+> **Out of scope:**
+> - The AI's third-try question that still adds a rule.
+> - bareloop's Tickets renumbering (96451a6e): not seen failing here.
+>
+> **Cap:** $0 test first, then about 30 cents for walks.
+
+**Built after signing — not signed text (2026-11-14), M17 am1 piece P1 (items 1 (a) and 1 (b)).**
+- Commits (branch `m17-one-list-sheets`): 29f035f (src), 0eb237c, 4f6e11e, 25f1141, cdf5d76 (tests follow the replace rule), 148d142 (new tests), 08fd0d0 (more tests). Copied from bareloop's tag v0.57.0 (c18df406), each file with its borrowed-from header: `src/checkblock.js` (applyAnswer replaces, `jobLinesView`, `saysRule`, `obviousCheck` in the build, follower rows and `pairWith` gone), `src/blockpick.js` (`obviousCheck`), `src/blockasks.js`, `src/pickrecord.js` (no `added`, no pair), and the `test/fixtures/m16-block/checkblock/replay-cases.json` golden.
+- fwd's own side: `applyAnswers` (src/panel/authorcard.js) is the one writer of the job box after an answer: an answer about a rule (a look ask with a rule number) replaces that rule through `replaceRuleOnJob` (which now also finds a rule that is one `; ` part of a `~` line), never appends; a sheet column-choice ask (`use the column 'X' for 'Y'`) and a drafter question still add a line (M17 am2/am3 own the sheet answers). `src/blockdraft.js` and `src/planrebuild.js` no longer use `scoped`/pair; `src/drafter.js` keptView/keptNote and `src/setup.js` (the kept row's `rule` is now the rule's own words) no longer read `added`; the answer words in `src/checkpick.js` and `src/pageask.js` say "replaces that ~ rule". Not touched: `src/sheetfind.js` (the sheet column ask words), the old pick path for lines the block is not given (its count rules are not filtered by `obviousCheck`).
+- Tests: new `test/m17-p1-one-rule.test.js` (the walk-m16-m14 Agree and Revise, "an answer adds a `~` rule beside the one it answers", "a rule shows twice in Not checked"); changed: m10-am17-keep-picks, m10-ask-panel, m10-draft-asks, m10-pageask, m10-am16-draft, m10-am20-startover, m10-am29, m16-agree-same-words, m16-drafter-turns, m16-drafter-assemble, m16-block-parity, m16-checkblock, m16-tickets-rules; removed: m10-am21-edited-pair (the pair it tested is gone).
+- Ruled by hamr (M17 am5, option B): bareloop v0.57.0 is followed as copied. A person's own countable words may be asked again on a Revise, and the Not checked reason for them is bareloop's ("No check was picked for it"). This wins over M10 am17 (1)(2) and M10 am16 (5) for list lines. Tests updated to it: m10-am17-keep-picks (am17 (6) now uses own words that are no count, plus one test that countable own words are asked again), m10-am17-revise-fill (own words that are no count), m10-am16-panel (own words), and m10-ask-records (the agreed reading replaces its rule).
+
+
+**Built after signing — not signed text (2026-11-15), M17 am1 piece P2 (items 1 (c) and 1 (d); 1 (e) NOT built).**
+- Commits (branch `m17-one-list-sheets`): 900e3ad (c), e003e58 (d). Copied from bareloop's tag v0.57.0 (c18df406), each with its borrowed-from header: (c) `src/checkblock.js` (matchRule: a money rule in another currency than the page fact is Not checked, never the look's or the AI's reading; matchBang: an AI-added phrase in no result row is Not checked with the look's own sentence, money filter grouped), `src/rubricstep.js` (`WHY_OTHER_CURRENCY`), `src/pagedry.js` (`resultQuotes`, `phraseInNoResult`; `dryReadPhrases` reads through `resultQuotes`); (d) `src/pagerules.js` (`withColon`, used for every label of a fact).
+- Tests: new `test/m17-flights-bang-currency.test.js` (bareloop's two test files, plus the Done-when job and the borrowed-from tag check) on the euro page `test/fixtures/m16-block/flights-eur/`; new `test/m17-label-colon.test.js` (page rules and fwd's money dry read; fwd has no time dry read, so bareloop's `dryReadTimes` cases are not copied) on `test/fixtures/m17-time-label-colon/`.
+- (e), the note question, is built as P2e (below).
+
+**Built after signing — not signed text (2026-11-15), M17 am1 piece P2e (item 1 (e), the note question).**
+- Copied from bareloop's tag v0.57.0 (c18df406), each with its borrowed-from header: `src/noteask.js` (the question's words and `decideNote`'s reading; the call is fwd's own forced tool turn, not bareloop's text reply), `src/checkblock.js` (`buildNote`, `factOnlyLines`, `setNotes`, the `note` card words), `src/rubricstep.js` (`defaultNoteText`).
+- fwd's own shape: after the row-edit turn, when the list has a facts-only line (a fact part and no countable part), `src/drafter.js` makes ONE forced turn (`note-ask`, tool `answer_note_question`, thinking off, one retry like every forced turn, metered and booked as a drafting round). The typed yes/no per line goes to `block.setNotes`; code decides. Yes: a `$` row `L<n>.$note` (kind `note`, tag `[default]`) and a countable `nonEmpty` part beside the facts; the assembly (`src/blockassemble.js`, unchanged) signs it as `close.picked: [{rule: 'nonEmpty'}]` with the line in `pickedLines`, so the sign proof (`src/checklistsign.js`) and `src/runner.js` `stepMeta.withText` (true for any non-empty `close.picked`) needed no change: the model step gets the `text` box and the `alsoWrite` brief. No: nothing. A turn with no usable answer in two tries: a Not checked row, `could not ask whether line <n> also wants a note`. The answers ride the turn's own log entry (`notes`), the one place `src/planrebuild.js` replays them from (a failed turn too), so a rebuilt plan equals the saved one; a log with no `note-ask` entry (a plan drafted before this piece) rebuilds no note row, and nothing is added at run time.
+- Cost: one extra forced turn per draft that has a facts-only line, at drafting price, and none when every list line has a countable part or no fact part. The shared fake provider (`test/drafter-fixture.mjs`) now answers the turn "no" and counts it in `blockCalls` like the ledger and row-edit turns; five `m10-draft-*` tests that pinned `calls[1]` as the declaration round were red until then (seen), so the cost shows in `rounds` / `blockCalls`, not hidden.
+- Not built, by reading: `lineCarriesText` and the "carry text" protection wording (bareloop's confirm turn is not in fwd, nothing here prints what a line carries); `SIGNED_ROW_FIELDS` and the sign proof take any row kind, so `note` needed no entry. A note row whose line stops being facts-only (its last fact dropped) is Not checked by the list's existing row loop (pinned by a test, no code of its own).
+- Tests: `test/m17-p2e-note-question.test.js` (9); eight were shown red by breaking the src alone (the ninth pins the list's existing row loop and was green on arrival). Not run: the full suite, a live draft, a browser walk of the card.
+
+**Built after signing — not signed text (2026-11-15), M17 piece P3 (M17 item 2 as replaced by am6).**
+- D1 (item 2(b)): a Tickets `~` rule that is neither the filter nor the watch rule is a row of the check block; with no check it shows once in Not checked with its reason. `ticketLeaveOut` (`src/blockdraft.js`) leaves out only a rule `ticketRuleField` reads as a filter or watch rule; those are ticket rows (next point), so nothing is shown nowhere.
+- am6 (item 2(a)): `src/ticketrows.js` is the one writer of a ticket row (`kind: 'ticket'`, signed in `declaration.checkList` like the sheet rows, tag `[you]`, key `L<line>.ticket.<field>.<rule>`). A rule that names a priority P0 to P3 or a label is the filter's row; a rule that says a state or labels change is the watch's row (`ticketRuleField`; a count rule is neither). The AI suggests the value as `ticketFilter` / `ticketWatch` on the row-edit reply (`src/rowedit.js`, `rowEditChannel(true)`); code proves it with the declaration's own readers (`checkTicketFilter` / `checkTicketWatch`, exported), and writes `declaration.ticketFilter` / `ticketWatch` only from a legal suggestion and only when a rule of that kind is on the job (`src/drafter.js`). A rule with no legal suggestion is a Not-checked ticket row (the block's no-pick words). The declaration schema offers no top-level filter or watch and the prompt no longer asks for one (`src/ticket-draft.js`); a draft that carries one gets a red naming the field and is revised, with no check run.
+- Proof: `ticketListReds` (called by `validateDeclaration`): a built ticket row needs the declaration's field, and a field the declaration holds needs a built row; a plan whose list has no ticket row (signed before M17) is not examined, so its filter and watch are as signed. The run, the 15-minute look, the Job tab and the readout read `declaration.ticketFilter` / `ticketWatch` as before. `src/planrebuild.js` rebuilds the ticket rows and card the same way.
+- Rescan ($0, read-only): `poc/m17-p3-rescan/` (`run.mjs`, `before.jsonl`, `after.jsonl`) lists each signed Tickets flow's readFlow result, filter, watch, and the verdict of `decideTicket` on each run's frozen ticket.
+- Tests: `test/m17-p3-tickets-content.test.js`, `test/m17-p3-ticket-rows.test.js`; changed: m12-p3-drafter, m16-drafter-turns, m16-drafter-assemble (the filter and watch come through the row-edit reply, a carried one is refused), m16-tickets-rules (ticket rows, no Not checked note), ticketfilter-schema-desc (the row-edit property says required).
+- The row-edit turn of a Tickets job carries bareloop v0.57.0's `ticketFilterBlock` verbatim (`src/rowedit.js`, borrowed-from header; its "beside stages" and "refused" words are bareloop's, not reworded). bareloop v0.57.0 has no typed tie between the proposed filter and a rule (the AI reads the job lines), so fwd's `ticketRuleField` stays as the only tie. A filter or watch rule is left out of the block even when the look tied it to a fact, so it shows once, as the ticket row (`ticketLeaveOut` reads no facts).
+- Not proved here: the live drafter's use of the row-edit `ticketFilter` property (a paid POC on deepseek-flash comes first).
+
+**Built after signing — not signed text (2026-11-15), M17 piece P4 (M17 am2 and am3: sheet checks built by code).**
+- `src/sheetbuild.js` is the one builder (ported from poc/f195-agentrows/build.mjs, F195 PASS). Sheet suggestions ride the row-edit reply as typed `sheetChecks` (bareguard's `checkSchema` items plus the job `line` and `covers`; `sheetSuggestProp` in `src/sheetoffer.js`, `src/rowedit.js`), the Tickets shape of P3. The declaration schema offers no `close.sheet` and the declaration prompt no longer asks for one (the rules and the ops brief are on the list turn: `sheetOfferRules`); a draft that carries `close.sheet` is red naming the field (`declaration: the draft carries "close.sheet", ...`), revised, and the field is dropped. Code puts the reply's suggestions on the step that reads the sheet and builds them: it drops a suggestion's `id`, `claim`, `text`, refuses or builds each one on bareguard (vocabulary, tables, schema, `columnAt`, `checkTables`, `groundedLiterals`, `claimSchema`, and `runTableChecks` on the sheet frozen at draft time for a table check) and writes the checks with its own ids: a rule row's check is `l<line>r<rules>`, an `[agent]` row's `l<line>a<k>`; the claim is the id. A cells check is placed before a table check, then in the order sent. A check is a rule row's when none of the rules it covers is held; every other buildable suggestion is its own `[agent]` row (typed `row: "agent"`, stripped before bareguard like `covers`), on by default, with Drop. Nothing is hidden. A suggestion for a line with no green step that reads a sheet is refused. Plans signed before M17 are never rebuilt: Drop and Add work on the saved declaration (`src/sheetrows.js`), so the rebuild needs no replay. Each refusal is kept on the round log (`sheetRefused`).
+- A rule no check holds is Not checked with the refusal that named it, else `no sheet check covers it` (`uncoveredRules` takes the builder's reasons). A table check that already fails on its sheet is refused at build with its rule Not checked (the M10b am5 red sent back to the AI is gone for it; the walk-m10am32-1 `each-customer-once` catch is this). A Revise keeps a sheet Drop only for the very same check (`keyOfSameCheck`: the typed fields; an id says nothing across drafts now that code names them).
+- Edge case: an `[agent]` row shows (`covers`) only a rule no rule row holds and no earlier `[agent]` row shows, so such a rule is covered, never shown nowhere and never on two rows; the tag comes from `row` (`sheetByCheck` in `src/sheetblock.js`).
+- Ruling 1 (hamr 2026-11-14): a column ask tied to one of the person's `~` rules, agreed, rewrites that rule in place (`applyAnswers`, `swapColumnWord`: the job's word, case aside and whole word, becomes the column), adds no line; own words replace the rule. The tied question's tail says "your answer replaces that ~ rule on line N" (the page asks' words). If the job's word is not inside the rule's text there is nothing to rewrite: no `~` line is appended, the rule stays as written, and the answer is handled as ruling 2.
+- Ruling 2 (hamr 2026-11-15): a column agreed for a word that is no `~` rule (or not in the rule it was asked about) adds no `~` line (`applyAnswers` returns `columns`); the redraft child gets `--columns [{line, word, column}]` (`bin/fwdloop`, `src/authoring.js`, `src/drafter.js`), the AI is told "the person agreed that on line N the word 'W' means the column 'C'" on the list turn, and its suggestion (if any) is one `[agent]` row built by code. No suggestion, no row. It survives a Revise and a redraft in the plan's own picks record (`picks-record.json`, a `columns` list `{lineWords, occurrence, word, column}` tied to the line's words like a pick; `readColumns`, `columnEntries`, `columnsOnLines` in `src/pickrecord.js`; no new file): the word is not asked or declined again and is told again. A line with no `~` rule of its own is never green (M4d), so the word's line needs another rule.
+- F196 practice walk (aging draft d-00mwhwe36y-35d3): (A) the list turn showed the AI every non-ask line, the send line 4 included, and `line` was any integer, so all four `sheetChecks` named line 4 and were refused. Now the turn shows only the block's lines and the sheet lines (a line with `~` rules the list's own rows do not take; no ask or send line), tells which lines are sheet lines, and `line` is an enum of exactly those numbers (`sheetSuggestProp`, `sheetOfferRules` in `src/sheetoffer.js`, `sheetLineNums` in `src/drafter.js`). An edit that names a sheet line is still refused by the block (it takes no row for it); the turn now says so. (B) a `~` rule showed in Not checked from the sheet look's column drop, beside the build's own line, and even when a check row held it (re-walk d-00mwhx4jbm-fe4b): a look drop of a word inside a `~` rule of a sheet line never makes a Not checked line of its own. A rule a row holds shows nowhere there; a rule no row holds shows once, with the build's reason (`uncovered`). A drop of a prose word is no rule and stays. (C) `sheetLineBlocks` marks `codeBuilt` when every sheet check has code's own name (`isCodeBuiltId`); the page's `sheetBlockLines` draws nothing for a list plan with `codeBuilt`, so the card and the Job tab show the list only; a plan signed before M17 keeps its block. The Result tab's block (run verdicts) is unchanged. Tests: `test/m17-p4-f196.test.js` (real prose and look words from the walk; a browser test at 1280, 390 and 320).
+- Not proved here: the live AI's use of the row-edit `sheetChecks` property (a paid POC on deepseek-flash comes first), and a browser walk of the plan card.
+- Rescan ($0, read-only): `poc/m17-p4-rescan/` (`run.mjs`, `before.jsonl`, `after.jsonl`) lists each signed sheet flow's readFlow result, its saved checks and the closeSheet verdict on each saved try.
+- Tests: `test/m17-p4-sheet-build.test.js`; changed: m10b-am5, m10b-piece3, m16-am4-sheet-rows, m16-am4-sheet-route, m16-drafter-assemble, m16-tags-origin, m10-draft-sheet, m10-sheetask, m10-sheet-own-word; the shared fake provider (`test/drafter-fixture.mjs`) moves a test's scripted `close.sheet` to the row-edit reply (`sheetChecks`) and records each list turn (`blockTurns`).
+
+**Built after signing — not signed text (2026-11-15), M17 piece P5 (M17 am4 and am5: the old per-case check paths go).**
+- Removed: A1 (`askableFromLook` and `ruleBounds`, src/pageask.js; the drafter's page-look asks), A3 and B5 (the shape asks and `settleRules` / `applyPicks`, src/checkpick.js and src/drafter.js; a line the list is not given, a sheet line, has no pick path of its own; `allShape` is the list's lines only), C1 (the AI's `notChecked`: not offered, `NOTCHECKED_PROMPT` and `CHECKABLE` gone, whatever the model sends for it is dropped), C4 (the `leftRuleLine` / `settled.notes` lines in `pageNotChecked`; the drafter is still told what the person left, the list's own row says it), C8 (`unjudgeable`: not asked, not written by `assembleFromBlock` or the drafter, not required by `validateDeclaration`; a plan signed before holds it and is read as signed), C3 (the Audit's Checks fold splits reading notes through `notCheckedView`, as the card and Job tab do; `auditChecksOf` returns `readNotes`, drawn under the existing words "How the page was read"), B8 (`src/repairs.js`; the list sets each line's reads and Not checked reasons; no round log holds `repaired`).
+- D3 (am5 item 2): `assembleFromBlock` takes `askLines`; each `~` rule on a signed Ask line is one Not checked line `not checked · "<rule>" — you judge it at the Ask`, tagged [you], never skipped. The reason is the signed am5 phrase byte for byte (`ASK_LINE_REASON`); the older sentences in `src/pagedropwords.js` ("... so you judge it at the Ask.") are other reasons and are not used. The line is not a signed list row (an Ask line is no list line); `src/planrebuild.js` passes the same Ask lines so a rebuilt plan equals the saved one.
+- P4 leftovers: `buildSheetChecks` (src/sheetbuild.js) only REPORTS a green sheet step that holds no built check (`unbuilt`: its line and each rule as a Not checked line with the refusal that named it, else `no sheet check covers it`); it writes no class. `closeUnbuiltSheetSteps` (src/blockassemble.js, the assembly side, hamr's ruling: sheet code holds no hitl) makes that step `hitl`, sets the class on the line, and the drafter shows the rules as Not checked. The validator's red "must carry close.sheet" is NOT changed, so a plan signed before M17 (green, no `close.sheet`, no list) is still refused as before (test/m10b-piece5-old-jobs). The draft-time call of `tableChecksFailingOnInput` is gone (the builder refuses those first); the function stays, the builder and the run use it. The validator's sheet reds (`sheetCheckReds`, `sheetCheckWordReds`, `checkColumnsKey`) are kept: they read `close.sheet` as signed, so they still guard older plans, and the builder's checks pass them. `grep -n hitl src/sheet*.js` is empty; the only earlier hit was the P4 header comment "no class or hitl code" in src/sheetbuild.js, reworded.
+- B3 (hamr's direction: the card shows the words the plan checks): `buildLine` (src/checkblock.js) is the ONE writer of a place's grown phrases (fwd's signed R2c, M10 am7 item 2). The row holds them (`grown`, not a signed row field) and the fact part holds the same phrases as facts of their own; `renderCard` draws the row's `grown` words, so the card, the Job tab and the plan say the same words (flights: "Adolfo Suárez Madrid"). `placeFactsOf` in src/blockassemble.js is gone; the assembly reads `fact.facts`. `place-missing` (src/citedwords.js, F72) and `r.factNames` (the base names the draft's `inPlan` check reads) are unchanged. The block is a bareloop copy and now differs from it here on purpose; the parity test runs on the look without `phrases` and a new test holds the R2c difference. The survey's open item, why the airport-name row said "Madrid" too: the look gave both facts the job's word as their `phrase` (`origin city` and `origin airport name` both `Madrid`), and only the grown `phrases` differ ("Adolfo Suárez Madrid", "Leaves Adolfo Suárez Madrid-Barajas Airport"); the card drew the bare word, the plan the grown ones.
+- Two historical POC scripts import the deleted `askableFromLook` and no longer load: `poc/f163/replay.mjs`, `poc/f167/run.mjs` (left as history).
+- Not removed, by am5 Why or by scope: B7, C9, A4, B2, A2 (the sheet column offer, M17 am1 1(a)); C2 (the look's drop lines in `pageNotChecked`, not named in am4) and C5/C6 (sheet-look drops, `uncoveredRules`: the list's own sheet path under am2) stay.
+- Tests: new `test/m17-p5-notchecked-list.test.js`, `test/m17-p5-sheet-line.test.js`; changed: m10-am27 (repair tests removed), m10b-piece3 (a step with no sheet check is hitl, not red), m10-am22-keepboth (applyPicks test removed), m10-pageask and m10-am24-asked-once (askableFromLook tests removed, the answer words, readingOfQuestion and the pick offer kept), m10-am29-panel (uses `readingQuestion` / `cantCheckQuestion`), drafter-ceiling-rule and m4e-am24 (no `notChecked` offered or kept; the Ask line's rule is the one Not checked line), m4e-am36 (the sign row carries the list's lines), m10-am16-draft (no `unjudgeable` on a new plan), m10-draft-asks (a left rule reads on a draft that reaches the list; the Ask line's rule is the other `not checked · ` row), m16-drafter-assemble and m16-p4-rowedit (the AI note is absent), m16-p4-audit (+ the reading-note split), m16-p4-walk (browser: the Audit's Not checked row is the Ask line's rule), declaration (unjudgeable is optional). Each new test was shown red by breaking src alone (D3: drop `askLines` at the call; C1: add the AI note back to the union; B8/C8: keep the AI's `unjudgeable`; A3/B5: let the sheet line's shape rules into `allShape`; P4: skip the hitl step; C3: map the raw items). B3: the flights test in m16-drafter-assemble and a block-level test in m16-block-parity were shown red by showing `r.words` in `renderCard`. Browser tests of the plan card, Job tab and Audit (m16-p4-walk, m10-am29-walk, m10-ask-walk, m10-ask-panel) pass. Not run: the full suite; a live draft; a browser walk of the Audit's "How the page was read" section.
+- Rescan ($0, read-only): `poc/m17-p3-rescan` and `poc/m17-p4-rescan` output equals their `before.jsonl`; `readFlow` of all 59 signed flows under `~/.config/fwdloop/flows` refuses none, before (42464842) and after, byte-identical.
+- Built after signing — not signed text (2026-11-15), F196 fix (practice-walk bug, aging job). Cause: (1) `applySheetWords` (src/sheetlook.js) only skipped an ask when a rule named the OFFERED column; a rule that names another header (rule 3 names 'Due date') still asked about its other word; now a `~` rule whose own words contain a header of the sheet is tied by code (countPhrase over the real headers, not by what the model returned; re-walk d-00mwhwc63v-b121: the model gave no 'Due date' word) and none of its words is asked; a prose word of the line that a tied rule's own text also says is settled too, even when the look gave only the prose ask (panel walk d-00mwhyk4xh-78fe). (2) the same word on the line's prose and on a `~` rule asked twice; now the rule's ask wins and the prose one is not asked (also when the rule's is settled). (3) the prose-word question tail (`columnTail`, src/sheetfind.js, the one place) now says "(your answer becomes the agent's check on line N)". Test: `test/m17-f196-aging-ask.test.js`.
+
+**M17 am2 — SIGNED by hamr 2026-11-14 ("sign m17 am2"), the text exactly as shown.** Why: hamr 2026-11-14: "one path for all jobs, be it a url, a sheet, a doc we have it's rubric, set it in the job as ~ ai checks what it can with pre read as ! then defaults per input type as default $ all go through code which is built on bareguard and honest about what it can do. any clarifications/substitution add drop replaces/removes from that one list one check"; and bareloop takes fwdloop's sheet jobs exactly as built, minus hitl (hamr, 2026-11-14).
+
+> **M17 am2 — sheet checks built by code, like every other check.** This replaces M17 item 1(b), and the parts of M16 am4 where the AI writes a sheet check.
+> 1. A sheet line goes through the same one path as every job:
+>    - your `~` rules;
+>    - the AI's `!` suggestions, from its first look at the sheet;
+>    - the `$` defaults a sheet input already gets (the column exists, and the sheet is the one frozen at run start).
+>
+>    Code builds every check on bareguard's sheet shapes (`checkTables`, `runTableChecks`, `checkSchema`, `claimSchema`, `groundedValues`, `groundedLiterals`, `columnAt`). A rule code cannot build shows in Not checked, with the reason.
+> 2. The AI never writes a sheet check. It only sends edits to the list, as on every other line.
+> 3. A column question, an Agree, your own words, a Drop or an Add replaces or removes that one row. Nothing is added beside it.
+> 4. An Ask is only a stop in the middle. Nothing else about a sheet line differs from bareloop.
+>
+> **Done when:**
+> - The CSV job and the aging job each draft and run green on deepseek-flash.
+> - No plan holds a sheet check the AI wrote.
+> - Each `~` rule shows as one row or one Not checked line.
+> - A $0 re-check of the signed sheet jobs gives the same reds and greens.
+>
+> **Must fail when:**
+> - The AI's draft carries a sheet check.
+> - A sheet rule is checked by anything but code on bareguard.
+> - A rule has two rows.
+> - A signed sheet job's result changes.
+>
+> **Out of scope:** page jobs (they wait for bareloop); doc jobs.
+
+**M17 am3 — SIGNED by hamr 2026-11-14 ("sign m17 am3"), the text exactly as shown.** Why: F194 build findings (docs/logs/FINDINGS.md): keeping one check per rule left the step's own list unchecked on 3 lines and hid a check that caught a red on m10b-expenses; hamr picked option B ("B, as long as they don't contradict #2 when agent asks clarification question at 3 tries questions and suggest a new rule, it gets added, loop building this"). Also rulings 2026-11-14, not signed text: a sheet column answer rewrites the `~` rule's own words in place ("Price over 500" + use Amount → "Amount over 500"); a column word from the job's prose that is no `~` rule becomes a `!` row suggested by the agent.
+
+> **M17 am3 — a second check on a rule is its own agent row.**
+> 1. When the AI suggests more than one check for one `~` rule, code keeps one on the rule's row (the one that checks the step's own answer, when there is one). Each other check that code can build becomes its own `[agent]` row on the list, on by default, with Drop. Code builds it on bareguard like every other check.
+> 2. M17's "Must fail when" lines read instead:
+>    - A rule's own row holds two checks.
+>    - A check sits on the list that is neither a rule's row nor an `[agent]` or `[default]` row.
+> 3. Questions the AI asks on its third try, and whether their answer replaces a rule or adds one, are not part of this. They come from bareloop's release.
+>
+> **Done when:** on the saved expenses runs, the check that caught the red is still on, as an `[agent]` row. On the 3 lines where the step's list went unchecked, it is now checked.
+>
+> **Must fail when:** a check the AI suggested and code could build is hidden without your Drop.
+
+**M17 am4 — SIGNED by hamr 2026-11-14 ("sign m17 am4."), the text exactly as shown.** Why: hamr 2026-11-14: "yes, i want them all cleaned, we already have their replacements, don't we?" Survey paths A1, A3, B3, B5, C1, C3, C4, C8 (`.claude/scratch/m16/survey/SURVEY.md`; the PRD's one check flow draft). Not in this amendment: A4 and B2 (no replacement yet), and B7's words, B8, C9, D3 (a $0 trace comes first).
+
+> **M17 am4 — the old per-case checks go; the list is the one place.**
+> 1. Removed, because the list already does each job:
+>    - questions asked outside the list (A1, A3): every line with `~` rules is a list line, so only the list asks;
+>    - the old pick path (B5);
+>    - card words that differ from the list's (B3): the card shows the list's words, the same as the plan;
+>    - the AI's own Not checked notes (C1), the "you left it" notes (C4) and the hidden "can't judge" record (C8): Not checked comes only from the list, each rule once, with its reason;
+>    - the Audit showing a reading note as Not checked (C3): the Audit splits them as the card and Job tab already do.
+> 2. Where a signed text keeps one of these paths, this wins for that path only. Those texts are listed in the PRD's one check flow draft, under "Signed texts it would replace". Every other signed text stands, including the answer buttons (M10 am32) and the third-try questions (M4e am25).
+>
+> **Done when:**
+> - The flights page job and m14-walk-5 each draft and run green on deepseek-flash.
+> - No question comes from outside the list.
+> - Each card's Not checked names each unchecked rule once and never contradicts a check row.
+> - The card and the plan say the same words.
+> - A $0 re-check of the good signed jobs refuses none.
+>
+> **Must fail when:**
+> - A question comes from outside the list.
+> - A Not checked line comes from anywhere but the list.
+> - A card word differs from the plan's.
+>
+> **Out of scope:** A4 (the AI's third-try questions, from bareloop's release); B2 (how "under N" is counted).
+
+**M17 am5 — SIGNED by hamr 2026-11-15 ("sign m17 am5"), the text exactly as shown.** Why: the $0 trace of the four untraced survey paths (2026-11-14): B7 and C9 stay (B7 is an honest signing refusal, not a judge; C9 shows a check that stopped); B8 drops a Not checked reason (`.drafts/d-00mwaukwqt-3faf/draft-1/log.json`); D3 is silent (src/blocklines.js skips ask lines). Ruling with the signature (hamr, 2026-11-15, the A/B on the M17 P1 clash): "B" — follow bareloop v0.57.0: a person's own countable words may be asked again on a Revise (bareloop `cantAsked = !isCountable(words)`), and their Not checked reason is bareloop's; this wins over M10 am17 (1)(2) and M10 am16 (5) for list lines. hamr: "goal is if you ask on something and offer correction you replace it as agreed".
+
+> **M17 am5 — two more old paths.**
+> 1. The old declaration repair (B8) goes. The list sets each line's reads and its Not checked reasons.
+> 2. A `~` rule on an Ask line (D3) shows on the list as Not checked, with the reason "you judge it at the Ask". It is never skipped silently.
+>
+> **Done when:** a job with a `~` rule on its Ask line shows that rule once in Not checked; no draft log holds a `repaired` entry.
+>
+> **Must fail when:** a `~` rule on an Ask line shows nowhere; a Not checked reason is dropped by a repair.
+
+**M17 am6 — SIGNED by hamr 2026-11-15 ("sign m17 am6."), the text exactly as shown.** Why: the P3 build stopped before any code (2026-11-15): M17 am1 item 2 rested on a wrong relay of bareloop (bareloop v0.57.0 `src/authorjob.js` refuses a spec draft carrying `ticketFilter`/`ticketWatch`, but its drafter proposes the filter through the row-edit tool, code checks it with `ticketFilterReds`, and the person signs it; no card pick sets it). fwd's card has no filter or watch input. The orchestrator relayed the claim without reading bareloop's code; retracted here.
+
+> **M17 am6 — the Tickets filter and watch are checks on the list.** This replaces M17 am1 item 2, which rested on a wrong reading of bareloop (bareloop's drafter suggests the filter and code proves it; no card pick sets it).
+> 1. A Tickets `~` rule about which tickets to take ("priority P1 only") or what to watch ("state") is a rule row on the list. Its check is the filter or the watch. The AI suggests it as an edit to the list, and code proves it with fwdloop's existing filter checks and builds it. Code writes the run's filter and watch from those rows.
+> 2. The AI never types a separate filter or watch. A draft that carries one is refused at $0.
+> 3. The 15-minute look and the run use the filter and watch exactly as today.
+>
+> **Done when:**
+> - A Tickets job drafts with its filter and watch shown as rows on their rules.
+> - A draft carrying its own filter is refused at $0.
+> - The signed Tickets jobs run the same.
+>
+> **Must fail when:**
+> - The filter or watch comes from anything but a proven check on its rule's row.
+> - A signed Tickets job's filter changes.
+
+**M17 am7 — SIGNED by hamr 2026-11-15 ("sign m17 am7,"), the text exactly as shown.** Why: F197 ($0): on hamr's walk draft `d-00mwhz6eab-cfc7` a `table` check (rowCount n:8, reads only the frozen input) sat on the row of `~ every invoice appears exactly once` as if it checked the step's answer. Run 1 (bars a-c PASS) moved it to an `[agent]` row but still showed the rule as covered; hamr picked option 2 (the rule goes to Not checked). Run 2 FAIL on the letter (bar e): the card showed "no sheet check covers it", not the picked words; item 2 settles which words.
+
+> **M17 am7 — a check that reads only the input sheet never covers your rule.**
+> 1. A sheet check that reads only the input sheet (a `table` check, such as "the sheet has 8 rows" or "no duplicate Invoice #") gives the same result whatever the step answers. Code never puts it on a `~` rule's row. It is its own `[agent]` row, on by default, with Drop, and it still runs.
+> 2. A `~` rule that no check holds shows once in Not checked with: "No check was picked for it, so you judge it at the Ask." This replaces "no sheet check covers it". A rule whose check was refused keeps the refusal as its reason.
+>
+> **Done when:**
+> - On hamr's aging draft `d-00mwhz6eab-cfc7`, "the sheet has 8 rows" is an `[agent]` row with Drop, and "every invoice appears exactly once" is in Not checked with the words above.
+> - On the saved runs of F194/F195, no line's verdict changes.
+>
+> **Must fail when:**
+> - A `table` check sits on a `~` rule's row.
+> - A card shows "no sheet check covers it".
+
+**Built after signing — not signed text (2026-11-15), M17 am7.** `src/sheetbuild.js`: a `rule: 'table'` check is never a rule row and its `[agent]` row covers no rule (a rule only a table check named is Not checked); `NO_SUGGESTION` is now `NO_VALUE_WHY` from `src/ticketrows.js` (the no-pick sentence, one copy); `src/sheetblock.js` `uncoveredRules` falls back to the same constant. Tests: new `test/m17-am7-table-row.test.js` (red on HEAD before the change); expectations updated where am7 changes the behaviour: `m10b-am5`, `m10b-piece3`, `m10b-piece4`, `m16-am4-sheet-route`, `m16-am4-sheet-rows`, `m16-tags-origin`, `m17-p4-f196`, `m17-p4-sheet-build`, `m17-p5-sheet-line`. Commits: a206b9d9 (red test), 7db8b90a (src), 5fe046b9 (test updates).

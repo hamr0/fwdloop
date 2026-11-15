@@ -1,0 +1,34 @@
+plans: 27 + 10 widened flows = 37
+
+== (a) d-00mwhz6eab-cfc7
+- draft:d-00mwhz6eab-cfc7/draft L2 rule 1 "every invoice appears exactly once": current rule-row check = l2r1 table/rowCount; candidate rule-row holder = false, agent row = l2a1, rule state = agent-row
+(a) lines found 1; control (current holds it on rule row): true
+
+== (c) checker self-test flags a double-held rule and a check in no row: true
+checks placed by the current builder: 75; table checks on a rule row today: 5 on 5 lines
+
+== (b) every run record, both pools
+- letter: 8 records, current red 0, candidate verdict differs 0
+- widened: 17 records, current red 3, candidate verdict differs 0
+(b) records 25; current red 3; records on lines where a table check sat on a rule row 2 (of them current red 0); differ 0
+
+== (d) report: ~ rules whose only rule-row holder today is a table check (5 rules on 5 plans)
+  count 1  flow:m10b-aging-5
+  count 1  draft:d-00mvkswtk8-799b/draft
+  count 1  draft:d-00mwhyk4xh-78fe/draft-1
+  count 1  draft:d-00mwhz6eab-cfc7/draft
+  count 1  flow-extra:walk-m17-aging
+- [signed] flow:m10b-aging-5 L2 rule 1: "every invoice appears exactly once" | table check op noEmpty column Invoice # | candidate shows the rule as: agent-row
+- [draft] draft:d-00mvkswtk8-799b/draft L2 rule 1: "every Invoice # appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: agent-row
+- [draft] draft:d-00mwhyk4xh-78fe/draft-1 L2 rule 1: "every invoice appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: agent-row
+- [draft] draft:d-00mwhz6eab-cfc7/draft L2 rule 1: "every invoice appears exactly once" | table check op rowCount | candidate shows the rule as: agent-row
+- [signed] flow-extra:walk-m17-aging L2 rule 1: "every invoice appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: agent-row
+
+git diff --stat src test: empty
+
+== BARS
+BAR (a): PASS
+BAR (b): PASS
+BAR (c): PASS
+BAR (d): report only, no pass mark
+OVERALL: PASS

@@ -1,4 +1,5 @@
-// borrowed-from: bareloop src/checkpick.js@v0.56.0 (3383cce) (isCountable, keepOrDrop, countCheck, partOfPick, sameRuleWords and what they call; HOW_TO_ANSWER and CANT_CHECK_WORDS are fwd's own, src/checkpick.js, the same words)
+// borrowed-from: bareloop src/checkpick.js@v0.57.0 (c18df406)
+// first ported from: bareloop src/checkpick.js@v0.56.0 (3383cce) (isCountable, keepOrDrop, countCheck, partOfPick, sameRuleWords and what they call; HOW_TO_ANSWER and CANT_CHECK_WORDS are fwd's own, src/checkpick.js, the same words)
 // This file is bareloop's checkpick.js. fwd already has a src/checkpick.js (the M10 am16 pick path, whose keepOrDrop and countCheck differ from these); the check block calls THESE,
 // so they live here under another name and the am16 module is left as it is.
 // The pick vocabulary and its keep-or-drop: a suggested check is kept only if its rule is on bareguard's list and offered here, it carries only that rule's own fields, and every
@@ -130,6 +131,15 @@ export function keepOrDrop(guardrail, sug) {
     if (want !== null && check.names.length !== want) return { kept: false, why: `the guardrail says ${want} sections; the check has ${check.names.length}` };
   }
   return { kept: true, check };
+}
+
+/**
+ * The check a counting rule's own words already ARE ("exactly 3 list items" -> listItems 3), or null. No obvious asks (hamr 2026-11-14): such a rule is settled as written, never proposed back to the person.
+ * @param {string} text @returns {Record<string, any>|null}
+ */
+export function obviousCheck(text) {
+  const c = countCheck(text);
+  return c !== null && c !== undefined && sameRuleWords(text, plainWords(/** @type {any} */ (c))) ? c : null;
 }
 
 /**

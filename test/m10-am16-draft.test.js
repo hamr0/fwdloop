@@ -90,33 +90,33 @@ test('(4) the plan carries only the picked checks: the drafter\'s own shape is g
   const p = fakeProvider([toolReply(plan())]);
   const r = await draft({
     proseText: prose(t), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false,
-    checkPicks: [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }],
+    checkPicks: [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 } }],
   });
   assert.equal(r.ok, true, r.reds.join('\n'));
   const by = (n) => r.declaration.steps.find((s) => s.fromLine === n).close;
   assert.deepEqual(by(3), { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } });
   assert.deepEqual(by(5), { class: 'hitl' }, 'line 5 has no pick: no check, whatever the drafter sent');
   assert.equal(r.declaration.guardrailClasses['5'], 'hitl');
-  assert.match(r.declaration.unjudgeable['5'], /No check was picked for it/);
+  assert.equal(r.declaration.unjudgeable, undefined, 'M17 am4 (C8): the reason is the list\'s Not checked line, not a hidden record');
   assert.ok(r.notChecked.includes('not checked · "under 80 words" — No check was picked for it, so you judge it at the Ask.'), r.notChecked.join('|'));
   assert.equal(p.calls.length, 1, 'the redraft makes no suggestion call');
 });
 
-test('(4) a rule the person left, and their own words, are Not checked with their reasons; the `~` line an agree wrote is covered by the pick', async (t) => {
-  const job = JOB.replace('~ exactly 3 bullets', '~ exactly 3 bullets\n~ exactly 3 list items').replace('~ under 80 words', '~ under 80 words\n~ keep it short and kind');
+test('(4) a rule the person left, and their own words, are Not checked with their reasons; an agree REPLACED its rule and the pick covers it (M17 am1)', async (t) => {
+  const job = JOB.replace('~ exactly 3 bullets', '~ exactly 3 list items').replace('~ under 80 words', '~ keep it short and kind');
   const p = fakeProvider([toolReply(plan())]);
   const r = await draft({
     proseText: prose(t, job), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false,
     leftRules: [],
     checkPicks: [
-      { line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' },
-      { line: 5, rule: 1, check: null, added: 'keep it short and kind', own: true },
+      { line: 3, rule: 1, check: { rule: 'listItems', value: 3 } },
+      { line: 5, rule: 1, check: null, own: true },
     ],
   });
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.declaration.steps.find((s) => s.fromLine === 3).close.shape.picked, [{ rule: 'listItems', value: 3 }]);
   assert.ok(!r.notChecked.some((x) => x.includes('exactly 3 list items')), 'the agree line is covered');
-  assert.ok(r.notChecked.some((x) => x.includes('"under 80 words"') && x.includes('Your own words are on the line')), r.notChecked.join('|'));
+  assert.ok(!r.notChecked.some((x) => x.includes('under 80 words')), 'the replaced rule is gone, not listed beside its replacement');
   assert.ok(r.notChecked.some((x) => x.includes('"keep it short and kind"') && x.includes('Your own words are on the line')));
   const left = await draft({ proseText: prose(t), provider: fakeProvider([toolReply(plan())]), rates: RATES, modelId: MODEL, offerQuestions: false, leftRules: [{ line: 5, rule: 1 }] });
   assert.ok(left.notChecked.includes('not checked · "under 80 words" — You chose to leave it Not checked.'));

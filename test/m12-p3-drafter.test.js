@@ -8,6 +8,20 @@ import { draft, buildDeclarationSchema } from '../src/drafter.js';
 import { wiredMenu } from '../src/primitives.js';
 import { ticketFactsLines, mcpFactsLines, isTicketListUrl, ticketReds } from '../src/ticket-draft.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
+import { rowEditChannel } from '../src/rowedit.js';
+import { callOf } from './m16-drafter-fixture.mjs';
+
+// M17 am6: a Tickets job's filter and watch are suggested as an edit of the list (the row-edit turn), never as a top-level field of the declaration: this wrapper answers that turn and hands every other call to the fake
+const withEdit = (inner, edit = { edits: [] }) => ({
+  get calls() { return inner.calls; },
+  lastMalformedToolCall: null,
+  async generate(m, t, o) {
+    if (t[0]?.name === 'submit_edits') return callOf('submit_edits', edit);
+    const r = await inner.generate(m, t, o);
+    this.lastMalformedToolCall = inner.lastMalformedToolCall ?? null;
+    return r;
+  },
+});
 
 const PROSE = `1. Read the ticket and say what is broken,
    guardrail: priority P1 or P2 only
@@ -31,11 +45,10 @@ const args = (over = {}) => Object.fromEntries(Object.entries({
   guardrailClasses: { 1: 'hitl', 2: 'hitl' },
   unjudgeable: {},
   refused: [],
-  ticketFilter: { priority: ['P1', 'P2'] },
   ...over,
 }).filter(([, v]) => v !== undefined));
-const run = (provider, extra = {}) => draft({
-  proseText: PROSE, provider, rates: RATES, modelId: MODEL, offerQuestions: false, mcpServers: ['github'], flowType: 'tickets', mcp: PICK, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); }, ...extra,
+const run = (provider, { edit = { edits: [], ticketFilter: { priority: ['P1', 'P2'] } }, ...extra } = {}) => draft({
+  proseText: extra.proseText ?? PROSE, provider: withEdit(provider, edit), rates: RATES, modelId: MODEL, offerQuestions: false, mcpServers: ['github'], flowType: 'tickets', mcp: PICK, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); }, ...extra,
 });
 
 test('Tickets: the drafter is told the flow type, that the ticket is frozen, the F90c line word for word, and what it may suggest; nothing is fetched', async () => {
@@ -66,7 +79,12 @@ test('the forced tool offers no mcp block and no flowType; mcpTools is an enum o
   assert.equal(schema.properties.mcp, undefined);
   assert.equal(schema.properties.flowType, undefined);
   assert.deepEqual(schema.properties.steps.items.properties.mcpTools.items.enum, TOOLS);
-  assert.deepEqual(schema.properties.ticketFilter.properties.priority.items.enum, ['P0', 'P1', 'P2', 'P3']);
+  assert.equal(schema.properties.ticketFilter, undefined, 'the declaration offers no top-level filter (M17 am6)');
+  assert.equal(schema.properties.ticketWatch, undefined);
+  const edit = rowEditChannel(true).tool({ calls: [] }).parameters;
+  assert.deepEqual(edit.properties.ticketFilter.properties.priority.items.enum, ['P0', 'P1', 'P2', 'P3']);
+  assert.deepEqual(edit.properties.ticketWatch.items.enum, ['state', 'labels']);
+  assert.equal(rowEditChannel(false).tool({ calls: [] }).parameters.properties.ticketFilter, undefined);
   const g = buildDeclarationSchema(wiredMenu(['core']), { ticket: { flowType: 'mcp', tools: TOOLS } });
   assert.equal(g.properties.ticketFilter, undefined);
   assert.equal(g.properties.ticketWatch, undefined);
@@ -129,11 +147,21 @@ test('isTicketListUrl: only a GitHub issues list; any other page stays a page', 
   assert.equal(isTicketListUrl('https://example.com/issues'), false);
 });
 
-test('ticketWatch: the drafter is told it exists, the tool offers only state and labels, and a suggestion comes through', async () => {
-  const p = fakeProvider([toolReply(args({ ticketWatch: ['state'] }))]);
-  const r = await run(p);
+test('ticketWatch: the AI suggests it as an edit of the list, on the rule that names it; the row is built and the declaration carries it', async () => {
+  const proseText = PROSE.replace('guardrail: priority P1 or P2 only', 'guardrail: priority P1 or P2 only; run a ticket again when its state changes');
+  const p = fakeProvider([toolReply(args())]);
+  const r = await run(p, { proseText, edit: { edits: [], ticketFilter: { priority: ['P1', 'P2'] }, ticketWatch: ['state'] } });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.declaration.ticketWatch, ['state']);
-  assert.deepEqual(p.calls[0].schemas[0].properties.ticketWatch.items.enum, ['state', 'labels']);
-  assert.match(p.calls[0].messages[0].content, /"ticketWatch"/);
+  assert.deepEqual(r.declaration.ticketFilter, { priority: ['P1', 'P2'] });
+  assert.deepEqual(r.declaration.checkList.filter((x) => x.kind === 'ticket').map((x) => [x.field, x.state, x.rule]), [['ticketFilter', 'built', 1], ['ticketWatch', 'built', 2]]);
+});
+
+test('a draft that carries its own ticketFilter or ticketWatch is refused at $0, naming the field', async () => {
+  const p = fakeProvider([toolReply(args({ ticketFilter: { priority: ['P1'] }, ticketWatch: ['state'] }))]);
+  const r = await run(p);
+  assert.equal(r.ok, false);
+  const red = r.reds.join('\n');
+  assert.match(red, /"ticketFilter" and "ticketWatch"/);
+  assert.match(red, /code sets/);
 });

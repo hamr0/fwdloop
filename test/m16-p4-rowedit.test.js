@@ -156,7 +156,7 @@ test('a Revise keeps the last draft\'s Drop: Add then Drop on draft 1, and draft
   assert.ok(s.list.suggested.some((x) => x.dropped === true), 'break: do not carry the choices and the suggestion comes back offered afresh');
 });
 
-test('P4c: the AI\'s own Not-checked note is tagged [agent] on the card state, and the tag survives a Drop/Add rebuild (break: drop the aiNotes map in src/drafter.js and this reds)', async () => {
+test('M17 am4 (C1): the AI\'s own Not-checked note is on no card state, and a Drop/Add rebuild does not bring it back', async () => {
   const note = 'line 3: whether the tone suits the role';
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST, FWDLOOP_TEST_DRAFT_LEDGER: LEDGER, FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([note]) } });
   writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
@@ -167,14 +167,14 @@ test('P4c: the AI\'s own Not-checked note is tagged [agent] on the card state, a
   const g = await settle(w, id, ['green', 'red', 'stopped']);
   await childGone(w, id);
   assert.equal(g.phase, 'green');
-  assert.ok(g.notChecked.items.includes(note), JSON.stringify(g.notChecked));
-  assert.equal(g.notChecked.by?.[note], 'agent');
+  assert.ok(!g.notChecked.items.includes(note), JSON.stringify(g.notChecked));
+  assert.equal(g.notChecked.by?.[note], undefined);
   assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
   const after = await until(async () => { const j = await state(w, id); return j?.phase === 'green' && j.plan !== g.plan ? j : null; });
-  assert.equal(after.notChecked.by?.[note], 'agent', 'the tag survives the rebuild');
+  assert.ok(!after.notChecked.items.includes(note) && after.notChecked.by?.[note] === undefined, 'a rebuild does not bring it back');
 });
 
-test('P4c: a Not-checked note code wrote is [default], a note the person chose is [you], the AI\'s is [agent]; every note of a list plan has exactly one tag (break: drop the noteBy map in src/drafter.js and this reds)', async () => {
+test('P4c: a Not-checked note code wrote is [default], a note the person chose is [you]; an AI note is not there (M17 am4, C1); every note of a list plan has exactly one tag (break: drop the noteBy map in src/drafter.js and this reds)', async () => {
   const { fileURLToPath } = await import('node:url');
   const { raw } = await import('./fixtures/m10-map/load.mjs');
   const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'm10-map');
@@ -194,7 +194,8 @@ test('P4c: a Not-checked note code wrote is [default], a note the person chose i
   const by = g.notChecked.by ?? {};
   const untagged = [...g.notChecked.items, ...g.notChecked.readNotes].filter((t) => !['you', 'agent', 'default'].includes(by[t]));
   assert.deepEqual(untagged, [], `every note has a tag: ${JSON.stringify(g.notChecked)}`);
-  assert.equal(by[ai], 'agent');
+  assert.equal(by[ai], undefined, 'the AI\'s own note is dropped');
+  assert.ok(![...g.notChecked.items, ...g.notChecked.readNotes].includes(ai));
   assert.ok(Object.values(by).includes('you'), `a note answering the person's own choice stays [you]: ${JSON.stringify(by)}`);
   assert.equal(by[g.notChecked.readNotes[0]], 'default', 'a note code wrote (the page look) reads [default]');
 });

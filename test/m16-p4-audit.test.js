@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { auditChecksOf } from '../src/auditchecks.js';
+import { dropRows, dropLine } from '../src/pagedropwords.js';
+import { lineRules } from '../src/pagebits.js';
 import { closeRecords } from '../src/try-checks.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 
@@ -33,6 +35,15 @@ test('the sections: each check with its tag and its recorded result; Not checked
   assert.match(a.checks[0].text, /^line 2 · at most 80 words/);
   assert.deepEqual(a.notChecked.map((r) => [r.by, r.result]), [['you', 'not-checked']]);
   assert.deepEqual(a.always.map((r) => [r.by, r.result]), [['default', 'passed'], ['default', 'passed']]);
+});
+
+test('M17 am4 (C3): a reading note is not a Not checked row in the Audit; it is split out as the card and the Job tab do, and a real Not checked line stays', () => {
+  const read = dropLine(dropRows([{ line: 1, fact: 'Price', word: 'US dollars', reason: 'r1l', other: 'US dollars' }])[0], [{ n: 1, text: 'x', rule: '' }], lineRules);
+  const not = 'not checked \u00b7 "tone" \u2014 You chose to leave it Not checked.';
+  const a = auditChecksOf(decl(), [], { items: [read, not], by: { [not]: 'you' } });
+  assert.ok(a);
+  assert.deepEqual(a.notChecked.map((r) => r.text), [not], 'break: map notChecked.items raw (not through notCheckedView) and this reds');
+  assert.deepEqual(a.readNotes, [read]);
 });
 
 test('a check no verdict was recorded for says "none", never "passed"; a run that has not started has none anywhere', () => {

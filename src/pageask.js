@@ -1,21 +1,8 @@
-// borrowed-from: bareloop src/pagemap.js@0a34846 (DROP_IT, isDropIt, isAgree, readingQuestion, readingOfQuestion, askableFromLook, ruleBounds, tooManyAsksText)
+// borrowed-from: bareloop src/pagemap.js@0a34846 (DROP_IT, isDropIt, isAgree, readingQuestion, readingOfQuestion, tooManyAsksText)
 // borrowed-from: bareloop src/facts.js@0a34846 (ruleWords, sayBound, moneyAs)
 // borrowed-from: bareloop src/pagemap.js@v0.49.0 (d51a367) (stripAgreeLead, F240; adapted: literal regex, src/ bans new RegExp)
-// M10 piece 3 (docs/wiki/the-module-ladder.md "M10", item 4, am1, am2, am5): the early asks CODE forces before any paid drafting, from the page look's own
-// result. The model never decides whether to ask: this file reads a kept fact's own keys (line, forRule, name, shape, unit, currency, reading) and the job
-// lines, and nothing else (test/m10-pageask.test.js greps for it). The question words are bareloop's, verbatim (am5 item 1); the answer words are
-// agree / yes (code's reading), your own words, and, for a can't-check ask only, "drop it" (am2 item 2).
-// Every rule is one of three kinds:
-//   PAGE: a kept page word carries it: no ask.
-//   READING: a kept fact carries it with a `reading` (a limit the page cannot hold in words, e.g. "not a red-eye"). Asked only when a bound of the
-//     reading is NOT in the words the person wrote; a bound they wrote themselves is theirs and nothing is asked.
-//   CAN'T CHECK: no kept fact carries it.
-//   A COUNT guardrail (declaration.js isCountGuardrail) is none of these: it is asked once, as a pick (M10 am24).
-// Throws away: a fact's name, words and source (only its reading and the rule it serves are used).
+// The words of the asks and of the answers to them. M17 am4 (A1): the asks themselves come from the list (src/blockasks.js); the page-look ask path that sat here is gone.
 import { redactSecrets } from './redact.js';
-import { lineRules, boundInWords, wordsSaidOn } from './pagebits.js';
-import { validReading } from './pagerules.js';
-import { isCountGuardrail } from './declaration.js';
 import { HOW_TO_ANSWER } from './checkpick.js';
 import { columnTail } from './sheetfind.js';
 
@@ -43,9 +30,6 @@ export const stripAgreeLead = (text) => {
   const m = String(text ?? '').match(/^(?:agree|yes)[,:]\s*(\S[\s\S]*)$/i);
   return m ? m[1].trim() : String(text ?? '');
 };
-
-/** @typedef {{line: number, rule: number, source: 'look', question: string, ask: 'reading'|'cant-check', ruleText: string, reading?: string}} LookAsk
- *   `reading` = the plain words an `agree` writes as a `~` rule (a reading ask only) */
 
 /** @param {unknown} n @param {string} shape @param {any} f @returns {string} one bound, as the person would say it */
 function sayBound(n, shape, f) {
@@ -77,9 +61,9 @@ const READING_ASKED = '. Agree?';
 const READING_ANSWER = ' Answer "agree"';
 const READING_TAIL = `${READING_ASKED}${READING_ANSWER}`;
 /** @param {number} n @returns {string} the rest of a reading ask after its answer words */
-const readingRest = (n) => `, or type your own reading (your answer is added as a new ~ rule on line ${n}).`;
+const readingRest = (n) => `, or type your own reading (your answer replaces that ~ rule on line ${n}).`;
 /** @param {number} n @returns {string} the answer words a can't-check ask ends with (said once, here, and cut in the panel) */
-const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer is added as a new ~ rule on line ${n}).`;
+const cantCheckTail = (n) => ` Answer "${DROP_IT}", or type how to check it (your answer replaces that ~ rule on line ${n}).`;
 /** @param {number} n @param {string} rule @param {string} reading @returns {string} */
 export const readingQuestion = (n, rule, reading) => `Your line ${n} says "${rule}".${READING_HEAD}${reading}${READING_TAIL}${readingRest(n)}`;
 // borrowed-from: bareloop src/pagemap.js@v0.56.0 (3383cce) (cantCheckQuestion; readingQuestion above is exported for the block's asks)
@@ -101,57 +85,10 @@ export function readingOfQuestion(q) {
 export function panelQuestionText(q) {
   const text = String(q.question);
   if (q.source !== 'look') return text;
-  const tails = [`${READING_ANSWER}${readingRest(q.line)}`, cantCheckTail(q.line), columnTail(q.line), ` ${HOW_TO_ANSWER(q.line, true)}`, ` ${HOW_TO_ANSWER(q.line, false)}`];
+  const tails = [`${READING_ANSWER}${readingRest(q.line)}`, cantCheckTail(q.line), columnTail(q.line), columnTail(q.line, true), ` ${HOW_TO_ANSWER(q.line, true)}`, ` ${HOW_TO_ANSWER(q.line, false)}`];
   const hit = tails.find((t) => text.endsWith(t));
   return hit === undefined ? text : text.slice(0, text.length - hit.length);
 }
-
-/**
- * The early asks CODE forces before any paid drafting, from the look's own result. One ask per rule text on a line; readings first, then can't-check
- * asks, each in line order. The caller applies the cap and the answer gate.
- * @param {{facts?: {line: number, forRule?: number, name?: string, shape?: string, unit?: string[], currency?: string[], reading?: import('./pagerules.js').Reading}[]}|null|undefined} look
- * @param {{n: number, text?: string, rule?: string, rules?: string[]}[]|null|undefined} jobLines
- * @returns {LookAsk[]}
- */
-export function askableFromLook(look, jobLines) {
-  const facts = Array.isArray(look?.facts) ? look.facts : [];
-  /** @type {LookAsk[]} */
-  const readings = [];
-  /** @type {LookAsk[]} */
-  const cants = [];
-  /** @type {Set<string>} */
-  const seen = new Set();
-  for (const l of Array.isArray(jobLines) ? jobLines : []) {
-    lineRules(l).forEach((rule, k) => {
-      const n = k + 1;
-      if (isCountGuardrail(rule)) return; // M10 am24: a count guardrail is asked only as a pick (src/checkpick.js), never as a page question; its look facts stay
-      const key = `${l.n}\u0000${rule.trim().toLowerCase()}`;
-      const tied = facts.filter((f) => f.line === l.n && f.forRule === n);
-      if (tied.length > 0) {
-        const said = wordsSaidOn(l);
-        const f = tied.find((x) => x.reading && validReading(x.shape, x.reading) && ruleBounds(x.reading).some((b) => !boundInWords(b, said)));
-        if (f === undefined || seen.has(key)) return;
-        seen.add(key);
-        const reading = `${f.name} ${ruleWords({ shape: f.shape, unit: f.unit, currency: f.currency, rule: f.reading })}`;
-        readings.push({
-          line: l.n, rule: n, source: 'look', ask: 'reading', ruleText: rule, reading,
-          question: readingQuestion(l.n, rule, reading),
-        });
-        return;
-      }
-      if (seen.has(key)) return;
-      seen.add(key);
-      cants.push({
-        line: l.n, rule: n, source: 'look', ask: 'cant-check', ruleText: rule,
-        question: `Your line ${l.n} says "${rule}". I can't check this on the page. Drop it?${cantCheckTail(l.n)}`,
-      });
-    });
-  }
-  return [...readings, ...cants];
-}
-
-/** @param {import('./pagerules.js').Reading} r @returns {unknown[]} the bounds a reading holds */
-const ruleBounds = (r) => (r.op === 'between' ? [r.lo, r.hi] : [r.value]);
 
 /**
  * More asks than the cap means the job needs a rewrite, not a questionnaire. The code-owned stop words list EVERY ask and its reading as the

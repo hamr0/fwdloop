@@ -50,6 +50,8 @@ const decl = (sheet) => ({
   unjudgeable: {},
   refused: [],
 });
+// M17 am7: a table check never holds a `~` rule, so rule 1 (its only check is the noDuplicates table check) is Not checked with the no-pick words
+const R1_NOPICK = 'line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.';
 const reply = (text) => ({ ...textReply(text), usage: { inputTokens: 1000, outputTokens: 200 } });
 const NO_WORDS = reply(JSON.stringify({ facts: [] })); // the one sheet-word call: the job names no column word
 const run = (sheet, guard, extra = {}) => {
@@ -67,10 +69,13 @@ function columnEnums(node, out = []) {
   return out;
 }
 
-test('the tool schema offers close.sheet for a CSV job, and every column-bearing field is an enum of the sheet\'s exact header', async () => {
+// M17 am2 item 2: the declaration offers no close.sheet; the row-edit reply offers `sheetChecks` (each with its job line), the same bareguard schema
+test('the declaration offers no close.sheet; the row-edit reply offers sheetChecks, and every column-bearing field is an enum of the sheet\'s exact header', async () => {
   const { p } = await run(CHECKS());
-  const sheet = draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet;
-  assert.ok(sheet, 'close.sheet is offered');
+  assert.equal(draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet, undefined);
+  const sheet = p.blockTurns.find((t) => t.name === 'submit_edits').schema.properties.sheetChecks;
+  assert.ok(sheet, 'sheetChecks is offered');
+  assert.ok(sheet.items.required.includes('line') && sheet.items.properties.line.type === 'integer');
   const props = sheet.items.properties;
   for (const k of ['column', 'keyColumn', 'groupColumn', 'result']) assert.deepEqual(props[k].enum, HEADER, k);
   assert.deepEqual(props.where.items.properties.column.enum, HEADER);
@@ -99,17 +104,17 @@ test('no close.sheet is offered to a job without a CSV input (a document job), n
   } finally { rmSync(fx.dir, { recursive: true, force: true }); }
   const menu = wiredMenu(['core']);
   assert.equal(buildDeclarationSchema(menu).properties.steps.items.properties.close.properties.sheet, undefined);
-  assert.equal(buildRoundSchema(menu, { sheets: {} }).properties.steps.items.properties.close.properties.sheet, undefined);
-  assert.ok(buildRoundSchema(menu, { sheets: { aging: { header: HEADER } } }).properties.steps.items.properties.close.properties.sheet);
+  assert.equal(buildRoundSchema(menu, { sheets: { aging: { header: HEADER } } }).properties.steps.items.properties.close.properties.sheet, undefined, 'never, even with a sheet');
 });
 
 test('every WHERE_CMPS entry is named in bareguard\'s own where description (a drift guard: the list is the one hand copy)', () => {
   for (const c of WHERE_CMPS) assert.ok(V.rules.cells.fields.where.description.includes(`"${c}"`), c);
 });
 
-test('the drafter is told every op with its worked example, generated from the vocabulary, and every rule the validator enforces', async () => {
+test('the AI is told every op with its worked example, generated from the vocabulary, and every rule code enforces, on the row-edit turn (the declaration prompt no longer asks for close.sheet)', async () => {
   const { p } = await run(CHECKS());
-  const sys = draftCall(p).messages[0].content;
+  assert.equal(draftCall(p).messages[0].content.includes('close.sheet is for a green step only'), false);
+  const sys = p.blockTurns.find((t) => t.name === 'submit_edits').messages.map((m) => String(m.content)).join('\n');
   let n = 0;
   for (const rule of ['cells', 'table']) {
     for (const [op, o] of Object.entries(V.rules[rule].ops)) {
@@ -124,44 +129,47 @@ test('the drafter is told every op with its worked example, generated from the v
     'every check of a step is a table check', // all-table refusal
     'Not checked', // a rule no check covers
     'dateFormats', // a date column needs its format
-    'close.sheet is for a green step only',
     'picked from the sheet\'s header',
-    'The guardrail rules by number', 'line 2: 1) every invoice appears exactly once 2) flag amounts over 500',
+    '~ rule 1: every invoice appears exactly once', '~ rule 2: flag amounts over 500',
   ]) assert.ok(sys.includes(w), w);
 });
 
-test('valid checks draft, KEEP covers (signed), and show one plan-card row per check; nothing is Not checked when every rule is covered', async () => {
+test('valid checks draft, KEEP covers (signed), and show one plan-card row per check; only the rule a table check alone named is Not checked (M17 am7)', async () => {
   const { r } = await run(CHECKS());
   assert.equal(r.ok, true, r.reds.join('\n'));
   const sheet = r.declaration.steps[1].close.sheet;
   assert.equal(sheet.length, 3);
-  assert.deepEqual(sheet.map((c) => c.covers), [[1], [2], []], 'M10b piece 4: covers is kept on the check, so it is signed');
+  // M17 am2/am3: code builds and names every check (a cells check before a table check); a rule row's check covers its rule, an [agent] row's covers none
+  assert.deepEqual(sheet.map((c) => [c.id, c.covers]), [['l2r2', [2]], ['l2a1', []], ['l2a2', []]], 'M10b piece 4: covers is kept on the check, so it is signed');
   const rows = checkedLines(r.declaration).find((x) => x.line === 2).sentences;
   for (const c of sheet) assert.ok(rows.includes(`${sheetCheckSentence(c)} [agent]`), sheetCheckSentence(c));
   assert.equal(rows.length, 1 + sheet.length, 'a lead sentence, then one row per check');
-  assert.deepEqual(r.notChecked, []);
+  assert.deepEqual(r.notChecked, [R1_NOPICK]);
 });
 
-test('a number in a check that is not in the job line or its guardrail is refused, naming the line', async () => {
+// M17 am2: a suggestion carrying a number the person never wrote is refused by code (bareguard's groundedLiterals) at build: no red, the rule is Not checked with the refusal
+test('a number in a check that is not in the job line or its guardrail is refused by code, the rule it covers is Not checked with the reason', async () => {
   const c = CHECKS(); c[1].where[0].value = 700;
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('number 700') && x.includes('not in your words')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.equal(r.declaration.steps[1].close.sheet.some((x) => JSON.stringify(x).includes('700')), false, 'the check with 700 is not in the plan');
+  assert.deepEqual(r.notChecked, [R1_NOPICK, 'line 2: "flag amounts over 500" \u2014 suggestion refused: groundedLiterals: number 700 (where[0].value) is not in your words']);
   const said = CHECKS(); said[1].where[0].value = 30; // 30 sits inside "1-30": a number the person wrote
-  assert.equal((await run(said)).r.ok, true);
+  assert.deepEqual((await run(said)).r.notChecked, [R1_NOPICK]);
   const part = CHECKS(); part[1].where[0].value = 50; // 50 only sits inside "500": not said
-  assert.equal((await run(part)).r.ok, false);
+  assert.equal((await run(part)).r.notChecked.length, 2);
 });
 
-test('an asOf (or a date value) not written in the job is refused, naming the line', async () => {
+test('an asOf (or a date value) not written in the job is refused by code (M17 am2): the check is not built, the refusal is in the round log or on the rule it covers', async () => {
   const c = CHECKS(); c[2].asOf = '2026-11-30';
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('date 2026-11-30') && x.includes('not a date in your words')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  assert.equal(r.declaration.steps[1].close.sheet.some((x) => x.op === 'band'), false);
+  assert.ok(r.log.find((e) => e.sheetRefused).sheetRefused.some((x) => x.helper === 'groundedLiterals' && x.why.includes('date "2026-11-30"')), JSON.stringify(r.log.map((e) => e.sheetRefused)));
   const d = CHECKS(); d[1].where = [{ column: 'Due date', cmp: 'before', value: '2026-09-09' }]; d[1].dateFormats = ISO;
   const dd = await run(d);
-  assert.equal(dd.r.ok, false);
-  assert.ok(dd.r.reds.some((x) => x.includes('date 2026-09-09')), dd.r.reds.join('\n'));
+  assert.equal(dd.r.ok, true, dd.r.reds.join('\n'));
+  assert.deepEqual(dd.r.notChecked, [R1_NOPICK, 'line 2: "flag amounts over 500" \u2014 suggestion refused: groundedLiterals: date "2026-09-09" (where[0].value) is not in your words']);
 });
 
 test('a step whose sheet checks are all table checks has nothing to answer: refused at the line, and the drafter was told', async () => {
@@ -170,22 +178,26 @@ test('a step whose sheet checks are all table checks has nothing to answer: refu
   assert.ok(r.reds.some((x) => x.includes('line 2') && x.includes('every sheet check on this step is a table check')), r.reds.join('\n'));
 });
 
-test('covers that names a rule the line does not have is refused, naming the line and the check', async () => {
+test('covers that names a rule the line does not have covers none (M17 am2): the check is built as an [agent] row, and the rule it did not hold is Not checked', async () => {
   const c = CHECKS(); c[0].covers = [3];
   const { r } = await run(c);
-  assert.equal(r.ok, false);
-  assert.ok(r.reds.some((x) => x.includes("line 2") && x.includes("'nodup'") && x.includes('covers')), r.reds.join('\n'));
+  assert.equal(r.ok, true, r.reds.join('\n'));
+  const nodup = r.declaration.steps[1].close.sheet.find((x) => x.op === 'noDuplicates');
+  assert.deepEqual([nodup.id, nodup.covers], ['l2a2', []]);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
 });
 
 test('a guardrail rule no check covers shows under Not checked (F76 aging draft 1: noDuplicates dropped); a step with no close.sheet is refused', async () => {
   const dropped = CHECKS().slice(1); // the noDuplicates check is gone
   const { r } = await run(dropped);
   assert.equal(r.ok, true, r.reds.join('\n'));
-  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — no sheet check covers it']);
-  // M10b piece 5: a green step with no close.sheet is the old cell cite; it no longer drafts, so there is no step left to list every rule for
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at the Ask.']);
+  // M17 am5 / P5: a green step the AI gave no sheet check is no red the AI cannot fix (it writes no close.sheet): the step is hitl and each of its rules is Not checked, with the list's own reason
   const none = await run(undefined);
-  assert.equal(none.r.ok, false);
-  assert.ok(none.r.reds.some((x) => x.includes("Line 2's check cannot cite cells any more")), none.r.reds.join('\n'));
+  assert.equal(none.r.ok, true, none.r.reds.join('\n'));
+  assert.equal(none.r.declaration.steps[1].close.class, 'hitl');
+  assert.equal(none.r.declaration.guardrailClasses['2'], 'hitl');
+  assert.deepEqual([...none.r.notChecked].sort(), ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.', 'line 2: "flag amounts over 500" \u2014 No check was picked for it, so you judge it at the Ask.']);
 });
 
 test('the column choice an agreed ask wrote is not a rule to cover, and the header the drafter may pick from is the whole sheet', async () => {
@@ -197,7 +209,7 @@ test('the column choice an agreed ask wrote is not a rule to cover, and the head
   const r = await draft({ proseText: prose(`flag amounts over 500; ${columnRuleWords('Price', 'Amount')}`), provider: p, rates: RATES, modelId: MODEL, offerQuestions: false });
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.deepEqual(r.notChecked, [], 'the mapping rule is a column choice; the other rule is covered');
-  assert.deepEqual(draftCall(p).schemas[0].properties.steps.items.properties.close.properties.sheet.items.properties.column.enum, HEADER);
+  assert.deepEqual(p.blockTurns.find((t) => t.name === 'submit_edits').schema.properties.sheetChecks.items.properties.column.enum, HEADER);
 });
 
 test('the older asks still ask once: a word that is no column asks, before any drafting round and any sheet schema is sent', async () => {

@@ -42,7 +42,7 @@ test('a word that is not a column asks once in the signed words, naming the colu
   assert.equal(r.asks.length, 1);
   assert.deepEqual(r.asks[0], {
     line: 1, rule: 1, source: 'look', ask: 'reading', ruleText: 'under 5000',
-    question: `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer is added as a new ~ rule on line 1).`,
+    question: `no column 'Price'; 'Amount' has numbers in 40 of 40 rows. Use it? Answer "agree", or type your own words (your answer replaces that ~ rule on line 1).`,
     reading: columnRuleWords('Price', 'Amount'), word: 'Price', column: 'Amount',
   });
   assert.deepEqual(r.facts, []);

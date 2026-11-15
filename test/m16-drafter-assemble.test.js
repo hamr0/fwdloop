@@ -42,8 +42,8 @@ import { callOf, router } from './m16-drafter-fixture.mjs';
 
 const NONE = callOf('submit_edits', { edits: [] });
 const LEDGER_NONE = callOf('suggest_extra_checks', { extra: [] });
-const PICKS = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 }, added: 'exactly 3 list items' }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 }, added: 'at most 80 words' }];
-const WALK = (/** @type {string} */ s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets; exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: under 80 words; at most 80 words');
+const PICKS = [{ line: 3, rule: 1, check: { rule: 'listItems', value: 3 } }, { line: 5, rule: 1, check: { rule: 'maxWords', value: 80 } }];
+const WALK = (/** @type {string} */ s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 list items').replace('guardrail: under 80 words', 'guardrail: at most 80 words'); // M17 am1: the Agree replaced the asked rule
 /** the declaration an AI sends for the walk job, with checks of its own on lines 3 and 5 (which code must drop) */
 const aiDecl = () => ({
   steps: [
@@ -86,7 +86,7 @@ test('(S6) the plan with the list passes the validator and is refused when a che
   assert.equal(v.ok, false, 'break: drop checkListReds from validateDeclaration and this greens');
   assert.match(v.ok ? '' : v.reds.join('|'), /checkList line 5: the picked check 2 \(close\.picked\) is in the close but has no row on the list/);
   const rowless = structuredClone(r.declaration);
-  rowless.checkList = rowless.checkList.filter((/** @type {any} */ x) => !(x.part && x.part.line === 3)); // the source row and its agreed follower both point at the part
+  rowless.checkList = rowless.checkList.filter((/** @type {any} */ x) => !(x.part && x.part.line === 3)); // the rule's row points at the part
   assert.match(validateDeclaration(rowless, ctx).ok ? '' : /** @type {any} */ (validateDeclaration(rowless, ctx)).reds.join('|'), /checkList line 3: the picked check 1 \(close\.picked\) is in the close but has no row on the list/);
   const phantom = structuredClone(r.declaration);
   phantom.steps.find((/** @type {any} */ s) => s.fromLine === 3).close = { class: 'hitl' };
@@ -128,11 +128,11 @@ test('(S7) a red on something the AI wrote (a softgreen line granted write) is s
 });
 
 // hamr ruling 2026-11-13: R4 (unsigned) is overridden; M16 item 5 does not name the AI's notChecked, so M4e am24/am25 stand and the list is kept beside the rows' reasons
-test('(am24/am25) the AI\'s own notChecked is kept beside the rows\' reasons for the lines of the list', async (t) => {
+test('(M17 am4, C1) the AI\'s own notChecked is not kept: a line it sends is on no card, the list\'s reasons are all there is', async (t) => {
   const p = router(handlers({ ...aiDecl(), notChecked: ['the garden is pretty'] }));
   const r = await go(p, walkProse(t, WALK));
   assert.equal(r.ok, true, JSON.stringify(r.reds));
-  assert.ok(r.notChecked.includes('the garden is pretty'), 'break: drop cleanNotChecked(rawNotChecked) from the union and this reds');
+  assert.ok(!r.notChecked.includes('the garden is pretty'), 'break: put cleanNotChecked(rawNotChecked) back in the union and this reds');
 });
 
 // ---- Tickets, CSV and the m14-walk-5 accepted output, with the list on ---------------------------------------------------------------------------------------------
@@ -155,7 +155,7 @@ test('m14-walk-5 (am1): the accepted run-5 outputs pass the checks the block bui
   assert.equal((await closeByClass(step(5), { text: 'word '.repeat(90) }, ctx)).verdict, 'red');
 });
 
-test('Tickets: the plan with the list is the ticket job as before (same ticketFilter, same closes on the step lines), and it validates', async () => {
+test('Tickets: the plan with the list is the ticket job as before (same ticketFilter, now a ticket row; same closes on the step lines), and it validates', async () => {
   const prose = `1. Read the ticket and say what is broken,
    guardrail: priority P1 or P2 only
 2. ask 30m: check it with me,
@@ -173,13 +173,14 @@ guardrail: source issues = page:https://github.com/flutter/flutter/issues
       { primitives: [], reads: ['ticket_note'], emits: 'ask_check', fromLine: 2, close: { class: 'hitl' } },
       { primitives: ['write'], reads: ['ask_check'], emits: 'written', fromLine: 3, close: { class: 'hitl' } },
     ],
-    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1', 'P2'] },
+    guardrailClasses: { 1: 'hitl', 2: 'hitl' }, unjudgeable: {}, refused: [],
   };
-  const mk = () => router({ submit_edits: NONE, emit_declaration: callOf('emit_declaration', decl) });
+  const filter = { priority: ['P1', 'P2'] };
+  const mk = () => router({ submit_edits: callOf('submit_edits', { edits: [], ticketFilter: filter }), emit_declaration: callOf('emit_declaration', decl) });
   const base = { flowType: 'tickets', mcpServers: ['github'], mcp: { ok: true, server: 'github', tools: ['issue_read', 'list_issues', 'create_issue'] }, fetchPage: async () => { throw new Error('a ticket list was fetched at draft'); } };
   const on = await go(mk(), prose, { ...base, checkPicks: [] });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.deepEqual(on.declaration.ticketFilter, decl.ticketFilter);
+  assert.deepEqual(on.declaration.ticketFilter, filter);
   assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((s) => s.close), 'the closes the AI wrote stand on every line');
   assert.deepEqual(on.declaration.guardrailClasses, decl.guardrailClasses);
   assert.ok(Array.isArray(on.declaration.checkList) && on.declaration.checkList.every((/** @type {any} */ x) => x.line === 1), 'rows only on the step line');
@@ -197,10 +198,14 @@ test('CSV: the sheet line stays on the sheet path (same close.sheet and close.co
   const decl = { ...rest, steps: signed.steps.map((/** @type {any} */ s) => { const { goal: _x, ...st } = s; return st; }) };
   delete decl.inputFacts;
   const sheetAns = textOf(JSON.stringify({ facts: [{ from: 'line 2 rule 1', word: 'Price', kind: 'number' }] }));
-  const mk = () => router({ map: sheetAns, submit_edits: NONE, suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', decl) });
+  // M17 am2 item 2: the signed job's sheet checks come back as the AI's typed suggestions on the row-edit reply, never in the declaration; code builds them (its own ids, the claim is the id)
+  const suggested = decl.steps.flatMap((/** @type {any} */ s) => (s.close.sheet ?? []).map((/** @type {any} */ c) => ({ ...c, line: s.fromLine })));
+  const bare = { ...decl, steps: decl.steps.map((/** @type {any} */ s) => { const { sheet: _s, ...close } = s.close; return { ...s, close }; }) };
+  const mk = () => router({ map: sheetAns, submit_edits: callOf('submit_edits', { edits: [], sheetChecks: suggested }), suggest_checks: callOf('suggest_checks', { checks: [] }), emit_declaration: callOf('emit_declaration', bare) });
   const on = await go(mk(), prose, { checkPicks: [] });
   assert.equal(on.ok, true, JSON.stringify(on.reds));
-  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => s.close), decl.steps.map((/** @type {any} */ s) => s.close), 'the same closes as the signed job, the sheet line untouched');
+  const typed = (/** @type {any} */ c) => { const { id: _i, claim: _c, covers: _v, ...rest } = c; return rest; };
+  assert.deepEqual(on.declaration.steps.map((/** @type {any} */ s) => [s.fromLine, s.close.class, s.close.columns, (s.close.sheet ?? []).map(typed)]), decl.steps.map((/** @type {any} */ s) => [s.fromLine, s.close.class, s.close.columns, (s.close.sheet ?? []).map(typed)]), 'the same closes as the signed job (the sheet checks as code built them), the sheet line untouched');
   // M16 am4 (2) (was: the sheet line has no row): the sheet line's only rows are its sheet rows, one per close.sheet check; the block gives it none
   assert.ok(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).every((/** @type {any} */ x) => x.kind === 'sheet'), 'the sheet line has only sheet rows');
   assert.equal(on.declaration.checkList.filter((/** @type {any} */ x) => x.line === 2).length, on.declaration.steps.find((/** @type {any} */ st) => st.fromLine === 2).close.sheet.length);
@@ -232,6 +237,13 @@ test('flights (page): the fact part becomes close.cited with the source in reads
   assert.equal(step(2).close.cited.source, 'flights');
   assert.ok(step(2).close.cited.facts.length >= 2, 'the look\'s facts');
   assert.ok(step(2).close.cited.facts.some((/** @type {any} */ f) => f.phrase === 'Adolfo Suárez Madrid'), 'a place is checked with its role phrase (fwd R2c), not the bare word the block built it from');
+  // M17 am4 (B3): the card says the words the plan checks (the row holds the grown phrase; the part and the card read it from there)
+  const grownPlaces = r.look.facts.filter((/** @type {any} */ k) => Array.isArray(k.phrases) && k.phrases.length).flatMap((/** @type {any} */ k) => k.phrases);
+  const cardText = r.checkCard.rows.map((/** @type {any} */ x) => x.text).join('\n');
+  assert.ok(grownPlaces.includes('Adolfo Suárez Madrid'));
+  const checked = step(2).close.cited.facts.map((/** @type {any} */ f) => f.phrase).filter((/** @type {string} */ ph) => grownPlaces.includes(ph));
+  assert.ok(checked.length >= 1);
+  for (const phrase of checked) assert.ok(cardText.includes(`"${phrase}"`), `the card says "${phrase}", as the plan does: ${cardText}`);
   assert.ok(step(2).reads.includes('flights'), 'code added the source to the step\'s reads');
   assert.deepEqual(step(2).close.picked, [{ rule: 'listItems', value: 3 }, { rule: 'maxWords', value: 80 }]);
   assert.deepEqual(r.declaration.pickedLines, [2]);

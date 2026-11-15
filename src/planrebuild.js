@@ -14,10 +14,12 @@ import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft
 import { assembleFromBlock } from './blockassemble.js';
 import { cardOfBlock } from './cardlist.js';
 import { editsOf } from './rowedit.js';
+import { NOTE_KIND } from './noteask.js';
 import { offerRules, rowsFromAnswer, codeScope } from './checkpick.js';
 import { matchRecord, readRowChoices, RECORD_FILE } from './pickrecord.js';
 import { listLinesOf, cardLinesOf } from './checklistsign.js';
 import { csvRolesOf } from './sheetblock.js';
+import { withTicketRows } from './ticketrows.js';
 import { isSheetKey, sheetChoice, withSheetRows, withSheetCard, droppedSheetOf } from './sheetrows.js';
 import { validateDeclaration } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
@@ -84,11 +86,13 @@ export function rebuildBlock({ planDir, asks }) {
     texts, jobLines: plan.jobLines, look,
     kept: { picks: matched.picks.filter(inBlock).filter(isKept), left: matched.left.filter(inBlock).filter(isKept), askRules: matched.askRules.filter(inBlock) },
     fresh: { picks: matched.picks.filter(inBlock).filter((x) => !isKept(x)), left: leftFresh },
-    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', scoped: allShape.filter(inBlock), leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines, look.facts),
+    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines),
   });
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
   const askRules = allShape.filter((r) => !isKept(r));
   for (const e of Array.isArray(log?.log) ? log.log : []) {
+    // the note question's answers ride its entry, a failed turn's too (a `failed` answer is a Not checked row, so it must replay)
+    if (isRec(e) && e.kind === NOTE_KIND) { block.setNotes(notesOfEntry(e)); continue; }
     if (!isRec(e) || e.outcome !== 'answered' || !isRec(e.args)) continue;
     if (e.kind === 'check-suggest') block.applyDelta({ label: 'pre:check-suggest', pre: true, edits: pickEdits(rowsFromAnswer(askRules, e.args), blockLineNums) });
     else if (e.kind === 'ledger-suggest') block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(e.args.extra) });
@@ -106,7 +110,7 @@ export function rebuildBlock({ planDir, asks }) {
 /**
  * The checks of a rebuilt block put back into the saved plan's declaration (the same assembly the draft used), re-proved by the validator.
  * @param {any} b @param {any} [from] the declaration to assemble over (a sheet Drop or Add changes its `close.sheet`); the saved one by default
- * @returns {{ok: true, declaration: any, notChecked: string[], notCheckedBy: Record<string, string>, sheet: ReturnType<typeof withSheetRows>['sheet']}|{ok: false, say: string}}
+ * @returns {{ok: true, declaration: any, notChecked: string[], notCheckedBy: Record<string, string>, sheet: ReturnType<typeof withSheetRows>['sheet'], tickets: ReturnType<typeof withTicketRows>['tickets']}|{ok: false, say: string}}
  */
 function assembleAgain(b, from = b.declaration) {
   const { checkList: _c, pickedLines: _p, ...saved } = from;
@@ -116,10 +120,13 @@ function assembleAgain(b, from = b.declaration) {
     const src = b.lineSet.has(st?.fromLine) && isRec(st.close) && isRec(st.close.cited) ? st.close.cited.source : undefined;
     return typeof src === 'string' && docs.has(src) && Array.isArray(st.reads) ? { ...st, reads: st.reads.filter((/** @type {string} */ r) => r !== src) } : st;
   }) };
-  const built = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet });
+  const built = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet, askLines: new Set(b.parsed.arbiter.asks.map((/** @type {any} */ a) => a.line)) });
   // M16 am4: the sheet checks are rows on the list too, read from the steps the same way the draft read them
   const withSheet = withSheetRows({ declaration: built.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter) });
-  const a = { ...built, declaration: withSheet.declaration };
+  // M17 am6: the Tickets filter and watch are rows on the list too, read from the declaration's fields the same way the draft read them
+  const withTickets = withTicketRows({ declaration: withSheet.declaration, lines: b.lines });
+  const ticketLines = withTickets.tickets.notChecked.map((t) => `not checked · "${t.rule}" — ${t.reason}`);
+  const a = { ...built, declaration: withTickets.declaration, notChecked: [...built.notChecked, ...ticketLines], notCheckedBy: { ...built.notCheckedBy, ...Object.fromEntries(ticketLines.map((t) => [t, 'you'])) } };
   const cat = loadCatalogue();
   if (!cat.ok) return { ok: false, say: 'The catalogue could not be read. Nothing was changed.' };
   const inPlan = new Set(b.block.rows.filter((r) => r.state === 'built').flatMap((r) => (r.factNames ?? []).map((/** @type {string} */ nm) => `${r.line}:${nm}`)));
@@ -130,8 +137,11 @@ function assembleAgain(b, from = b.declaration) {
     pageWords: { texts: b.texts, look: pageSources ? { facts: planFacts, dropped: b.look.dropped } : null, docs: docRolesOf(b.parsed.arbiter.sources) },
   });
   if (!verdict.ok) return { ok: false, say: `The changed list did not pass the plan's checks (${String(verdict.reds[0])}). Nothing was changed.` };
-  return { ok: true, declaration: a.declaration, notChecked: a.notChecked, notCheckedBy: a.notCheckedBy, sheet: withSheet.sheet };
+  return { ok: true, declaration: a.declaration, notChecked: a.notChecked, notCheckedBy: a.notCheckedBy, sheet: withSheet.sheet, tickets: withTickets.tickets };
 }
+
+/** the answers a note-question entry of the draft's log recorded; only well-formed ones (a line, yes|no|failed) @param {any} e @returns {{line: number, answer: 'yes'|'no'|'failed'}[]} */
+const notesOfEntry = (e) => (Array.isArray(e.notes) ? e.notes.filter((/** @type {any} */ a) => isRec(a) && Number.isInteger(a.line) && (a.answer === 'yes' || a.answer === 'no' || a.answer === 'failed')) : []);
 
 /** the plan's list and the closes it checks, as one comparable string (the proof that the rebuild is the saved plan) @param {any} d */
 const fingerprint = (d) => JSON.stringify([d.checkList ?? null, (d.steps ?? []).map((/** @type {any} */ s) => [s?.fromLine, s?.close])]);
@@ -199,7 +209,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
       [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}) }),
-      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: withSheetCard(cardOfBlock(b.block), after.sheet, droppedNow) }),
+      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet, droppedNow); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })() }),
       'spec.hash': `${h.hash}\n`,
     },
   };

@@ -1,5 +1,6 @@
-// M16 item 4 / Must-fail "a sheet or Tickets job changes": a Tickets job's ticket guardrails ("priority P1 only", "run a ticket again when its state changes") are
-// the declaration's own ticketFilter / ticketWatch. They are never rows of the check list: no "can't check" ask, no Not checked note. Stub providers, $0.
+// M16 item 4 / Must-fail "a sheet or Tickets job changes", read with M17 am6: a Tickets job's ticket guardrails ("priority P1 only", "run a ticket again when its state changes") are never asked as
+// "can't check" and have no Not checked note; each is a ticket row on the list whose check is the filter or watch the AI suggested in the row-edit turn (src/ticketrows.js). Stub providers, $0.
+// M17 am1 (a): the count guardrail is `exactly 3 bullets`, not `at most 3 words`: a rule whose words are already the check is settled as written, never asked.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { draft } from '../src/drafter.js';
@@ -8,7 +9,7 @@ import { callOf, router } from './m16-drafter-fixture.mjs';
 
 const PROSE = `1. Read the ticket
 2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
-   guardrail: priority P1 only; run a ticket again when its state changes; at most 3 words
+   guardrail: priority P1 only; run a ticket again when its state changes; exactly 3 bullets
 3. ask 1h: check the note with me
 4. Write it out
 
@@ -28,7 +29,7 @@ test('Tickets: the filter and watch guardrails are not asked as "can\'t check"; 
   assert.deepEqual(r.questions.map((/** @type {any} */ q) => [q.ruleNo, q.ask]), [[3, 'check']], 'only the count guardrail (rule 3, its own number) is asked');
 });
 
-test('Tickets: after the count ask is answered, the card has no Not checked note for the filter or watch guardrails, and the list has no row for them', async () => {
+test('Tickets: the filter and watch guardrails are ticket rows, built from the AI\'s suggestion on the list; the card has no Not checked note for them', async () => {
   const decl = {
     steps: [
       { primitives: ['read'], reads: ['issues'], emits: 'ticket_text', fromLine: 1, close: { class: 'hitl' } },
@@ -36,13 +37,14 @@ test('Tickets: after the count ask is answered, the card has no Not checked note
       { primitives: [], reads: ['triage_note'], emits: 'note_check', fromLine: 3, close: { class: 'hitl' } },
       { primitives: ['write'], reads: ['note_check'], emits: 'written', fromLine: 4, close: { class: 'hitl' } },
     ],
-    guardrailClasses: { 2: 'softgreen' }, unjudgeable: {}, refused: [], ticketFilter: { priority: ['P1'] }, ticketWatch: ['state'],
+    guardrailClasses: { 2: 'softgreen' }, unjudgeable: {}, refused: [],
   };
-  const p = router({ suggest_checks: callOf('suggest_checks', { checks: [] }), submit_edits: callOf('submit_edits', { edits: [] }), emit_declaration: callOf('emit_declaration', decl) });
+  const p = router({ suggest_checks: callOf('suggest_checks', { checks: [] }), submit_edits: callOf('submit_edits', { edits: [], ticketFilter: { priority: ['P1'] }, ticketWatch: ['state'] }), emit_declaration: callOf('emit_declaration', decl) });
   const r = await draft({ proseText: PROSE, provider: p, rates: RATES, modelId: MODEL, checkList: true, offerQuestions: false, ...TICKET });
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.declaration.ticketFilter, { priority: ['P1'] });
   assert.deepEqual(r.declaration.ticketWatch, ['state']);
-  const text = JSON.stringify([r.notChecked, r.checkRows]);
-  assert.ok(!/priority P1 only|state changes/.test(text), `a ticket guardrail is on the list or in Not checked: ${text}`);
+  assert.ok(!/priority P1 only|state changes/.test(JSON.stringify(r.notChecked)), `a ticket guardrail is in Not checked: ${JSON.stringify(r.notChecked)}`);
+  assert.deepEqual(r.declaration.checkList.filter((/** @type {any} */ x) => x.kind === 'ticket').map((/** @type {any} */ x) => [x.field, x.state, x.rule]), [['ticketFilter', 'built', 1], ['ticketWatch', 'built', 2]]);
+  assert.deepEqual(r.checkCard.rows.filter((/** @type {any} */ x) => x.key.includes('.ticket.')).map((/** @type {any} */ x) => x.state), ['built', 'built']);
 });

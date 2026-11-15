@@ -91,10 +91,11 @@ export function sheetCheckSentence(check) {
 /**
  * M10b piece 4: a signed check may carry fwdloop's own `covers` (the numbers of the job line's `~` rules the drafter tagged it to; signed, so the person sees it).
  * bareguard does not know it, so the checks are cleaned HERE, the ONE place, on the way into bareguard (`createRubric` at sign time and at run time).
- * @param {any[]} checks @returns {any[]} a copy without `covers`
+ * M17 am3: `row` (fwdloop's own typed tag of a check code made an `[agent]` row) is cleaned here too.
+ * @param {any[]} checks @returns {any[]} a copy without `covers` and `row`
  */
 export function bareguardChecks(checks) {
-  return checks.map((c) => { if (!isRec(c) || !('covers' in c)) return c; const { covers: _kept, ...rest } = c; return rest; });
+  return checks.map((c) => { if (!isRec(c) || !('covers' in c || 'row' in c)) return c; const { covers: _kept, row: _row, ...rest } = c; return rest; });
 }
 
 /**

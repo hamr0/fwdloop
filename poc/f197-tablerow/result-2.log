@@ -1,0 +1,53 @@
+plans: 27 + 11 widened flows = 38
+
+== (a) d-00mwhz6eab-cfc7
+- draft:d-00mwhz6eab-cfc7/draft L2 rule 1 "every invoice appears exactly once": current rule-row check = l2r1 table/rowCount; candidate rule-row holder = false, agent row = l2a1, rule state = not-checked
+(a) lines found 1; control (current holds it on rule row): true
+
+== (c) checker self-test flags a double-held rule and a check in no row: true
+checks placed by the current builder: 78; table checks on a rule row today: 6 on 6 lines
+
+== (b) every run record, both pools
+- letter: 8 records, current red 0, candidate verdict differs 0
+- widened: 18 records, current red 3, candidate verdict differs 0
+(b) records 26; current red 3; records on lines where a table check sat on a rule row 3 (of them current red 0); differ 0
+
+== (d) report: ~ rules whose only rule-row holder today is a table check (6 rules on 6 plans)
+  count 1  flow:m10b-aging-5
+  count 1  draft:d-00mvkswtk8-799b/draft
+  count 1  draft:d-00mwhyk4xh-78fe/draft-1
+  count 1  draft:d-00mwhz6eab-cfc7/draft
+  count 1  flow-extra:walk-m17-aging
+  count 1  flow-extra:walk-m17-aging1
+- [signed] flow:m10b-aging-5 L2 rule 1: "every invoice appears exactly once" | table check op noEmpty column Invoice # | candidate shows the rule as: not-checked
+- [draft] draft:d-00mvkswtk8-799b/draft L2 rule 1: "every Invoice # appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: not-checked
+- [draft] draft:d-00mwhyk4xh-78fe/draft-1 L2 rule 1: "every invoice appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: not-checked
+- [draft] draft:d-00mwhz6eab-cfc7/draft L2 rule 1: "every invoice appears exactly once" | table check op rowCount | candidate shows the rule as: not-checked
+- [signed] flow-extra:walk-m17-aging L2 rule 1: "every invoice appears exactly once" | table check op noDuplicates column Invoice # | candidate shows the rule as: not-checked
+- [signed] flow-extra:walk-m17-aging1 L2 rule 1: "every invoice appears exactly once" | table check op rowCount | candidate shows the rule as: not-checked
+
+== (e) Not-checked lines the real path (src/sheetblock.js uncoveredRules, as src/drafter.js calls it) gives
+- flow:m10b-aging-5 L2 rule 1: candidate 2 card line: "line 2: \"every invoice appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a2 by agent covers 0, l2a3 by agent covers 0
+- draft:d-00mvkswtk8-799b/draft L2 rule 1: candidate 2 card line: "line 2: \"every Invoice # appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a2 by agent covers 0
+- draft:d-00mwhyk4xh-78fe/draft-1 L2 rule 1: candidate 2 card line: "line 2: \"every invoice appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a1 by agent covers 0
+- draft:d-00mwhz6eab-cfc7/draft L2 rule 1: candidate 2 card line: "line 2: \"every invoice appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a1 by agent covers 0
+- flow-extra:walk-m17-aging L2 rule 1: candidate 2 card line: "line 2: \"every invoice appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a1 by agent covers 0
+- flow-extra:walk-m17-aging1 L2 rule 1: candidate 2 card line: "line 2: \"every invoice appears exactly once\" — no sheet check covers it" | candidate 1: (not in Not checked)
+    table check rows on the line: l2a1 by agent covers 0
+(e) control: candidate 1 does not show the words No check was picked for it, so you judge it at the Ask. on every one: true
+(e) fails: flow:m10b-aging-5: words "no sheet check covers it" | draft:d-00mvkswtk8-799b/draft: words "no sheet check covers it" | draft:d-00mwhyk4xh-78fe/draft-1: words "no sheet check covers it" | draft:d-00mwhz6eab-cfc7/draft: words "no sheet check covers it" | flow-extra:walk-m17-aging: words "no sheet check covers it" | flow-extra:walk-m17-aging1: words "no sheet check covers it"
+
+git diff --stat src test: empty
+
+== BARS
+BAR (a): PASS
+BAR (b): PASS
+BAR (c): PASS
+BAR (d): report only, no pass mark
+BAR (e): FAIL
+OVERALL: FAIL
