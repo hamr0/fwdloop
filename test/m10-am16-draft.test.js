@@ -97,7 +97,7 @@ test('(4) the plan carries only the picked checks: the drafter\'s own shape is g
   assert.deepEqual(by(3), { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } });
   assert.deepEqual(by(5), { class: 'hitl' }, 'line 5 has no pick: no check, whatever the drafter sent');
   assert.equal(r.declaration.guardrailClasses['5'], 'hitl');
-  assert.match(r.declaration.unjudgeable['5'], /No check was picked for it/);
+  assert.equal(r.declaration.unjudgeable, undefined, 'M17 am4 (C8): the reason is the list\'s Not checked line, not a hidden record');
   assert.ok(r.notChecked.includes('not checked · "under 80 words" — No check was picked for it, so you judge it at the Ask.'), r.notChecked.join('|'));
   assert.equal(p.calls.length, 1, 'the redraft makes no suggestion call');
 });
