@@ -572,7 +572,7 @@ function checkPickedLines(declaration, reds) {
 
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
-* assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
+   * assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
  * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
  * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */

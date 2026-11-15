@@ -4184,7 +4184,11 @@
       if(!rows || !rows.length) return "";
       return '<div data-testid="' + tid + '" style="margin:6px 0"><div><b>' + escapeXml(title) + "</b></div>" + rows.map(auditCheckRowHtml).join("") + "</div>";
     };
-    body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
+    var readSec = function(notes){
+      if(!notes || !notes.length) return "";
+      return '<div data-testid="audit-checks-readnotes" style="margin:6px 0"><div><b>How the page was read</b></div>' + notes.map(function(t){ return '<div class="audit-check-row" data-testid="audit-read-note" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(t) + "</div>"; }).join("") + "</div>";
+    };
+    body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + readSec(ac.readNotes) + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
     function paint(open){ body.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); btn.innerHTML = headHtml(open); }
     btn.addEventListener("click", function(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); });
     if(auditExpanded["\u0000checks"] === true) paint(true);
