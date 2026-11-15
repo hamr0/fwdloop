@@ -7443,3 +7443,9 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Bar (c)** on all plans: every check the current builder builds is still built by the candidate (rule row or `[agent]` row); none hidden; no rule row holds two checks.
 - **Bar (d), a report, deciding nothing:** each `~` rule whose only rule-row holder today is a table check, with its words and plan, so hamr can read which were about the input sheet (where a table check fits) and which were about the step's answer. Count per plan. No pass mark.
 - Overall PASS only if (a), (b) and (c) PASS.
+
+### F197 RESULT run 1 (2026-11-15, $0, [MEASURED], `poc/f197-tablerow/result-1.log`, commits 67fa2b6c, fde44b39): bars (a) (b) (c) PASS, overall PASS
+- **(a) PASS.** On `d-00mwhz6eab-cfc7` the current builder puts `l2r1` (rowCount) on rule 1's row; the candidate does not (rule 1 shows as `agent-row`, covered by the `[agent]` row `l2a1`). Control (current holds it on the rule row): true.
+- **(b) PASS.** 25 run records over both pools (letter 8, widened 17); current red 3; candidate verdict differs 0. **(c) PASS.** 75 checks built by the current builder, all still built by the candidate, none hidden, no rule row holds two; the checker self-test flags a double-held rule and a check in no row.
+- **(d) report, no pass mark:** 5 rules on 5 plans have a table check as their only rule-row holder; all read "every invoice appears exactly once": 3 `noDuplicates`, 1 `noEmpty`, 1 `rowCount`; count 1 per plan.
+- Weak spot: no run in the pools had a red from such a check, so (b) is shown only on green-from-table runs.
