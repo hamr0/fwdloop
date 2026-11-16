@@ -2,7 +2,7 @@
 // The fixture was signed under the old send lock (the send reads the FIRST of two Asks, with the second Ask between them): the action must read the step right before it.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cpSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ const CATALOGUE = loadCatalogue().primitives;
 test('an old job whose send does not read the step before it is refused at start, $0, naming why; its signed files are byte-identical after', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fwdloop-am11p6-'));
   cpSync(path.join(HERE, 'fixtures', 'm13-am11-old-job'), path.join(root, 'oldjob'), { recursive: true });
+  mkdirSync(path.join(root, 'oldjob', 'runs'), { recursive: true });
   const before = readFileSync(path.join(root, 'oldjob', 'declaration.json'), 'utf8');
   const modelStep = async () => { throw new Error('no model call may be made'); };
   const res = await runFlow({ root, name: 'oldjob', runId: 'run-1', sources: [], catalogue: CATALOGUE, modelStep, askStep: makeParkingAskStep(), sendStep: sendViaPrimitive, primitives: {}, businessDate: '2026-11-16' });
