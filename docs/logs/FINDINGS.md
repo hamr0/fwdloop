@@ -7485,3 +7485,16 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - **Fix 3:** not built, the signed words clash (see the STOP above); awaits hamr.
 - Related files (13 files, 94 tests): 1 fail on first run, `test/m16-checkblock-rows.test.js` A1, a ported test that asserted the old link on "the version must be named" with words "### Fixed". bareloop v0.58.0 changed that same test the same way; ported its edit (rule's own words name the phrase, plus the `unnamed` case). Not a signed text. After: 13/13 pass; `npm run typecheck` clean.
 - **2026-11-16, fix 1 WITHDRAWN by hamr.** Copied, it broke 25 tests whose fixture models the wrong tie, and word-containment would cut real intent matches (rule "no layovers" vs page "Nonstop"). Reverted in 434adc1d; the `m16-checkblock-rows` A1 edit and the fix 1 test went with it. Fixes 2 and 4 kept. Next design: the look AI matches intent AND words (page words plus a one-line why, or "the page can't show the rule"), code checks, a link whose words differ from the rule becomes a question to the person (Agree / Drop it / type). Needs a pre-registered paid POC and a signed amendment.
+
+## F200 — page look ties: same words / meaning match / nonsense ($0 survey, pre-registered)
+
+**Question.** When fwd's page look (AI, `src/pagemap.js` mapPrompt) ties a page fact to a person's `~` rule (`forRule`), how often is the tie:
+1. **SAME WORDS** — the fact's page words (or a whole word of them) appear in the rule text, case-insensitive, whole-word. Decided by code: the script imports the whole-word logic of `inText` from `src/checkblock.js` (read-only; it is not exported, so the script copies its body byte for byte).
+2. **MEANING MATCH** — words differ but the page words carry the rule's meaning (rule "no layovers", page "Nonstop"; rule "not a red-eye", time label "Departure time" with a reading).
+3. **NONSENSE** — the page words cannot check the rule (rule "be friendly" / "plain words only", page "Select flight").
+
+Also counted: rules with no tied fact.
+
+**Data.** The 57 saved drafts under `~/.config/fwdloop/flows` holding `"forRule"` (mostly `.drafts/<id>/draft*/page-look.json`). $0, read-only, no provider call. Classes 2 and 3 are hand-labelled, one written reason per unique tie; borderline ones are marked as such, not forced. Counts are given both total and de-duplicated by (rule, shape, words). Rules or page words that look personal are masked.
+
+**Expectation to be measured.** How many ties a words-contain guard (bareloop v0.58.0 `named`, withdrawn from fwd as fix 1 of F199) would have cut that were meaning matches. A high number means that guard destroys real intent; a number near 0 means it only cuts nonsense. No bar is set; the number is reported as found.
