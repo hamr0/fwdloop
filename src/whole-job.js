@@ -6,17 +6,37 @@
 import { renderSentMd } from './send.js';
 
 /**
- * The index of the Ask that shows the whole job: the Ask the send reads (M13 am11: the Ask is the line right before the action).
+ * The Ask the action reads: the Ask right before the one signed send (M13 am11: the action ships the step before it). -1 = none.
  * @param {{ steps: { fromLine: number, goal: string, emits?: string, reads?: string[] }[], askLines: Map<number, any>, sendLines: Map<number, any> }} p
- * @returns {number} -1 = none
+ * @returns {number}
  */
-export function wholeJobAskIndex({ steps, askLines, sendLines }) {
+function askBeforeSend({ steps, askLines, sendLines }) {
   if (sendLines.size !== 1) return -1;
   const send = [...sendLines.values()][0];
   const sendStep = steps.find((s) => s.fromLine === send.line);
   const askIds = (sendStep?.reads ?? []).filter((id) => steps.some((s) => s.emits === id && askLines.has(s.fromLine)));
   if (askIds.length !== 1) return -1;
-  return steps.findIndex((s) => s.emits === askIds[0]);
+  const idx = steps.findIndex((s) => s.emits === askIds[0]);
+  return steps[idx + 1] === sendStep ? idx : -1;
+}
+
+/** The emits of every work step (not an Ask) before step `idx`, in job order. */
+function workBefore(steps, idx, askLines) {
+  return steps.slice(0, idx).filter((s) => !askLines.has(s.fromLine) && typeof s.emits === 'string').map((s) => /** @type {string} */ (s.emits));
+}
+
+/**
+ * The index of the Ask that shows the whole job: the Ask right before the action, when the plan has it read EVERY work step before it (what `readEveryStep` writes into a plan
+ * drafted from M13 am9 on). A plan signed with that Ask reading one step (a job signed before am9) finds -1 and keeps today's behaviour exactly: a stored plan is never reinterpreted.
+ * @param {{ steps: { fromLine: number, goal: string, emits?: string, reads?: string[] }[], askLines: Map<number, any>, sendLines: Map<number, any> }} p
+ * @returns {number} -1 = none
+ */
+export function wholeJobAskIndex({ steps, askLines, sendLines }) {
+  const idx = askBeforeSend({ steps, askLines, sendLines });
+  if (idx < 1) return idx === 0 ? -1 : idx;
+  const work = workBefore(steps, idx, askLines);
+  const reads = steps[idx].reads ?? [];
+  return work.length > 0 && reads.length === work.length && work.every((e) => reads.includes(e)) ? idx : -1;
 }
 
 /**
@@ -49,7 +69,7 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult }) {
 
 /**
  * M13 am9 item 4: the plan shows the last Ask as reading every step. Code sets the Ask's `reads` to every work step's emits before it (the nearest one first, so a
- * redo still re-runs the step just before the Ask; the rest in job order). Only a plan with the am8 added end; any other plan comes back as it was.
+ * redo still re-runs the step just before the Ask; the rest in job order). Only for the Ask right before the action; any other plan comes back as it was.
  * @template {{ fromLine: number, goal: string, emits?: string, reads?: string[], primitives?: string[] }} S
  * @param {S[]} steps @param {{ asks?: { line: number }[], sends?: { line: number }[] }} arbiter
  * @returns {S[]}
@@ -58,9 +78,9 @@ export function readEveryStep(steps, arbiter) {
   if (!Array.isArray(steps) || !steps.every((s) => s && typeof s === 'object')) return steps;
   const askLines = new Map((arbiter?.asks ?? []).map((a) => [a.line, a]));
   const sendLines = new Map((arbiter?.sends ?? []).map((x) => [x.line, x]));
-  const idx = wholeJobAskIndex({ steps, askLines, sendLines });
+  const idx = askBeforeSend({ steps, askLines, sendLines });
   if (idx < 1) return steps;
-  const work = steps.slice(0, idx).filter((s) => !askLines.has(s.fromLine) && typeof s.emits === 'string').map((s) => /** @type {string} */ (s.emits));
+  const work = workBefore(steps, idx, askLines);
   if (work.length === 0) return steps;
   const reads = [work[work.length - 1], ...work.slice(0, -1)];
   return steps.map((s, i) => (i === idx ? { ...s, reads } : s));

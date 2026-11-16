@@ -18,7 +18,7 @@ import path from 'node:path';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
+import { runFlow, resumeRun, makeParkingAskStep, readAsk } from '../src/runner.js';
 import { answerAsk, serializeArtifact } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { sandboxSend, SEND_DIR } from './send-sandbox.js';
@@ -971,7 +971,7 @@ test('M4b p3 unchanged: an untouched accepted artifact ships, and the shipped by
   } finally { cleanShipped(runId); }
 });
 
-test('negative (iii): the accepted artifact changed on disk between accept and send — send refuses by name, nothing shipped, books balance', async () => {
+test('negative (iii): the accepted artifact changed on disk between accept and send — M13 am11: the run stops once and asks, nothing shipped', async () => {
   const runId = 'p3-tamper';
   cleanShipped(runId);
   try {
@@ -982,22 +982,15 @@ test('negative (iii): the accepted artifact changed on disk between accept and s
     assert.ok(before.includes('worked places'));
     writeFileSync(a.priorFile, before.replace('worked places', 'worked placeS'));
 
+    // M13 am11: a change after the accept is not a red any more: the run stops once and asks ("This changed since you accepted it."); nothing is written
     const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
-    assert.equal(res.outcome, 'red');
-    assert.match(res.red, /send: send: the artifact changed after it was accepted/);
+    assert.equal(res.outcome, 'paused', res.red);
+    assert.equal(readAsk(a.runDir).question, 'This changed since you accepted it.');
     assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
-
-    const [row] = historyFor(a.root, runId);
-    assert.equal(row.outcome, 'red');
-    assert.ok(typeof row.signatureHash === 'string' && row.signatureHash.length > 0, 'a refusal never records a null signature hash');
-    const audit = auditOf(a.runDir);
-    assert.ok(audit.some((r) => r.verdict === 'red' && /changed after it was accepted/.test(r.gap ?? '')), 'the audit names the refusal');
-    const auditSum = audit.reduce((t, r) => t + (r.usd ?? 0), 0);
-    assert.ok(Math.abs(auditSum - row.spentUsd) < 1e-9, `books must balance: audit ${auditSum} vs history ${row.spentUsd}`);
   } finally { cleanShipped(runId); }
 });
 
-test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version) is refused at send by name, nothing shipped', async () => {
+test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version) — M13 am11: the run stops once ("You have not seen this yet."), nothing shipped', async () => {
   const runId = 'p3-legacy';
   cleanShipped(runId);
   try {
@@ -1008,11 +1001,11 @@ test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version)
     delete rec.artifactSha256;
     writeFileSync(ansPath, JSON.stringify(rec, null, 2));
 
+    // M13 am11: an accept with no recorded hash is "nothing accepted": the run stops once ("You have not seen this yet."); nothing is written
     const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
-    assert.equal(res.outcome, 'red');
-    assert.match(res.red, /no accepted-artifact hash was recorded/);
+    assert.equal(res.outcome, 'paused', res.red);
+    assert.equal(readAsk(a.runDir).question, 'You have not seen this yet.');
     assert.deepEqual(shippedFiles(runId), []);
-    assert.equal(historyFor(a.root, runId)[0].outcome, 'red');
   } finally { cleanShipped(runId); }
 });
 

@@ -100,7 +100,7 @@ test('a flow with two ask lines shows two blocks, each titled with its own quest
   const declaration = JSON.parse(fixture('job2.m1.declaration.json'));
   const send = declaration.steps.pop();
   send.fromLine = 6;
-  send.reads = ['resume-summary-approved'];
+  send.reads = ['resume-summary-final']; // M13 am11: the action reads the step right before it (the second Ask)
   declaration.steps.push({
     goal: 'Show the summary again and pause until the human accepts it a second time; nothing is written out before that.',
     primitives: [],

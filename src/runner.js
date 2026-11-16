@@ -80,6 +80,7 @@ import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
 import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
 import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
+import { ACTION_STOP_KIND, decideAction, lastAcceptedSha, stopWaitMs } from './action-stop.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
 import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
@@ -1693,7 +1694,7 @@ async function runAskSlot({
       // `currentPrior` is the just-redrafted artifact), so this write always
       // carries the CURRENT evidence, not a stale first-park copy.
       writeFileSync(join(runDir, 'ask.json'), JSON.stringify({
-        askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence,
+        askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence, ...(askSlot?.kind ? { kind: askSlot.kind } : {}),
       }, null, 2));
       // Amendment M4a-1 — SIGNED by hamr 2026-09-27 ("sign m4a1"): a
       // PERMANENT copy of this same park, `asks/<askId>.json`, written right
@@ -1707,7 +1708,7 @@ async function runAskSlot({
       // is a genuine invariant violation, not a race to recover from — it
       // halts the run rather than silently dropping the archive duty.
       const archived = writeAskArchive({
-        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence, emits: step.emits,
+        runDir, askId, question: askSlot?.question ?? step.goal, askedAt, expiresAt, evidence, emits: step.emits, ...(askSlot?.kind ? { kind: askSlot.kind } : {}),
       });
       if (!archived.ok) {
         throw new Error(archived.red);
@@ -1889,6 +1890,8 @@ async function foldFromStep({
   // `@param {object} opts` this function's block comment never declared)
   // is what keeps every OTHER destructured field's inferred type intact.
   firstStepGap = /** @type {string|null} */ (null),
+  // M13 am11: set by a resume that took the Accept of the stop before the action at step `i0`: the sha256 the person accepted (what was shown)
+  stopAcceptedSha = /** @type {string|null} */ (null),
   // Amendment 7 item 8: a run Resumed after a Stop that cut step `i0` mid-way re-enters it as a NEW try — `numbered` tries already
   // wear numbers (the new one is numbered after them), `done` of them closed and count against the step's limit.
   resumeTries = { numbered: 0, done: 0 },
@@ -1926,15 +1929,10 @@ async function foldFromStep({
       });
     }
 
-    // --- the signed send slot: never through modelStep, only after an
-    // accept THIS run, re-checked at write time. ---
+    // --- the signed send slot = the job's action (M13 am11): never through modelStep. It ships the output of the step right before it. Before it writes, what goes
+    // out is compared by sha256 with what was accepted at the last Ask IN THIS RUN: the same goes; a change, or no accept this run, stops the run once and asks
+    // (Accept / Not now, the Ask's own park). The same rule for every Destination. ---
     if (sendLines.has(step.fromLine)) {
-      if (!runAcceptedThisRun) {
-        return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
-          outcome: 'red', red: `send: step "${step.goal}" reached with no accept this run`,
-        });
-      }
       const sendSlot = sendLines.get(step.fromLine);
       if (!sendSlot) {
         return haltRun({
@@ -1942,43 +1940,86 @@ async function foldFromStep({
         });
       }
       const target = `${sendSlot.target.kind}:${sendSlot.target.path}`;
-      // The send's content is identified by IDENTITY (the artifact emitted
-      // by the ONE earlier signed ask step this send reads) — never by
-      // position in `reads`. `readFlow`/`validateDeclaration` already
-      // refuse, at signing time, any declaration whose send step doesn't
-      // read the emits of exactly one earlier signed ask (M3 item 8); every
-      // path into this fold goes through `readFlow` first, so `askIdsInReads`
-      // is always exactly 1 here.
-      const [askArtifactId] = (step.reads ?? []).filter((id) => askStepEmits.has(id));
-      if (!acceptedAskEmitsThisRun.has(askArtifactId)) {
+      const before = i > 0 ? steps[i - 1] : null;
+      const outId = before?.emits;
+      if (typeof outId !== 'string') {
         return haltRun({
-          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
-          outcome: 'red', red: `send: step "${step.goal}" reads ask artifact "${askArtifactId}" that was not accepted this run`,
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: `send: step "${step.goal}" has no step before it to write out`,
         });
       }
-      // F48 round 4 (redesign): ONLY an `ok:true` read ships — a missing OR
-      // refused (symlink swap / outside the run dir / unparseable JSON)
-      // accepted artifact halts the run BY NAME, before `sendStep` is ever
-      // called, so nothing reaches the signed destination. This is the exact
-      // gap the round 3 fix left open: `readArtifact` returning `undefined`
-      // for both shapes let a swapped/deleted artifact reach `sendStep` as
-      // `undefined`, get `?? null`-ed by src/send.js, and ship as a
-      // recorded-green `null` — a silent "success" for content that was
-      // never verified.
-      const contentResult = readArtifactResult(runDir, askArtifactId);
+      // F48 round 4 (redesign): ONLY an `ok:true` read ships — a missing OR refused (symlink swap / outside the run dir / unparseable JSON) artifact halts the
+      // run BY NAME, before `sendStep` is ever called, so nothing reaches the signed destination.
+      const contentResult = readArtifactResult(runDir, outId);
       if (!contentResult.ok) {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
           outcome: 'red',
           red: contentResult.missing
-            ? `send: accepted artifact "${askArtifactId}" is missing for step "${step.goal}" — refusing to send`
-            : `send: accepted artifact "${askArtifactId}" for step "${step.goal}" — ${contentResult.red}`,
+            ? `send: artifact "${outId}" is missing for step "${step.goal}" — refusing to send`
+            : `send: artifact "${outId}" for step "${step.goal}" — ${contentResult.red} — refusing to send`,
         });
       }
-      const content = contentResult.value;
+      let content = contentResult.value;
+      const decided = decideAction({ acceptedSha: lastAcceptedSha(steps, i, acceptedAskEmitsThisRun), outgoing: content });
+      let shaToSend = decided.outgoingSha;
+      if (!decided.go) {
+        if (stopAcceptedSha !== null && i === i0) {
+          shaToSend = stopAcceptedSha; // the person accepted the stop for this very step: sendViaPrimitive re-hashes what is on disk against it
+          stopAcceptedSha = null;
+        } else {
+          // eslint-disable-next-line no-await-in-loop
+          const stop = await runAskSlot({
+            mcpServer,
+            checkList,
+            step,
+            stepIndex: i,
+            askSlot: { question: decided.question, ttlMs: stopWaitMs(steps, i, askLines, sendSlot.waitMs), kind: ACTION_STOP_KIND },
+            priorId: outId,
+            priorStep: before,
+            priorStepNo: i,
+            priorPrevStepId: i > 1 ? (steps[i - 2].emits ?? null) : null,
+            priorArtifact: content,
+            redoCap,
+            effectiveCeilingUsd,
+            capUsd,
+            primitives,
+            businessDate,
+            modelStep,
+            askStep,
+            spent,
+            spendComplete,
+            recordAudit,
+            evidenceUnjudged: runUnjudged,
+            unjudgedCount: runUnjudged.length,
+            redone: 0,
+            runDir,
+            flowDir,
+            runId,
+            flowRoot,
+            flowName,
+            signatureHash,
+            inputsManifest,
+            attemptsLog,
+            artifacts,
+            now,
+            startedAt,
+            runStartedAt,
+          });
+          if (stop.type === 'paused' || stop.type === 'stopped') return stop.result;
+          if (stop.type === 'halted') {
+            return haltRun({
+              flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stop.outcome, red: stop.red,
+              ...(stop.stop ? { stop: stop.stop } : {}),
+              resumeAt: { stepIndex: i, flowRoot, flowName, inputsManifest, unjudged: runUnjudged, redone: stop.redone },
+            });
+          }
+          content = stop.artifact;
+          shaToSend = typeof stop.acceptedSha256 === 'string' ? stop.acceptedSha256 : decided.outgoingSha;
+        }
+      }
       const filename = `${flowName}-${runId}-${step.emits}.md`;
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content, acceptedAskEmitsThisRun.get(askArtifactId), { root: flowRoot, runDir });
+      const sendResult = await sendStep(target, filename, content, shaToSend, { root: flowRoot, runDir });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
         ...(sendResult.ok && typeof sendResult.sha256 === 'string' ? { sentSha256: sendResult.sha256 } : {}),
@@ -2704,8 +2745,10 @@ export async function resumeRun({
     const effectiveCeilingUsd = holdOf(ceilingUsd);
 
     const step = steps[state.stepIndex];
-    const askSlot = askLines.get(step.fromLine);
-    const priorId = (step.reads ?? [])[0];
+    // M13 am11: a run parked at the stop before the action (a signed send step): the one thing shown is the output of the step right before it
+    const isStop = sendLines.has(step.fromLine);
+    const askSlot = isStop ? { question: 'stop before the action', ttlMs: 0, kind: ACTION_STOP_KIND } : askLines.get(step.fromLine);
+    const priorId = isStop ? steps[state.stepIndex - 1]?.emits : (step.reads ?? [])[0];
     const priorStepIndex = steps.findIndex((s) => s.emits === priorId);
     // `priorId` names a step strictly earlier than the parked ask
     // (state.stepIndex), so i < state.stepIndex — already proven `ok` by the
@@ -2781,14 +2824,17 @@ export async function resumeRun({
     // accepted — write the ask step's own artifact, then fold on to
     // whatever comes next (another signed ask parks again; the ordinary
     // send/step path completes exactly as `runFlow` would have, in-process).
-    writeArtifact(runDir, step.emits, askResult.artifact);
-    artifacts[step.emits] = askResult.artifact;
-    acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
+    if (!isStop) {
+      writeArtifact(runDir, step.emits, askResult.artifact);
+      artifacts[step.emits] = askResult.artifact;
+      acceptedAskEmitsThisRun.set(step.emits, askResult.acceptedSha256 ?? null);
+    }
 
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
       checkList: declaration.checkList,
-      i0: state.stepIndex + 1,
+      i0: isStop ? state.stepIndex : state.stepIndex + 1,
+      ...(isStop ? { stopAcceptedSha: typeof askResult.acceptedSha256 === 'string' ? askResult.acceptedSha256 : null } : {}),
       steps,
       askLines,
       sendLines,
