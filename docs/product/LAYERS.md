@@ -53,7 +53,10 @@ ASK: the run stops at the line you marked. It PARKS (the process ends, nothing i
 RESUME: another process picks up exactly there. An answer is used once.
   │
   ▼
-ACCEPT → SEND: only to the signed folder, only the exact file you accepted (hash-checked)
+ACCEPT → SEND: your last line is the job's action: it writes everything before it, only to the signed folder, only the exact file you accepted (hash-checked).
+  The AI says if your last line is the action; if there is none it suggests one and you Agree or type your own.
+  An Ask before it is not required: if what goes out changed since your last accept, or you accepted nothing in this run, the run stops once
+  and asks (Accept / Not now) before it writes. [M13 am11, unreleased]
   │
   ▼
 ENDED:  passed · failed · stopped · expired
