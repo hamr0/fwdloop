@@ -44,6 +44,7 @@ import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
 import { mcpPickHere } from './mcp-pick.js';
+import { hitlWords } from './checked.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
@@ -225,10 +226,14 @@ export function buildReadout({
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
   const onList = listLinesOf(declaration);
   const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
+  // display only: a hitl step that is not an Ask line prints the card's words (src/checked.js hitlWords); an Ask line (pure stop) keeps `hitl`
+  const askLineNos = (arbiter.asks ?? []).map((a) => a.line);
+  const lastAskIdx = declaration.steps.reduce((m, st, i) => (askLineNos.includes(st.fromLine) ? i : m), -1);
+  const checkText = (st, i) => (st.close?.class === 'hitl' && !askLineNos.includes(st.fromLine) ? hitlWords(askLineNos.length > 0, lastAskIdx !== -1 && i > lastAskIdx) : st.close?.class);
   declaration.steps.forEach((st, i) => {
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
-      + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
+      + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${checkText(st, i)}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     // M16: a list line's checks carry the tag of the row that built each (`[you]`, `[agent]`, `[default]`); any other line keeps today's words
