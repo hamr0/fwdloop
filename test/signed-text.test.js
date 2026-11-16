@@ -209,17 +209,14 @@ describe('mutation suite', () => {
   // --- asks (M1 amendment 3: the mark is on the job line itself, not an
   // arbiter guardrail line) ------------------------------------------------
   covered.add('asks');
-  test('mutation: asks — removed mark (no ask exists at all; caught downstream by the send lock, naming "sends", not "asks")', () => {
+  // M13 am11: the action needs no Ask before it, so a job with no ask mark and a send parses (was a red under the old send lock)
+  test('am11: asks — no mark and a send is green (the action needs no Ask)', () => {
     const text = buildText(
       BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
       '3. Step three, this is the ask point.',
     );
     const result = parseSignedText(text);
-    assert.equal(result.ok, false, 'expected a red for asks/removed mark, got green');
-    assert.ok(
-      result.reds.some((r) => r.includes('field "sends"') && r.includes('no ask at an earlier line')),
-      `expected the send-lock red naming "sends", got:\n${result.reds.join('\n')}`,
-    );
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
   });
   mutationCase('asks', 'retyped duration (decimal)', buildText(
     BASE_ARBITER_ORDER.map((k) => BASE_ARBITER[k]),
@@ -254,7 +251,7 @@ describe('mutation suite', () => {
   mutationCase('sends', 'line points at a missing line', withMutation('sends', 'guardrail: send at line 99 to file:out/result.txt'));
   mutationCase('sends', 'duplicated', buildText(withDuplicate('sends', 'guardrail: send at line 4 to file:out/other.txt')));
   mutationCase('sends', 'empty path', withMutation('sends', 'guardrail: send at line 4 to file:'));
-  mutationCase('sends', 'send before any ask', withMutation('sends', 'guardrail: send at line 2 to file:out/result.txt'));
+  // M13 am11: 'send before any ask' is no longer a red (the action needs no Ask before it); see 'a send needs no earlier marked line'
 
   // --- skills ---------------------------------------------------------------
   mutationCase('skills', 'name uppercase', withMutation('skills', 'guardrail: skills Core'));
@@ -514,12 +511,11 @@ describe('the ask mark (M1 amendment 3)', () => {
     assert.equal(result.lines.find((l) => l.n === 3).guardrail, 'nothing goes out before I accept');
   });
 
-  describe('send needs an earlier marked line', () => {
-    test('send with no earlier marked line is a red', () => {
+  describe('a send needs no earlier marked line (M13 am11)', () => {
+    test('send with no earlier marked line is green', () => {
       const text = buildAskDoc('3. Step three, no mark here.', ['guardrail: send at line 4 to file:out/result.txt']);
       const result = parseSignedText(text);
-      assert.equal(result.ok, false);
-      assert.ok(result.reds.some((r) => r.includes('field "sends"') && r.includes('no ask at an earlier line')));
+      assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
     });
 
     test('send after a marked line is green', () => {

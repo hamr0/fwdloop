@@ -442,11 +442,7 @@ function parseArbiter(arbiterRawLines, lineNumbers, reds, asks) {
     reds.push(`arbiter: field "trigger" names the input "${trigger.role}", which is not one of the job's inputs (inputs: [${[...sourceRolesSeen].join(', ')}])`);
   }
 
-  for (const s of sends) {
-    if (!asks.some((a) => a.line < s.line)) {
-      reds.push(`arbiter: field "sends" send at line ${s.line} has no ask at an earlier line (asks: [${asks.map((a) => a.line).join(', ')}])`);
-    }
-  }
+  // M13 am11: the action (a send) needs no Ask before it; what goes out is checked at run time against the last accept (or stops once)
 
   return {
     capUsd,

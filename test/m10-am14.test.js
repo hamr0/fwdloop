@@ -28,25 +28,25 @@ function world(t) {
   return { card, check: (over) => checkCard(card(over), { root, home, keys: [] }) };
 }
 
-test('card: M13 am8 replaced the card refusal: a guardrail under the last typed line is work, accepted; the added send line carries none', (t) => {
+test('card: M13 am11: a guardrail under the last typed line is accepted by the card (the send there is tentative; the draft decides after it recognises the action)', (t) => {
   const w = world(t);
   assert.equal(w.check().ok, true, 'the walk job (guardrails on lines 3 and 5) passes');
   const r = w.check({ job: `${JOB}\n~ exactly 3 bullets` });
-  assert.equal(r.ok, true, 'the last typed line is no longer the send, so a guardrail under it is allowed');
-  assert.match(r.prose, /\n7\. Write it out\n   guardrail: exactly 3 bullets\n8\. ask 1h: check the result with me\n9\. write it out\n\n/);
-  assert.match(r.prose, /send at line 9 to /);
+  assert.equal(r.ok, true, 'the send on the last typed line is tentative, so the card allows a guardrail under it');
+  assert.match(r.prose, /\n7\. Write it out\n   guardrail: exactly 3 bullets\n\n/);
+  assert.match(r.prose, /send at line 7 to /);
 });
 
 test('drafter pre-flight: a prose file with a guardrail on the send line stops at $0 with no provider call', async (t) => {
   const w = world(t);
-  // hand-written prose (the CLI, or a job signed before M13 am8) can still carry one: cardToProse never writes one on the added send line
-  const prose = cardToProse(w.card()).replace('9. write it out\n', '9. write it out\n   guardrail: exactly 3 bullets\n');
-  assert.match(prose, /write it out\n   guardrail: exactly 3 bullets\n/);
+  // hand-written prose (the CLI, no --action) is the truth, so a guardrail on its send line is still refused at $0
+  const prose = cardToProse(w.card()).replace('7. Write it out\n', '7. Write it out\n   guardrail: exactly 3 bullets\n');
+  assert.match(prose, /Write it out\n   guardrail: exactly 3 bullets\n/);
   const p = fakeProvider([toolReply(validArgs())]);
   const r = await draft({ proseText: prose, provider: p, rates: RATES, modelId: MODEL });
   assert.equal(r.stop, 'pre-flight');
   assert.equal(p.calls.length, 0);
-  assert.match(r.reds.join(' '), /line 9 is the send line/);
+  assert.match(r.reds.join(' '), /line 7 is the send line/);
 });
 
 // M10 am16 replaced (2) and am15: the drafter no longer writes a check, so its check cannot carry a made-up number or word. The same refusals now live in code's

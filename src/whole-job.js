@@ -4,19 +4,15 @@
 // `Line <n>: you accepted this at the Ask.`; the last Ask itself and the send line are not sections. The accepted artifact is `{text}`, so the send ships it unchanged.
 // Throws away: nothing of a step's saved output beyond what `renderSentMd` already drops. Third outcomes: a work step with no readable saved output refuses, naming the step.
 import { renderSentMd } from './send.js';
-import { addedLinesOf } from './added-end.js';
 
 /**
- * The index of the Ask that shows the whole job: the Ask the added send reads, only when the plan has the am8 added `write it out`. A job signed before am8
- * (its send line is the person's own words) finds -1 and keeps today's behaviour exactly.
+ * The index of the Ask that shows the whole job: the Ask the send reads (M13 am11: the Ask is the line right before the action).
  * @param {{ steps: { fromLine: number, goal: string, emits?: string, reads?: string[] }[], askLines: Map<number, any>, sendLines: Map<number, any> }} p
  * @returns {number} -1 = none
  */
 export function wholeJobAskIndex({ steps, askLines, sendLines }) {
   if (sendLines.size !== 1) return -1;
   const send = [...sendLines.values()][0];
-  const lines = steps.map((s) => ({ n: s.fromLine, text: s.goal }));
-  if (!addedLinesOf(lines, { sends: [...sendLines.values()], asks: [...askLines.values()] }).has(send.line)) return -1;
   const sendStep = steps.find((s) => s.fromLine === send.line);
   const askIds = (sendStep?.reads ?? []).filter((id) => steps.some((s) => s.emits === id && askLines.has(s.fromLine)));
   if (askIds.length !== 1) return -1;

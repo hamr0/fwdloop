@@ -190,7 +190,7 @@ test('a 1-byte change to the output of a step after the accept is refused at the
   assert.deepEqual(shipped('am9-tamper'), []);
 });
 
-test('a job signed before am8 (the send line is the person\'s own words) is unchanged: the Ask shows its one step', async () => {
+test('M13 am11: the whole-job file applies to any Ask right before the action, whatever the action line\'s words (a typed send line)', async () => {
   const r = root(); clean('am9-old'); modelRound = 0;
   const prose = PROSE('4. ask 1h: check it with me\n5. and write the result out');
   const decl = declaration(['n2']); decl.steps[3].goal = 'check it with me'; decl.steps[4].goal = 'and write the result out';
@@ -198,14 +198,14 @@ test('a job signed before am8 (the send line is the person\'s own words) is unch
   const a = asker();
   const res = await runFlow(args(r, 'j', 'am9-old', { askStep: a.fn, sources: [] }));
   assert.equal(res.outcome, 'complete', res.red);
-  assert.deepEqual(a.shown[1].artifact, { text: 'TEXT TWO' });
+  assert.deepEqual(a.shown[1].artifact, { text: WANT });
   const files = shipped('am9-old');
-  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), 'TEXT TWO');
-  assert.equal(wholeJobAskIndex({ steps: decl.steps, askLines: new Map([[2, {}], [4, {}]]), sendLines: new Map([[5, { line: 5 }]]) }), -1);
+  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), WANT);
+  assert.equal(wholeJobAskIndex({ steps: decl.steps, askLines: new Map([[2, {}], [4, {}]]), sendLines: new Map([[5, { line: 5 }]]) }), 3);
   clean('am9-old');
 });
 
-test('plan: code sets the last Ask to read every work step (nearest first), only for an am8 plan; validateDeclaration accepts it', () => {
+test('plan: code sets the Ask right before the action to read every work step (nearest first); validateDeclaration accepts it', () => {
   const p = parseSignedText(PROSE());
   assert.equal(p.ok, true);
   const model = declaration(['n2']); // what the drafter sent: one read
@@ -216,5 +216,5 @@ test('plan: code sets the last Ask to read every work step (nearest first), only
   assert.equal(v.ok, true, JSON.stringify(v.reds));
   const old = parseSignedText(PROSE('4. ask 1h: check it with me\n5. and write the result out'));
   const oldSteps = declaration(['n2']).steps.map((x) => (x.fromLine === 5 ? { ...x, goal: 'and write the result out' } : x));
-  assert.equal(readEveryStep(oldSteps, old.arbiter), oldSteps, 'an old plan comes back as it was');
+  assert.deepEqual(readEveryStep(oldSteps, old.arbiter)[3].reads, ['n2', 'n1'], 'M13 am11: the action line\'s words no longer matter (a stored plan is never rewritten: this runs at draft time only)');
 });

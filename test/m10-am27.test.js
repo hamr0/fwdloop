@@ -13,7 +13,7 @@ import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
 const JOB = [
   'Write 3 lines about my garden from the notes', 'Ask: check it with me', 'List 3 jobs for this week from the notes', '~ exactly 3 bullets; under 80 words; keep it kind',
-  'Ask: check it with me', 'Write a short closing note to my neighbour', 'Ask: check it with me',
+  'Ask: check it with me', 'Write a short closing note to my neighbour', 'Ask: check it with me', 'Write it out',
 ].join('\n');
 
 function prose(t, job = JOB) {
