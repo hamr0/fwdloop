@@ -100,6 +100,19 @@ export function tooManyAsksText(asks) {
   return redactSecrets(`Your job has ${asks.length} rules I can't check or had to guess. Please rewrite it so each one says what to look for. My readings: ${list}.`);
 }
 
+// borrowed-from: bareloop src/draftspend.js@v0.58.0 (decidedWords)
+/**
+ * M17 am8: what a button-picked answer decided, as the one Audit line; null when the row has no pick (a box-answered drafter question, an older record).
+ * @param {{choice?: string, words?: string}} h
+ * @returns {string|null}
+ */
+export function decidedWords(h) {
+  if (h.choice === 'agree' && typeof h.words === 'string') return `agreed \u2014 ${h.words}`;
+  if (h.choice === 'rule' && typeof h.words === 'string') return `you wrote \u2014 ${h.words}`;
+  if (h.choice === 'drop') return 'dropped \u2014 Not checked';
+  return null;
+}
+
 /**
  * What a typed answer to a look ask does, the ONE place that decides (the panel's answer route, the setup record and the Result tab all read it).
  * `agree` / `yes` to a reading ask takes the code's reading; `drop it` to a can't-check ask leaves the rule Not checked (no `~` line); anything else is the

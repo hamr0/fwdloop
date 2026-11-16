@@ -45,7 +45,7 @@ import { EVERY_STEP_TEXTS } from '../try-checks.js';
 import { LABEL_PICKED, tagOf } from '../checkwords.js';
 import { listLinesOf } from '../checklistsign.js';
 import { auditChecksOf } from '../auditchecks.js';
-import { panelQuestionText } from '../pageask.js';
+import { panelQuestionText, decidedWords } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import {
@@ -1957,6 +1957,8 @@ export function getDraftBlock(flowDir, runDir) {
         rows.push(human(r, n, { action: 'card (you)', gap }));
       } else if (r.kind === 'note') rows.push(human(r, n, { action: 'note (you)', gap: String(r.text ?? '') }));
       // M10 am2 item 4: a question the page look raised and your answer, under the drafting step, in bareloop's words (`you were asked:` / `you said:`)
+      // M17 am8: a button-picked answer reads what was decided (`agreed — ...`), never the question that quotes a replaced rule's old words
+      else if (r.kind === 'human' && decidedWords(r) !== null) rows.push(human(r, n, { action: decidedWords(r), gap: '' }));
       else if (r.kind === 'human') rows.push(human(r, n, { action: `you were asked: ${panelQuestionText(r)}`, gap: `you said: ${r.answer}${r.source === 'look' && typeof r.rule === 'string' && r.rule !== '' ? ` ${youTag}` : ''}` }));
       // M16 item 5: a Drop or an Add on the card: a human row, $0, no model
       else if (r.kind === 'rowedit') rows.push(human(r, n, { action: r.op === 'drop' ? 'you dropped a check' : 'you added a check', gap: String(r.key ?? '') }));
