@@ -2300,6 +2300,7 @@ function resultDoorOf(asks) {
   const block = asks.blocks.at(-1);
   const ask = block?.current;
   if (!ask || ask.open !== true) return null;
+  if (ask.kind === 'action-stop') return null; // M13 am11: the stop before the action is answered on the Ask tab (Accept / Not now); the Result tab's Your call has Rerun, which the stop does not take
   if (asks.resume && asks.resume.askId === ask.askId && asks.resume.state !== 'broken') return null;
   return { askId: ask.askId, draftNo: block.draftNo };
 }
