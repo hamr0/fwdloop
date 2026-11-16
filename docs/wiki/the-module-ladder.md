@@ -3964,6 +3964,8 @@ Peer state (2026-11-13):
 
 **Built after signing — not signed text (2026-11-16), M17 am8.** `src/pageask.js` `decidedWords` (copied from bareloop v0.58.0, `// borrowed-from` header); `src/setup.js` `humanRows` writes `words` on a look row (the signed rule on Agree, the typed text on a new rule, none on Drop it; `choice` was already there); `src/panel/data.js` `getDraftBlock` shows `decidedWords(row)` as the row's one line (no gap, so no `[you]` tag on it) and keeps `you were asked` / `you said` for a row without a pick (a box-answered drafter question, a kept pick, a record written before am8). Tests: new `test/m17-am8-audit-decided.test.js` (red on HEAD before the change; each piece reverted alone goes red); `m10-am16-panel` and `m10-ask-records` updated from the old words to the signed ones for a button-picked answer.
 
+*Called **M13 am11** from 2026-11-16 (hamr), to tell it from the older Tickets M13 am10 above; signed as am10, signed words unchanged.*
+
 **M13 am10 — SIGNED by hamr 2026-11-16 ("sign m13 am10."), the text exactly as shown.** Why: hamr's walk walk-f201-friendly (draft d-00mwj6ixcw-27c2, 2026-11-16): a typed last line "and once I accept, write it out." ran as an ordinary step and M13 am8 added `ask: check the result with me` and `write it out` after it (two writes, two asks). hamr: the action of the whole job comes at the end; if missing, suggest it; if there, go unless it changed since the last check. F202 ($0): the accept sha256 is already recorded and survives a restart; F203 FAIL (prompt too tight); F204 FAIL on the letter (54/60, lowest case 1/5) with 30/30 typed write lines recognised and 30/30 suggestions; hamr ruled build it ("it's fail safe and 6 out of 60 is small").
 
 > **M13 am10 — the job's last action: you write it or confirm it; a send stops only when it changed.** This replaces M13 am8 (2)-(5). Two rules.
@@ -3973,6 +3975,8 @@ Peer state (2026-11-13):
 > 4. The grey added lines on the New job card, the `added` marks in the plan, and the hint `fwdloop adds the last check and the write to your Destination.` go. The hint becomes `Your last line writes the result to the Destination. Leave it out and fwdloop suggests one.` A job signed before this is not rewritten; one that cannot run under these rules is refused at start at $0, with the reason.
 > 5. Known limit (F204): on a job whose last line writes new content ("Write a short closing note"), the AI can take it for the action in about 2 of 5 drafts. It shows on the card as the AI's pick, and you drop it or revise.
 > Must fail when: a line is added that you did not answer for; a typed last write line gets a second write; something goes out whose sha256 differs from your last accept in this run without a stop; an unchanged result stops.
+
+*Called **M13 am11a** from 2026-11-16 (hamr), to tell it from the older Tickets M13 am10; signed as am10a, signed words unchanged.*
 
 **M13 am10a — SIGNED by hamr 2026-11-16 ("sign m13 am10a."), the text exactly as shown.** Why: the M13 am10 builder stopped (no code changed): rule 3's stop has no signed wait when the job has no Ask line; hamr ruled the default Ask wait, then expire and Reopen like an Ask.
 
