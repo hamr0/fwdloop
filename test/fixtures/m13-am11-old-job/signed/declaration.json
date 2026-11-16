@@ -1,0 +1,58 @@
+{
+  "guardrailClasses": {},
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {},
+  "steps": [
+    {
+      "goal": "Write the note",
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "n1",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "look at the note",
+      "primitives": [],
+      "reads": [
+        "n1"
+      ],
+      "emits": "a1",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "and again",
+      "primitives": [],
+      "reads": [
+        "a1"
+      ],
+      "emits": "a2",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      }
+    },
+    {
+      "goal": "Write it out",
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "a1"
+      ],
+      "emits": "out",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      }
+    }
+  ]
+}

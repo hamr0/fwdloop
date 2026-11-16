@@ -1,0 +1,8 @@
+1. Write the note
+2. ask 30m: look at the note
+3. ask 30m: and again
+4. Write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only):
+guardrail: cap $1 per run
+guardrail: send at line 4 to file:/tmp/fwdloop-old-job-out

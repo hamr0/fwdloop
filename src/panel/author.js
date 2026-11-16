@@ -827,7 +827,7 @@ export function createAuthor(opts) {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
         writeFileSync(answerFile, `${JSON.stringify({
           k: v.openK, line: q.line, question: q.question, answer, ...(choice === undefined ? {} : { choice }), at,
-          ...(look ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: effect.rule } : {}),
+          ...(look ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: q.proposal ?? null, rule: effect.rule ?? (effect.action === 'known' ? effect.actionLine : null) } : {}),
         })}\n`, { mode: 0o600, flag: 'wx' });
       } catch (e) {
         return { status: 409, body: { ok: false, refused: 'already-answered', say: /** @type {any} */ (e)?.code === 'EEXIST' ? 'That question already has an answer.' : 'The answer could not be saved. Nothing was sent.' } };
