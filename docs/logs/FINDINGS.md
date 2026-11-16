@@ -7498,3 +7498,18 @@ Also counted: rules with no tied fact.
 **Data.** The 57 saved drafts under `~/.config/fwdloop/flows` holding `"forRule"` (mostly `.drafts/<id>/draft*/page-look.json`). $0, read-only, no provider call. Classes 2 and 3 are hand-labelled, one written reason per unique tie; borderline ones are marked as such, not forced. Counts are given both total and de-duplicated by (rule, shape, words). Rules or page words that look personal are masked.
 
 **Expectation to be measured.** How many ties a words-contain guard (bareloop v0.58.0 `named`, withdrawn from fwd as fix 1 of F199) would have cut that were meaning matches. A high number means that guard destroys real intent; a number near 0 means it only cuts nonsense. No bar is set; the number is reported as found.
+
+**F200 results ($0, 2026-11-16).** Script `.claude/scratch/f200/survey.mjs` (untracked; `inText` copied byte for byte, `norm` checked identical), rows in `.claude/scratch/f200/ties.json`. 44 page-look ties in 15 draft ids (`look.facts` with `forRule`; 49 more `forRule` ties are sheet column ties, not page look, left out). Rules were read from each draft's `prose.txt` (`forRule` is the 1-based place in the line's `~` rules, count rules included).
+
+| class | total | unique (rule, shape, words, fact) |
+|---|---|---|
+| 1 same words | 22 | 5 |
+| 2 meaning match | 22 | 5 |
+| 3 nonsense | 0 | 0 |
+| rules on a looked-at line with no tied fact | 8 | 2 |
+
+- Class 1: all phrase facts, rule "nonstop", page word "Nonstop"; fact names vary ("stops", "nonstop", "stop count", "nonstop word", "nonstop wording"). Class 2: all money facts, rule "under $150" (or "$40"), page word "From" (the price label), each with a `reading` (`lt 150`, `lt 40`). Borderline note: "From" is a starting-price label on a flight card, not each flight's own price; labelled meaning match because the label plus the reading is what checks the rule. Class 3: none in this corpus. Shapes of nonsense ties: none to report. Reading present on 22 of 22 meaning matches.
+- No-tie rules: "exactly 3 bullets" and "under 80 words" (4 each) sit on lines with a look; they are count rules and stay with the pick path.
+- **Would-cut number.** bareloop v0.58.0 `named` (the withdrawn F199 fix 1) tests phrase and place ties only, whole-word-ish `includes`. Here all 22 phrase ties contain their words, so it would have cut **0** ties, **0** meaning matches; the 22 money meaning matches are outside its shape test. A words-contain test applied to ALL shapes would have cut 22 of 44 (50%), every one a meaning match.
+- Examples masked/none needed (no personal words). Class 1: rule "nonstop" vs "Nonstop" (fact "stops"; fact "nonstop"; "stop count"). Class 2: rule "under $150" vs "From" (price, lt 150); "under $40" vs "From" (price limit, lt 40); "under $150" vs "From, From" (price). Class 3: none.
+- **Reading of the corpus.** It is narrow: one flights job family, saved drafts only. It holds none of the live nonsense tie that started F199 (rule "be friendly" vs "Select flight", bareloop mwi76vh8). So F200 cannot say how often nonsense happens; it shows that the phrase-only guard cut nothing here and that a whole-shape words guard would be harmful on money.
