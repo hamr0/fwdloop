@@ -57,6 +57,13 @@ export default function make() {
     args.steps[0].reads = ['jd'];
   }
   if (process.env.FWDLOOP_TEST_DRAFT_MCP === '1') args.steps[0].mcpTools = ['issue_read'];
+  // M13 am11b: FWDLOOP_TEST_DRAFT_NOASK=1 -> the job has no Ask line: four steps, the last one (line 4, the action) reads the summary
+  if (process.env.FWDLOOP_TEST_DRAFT_NOASK === '1') {
+    args.steps.splice(3, 1);
+    args.steps[3].fromLine = 4;
+    args.steps[3].reads = ['resume-summary'];
+    delete args.guardrailClasses['4'];
+  }
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['forget'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });

@@ -362,7 +362,7 @@ export function createAuthor(opts) {
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
     // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent] Drop`
     const act = readJson(dir, `${rel}/log.json`)?.action;
-    const action = isObj(act) && Number.isInteger(act.line) ? { line: act.line } : null;
+    const action = isObj(act) && Number.isInteger(act.line) ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}), ...(act.dropped === true ? { dropped: true } : {}) } : null;
     return {
       ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
@@ -897,7 +897,7 @@ export function createAuthor(opts) {
       if (b.key === 'action') {
         if (b.op !== 'drop') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
         const planLog = readJson(dir, `${v.plan}/log.json`);
-        if (!isObj(planLog?.action)) return { status: 409, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
+        if (!isObj(planLog?.action) || planLog.action.dropped === true) return { status: 409, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
         const { loaded: keyLoad } = keysNow();
         if (!keyLoad.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(keyLoad.refusal) } };
         const vetA = vetCard(v.card, keyLoad, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);

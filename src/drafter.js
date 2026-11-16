@@ -358,7 +358,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  *
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
- *   questions?:{line:number, question:string}[], proseText?:string, action?:{line:number}|null, droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
+ *   questions?:{line:number, question:string}[], proseText?:string, action?:{line:number, by?:'agent'|'you', dropped?:true}|null, droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
  *   checkCard?:ReturnType<typeof cardOfBlock>, notCheckedBy?:Record<string,'you'|'agent'|'default'>, look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
  * `learnHints` (M8 item 5a): the earlier runs' notes block (src/learnstore.js hintsForRun), appended to the drafter's system prompt; null = nothing.
  * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
@@ -555,7 +555,10 @@ export async function draft({
   // M13 am11 rules 1 and 2: the job's last line is the action. The AI answers ONE question (record_action); code checks the answer is the LAST line (never an Ask). With none, and the
   // person's answer not yet given, the AI suggests one line and the question carries the signed words. Nothing is added to the job without the person's answer.
   /** the result with what the AI decided about the action: the prose as kept (the send line stays or is taken out) and the action line, or null */
-  const withAction = (/** @type {any} */ r) => ({ ...r, proseText, action: arbiter.sends.length === 1 ? { line: arbiter.sends[0].line } : null });
+  // M13 am11b: the ONE writer of the log's `action`: { line, by } (who picked: 'agent' = the AI, 'you' = an Agree or typed line), or { line, dropped: true } (the person dropped the pick); null when none
+  /** @type {null|{line: number, by?: 'agent'|'you', dropped?: true}} */
+  let actionRec = null;
+  const withAction = (/** @type {any} */ r) => ({ ...r, proseText, action: actionRec ?? (arbiter.sends.length === 1 ? { line: arbiter.sends[0].line } : null) });
   /** @type {null|{line: number, question: string, source: 'look', ask: 'action', ruleNo: undefined, ruleText: string, reading: string, counted: false}} */
   let actionAsk = null;
   if (actionMode !== null && arbiter.sends.length === 1 && arbiter.sends[0].line === lines.length) {
@@ -573,7 +576,9 @@ export async function draft({
     if (keep) {
       const reds = checkSendLineGuardrail(lines, arbiter);
       if (reds.length) return earlyStop(reds, 'action');
+      actionRec = { line: last.n, by: actionMode === 'known' ? 'you' : 'agent' };
     } else {
+      if (actionMode === 'none') actionRec = { line: last.n, dropped: true };
       if (actionMode === 'check' && offerQuestions) {
         const sg = await forcedTurn({
           kind: 'action-suggest', system: ACTION_SUGGEST_SYSTEM, messages: [{ role: 'user', content: jobListing(lines, signedAsks, String(arbiter.sends[0].target.path)) }],
