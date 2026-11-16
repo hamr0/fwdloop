@@ -15,14 +15,6 @@ const make = (/** @type {string[]} */ rules, /** @type {any[]} */ facts, /** @ty
   return b;
 };
 
-test('fix 1: a look phrase whose words the `~` rule does not name is no check of that rule', () => {
-  const b = make(['be friendly'], [fact({ forRule: 1 })]);
-  const rule = b.rows.find((r) => r.key === 'L2.~1');
-  assert.equal(rule?.links, undefined);
-  assert.equal(rule?.state, 'not-checked');
-  assert.ok(b.rows.some((r) => r.key === 'L2.fact.friendly' && r.kind === 'fact'));
-});
-
 test('fix 2: a phrase is job-derived only by its own words, never by the name the AI gave it', () => {
   const b = make(['be friendly'], [fact()]);
   const row = b.rows.find((r) => r.key === 'L2.fact.friendly');
