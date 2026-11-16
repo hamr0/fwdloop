@@ -189,7 +189,11 @@ export class CheckBlock {
       this.lookFacts.push(f);
       // a fact the look tied to a COUNTING `~` rule stays a fact of its own: the pick path owns that rule (R10, hamr 2026-11-09), so the rule uses no link
       const tied = Number.isInteger(f.forRule) ? this.ruleRows(f.line).find((r) => r.rule === f.forRule) : undefined;
-      const row = tied && !isCountable(tied.text) ? tied : undefined;
+      // borrowed-from: bareloop src/checkblock.js@v0.58.0
+      // hamr 2026-11-15 (live run mwi76vh8, "be friendly" + "Select flight"): a phrase or place the person's own `~` rule words do not contain is no check of that rule; it is an ordinary `!` row (the split/inJob path
+      // decides Drop or Suggested) and the rule goes Not checked. A version or a date keeps the place-rule path; money, time, number and date links are unchanged.
+      const named = !tied || !['phrase', 'place'].includes(f.shape) || (f.words ?? []).some((/** @type {string} */ w) => weekOnly(w) || norm(tied.text).includes(norm(w)));
+      const row = tied && named && !isCountable(tied.text) ? tied : undefined;
       const carried = { name: f.name, shape: f.shape, words: [...(f.words ?? [])], unit: f.unit, currency: f.currency, decimal: f.decimal, lang: f.lang, source: f.source };
       if (row) { (row.links ??= []).push({ ...carried, reading: f.reading }); continue; }
       this.addRow({ key: `L${f.line}.fact.${norm(f.name)}`, line: f.line, kind: 'fact', by: 'agent', from: 'look', ...carried });
