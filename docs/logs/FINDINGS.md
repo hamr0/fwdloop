@@ -7956,3 +7956,33 @@ Answer by calling the tool suggest_action exactly once. The one required field i
 2. SUGGEST on the 6 no-action cases: >= 27 of 30 are one short line (non-empty, one line, <= 100 chars) that says it writes or sends to the Destination. Exact check: the text contains the Destination path `/home/hamr/fwdloop-out` OR matches `/\b(write|save|send)/i` (a word starting write, save or send, case-insensitive).
 3. No duplicate: on the 6 action cases (A1-A4, H1, H2) a null answer counts as a FAIL for that sample, because it would lead to a second write. Bar: 0 null answers on action cases (30 samples).
 Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
+
+### F204 Results (paid1, 2026-11-16)
+
+Run: tag paid1, 90 calls, spent $0.03351, not capped, 0 calls priced at the ceiling, 0 unreadable. Scored with `node poc/f204-action-ai/score.mjs paid1` (raw rows in `poc/f204-action-ai/out/paid1.jsonl`).
+
+| Case | Kind | RECOGNISE | SUGGEST |
+|---|---|---|---|
+| A1-A4 | action | 5/5 each | - |
+| N1 | none | 5/5 | 5/5 |
+| N2 | none | 3/5 | 5/5 |
+| N3 | none | 5/5 | 5/5 |
+| N4 | none | 5/5 | 5/5 |
+| H1 | action, held-out | 5/5 | - |
+| H2 | action, held-out | 5/5 | - |
+| H3 | none, held-out | 5/5 | 5/5 |
+| H4 | none, held-out | 1/5 | 5/5 |
+
+- RECOGNISE overall 54/60; held-out 16/20; lowest case 1/5 (H4).
+- SUGGEST overall 30/30.
+- Diagnostic: refused 4; nulls on no-action cases 24; accepted on no-action cases 2.
+
+**Bars.** 1 FAIL (lowest case 1/5 is below 4/5; held-out 16/20 is below 18/20; overall 54/60 meets its number). 2 PASS (30/30 >= 27). 3 PASS (0 nulls on action cases; 30/30 typed write lines recognised). **OVERALL FAIL. Stays FAIL on the letter; criteria not refitted.**
+
+**Failure detail.**
+- H4 (ticket job ending on an Ask; line 2 "Write a one-paragraph triage note..."): 4 of 5 answered line 2. Code refused all 4 (it is not the last line); in the design that leads to the suggestion question. No harm.
+- N2 (garden job whose last line is "Write a short closing note to my neighbour", a content step): 2 of 5 answered line 5. Code accepted it (it is the last line). Harm if unseen: that line would be treated as the write step (no AI runs there) and the note would not be written.
+
+**Ruling (hamr, 2026-11-16).** Build it despite the FAIL ("users can change intent with revise, it's fail safe and 6 out of 60 is small"). The AI's pick shows on the card for the person to drop, and Revise changes it. This is a ruling to build, not a PASS.
+
+**Known limit (carry into the release CHANGELOG "Known limits").** On a job whose last line writes new content (e.g. "Write a short closing note"), the AI can take it for the final write in about 2 of 5 drafts. It shows on the card as the AI's pick, and the person drops it or revises.
