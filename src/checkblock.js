@@ -247,7 +247,9 @@ export class CheckBlock {
     const said = this.said(r.line);
     if (r.kind === 'count') return [r.min, r.max].filter((x) => Number.isInteger(x)).some((n) => numberIn(said, n));
     // a fact the person asked for BY NAME ("the release heading") is in the job too: the look's page words rarely echo the job's own words
-    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && typeof r.name === 'string' && inText(said, r.name));
+    // borrowed-from: bareloop src/checkblock.js@v0.58.0
+    // A phrase or place is job-derived only when its own words are in the person's text: a name the AI gave it is no proof (hamr 2026-11-15, live run mwi76vh8: "friendly" for "Select flight")
+    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && r.shape !== 'phrase' && r.shape !== 'place' && typeof r.name === 'string' && inText(said, r.name));
   }
 
   /** a `!` count row is built unless a `~` rule on its line already names the number */
