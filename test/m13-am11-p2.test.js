@@ -33,7 +33,7 @@ test('rule 1: the AI names the last line: it is the action; the send stays; one 
   assert.equal(p.calls[0].options.thinkingMode, 'off');
   assert.match(p.calls[0].messages[1].content, /^The job:\n1\. Write the note\n2\. Write it out\n\nDestination: folder /);
   assert.equal(r.log[0].kind, 'action-recognise');
-  assert.deepEqual(r.action, { line: 2 });
+  assert.deepEqual(r.action, { line: 2, by: 'agent' });
   assert.match(r.proseText, /guardrail: send at line 2 to /);
   assert.ok(r.costUsd > 0);
 });
@@ -77,7 +77,7 @@ test('known (an Agree or typed line) calls nothing about the action and keeps th
   assert.equal(a.ok, true, a.reds.join('; '));
   assert.deepEqual(names(known), ['emit_declaration']);
   assert.match(a.proseText, /send at line 2 to /);
-  assert.deepEqual(a.action, { line: 2 });
+  assert.deepEqual(a.action, { line: 2, by: 'you' });
   const none = fakeProvider([toolReply(plan(false))]);
   const b = await draft({ proseText: prose(['Write the note', 'Tidy it'], 2, dest), actionMode: 'none', provider: none, rates: RATES, modelId: MODEL });
   assert.equal(b.ok, true, b.reds.join('; '));

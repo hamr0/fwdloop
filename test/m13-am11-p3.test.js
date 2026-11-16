@@ -43,7 +43,7 @@ test('Agree adds the suggested line as the last line; the redraft keeps the send
   const prose = readFileSync(path.join(w.dir(id), 'prose-1.txt'), 'utf8');
   assert.match(prose, /\n5\. write it out\n/);
   assert.match(prose, /send at line 5 to /);
-  assert.deepEqual(s.action, { line: 5 });
+  assert.deepEqual(s.action, { line: 5, by: 'you' });
 });
 
 test('your own words add your line as the last line', async () => {
@@ -66,7 +66,7 @@ test('the AI names the last line: the plan card has the action row, and Drop red
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   const g = await settled(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g.say));
-  assert.deepEqual(g.action, { line: 5 });
+  assert.deepEqual(g.action, { line: 5, by: 'agent' });
   await idle(w, id);
   const r = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: 'action' });
   assert.equal(r.status, 202, JSON.stringify(r.json()));
