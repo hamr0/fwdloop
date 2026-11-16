@@ -36,7 +36,7 @@ test('a ticket job shows its server and tools, filter, watch and each step\'s to
     'STEPS',
   ]);
   const s = t.indexOf('  1. (line 1) read it');
-  assert.equal(t[s + 1], '     grants: read | reads: a | emits: x | check: hitl');
+  assert.equal(t[s + 1], '     grants: read | reads: a | emits: x | check: No machine check of the content: you check it at the ask.');
   assert.equal(t[s + 2], '     tools: issue_read');
   assert.equal(t[s + 3], '  2. (line 2) check', 'a step with no mcpTools gets no row');
 });
