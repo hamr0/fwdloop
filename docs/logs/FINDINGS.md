@@ -7608,3 +7608,208 @@ A FAIL stays FAIL on the letter. Results are appended below, never by rewriting 
 - **(d) CHANGED AFTER ASK: PASS on the bar, with a finding that goes against the design's premise.** The values exist: accepted sha = `answer.<askId>.consumed.json` `.artifactSha256` joined to `asks/<askId>.json` `.emits` (src/ask.js:552, 664-686); the outgoing value is `sha256Hex(serializeArtifact(artifact))` of the artifact about to leave, equal to the sha of `artifacts/<emits>.json` (checked: note-ok file sha == recorded accept sha). In the run: accepted `eb14489a...`; the later artifact `note2` (a footer added after the accept) `647d9e6f...`; `decideSend` on those gives `stop-changed`. No new record or field is needed; the outgoing hash is computed at use time, as send.js:131-138 already does. BUT today's code never ships `note2`: the send step ships the ASK's own artifact by identity (src/runner.js:1948-1981, `contentResult = readArtifactResult(runDir, askArtifactId)`), so the run completed with ONE stop and the file held the OLD text (no footer). The change after the accept is silently dropped, not detected. Also the validator refused my first (d) plan: a hitl step after the last Ask is red (`step "note2" (line 3) is hitl after the last signed ask — nothing may leave unseen`, src/declaration.js:1258-1260); only a guardrailed green/softgreen step after the Ask signed.
 - **(e) RESTART: PASS.** The accept sha is in a write-once record: `answer.<askId>.consumed.json` written with `flag: 'wx'` (src/ask.js:574), joined to the write-once `asks/<askId>.json` (src/ask.js:597-605, `emits`); on resume `readAcceptedHashesByEmits(runDir)` (src/runner.js:2552, 2951) rebuilds `acceptedAskEmitsThisRun` (src/runner.js:2682-2686, 2967-2971). Live evidence: in (c) and (d) the accept was answered between two processes' worth of folds (`runFlow` parked, `answerAsk`, `resumeRun` shipped) and the send saw the sha.
 - **(f) PASS.** The 4 table rows are right (local -> `write`; outside+same -> `send`; outside+different -> `stop-changed`; outside+no accept -> `stop-unseen`). Against the real records: (c) `send`, (d) `stop-changed` (and `send` if the action shipped the accepted artifact, which is what today's code does).
+
+
+## F203 — AI spots or suggests the job's final action (paid POC, pre-registered)
+
+**hamr's two rules (2026-11-16, agreed, NOT signed), verbatim from the brief:**
+- a) The action/write of the whole job comes at the end. If the job does not mention one, the AI suggests one based on the job context, and the person confirms (question: Agree / Drop it / type your own).
+- b) If the job already ends with an action: if the result's hash changed since the last human check, stop and ask; if no change, proceed. (Proven at $0 in F202; not in this POC.)
+
+**Question.** Rule (a) plus recognising an existing action line is the riskiest AI part. Can deepseek-flash, asked DIRECTLY through a forced tool call with required typed fields (never an optional field: deepseek-flash used an offered questions field 0 of 40 times in an earlier POC), (1) say which line of a job is its final action, and (2) when there is none, suggest one last line and name the earlier line whose output it ships?
+
+**Method.** Code in `poc/f203-action-ai/` (`run.mjs`, `score.mjs`, `cases.mjs`, `prompts.mjs`); no `src/` change. Real call path copied from `src/drafter.js` `forcedTurn`: `new Loop({ provider, rates, onLlmResult })`, a tool whose `execute` captures the arguments and throws `HaltError`, `maxTokens` 16000 (`DRAFT_MAX_TOKENS`), `LIVE_PROVIDER_OPTIONS` (timeout 300s, deadline 240s), `toolChoice` forced, `thinkingMode: 'off'` on both attempts (DeepSeek cannot combine thinking with a forced call; the drafter's own forced turns do the same), one retry when there is no usable call. Model `deepseek-flash` direct, key only from env `DEEPSEEK_API_KEY` (refused at $0 when empty), prices from the real `config.json`. Every round metered; a round with no usage is priced at the CEILING (`ceilingCostUsd`: max(32000, prompt/3) input tokens + 16000 output at the model's price), marked `estimatedAtCeiling`, retried once, never priced 0, never stops the batch. Hard cap: no call starts once spent >= $0.95 (stated cap $1). 5 samples per case, interleaved (sample 1 of every case, then sample 2, ...). A tag that already has results refuses (`wx`).
+The model sees the job the way the drafter lists it (`src/checklist.js` `ledgerUserText` form: `n. text`, `   gN: rule`) and `Destination: folder /home/hamr/fwdloop-out`. SUGGEST runs on the 4 no-action cases every sample, independent of what RECOGNISE answered (so the bar has 20 samples); in the product it would run only after a null.
+
+**Two asks.**
+1. RECOGNISE, tool `record_action`, required `action: { line: <n>|null, reads: <n>|null }`. Code checks: `line` is the LAST line (else refused: not the last line); `reads` is an integer and an earlier line (else refused). `null` leads to SUGGEST. Anything not that shape is unreadable.
+2. SUGGEST, tool `suggest_action`, required `{ text, reads }`. Code checks: `reads` is a line of the job (an integer 1..N); `text` is one line (no newline), non-empty, at most 100 characters.
+
+**Meaning of `reads` (my choice, pre-registered):** the earlier line that MAKES the result shipped, never an Ask line. For a no-action case it is the LAST line that makes a result. Code does not check "not an Ask line" (the brief names only "earlier line"); an answer naming an Ask line is wrong against the expected value and counts as let through if code accepts it. A diagnostic counts them.
+
+**Cases** (8 real jobs from saved drafts, `~/.config/fwdloop/flows/.drafts/<id>/card.json` `job`; Destination `/home/hamr/fwdloop-out` for all). Texts are the person's box form; nothing personal in any of them. The 9a4c draft was stored numbered with `guardrail:` prefixes; rewritten in the box form (`~`).
+
+- **A1** (ends with a typed action; draft `d-00mwj6ixcw-27c2`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the flights page,
+  2. list 3 flights from Boston to Chicago,
+     g1: under $450
+     g2: be friendly
+  3. Ask 30m: check it with me,
+  4. and once I accept, write it out.
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A2** (ends with a typed action; draft `d-00muw963t5-9a4c`). Expected: RECOGNISE line 5, reads 3.
+  ```
+  The job:
+  1. Read my resume,
+  2. and read the JD to compare it against,
+  3. write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,
+     g1: 3 sections, all under 600 words
+  4. Ask 30m: check it with me,
+     g1: nothing goes out before I accept
+  5. and once I accept, write it out.
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A3** (ends with a typed action; draft `d-00mv3x015g-68d2`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the aging report
+  2. Put each invoice in its overdue bucket as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+
+     g1: every invoice appears exactly once
+  3. Ask: check it with me
+  4. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A4** (ends with a typed action; draft `d-00mvunom9z-25bb`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the ticket
+  2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
+     g1: priority P1 only
+     g2: run a ticket again when its state changes
+  3. Ask: check the note with me
+  4. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N1** (no action; draft `d-00mwhyk4xh-78fe`; unstripped, as typed). Expected: RECOGNISE line null; SUGGEST reads 2.
+  ```
+  The job:
+  1. Read the aging report
+  2. For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+
+     g1: every invoice appears exactly once
+     g2: each invoice is in one bucket
+     g3: days past due = days since 'Due date' as of 2026-10-11
+  3. Ask 1h: check it with me
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N2** (no action; draft `d-00mvzr0lvb-72f9`; unstripped, as typed). Expected: RECOGNISE line null; SUGGEST reads 5.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask: check it with me
+  3. List 3 jobs for this week from the notes
+  4. Ask: check it with me
+  5. Write a short closing note to my neighbour
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N3** (no action; draft `d-00mvia7zwl-691f`; STRIPPED: last line "and once I accept, write it out." removed). Expected: RECOGNISE line null; SUGGEST reads 2.
+  ```
+  The job:
+  1. Read the expenses sheet,
+  2. list every expense over 500,
+     g1: Price over 500
+  3. Ask 30m: check it with me,
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N4** (no action; draft `d-00muw963t5-9a4c`; STRIPPED: last line "and once I accept, write it out." removed). Expected: RECOGNISE line null; SUGGEST reads 3.
+  ```
+  The job:
+  1. Read my resume,
+  2. and read the JD to compare it against,
+  3. write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,
+     g1: 3 sections, all under 600 words
+  4. Ask 30m: check it with me,
+     g1: nothing goes out before I accept
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+
+**Prompts, verbatim** (the user message is the job listing above).
+
+*RECOGNISE system:*
+```
+A person wrote a numbered list of steps for a job. The job's finished result must end up in the Destination named below the list.
+
+Your one task: find the step, if there is one, that delivers the finished result to the Destination. A delivering step puts the result into the Destination (it stores, sends or files it there). A step that only reads, makes, lists, checks or asks something is not a delivering step.
+
+Answer by calling the tool record_action exactly once, with the field "action" holding two fields. Both are required.
+- line: the number of the delivering step, or null if no step delivers the result.
+- reads: the number of the earlier step that makes the result being delivered (a step that makes the result, never a step that asks the person to look). Use null when line is null.
+```
+*RECOGNISE tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the step that delivers the result to the Destination, or null if none does."
+        },
+        "reads": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the earlier step that makes the result being delivered; null when line is null."
+        }
+      },
+      "required": [
+        "line",
+        "reads"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+*SUGGEST system:*
+```
+A person wrote a numbered list of steps for a job. The job's finished result must end up in the Destination named below the list. The list has no step that delivers the result there.
+
+Your one task: suggest ONE new last step that delivers the finished result to the Destination.
+
+Rules:
+- Write the step as one short plain sentence, in the person's voice, like their other steps. It must say that the result goes to the Destination.
+- Do not repeat or change any existing step. Do not write a step that asks the person a question.
+- reads is the number of the existing step that makes the finished result: the last step that makes a result, never a step that asks the person to look.
+
+Answer by calling the tool suggest_action exactly once. Both fields are required: text (the new step) and reads (a step number).
+```
+*SUGGEST tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The one new last step, one short plain sentence."
+    },
+    "reads": {
+      "type": "integer",
+      "description": "Number of the existing step that makes the finished result to deliver."
+    }
+  },
+  "required": [
+    "text",
+    "reads"
+  ],
+  "additionalProperties": false
+}
+```
+
+**Samples and cost.** 5 per case: RECOGNISE 8 x 5 = 40 calls, SUGGEST 4 x 5 = 20 calls (plus retries). Cap $1 (hard stop at spent >= $0.95); expected spend well under $0.10.
+
+**Bars (each PASS/FAIL on the letter; score = `node poc/f203-action-ai/score.mjs paid1`, final attempt of each sample).**
+1. RECOGNISE: >= 36 of 40 right overall (right = `line` equals the expected line, `null` when no action), and no case below 4/5.
+2. SUGGEST: on the 4 no-action cases, >= 18 of 20 have the right `reads` and one short line.
+3. No answer code would let through wrong: every wrong answer is caught by code's checks (last line / earlier line) or is a null that leads to a SUGGEST. Counted as let through: RECOGNISE accepted by code on a no-action case, or accepted with a `reads` other than expected; SUGGEST accepted with a `reads` other than expected.
+Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
