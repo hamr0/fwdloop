@@ -7583,3 +7583,19 @@ B PASSES only if (1), (2) and (3) all hold. A FAIL on the letter stays FAIL.
 Pooled: NONSENSE on c1 (bareloop mwi76vh8, `~ be friendly`): A 2/5, B 0/5; B listed the rule under `cannot` every time. KEPT on c2-4: A 22, B 22 (all expected ties). COST: A $0.1079, B $0.1125 (+4%).
 
 PASS on the bars per batch; the run did not reach its planned 10 samples (two provider socket hang-ups, both on case c3 arm A, different samples); arms are unequal because of the early stops. hamr accepted it and ruled adopt B, 2026-11-16.
+
+## F202 — last line is the action; fingerprint decides if a send stops ($0 POC, pre-registered)
+
+**Question.** hamr's design (2026-11-16, agreed, NOT signed): the job's last line is the action in the person's words; code never adds hidden lines (replaces M13 am8's code-added `ask: check the result with me` + `write it out`, `src/added-end.js`). Before anything LEAVES the machine: sha256 of what is about to leave equals the artifact accepted at the last Ask in THIS run -> send, no stop; changed since, or no Ask accept this run -> stop once and ask; a write to a local folder Destination never stops. What does today's code do for each part, and can the fingerprint rule be decided from records the run already writes?
+
+**Method.** $0. Fake provider (injected `modelStep`), real `writeFlow` / `runFlow` / `resumeRun` / `makeParkingAskStep` / `answerAsk` / `sendViaPrimitive`, fixtures built in a mkdtemp root. No `src/` change. Code in `poc/f202-action/`, scratch in `.claude/scratch/f202/`. Not in this POC (paid, later F203): the drafter recognising the action line and suggesting a missing one.
+
+**Cases and bars (each PASS/FAIL on the letter).**
+- (a) TODAY, typed last line "and once I accept, write it out." with a folder Destination: record what `addEnd` and the saved plan of hamr's walk `d-00mwj6ixcw-27c2` produce. Expected: two added lines, two writes. Baseline, not a bar.
+- (b) TODAY, hand-written plan (no drafter) whose last step is a send/write of an earlier output to a folder Destination with NO Ask anywhere: record exactly whether it is refused at sign/preflight (and the words) or runs. Baseline.
+- (c) FINGERPRINT, outside destination, Ask then action, nothing changed between: does today's runner already ship the accepted artifact by sha256 with no extra stop? Only `file:` destinations exist (`checkSendDestination`, src/runner.js:552), so `file:` is the labelled stand-in for an outside destination. Bar: one stop (the Ask) only.
+- (d) CHANGED AFTER ASK: Ask, then a step that changes the artifact, then the action. Bar for the design: the change is detectable by comparing the sha256 recorded at Accept with the sha256 of what is about to leave, using records the run already writes (name record + field). PASS if the needed values already exist in the run records; FAIL if a new record/field would be needed (say which).
+- (e) RESTART: the accept sha256 survives a restart mid-run (resume). Read the code path. PASS if it is in a write-once record read on resume.
+- (f) Prototype only in `poc/f202-action/`: `decideSend({ destinationLeavesMachine, acceptedSha, outgoingSha })` -> `'send' | 'stop-changed' | 'stop-unseen' | 'write'`; table tests for the 4 rows (local folder -> write; outside + same sha -> send; outside + different -> stop-changed; outside + no accept -> stop-unseen). Bars: all 4 rows right; run against the real run records of (c) and (d): (c) gives `send`, (d) gives `stop-changed`.
+
+A FAIL stays FAIL on the letter. Results are appended below, never by rewriting this block.
