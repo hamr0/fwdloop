@@ -23,7 +23,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
-import { makeFileAskStep } from '../src/ask.js';
+import { makeFileAskStep, sha256Hex, serializeArtifact } from '../src/ask.js';
 import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -146,7 +146,8 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
   assert.ok(askOpened, 'the run must reach the human ask (job #2 fromLine 4)');
   const askJson = JSON.parse(readFileSync(askPath, 'utf8'));
   assert.match(askJson.question, /check it with me/);
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
+  // M13 am11: an accept records the sha256 of what was shown (the answer door does this); without it nothing counts as accepted and the run would stop once more before the action
+  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString(), artifactSha256: sha256Hex(serializeArtifact(askJson.evidence.artifact)) }));
 
   const result = await runPromise;
   assert.equal(result.outcome, 'complete', result.red ?? JSON.stringify(result.reds));
