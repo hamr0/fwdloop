@@ -3953,3 +3953,11 @@ Peer state (2026-11-13):
 > - A card shows "no sheet check covers it".
 
 **Built after signing — not signed text (2026-11-15), M17 am7.** `src/sheetbuild.js`: a `rule: 'table'` check is never a rule row and its `[agent]` row covers no rule (a rule only a table check named is Not checked); `NO_SUGGESTION` is now `NO_VALUE_WHY` from `src/ticketrows.js` (the no-pick sentence, one copy); `src/sheetblock.js` `uncoveredRules` falls back to the same constant. Tests: new `test/m17-am7-table-row.test.js` (red on HEAD before the change); expectations updated where am7 changes the behaviour: `m10b-am5`, `m10b-piece3`, `m10b-piece4`, `m16-am4-sheet-route`, `m16-am4-sheet-rows`, `m16-tags-origin`, `m17-p4-f196`, `m17-p4-sheet-build`, `m17-p5-sheet-line`. Commits: a206b9d9 (red test), 7db8b90a (src), 5fe046b9 (test updates).
+
+**M17 am8 — SIGNED by hamr 2026-11-16 ("sign m17 am8."), the text exactly as shown.** Why: bareloop v0.58.0 (58e6a3f1, walked live 2026-11-16) found the Audit question quotes a rule the answer replaced, which breaks one in, one out (M17 am1); F199 checked fwd on 2026-11-16 and found the same `you were asked` / `you said` row (`src/panel/data.js`). hamr 2026-11-16 picked option 2 (amend, copy bareloop's words).
+
+> **M17 am8 — the Audit says what was decided, not the old question.** This replaces the words `you were asked: …` / `you said: …` in M10 am2 item 4 and M14 am3 for an answer picked with a button. Copied from bareloop v0.58.0 (`decidedWords`, `src/draftspend.js`).
+> 1. An answered question's Audit row in the Draft group reads one line by the button picked: Agree → `agreed — <the rule that was signed>`; a typed new rule → `you wrote — <your words>`; Drop it → `dropped — Not checked`. The question is not shown, so a replaced rule's old words never show.
+> 2. The draft log keeps the pick and the decided words on the answer's row, so the Audit reads them, never the question.
+> 3. An answer with no button pick (a drafter question answered in the box) keeps `you were asked: <question>` / `you said: <answer>`. A plan signed before this is built keeps today's words; its saved record is not rewritten.
+> Must fail when: an Agree, typed-rule or Drop it row in the Audit shows the question or a replaced rule's old words, or a box-answered drafter question loses its `you were asked` / `you said` row.
