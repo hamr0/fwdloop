@@ -290,7 +290,7 @@ export function createAuthor(opts) {
       // A child never comes back to life, so a stale "alive" only delays the offer; asked AFTER the files were read, the questions are already on disk (C9's order is for a missing result)
       if (childRunning(dir)) return { ...shared, phase: newest > 0 ? (cur.kind === 'answers' ? 'redrafting' : 'revising') : 'drafting' };
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
-      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check' || x.ask === 'action'), drops: Number.isInteger(x.ruleNo) || x.ask === 'action', shown: scrub(panelQuestionText(x), keys) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
@@ -333,8 +333,11 @@ export function createAuthor(opts) {
     const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
     // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
+    // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent] Drop`
+    const act = readJson(dir, `${rel}/log.json`)?.action;
+    const action = isObj(act) && Number.isInteger(act.line) ? { line: act.line } : null;
     return {
-      checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
+      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
   }
 
@@ -404,6 +407,9 @@ export function createAuthor(opts) {
     const u = resolveUsableModel(card.provider, { config, model: card.model });
     return u.ok ? [] : no(`${u.say} Nothing was spent.`);
   }
+
+  /** M13 am11: with a Destination on the card the prose carries a tentative send on the last line; the draft child asks the AI whether it is the action. @param {any} card */
+  const actionArgv = (card) => (typeof card.destination === 'string' && card.destination !== '' ? ['--action', 'check'] : []);
 
   /** The flags that make a draft child use the card's model and thinking choice. @param {any} card */
   const modelArgv = (card) => ['--model', card.model, '--provider', card.provider, ...(card.thinking === true ? ['--thinking'] : []),
@@ -579,7 +585,7 @@ export function createAuthor(opts) {
       let child;
       try {
         child = spawnDetached({
-          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...carryFrom, ...modelArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
+          bin, argv: ['draft', proseFile, '--out', join(dir, 'draft'), '--root', realpathSync(root), '--name', card.flowName, ...carryFrom, ...modelArgv(card), ...actionArgv(card)], env: loaded.env, logPath: join(dir, 'child.log'),
         });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The draft could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };
@@ -731,7 +737,7 @@ export function createAuthor(opts) {
       try {
         child = spawnDetached({
           bin,
-          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...carryArgv(dir, v.revises.map((x) => x.n)), ...modelArgv(vet.card)],
+          argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...carryArgv(dir, v.revises.map((x) => x.n)), ...modelArgv(vet.card), ...actionArgv(vet.card)],
           env: loaded.env,
           logPath: join(dir, `revise-${n}.log`),
         });
@@ -775,7 +781,7 @@ export function createAuthor(opts) {
       // M10 am32 A: every new answer carries its button's choice; an answer with none is refused before anything is written (old answer files are still read by the readers)
       if (choice === undefined) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'This page is out of date. Reload it and answer again. Nothing was saved.' } };
       {
-        const proposes = look && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check');
+        const proposes = look && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check' || q.ask === 'action');
         if (choice !== 'agree' && choice !== 'drop' && choice !== 'rule') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That answer is not one of the choices. Nothing was saved.' } };
         if ((choice === 'agree' && !proposes) || (choice === 'drop' && !look)) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That choice is not offered for this question. Nothing was saved.' } };
       }
@@ -801,7 +807,11 @@ export function createAuthor(opts) {
           return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, proposal: x.proposal };
         });
         const adds = all.filter((x) => x.rule !== null);
-        const grown = applyAnswers(typeof v.card.job === 'string' ? v.card.job : '', all);
+        // M13 am11 rule 2: the answer to the action question adds the agreed or typed line as the job's LAST line (numbered by the card), or nothing (Drop it); the redraft is told which
+        const act = all.find((x) => x.ask === 'action');
+        const baseJob = typeof v.card.job === 'string' ? v.card.job : '';
+        const jobWithAction = act !== undefined && act.action === 'known' && typeof act.actionLine === 'string' && act.actionLine !== '' ? `${baseJob.replace(/\s+$/, '')}\n${act.actionLine}` : baseJob;
+        const grown = applyAnswers(jobWithAction, all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
         const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
         if (!vet.ok) return vet.reply;
@@ -811,7 +821,7 @@ export function createAuthor(opts) {
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before answering.' } };
         }
         // M10 am16 (4): what a shape guardrail's answers picked, for the redraft: the check an agree took, or the person's own words (a `~` rule, no check). A rule left Not checked rides `left`.
-        redraft = { vet, all, picks: grown.picks, left: grown.left, columns: grown.columns };
+        redraft = { vet, all, picks: grown.picks, left: grown.left, columns: grown.columns, action: act === undefined ? (vet.card.destination === '' ? null : 'check') : act.action };
       }
       try {
         // the human row of the draft log (am2 item 4): the question, the answer, the line, the time; a look ask also carries what code proposed and the rule the answer added, as their own fields
@@ -833,7 +843,7 @@ export function createAuthor(opts) {
         writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
         child = spawnDetached({
           bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...(redraft.columns.length ? ['--columns', JSON.stringify(redraft.columns)] : []), ...modelArgv(redraft.vet.card)],
+          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.action === null ? [] : ['--action', redraft.action]), ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...(redraft.columns.length ? ['--columns', JSON.stringify(redraft.columns)] : []), ...modelArgv(redraft.vet.card)],
           env: loaded.env,
           logPath: join(dir, `redraft-${n}.log`),
         });
@@ -865,6 +875,42 @@ export function createAuthor(opts) {
       if (b.op !== 'drop' && b.op !== 'add') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
       if (typeof b.key !== 'string' || b.key === '' || b.key.length > 200) return { status: 400, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
+      // M13 am11 rule 1: Drop on the action row makes the last line an ordinary one. It is a redraft (the AI then has the say again, rule 2), not the $0 rebuild of a check row: the typed
+      // "no action" record is `--action none` and the marker `redraft-<n>.json` (action: 'none'); it uses none of the revises, like an answer's redraft.
+      if (b.key === 'action') {
+        if (b.op !== 'drop') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
+        const planLog = readJson(dir, `${v.plan}/log.json`);
+        if (!isObj(planLog?.action)) return { status: 409, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
+        const { loaded: keyLoad } = keysNow();
+        if (!keyLoad.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(keyLoad.refusal) } };
+        const vetA = vetCard(v.card, keyLoad, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
+        if (!vetA.ok) return vetA.reply;
+        for (const other of listIds()) {
+          if (other === id) continue;
+          const ov = view(other, keys);
+          if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before dropping.' } };
+        }
+        const nA = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
+        const filesA = [`card-${nA}.json`, `prose-${nA}.txt`, `redraft-${nA}.json`].map((f) => join(dir, f));
+        let childA;
+        try {
+          writeFileSync(filesA[0], `${JSON.stringify(vetA.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+          writeFileSync(filesA[1], vetA.prose, { mode: 0o600, flag: 'wx' });
+          writeFileSync(filesA[2], `${JSON.stringify({ fromPlan: v.plan, answers: [], action: 'none' })}\n`, { mode: 0o600, flag: 'wx' });
+          childA = spawnDetached({
+            bin,
+            argv: ['draft', filesA[1], '--out', join(dir, `draft-${nA}`), '--root', realpathSync(root), '--name', vetA.card.flowName, '--no-questions', '--action', 'none', ...carryArgv(dir, [], v.plan), ...modelArgv(vetA.card)],
+            env: keyLoad.env,
+            logPath: join(dir, `redraft-${nA}.log`),
+          });
+        } catch (e) {
+          for (const f of filesA) rmSync(f, { force: true });
+          return { status: 500, body: { ok: false, refused: 'spawn', say: `The plan could not be drafted again (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was changed.`, draftId: id } };
+        }
+        childA.on('error', () => {});
+        writePidFile(dir, childA);
+        return { status: 202, body: { ok: true, draftId: id, n: nA, redrafting: true } };
+      }
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
       const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
       const marker = cur === undefined ? null : readJson(dir, `redraft-${cur}.json`);

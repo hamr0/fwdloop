@@ -20,6 +20,10 @@ import { capTooSmallText, usdText } from './draftspend.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, checkGuardrailSums, checkSendLineGuardrail } from './declaration.js';
 import { readEveryStep } from './whole-job.js';
+import {
+  RECOGNISE_SYSTEM, RECOGNISE_SCHEMA, RECOGNISE_TOOL, SUGGEST_SYSTEM as ACTION_SUGGEST_SYSTEM, SUGGEST_SCHEMA as ACTION_SUGGEST_SCHEMA, SUGGEST_TOOL as ACTION_SUGGEST_TOOL,
+  jobListing, recognisedIsLast, cleanSuggestion, suggestionQuestion, withoutSend,
+} from './action-line.js';
 import { loadCatalogue } from './catalogue.js';
 import { findMcpPlanRed } from './canrun.js';
 import { WIRED_VERBS, wiredMenu } from './primitives.js';
@@ -309,12 +313,12 @@ export function buildSystemPrompt({ menu, lines, arbiter, factsInfo, blockLines 
     '- close.class MUST equal the class of the guardrail on that step\'s fromLine (guardrailClasses[fromLine]); a line with no guardrail is "hitl". A step cannot claim a class its own line does not earn.',
     ...greenReadRule(arbiter.sources),
     '- You write no check. A shape guardrail (a word count, a list size, headings) is settled before you draft: the human picks each check from a list and code puts the picked checks in the plan, so there is no close.shape for you to write. Still answer close.class and guardrailClasses as above; code sets the class of a line whose guardrail it settled from what the human picked.',
-    '- The send line (the last line, when a Destination is set) writes out what the human accepted; it has no guardrail and no check of its own.',
+    '- The send line (the job\'s action: its last line, when it writes out everything before it) ships the output of the step right before it; it has no guardrail and no check of its own.',
     '- A step whose check reads its reply (softgreen) answers in its reply text and is never granted `write`, `edit` or any other write-class verb; only the send step at the end writes files out.',
     `- Signed ask line(s): ${askLines.length ? askLines.join(', ') : 'none'}. For each, emit EXACTLY ONE step: fromLine = that line, close.class "hitl", primitives []. It is a stop only — never grant a primitive on it, and never emit a pause at any other line.`,
-    `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the ask step that comes before it. Its target and position are signed, not yours.`,
+    `- Signed send line(s): ${sendLines.length ? sendLines.join(', ') : 'none'}. That step is drafted like any other: grant the write primitive and read the artifact of the step that comes right before it. Its target and position are signed, not yours.`,
     '- An ask step must read the output of an earlier step, the thing you are asked to check: its FIRST read is what the human sees at the ask (for example reads: ["bucket_assignment"], the nearest earlier step\'s emits). An ask that reads nothing, or reads something no earlier step makes, is refused. Reading is not a grant: the ask still grants no primitive.',
-    '- Nothing hitl may come after the last signed ask except the send step.',
+    ...(sendLines.length ? [] : ['- Nothing hitl may come after the last signed ask except the send step.']),
     '- You never author a trigger, cap, ask position or TTL, allow-list, send target, or what "done" means.',
     '',
     'Inputs, mechanically read (facts, not guesses):',
@@ -370,6 +374,9 @@ export async function draft({
   mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcp = /** @type {any} */ (null),
+  // M13 am11: what the prose's send line is. null = the prose file is the truth (a hand-written send line); 'check' = the card's tentative send on the last line: the AI answers whether
+  // it is the action; 'known' = the person agreed or typed the last line (no question); 'none' = the person dropped it (no write, no question)
+  actionMode = /** @type {null|'check'|'known'|'none'} */ (null),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -383,16 +390,19 @@ export async function draft({
   // ---- $0 gates, before any provider is built -------------------------------
   // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
   if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
+  if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known' && actionMode !== 'none') return fail([`config: actionMode must be check | known | none, got ${JSON.stringify(actionMode)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
-  const { lines, arbiter } = parsed;
+  const { lines } = parsed;
+  let { arbiter } = parsed;
   const ttlReds = unsignedAskTtls(arbiter);
   if (ttlReds.length) return fail(ttlReds);
   // M4e amendment 15 item 2: a guardrail that fights itself on words is red at $0, before any provider is built or called.
   const sumReds = checkGuardrailSums(lines);
   if (sumReds.length) return fail(sumReds);
   // M10 amendment 14 item 1: a guardrail on the send line is refused at $0 (the card says it first; a prose file straight to `fwdloop draft` is caught here).
-  const sendReds = checkSendLineGuardrail(lines, arbiter);
+  // M13 am11: with an actionMode the send is the card's tentative one; the refusal is made after the AI says whether the last line is the action (below)
+  const sendReds = actionMode === null ? checkSendLineGuardrail(lines, arbiter) : [];
   if (sendReds.length) return fail(sendReds);
   const menu = wiredMenu(skills);
   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
@@ -447,9 +457,9 @@ export async function draft({
   /** the result of a draft that stops before any drafting round with what it spent so far (a provider red, the budget); one literal for every such stop */
   const earlyStop = (/** @type {string[]} */ reds, /** @type {string} */ why) => {
     const m = sumMeterings(meterings);
-    return {
+    return withAction({
       ok: false, declaration: null, reds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: why, log, thinking: thinkingOf(), inputs: facts.list, questions: [], droppedQuestions: [], notChecked: [], ...pageExtras,
-    };
+    });
   };
 
   // M10 item 1: a web page input is fetched once and frozen into the DRAFT folder (the drafting copy). A run freezes its own copy at its own start
@@ -478,6 +488,107 @@ export async function draft({
   const pageLooks = [];
   /** @type {Record<string, any>} */
   const pageExtras = pageSources.length ? { look, pageLooks } : {};
+  /**
+   * ONE forced-tool turn, for every turn that is an answer in one typed call (the suggest call, the ledger call, the row-edit turn): the hold against what is left of the cap, Loop's metering of the round,
+   * the book before and after, the tool that captures the arguments and halts (no wrap-up round), thinking off (on cannot combine with a forced call), the raw answer kept when the call failed.
+   * `repair` (M4d am39): a malformed reply that is a complete object plus trailing `}` is repaired, and used only when `usable(value)` says the caller can read it.
+   * Returns `{early}` (a provider red or the budget: the draft's own stop) or `{args, entry}` (`args` null = no usable call in any attempt; `entry` is the last round's log entry).
+   * @param {{kind: string, system: string, messages: {role: string, content: string}[], tool: {name: string, description: string, schema: any}, attempts?: number, repair?: boolean, usable?: (v: any) => boolean}} o
+   */
+  const forcedTurn = async ({ kind, system: sys, messages, tool: spec, attempts = 2, repair = false, usable = () => true }) => {
+    /** @type {any} */
+    let entry = null;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
+      if (spentBefore + ceilingCostUsd(rates, sys.length + messages.reduce((n, m) => n + m.content.length, 0) + JSON.stringify(spec.schema).length) > budgetUsd) {
+        if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return { early: fail([tooSmall(roundCeiling)]) }; }
+        return { early: earlyStop(['the draft budget is spent'], 'budget') };
+      }
+      /** @type {any} */
+      let captured;
+      const roundEvents = [];
+      const tool = { name: spec.name, description: spec.description, parameters: spec.schema, execute: async (/** @type {any} */ a) => { captured = a; throw new HaltError(`${kind} captured`, { rule: 'captured' }); } };
+      const forcedLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
+      calls += 1;
+      book(true);
+      let res;
+      let threw = null;
+      try {
+        res = await forcedLoop.run([{ role: 'system', content: sys }, ...messages], [tool], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: 'off', toolChoice: { name: spec.name } });
+      } catch (err) {
+        threw = err;
+        if (roundEvents.length === 0) unmetered += 1;
+      }
+      book(false);
+      entry = /** @type {Record<string, any>} */ ({ round: log.length + 1, kind });
+      if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
+      if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
+      if (threw && !(isPlainObject(captured) && threw instanceof HaltError)) {
+        entry.outcome = `provider-red: ${threw.message}`;
+        log.push(entry);
+        return { early: earlyStop([`provider-red: ${threw.message}`], 'provider-red') };
+      }
+      if (!isPlainObject(captured)) {
+        // the raw answer is kept (log.json), the cut-off said out loud
+        const malformed = provider?.lastMalformedToolCall ?? null;
+        entry.outcome = res?.stopReason === 'max_tokens' ? 'structure: truncated: the round hit the output cap with no completed tool call' : 'structure: no usable tool call (text instead of the tool)';
+        if (typeof malformed?.rawArguments === 'string') entry.rawArguments = malformed.rawArguments;
+        else if (typeof res?.text === 'string' && res.text !== '') entry.rawText = res.text;
+        // M4d am39: only a malformed-JSON round (never a cut-off, never text) whose answer is a complete object plus trailing `}` is repaired
+        const fixed = repair && malformed && res?.stopReason !== 'max_tokens' ? repairTrailingBraces(malformed.rawArguments) : null;
+        if (fixed) {
+          const ok = usable(fixed.value);
+          entry.braceRepair = { dropped: fixed.dropped, used: ok };
+          if (ok) { entry.outcome = 'answered'; entry.args = fixed.value; log.push(entry); return { args: fixed.value, entry }; }
+        }
+        log.push(entry);
+        continue;
+      }
+      entry.outcome = 'answered';
+      entry.args = captured;
+      log.push(entry);
+      return { args: captured, entry };
+    }
+    return { args: null, entry };
+  };
+
+  // M13 am11 rules 1 and 2: the job's last line is the action. The AI answers ONE question (record_action); code checks the answer is the LAST line (never an Ask). With none, and the
+  // person's answer not yet given, the AI suggests one line and the question carries the signed words. Nothing is added to the job without the person's answer.
+  /** the result with what the AI decided about the action: the prose as kept (the send line stays or is taken out) and the action line, or null */
+  const withAction = (/** @type {any} */ r) => ({ ...r, proseText, action: arbiter.sends.length === 1 ? { line: arbiter.sends[0].line } : null });
+  /** @type {null|{line: number, question: string, source: 'look', ask: 'action', ruleNo: undefined, ruleText: string, reading: string, counted: false}} */
+  let actionAsk = null;
+  if (actionMode !== null && arbiter.sends.length === 1 && arbiter.sends[0].line === lines.length) {
+    const last = lines[lines.length - 1];
+    const signedAsks = new Set(arbiter.asks.map((a) => a.line));
+    let keep = actionMode === 'known';
+    if (actionMode === 'check' && !signedAsks.has(last.n)) {
+      const rec = await forcedTurn({
+        kind: 'action-recognise', system: RECOGNISE_SYSTEM, messages: [{ role: 'user', content: jobListing(lines, signedAsks, String(arbiter.sends[0].target.path)) }],
+        tool: { name: RECOGNISE_TOOL, description: 'Say which last step writes or sends everything before it, or none.', schema: RECOGNISE_SCHEMA },
+      });
+      if (rec.early) return rec.early;
+      keep = recognisedIsLast(rec.args, last.n, false);
+    }
+    if (keep) {
+      const reds = checkSendLineGuardrail(lines, arbiter);
+      if (reds.length) return earlyStop(reds, 'action');
+    } else {
+      if (actionMode === 'check' && offerQuestions) {
+        const sg = await forcedTurn({
+          kind: 'action-suggest', system: ACTION_SUGGEST_SYSTEM, messages: [{ role: 'user', content: jobListing(lines, signedAsks, String(arbiter.sends[0].target.path)) }],
+          tool: { name: ACTION_SUGGEST_TOOL, description: 'Suggest one last step that writes or sends everything before it.', schema: ACTION_SUGGEST_SCHEMA },
+        });
+        if (sg.early) return sg.early;
+        const suggested = cleanSuggestion(sg.args);
+        if (suggested !== null) actionAsk = { line: last.n, question: suggestionQuestion(suggested), source: 'look', ask: 'action', ruleNo: undefined, ruleText: '', reading: suggested, counted: false };
+      }
+      proseText = withoutSend(proseText);
+      const again = parseSignedText(proseText);
+      if (!again.ok) return fail(again.reds.map((r) => `signed-text: ${r}`));
+      arbiter = again.arbiter;
+    }
+  }
   let mapCut = null;
   const jobLines = lines.map((l) => ({ n: l.n, text: l.text, ...(l.guardrail ? { rule: l.guardrail } : {}) }));
   // M10 am27 (1): the page look sees only the non-count rules; `toOriginal` takes a visible rule number back to the original one
@@ -602,70 +713,6 @@ export async function draft({
     );
   }
   if (sheetLooks.length) pageExtras.sheetLooks = sheetLooks; // kept beside the page looks (src/authoring.js writes both into page-look.json)
-  /**
-   * ONE forced-tool turn, for every turn that is an answer in one typed call (the suggest call, the ledger call, the row-edit turn): the hold against what is left of the cap, Loop's metering of the round,
-   * the book before and after, the tool that captures the arguments and halts (no wrap-up round), thinking off (on cannot combine with a forced call), the raw answer kept when the call failed.
-   * `repair` (M4d am39): a malformed reply that is a complete object plus trailing `}` is repaired, and used only when `usable(value)` says the caller can read it.
-   * Returns `{early}` (a provider red or the budget: the draft's own stop) or `{args, entry}` (`args` null = no usable call in any attempt; `entry` is the last round's log entry).
-   * @param {{kind: string, system: string, messages: {role: string, content: string}[], tool: {name: string, description: string, schema: any}, attempts?: number, repair?: boolean, usable?: (v: any) => boolean}} o
-   */
-  const forcedTurn = async ({ kind, system: sys, messages, tool: spec, attempts = 2, repair = false, usable = () => true }) => {
-    /** @type {any} */
-    let entry = null;
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-      if (spentBefore + ceilingCostUsd(rates, sys.length + messages.reduce((n, m) => n + m.content.length, 0) + JSON.stringify(spec.schema).length) > budgetUsd) {
-        if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return { early: fail([tooSmall(roundCeiling)]) }; }
-        return { early: earlyStop(['the draft budget is spent'], 'budget') };
-      }
-      /** @type {any} */
-      let captured;
-      const roundEvents = [];
-      const tool = { name: spec.name, description: spec.description, parameters: spec.schema, execute: async (/** @type {any} */ a) => { captured = a; throw new HaltError(`${kind} captured`, { rule: 'captured' }); } };
-      const forcedLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
-      calls += 1;
-      book(true);
-      let res;
-      let threw = null;
-      try {
-        res = await forcedLoop.run([{ role: 'system', content: sys }, ...messages], [tool], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: 'off', toolChoice: { name: spec.name } });
-      } catch (err) {
-        threw = err;
-        if (roundEvents.length === 0) unmetered += 1;
-      }
-      book(false);
-      entry = /** @type {Record<string, any>} */ ({ round: log.length + 1, kind });
-      if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
-      if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
-      if (threw && !(isPlainObject(captured) && threw instanceof HaltError)) {
-        entry.outcome = `provider-red: ${threw.message}`;
-        log.push(entry);
-        return { early: earlyStop([`provider-red: ${threw.message}`], 'provider-red') };
-      }
-      if (!isPlainObject(captured)) {
-        // the raw answer is kept (log.json), the cut-off said out loud
-        const malformed = provider?.lastMalformedToolCall ?? null;
-        entry.outcome = res?.stopReason === 'max_tokens' ? 'structure: truncated: the round hit the output cap with no completed tool call' : 'structure: no usable tool call (text instead of the tool)';
-        if (typeof malformed?.rawArguments === 'string') entry.rawArguments = malformed.rawArguments;
-        else if (typeof res?.text === 'string' && res.text !== '') entry.rawText = res.text;
-        // M4d am39: only a malformed-JSON round (never a cut-off, never text) whose answer is a complete object plus trailing `}` is repaired
-        const fixed = repair && malformed && res?.stopReason !== 'max_tokens' ? repairTrailingBraces(malformed.rawArguments) : null;
-        if (fixed) {
-          const ok = usable(fixed.value);
-          entry.braceRepair = { dropped: fixed.dropped, used: ok };
-          if (ok) { entry.outcome = 'answered'; entry.args = fixed.value; log.push(entry); return { args: fixed.value, entry }; }
-        }
-        log.push(entry);
-        continue;
-      }
-      entry.outcome = 'answered';
-      entry.args = captured;
-      log.push(entry);
-      return { args: captured, entry };
-    }
-    return { args: null, entry };
-  };
-
   // M10 am16 (1): ONE suggestion call, only when a guardrail on a step line is one this call settles (scope by code, src/checkpick.js). It suggests a check from bareguard's own list
   // per guardrail, or none; code keeps what passes keep-or-drop. The call is metered, held and booked as a drafting round (the same `meterings`). The redraft after the answers
   // (offerQuestions false) makes no call: it settles every rule against the person's picks instead.
@@ -720,25 +767,25 @@ export async function draft({
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
   // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
-  if ((sheetAsks.length || blockAsks.length) && offerQuestions) {
+  if ((sheetAsks.length || blockAsks.length || actionAsk !== null) && offerQuestions) {
     // M17 am4 (A1): a question comes from the list (questionsOfBlock) or is the sheet's column offer (M17 am1 1(a)); no question is asked outside the list
     const lookAsks = [...[...sheetAsks, ...blockAsks.filter((a) => a.ask === 'reading')].sort((a, b) => a.line - b.line), ...blockAsks.filter((a) => a.ask === 'cant-check')];
     // am16 (3): a shape guardrail's ask follows, in line order. (5): a proposal is not an ask under am1; only a `can't check` ask counts toward the cap (the 4th stops drafting at $0).
     const blockShape = blockAsks.filter((a) => a.ask === 'no-check' || a.ask === 'check');
-    const asks = [...lookAsks, ...blockShape];
+    const asks = [...lookAsks, ...blockShape, ...(actionAsk === null ? [] : [actionAsk])];
     if (asks.length > 0) {
       const m = sumMeterings(meterings);
       const spent = m.costUsd === null || unmetered > 0 ? (m.costUsd === null ? 'unknown' : `at least ${usdText(m.costUsd)}`) : usdText(m.costUsd);
       const counted = [...lookAsks, ...blockShape.filter((a) => a.counted).map((a) => ({ ...a, reading: "I can't check this" }))];
       const tooMany = counted.length > MAX_LOOK_ASKS;
       if (tooMany && pageSources.length) removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); // a refused draft keeps no page copy
-      return {
+      return withAction({
         ok: false, declaration: null, reds: tooMany ? [`${tooManyAsksText(counted)} Spent so far: ${spent}.`] : [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries: 0, revisions: 0, stop: tooMany ? 'look-asks-too-many' : 'look-asks', log, thinking: thinkingOf(), inputs: facts.list,
         questions: tooMany ? [] : asks.map((a) => ({
           line: a.line, question: a.question, source: a.source, ask: a.ask, ruleNo: a.rule, ruleText: a.ruleText, proposal: a.reading ?? null, ...('check' in a && a.check ? { check: a.check } : {}),
         })),
         droppedQuestions: [], notChecked: pageNotChecked, ...pageExtras,
-      };
+      });
     }
   }
   // the record this draft hands on: what it kept plus what the person just answered (numbered on this card)
@@ -1067,9 +1114,9 @@ export async function draft({
       entry.outcome = 'valid';
       log.push(entry);
       const m = sumMeterings(meterings);
-      return {
+      return withAction({
         ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras, ...(block ? { checkCard: (() => { const c = sheetOnList ? withSheetCard(cardOfBlock(block), sheetOnList, sheetDroppedNow) : cardOfBlock(block); return ticketOnList?.card.length ? withSheetCard(c, { card: ticketOnList.card }) : c; })() } : {}),
-      };
+      });
     }
     lastReds = [...verdict.reds];
     entry.outcome = `validator: ${verdict.reds.length} red(s)`;
@@ -1089,7 +1136,7 @@ export async function draft({
   const m = sumMeterings(meterings);
   // Runner convention: `costUsd` is the priced sum (null when ANY round is unpriced, so the CLI prints UNKNOWN,
   // never a bare number), and `spendComplete:false` marks a call that failed unmetered or a round left unpriced.
-  return {
+  return withAction({
     ok: false, declaration: lastDecl, reds: lastReds, rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras,
-  };
+  });
 }

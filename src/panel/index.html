@@ -5984,6 +5984,8 @@
           return "line " + a.line + (a.lineText ? ": " + a.lineText : "") + "\n  > " + a.answer;
         })});
       }
+      // M13 am11 rule 1: the job's action, the AI's pick, with Drop (a redraft that makes the line an ordinary one)
+      if(state.action && Number.isInteger(state.action.line)) blocks.push({id: "chat-action", action: state.action});
       // M16 P4c: a plan with a list draws bareloop's plan view (lines, checks with their tags, Suggested, the folds) in one bubble, from the card the draft saved (server: state.list, planLines, always)
       var list = state.list && Array.isArray(state.list.rows) ? state.list : null;
       if(list){
@@ -6847,9 +6849,10 @@
       if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
-        var inner = b.plan ? '<div class="who">fwdloop</div>' + planViewHtml(b.plan, planControlHTML)
+        var inner = b.action ? '<div class="who">fwdloop</div><div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + escapeXml(String(b.action.line)) + ' writes everything before it' + byTagOf("agent") + planControlHTML("drop", "action") + '</div>'
+          : b.plan ? '<div class="who">fwdloop</div>' + planViewHtml(b.plan, planControlHTML)
           : '<b class="readout-head">' + escapeXml(b.head) + '</b>' + (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(extraLineHTML).join("\n") : '');
-        return '<div class="msg' + (b.plan ? ' bot' : '') + '" id="' + b.id + '" data-testid="' + b.id + '">' + inner + '</div>';
+        return '<div class="msg' + (b.plan || b.action ? ' bot' : '') + '" id="' + b.id + '" data-testid="' + b.id + '">' + inner + '</div>';
       }).join("") : "";
       if(html !== extrasKey){ extrasKey = html; extrasEl.innerHTML = html; }
     }

@@ -895,9 +895,12 @@ async function cmdDraft(rest) {
       model: { type: 'string' }, provider: { type: 'string' }, thinking: { type: 'boolean' },
       // M13 piece 4: the job's flow type (plain | mcp | tickets) and its MCP server, from the card; the tools come from that server's newest OK `check tools` (never a started server)
       'flow-type': { type: 'string' }, mcp: { type: 'string' },
+      // M13 am11: what the prose's send line is: check (the card's tentative send: the AI says if the last line is the action), known (the person agreed or typed the last line), none (the person dropped it). Absent: the prose file is the truth.
+      action: { type: 'string' },
     },
     allowPositionals: true,
   });
+  if (values.action !== undefined && !['check', 'known', 'none'].includes(values.action)) fail(`draft: --action takes check, known or none, got "${values.action}"`);
   const flowType = values['flow-type'] ?? 'plain';
   if (!['plain', 'mcp', 'tickets'].includes(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
   if (flowType === 'plain' && values.mcp !== undefined) fail('draft: --mcp goes with --flow-type mcp or tickets');
@@ -1000,6 +1003,7 @@ async function cmdDraft(rest) {
     root: values.root === undefined ? defaultFlowsRoot() : resolve(values.root),
     name: values.name,
     noQuestions: values['no-questions'] === true,
+    ...(values.action === undefined ? {} : { actionMode: values.action }),
     ...(leftRules.length ? { leftRules } : {}),
     ...(columnAnswers.length ? { columnAnswers } : {}),
     ...(checkPicks === undefined ? {} : { checkPicks }),

@@ -125,6 +125,11 @@ export function decidedWords(h) {
 export function ruleOfAnswer(q, typed, choice) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
   if (q.source !== 'look') return { rule: typedText, left: false };
+  // M13 am11 rule 2: the question about the job's last action adds no `~` rule. Agree adds the suggested line, the box adds the typed words, Drop it leaves the job with no write.
+  if (q.source === 'look' && q.ask === 'action') {
+    if (choice === 'drop') return { rule: null, left: false, action: 'none' };
+    return { rule: null, left: false, action: 'known', actionLine: choice === 'agree' && typeof q.proposal === 'string' ? q.proposal : typedText };
+  }
   if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole
     const shapeC = q.ask === 'check' || q.ask === 'no-check';
     if (choice === 'agree' && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check')) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
