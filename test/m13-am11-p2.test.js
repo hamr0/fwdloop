@@ -1,5 +1,5 @@
 // M13 am11 rules 1 and 2 at the drafter: the AI answers ONE question (is there a last step that writes or sends everything before it?), code checks the answer is the LAST line (not an Ask);
-// with none, the AI suggests one line and the question carries the signed words; `known` and `none` (the person's answers) call nothing. The tentative send is kept or taken out of the prose.
+// with none, the AI suggests one line and the question carries the signed words; `known` (the person's answer) calls nothing (no `none` since M13 am11c). The tentative send is kept or taken out of the prose.
 // Fake provider, $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -9,7 +9,6 @@ import path from 'node:path';
 
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { draft } from '../src/drafter.js';
-import { parseSignedText } from '../src/signed-text.js';
 import { RECOGNISE_SYSTEM, SUGGEST_SYSTEM, suggestionQuestion, withoutSend, recognisedIsLast, cleanSuggestion } from '../src/action-line.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
@@ -70,7 +69,7 @@ test('rule 2: no usable suggestion (a newline, empty): nothing is asked and no l
   assert.doesNotMatch(r.proseText, /send at line/);
 });
 
-test('known (an Agree or typed line) calls nothing about the action and keeps the send; none (Drop it) calls nothing and takes it out, with no question', async () => {
+test('known (an Agree or typed line) calls nothing about the action and keeps the send (no "none" mode since am11c)', async () => {
   const dest = out();
   const known = fakeProvider([toolReply(plan(true))]);
   const a = await draft({ proseText: prose(['Write the note', 'Write it out'], 2, dest), actionMode: 'known', provider: known, rates: RATES, modelId: MODEL });
@@ -78,12 +77,6 @@ test('known (an Agree or typed line) calls nothing about the action and keeps th
   assert.deepEqual(names(known), ['emit_declaration']);
   assert.match(a.proseText, /send at line 2 to /);
   assert.deepEqual(a.action, { line: 2, by: 'you' });
-  const none = fakeProvider([toolReply(plan(false))]);
-  const b = await draft({ proseText: prose(['Write the note', 'Tidy it'], 2, dest), actionMode: 'none', provider: none, rates: RATES, modelId: MODEL });
-  assert.equal(b.ok, true, b.reds.join('; '));
-  assert.deepEqual(names(none), ['emit_declaration']);
-  assert.doesNotMatch(b.proseText, /send at line/);
-  assert.equal(parseSignedText(b.proseText).arbiter.sends.length, 0);
 });
 
 test('no actionMode: the prose file is the truth (a hand-written send line): no action call, and a guardrail on the send line is still refused at $0', async () => {
