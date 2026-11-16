@@ -7513,3 +7513,62 @@ Also counted: rules with no tied fact.
 - **Would-cut number.** bareloop v0.58.0 `named` (the withdrawn F199 fix 1) tests phrase and place ties only, whole-word-ish `includes`. Here all 22 phrase ties contain their words, so it would have cut **0** ties, **0** meaning matches; the 22 money meaning matches are outside its shape test. A words-contain test applied to ALL shapes would have cut 22 of 44 (50%), every one a meaning match.
 - Examples masked/none needed (no personal words). Class 1: rule "nonstop" vs "Nonstop" (fact "stops"; fact "nonstop"; "stop count"). Class 2: rule "under $150" vs "From" (price, lt 150); "under $40" vs "From" (price limit, lt 40); "under $150" vs "From, From" (price). Class 3: none.
 - **Reading of the corpus.** It is narrow: one flights job family, saved drafts only. It holds none of the live nonsense tie that started F199 (rule "be friendly" vs "Select flight", bareloop mwi76vh8). So F200 cannot say how often nonsense happens; it shows that the phrase-only guard cut nothing here and that a whole-shape words guard would be harmful on money.
+
+
+## F201 — look prompt B (intent + can't-show) vs today's, paid POC (pre-registered)
+
+**hamr's direction (2026-11-16, his words, the goal).** "one clean flow: AI translates intent from guardrails ~, suggests from the job !, defaults $; agents say this matches this from page/url/doc/sheet, and the code responds yes I can / can't do this; humans eye it, drop it, add it, and we check again. If anything, it's about making the injected text to agents unambiguous, goal oriented and very very clear." No code carve-outs (no words-contain guard, no special-case lists).
+
+**Problem (F199, F200).** `src/pagemap.js` `mapPrompt` (borrowed from bareloop) says "For each job line and for each rule, say which fact(s) every result must carry, and give the PAGE'S OWN WORDS for it." It gives no way to say the page cannot show a rule, so on bareloop run mwi76vh8 DeepSeek flash tied `~ be friendly` to the phrase "Select flight", signed as a must-say check under the person's name.
+
+**Arms.** A = today's `mapPrompt` + `MAP_SYSTEM`, unchanged (src, not edited). B = the prompt below + the same system line (`poc/f201-lookprompt/promptB.mjs`; src unchanged). B keeps A's answer form; `parseMapAnswer` checks only the fields it knows and ignores unknown ones (read, not assumed), so it reads B's `why` and `cannot` as they are; no harness-side parser is needed. The harness reads `cannot` from the answer's JSON itself.
+
+**Cases (real only; copied read-only to `.claude/scratch/f201/cases/`; job lines built by the real parser `parseSignedText` and the drafter's `hideCounts`, label `flights`, the page the look read).**
+1. `c1-bareloop-mwi76vh8`: bareloop run mwi76vh8 (session smwi75mbqjjbs): "List 3 flights from Boston to Chicago" with `~ under $450`, `~ departure time between 05:00 and 21:00`, `~ be friendly`; page = the run's `source-seed/tree/input/flights.txt`. The original look call's prompt is not in `draft-log.jsonl` (line 13 holds only the answer: label `page-map`, input `flights`), so the label is the input name `flights` and the job is written in fwd's signed form (line 1 = the job line, its three rules).
+2. `c2-fwd-f41b`: fwd draft `d-00mvhunl83-f41b/draft` (F200): "list 3 flights from Madrid to Rome", `under $150; nonstop`, its saved page.
+3. `c3-fwd-69d1`: fwd draft `d-00mvihbmok-69d1/draft` (F200): same job, another day's saved page.
+4. `c4-fwd-b310`: fwd draft `d-00mvmd5209-b310/draft` (F200): `under $40; nonstop`, its saved page.
+Cases 2-4 are one job family (the only one in the saved drafts, as F200 found); they differ in the saved page and the limit. Expected ties (F200 labels): line 2 rule 1 (money "From" + a reading: meaning match) and line 2 rule 2 (phrase "Nonstop": same words). Case 1's rules 1 and 2 are expected ties too; rule 3 (`~ be friendly`) is the nonsense rule.
+
+**Model and call path.** deepseek-flash direct (slot `DEEPSEEK_API_KEY`, Settings prices in/out 0.6/1.2 per 1M, `legacyMaxTokens` on), as `src/drafter.js` `makeCallModel`: `new Loop({ provider, rates, onLlmResult })`, `run([system, user], [], { maxTokens: 16000, thinkingMode })`, attempt 1 thinking off, the one retry on an unreadable answer thinking on, every round metered, provider timeouts `LIVE_PROVIDER_OPTIONS` (300s idle, 240s total). The lookAtPage post-checks (the saved-page word checks) are not run: the AI's answer is what is scored. Key only from env `DEEPSEEK_API_KEY` (set by the orchestrator); an empty key is refused at $0.
+
+**Samples.** 10 looks per case per arm = 80 looks, interleaved (sample, case, arm A then B). Cap $1 (the harness stops before a look when spent >= $0.95; an unpriced round stops the batch and is never priced as 0). Results: `.claude/scratch/f201/results-<tag>.jsonl`, one row per look (raw answer text, parsed facts, cannot list, tokens, cost, ok / unreadable); a tag that already has results is refused. Scorer: `poc/f201-lookprompt/score.mjs`. NONSENSE = a look on case 1 with any fact tied (`from` = `line 1 rule 3`) to `~ be friendly`. KEPT = on cases 2-4, the count of expected ties present (max 2 per look). New ties not in the expected list are reported for hand labelling, not scored. COST per arm = sum of every round's cost.
+
+**The exact B prompt** (the job block and the page are filled in per case; the text between is verbatim):
+
+```
+THE JOB (each ~ rule applies to the line above it):
+<LINE n: text, then "~ rule m: rule" lines, as in A>
+
+Your goal: the ~ rules are the person's intent. For each rule, say which words on the page would let code check that every result keeps it. Code will look for the words you give, and the person will see them and can drop them.
+
+A "result" is one item the page lists (one flight, one stay, one row).
+
+For each job line and for each ~ rule, do ONE of two things:
+1. The page can show the rule. Give a fact: the PAGE'S OWN WORDS that a result carries when it keeps the rule. The words do not have to be the rule's words, but they must carry the rule's MEANING. Add a one-line "why" that says what those words on a result mean for the rule.
+2. The page cannot show the rule: how the answer is written, its tone or style, or anything the page does not hold. Give NO fact for it. Put it in "cannot" with its line and rule number and a one-line "why".
+Never tie a rule to page words that do not carry its meaning. A rule with no fact is a correct answer when the page cannot show it.
+
+Return ONLY a JSON object, no prose, no code fence:
+{"facts":[{"name":"<letters and spaces only>","from":"<line N | line N rule M>","shape":"place|money|time|phrase","words":["<page words>", ...],"why":"<one line>","currency":["<symbol>"],"unit":["<words after the amount>"],"reading":<optional, see below>}],"cannot":[{"from":"line N rule M","why":"<one line>"}]}
+
+shape meanings:
+- place: words = ways the page writes the place (a city, an airport name), copied from the page.
+- money: words = the label(s) written right BEFORE the amount, copied from the page. currency / unit = how the page writes the currency ("$") and/or the words after the amount ("US dollars"); give every spelling the page uses, as lists.
+- time: words = the label(s) written right BEFORE the time that is the one the rule is about, copied from the page.
+- phrase: words = fixed words a result's text must contain, copied from the page.
+Several words in one list are alternatives for the same fact. Put the best one first.
+reading (optional, only on a time or money fact): when a ~ rule is a limit on that fact that the page cannot hold in words (for example "not a red-eye" is a limit on the departure time), give your own best reading of the rule as that limit: {"op":"between","lo":<bound>,"hi":<bound>} or {"op":"lt|lte|gt|gte","value":<bound>}. A time bound is a "HH:MM" string on a 24-hour clock; a money bound is a number. Leave reading out when a page word already carries the rule.
+
+PAGE TEXT (the input "<label>"):
+<the saved page text>
+```
+The system line is A's `MAP_SYSTEM`, the same. The prompt holds no words from the cases' own pages or rules.
+
+**Bars (verbatim).**
+1. NONSENSE on case 1: B's count < A's count. If A's count is 0 of 10, the result is INCONCLUSIVE (the test can't tell them apart).
+2. KEPT on cases 2-4: B's total ≥ A's total − 1.
+3. COST: B's total ≤ A's total × 1.2.
+B PASSES only if (1), (2) and (3) all hold. A FAIL on the letter stays FAIL.
+
+**Harness proof ($0, before any paid run).** `node poc/f201-lookprompt/run.mjs --tag dry1 --dry --samples 2` (fake provider) wrote 16 looks and the scorer read them end to end; a repeated tag, an empty key, and `--preflight` (dummy key, no call: model deepseek-flash, rates 0.0006/0.0012 per 1K) behaved as designed. No provider call, no key read.
