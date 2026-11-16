@@ -120,7 +120,7 @@ export function decidedWords(h) {
  * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
  * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
  * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
- * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
+ * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean, action?: 'known'|'none', actionLine?: string}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed, choice) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();

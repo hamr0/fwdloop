@@ -6859,7 +6859,7 @@
       if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
-        var inner = b.action ? '<div class="who">fwdloop</div><div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + escapeXml(String(b.action.line)) + ' writes everything before it' + byTagOf("agent") + planControlHTML("drop", "action") + '</div>'
+        var inner = b.action ? '<div class="who">fwdloop</div><div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + escapeXml(String(b.action.line)) + ' writes everything before it' + byTagOf("agent") + ' <button type="button" class="btn jp-btn" data-testid="plan-action-drop" data-actionop="drop">Drop</button></div>'
           : b.plan ? '<div class="who">fwdloop</div>' + planViewHtml(b.plan, planControlHTML)
           : '<b class="readout-head">' + escapeXml(b.head) + '</b>' + (b.sub ? ' <span class="hint">(' + escapeXml(b.sub) + ')</span>' : '') + (b.lines.length ? '\n' + b.lines.map(extraLineHTML).join("\n") : '');
         return '<div class="msg' + (b.plan || b.action ? ' bot' : '') + '" id="' + b.id + '" data-testid="' + b.id + '">' + inner + '</div>';
@@ -7055,9 +7055,11 @@
       if(rowBusy || !sessionId || !lastState || lastState.phase !== "green") return;
       rowBusy = true;
       var id = sessionId;
-      var all = extrasEl.querySelectorAll("button[data-rowop]");
+      var all = extrasEl.querySelectorAll("button[data-rowop], button[data-actionop]");
       for(var i = 0; i < all.length; i++) all[i].disabled = true;
-      authorPost("/api/author/" + id + "/row-edit", {op: btn.getAttribute("data-rowop"), key: btn.getAttribute("data-rowkey")}).then(function(r){
+      // M13 am11: the action row's Drop (data-actionop) posts the same door with the key `action`; it is not one of the list's rows
+      var isAction = btn.hasAttribute("data-actionop");
+      authorPost("/api/author/" + id + "/row-edit", {op: isAction ? btn.getAttribute("data-actionop") : btn.getAttribute("data-rowop"), key: isAction ? "action" : btn.getAttribute("data-rowkey")}).then(function(r){
         rowBusy = false;
         if(id !== sessionId) return;
         if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ chatActionFailed(refusalText(r)); for(var j = 0; j < all.length; j++) all[j].disabled = false; return; }
@@ -7067,7 +7069,7 @@
       }).catch(function(){ rowBusy = false; for(var j = 0; j < all.length; j++) all[j].disabled = false; chatActionFailed(NETWORK_SAY); });
     }
     extrasEl.addEventListener("click", function(ev){
-      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-rowop]") : null;
+      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-rowop], button[data-actionop]") : null;
       if(t && extrasEl.contains(t)) doRowEdit(t);
     });
     function doAnswer(choice){

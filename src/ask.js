@@ -624,7 +624,7 @@ export function answerAsk({
  * Written once with the rest of the record; an existing archive is never
  * rewritten to add it (the `wx` create refuses).
  *
- * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string }} opts
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string, kind?: string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function writeAskArchive({

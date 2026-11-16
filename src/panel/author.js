@@ -65,7 +65,8 @@ import {
   capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
 } from '../draftspend.js';
 import { jobKeyOfCard } from '../jobkey.js';
-import { flowValues, valuesHash } from '../runvalues.js';
+import { flowValues, valuesHash, parseWaitMs } from '../runvalues.js';
+import { DEFAULT_ACTION_WAIT_MS } from '../action-stop.js';
 import { capAboveSpentText, capNotAboveSpent } from './authorvalues.js';
 import { createFlowsDoor } from './authorflows.js';
 import { createTriggerDoor } from './authortrigger.js';
@@ -703,11 +704,16 @@ export function createAuthor(opts) {
       // M4d am16 item 1: the first run gets what is LEFT of the card's cap after drafting, as its own signed values (the flow stays signed at the card's cap, and
       // every later run that does not draft gets the whole of it). Nothing spent on drafting = no values file = the whole cap.
       let values = null;
-      if (pot.split.spentUsd > 0) {
-        const prose = readFileInside(join(dir, v.plan), 'prose.txt');
-        const parsed = prose.ok ? parseSignedText(prose.text) : null;
+      // M13 am11a 2: a job with an action and no Ask line keeps the card's Ask wait (the stop before the action waits that long) in the same signed values as the Destination and the Cap
+      const cardWait = typeof v.card?.askWait === 'string' ? v.card.askWait.trim().toLowerCase() : '';
+      const proseNow = readFileInside(join(dir, v.plan), 'prose.txt');
+      const parsedNow = proseNow.ok ? parseSignedText(proseNow.text) : null;
+      const actionWait = parsedNow && parsedNow.ok && parsedNow.arbiter.asks.length === 0 && parsedNow.arbiter.sends.length === 1 && parseWaitMs(cardWait) !== null ? { line: String(parsedNow.arbiter.sends[0].line), wait: cardWait } : null;
+      if (pot.split.spentUsd > 0 || (actionWait !== null && parseWaitMs(actionWait.wait) !== DEFAULT_ACTION_WAIT_MS)) {
+        const parsed = parsedNow;
         if (parsed && parsed.ok) {
-          const vals = { ...flowValues(parsed.arbiter), capUsd: pot.split.leftUsd };
+          const own = flowValues(parsed.arbiter);
+          const vals = { ...own, capUsd: pot.split.spentUsd > 0 ? pot.split.leftUsd : own.capUsd, ...(actionWait === null ? {} : { askWaits: { ...own.askWaits, [actionWait.line]: actionWait.wait } }) };
           values = { flow: name, flowSignatureHash: result.signature.flow, version: 0, values: vals, hash: valuesHash({ flow: name, flowSignatureHash: result.signature.flow, runId: null, version: 0, values: vals }), signedBy, at: new Date().toISOString() };
         }
       }
