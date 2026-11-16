@@ -53,13 +53,13 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   assert.equal(signed.ok, true, JSON.stringify(signed));
   // 3. the signed job: the agreed words are the rule (replaced in place)
   assert.match(readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8'), /guardrail: exactly 3 list items\n/);
-  // 2. the Audit: the setup record carries the row, the Draft block shows `you were asked` / `you said`
+  // 2. the Audit: the setup record carries the row, the Draft block shows `agreed — <rule>` (M17 am8)
   const human = readSetup(signed.flowDir).rows.filter((r) => r.kind === 'human');
   assert.deepEqual(human.map((r) => [r.ask, r.line, r.answer, r.proposal, r.rule]), [['check', 3, 'agree', 'exactly 3 list items', 'exactly 3 list items']]);
-  const shown = getDraftBlock(signed.flowDir, signed.flowDir).rows.filter((r) => /^you were asked: /.test(r.action));
+  // M17 am8: a button-picked answer reads what was decided, never the question
+  const shown = getDraftBlock(signed.flowDir, signed.flowDir).rows.filter((r) => /^agreed \u2014 /.test(r.action));
   assert.equal(shown.length, 1);
-  assert.match(shown[0].action, /^you were asked: Line 3, guardrail "exactly 3 bullets": I propose exactly 3 list items\./);
-  assert.equal(shown[0].gap, 'you said: agree [you]');
+  assert.equal(shown[0].action, 'agreed \u2014 exactly 3 list items');
 });
 
 test('own words (M17 am1 ruling: bareloop\'s reason for a countable own-words rule): the rule is replaced word for word, no check, Not checked with its reason; drop it: no line, Not checked as the person chose', async () => {
