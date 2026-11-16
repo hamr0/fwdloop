@@ -34,9 +34,15 @@ test('A1 rows: a ~ rule is by you, a look fact by the agent, the word proof leav
   assert.match(String(by(b, 'L1.fact.invented')?.reason), /not in the input/);
   // by design (spec section 3, addLook): a look fact tied to a `~` rule is a link on that row, never a drop and never a second row (a COUNTING rule, "exactly 3 bullets", is the pick path's: its tied fact stays a fact of its own)
   assert.equal(by(b, 'L1.fact.bullets')?.by, 'agent');
-  const tied = made({ jobLines: [{ n: 1, text: 'Say it', rules: ['the version must be named'] }], look: { facts: [{ line: 1, name: 'version', shape: 'phrase', source: 'Changelog', words: ['### Fixed'], forRule: 1 }] } });
+  // borrowed-from: bareloop tests/checkblock-rows.test.js@v0.58.0
+  // the rule's own words name the phrase: a link on the rule's row (live run mwi76vh8: a phrase the rule's words do NOT name is an ordinary `!` row instead, and the rule goes Not checked)
+  const tied = made({ jobLines: [{ n: 1, text: 'Say it', rules: ['the ### Fixed heading must be named'] }], look: { facts: [{ line: 1, name: 'version', shape: 'phrase', source: 'Changelog', words: ['### Fixed'], forRule: 1 }] } });
   assert.equal(by(tied, 'L1.fact.version'), undefined);
   assert.equal(by(tied, 'L1.~1')?.links?.[0].name, 'version');
+  const unnamed = made({ jobLines: [{ n: 1, text: 'Say it', rules: ['the version must be named'] }], look: { facts: [{ line: 1, name: 'version', shape: 'phrase', source: 'Changelog', words: ['### Fixed'], forRule: 1 }] } });
+  assert.equal(by(unnamed, 'L1.fact.version')?.by, 'agent');
+  assert.equal(by(unnamed, 'L1.~1')?.links, undefined);
+  assert.equal(by(unnamed, 'L1.~1')?.state, 'not-checked');
   assert.equal(new Set(b.rows.map((r) => r.key)).size, b.rows.length);
 });
 
