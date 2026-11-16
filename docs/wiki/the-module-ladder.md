@@ -3973,3 +3973,11 @@ Peer state (2026-11-13):
 > 4. The grey added lines on the New job card, the `added` marks in the plan, and the hint `fwdloop adds the last check and the write to your Destination.` go. The hint becomes `Your last line writes the result to the Destination. Leave it out and fwdloop suggests one.` A job signed before this is not rewritten; one that cannot run under these rules is refused at start at $0, with the reason.
 > 5. Known limit (F204): on a job whose last line writes new content ("Write a short closing note"), the AI can take it for the action in about 2 of 5 drafts. It shows on the card as the AI's pick, and you drop it or revise.
 > Must fail when: a line is added that you did not answer for; a typed last write line gets a second write; something goes out whose sha256 differs from your last accept in this run without a stop; an unchanged result stops.
+
+**M13 am10a — SIGNED by hamr 2026-11-16 ("sign m13 am10a."), the text exactly as shown.** Why: the M13 am10 builder stopped (no code changed): rule 3's stop has no signed wait when the job has no Ask line; hamr ruled the default Ask wait, then expire and Reopen like an Ask.
+
+> **M13 am10a — how long the stop before the action waits.** This adds to M13 am10 rule 3.
+> 1. The stop before the action (`This changed since you accepted it.` / `You have not seen this yet.`, **Accept** / **Not now**) waits for the card's **Ask wait** (1h unless you change it). When the job has an Ask, it waits for the last Ask's wait.
+> 2. When the job has no Ask line, the card's Ask wait is still kept and signed with the Destination and the Cap $ (same two clicks). The AI never sets it.
+> 3. When the wait runs out, it ends like an expired Ask today: nothing goes to the Destination, $0, and **Reopen** opens it again.
+> Must fail when: the stop waits for a time you did not sign; something goes out after the wait runs out; an expired stop opens again without you.
