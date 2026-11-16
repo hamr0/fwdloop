@@ -1,5 +1,5 @@
-// M13 am11b (docs/wiki/the-module-ladder.md): who picked the action shows on the card; a Drop shows what it did. The draft log's `action` is written in ONE place (src/drafter.js):
-// { line, by: 'agent' } when the AI picked it, { line, by: 'you' } for an Agree or a typed line, { line, dropped: true } after a Drop. The card draws the three cases.
+// M13 am11b (docs/wiki/the-module-ladder.md): who picked the action shows on the card (the Drop half went in am11c). The draft log's `action` is written in ONE place (src/drafter.js):
+// { line, by: 'agent' } when the AI picked it, { line, by: 'you' } for an Agree or a typed line. The card draws the two cases (M13 am11c took the Drop and its dropped record out).
 // Drafter tests: fake provider. Panel tests: real panel + real draft child with the test provider. Browser tests: headless chromium at 1280, 390 and 320 (skip when none). All $0.
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -39,11 +39,6 @@ test('drafter: the AI picked the last line (check): { line, by: agent }', async 
 test('drafter: the person picked it (known, an Agree or a typed line): { line, by: you }', async () => {
   assert.deepEqual((await run('known', true)).action, { line: 2, by: 'you' });
 });
-test('drafter: the person dropped the pick (none): { line, dropped: true }, no send in the prose', async () => {
-  const r = await run('none', false);
-  assert.deepEqual(r.action, { line: 2, dropped: true });
-  assert.doesNotMatch(r.proseText, /send at line/);
-});
 test('drafter: no action mode and no send: null (no action and no Drop)', async () => {
   const p = fakeProvider([toolReply(plan(false))]);
   const r = await draft({ proseText: '1. Write the note\n2. Tidy it\n\nArbiter guardrails (belong to no line; human-signed, tighten-only):\nguardrail: cap $5 per run\n', provider: p, rates: RATES, modelId: MODEL });
@@ -54,17 +49,15 @@ test('drafter: no action mode and no send: null (no action and no Drop)', async 
 // ---- the panel's state ---------------------------------------------------------------------------------------------------------------------------
 const NO_ACTION = { FWDLOOP_TEST_DRAFT_ACTION: 'none', FWDLOOP_TEST_DRAFT_ACTION_LINE: 'write it out' };
 const JOB4 = JOB.replace(/\nwrite it out$/, '');
-// no Ask line: after a Drop the last line is an ordinary line, and a trailing hitl step after an Ask would be red (a signed rule), so the Drop cases use a job without one
-const JOB_NO_ASK = JOB.split('\n').filter((l) => !/^(Ask 30m|~)/.test(l)).join('\n');
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
 const settled = (w, id) => until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; });
 const idle = async (w, id) => {
   const { isFwdloopAlive } = await import('../src/liveness.js');
   return until(() => { try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; } });
 };
-async function pickedByAi(job = JOB) {
-  const w = await world(job === JOB ? {} : { extraEnv: { FWDLOOP_TEST_DRAFT_NOASK: '1' } });
-  const id = (await w.post('/api/author/draft', w.card({ job }))).json().draftId;
+async function pickedByAi() {
+  const w = await world({});
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   const g = await settled(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g.say));
   await idle(w, id);
@@ -93,16 +86,6 @@ test('panel state: an Agree: action { line, by: you }', async () => {
 test('panel state: your own words: action { line, by: you }', async () => {
   assert.deepEqual((await pickedByYou('typed')).g.action, { line: 5, by: 'you' });
 });
-test('panel state: after a Drop of the AI pick: action { line, dropped: true }, and a second Drop is refused', async () => {
-  const { w, id } = await pickedByAi(JOB_NO_ASK);
-  const r = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: 'action' });
-  assert.equal(r.status, 202, JSON.stringify(r.json()));
-  const g = await settled(w, id);
-  assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g.say));
-  assert.deepEqual(g.action, { line: 4, dropped: true });
-  await idle(w, id);
-  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: 'action' })).status, 409);
-});
 test('panel state: an old log { line } with no by shows as today: { line } only', async () => {
   const { w, id } = await pickedByAi();
   const logFile = path.join(w.dir(id), 'draft', 'log.json');
@@ -122,20 +105,15 @@ const noSpill = async (chrome) => {
 };
 
 for (const width of [1280, 390, 320]) {
-  test(`browser ${width}px: the AI's pick shows [agent] Drop; Drop leaves a row saying what happened, with no button; no spill`, { skip: SKIP && 'no browser' }, async (t) => {
+  test(`browser ${width}px: the AI's pick shows [agent] (am11c: no Drop); no spill`, { skip: SKIP && 'no browser' }, async (t) => {
     const chrome = await launchChrome();
     if (!chrome) { t.skip('no chromium installed'); return; }
     CLOSERS.push(async () => chrome.close());
-    const { w } = await pickedByAi(JOB_NO_ASK);
+    const { w } = await pickedByAi();
     await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
     assert.ok(await chrome.waitFor(`!!${ROW}`, 20000), 'the action row is drawn');
-    assert.equal(await rowText(chrome), '› line 4 writes everything before it [agent] Drop');
-    assert.equal(await hasDrop(chrome), true);
-    await noSpill(chrome);
-    await chrome.ev('document.querySelector("[data-testid=plan-action-drop]").click(); true');
-    assert.ok(await chrome.waitFor(`(function(){ var e = ${ROW}; return !!e && e.textContent.indexOf("ordinary line") >= 0; })()`, 30000), 'the row says what the Drop did');
-    assert.equal(await rowText(chrome), '› line 4 is an ordinary line: nothing goes to the Destination [you]');
-    assert.equal(await hasDrop(chrome), false, 'no button after a Drop');
+    assert.equal(await rowText(chrome), '› line 5 writes everything before it [agent]');
+    assert.equal(await hasDrop(chrome), false);
     await noSpill(chrome);
   });
   test(`browser ${width}px: your pick (Agree) shows [you] with no Drop; no spill`, { skip: SKIP && 'no browser' }, async (t) => {
