@@ -2004,7 +2004,7 @@ describe('index.html — page source', () => {
     // postJSON is called with exactly two paths.
     const postPaths = [...code.matchAll(/postJSON\(\s*"([^"]+)"/g)].map((m) => m[1]).sort();
     // M4d piece 4 adds the Settings POSTs (model, models, provider, limit); none of them writes the keys file. Layout F adds the Test button back (POST /api/settings/test) and Open keys folder; provider is posted from two places (the key row's shape / Base URL change, the legacy tick).
-    assert.deepEqual(postPaths, ['/api/answer', '/api/author/ticket-anyway', '/api/needs-remove', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/mcp-check', '/api/settings/mcp-path', '/api/settings/mcp-path-remove', '/api/settings/model', '/api/settings/model', '/api/settings/models', '/api/settings/money', '/api/settings/open-keys-folder', '/api/settings/provider', '/api/settings/provider', '/api/settings/test', '/api/stop']);
+    assert.deepEqual(postPaths, ['/api/answer', '/api/author/ticket-anyway', '/api/needs-remove', '/api/remove-lock', '/api/reopen', '/api/resume', '/api/settings/mcp-check', '/api/settings/mcp-path', '/api/settings/mcp-path-remove', '/api/settings/model', '/api/settings/model', '/api/settings/models', '/api/settings/money', '/api/settings/open-keys-folder', '/api/settings/provider', '/api/settings/provider', '/api/settings/test', '/api/stop', '/api/stop']); // M13 am11: Not now on the stop before the action is the Stop (a second call)
   });
 
   test('M4c-fix item 2: the page carries no token — no TOKEN variable, no token header, never a URL, storage, or a log', () => {
@@ -2522,7 +2522,7 @@ describe('index.html — page source', () => {
     assert.ok(jobPanelIdx > 0 && askPanelIdx > jobPanelIdx, 'the Ask panel section must come after the Job panel section');
   });
 
-  test('M4b: the Ask panel\'s static markup has no button/input (doors are built per ask by script); buttons exist only for the three doors + try-again', () => {
+  test('M4b: the Ask panel\'s static markup has no button/input (doors are built per ask by script); buttons exist only for the three doors + the stop\'s Not now + try-again', () => {
     const start = source.indexOf('<section id="panel-ask"');
     assert.ok(start > 0, 'panel-ask section not found');
     const end = source.indexOf('</section>', start);
@@ -2535,7 +2535,7 @@ describe('index.html — page source', () => {
     assert.ok(fnStart > 0 && fnEnd > fnStart);
     const block = stripComments(source.slice(fnStart, fnEnd));
     const buttons = [...block.matchAll(/makeButton\(.*?,\s*"(btn-[a-z-]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(buttons, ['btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-remove-lock', 'btn-resume-again']);
+    assert.deepEqual(buttons, ['btn-accept', 'btn-not-now', 'btn-accept', 'btn-redo', 'btn-rerun', 'btn-reopen', 'btn-remove-lock', 'btn-resume-again']);
     // the reason box is a real, labelled textarea.
     assert.match(block, /createElement\("textarea"\)/);
     assert.match(block, /lab\.setAttribute\("for", idSafe\)/);
