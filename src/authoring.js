@@ -181,11 +181,15 @@ const READOUT_HEADS = {
   refused: 'REFUSED LINES',
   jobLines: 'JOB LINES',
 };
-/** Zero-based indexes of the heading lines in a readout's text (split on "\n"): the panel renders those bold. */
+// borrowed-from: bareloop src/authorreadout.js@v0.58.0
+/** The readout's top line prefix: ONE owner for the text `buildReadout` writes and the bold `readoutHeadIndexes` finds. */
+export const READOUT_HEADER_PREFIX = 'DRAFT READOUT — NOT SIGNED — flow ';
+
+/** Zero-based indexes of the header and heading lines in a readout's text (split on "\n"): the panel renders those bold. */
 export function readoutHeadIndexes(text) {
   const heads = new Set(Object.values(READOUT_HEADS));
   const idx = [];
-  String(text).split('\n').forEach((l, i) => { if (heads.has(l)) idx.push(i); });
+  String(text).split('\n').forEach((l, i) => { if (heads.has(l) || l.startsWith(READOUT_HEADER_PREFIX)) idx.push(i); });
   return idx;
 }
 
@@ -194,7 +198,7 @@ export function buildReadout({
   declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
 }) {
   const out = [];
-  out.push(`DRAFT READOUT — NOT SIGNED — flow "${name}"`, '');
+  out.push(`${READOUT_HEADER_PREFIX}"${name}"`, '');
   out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
   if (typeof root === 'string') out.push(`Flows root: ${root}  (the flow is written to <flows root>/${name} when you sign)`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
