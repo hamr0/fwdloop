@@ -6854,12 +6854,11 @@
     function planControlHTML(op, key){
       return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (op === "add" ? "Add" : "Drop") + "</button>";
     }
-    // M13 am11b: the action row, three cases. Dropped: what the Drop did, no button. You picked it (Agree or typed): [you], no Drop (to change it, Revise). The AI's pick, or an old log with no `by`: [agent] Drop.
+    // M13 am11c: the action row, two cases, never a Drop (to change it, Revise). You picked it (Agree or typed): [you]. The AI's pick, or an old log with no `by`: [agent].
     function actionRowHtml(a){
       var n = escapeXml(String(a.line));
-      if(a.dropped === true) return '<div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + n + ' is an ordinary line: nothing goes to the Destination' + byTagOf("you") + "</div>";
       if(a.by === "you") return '<div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + n + ' writes everything before it' + byTagOf("you") + "</div>";
-      return '<div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + n + ' writes everything before it' + byTagOf("agent") + ' <button type="button" class="btn jp-btn" data-testid="plan-action-drop" data-actionop="drop">Drop</button></div>';
+      return '<div class="fold" data-testid="plan-action-row"><span class="mk">\u203A</span> line ' + n + ' writes everything before it' + byTagOf("agent") + "</div>";
     }
     // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
     function renderExtras(state){
@@ -7062,11 +7061,9 @@
       if(rowBusy || !sessionId || !lastState || lastState.phase !== "green") return;
       rowBusy = true;
       var id = sessionId;
-      var all = extrasEl.querySelectorAll("button[data-rowop], button[data-actionop]");
+      var all = extrasEl.querySelectorAll("button[data-rowop]");
       for(var i = 0; i < all.length; i++) all[i].disabled = true;
-      // M13 am11: the action row's Drop (data-actionop) posts the same door with the key `action`; it is not one of the list's rows
-      var isAction = btn.hasAttribute("data-actionop");
-      authorPost("/api/author/" + id + "/row-edit", {op: isAction ? btn.getAttribute("data-actionop") : btn.getAttribute("data-rowop"), key: isAction ? "action" : btn.getAttribute("data-rowkey")}).then(function(r){
+      authorPost("/api/author/" + id + "/row-edit", {op: btn.getAttribute("data-rowop"), key: btn.getAttribute("data-rowkey")}).then(function(r){
         rowBusy = false;
         if(id !== sessionId) return;
         if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ chatActionFailed(refusalText(r)); for(var j = 0; j < all.length; j++) all[j].disabled = false; return; }
@@ -7076,7 +7073,7 @@
       }).catch(function(){ rowBusy = false; for(var j = 0; j < all.length; j++) all[j].disabled = false; chatActionFailed(NETWORK_SAY); });
     }
     extrasEl.addEventListener("click", function(ev){
-      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-rowop], button[data-actionop]") : null;
+      var t = ev.target && ev.target.closest ? ev.target.closest("button[data-rowop]") : null;
       if(t && extrasEl.contains(t)) doRowEdit(t);
     });
     function doAnswer(choice){

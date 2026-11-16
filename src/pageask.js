@@ -120,14 +120,14 @@ export function decidedWords(h) {
  * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
  * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
  * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
- * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean, action?: 'known'|'none', actionLine?: string}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
+ * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean, action?: 'known', actionLine?: string}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed, choice) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
   if (q.source !== 'look') return { rule: typedText, left: false };
-  // M13 am11 rule 2: the question about the job's last action adds no `~` rule. Agree adds the suggested line, the box adds the typed words, Drop it leaves the job with no write.
+  // M13 am11 rule 2: the question about the job's last action adds no `~` rule. Agree adds the suggested line, the box adds the typed words; there is no Drop it (am11c).
   if (q.source === 'look' && q.ask === 'action') {
-    if (choice === 'drop') return { rule: null, left: false, action: 'none' };
+    if (choice === 'drop') return { rule: null, left: true }; // M13 am11c: there is no Drop it here; the answer door refuses it (the question is about the job line, not a ~ rule)
     return { rule: null, left: false, action: 'known', actionLine: choice === 'agree' && typeof q.proposal === 'string' ? q.proposal : typedText };
   }
   if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole

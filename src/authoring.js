@@ -347,7 +347,7 @@ export async function draftToDir({
   proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
-  actionMode = /** @type {null|'check'|'known'|'none'} */ (null),
+  actionMode = /** @type {null|'check'|'known'} */ (null),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);

@@ -375,8 +375,8 @@ export async function draft({
   // M13 piece 4: the job's flow type and its MCP pick (`mcpPickFor`: `{ok, server, tools}`), both set by code from the card; the drafter is told them, never asked for them
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcp = /** @type {any} */ (null),
   // M13 am11: what the prose's send line is. null = the prose file is the truth (a hand-written send line); 'check' = the card's tentative send on the last line: the AI answers whether
-  // it is the action; 'known' = the person agreed or typed the last line (no question); 'none' = the person dropped it (no write, no question)
-  actionMode = /** @type {null|'check'|'known'|'none'} */ (null),
+  // it is the action; 'known' = the person agreed or typed the last line (no question)
+  actionMode = /** @type {null|'check'|'known'} */ (null),
 }) {
   // What was asked of thinking and the WORST status bareagent reported across the rounds (the page says it loudly unless 'applied'). Read from the round log, the one record.
   const thinkingOf = () => {
@@ -390,7 +390,7 @@ export async function draft({
   // ---- $0 gates, before any provider is built -------------------------------
   // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
   if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
-  if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known' && actionMode !== 'none') return fail([`config: actionMode must be check | known | none, got ${JSON.stringify(actionMode)}`]);
+  if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known') return fail([`config: actionMode must be check | known, got ${JSON.stringify(actionMode)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
   const { lines } = parsed;
@@ -555,8 +555,8 @@ export async function draft({
   // M13 am11 rules 1 and 2: the job's last line is the action. The AI answers ONE question (record_action); code checks the answer is the LAST line (never an Ask). With none, and the
   // person's answer not yet given, the AI suggests one line and the question carries the signed words. Nothing is added to the job without the person's answer.
   /** the result with what the AI decided about the action: the prose as kept (the send line stays or is taken out) and the action line, or null */
-  // M13 am11b: the ONE writer of the log's `action`: { line, by } (who picked: 'agent' = the AI, 'you' = an Agree or typed line), or { line, dropped: true } (the person dropped the pick); null when none
-  /** @type {null|{line: number, by?: 'agent'|'you', dropped?: true}} */
+  // M13 am11b: the ONE writer of the log's `action`: { line, by } (who picked: 'agent' = the AI, 'you' = an Agree or typed line), (an old log may hold a `dropped` record; nothing reads it); null when none
+  /** @type {null|{line: number, by?: 'agent'|'you'}} */
   let actionRec = null;
   const withAction = (/** @type {any} */ r) => ({ ...r, proseText, action: actionRec ?? (arbiter.sends.length === 1 ? { line: arbiter.sends[0].line } : null) });
   /** @type {null|{line: number, question: string, source: 'look', ask: 'action', ruleNo: undefined, ruleText: string, reading: string, counted: false}} */
@@ -578,7 +578,6 @@ export async function draft({
       if (reds.length) return earlyStop(reds, 'action');
       actionRec = { line: last.n, by: actionMode === 'known' ? 'you' : 'agent' };
     } else {
-      if (actionMode === 'none') actionRec = { line: last.n, dropped: true };
       if (actionMode === 'check' && offerQuestions) {
         const sg = await forcedTurn({
           kind: 'action-suggest', system: ACTION_SUGGEST_SYSTEM, messages: [{ role: 'user', content: jobListing(lines, signedAsks, String(arbiter.sends[0].target.path)) }],

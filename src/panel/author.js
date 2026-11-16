@@ -291,7 +291,7 @@ export function createAuthor(opts) {
       // A child never comes back to life, so a stale "alive" only delays the offer; asked AFTER the files were read, the questions are already on disk (C9's order is for a missing result)
       if (childRunning(dir)) return { ...shared, phase: newest > 0 ? (cur.kind === 'answers' ? 'redrafting' : 'revising') : 'drafting' };
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
-      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check' || x.ask === 'action'), drops: Number.isInteger(x.ruleNo) || x.ask === 'action', shown: scrub(panelQuestionText(x), keys) } : {}) }));
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check' || x.ask === 'action'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
@@ -309,7 +309,7 @@ export function createAuthor(opts) {
    * @returns {string[]}
    */
   /**
-   * The ONE writer of an answer-style redraft (M4e am24; M13 am11 reuses it for Drop on the action row): `card-<n>.json`, `prose-<n>.txt` and the marker `redraft-<n>.json` written once ('wx'), then
+   * The ONE writer of an answer-style redraft (M4e am24): `card-<n>.json`, `prose-<n>.txt` and the marker `redraft-<n>.json` written once ('wx'), then
    * `fwdloop draft` as a detached child. A failure removes what it wrote (and `undoToo`) and says so; the redraft uses none of the revises.
    * @param {{id: string, dir: string, v: any, vet: any, env: any, marker: any, argvOf: (n: number, proseFile: string, realRoot: string) => string[], failSay: (code: string) => string, undoToo?: string[]}} o
    */
@@ -360,9 +360,9 @@ export function createAuthor(opts) {
     const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
     // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
-    // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent] Drop`
+    // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent]` (no Drop, am11c)
     const act = readJson(dir, `${rel}/log.json`)?.action;
-    const action = isObj(act) && Number.isInteger(act.line) ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}), ...(act.dropped === true ? { dropped: true } : {}) } : null;
+    const action = isObj(act) && Number.isInteger(act.line) && act.dropped !== true ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}) } : null;
     return {
       ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
@@ -839,7 +839,7 @@ export function createAuthor(opts) {
           return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, proposal: x.proposal };
         });
         const adds = all.filter((x) => x.rule !== null);
-        // M13 am11 rule 2: the answer to the action question adds the agreed or typed line as the job's LAST line (numbered by the card), or nothing (Drop it); the redraft is told which
+        // M13 am11 rule 2: the answer to the action question adds the agreed or typed line as the job's LAST line (numbered by the card), (there is no Drop it: the answer door refuses it); the redraft is told
         const act = all.find((x) => x.ask === 'action');
         const baseJob = typeof v.card.job === 'string' ? v.card.job : '';
         const jobWithAction = act !== undefined && act.action === 'known' && typeof act.actionLine === 'string' && act.actionLine !== '' ? `${baseJob.replace(/\s+$/, '')}\n${act.actionLine}` : baseJob;
@@ -892,27 +892,6 @@ export function createAuthor(opts) {
       if (b.op !== 'drop' && b.op !== 'add') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
       if (typeof b.key !== 'string' || b.key === '' || b.key.length > 200) return { status: 400, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
-      // M13 am11 rule 1: Drop on the action row makes the last line an ordinary one. It is a redraft (the AI then has the say again, rule 2), not the $0 rebuild of a check row: the typed
-      // "no action" record is `--action none` and the marker `redraft-<n>.json` (action: 'none'); it uses none of the revises, like an answer's redraft.
-      if (b.key === 'action') {
-        if (b.op !== 'drop') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
-        const planLog = readJson(dir, `${v.plan}/log.json`);
-        if (!isObj(planLog?.action) || planLog.action.dropped === true) return { status: 409, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
-        const { loaded: keyLoad } = keysNow();
-        if (!keyLoad.ok) return { status: 409, body: { ok: false, refused: 'keys-file', say: String(keyLoad.refusal) } };
-        const vetA = vetCard(v.card, keyLoad, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
-        if (!vetA.ok) return vetA.reply;
-        for (const other of listIds()) {
-          if (other === id) continue;
-          const ov = view(other, keys);
-          if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before dropping.' } };
-        }
-        return startRedraft({
-          id, dir, v, vet: vetA, env: keyLoad.env, marker: { fromPlan: v.plan, answers: [], action: 'none' },
-          argvOf: (n, proseFile, realRoot) => ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realRoot, '--name', vetA.card.flowName, '--no-questions', '--action', 'none', ...carryArgv(dir, [], v.plan), ...modelArgv(vetA.card)],
-          failSay: (code) => `The plan could not be drafted again (${code}). Nothing was changed.`,
-        });
-      }
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
       const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
       const marker = cur === undefined ? null : readJson(dir, `redraft-${cur}.json`);
