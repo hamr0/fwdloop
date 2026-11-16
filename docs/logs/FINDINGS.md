@@ -7572,3 +7572,14 @@ The system line is A's `MAP_SYSTEM`, the same. The prompt holds no words from th
 B PASSES only if (1), (2) and (3) all hold. A FAIL on the letter stays FAIL.
 
 **Harness proof ($0, before any paid run).** `node poc/f201-lookprompt/run.mjs --tag dry1 --dry --samples 2` (fake provider) wrote 16 looks and the scorer read them end to end; a repeated tag, an empty key, and `--preflight` (dummy key, no call: model deepseek-flash, rates 0.0006/0.0012 per 1K) behaved as designed. No provider call, no key read.
+
+**Results (2026-11-16).** Two paid batches, each stopped early by a provider "socket hang up" (cost unknown, so the harness stops and never prices it as 0). Score files `.claude/scratch/f201/results-paid1.jsonl`, `results-paid2.jsonl`; scored with `node poc/f201-lookprompt/score.mjs --tag paid1|paid2`.
+
+| | looks | spent | bars (1)(2)(3) |
+|---|---|---|---|
+| paid1 | 21 | $0.1373 | PASS |
+| paid2 | 13 | $0.0831 | PASS |
+
+Pooled: NONSENSE on c1 (bareloop mwi76vh8, `~ be friendly`): A 2/5, B 0/5; B listed the rule under `cannot` every time. KEPT on c2-4: A 22, B 22 (all expected ties). COST: A $0.1079, B $0.1125 (+4%).
+
+PASS on the bars per batch; the run did not reach its planned 10 samples (two provider socket hang-ups, both on case c3 arm A, different samples); arms are unequal because of the early stops. hamr accepted it and ruled adopt B, 2026-11-16.
