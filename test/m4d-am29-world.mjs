@@ -1,5 +1,6 @@
 // M4d am29 test world (outside the test runner's glob on purpose: a .mjs helper): job2 run end to end with the REAL model step, a fake provider and the
 // real step tools, so every diary row and every check record is what the product writes. $0.
+import { sha256Hex, serializeArtifact } from '../src/ask.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -67,7 +68,8 @@ export async function buildWorld({ redo = false, redoFails = false } = {}) {
   const { tools } = resolvePrimitives(CAT, ['read', 'write', 'readDocx'], { runDir, inputs });
   const modelStep = makeLiveModelStep({ spendPath: path.join(runDir, 'spend.jsonl'), provider: fakeProvider(redoFails), rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash' });
   let asked = 0;
-  const askStep = async () => { asked += 1; return redo && asked === 1 ? { decision: 'redo', reason: 'make it shorter' } : { decision: 'accept' }; };
+  // M13 am11: an accept records the sha256 of what was shown (as the answer door does); without it the run would stop once more before the action
+  const askStep = async ({ evidence }) => { asked += 1; return redo && asked === 1 ? { decision: 'redo', reason: 'make it shorter' } : { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) }; };
   const result = await runFlow({
     root, name: 'job2', runId: 'run-1', sources: [{ id: 'resume', path: path.join(src, 'resume.docx') }, { id: 'jd', path: path.join(src, 'jd.md') }], catalogue: CAT, modelStep, askStep, sendStep: async () => ({ ok: true, bytes: 1 }), primitives: tools, businessDate: '2026-06-01',
   });

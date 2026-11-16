@@ -791,6 +791,7 @@ export function listArchivedAsks(runDir) {
       evidence: readAskEvidence(ask),
       answer,
       ...(typeof ask.emits === 'string' ? { emits: ask.emits } : {}),
+      ...(typeof ask.kind === 'string' ? { kind: ask.kind } : {}), // M13 am11: the stop before the action
     });
   }
 

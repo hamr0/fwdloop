@@ -2538,6 +2538,7 @@ function normalizeArchivedRow(a) {
     answeredAt: a.answer.answeredAt ?? null,
     archived: true,
     emits: typeof a.emits === 'string' ? a.emits : null,
+    kind: typeof a.kind === 'string' ? a.kind : null, // M13 am11: 'action-stop' = the stop before the action (Accept / Not now)
     evidence: flattenEvidence(a.evidence),
   };
 }

@@ -389,7 +389,7 @@ test('(viii) lock held past the retry window: API says "your answer is saved; th
   assert.equal((await runData(port, run)).resume.state, 'took-over');
 });
 
-test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash; the artifact tampered before the resume -> the real send refuses by name, nothing shipped', async () => {
+test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash; the artifact tampered before the resume -> M13 am11: the run stops once at the action, nothing shipped', async () => {
   const runId = 'p3-panel-tamper';
   const sendDir = path.join(REPO, 'poc', 'm0', 'out');
   const shipped = () => (existsSync(sendDir) ? readdirSync(sendDir).filter((f) => f.includes(`-${runId}-`)) : []);
@@ -413,13 +413,11 @@ test('M4b p3 (iii) panel path: accept through POST /api/answer records the hash;
     writeFileSync(priorFile, edited);
     await holder.kill();
     assert.equal((await resumePost(port, token, run)).status, 202);
-    await waitFor(() => history(run.root).length === 1);
-    const row = history(run.root)[0];
-    assert.equal(row.outcome, 'red');
-    assert.ok(typeof row.signatureHash === 'string' && row.signatureHash.length > 0);
+    // M13 am11: what goes out changed since the accept, so the run stops once at the action and asks (an ask record of kind action-stop); nothing is written
+    const askFile = path.join(run.runDir, 'ask.json');
+    await waitFor(() => { try { return JSON.parse(readFileSync(askFile, 'utf8')).kind === 'action-stop'; } catch { return false; } });
+    assert.equal(JSON.parse(readFileSync(askFile, 'utf8')).question, 'This changed since you accepted it.');
     assert.deepEqual(shipped(), [], 'nothing reaches the destination');
-    const audit = readFileSync(path.join(run.runDir, 'audit.jsonl'), 'utf8');
-    assert.match(audit, /changed after it was accepted/);
   } finally { clean(); }
 });
 

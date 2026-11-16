@@ -5313,7 +5313,17 @@
     var root = document.createElement("div");
     root.className = "answer-doors";
     root.setAttribute("data-testid", "answer-doors");
-    if(model.kind === "doors"){
+    if(model.kind === "doors" && ask.kind === "action-stop"){
+      // M13 am11 rule 3: the stop before the action: its question is the ask's own line; two buttons, Accept and Not now (the Stop: the run ends stopped, nothing is written). No reason box, no other words.
+      var stopBar = document.createElement("div");
+      stopBar.className = "actions-row";
+      stopBar.setAttribute("data-testid", "action-bar");
+      stopBar.appendChild(makeButton("Accept", "btn-accept", function(){ sendAnswer(root, ask, ctx, "accept"); }));
+      stopBar.appendChild(makeButton("Not now", "btn-not-now", function(){
+        postJSON("/api/stop", { flow: ctx.flow, runId: ctx.runId }).then(function(){ return reloadRun(ctx.flow, ctx.runId); }).catch(function(){ return reloadRun(ctx.flow, ctx.runId); });
+      }));
+      root.appendChild(stopBar);
+    } else if(model.kind === "doors"){
       if(model.note){
         var note = textDiv("answer-msg refused", model.note);
         note.setAttribute("data-testid", "answer-note");

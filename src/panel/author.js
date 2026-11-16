@@ -307,6 +307,32 @@ export function createAuthor(opts) {
    * @param {string} dir @param {number[]} ns the plans' numbers @param {string} [only] the one plan folder (relative)
    * @returns {string[]}
    */
+  /**
+   * The ONE writer of an answer-style redraft (M4e am24; M13 am11 reuses it for Drop on the action row): `card-<n>.json`, `prose-<n>.txt` and the marker `redraft-<n>.json` written once ('wx'), then
+   * `fwdloop draft` as a detached child. A failure removes what it wrote (and `undoToo`) and says so; the redraft uses none of the revises.
+   * @param {{id: string, dir: string, v: any, vet: any, env: any, marker: any, argvOf: (n: number, proseFile: string, realRoot: string) => string[], failSay: (code: string) => string, undoToo?: string[]}} o
+   */
+  function startRedraft({
+    id, dir, v, vet, env, marker, argvOf, failSay, undoToo = [],
+  }) {
+    const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
+    const files = [`card-${n}.json`, `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
+    const undo = () => { for (const f of [...files, ...undoToo]) rmSync(f, { force: true }); };
+    let child;
+    try {
+      writeFileSync(files[0], `${JSON.stringify(vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+      writeFileSync(files[1], vet.prose, { mode: 0o600, flag: 'wx' });
+      writeFileSync(files[2], `${JSON.stringify(marker)}\n`, { mode: 0o600, flag: 'wx' });
+      child = spawnDetached({ bin, argv: argvOf(n, files[1], realpathSync(root)), env, logPath: join(dir, `redraft-${n}.log`) });
+    } catch (e) {
+      undo();
+      return { status: 500, body: { ok: false, refused: 'spawn', say: failSay(String(/** @type {any} */ (e)?.code ?? 'error')), draftId: id } };
+    }
+    child.on('error', () => {});
+    writePidFile(dir, child);
+    return { status: 202, body: { ok: true, draftId: id, n, redrafting: true } };
+  }
+
   function carryArgv(dir, ns, only) {
     const rels = only === undefined ? [...ns].sort((a, b) => b - a).map((x) => `draft-${x}`).concat('draft') : [only];
     const rel = rels.find((r) => readFileInside(join(dir, r), RECORD_FILE).ok);
@@ -833,27 +859,12 @@ export function createAuthor(opts) {
         return { status: 409, body: { ok: false, refused: 'already-answered', say: /** @type {any} */ (e)?.code === 'EEXIST' ? 'That question already has an answer.' : 'The answer could not be saved. Nothing was sent.' } };
       }
       if (!last) return { status: 200, body: { ok: true, draftId: id, next: v.openK + 1 } };
-      const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
-      const files = [`card-${n}.json`, `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
-      const undo = () => { for (const f of [...files, answerFile]) rmSync(f, { force: true }); };
-      let child;
-      try {
-        writeFileSync(files[0], `${JSON.stringify(redraft.vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-        writeFileSync(files[1], redraft.vet.prose, { mode: 0o600, flag: 'wx' });
-        writeFileSync(files[2], `${JSON.stringify({ fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) })}\n`, { mode: 0o600, flag: 'wx' });
-        child = spawnDetached({
-          bin,
-          argv: ['draft', files[1], '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.action === null ? [] : ['--action', redraft.action]), ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...(redraft.columns.length ? ['--columns', JSON.stringify(redraft.columns)] : []), ...modelArgv(redraft.vet.card)],
-          env: loaded.env,
-          logPath: join(dir, `redraft-${n}.log`),
-        });
-      } catch (e) {
-        undo();
-        return { status: 500, body: { ok: false, refused: 'spawn', say: `The plan could not be drafted again (${/** @type {any} */ (e)?.code ?? 'error'}). Your answer was not kept; answer again. Nothing was spent.`, draftId: id } };
-      }
-      child.on('error', () => {});
-      writePidFile(dir, child);
-      return { status: 202, body: { ok: true, draftId: id, n, redrafting: true } };
+      return startRedraft({
+        id, dir, v, vet: redraft.vet, env: loaded.env, undoToo: [answerFile],
+        marker: { fromPlan: v.plan, answers: redraft.all.map((x) => ({ line: x.line, question: x.question, answer: x.answer })), ...(redraft.left.length ? { left: redraft.left } : {}) },
+        argvOf: (n, proseFile, realRoot) => ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realRoot, '--name', redraft.vet.card.flowName, '--no-questions', ...(redraft.action === null ? [] : ['--action', redraft.action]), ...carryArgv(dir, [], v.plan), ...(redraft.picks.length ? ['--picks', JSON.stringify(redraft.picks)] : []), ...(redraft.left.length ? ['--left', redraft.left.map((x) => `${x.line}.${x.rule}`).join(',')] : []), ...(redraft.columns.length ? ['--columns', JSON.stringify(redraft.columns)] : []), ...modelArgv(redraft.vet.card)],
+        failSay: (code) => `The plan could not be drafted again (${code}). Your answer was not kept; answer again. Nothing was spent.`,
+      });
     },
 
     /**
@@ -890,26 +901,11 @@ export function createAuthor(opts) {
           const ov = view(other, keys);
           if (ov && LIVE_PHASES.has(ov.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', draftId: other, say: 'A draft is already running. Wait for it, or abandon it, before dropping.' } };
         }
-        const nA = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
-        const filesA = [`card-${nA}.json`, `prose-${nA}.txt`, `redraft-${nA}.json`].map((f) => join(dir, f));
-        let childA;
-        try {
-          writeFileSync(filesA[0], `${JSON.stringify(vetA.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-          writeFileSync(filesA[1], vetA.prose, { mode: 0o600, flag: 'wx' });
-          writeFileSync(filesA[2], `${JSON.stringify({ fromPlan: v.plan, answers: [], action: 'none' })}\n`, { mode: 0o600, flag: 'wx' });
-          childA = spawnDetached({
-            bin,
-            argv: ['draft', filesA[1], '--out', join(dir, `draft-${nA}`), '--root', realpathSync(root), '--name', vetA.card.flowName, '--no-questions', '--action', 'none', ...carryArgv(dir, [], v.plan), ...modelArgv(vetA.card)],
-            env: keyLoad.env,
-            logPath: join(dir, `redraft-${nA}.log`),
-          });
-        } catch (e) {
-          for (const f of filesA) rmSync(f, { force: true });
-          return { status: 500, body: { ok: false, refused: 'spawn', say: `The plan could not be drafted again (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was changed.`, draftId: id } };
-        }
-        childA.on('error', () => {});
-        writePidFile(dir, childA);
-        return { status: 202, body: { ok: true, draftId: id, n: nA, redrafting: true } };
+        return startRedraft({
+          id, dir, v, vet: vetA, env: keyLoad.env, marker: { fromPlan: v.plan, answers: [], action: 'none' },
+          argvOf: (n, proseFile, realRoot) => ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realRoot, '--name', vetA.card.flowName, '--no-questions', '--action', 'none', ...carryArgv(dir, [], v.plan), ...modelArgv(vetA.card)],
+          failSay: (code) => `The plan could not be drafted again (${code}). Nothing was changed.`,
+        });
       }
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
       const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
