@@ -7813,3 +7813,146 @@ Answer by calling the tool suggest_action exactly once. Both fields are required
 2. SUGGEST: on the 4 no-action cases, >= 18 of 20 have the right `reads` and one short line.
 3. No answer code would let through wrong: every wrong answer is caught by code's checks (last line / earlier line) or is a null that leads to a SUGGEST. Counted as let through: RECOGNISE accepted by code on a no-action case, or accepted with a `reads` other than expected; SUGGEST accepted with a `reads` other than expected.
 Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
+
+## F204 — "is there a last step that writes or sends everything before it?" (paid POC, pre-registered)
+
+**hamr (2026-11-16), on F203's RECOGNISE 24/40:** "too tight, question should [be]: is there a last step that writes/sends everything that came before it".
+
+**Why.** F203 stays FAIL (bar 1: RECOGNISE 24/40; SUGGEST was 20/20). The model answered null on jobs ending "Write it out" because the F203 prompt asked for a step that "delivers the finished result to the Destination", and "Write it out" does not name the Destination. F204 asks hamr's question instead and adds 4 held-out real jobs.
+
+**Method.** Code in `poc/f204-action-ai/`, a copy of F203's harness (same call path copied from `src/drafter.js` `forcedTurn`: Loop + `onLlmResult` metering, HaltError-capturing tool, `maxTokens` 16000, `thinkingMode: 'off'`, `LIVE_PROVIDER_OPTIONS`, forced `toolChoice`, one retry on no usable call; ceiling pricing for a call with no usage; wx-tagged result files; `--dry`, `--preflight`). Model `deepseek-flash` direct, key only from env `DEEPSEEK_API_KEY`. No `src/` change. Destination `/home/hamr/fwdloop-out`. The model sees the job as in F203 (`n. text`, `   gN: rule`, then `Destination: folder /home/hamr/fwdloop-out`).
+
+**Two asks.**
+1. RECOGNISE, tool `record_action`, required `action: { line: <n>|null }` only (no `reads`: the step writes everything before it; code knows what came before). Code check: `line` must be the LAST line, else refused. `null` leads to SUGGEST. Anything else is unreadable.
+2. SUGGEST, tool `suggest_action`, required `{ text }` only. Code check: one non-empty line, at most 100 characters.
+
+**Cases (12; 5 samples each).** The 8 F203 cases A1-A4, N1-N4 are unchanged (same texts, same expected line or null; texts are in the F203 block above). 4 NEW held-out jobs from saved drafts not used in F203 (`~/.config/fwdloop/flows/.drafts/<id>/card.json` `job`, read-only; nothing personal in any text; none stripped):
+
+- **H1** (ends with a typed action; held-out; draft `d-00mw0jdbj3-ae4f`; unstripped, as typed). Expected: RECOGNISE line 7.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask 1h: check it with me
+  3. List 3 jobs for this week from the notes
+     g1: exactly 3 bullets
+  4. Ask 1h: check it with me
+  5. Write a short closing note to my neighbour
+     g1: under 80 words
+  6. Ask 1h: check it with me
+  7. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H2** (ends with a typed action; held-out; draft `d-00mv54iebr-5ec3`; unstripped, as typed). Expected: RECOGNISE line 5.
+  ```
+  The job:
+  1. Read my resume and park it for later
+  2. Read the JD and park it for later
+  3. Write me a summary resume from the parked resume and JD: how it matches the JD, with a work history blurb, professional skills and soft skills
+     g1: 3 sections: Work History, Professional Skills, Soft Skills, all under 600 words
+  4. Ask: check it with me
+     g1: nothing goes out before I accept
+  5. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H3** (no action; held-out; draft `d-00mw7meob1-e8cf`; unstripped, as typed). Expected: RECOGNISE line null.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask 1h: check it with me
+  3. List 3 jobs for this week from the notes
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H4** (no action; held-out; draft `d-00mwhyslvk-f7b7`; unstripped, as typed). Expected: RECOGNISE line null.
+  ```
+  The job:
+  1. Read the ticket
+  2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
+     g1: priority P1 only; run a ticket again when its state changes; at most 3 words
+  3. Ask 1h: check the note with me
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+
+
+Expected, pre-written: A1 line 4, A2 line 5, A3 line 4, A4 line 4, N1 null, N2 null, N3 null, N4 null (N3 and N4 are the F203 stripped ones), H1 line 7, H2 line 5, H3 null, H4 null. Held-out = H1-H4.
+
+**Prompts, verbatim** (the user message is the job listing above).
+
+*RECOGNISE system:*
+```
+A person wrote a numbered list of steps for a job. The finished result goes to the Destination named below the list.
+
+Is there a last step that writes or sends everything that came before it? Answer with that step's number, or null if there is none.
+
+A step that only reads, makes, lists, checks or asks something is not one. The step does not have to name the Destination: the Destination is only where the result goes.
+
+Answer by calling the tool record_action exactly once, with the field "action" holding one required field: line (the step's number, or null).
+```
+*RECOGNISE tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the last step that writes or sends everything that came before it, or null if there is none."
+        }
+      },
+      "required": [
+        "line"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+*SUGGEST system:*
+```
+A person wrote a numbered list of steps for a job. The finished result goes to the Destination named below the list. The list has no last step that writes or sends everything that came before it.
+
+Your one task: suggest ONE last step that writes or sends everything that came before it to the Destination.
+
+Rules:
+- Write the step as one short plain sentence, in the person's voice, like their other steps. It must say that the result is written or sent to the Destination.
+- Do not repeat or change any existing step. Do not write a step that asks the person a question.
+
+Answer by calling the tool suggest_action exactly once. The one required field is text (the new step).
+```
+*SUGGEST tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The one new last step, one short plain sentence."
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "additionalProperties": false
+}
+```
+
+
+**Samples and cost.** RECOGNISE 12 x 5 = 60 calls; SUGGEST on the 6 no-action cases (N1-N4, H3, H4) every sample, independent of RECOGNISE: 30 calls; plus retries. Cap $0.90 for this POC (hard stop at spent >= $0.90; F201 and F203 spent about $0.25 of hamr's $1 approvals); expected spend well under $0.20. Paid command, tag paid1: `DEEPSEEK_API_KEY=... node poc/f204-action-ai/run.mjs --tag paid1` then `node poc/f204-action-ai/score.mjs paid1`.
+
+**Bars (each PASS/FAIL on the letter; final attempt of each sample).**
+1. RECOGNISE: >= 54 of 60 right overall (right = `null` on a no-action case; the last line, accepted by code, on an action case), no case below 4/5, and on the 4 held-out cases >= 18 of 20.
+2. SUGGEST on the 6 no-action cases: >= 27 of 30 are one short line (non-empty, one line, <= 100 chars) that says it writes or sends to the Destination. Exact check: the text contains the Destination path `/home/hamr/fwdloop-out` OR matches `/\b(write|save|send)/i` (a word starting write, save or send, case-insensitive).
+3. No duplicate: on the 6 action cases (A1-A4, H1, H2) a null answer counts as a FAIL for that sample, because it would lead to a second write. Bar: 0 null answers on action cases (30 samples).
+Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
