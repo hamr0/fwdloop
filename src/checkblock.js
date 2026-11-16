@@ -76,6 +76,8 @@ export const REASON = Object.freeze({
   manyInputs: 'the job has more than one input and code cannot pick which one the claims quote',
   oneSidedTime: 'a time limit the AI proposes must be a range, so you judge it at Accept.',
   countNeedsFact: 'a result count needs a fact to count; this line has none',
+  // borrowed-from: bareloop src/checkblock.js@v0.58.0
+  countNeedsSuggested: 'a result count needs a fact to count; add the suggested fact on this line to count its results',
   lookNoWords: "the page does not hold the words of the look's fact for this rule",
   afterLast: 'no more tries: Start over (rows are never changed by the AI after the last try)',
   noPick: 'No check was picked for it, so you judge it at Accept.',
@@ -451,7 +453,8 @@ export class CheckBlock {
           r.grown = words.length ? words : undefined;
         }
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
-    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = REASON.countNeedsFact; }
+    // borrowed-from: bareloop src/checkblock.js@v0.58.0
+    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
     this.buildDefaults(l, lineParts, lineRows, factLines);
   }
