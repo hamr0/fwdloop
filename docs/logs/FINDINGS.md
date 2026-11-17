@@ -8294,3 +8294,32 @@ Run: `node poc/f205-search/run209.mjs --tag r1` ($0, 8 pages x 3 arms, all 24 re
 **Results file** `.claude/scratch/f205/results-f210-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run210.mjs`, scorer `score210.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
 
 **Limits.** One machine, one Dutch IP, one moment; pages change between reads; a page that fails to read in either arm leaves the bars; line counts are not a judgement of article quality.
+
+### F210 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run210.mjs --tag r1` ($0; barebrowse 0.28.0 from `.claude/scratch/f210/bb028/` for arm C, the repo's installed 0.26.0 for arm A), scored with `node poc/f205-search/score210.mjs r1` from `.claude/scratch/f205/results-f210-r1.jsonl`; texts in `.claude/scratch/f205/f210-pages/r1-<arm>-<n>.txt` (gitignored). Harness proofs before the run (commit a7f0e1eb): dry GO, a repeated tag refused, a FAIL demo (C same as A: NO-GO).
+
+**Arm Z: not run.** barebrowse 0.28.0's zoom is `snapshot({ map: true })` then `snapshot({ within })`; `within` always takes a box the caller names (a ref, a role, `role "name"`, `role after "heading"`) and with two or more matches it returns the map and picks nothing. There is no default or auto pick, so any rule for choosing the box would be invented by fwd. Not built.
+
+**Page list.** 3 searches ok, 5 organic links each; 15 links resolved by `goto`, 14 landed off Google, 5 were repeats of an earlier landing URL, leaving 9 distinct pages: recordingnow.com best-noise-cancelling-headphones; reddit r/SonyHeadphones; vacuumwars.com best-robot-vacuum-under-600; reddit r/RobotVacuums (2 threads); nytimes.com/wirecutter best-budget-android-phone; reddit r/phones (2 URLs, a thread and a comment); techadvisor.com best-budget-phone. All 9 read ok by both arms.
+
+**VERDICT for C: GO.**
+- **Bar 1 PASS:** C kept at least 1.5x A's chars on 9 of 9 pages (100%; bar 70%).
+- **Bar 2 PASS:** C's dollar lines plus spec lines were at least A's on 8 of 9 pages (89%; bar 80%), and the totals were A 81, C 288 (3.56x; bar 1.5x). The one page where C had fewer: #8, the reddit r/phones comment URL (A: 0 dollar and 1 spec line, C: 0 and 0).
+
+**Per page (chars; dollar lines / spec lines), A then C:**
+- #1 recordingnow.com: A 12,369 (30/1); C 61,669 (58/6)
+- #2 reddit r/SonyHeadphones: A 18,436 (0/0); C 57,854 (5/1)
+- #3 vacuumwars.com: A 32,432 (16/13); C 56,397 (38/15)
+- #4 reddit r/RobotVacuums (under-400-500): A 9,736 (2/0); C 40,269 (53/0)
+- #5 reddit r/RobotVacuums (best-under-400): A 8,912 (2/0); C 38,642 (46/0)
+- #6 nytimes wirecutter: A 17,348 (9/1); C 56,839 (29/11)
+- #7 reddit r/phones thread: A 16,756 (0/0); C 51,540 (1/0)
+- #8 reddit r/phones comment: A 16,684 (0/1); C 48,246 (0/0)
+- #9 techadvisor.com: A 20,261 (6/0); C 88,675 (10/15)
+
+**Read seconds:** A 57 s total, C 58 s total (3.7 to 8.0 s per page, both arms).
+
+**Product-name + `$` lines (code rule, reported only):** arm A's three matches are headings, for example "Best Robot Vacuum $300–$600: Ecovacs T90 Pro Omni". Arm C's three come from the first page (recordingnow.com) and are headphones above $1,000, for example "The Dali IO-12 at $1,750 and Focal Bathys MG at $1,499 USD retail price...". These do not show whether C's lines are under any price limit.
+
+**Cleanup:** no process or `/tmp/barebrowse-*` dir from this run is left. The two `/tmp/barebrowse-ff-897002-*` dirs and a firefox (pid 2648025) belong to the old barebrowse MCP server (pid 897002) and were left alone.
