@@ -8421,3 +8421,40 @@ Run: `node poc/f205-search/run212.mjs --tag r1` ($0; 6 sites x arms A and C, que
 **Product lines:** none on any site, so no quoted lines.
 
 **Cleanup:** the harness left no processes or `/tmp/barebrowse-*` dirs of its own; the two `/tmp/barebrowse-ff-897002-*` dirs belong to the old MCP server and were left.
+
+## F213 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.05; DeepSeek Search + Fetch APIs, no barebrowse; written before the harness and before any call, NOT yet run)
+
+**Direction (hamr, 2026-11-17).** For finding and reading pages, use DeepSeek's own Search API and Fetch API. Same branch `poc/f205-search`. I (the harness author) make no real call and use no key; hamr runs the paid batch. No new dependency (node's built-in `fetch`).
+
+**What the official docs say** (read on api-docs.deepseek.com 2026-11-17, not from aggregators):
+- **Where:** the change log https://api-docs.deepseek.com/updates/ has 2026-10-17 "Opening up the in-house search API" and 2026-11-13 "Releasing the full suite of application APIs" (Search and Fetch, OCR, ASR, TTS as standalone APIs); both point to the guide https://api-docs.deepseek.com/guides/search ("Search & Fetch guide").
+- **Endpoints, method, auth** (guide): Search `POST https://api.deepseek.com/v1/tools/search`; Fetch `POST https://api.deepseek.com/v1/tools/fetch`; headers `Authorization: Bearer <DeepSeek API Key>` and `Content-Type: application/json`.
+- **Search request** (guide): `query` (required, 1 to 128 characters; operators `site:`, `-site:`, `-`, quotes, `lang:`, `after:`, `before:`), `count` (default 10, 1 to 50), `ori_question` (optional, 1 to 128), `localization` ("an optional IP address used to localize search results", default empty), `need_content` (default false: `content` always an empty string); unknown fields are ignored. **There is no locale, region or language field**; the guide offers only the `lang:` operator and the `localization` IP address. The guide does not say whether results depend on the caller's or the server's location.
+- **Search response** (guide): `results` array (empty when no match); each item `rerank_score` (0 to 3), `title`, `url`, `snippet` (typically 100 to 200 chars), `summary` (typically 600 to 800 chars), `content`, `site_name`, `site_icon`, `date`, `authority` (0 to 4, -1 unknown).
+- **Fetch request** (guide): one field `url` (http or https, host required, at most 8192 characters, no user name or password). **Fetch response:** `title` (empty when unavailable) and `content`, the page as Markdown text. **A size limit or truncation of `content` is not stated.** "Fetching is subject to the target site's availability and access policies."
+- **Price** (pricing page https://api-docs.deepseek.com/quick_start/pricing.md and the guide): Search $0.75 per 1,000 searches; Web fetch $0.75 per 1,000 fetches; the guide: "billed per successful request, not by tokens or by the number of returned results", billed only on HTTP 200 with a produced result (Search: a non-empty `results`; Fetch: page content); failed requests, empty results and timeouts are not billed; charges come from the balance, granted balance first. So one successful call = $0.00075.
+- **Rate limits** (guide): Search 100 QPS, Fetch 25 QPS, per account, tracked separately; Fetch also has a per-domain QPS limit whose value is not stated; over the limit returns HTTP 429.
+- **Usage or billing field in a response:** not stated (none documented).
+- **Errors** (guide): body `{"error": {message, type, param, code}}`; 400 bad request, 401 bad key, 402 insufficient balance, 403 Fetch rejected by security policy, 404 Fetch could not retrieve usable content (unavailable URL, site policy block, target site error, unsupported content type, no extractable Markdown), 408, 413, 429, 500, 504.
+- **Not stated by the docs (recorded, none blocks the run):** a locale/region field (so none is set; `localization` is an IP address and fwd has no US IP to give, so it is left empty and the search is as DeepSeek serves it); the Fetch content size limit; the per-domain Fetch rate; a usage field.
+
+**Question.** Through DeepSeek Search plus Fetch (no barebrowse), do we get (a) real result links, (b) page text that code can read, (c) `$` prices rather than euros (DeepSeek fetches from its side, not from this Dutch machine), (d) no robot or challenge pages?
+
+**Calls.** Queries: (1) `best budget laptop 2026` (2) `best robot vacuum under $400` (3) `lenovo refurbished laptop`. Per query one Search with `{ query, count: 5 }` (no `localization`, `need_content` false); the result URLs are deduped (first kept); each distinct URL gets one Fetch `{ url }`. 3 Search calls plus up to 15 Fetch calls, 2 s apart, one at a time, a 60 s client deadline per call.
+
+**Recorded per call:** HTTP status, ok, the error words, chars, the URL, seconds. Fetch also: usd lines `/\$\s?\d/`; eur lines `/€\s?\d|\d\s?€|EUR\s?\d/` (EUR covers the non-breaking-space form F212 found); challenge lines `/robot or human|press (&|and) hold|captcha|BOT CHALLENGE|verify you are human|testchallengepage/i`. Fetch text saved to `.claude/scratch/f205/f213-pages/<tag>-q<n>-<k>.txt` (gitignored). A Fetch is ok when HTTP 200 and `content` is a non-empty string.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** at least 2 of the 3 searches return at least 5 result URLs.
+2. **Bar 2:** at least 60% of the Fetch calls return ok with at least 1,000 chars and 0 challenge lines.
+3. **Bar 3:** over all fetched pages the total usd lines are greater than the total eur lines, AND on query 3 (lenovo) at least 2 fetched pages each have at least 3 usd lines.
+4. **Verdict GO:** all three bars pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** for a URL also read in F210 or F211 (their results files), the Fetch chars next to the read-mode chars; seconds per call; up to 2 quoted usd lines per query.
+
+**Cost.** Each call is priced as (successful call) x $0.00075 (the pricing page and the guide above). Successful = HTTP 200 with a non-empty `results` (Search) or non-empty `content` (Fetch); any other HTTP answer is recorded unbilled per the guide. A call whose billing cannot be known (no HTTP answer at all, such as a network error or the client deadline, or a 200 whose body is not JSON) stops the batch and is recorded at one price ($0.00075), never at 0. HARD CAP $0.05 (the full run is at most 18 calls = $0.0135); no call starts if spent plus one price would pass the cap. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is read from the environment and never printed.
+
+**Results file** `.claude/scratch/f205/results-f213-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run213.mjs`, scorer `score213.mjs`. Proofs before the real run: dry mode (a fake HTTP layer), a refused tag, an empty key, and a FAIL demo.
+
+**Limits.** One account, one burst; Search results are as DeepSeek serves them with no locale set; Fetch is subject to site policy (403/404 are possible); chars are Markdown chars, not snapshot chars, so F210 and F211 chars compare only roughly.
