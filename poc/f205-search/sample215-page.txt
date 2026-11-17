@@ -1,0 +1,13 @@
+url: https://site.example.com/refurbished-laptops
+- main [ref=1]
+  - heading "Refurbished laptops under 600 euro" [level=1] [ref=2]
+  - listitem [ref=3]
+    - StaticText "Lenovo ThinkPad T14, Refurbished, 16GB. Price: €549.00 with warranty" [ref=4]
+  - listitem [ref=5]
+    - StaticText "Dell Latitude 5420, Refurbished, 8GB. Price: €429.00 with warranty" [ref=6]
+  - listitem [ref=7]
+    - StaticText "Apple MacBook Pro, Refurbished, 16GB. Price: €1.299,00 with warranty" [ref=8]
+  - listitem [ref=9]
+    - StaticText "US import, Refurbished. Price: $399.00 shipping extra" [ref=10]
+  - paragraph [ref=11]
+    - StaticText "All prices include VAT. Check the shop for the latest price and the condition grade before you buy any refurbished laptop." [ref=12]
