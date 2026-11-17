@@ -8368,3 +8368,32 @@ Run: hamr ran `run211.mjs --tag p1` (paid, deepseek-flash, arm C read on barebro
 **Reading, facts only.** fwd's page rules assume one line is one result with its label written once (a list page). In read-mode article and forum text, several prices sit in one line, so the label word (`$`, `for`) repeats and `n2` drops it; the prices are on the page but the line-per-result rules drop the tie. Both hosts' pages returned prices in text; no price row resulted.
 
 **Spend so far on the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607): $0.17510 of hamr's $1. (The coordinator's figure of $0.17532 differs by $0.00022; this sum is from the three recorded totals.)
+
+## F212 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; shop-site search pages read from this machine; written before the harness and before any read, NOT yet run)
+
+**Direction (hamr, 2026-11-17).** For shopping jobs, search ON the shop sites themselves, through each site's own search page, which is a list page. The AI will later suggest the sites and the person agrees. This POC checks only the riskiest part: do those search pages read, from this machine (a Dutch IP), as lists of products with `$` prices? Same branch `poc/f205-search`; `src/` untouched.
+
+**Sites (fixed list); query `lenovo refurbished laptop`, URL-encoded by code (`encodeURIComponent`):**
+1. ebay `https://www.ebay.com/sch/i.html?_nkw=<q>`
+2. backmarket `https://www.backmarket.com/en-us/search?q=<q>`
+3. bestbuy `https://www.bestbuy.com/site/searchpage.jsp?st=<q>`
+4. newegg `https://www.newegg.com/p/pl?d=<q>`
+5. amazon `https://www.amazon.com/s?k=<q>`
+6. walmart `https://www.walmart.com/search?q=<q>`
+
+**Arms** (each URL read once per arm, A then C, 5 s apart, one browser at a time, a fresh connect per read):
+- **A (scored):** the real `fetchPageText` (act, installed barebrowse 0.26.0), unchanged.
+- **C (reported only):** `snapshot({ mode: 'read' })` on barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`, through F210's marked copy (`readC` in run210.mjs).
+
+**Recorded per read:** ok, the error words, chars, and by code: usd lines `/\$\s?\d/`; eur lines `/€\s?\d|\d\s?€/`; product lines = lines matching `/lenovo/i` that also match `/\$\s?\d/`. The landing URL is read from the `url:` header line that barebrowse itself writes at the top of a snapshot (the page's current URL; `fetchPageText` returns the text, not goto's result); also recorded: whether the landing host differs from the asked host (for example a redirect to a .nl site). Texts saved to `.claude/scratch/f205/f212-pages/<tag>-<arm>-<site>.txt` (gitignored).
+
+**Bars (fixed now, never refit; arm A only).**
+- **Site PASS:** reads ok, at least 5 product lines, and usd lines greater than eur lines.
+- **Verdict GO:** at least 3 of the 6 sites pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** C's numbers per site; up to 2 quoted product lines per passing site.
+
+**Results file** `.claude/scratch/f205/results-f212-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run212.mjs`, scorer `score212.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one burst of 12 reads; shop sites may serve a bot challenge or a geo page; a "product line" is a line with the word lenovo and a dollar amount, not a judgement that it is a refurbished laptop or a result row.
