@@ -8555,3 +8555,40 @@ Others in this group: "$799 (base); $999 (16GB)", "less than $1,000 (entry-level
 **Reading, facts only.** Every quote the model gave was found on the page. Code's rejects were mostly correct ones: prices over the job's limit, or euros. The model also wrote prices that are not copies of the quote (14 `price-not-in-quote`). The FAIL comes from too few distinct hosts with an item under the limit (q1: only a "just under $400" sentence, one host in one sample; q3: one outlet item under $500 on one host; gagadget.com gave 0 rows both samples), not from false rows passing.
 
 **Spend so far across the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607, F213 $0.01350, F214 $0.12978), summed from the recorded totals: **$0.31838** of hamr's $1.
+
+## F215 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15; "feeling lucky" for a refurbished laptop under 600 EUR in the EU/NL; free search plus the real fwd page path, no DeepSeek Search or Fetch (hamr ruled paid search and fetch services out); written before the harness and before any request, NOT yet run)
+
+**Question (hamr, 2026-11-17, "one last poc before pass, i am feeling lucky if you can find one qualifying page for all checks").** Can the path find ONE page, within the first 5 organic Google links for `refurbished laptop under 600 euro` (searched as the EU/NL), that qualifies by code on every check: it reads ok, it has a price row under 600 EUR, and a kept fact for `refurbished`? Same branch `poc/f205-search`; I make no paid call and use no key; hamr runs the batch. `src/` untouched.
+
+**Path.**
+- **Search:** Google through barebrowse as F206: the search page read with the marked `links: true` copy (`fetchSearchPage`), URL `https://www.google.com/search?q=refurbished%20laptop%20under%20600%20euro&hl=en&gl=nl`; the organic links are the `/goto` hrefs (`extractGotoLinks`), in order. A link's landing URL is resolved by `goto` only (`readC(href, 'landing')`, F210/F211, barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`); landing pages are deduped by canonical URL (scheme + host + path) and a landing on google.* does not count.
+- **Page read:** each landing page is read with the REAL `fetchPageText` (act, barebrowse 0.26.0, with the bot-challenge fix a6a40287).
+- **Page look:** the REAL page look, as F207/F208: `lookAtPage` (`mapPrompt`, `parseMapAnswer`, the drafter's keep-or-drop rules, `dryReadMoney`, `dryReadPhrases`) with the drafter's call body copied (`Loop`, `onLlmResult`, `maxTokens` 16000, thinking attempt 1 off / attempt 2 on), provider `makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', ...LIVE_PROVIDER_OPTIONS })`, every round metered.
+
+**Job** (real `parseSignedText` and `hideCounts`, in fwd's signed form, label `laptops`):
+```
+1. find a refurbished laptop under €600,
+   guardrail: under €600; refurbished
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter: cap $0.25 per run; send at line 3 to file:poc/m0/out; source laptops = page:<the search url>
+```
+**Checked first, $0 (scratch script):** the real parser keeps `under €600; refurbished` as the guardrail of line 1, `hideCounts` passes it on, and `mapPrompt` shows the look `~ rule 1: under €600` and `~ rule 2: refurbished`; the signed-text parser and the money code (src/citedcheck.js `CURRENCY_SIGNS` = `$ € £`; src/pagerules.js reads `[$€£]` before an amount) take `€`. No STOP needed.
+
+**How fwd's money reader handles €** (measured on 5 strings with `moneyResultLines`, src/pagedry.js, the reader F207 used): a sign `€` right before the number is read (`Price: €549.00` gives 549.00; `Price €549` gives 549); a `€` AFTER the number is not read as a sign; and it treats `,` as a thousands mark and `.` as the decimal point only: `Price: € 549,00` gives the value **54900**, `Prijs: €1.299,00` gives **1.299**, and `Price: 549,00 €` gives 54900. So a Dutch-format amount can be read as far too big (not a row) or, with dot-thousands, as far too small (a false row). POC guard, stated now: a price row is counted ONLY if the amount's text on the page is not of the form `d.ddd` (a dot then exactly 3 digits, with or without `,dd` after it); such a row is recorded as `suspect-format` and never qualifies. No other reading rule is added; a page whose prices are written `549,00` is simply not read (value 54900, over 600), which is a fact about fwd's reader, reported.
+
+**Feeling lucky, per sample.** Search, then open the landing pages in link order and stop at the FIRST qualifying page, or after 5 distinct landing pages. A page qualifies when it reads ok (`fetchPageText` not refused) and BOTH hold, by code:
+- (a) at least 1 price row: a kept money fact tied (`forRule`) to rule 1 (`under €600`), every word verbatim on the page (squashed), and a code-read amount (the reader above) in EUR under 600: the sign right after the label is `€`, or no sign and the fact's `currency` list holds `€`; a `$` or `£` sign is other-currency, never a row; a non-`d.ddd` amount text (guard above);
+- (b) a kept fact tied (`forRule`) to rule 2 (`refurbished`), every word verbatim on the page.
+
+**Samples.** 5, each re-running the search, 20 s apart; 5 s between page reads.
+
+**Bars (fixed now, never refit).** Sample PASS: a qualifying page is found within the first 5 links. Verdict PASS: at least 4 of the 5 samples pass. A FAIL on the letter stays FAIL.
+
+**Also reported:** per sample which link number qualified (the "luck depth") and the host; for each page that did not qualify, why (refused with its words, no price row, no refurbished fact, the look's dropped reasons); cost per look and in total; whether the same page wins across samples.
+
+**Cost.** HARD CAP $0.15; no look starts once spent is $0.13 or more; an unpriced round stops the batch; an empty key refuses at $0. Projection: F208's measured rate is 2.40e-7 $ per page char for a look; act pages ran 7.5k to 19k chars ($0.002 to $0.005 each). Five links in each of 5 samples would be at most 25 looks, about $0.09 at 15k chars each; the first-qualifying-page stop makes it less. A run of large pages (30k chars average) would reach the $0.13 stop, and the batch would then end early and be reported as it stands.
+
+**Files.** Every page text saved to `.claude/scratch/f205/f215-pages/`; results `.claude/scratch/f205/results-f215-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run215.mjs`, scorer `score215.mjs`. Proofs before the paid run: dry mode, a refused tag, an empty key, a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one burst; Google as served with `gl=nl`; the guard above is mine and is stated before the run; "refurbished" is judged only by the look's kept fact with words on the page, not by what the page sells.
