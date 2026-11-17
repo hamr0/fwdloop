@@ -8016,3 +8016,11 @@ A FAIL on the letter stays FAIL.
 **Limits.** One machine, one IP, one burst: a search engine may treat a burst as a bot. Snippets on the results page are not measured. Whether the top 5 are the "right" pages is not measured.
 
 **Format probe (not a counted result).** One real request (google, query 1, no opening) was allowed only to learn the snapshot's link format so `extractResultLinks` can be written. It is saved under `.claude/scratch/f205/` and is not in any results file.
+
+### F205 FORMAT PROBE (2026-11-17, $0; one real request, NOT a counted result, not in any results file)
+
+One `fetchPageText` request: google, query 1, no opening. Sample saved as `.claude/scratch/f205/probe-google-q1.json` (`{ok, text, url}`). Read ok (20,571 chars, no bot challenge on this one request). Format seen in the `mode: 'act'` text:
+- `SNAPSHOT_OPTIONS` is `{ mode: 'act' }` with no `links: true`; barebrowse prints a link's href as ` <url>` only when `links: true` (src/links.js, src/aria.js). The probe text has 0 such `<http...>` href markers.
+- A result link line is `- link "<title> <site name> <displayed URL>" [ref=N]` with the displayed (cite) URL inside the accessible name, e.g. `https://www.united.com`, `https://www.cheaptickets.nl/vliegtickets`, `https://www.klm.nl › netherlands › chicago`, `https://www.skyscanner.net › routes › bos › chia › bost...`. Paths appear as `›` breadcrumbs and are truncated with `...`; a following `StaticText "https://host"` often repeats the host only. The page language was Dutch (consent/locale not set).
+- So the real href of a result is NOT in the snapshot. Only the displayed host (sometimes a truncated path) is. A code step cannot open the exact result page from this text; it could only open a host or truncated path.
+Harness not finished: stopped here for hamr's ruling (see report).
