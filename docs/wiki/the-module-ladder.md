@@ -4053,3 +4053,5 @@ Peer state (2026-11-13):
 > Why: F205 (Google reads without a robot check; its links hide behind redirects; Bing guesses the region) and F206 GO (Google with redirects followed: 25 of 25 landed on the real site, 23 read). hamr 2026-11-17: the AI captures the search words from the job and the person confirms them; it may open any page, since it's just research; the result is flight, price, link; a run with no row is red; the search region is pinned to the US.
 
 **Parked by hamr 2026-11-17 ("park m18").** Not built. Why: F205-F212 (docs/logs/FINDINGS.md); PRD "Parked, not scheduled". The signed text above stays as signed.
+
+**Withdrawn by hamr 2026-11-17.** Not built. Why: F205-F215 (docs/logs/FINDINGS.md): search adds guessing in front of a product that proves small repeatable jobs; the person brings the link. The signed text above stays as signed.
