@@ -8343,3 +8343,7 @@ Run: `node poc/f205-search/run210.mjs --tag r1` ($0; barebrowse 0.28.0 from `.cl
 - Both are over the $0.13 stop, and over the $0.15 cap at the average rate. With the stop at $0.13 the batch would end after about 4 samples (about 4 x $0.0325 = $0.130), so 5 samples cannot be run to the end under the stated rules. Read mode pages are 3x to 5x the size of act pages (F208: 7.5k to 19k).
 
 **Status.** Per hamr's instruction (projection over $0.13: stop and report before building, do not shrink the samples), the harness is NOT built. Options for hamr to rule, not chosen here: (a) raise the stop and cap (about $0.17 for 5 samples at the average rate, $0.20 with margin); (b) keep the cap and score fewer samples (the bar says 3 of 5, so a 4-sample run could not reach the pre-registered 5); (c) a size limit on the page text given to the look (a change to the real path, so a different POC).
+
+### F211 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
+
+Reason: the cost projection above ($0.162 for 5 samples at the measured average rate, over the $0.13 stop). hamr approved up to $1 for the search POCs and took option (a). Changed: the HARD CAP from $0.15 to **$0.25** and the stop (no look starts once spent is this or more) from $0.13 to **$0.22**. Everything else, including the bars (sample PASS: at least 2 distinct landing hosts each with at least 1 price row; verdict PASS: at least 3 of 5 samples), is UNCHANGED. The harness is built after this commit (`poc/f205-search/run211.mjs`, `score211.mjs`).
