@@ -8105,3 +8105,34 @@ Run: `node poc/f205-search/run206.mjs --tag b1`; scored with `node poc/f205-sear
 - Flight results are airline and deal pages; whether they hold fare lists is not measured.
 - The `/goto` hrefs carry a `gsessionid=` parameter on some links; whether a token works outside the page that produced it is untested.
 - Cleanup: no `/tmp/barebrowse-*` dirs left.
+
+## F207 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.50 (hamr approved); M18 path; written before the harness and before any request, NOT yet run)
+
+**Question.** On M18's signed path (docs/wiki/the-module-ladder.md "M18", signed 2026-11-17): Google once (`hl=en&gl=us`), the top 5 organic `/goto` links, each opened once, deduped by landing URL, pages read by the page reader; do the landing pages carry flight prices that fwd's REAL page look can tie to the rule `~ under $450`, quoted in the page's own words?
+
+**Real path.** The look is `lookAtPage` (src/pagelook.js), unchanged: the same `mapPrompt` and `MAP_SYSTEM` (src/pagemap.js), the same `parseMapAnswer`, `applyPageWords` rules, `dryReadMoney` and `dryReadPhrases` that keep or drop facts. The call is the drafter's `makeCallModel` body copied (src/drafter.js ~line 606): `new Loop({ provider, rates, onLlmResult })`, `loop.run([{system: MAP_SYSTEM}, {user: content}], [], { maxTokens: DRAFT_MAX_TOKENS (16000), thinkingMode: attempt 1 off ("draftThinking" default), attempt 2 on })`; a cut-off (`max_tokens`) answer is unreadable. The provider is `makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', ...LIVE_PROVIDER_OPTIONS })` (row and prices from `~/.config/fwdloop/config.json`; timeout 300 s, deadline 240 s). Every round is metered through `onLlmResult`. The job is built by the real parser `parseSignedText`:
+```
+1. find flights from Boston to Chicago,
+   guardrail: under $450
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter guardrails: ... guardrail: source flights = page:<the search url>
+```
+and the look is given the lines as the drafter gives them (`hideCounts` over `{n, text, rule}`), label `flights`. The page text is the page reader's snapshot (the copy `fetchPageOpen` of `fetchPageText`'s body; its only difference is that it also returns the landing URL, F206). Nothing in `src/` is changed.
+
+**Samples.** 5. Each: a fresh Google search `flights Boston to Chicago` (copy with `links: true`, F205), 20 s between samples; the first 5 distinct `/goto` links, each opened once 5 s apart; a link whose landing is google.* does not count; pages with the same landing URL count once (first kept); one look per page that read ok.
+
+**Price row (code, per kept look fact).** The fact is `shape: money`, `forRule` = 1 (the `under $450` rule), and every word in it appears verbatim in the page text (squashed). The amount is read by fwd's own reader `moneyResultLines(text, fact)` (src/pagedry.js; the reader the run's checker uses): each page line where a kept label is followed by a number gives one value. The currency is the sign written right after the label on that line: `$` = USD; `€` or `£` = `other-currency` (counted separately, never a price row); no sign = USD only if the fact's `currency` list has `$` / `USD`, else `unsigned` (not a row). A USD value under 450 is a price row; a USD value of 450 or more is counted as `over` and is not a row.
+
+**Bars (fixed now, never refit).**
+- **Sample PASS:** at least 2 distinct landing hosts (a leading `www.` ignored) each give at least 1 price row.
+- **Verdict PASS:** at least 3 of the 5 samples pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** per host per sample: price rows, other-currency rows, over rows, unsigned rows, and whether the page read ok; the cost per look, total cost, seconds.
+
+**Cost.** HARD CAP $0.50 (hamr). No look starts once spent is $0.45 or more (one look can overshoot; the ceiling hold of one look is reported). An unpriced round (no `costUsd`) stops the batch and is never priced as 0. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is read from the environment by `makeProvider`, never printed. The run is started by hamr.
+
+**Results file.** `.claude/scratch/f205/results-f207-<tag>.jsonl`: one row per look (the raw answer of each attempt, the parsed facts, the kept facts, dropped, price rows, other-currency rows, cost, tokens, seconds), plus search and page rows; a repeated tag is refused. Harness `poc/f205-search/run207.mjs`, scorer `score207.mjs`.
+
+**Limits.** One machine, one Dutch IP, one burst; the landing pages differ each sample; whether a price is for the Boston-to-Chicago route is not judged (the rule is only `under $450`); a page that holds no fares is a correct "no row".
