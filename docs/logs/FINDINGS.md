@@ -7986,3 +7986,33 @@ Run: tag paid1, 90 calls, spent $0.03351, not capped, 0 calls priced at the ceil
 **Ruling (hamr, 2026-11-16).** Build it despite the FAIL ("users can change intent with revise, it's fail safe and 6 out of 60 is small"). The AI's pick shows on the card for the person to drop, and Revise changes it. This is a ruling to build, not a PASS.
 
 **Known limit (carry into the release CHANGELOG "Known limits").** On a job whose last line writes new content (e.g. "Write a short closing note"), the AI can take it for the final write in about 2 of 5 drafts. It shows on the card as the AI's pick, and the person drops it or revises.
+
+## F205 PRE-REGISTRATION (2026-11-17, $0, no AI; page search go/no-go; written before any real run, NOT yet run)
+
+**Question (hamr, 2026-11-17).** A future "Search" job: the AI suggests search words from the job, the person confirms them, then the job searches a search engine through barebrowse, opens the top 5 result pages read-only, and keeps what matches the job's rules. Can fwd's REAL page-read path (1) read a search engine's results page without a bot challenge, and (2) read the top-5 result pages? No AI call, no key, no `pass`; `src/` is untouched.
+
+**Method.** Code in `poc/f205-search/` (`run.mjs`, `score.mjs`). Every page is read with `fetchPageText(url)` from `src/pagefetch.js` (barebrowse 0.26.0 `connect` -> goto -> waitForNetworkIdle -> snapshot, `mode: 'act'`); its `ok` and `error` are recorded as-is (it already refuses `[BOT CHALLENGE DETECTED]`, HTTP errors and chrome-only pages). The result links come out of the results-page TEXT through `extractResultLinks(engine, text)` in `run.mjs`, the way a future code step would get them: the first 5 organic result URLs, http(s), not the engine's own host or its ad/redirect hosts; an engine redirect link is unwrapped only if the text actually shows one. If the snapshot carries no URLs at all, the POC stops and that is the finding.
+
+**Arms (3 engines x 5 queries = 15 searches).** Search URLs are built by code from the words:
+- google `https://www.google.com/search?q=`
+- duckduckgo `https://html.duckduckgo.com/html/?q=`
+- bing `https://www.bing.com/search?q=`
+
+Queries: (1) `flights Boston to Chicago` (2) `cheap flights Madrid to Rome` (3) `best budget laptop 2026` (4) `python read csv file` (5) `weather Lisbon this week`.
+
+**Order.** Query-major (q1 google, q1 duckduckgo, q1 bing, q2 google, ...), 20 s between search requests. Then, for each results page that read ok, its top-5 links are opened through `fetchPageText`, one at a time, 5 s apart. Never two browsers at once.
+
+**Recorded per request** (one JSONL row): engine, query, url, ok, error, chars, links found (list), ms. Search rows and opened-page rows are told apart by a `kind` field (`search` / `open`); opened rows also name the search they came from (`from`).
+
+**Results file.** `.claude/scratch/f205/results-<tag>.jsonl`. A tag that already has results is refused, never overwritten (`wx` write).
+
+**Bars (fixed now, never refit).**
+1. **Bar 1, per engine:** PASS when at least 4 of its 5 searches read ok AND `extractResultLinks` yields at least 5 links on each of those.
+2. **Bar 2, per engine that passed Bar 1:** PASS when at least 60% of its opened result pages read ok (`fetchPageText` ok). Report the failures per host with their error words.
+3. **Verdict:** GO when at least one engine passes both bars. NO-GO otherwise.
+
+A FAIL on the letter stays FAIL.
+
+**Limits.** One machine, one IP, one burst: a search engine may treat a burst as a bot. Snippets on the results page are not measured. Whether the top 5 are the "right" pages is not measured.
+
+**Format probe (not a counted result).** One real request (google, query 1, no opening) was allowed only to learn the snapshot's link format so `extractResultLinks` can be written. It is saved under `.claude/scratch/f205/` and is not in any results file.
