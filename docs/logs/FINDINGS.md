@@ -8211,3 +8211,34 @@ Run: hamr ran `run208.mjs --tag p1` (paid, deepseek-flash); scored with `node po
 - So a price is a poor bar for research pages. How much of an article survives the read, and whether the laptop names and specs survive, is not measured here.
 
 **Possible next arm ($0, unsigned, not run):** read the same landing URLs with barebrowse's reading mode (find what barebrowse offers, for example `readable`) versus `act`; measure the chars kept and whether the laptop names, specs and prices appear.
+
+## F209 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; barebrowse article reading vs act; written before the harness and before any read, NOT yet run)
+
+**Question.** Does barebrowse's article reading keep the article text that `mode: 'act'` prunes (F208: pcworld 84% pruned, reddit about 90%, cnn 79%)? Same branch `poc/f205-search`; `src/` untouched.
+
+**What barebrowse 0.26.0 offers** (read first: node_modules/barebrowse/src/index.js, readable.js, prune.js). Two ways to read an article:
+1. `page.readable()`: Mozilla Readability (Firefox Reader View engine) run inside the live page; returns `{ ok, title, byline, text, confidence, hint }`, or `{ ok: false, hint }` on a non-article page. This is **arm B**, the exact call. The text is the result's `text` (the title is kept apart, so B's chars are `title + text`).
+2. `page.snapshot({ mode: 'read' })`: the same ARIA snapshot with the 'read' (browse) prune, which keeps paragraphs and long text; the act-mode hint itself suggests it. This is **arm C**, recorded and reported only, never scored.
+
+**Pages (8, fixed, taken from the saved result files, never re-searched; each read once per arm):**
+- from F208 p1: `https://www.pcworld.com/article/436674/best-pc-laptops.html`; `https://www.reddit.com/r/LaptopForStudent/comments/1te3pqh/best_budget_laptop_for_students_in_2026_honest/`; `https://www.tomshardware.com/laptops/best-laptops`; `https://edition.cnn.com/cnn-underscored/reviews/best-budget-laptops` (the page that read ok in sample 1)
+- from F206 b1: `https://realpython.com/python-csv/`; `https://docs.python.org/3/library/csv.html`; `https://www.accuweather.com/en/pt/lisbon/274087/weather-forecast/274087`; `https://weather.com/pt/lisbon/city/lisbon/tenday`
+
+**Arms** (each page: A, then B, then C, 5 s apart, one browser at a time; a fresh connect per read):
+- **A:** the real `fetchPageText` (`mode: 'act'`), unchanged.
+- **B:** a marked copy of `fetchPageText`'s body (same `CONNECT_OPTIONS`, goto with status check, `waitForNetworkIdle`, the bot-challenge floor) with `page.readable()` in place of the snapshot. B's `ok` is `readable().ok` and the page is not left empty: the size floors of `fetchPageText` are NOT applied to B (so a short result is measured, not hidden).
+- **C:** the same copy with `snapshot({ mode: 'read' })`.
+
+**Recorded per read:** page, arm, ok, error, chars, and by code: (i) brand lines = lines matching `/\b(Acer|Asus|Dell|HP|Lenovo|Apple|MacBook|Microsoft|Surface|Samsung|Razer|MSI)\b/`; (ii) spec lines = `/\b\d+\s?GB\b/i`; (iii) dollar lines = `/\$\d/`. Each text saved to `.claude/scratch/f205/f209-pages/<tag>-<arm>-<n>.txt` (gitignored).
+
+**Bars (fixed now, never refit).**
+- **Bar 1:** on at least 6 of the 8 pages, B reads ok AND keeps at least 2x A's chars.
+- **Bar 2:** on pcworld AND tomshardware, B's brand lines are at least 2x A's AND B's spec lines are at least 2x A's.
+- **Verdict:** GO when both bars pass.
+A FAIL on the letter stays FAIL (a page where A has 0 brand lines needs B at least 1; "2x of 0" is read as B > A).
+
+**Reported, not scored:** dollar lines per arm per page; whether pcworld's B text holds any `$` amount near a laptop name (up to 3 lines quoted); arm C's numbers.
+
+**Results file** `.claude/scratch/f205/results-f209-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run209.mjs`, scorer `score209.mjs`. Dry mode (fake connect) and a FAIL demo before the real run `--tag r1`.
+
+**Limits.** One machine, one Dutch IP, one moment; pages change; counts of lines are not a judgement of whether the text is the right article text.
