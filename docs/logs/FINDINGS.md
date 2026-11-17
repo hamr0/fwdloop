@@ -8039,3 +8039,20 @@ Reason: the format probe above found no hrefs in the snapshot without `links: tr
 Harness `poc/f205-search/run.mjs --tag probe2 --max-searches 1 --no-open` (search page read by the links:true copy). Read ok, 42,560 chars; `extractResultLinks` returned **0** links. Snapshot saved (gitignored) as `.claude/scratch/f205/probe2-google-q1.json`. With `links: true` the ` <url>` markers are present, but Google's organic result hrefs are opaque redirects of the form `https://www.google.com/goto?url=CAES...` (a token, not the destination URL; no `/url?q=` seen), ads are `https://www.google.com/aclk?...`, and flight-widget links are `https://www.google.com/travel/clk/g?w=...`. The destination host appears only as displayed text in the link name (e.g. `... United Airlines https://www.united.com`). Nothing in the text can be unwrapped to the real page, so the extractor (engine hosts dropped, redirects unwrapped only if shown) yields none. Opening a `/goto` link would be a workaround (let Google redirect it) and was not done. DuckDuckGo and Bing were not probed (one probe allowed). Unmeasured: whether those two engines show real hrefs.
 
 Dry proofs (no network, fake `connect`, synthetic sample `poc/f205-search/sample-snapshot.txt`): `--dry` write + score; a repeated tag is refused (exit 2); `--dry-break` (every opened page 404) makes the scorer print Bar 2 FAIL.
+
+### F205 RESULT (2026-11-17, tag b1)
+
+Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/score.mjs b1` from `.claude/scratch/f205/results-b1.jsonl` (gitignored). 15 search rows, 20 open rows.
+
+**VERDICT: NO-GO on the letter, not refit.** No engine passed Bar 1 (google FAIL, duckduckgo FAIL, bing FAIL), so Bar 2 was scored for none.
+
+- **Google:** 5/5 searches read ok (28,697 to 51,053 chars), no bot challenge, 0 links on every search. Its organic hrefs are `google.com/goto?url=` tokens (probe 2), which the extractor cannot unwrap. Bar 1 FAIL.
+- **DuckDuckGo (html):** 5/5 read ok, but only 982 to 992 chars each and 0 links on every search. This is likely not a results page. The text was not saved, so the cause is unchecked. Bar 1 FAIL.
+- **Bing:** 5/5 read ok. Links per search, in query order: 3, 2, 5, 5, 5. Bar 1 needs at least 5 on each ok search; 3 of 5 had 5 links, so FAIL (3 of 5).
+  - On the two flights queries the links were few: query 1 gave 3 (2 of them `google.com/travel/flights/...`, 1 skyscanner); query 2 gave 2 (both skyscanner).
+  - Opened pages: 20/20 read ok (the 4 searches with links x up to 5, i.e. 3+2+5+5+5 = 20). Recorded, not scored, because Bar 1 failed.
+  - Result quality, facts only: "best budget laptop 2026" returned pages about Best, a Dutch town (nl.wikipedia.org/wiki/Best, gemeentebest.nl, ons-best.nl, beleefbest.nl). "weather Lisbon this week" returned Staphorst (NL) weather (accuweather, weather.com, meteoblue, buienradar). `setlang=en` set the language but not the region; the machine's IP looks Dutch.
+- **Timing:** search reads took 3.0 to 6.6 s (duckduckgo, google) and 22 to 27 s (bing).
+- **Cleanup:** the harness left no browser processes and no `/tmp/barebrowse-*` dirs (the barebrowse processes still running are hours-old MCP servers, not this run).
+
+**Possible next arms, unsigned and not run:** (a) Google, following its own `/goto` redirect once to reach the result page. (b) Bing with a pinned region (`mkt=en-US` / `cc=US`). (c) A saved DuckDuckGo page text, to see what it served.
