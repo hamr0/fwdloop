@@ -8592,3 +8592,24 @@ Arbiter: cap $0.25 per run; send at line 3 to file:poc/m0/out; source laptops = 
 **Files.** Every page text saved to `.claude/scratch/f205/f215-pages/`; results `.claude/scratch/f205/results-f215-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run215.mjs`, scorer `score215.mjs`. Proofs before the paid run: dry mode, a refused tag, an empty key, a FAIL demo.
 
 **Limits.** One machine, one Dutch IP, one burst; Google as served with `gl=nl`; the guard above is mine and is stated before the run; "refurbished" is judged only by the look's kept fact with words on the page, not by what the page sells.
+
+### F215 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run215.mjs --tag p1` (paid, deepseek-flash, free search plus the real page path); scored with `node poc/f205-search/score215.mjs p1` from `.claude/scratch/f205/results-f215-p1.jsonl`; page texts in `.claude/scratch/f205/f215-pages/` (gitignored). 5 searches ok (10 organic links each), 25 pages opened (5 per sample, all read ok by `fetchPageText`), 25 looks, $0.10131 ($0.00405 per look), 45 look seconds. Not stopped.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar 4 of 5). No page qualified in any sample (0 of 25); no winning page. Not refit.
+
+**What the top 5 were.** Mostly price-comparison and feed pages: bigshopper.nl (5 looks, 7.5k chars), kelkoo.nl (5, 43k chars), shopping.channable.com (5, 2.9k), theecodealz.com (5, 7.9k to 8.4k), remarkt.nl (2, 37k), shopping.producthero.com (2, 3.3k), it.adstrong.eu (1, 841 chars). The same hosts came up in the same order across samples; the list per sample was 4 to 5 distinct hosts.
+
+**Why no page qualified** (counted from the file):
+- **No price row on any page:** 0 price rows, 0 over-limit, 0 other-currency, 0 `suspect-format`, 0 unsigned across all 25 looks.
+- **Refurbished fact (rule 2) kept on 7 of 25 pages:** theecodealz.com 4 of 5, remarkt.nl 2 of 2, kelkoo.nl 1 of 5; none on bigshopper.nl, shopping.channable.com, shopping.producthero.com, it.adstrong.eu.
+- **remarkt.nl** (a refurbished-laptop shop; looks in samples 3 and 5): a refurbished fact on both, no price row. Dropped reasons: sample 3 `no-value` "Incl. BTW" and `reads-no-result`; sample 5 `n2` "€" and `no-label`.
+- **theecodealz.com** (5 looks): `n2` "€" on 5 of 5, `no-label` on 5 of 5, `no-value` "Price" on 1; a refurbished fact on 4 of 5.
+- **kelkoo.nl:** `reads-no-result` on 4 of 5 looks, `r1` "From" (1), `r1` "Min. prijs:" (1), `not-on-page` "laptop" (1).
+- **bigshopper.nl:** `no-label` on 6 drops, `not-on-page` "EUR" (2), "€" (2), "refurbished" (2), an empty word (2), `r1l` (1).
+- **shopping.channable.com, shopping.producthero.com, it.adstrong.eu:** no dropped reasons recorded; the looks kept no money or refurbished fact.
+
+**The money-reader facts, found at $0 by reading the code and measured on five strings before the run (see the pre-registration):** fwd's `moneyResultLines` reads a `€` sign before the number, treats a comma as a thousands mark and a dot as the decimal point, so `€1.299,00` reads as 1.299 and `€ 549,00` as 54900. None was seen as a row in this run: `suspect-format` count in the file is 0 (the guard never fired).
+
+**Reading, facts only.** The look made no price tie that survived the code checks on any of these pages; the euro sign repeats within a line on the pages where it got that far (`n2` "€"), as `$` did in F211. Page read was not the blocker here (25 of 25 read ok).
