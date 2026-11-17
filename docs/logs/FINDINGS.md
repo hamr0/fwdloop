@@ -8515,3 +8515,7 @@ Run: hamr ran `run213.mjs --tag p1` (paid, DeepSeek Search + Fetch, no barebrows
 - Two samples: **$0.141** for the model plus **$0.024** for the API calls = **about $0.165**, over the $0.10 stop and over the $0.12 cap. One sample alone (about $0.083) fits. The uk.pcmag.com page alone is 105,049 chars, about $0.025 per call.
 
 **Status.** Per the rule (projection over $0.10: stop and report before building), the harness is NOT built. Options for hamr to rule, none chosen here: (a) raise the stop and cap (about $0.20 stop and $0.25 cap for 2 samples at the floor rate); (b) one sample (about $0.083, fits; but the bar says 4 of 6 query-samples, so the pre-registered bar would be 2 of 3, a changed bar); (c) a page-size limit given to the model (changes the path: a different POC).
+
+### F214 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
+
+Reason: the cost projection above (about $0.165 for 2 samples, over the $0.10 stop and the $0.12 cap). hamr took option 1 (his $1 approval for the search POCs covers it; $0.19 spent so far on F207, F208, F211, F213). Changed: the stop (no model call starts once spent is this or more) from $0.10 to **$0.20**, and the HARD CAP from $0.12 to **$0.25**. Everything else, including the bars (query-sample PASS: at least 2 distinct hosts each with at least 1 `pass` row; verdict PASS: at least 4 of 6 query-samples) and the 2 samples, is UNCHANGED. The harness is built after this commit.
