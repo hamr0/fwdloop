@@ -156,7 +156,7 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
     ]);
     if (text && typeof text === 'object' && 'refused' in text) return { ok: false, error: String(text.refused) };
     if (typeof text !== 'string') return { ok: false, error: `${u.href} did not come back as text` };
-    if (/\[BOT CHALLENGE DETECTED\]/.test(text)) return { ok: false, error: `${u.href} asked for a human check (a bot challenge), so the page could not be read` };
+    if (/\[BOT CHALLENGE DETECTED[\] ]/.test(text)) return { ok: false, error: `${u.href} asked for a human check (a bot challenge), so the page could not be read` };
     const size = text.trim().length;
     if (size < MIN_PAGE_CHARS) return { ok: false, error: `${u.href} came back with ${size === 0 ? 'no text' : `only ${size} characters of text`} (less than ${MIN_PAGE_CHARS}) - the page did not load, or holds nothing to read` };
     if (pageContentChars(text) < MIN_CONTENT_CHARS) return { ok: false, error: `${u.href} came back with only the site's own header and menus - the page did not load its content, so there is nothing to read` };
