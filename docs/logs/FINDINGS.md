@@ -8519,3 +8519,39 @@ Run: hamr ran `run213.mjs --tag p1` (paid, DeepSeek Search + Fetch, no barebrows
 ### F214 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
 
 Reason: the cost projection above (about $0.165 for 2 samples, over the $0.10 stop and the $0.12 cap). hamr took option 1 (his $1 approval for the search POCs covers it; $0.19 spent so far on F207, F208, F211, F213). Changed: the stop (no model call starts once spent is this or more) from $0.10 to **$0.20**, and the HARD CAP from $0.12 to **$0.25**. Everything else, including the bars (query-sample PASS: at least 2 distinct hosts each with at least 1 `pass` row; verdict PASS: at least 4 of 6 query-samples) and the 2 samples, is UNCHANGED. The harness is built after this commit.
+
+### F214 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run214.mjs --tag p1` (paid; DeepSeek Search + Fetch, then one deepseek-flash call per page, the marked copy of `makeLiveModelStep`'s call); scored with `node poc/f205-search/score214.mjs p1` from `.claude/scratch/f205/results-f214-p1.jsonl`; page texts in `.claude/scratch/f205/f214-pages/` (gitignored). 2 samples x 3 queries: 6 Searches, 26 Fetches (all ok, none without a model call), 26 model calls. Total spent $0.12978 ($0.10578 model, $0.00407 per call, 50 model seconds; the rest Search and Fetch). Not stopped. After the canonical-URL dedupe, queries 1 and 2 kept all 5 URLs and query 3 kept 3 of 5 (the lenovo outlet variants merged).
+
+**VERDICT: FAIL on the letter, 2 of 6 query-samples (bar 4). Not refit.**
+
+**Passes per query-sample (hosts with at least 1 `pass` row; bar 2):**
+- q1 (laptop, limit $500): sample 1 had 1 host (pcmag.com), sample 2 had 0. FAIL, FAIL.
+- q2 (vacuum, limit $400): sample 1 had 2 hosts (zdnet.com, me.mashable.com); sample 2 had 3 (zdnet.com, me.mashable.com, mashable.com). PASS, PASS.
+- q3 (lenovo, limit $500): lenovo.com only, 1 pass row in each sample. FAIL, FAIL.
+
+**Rows: 73 claimed, 8 passed, 65 rejected by code (89%).** Reasons:
+- `over-limit` 48 (the prices written are real and above the job's limit; for example the lenovo outlet rows at $599.00 to $1,642.56);
+- `price-not-in-quote` 14;
+- `not-usd` 3;
+- `quote-not-on-page` **0** (no row was rejected for a quote that is not on the page);
+- `unreadable-price` 0.
+
+**No model call ended without `emit_artifact`** (0 of 26; one call, me.mashable.com in sample 1, used a second round).
+
+**Duplicates, from the file:**
+- The model listed the same name three times in one call: cnet.com sample 2, "HP OmniBook 5 14" with prices $1,100, $660 and $1,200 (all `over-limit`). No call listed the same name and price twice.
+- The same pass row came back in both samples, not twice in one call: zdnet.com "3i G10+ | $200" (sample 1 and sample 2), me.mashable.com "Roborock Q10 S5+ | $379.99" (both samples). The lenovo.com pass row is the same item written two ways, once per sample: "Refurbished IdeaPad (Part Number 82XBX00LR1) | $280.92" and "Refurbished laptop — Part Number 82XBX00LR1 (Intel N100, 15.6" FHD, 4GB, 128GB UFS) | $280.92"; the other 7 lenovo rows per sample are also the same items written two ways, all `over-limit`.
+
+**The misses are `price-not-in-quote` (14).** Three, with the quote the model gave:
+- cnet.com sample 1: price "$500 at Costco (on sale for $619 at Amazon)"; quote "The Aspire 14 AI is on sale for $619 at Amazon and only $500 at Costco, making it easily the cheapest Copilot Plus PC I've reviewed." (the price field is a rewrite, not a copy).
+- uk.pcmag.com sample 2: price "$699"; quote "Expect prices from $700 for the MacBook Neo to more than $5,000 for the most decked-out Pro." (no `$699` in the quote).
+- pcmag.com sample 2: price "just under $400 (seen below $300)"; quote "With a list price just under $400, we've seen it dip below $300 since our review." (the same sentence passed in sample 1, where the price was "just under $400").
+Others in this group: "$799 (base); $999 (16GB)", "less than $1,000 (entry-level; ...)", "no explicit price stated (matching the Neo's starting price)", "€299.00" (cdn.amazon.it), and mashable.com sample 1 "$399.99" with a quote that is a heading ("Best robot vacuum and mop combo under $400 (on sale) / ### Roborock Q10 S5+") that holds no price.
+
+**One pass row to note:** pcmag.com sample 1, "Acer Aspire 3 | just under $400", quote "With a list price just under $400, we've seen it dip below $300 since our review." The code read the amount as 400, under the $500 limit.
+
+**Reading, facts only.** Every quote the model gave was found on the page. Code's rejects were mostly correct ones: prices over the job's limit, or euros. The model also wrote prices that are not copies of the quote (14 `price-not-in-quote`). The FAIL comes from too few distinct hosts with an item under the limit (q1: only a "just under $400" sentence, one host in one sample; q3: one outlet item under $500 on one host; gagadget.com gave 0 rows both samples), not from false rows passing.
+
+**Spend so far across the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607, F213 $0.01350, F214 $0.12978), summed from the recorded totals: **$0.31838** of hamr's $1.
