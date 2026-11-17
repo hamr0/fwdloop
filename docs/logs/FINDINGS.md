@@ -8158,3 +8158,34 @@ Run: hamr ran `run207.mjs --tag p1` (paid, deepseek-flash); scored with `node po
 **Unchecked:** why the word `US$` is `not-on-page` when `US$254` is on the page. A word-edge rule is the likely place; the code was not read for it.
 
 **Reading, from the measurements above:** prices exist on landing pages, and the look made the tie to rule 1. Two blockers were measured: the region (euro prices on the Dutch IP, so `€` words and `reads-no-result`) and landings that are off-topic or hold no price (19 of the 25 pages were united.com pages, and 18 of those gave no money fact).
+
+## F208 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15 (hamr approved about $0.10); M18 path on a research job; written before the harness and before any request, NOT yet run)
+
+**Question.** Does M18's path work for a research job, not only flights? The same path as F207 (Google once with `hl=en&gl=us`, top 5 organic `/goto` links, each opened once, deduped by landing URL, read by the page reader, one REAL page look per page that read ok), with the same provider, the same real look (`lookAtPage`, `mapPrompt`, `parseMapAnswer`, the same keep-or-drop rules) and the same money reader (`moneyResultLines`, src/pagedry.js). Only the job and the search words change. No `pass`, no key, no paid call by me; hamr runs the batch. `src/` untouched. Same branch.
+
+**Job** (the real parser `parseSignedText`, then `hideCounts`, as F207 built it):
+```
+1. find the best budget laptops for 2026,
+   guardrail: under $700; at least 16GB RAM
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter: cap $0.25 per run; send at line 3 to file:poc/m0/out; source laptops = page:<search url>
+```
+The page input label is `laptops`. Search words: `best budget laptop 2026`; search URL `https://www.google.com/search?q=best%20budget%20laptop%202026&hl=en&gl=us`.
+
+**Samples.** 5, same timing as F207 (20 s between samples, 5 s between opens), first 5 distinct `/goto` links, a landing on google.* does not count, a repeated landing URL counts once, one look per page that read ok.
+
+**Price row** (same code as F207, limit 700). A kept look fact with `shape: money`, `forRule` 1 (`under $700`), every word verbatim in the page text; fwd's reader `moneyResultLines` gives each (quote, value); the sign right after the label gives the currency (`$` = USD; `€` / `£` = other-currency; no sign = USD only if the fact's `currency` list has `$`/`USD`, else unsigned). A USD value under 700 is a price row; 700 or more is `over`. Other-currency, over and unsigned are never rows.
+
+**Bars (fixed now, never refit).**
+- **Sample PASS:** at least 2 distinct landing hosts (leading `www.` ignored) each give at least 1 price row.
+- **Verdict PASS:** at least 3 of the 5 samples pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** per host per sample: price rows, other-currency, over, unsigned, page read ok; any fact tied to rule 2 (`at least 16GB RAM`): its shape, words, kept or dropped with the reason; all dropped reasons per host; cost per look, total, seconds. The text of every opened page is saved to `.claude/scratch/f205/f208-pages/<tag>-s<sample>-<n>.txt` (gitignored) so a drop can be checked against the page (F207 lacked this).
+
+**Cost.** HARD CAP $0.15. No look starts once spent is $0.13 or more. An unpriced round stops the batch, never priced as 0. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is never printed.
+
+**Results file.** `.claude/scratch/f205/results-f208-<tag>.jsonl`, same row shape as F207; a repeated tag is refused. Harness `poc/f205-search/run208.mjs` and `score208.mjs` (marked copies of run207 / score207: the job, the limit and the page saving are the differences).
+
+**Limits.** One machine, one Dutch IP (the region may still give euro prices, F207), one burst. Whether a priced laptop is a "best budget laptop" is not judged. A guardrail such as RAM has no price reader; whether the look ties it is only reported.
