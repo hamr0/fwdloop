@@ -8613,3 +8613,26 @@ Run: hamr ran `run215.mjs --tag p1` (paid, deepseek-flash, free search plus the 
 **The money-reader facts, found at $0 by reading the code and measured on five strings before the run (see the pre-registration):** fwd's `moneyResultLines` reads a `€` sign before the number, treats a comma as a thousands mark and a dot as the decimal point, so `€1.299,00` reads as 1.299 and `€ 549,00` as 54900. None was seen as a row in this run: `suspect-format` count in the file is 0 (the guard never fired).
 
 **Reading, facts only.** The look made no price tie that survived the code checks on any of these pages; the euro sign repeats within a line on the pages where it got that far (`n2` "€"), as `$` did in F211. Page read was not the blocker here (25 of 25 read ok).
+
+## F216 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; barebrowse anti-bot copy on the F212 shop sites; written before the harness and before any read, NOT yet run)
+
+**Question (hamr).** Does barebrowse's anti-bot copy flag the walmart "Press & Hold" challenge, clear it with `hold`, and avoid false flags? Same branch `poc/f205-search`; `src/` and the repo's `node_modules` untouched.
+
+**Library.** The pinned copy `/home/hamr/PycharmProjects/bb-antibot` (branch `fix/challenge-detect-hold` @ e447613), imported as `import { connect } from '/home/hamr/PycharmProjects/bb-antibot/src/index.js'`, not modified. Read first: its CHANGELOG [Unreleased] and README. What it says: `page.botBlocked` is recomputed on every `snapshot()` from the tree (so it clears after `hold()` or a click); detection now also looks at structure (an iframe named like a challenge or captcha as the content of a small page or in a dialog, and the "Robot or human?" heading as a phrase; Cloudflare `cf-mitigated: challenge` flags on both engines); Firefox `snapshot()` now writes the `[BOT CHALLENGE DETECTED ...]` line when blocked; `hold(ref, ms = 10000)` presses an element, waits and releases, on both engines (its notes: passed Walmart 3 of 3 on Chromium with 12 s). Engine: `connect({ engine: 'chromium' | 'firefox' })`; the mode default is `headless` and is set explicitly here, with `incognito: true` and `blockPrivateNetwork: true` as fwd's reads do.
+
+**Sites (F212 URLs plus one), query `lenovo refurbished laptop`:** ebay `https://www.ebay.com/sch/i.html?_nkw=<q>`; newegg `https://www.newegg.com/p/pl?d=<q>`; backmarket `https://www.backmarket.com/en-us/search?q=<q>`; bestbuy `https://www.bestbuy.com/site/searchpage.jsp?st=<q>`; amazon `https://www.amazon.com/s?k=<q>`; walmart `https://www.walmart.com/search?q=<q>`; duckduckgo `https://html.duckduckgo.com/html/?q=lenovo%20refurbished%20laptop`.
+
+**Reads.** Every site on BOTH engines (chromium, then firefox), 5 s apart, one browser at a time: connect, `goto` (30 s), wait for network idle (1.5 s quiet, 20 s cap), `snapshot({ mode: 'act' })`.
+
+**Recorded per read:** engine, `botBlocked` after goto and snapshot, HTTP status (from `goto`), chars, whether the marker text `BOT CHALLENGE DETECTED` appears, whether challenge words appear (`/robot or human|press (&|and) hold|captcha|BOT CHALLENGE|verify you are human|testchallengepage|human verification/i`), product lines (`/lenovo/i` with `/\$\s?\d/`, `/€\s?\d|\d\s?€|EUR\s?\d/`), the landing URL (goto's `url`). Each text saved to `.claude/scratch/f205/f216-pages/<tag>-<engine>-<site>.txt` (including the DuckDuckGo text). **Walmart only, per engine:** if `botBlocked` and the snapshot holds `button "Press & Hold Human Challenge" [ref=N]`, call `hold(N, 12000)`, wait 8 s, snapshot again; record `botBlocked` after, the URL, chars and product lines.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** the walmart challenge is flagged (`botBlocked` true) on every engine that shows it (its text carries the challenge words); at least one engine must show it.
+2. **Bar 2:** `hold` clears walmart (`botBlocked` false and at least 5 product lines after) on at least 1 engine.
+3. **Bar 3:** no false flag: amazon and duckduckgo are not flagged (on either engine) unless their text shows challenge words (recorded either way).
+4. **Verdict GO** when all three pass.
+Also reported: whether the ebay and newegg 403 pages are flagged.
+
+**Files.** `.claude/scratch/f205/results-f216-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run216.mjs`, scorer `score216.mjs`. Proofs before the real tag `r1`: dry mode with a fake page (including a FAIL demo).
+
+**Limits.** One machine, one Dutch IP, one burst; challenge pages vary by time and IP; a human-check iframe may not render in headless Firefox (the changelog says so).
