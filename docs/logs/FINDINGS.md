@@ -8083,3 +8083,9 @@ Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/
 **Limits.** One machine, one Dutch IP, one burst. Whether the landing page is the page the person would choose is not measured.
 
 **Format probe (not a counted result).** One real request is allowed: google q1, open only its first goto link, to prove the landing URL is captured.
+
+### F206 FORMAT PROBE (2026-11-17, $0; tag `probe1`; google q1, first goto link opened once; NOT a counted result)
+
+Harness built after the pre-registration (commit 3e161986): `poc/f205-search/run206.mjs`, `score206.mjs`, synthetic `sample206.txt`. Dry proofs (fake `connect`): `--dry` write + score (GO), a repeated tag refused (exit 2), `--dry-break` (every landing back on google.com) makes the scorer print Bar 2 FAIL (0%, NO-GO).
+
+Probe (`node poc/f205-search/run206.mjs --tag probe1 --max-searches 1 --max-opens 1`): search read ok (45,345 chars), 5 organic `/goto` links (the `/goto` href carries a `url=` token plus a `gsessionid=` parameter), excluded: aclk 3, travelClk 0, otherGoogle 33. The first goto link opened once: landing URL captured from `goto()`'s `{url}` = `https://www.united.com/en/de/deals/flights-to-chicago`, landed off Google, read ok, 8,912 chars, 9,857 ms. So the landing URL is typed data from the browser and one open of a `/goto` token reaches the real page, on this one request.
