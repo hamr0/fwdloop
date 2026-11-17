@@ -8266,3 +8266,31 @@ Run: `node poc/f205-search/run209.mjs --tag r1` ($0, 8 pages x 3 arms, all 24 re
 - `readable()` kept more than act on 1 page (pcworld, 2.1x), fewer on the other 7 (tomshardware 1,267 vs 18,899; weather.com 169 vs 8,565). On reddit B kept less text than A but more brand, spec and dollar lines (8/8/6 vs 0/0/0).
 - Arm C (`snapshot({mode:'read'})`) kept more chars than A on all 8 pages (2.0x on cnn, 4.5x on pcworld, 5.7x on reddit) and had at least as many brand, spec and dollar lines as A on every page, but it was never scored.
 - Cleanup: the harness leaves no processes of its own; two `/tmp/barebrowse-ff-*` dirs exist, named for pid 897002, an hours-old barebrowse MCP server and not this run, so they were left.
+
+## F210 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; fresh pages: act vs read (and zoom if barebrowse can pick) on barebrowse 0.28.0; written before the harness and before any page is read, NOT yet run)
+
+**Why.** F209's arm C (`snapshot({mode:'read'})`) looked strong (more chars than act on 8 of 8 pages, at least as many brand, spec and dollar lines on every page) but it was seen, not scored. F210 uses FRESH pages, with bars fixed before any of them is read. Same branch `poc/f205-search`; `src/` and the repo's `node_modules` untouched.
+
+**barebrowse 0.28.0** (npm, 2026-11-16) is installed ONLY into `.claude/scratch/f210/bb028/` (`npm install barebrowse@0.28.0 --prefix .claude/scratch/f210/bb028`, gitignored) and imported from there. Read first: its CHANGELOG and README "Map + zoom".
+- **Zoom calls:** `snapshot({ map: true })` returns an outline of the page's big boxes (ref + size); `snapshot({ within })` returns one box (or several) as if it were the whole page, where `within` is a ref from a previous map, a role (`'table'`, `'group'`), `role "name"`, or `role after "heading"`; two or more matches return the map and pick nothing; none throws.
+- **Does zoom need a pick? Yes.** barebrowse has no default or auto pick: `within` always takes a box named by the caller (a ref, a role, a name), and with two or more matches it refuses to pick (README: "never picks one"). Choosing a box (for example "the biggest one", or "the group") would be a rule fwd invents, not one barebrowse makes. So **arm Z is left out**; the reason is recorded here and in the result, and the POC goes on with A vs C.
+
+**Pages.** 3 fresh Google searches (`hl=en&gl=us`, the F206 path: `/goto` followed once to learn the landing URL, 20 s apart): (1) `best noise cancelling headphones 2026` (2) `best robot vacuum under $400` (3) `best budget smartphone 2026`. Top 5 organic `/goto` links each, landing URLs deduped across all three searches, so up to 15 pages. The landing URLs are resolved by `goto` only (no snapshot); the list is recorded in the results file before any arm reads a page, and each distinct landing URL is then read directly.
+
+**Arms** (every page: A then C, 5 s apart, one browser at a time, a fresh connect per read):
+- **A:** the real `fetchPageText` (act, installed barebrowse 0.26.0), unchanged.
+- **C:** `snapshot({ mode: 'read' })` on 0.28.0, through a marked copy of the same connect/goto/idle path, with no size floors.
+- **Z:** not run (above).
+
+**Recorded per read:** ok, error, chars, seconds, and by code: dollar lines `/\$\d/`; spec lines `/\b\d+(\.\d+)?\s?(GB|TB|mAh|hours?|hrs?|Hz|W|Pa|mm|inch(es)?|")\b/i`. Each text saved to `.claude/scratch/f205/f210-pages/<tag>-<arm>-<n>.txt` (gitignored).
+
+**Bars (fixed now, scored for C against A, never refit; Z would be scored separately the same way).** "Pages" below = the pages BOTH arms read ok.
+- **Bar 1:** on at least 70% of the pages, C keeps at least 1.5x A's chars.
+- **Bar 2:** C's dollar lines plus spec lines are at least A's on at least 80% of the pages, AND C's total of those lines across all the pages is at least 1.5x A's total.
+- **Verdict for C:** GO when both pass.
+
+**Reported, not scored:** per page, chars and counts per arm; read seconds per arm; up to 3 lines per arm that put a product name and a `$` amount on one line, by the code rule `/\b[A-Z][A-Za-z]+\s+[A-Z0-9][\w-]*\b.*\$\d/` (a rough name shape; no judgement).
+
+**Results file** `.claude/scratch/f205/results-f210-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run210.mjs`, scorer `score210.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one moment; pages change between reads; a page that fails to read in either arm leaves the bars; line counts are not a judgement of article quality.
