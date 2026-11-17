@@ -1,0 +1,13 @@
+url: https://site.example.com/best-budget-laptops
+- main [ref=1]
+  - heading "Best budget laptops of 2026" [level=1] [ref=2]
+  - listitem [ref=3]
+    - StaticText "Acer Aspire 5, 16GB RAM, 512GB SSD. Price: $549 at the store" [ref=4]
+  - listitem [ref=5]
+    - StaticText "Lenovo IdeaPad 3, 8GB RAM, 256GB SSD. Price: $429 at the store" [ref=6]
+  - listitem [ref=7]
+    - StaticText "Dell XPS 15, 32GB RAM, 1TB SSD. Price: $1,499 at the store" [ref=8]
+  - listitem [ref=9]
+    - StaticText "Euro listing, 16GB RAM. Price: €599 at the store" [ref=10]
+  - paragraph [ref=11]
+    - StaticText "Prices change often. Check the retailer for the latest price and the exact memory before you buy any laptop." [ref=12]
