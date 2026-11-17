@@ -8136,3 +8136,25 @@ A FAIL on the letter stays FAIL.
 **Results file.** `.claude/scratch/f205/results-f207-<tag>.jsonl`: one row per look (the raw answer of each attempt, the parsed facts, the kept facts, dropped, price rows, other-currency rows, cost, tokens, seconds), plus search and page rows; a repeated tag is refused. Harness `poc/f205-search/run207.mjs`, scorer `score207.mjs`.
 
 **Limits.** One machine, one Dutch IP, one burst; the landing pages differ each sample; whether a price is for the Boston-to-Chicago route is not judged (the rule is only `under $450`); a page that holds no fares is a correct "no row".
+
+### F207 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run207.mjs --tag p1` (paid, deepseek-flash); scored with `node poc/f205-search/score207.mjs p1` from `.claude/scratch/f205/results-f207-p1.jsonl` (gitignored). 5 searches, 25 pages, 25 looks, total $0.06114 ($0.00245 per look), 41 look seconds, not stopped, all 25 looks `lookOk` (every look answered in 1 attempt, no unpriced round). No price row, other-currency, over or unsigned row on any page.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar >= 3 of 5). Every sample had 0 hosts with a price row (bar: 2). Not refit.
+
+**What was read.** 5/5 searches ok with 5 organic links each; all 25 opened pages landed off Google, read ok, none a duplicate landing. Hosts: united.com 19 pages (deals en/de and en/nl, flight status, baggage, in-flight, flexible booking), trip.com 3 (`/flights/cheap-flights-to-united-states-66/`, samples 1 to 3), cheaptickets.nl 2 (samples 4 and 5), booking.com 1 (sample 4).
+
+**The look DID tie a money fact to line 1 rule 1** (`from: "line 1 rule 1"`, reading `lt 450`) on trip.com (all 3 pages: word `US$`, currency `US$` or `US$`/`$`), booking.com (words `€`, `€ `, currency `€`), cheaptickets.nl (1 of 2 pages: words `prijs`, `vanaf`, currency `$`/`€`) and united.com (1 of 19 pages, the en/nl flightstatus page in sample 1: words `€`, `€`, currency `€`). Code then dropped every one of those facts. Dropped reasons per host, from the file:
+- **trip.com** (3 looks, each): `not-on-page` for word `US$`; `n2` for word `US$`; `no-label` for the fact.
+- **booking.com** (1 look): `reads-no-result`.
+- **united.com** (the 1 look with a money fact): `no-value` for word `€`; `reads-no-result`. The other 18 united looks gave no money fact (kept facts were only phrase facts such as `From*`, `To*`, `Chicago`, or none).
+- **cheaptickets.nl** (the 1 look with a money fact): `not-on-page` for `prijs`, `vanaf`, `$`, `€`; `no-label`; plus `s1` on the origin/destination Boston facts. The other cheaptickets look gave no money fact.
+
+**Not counted: hamr's $0 follow-up after the batch** (the 2 landing pages re-read with the real `fetchPageText`; scratch script `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/be6e3ca8-1b14-435a-a323-6ccefd1cbd58/scratchpad/peek.mjs`), as reported to me, not re-run by me:
+- (a) the trip.com landing is "cheap flights to United States" with Bangkok to LA/Guam fares: off-topic, but it carries `US$254`, `US$575`, with `US$` glued to the number.
+- (b) the booking.com landing IS Boston to Chicago, but all its prices are in euros (`€ 64, November 17`), since the machine's IP is Dutch.
+
+**Unchecked:** why the word `US$` is `not-on-page` when `US$254` is on the page. A word-edge rule is the likely place; the code was not read for it.
+
+**Reading, from the measurements above:** prices exist on landing pages, and the look made the tie to rule 1. Two blockers were measured: the region (euro prices on the Dutch IP, so `€` words and `reads-no-result`) and landings that are off-topic or hold no price (19 of the 25 pages were united.com pages, and 18 of those gave no money fact).
