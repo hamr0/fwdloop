@@ -8323,3 +8323,23 @@ Run: `node poc/f205-search/run210.mjs --tag r1` ($0; barebrowse 0.28.0 from `.cl
 **Product-name + `$` lines (code rule, reported only):** arm A's three matches are headings, for example "Best Robot Vacuum $300–$600: Ecovacs T90 Pro Omni". Arm C's three come from the first page (recordingnow.com) and are headphones above $1,000, for example "The Dali IO-12 at $1,750 and Focal Bathys MG at $1,499 USD retail price...". These do not show whether C's lines are under any price limit.
 
 **Cleanup:** no process or `/tmp/barebrowse-*` dir from this run is left. The two `/tmp/barebrowse-ff-897002-*` dirs and a firefox (pid 2648025) belong to the old barebrowse MCP server (pid 897002) and were left alone.
+
+## F211 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15 (hamr approved about $0.10); written before any harness; **STOPPED at the cost projection: not built, waiting for hamr's ruling**)
+
+**Question.** Same as F208, but each landing page is read with arm C of F210 (`snapshot({ mode: 'read' })` on barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`, through the same marked copy of the connect/goto/idle path, no size floors). Does fwd's real look (`lookAtPage`, the drafter's call body, deepseek-flash, fwd's money reader) now give price rows? I (the harness) make no paid call; hamr runs the batch.
+
+**Job** (the real `parseSignedText` and `hideCounts`, as F208): line 1 `find the best robot vacuums under $400,` with the one guardrail `under $400`; the same ask, send and source lines; page label `vacuums`. **Search words** `best robot vacuum under $400` (Google, `hl=en&gl=us`, `/goto` followed). 5 samples, top 5 links each, deduped by landing URL.
+
+**Price row** as F207 and F208, limit 400: a kept money fact tied (`forRule`) to rule 1, words verbatim on the page, a code-read (`moneyResultLines`) USD amount under 400; non-USD is other-currency, never a row.
+
+**Bars (fixed now, never refit).** Sample PASS: at least 2 distinct landing hosts each give at least 1 price row. Verdict PASS: at least 3 of 5 samples pass. Also reported: all dropped reasons per host, cost per look, seconds. Every page text saved to `.claude/scratch/f205/f211-pages/<tag>-s<sample>-<n>.txt`.
+
+**Cost rules.** HARD CAP $0.15; no look starts once spent is $0.13 or more; an unpriced round stops the batch; an empty key refuses at $0.
+
+**Cost projection (measured, from saved files).**
+- F208 p1: 13 looks on 157,632 page chars cost $0.03789, i.e. **2.40e-7 $ per page char** (per look 2.1e-7 to 2.8e-7 on pages of 7.5k to 19k chars; the cnn 375-char page cost $0.00065, a fixed part).
+- F210 r1, arm C pages of the robot-vacuum search: vacuumwars.com 56,397 + reddit r/RobotVacuums 40,269 + reddit r/RobotVacuums 38,642 = **135,308 chars per sample** (3 distinct pages; the other 2 of 5 links were repeats).
+- Per sample: 135,308 x 2.40e-7 = **$0.0325**. For 5 samples if each returns those 3 pages: **$0.162** (at the cheapest measured rate, 2.10e-7: $0.142).
+- Both are over the $0.13 stop, and over the $0.15 cap at the average rate. With the stop at $0.13 the batch would end after about 4 samples (about 4 x $0.0325 = $0.130), so 5 samples cannot be run to the end under the stated rules. Read mode pages are 3x to 5x the size of act pages (F208: 7.5k to 19k).
+
+**Status.** Per hamr's instruction (projection over $0.13: stop and report before building, do not shrink the samples), the harness is NOT built. Options for hamr to rule, not chosen here: (a) raise the stop and cap (about $0.17 for 5 samples at the average rate, $0.20 with margin); (b) keep the cap and score fewer samples (the bar says 3 of 5, so a 4-sample run could not reach the pre-registered 5); (c) a size limit on the page text given to the look (a change to the real path, so a different POC).
