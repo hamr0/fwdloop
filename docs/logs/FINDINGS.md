@@ -8458,3 +8458,38 @@ A FAIL on the letter stays FAIL.
 **Results file** `.claude/scratch/f205/results-f213-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run213.mjs`, scorer `score213.mjs`. Proofs before the real run: dry mode (a fake HTTP layer), a refused tag, an empty key, and a FAIL demo.
 
 **Limits.** One account, one burst; Search results are as DeepSeek serves them with no locale set; Fetch is subject to site policy (403/404 are possible); chars are Markdown chars, not snapshot chars, so F210 and F211 chars compare only roughly.
+
+### F213 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run213.mjs --tag p1` (paid, DeepSeek Search + Fetch, no barebrowse); scored with `node poc/f205-search/score213.mjs p1` from `.claude/scratch/f205/results-f213-p1.jsonl`; Fetch texts in `.claude/scratch/f205/f213-pages/p1-q<n>-<k>.txt` (gitignored). 3 Search calls and 15 Fetch calls, all HTTP 200, none stopped; spent $0.01350 (18 x $0.00075). No `localization` or locale set (the docs have no locale field; `localization` takes an IP).
+
+**VERDICT: GO** (all three bars pass).
+- **Bar 1 PASS:** 3 of 3 searches returned 5 result URLs (bar 2 of 3); search calls took 0.5 to 0.7 s.
+- **Bar 2 PASS:** 15 of 15 fetches ok with at least 1,000 chars and 0 challenge lines (100%; bar 60%).
+- **Bar 3 PASS:** usd lines 132 vs eur lines 18 over all fetched pages (usd > eur); on query 3 (lenovo) 3 fetched pages each have at least 3 usd lines (bar 2): the three lenovo.com pages with 10 each.
+
+**Per fetch (host; chars; usd lines; eur lines; seconds):**
+- q1-1 www.pcmag.com 16,817; 2; 0; 0.3
+- q1-2 uk.pcmag.com 105,049; 21; 0; 0.5
+- q1-3 www.cnet.com 15,593; 16; 0; 0.3
+- q1-4 tech.yahoo.com 17,314; 6; 0; 0.3
+- q1-5 www.bgr.com 11,454; 12; 0; 0.3
+- q2-1 www.zdnet.com 4,367; 3; 0; 0.3
+- q2-2 me.mashable.com 16,893; 11; 0; 0.3
+- q2-3 me.mashable.com 15,345; 5; 0; 0.4
+- q2-4 mashable.com 21,053; 13; 0; 0.3
+- q2-5 gagadget.com 38,336; 13; 0; 0.4
+- q3-1 www.lenovo.com 13,452; 10; 0; 11.2
+- q3-2 www.lenovo.com 13,452; 10; 0; 14.2
+- q3-3 www.lenovo.com 13,236; 10; 0; 4.6
+- q3-4 www.cdn.amazon.it 5,903; 0; 7; 0.3
+- q3-5 www.refurbed.nl 12,219; 0; 11; 0.3
+
+**Not scored, facts only:**
+- (a) The Lenovo outlet listing `https://www.lenovo.com/us/outletus/en/laptops/` came back 3 times under different query strings (`?IPromoID=LEN246588#1`, `?orgRef=...google...gclid...#1`, `?orgRef=...retailmenot...__cf_chl_tk...#1`), as q3-1 to q3-3. The pre-registered dedupe on the full URL kept all three, so the page was fetched 3 times (13,452, 13,452 and 13,236 chars). A build needs a canonical URL for dedupe; no rule is picked here. Query 1 also has URLs that differ only by a `#` fragment or tracking parameter (`pcmag.com/picks/the-best-laptops?srch_tag=...#3`), but no repeated page there.
+- (b) The euro pages came from the search results, not from Fetch: `www.cdn.amazon.it` and `www.refurbed.nl`, both on query 3 (7 and 11 eur lines, 0 usd). `localization` was left empty and the docs say it takes an IP address.
+- (c) Fetch took 0.3 to 0.5 s on most pages and 4.6 to 14.2 s on lenovo.com (11.2, 14.2, 4.6).
+- (d) F210/F211 comparison: none of the 15 fetched URLs matches a URL in the F210 (arm C) or F211 results, so there is no Fetch-versus-read-mode chars pair.
+- Quoted usd lines (up to 2 per query, from the scorer): query 1 pcmag "With a list price just under $400, we've seen it dip below $300..."; query 2 zdnet "# This $200 robot vacuum proves budget cleaners are finally worth your money"; query 3 lenovo.com outlet list lines such as "...CERTIFIED REFURBISHED$599.00Delivery FREE Standard Delivery..." and "...Lenovo Outlet Price$1,332.9225% off".
+
+**Spend so far across the paid search POCs:** F207 $0.06114, F208 $0.03789, F211 $0.07607, F213 $0.01350: $0.18860 of hamr's $1.
