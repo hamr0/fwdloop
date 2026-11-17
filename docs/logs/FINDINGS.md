@@ -8050,7 +8050,7 @@ Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/
 - **DuckDuckGo (html):** 5/5 read ok, but only 982 to 992 chars each and 0 links on every search. This is likely not a results page. The text was not saved, so the cause is unchecked. Bar 1 FAIL.
 - **Bing:** 5/5 read ok. Links per search, in query order: 3, 2, 5, 5, 5. Bar 1 needs at least 5 on each ok search; 3 of 5 had 5 links, so FAIL (3 of 5).
   - On the two flights queries the links were few: query 1 gave 3 (2 of them `google.com/travel/flights/...`, 1 skyscanner); query 2 gave 2 (both skyscanner).
-  - Opened pages: 20/20 read ok (the 4 searches with links x up to 5, i.e. 3+2+5+5+5 = 20). Recorded, not scored, because Bar 1 failed.
+  - Opened pages: 20/20 read ok (all five searches had links: 3+2+5+5+5 = 20). Recorded, not scored, because Bar 1 failed.
   - Result quality, facts only: "best budget laptop 2026" returned pages about Best, a Dutch town (nl.wikipedia.org/wiki/Best, gemeentebest.nl, ons-best.nl, beleefbest.nl). "weather Lisbon this week" returned Staphorst (NL) weather (accuweather, weather.com, meteoblue, buienradar). `setlang=en` set the language but not the region; the machine's IP looks Dutch.
 - **Timing:** search reads took 3.0 to 6.6 s (duckduckgo, google) and 22 to 27 s (bing).
 - **Cleanup:** the harness left no browser processes and no `/tmp/barebrowse-*` dirs (the barebrowse processes still running are hours-old MCP servers, not this run).
