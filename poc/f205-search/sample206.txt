@@ -1,0 +1,14 @@
+url: https://www.google.com/search?q=flights%20Boston%20to%20Chicago&hl=en&gl=us
+SYNTHETIC SAMPLE in the real format (links: true). Used only by run206.mjs --dry.
+- navigation [ref=111]
+  - link "Images" <https://www.google.com/search?udm=2&q=x> [ref=36]
+- main [ref=200]
+  - link "Ad one" <https://www.google.com/aclk?sa=L&ai=AAA> [ref=59]
+  - link "Result 1 United https://www.united.com" <https://www.google.com/goto?url=CAESaaa1> [ref=55]
+  - link "Result 2 Trip https://www.trip.com" <https://www.google.com/goto?url=CAESaaa2> [ref=66]
+  - link "Result 2 again" <https://www.google.com/goto?url=CAESaaa2> [ref=67]
+  - link "Widget" <https://www.google.com/travel/clk/g?w=EuwD> [ref=202]
+  - link "Result 3 Booking https://www.booking.com" <https://www.google.com/goto?url=CAESaaa3> [ref=87]
+  - link "Result 4 Skyscanner https://www.skyscanner.net" <https://www.google.com/goto?url=CAESaaa4> [ref=127]
+  - link "Result 5 Expedia https://www.expedia.com" <https://www.google.com/goto?url=CAESaaa5> [ref=280]
+  - link "Result 6 Kayak https://www.kayak.com" <https://www.google.com/goto?url=CAESaaa6> [ref=330]
