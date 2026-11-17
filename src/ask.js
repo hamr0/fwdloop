@@ -509,6 +509,11 @@ export function answerAsk({
     return { ok: false, red: `answerAsk: askId "${askId}" is unknown for run ${runDir}` };
   }
 
+  // M13 am11: the stop before the action takes Accept only; "Not now" is the Stop (the run ends stopped, nothing written)
+  if (ask.kind === 'action-stop' && decision !== 'accept') {
+    return { ok: false, red: `answerAsk: askId "${askId}" is the stop before the action and takes Accept only (Not now is Stop)` };
+  }
+
   const nowIso = now();
   // A present-but-unparseable expiresAt (Date.parse -> NaN) must never read
   // as "not expired" — `NaN > x`/`x > NaN` are both false, so the comparison
@@ -619,11 +624,11 @@ export function answerAsk({
  * Written once with the rest of the record; an existing archive is never
  * rewritten to add it (the `wx` create refuses).
  *
- * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string }} opts
+ * @param {{ runDir: string, askId: string, question: string, askedAt: string, expiresAt: string, evidence: unknown, emits?: string, kind?: string }} opts
  * @returns {{ ok: true } | { ok: false, red: string }}
  */
 export function writeAskArchive({
-  runDir, askId, question, askedAt, expiresAt, evidence, emits,
+  runDir, askId, question, askedAt, expiresAt, evidence, emits, kind,
 }) {
   if (typeof runDir !== 'string' || runDir.length === 0) {
     return { ok: false, red: 'writeAskArchive: "runDir" must be a non-empty string' };
@@ -638,6 +643,7 @@ export function writeAskArchive({
     askId, question, askedAt, expiresAt, evidence,
   };
   if (typeof emits === 'string' && emits.length > 0) payload.emits = emits;
+  if (typeof kind === 'string' && kind.length > 0) payload.kind = kind; // M13 am11: the stop before the action is an ask record with this one added field
   try {
     writeFileSync(archivePath, JSON.stringify(payload, null, 2), { flag: 'wx' });
   } catch (err) {
@@ -785,6 +791,7 @@ export function listArchivedAsks(runDir) {
       evidence: readAskEvidence(ask),
       answer,
       ...(typeof ask.emits === 'string' ? { emits: ask.emits } : {}),
+      ...(typeof ask.kind === 'string' ? { kind: ask.kind } : {}), // M13 am11: the stop before the action
     });
   }
 

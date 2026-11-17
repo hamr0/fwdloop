@@ -1208,33 +1208,14 @@ export function validateDeclaration(declaration, context = {}) {
       reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) is not granted a catalogue primitive of class "write"`);
     }
 
-    // M3 scope item 8 (F42's "Also seen" note): "earlier" is judged by STEP
-    // ORDER, never by prose line number — the runner folds over
-    // `declaration.steps` in array order (`acceptedAskEmitsThisRun` is
-    // populated as steps execute), so a line-number comparison here can
-    // disagree with what actually runs. A signed ask whose step sits before
-    // the send step in `declaration.steps`, whatever its own prose line
-    // number, is "earlier"; one whose step sits at or after the send step
-    // never is, even if its line number is smaller.
-    const earlierAskLines = askLines.filter((a) => {
-      const askIdx = stepInfo.findIndex((st) => st.fromLine === a);
-      return askIdx !== -1 && askIdx < sendIdx;
-    });
-    if (earlierAskLines.length === 0) {
-      reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) has no signed ask at an earlier line to read from`);
-    } else {
-      const earlierAskEmits = earlierAskLines
-        .map((a) => stepInfo.find((st) => st.fromLine === a))
-        .filter((st) => st !== undefined)
-        .map((st) => st.emits);
-      const readAskEmits = earlierAskEmits.filter((emits) => emits !== null && sendStep.reads.includes(emits));
-      if (readAskEmits.length === 0) {
-        reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) does not read the emits of any earlier signed `
-          + `ask step (asks at lines ${earlierAskLines.join(', ')})`);
-      } else if (readAskEmits.length >= 2) {
-        reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) reads the emits of more than one earlier signed `
-          + `ask step (${readAskEmits.join(', ')}) — exactly 1 required`);
-      }
+    // M13 am11: the action ships everything that came before it: it reads the output of the step right before it (by step order, the order the
+    // runner folds over). An Ask there is the artifact accepted at it; any other step's output is checked at run time against the last accept (or the run stops once).
+    // No Ask is needed before the action. (Was: the send must read exactly one earlier signed ask.)
+    const before = sendIdx > 0 ? stepInfo[sendIdx - 1] : null;
+    if (before === null || before.emits === null) {
+      reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) has no step before it to write out`);
+    } else if (!sendStep.reads.includes(before.emits)) {
+      reds.push(`declaration: send at line ${n} (steps[${sendIdx}]) must read the output of the step before it ("${before.emits}"), got [${sendStep.reads.join(', ')}]`);
     }
   }
 
@@ -1246,7 +1227,9 @@ export function validateDeclaration(declaration, context = {}) {
   // STEP ORDER (a step's position in `declaration.steps`, not its line
   // number) since that is the order the runner actually folds over. No
   // anchor to check against when there is no signed ask at all.
-  if (askLines.length > 0) {
+  // M13 am11: with an action (a signed send) a step after the last Ask is allowed: what goes out is compared with the last accept at run time and the run stops once if it changed
+  // (src/runner.js). A job with no action keeps this rule unchanged.
+  if (askLines.length > 0 && sendLines.length === 0) {
     const lastAskLine = Math.max(...askLines);
     const lastAskStepIdx = stepInfo.findIndex((st) => st.fromLine === lastAskLine);
     if (lastAskStepIdx !== -1) {

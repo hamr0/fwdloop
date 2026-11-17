@@ -35,11 +35,14 @@ async function open(t, width = 1280) {
   return chrome;
 }
 const dot = (c) => c.ev('(function(){ var e = document.getElementById("online-dot"); return e.textContent + "|" + e.className; })()');
-// the page's own catch-up path (a tab coming back) runs one tick that forces the lists read
+// the page's own catch-up path (a tab coming back) runs one tick that forces the lists read. The dot repaints only when that read SETTLES (a promise
+// callback), so wait on the dot itself reaching the state this mode must produce (net = offline; ok and an HTTP 500 = online), never a fixed sleep.
+// Every call flips the dot, so the old state can never satisfy the wait.
 const poll = async (c, mode) => {
+  const want = mode === 'net' ? '● offline|off' : '● online|on';
   await c.ev(`window.__inbox = ${JSON.stringify(mode)}; window.__before = window.__inboxReads; document.dispatchEvent(new Event("visibilitychange")); true`);
   assert.ok(await c.waitFor('window.__inboxReads > window.__before', 10000), 'an Inbox read happened');
-  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(await c.waitFor(`(function(){ var e = document.getElementById("online-dot"); return e.textContent + "|" + e.className; })() === ${JSON.stringify(want)}`, 10000), `the dot reached ${want}`);
 };
 
 test('am35: online on load; a network-failed Inbox read shows offline; the next good read shows online; an HTTP 500 stays online', async (t) => {

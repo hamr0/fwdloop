@@ -336,7 +336,8 @@ describe('optional fields — removing them is NOT a red', () => {
   for (const { field, level } of OPTIONAL_FIELDS) {
     test(`removing "${field}" (optional, level: ${level}) still validates green`, () => {
       const decl = baseDeclaration();
-      if (level === 'step') delete decl.steps[0][field];
+      if (level === 'top') delete decl[field];
+      else if (level === 'step') delete decl.steps[0][field];
       else if (level === 'close') delete decl.steps[0].close[field];
       const result = run(decl);
       assert.equal(result.ok, true, result.ok ? '' : `expected green with "${field}" removed, got:\n${result.reds.join('\n')}`);
@@ -617,15 +618,15 @@ describe('the send lock', () => {
     assert.ok(result.reds.some((r) => /send at line 3 \(steps\[2\]\) is not granted a catalogue primitive of class "write"/.test(r)));
   });
 
-  test('(e) a send step that reads no earlier ask step\'s emits is a red', () => {
+  test('(e) M13 am11: a send step that does not read the step before it is a red', () => {
     const decl = baseDeclaration();
     decl.steps[2].reads = []; // no longer reads the ask step's emits
     const result = run(decl);
     assert.equal(result.ok, false);
-    assert.ok(result.reds.some((r) => /send at line 3 \(steps\[2\]\) does not read the emits of any earlier signed ask step \(asks at lines 2\)/.test(r)));
+    assert.ok(result.reds.some((r) => /send at line 3 \(steps\[2\]\) must read the output of the step before it \("asked"\), got \[\]/.test(r)));
   });
 
-  test('(e) a send step with no signed ask at an earlier line at all is a red', () => {
+  test('(e) M13 am11: a send step with no signed ask at an earlier line at all is green (the action needs no Ask)', () => {
     const badArbiter = { ...SIGNED.arbiter, asks: [] };
     const decl = baseDeclaration();
     // with no ask signed, checkAskSlots' own "pause" rule would also fire on
@@ -633,9 +634,9 @@ describe('the send lock', () => {
     // so this test isolates rule (e) alone.
     decl.steps.splice(1, 1);
     decl.refused.push({ line: 2, reason: 'no ask signed in this variant' });
+    decl.steps[1].reads = ['data_read']; // the action reads the step right before it
     const result = validateDeclaration(decl, { arbiter: badArbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
-    assert.equal(result.ok, false);
-    assert.ok(result.reds.some((r) => /send at line 3 \(steps\[1\]\) has no signed ask at an earlier line to read from/.test(r)));
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
   });
 });
 
@@ -683,19 +684,22 @@ function twoEarlierAsksDeclaration(sendReads) {
   };
 }
 
-describe('M2 fix item 3: a send reading TWO earlier asks\' emits is a red; exactly one is still green', () => {
+describe('M13 am11: the action reads the step right before it; reading more is allowed, not reading it is a red', () => {
   test('PROOF — the two-earlier-asks base text parses green', () => {
     assert.equal(TWO_EARLIER_ASKS_SIGNED.ok, true, TWO_EARLIER_ASKS_SIGNED.ok ? '' : TWO_EARLIER_ASKS_SIGNED.reds.join('\n'));
   });
 
-  test('reading both earlier asks\' emits is a red naming both ids', () => {
+  test('reading both earlier asks\' emits is green (the action ships the step right before it)', () => {
     const decl = twoEarlierAsksDeclaration(['asked1', 'asked2']);
     const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
+    assert.equal(result.ok, true, result.ok ? '' : result.reds.join('\n'));
+  });
+
+  test('not reading the step right before it (only the earlier ask) is a red naming it', () => {
+    const decl = twoEarlierAsksDeclaration(['asked1']);
+    const result = validateDeclaration(decl, { arbiter: TWO_EARLIER_ASKS_SIGNED.arbiter, lines: TWO_EARLIER_ASKS_SIGNED.lines, catalogue: CATALOGUE });
     assert.equal(result.ok, false);
-    assert.ok(
-      result.reds.some((r) => /send at line 4 \(steps\[3\]\) reads the emits of more than one earlier signed ask step \(asked1, asked2\) — exactly 1 required/.test(r)),
-      result.reds.join('\n'),
-    );
+    assert.ok(result.reds.some((r) => /send at line 4 \(steps\[3\]\) must read the output of the step before it \("asked2"\), got \[asked1\]/.test(r)), result.reds.join('\n'));
   });
 
   test('reading exactly one earlier ask\'s emits is still green', () => {
@@ -814,8 +818,7 @@ describe('M2 amendment 1 item 2: nothing hitl after the last signed ask', () => 
       close: { class: 'hitl' },
     });
     const result = validateDeclaration(declaration, { arbiter: signed.arbiter, lines: signed.lines, catalogue: CATALOGUE });
-    assert.equal(result.ok, false);
-    assert.ok(result.reds.some((r) => /step "leaked_afterthought".*is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+    assert.equal(result.ok, false, 'a step appended after the action is still a red (a pause at an unsigned line)');
   });
 
   test('mutation: appending a hitl step after the minimal fixture\'s send is a red naming it (baseDeclaration/SIGNED)', () => {
@@ -829,8 +832,7 @@ describe('M2 amendment 1 item 2: nothing hitl after the last signed ask', () => 
       close: { class: 'hitl' },
     });
     const result = run(decl);
-    assert.equal(result.ok, false);
-    assert.ok(result.reds.some((r) => /step "unseen" \(line null\) is hitl after the last signed ask — nothing may leave unseen/.test(r)), result.reds.join('\n'));
+    assert.equal(result.ok, false, 'a step appended after the action is still a red (a pause at an unsigned line)');
   });
 
   test('no signed ask at all: nothing to anchor on, so this check never fires', () => {
@@ -842,8 +844,7 @@ describe('M2 amendment 1 item 2: nothing hitl after the last signed ask', () => 
     decl.steps.splice(1, 1);
     decl.refused.push({ line: 2, reason: 'no ask signed in this variant' });
     const result = validateDeclaration(decl, { arbiter: badArbiter, lines: SIGNED.lines, catalogue: CATALOGUE });
-    // Still reds (rule (e) of the send lock: no earlier ask to read from) —
-    // but never for THIS check's wording, proving it is inert with no anchor.
+    // M13 am11: the send there reads the ask step's emits, which is gone: still a red, never for THIS check's wording (inert with no anchor).
     assert.equal(result.ok, false);
     assert.ok(!result.reds.some((r) => r.includes('is hitl after the last signed ask')), result.reds.join('\n'));
   });

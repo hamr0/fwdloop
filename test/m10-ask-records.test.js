@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signDraft } from '../src/authoring.js';
-import { panelQuestionText } from '../src/pageask.js';
 import { readSetup } from '../src/setup.js';
 import { getDraftBlock } from '../src/panel/data.js';
 import { isFwdloopAlive } from '../src/liveness.js';
@@ -17,7 +16,7 @@ killChildrenAfter();
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'm10-map');
 const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
 const RULES = ['under $150', 'not a red-eye', 'nonstop', 'pays well'];
-const JOB = ['Read my resume,', ...RULES.map((r) => `~ ${r}`), 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~ nothing goes out before I accept'].join('\n');
+const JOB = ['Read my resume,', ...RULES.map((r) => `~ ${r}`), 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~ nothing goes out before I accept', 'write it out'].join('\n');
 const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
 const childGone = (w, id) => until(() => {
@@ -63,13 +62,12 @@ test('all three places: draft log row, Audit rows under the drafting step, and t
   const kinds = setup.rows.map((r) => r.kind);
   assert.ok(kinds.indexOf('human') > kinds.indexOf('draft') && kinds.lastIndexOf('human') < kinds.indexOf('redraft'), `under the drafting step: ${kinds.join(',')}`);
   const block = getDraftBlock(signed.flowDir, signed.flowDir);
-  const shown = block.rows.filter((r) => /^you were asked: /.test(r.action));
+  // M17 am8: a button-picked answer reads what was decided (`agreed — <rule>`, `dropped — Not checked`), never the question; the stored question stays whole
+  const shown = block.rows.filter((r) => /^(agreed|dropped) \u2014 /.test(r.action));
   assert.equal(shown.length, 2);
-  // M10 am29: the Audit row shows the question as the panel does (no `Answer "agree"…` tail); the stored question is whole
-  assert.equal(shown[0].action, `you were asked: ${panelQuestionText(rows[0])}`);
-  assert.ok(rows[0].question.includes('Answer "agree"') && !shown[0].action.includes('Answer "agree"'), shown[0].action);
-  assert.equal(shown[0].gap, 'you said: agree [you]');
-  assert.equal(shown[1].gap, 'you said: drop it');
+  assert.ok(rows[0].question.includes('Answer "agree"'));
+  assert.equal(shown[0].action, 'agreed \u2014 departure time between 05:00 and 23:59');
+  assert.equal(shown[1].action, 'dropped \u2014 Not checked');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
   // 3. the signed job: the agreed reading REPLACES its rule in place (the dropped rule is left as it is)
   const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');

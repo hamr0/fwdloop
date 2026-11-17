@@ -47,6 +47,9 @@ const tiedMap = (content) => {
   return JSON.stringify({ facts });
 };
 
+/** M13 am11: the calls a hang or timeout mode counts are the declaration's, never the action questions' */
+const declarationCalls = (provider) => provider.calls.filter((c) => !['record_action', 'suggest_action'].includes(c.tools[0])).length;
+
 export default function make() {
   const args = validArgs();
   if (process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED) args.notChecked = JSON.parse(process.env.FWDLOOP_TEST_DRAFT_NOTCHECKED); // the drafter's own "not checked" list on every plan
@@ -54,6 +57,13 @@ export default function make() {
     args.steps[0].reads = ['jd'];
   }
   if (process.env.FWDLOOP_TEST_DRAFT_MCP === '1') args.steps[0].mcpTools = ['issue_read'];
+  // M13 am11b: FWDLOOP_TEST_DRAFT_NOASK=1 -> the job has no Ask line: four steps, the last one (line 4, the action) reads the summary
+  if (process.env.FWDLOOP_TEST_DRAFT_NOASK === '1') {
+    args.steps.splice(3, 1);
+    args.steps[3].fromLine = 4;
+    args.steps[3].reads = ['resume-summary'];
+    delete args.guardrailClasses['4'];
+  }
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'bad') args.steps[2].primitives = ['forget'];
   if (process.env.FWDLOOP_TEST_DRAFT_MODE === 'greedy') {
     Object.assign(args, { capUsd: 99, sends: [{ line: 1, target: 'file:/etc' }], asks: [{ line: 4, ttlMs: 1 }], sources: [{ role: 'x', path: '/etc/passwd' }] });
@@ -74,7 +84,7 @@ export default function make() {
     const provider = fakeProvider([toolReply(args)]);
     const gen = provider.generate.bind(provider);
     provider.generate = async (...a) => {
-      if (provider.calls.length >= 1) return new Promise((r) => { setTimeout(r, 3_600_000); });
+      if (declarationCalls(provider) >= 1) return new Promise((r) => { setTimeout(r, 3_600_000); });
       return gen(...a);
     };
     return { provider, rates: RATES, modelId: MODEL };
@@ -84,7 +94,7 @@ export default function make() {
     const provider = fakeProvider([toolReply(args)]);
     const gen = provider.generate.bind(provider);
     provider.generate = async (...a) => {
-      if (provider.calls.length >= 1) throw Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' });
+      if (declarationCalls(provider) >= 1) throw Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' });
       return gen(...a);
     };
     return { provider, rates: RATES, modelId: MODEL };
@@ -99,6 +109,7 @@ export default function make() {
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM && String(messages.find((m) => m.role === 'user')?.content).includes(SHEET_MARK)) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_SHEET ?? '{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the sheet-word call
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_MAP ?? tiedMap(messages.find((m) => m.role === 'user')?.content)), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round (FWDLOOP_TEST_DRAFT_MAP=<json> replaces the empty map)
     if (messages.find((m) => m.role === 'system')?.content === SUGGEST_SYSTEM) return { text: '', toolCalls: [{ id: 'sg', name: 'suggest_checks', arguments: JSON.parse(process.env.FWDLOOP_TEST_DRAFT_SUGGEST ?? '{"checks":[]}') }], usage: { inputTokens: 900, outputTokens: 100 }, stopReason: 'tool_calls', model: MODEL }; // the am16 suggestion call, not a drafting round
+    if (['record_action', 'suggest_action'].includes(rest[0]?.[0]?.name)) return gen(messages, ...rest); // M13 am11: the action questions are answered by the fixture provider and are no declaration round
     const offered = !!rest[0]?.[0]?.parameters?.properties?.questions;
     if (process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_OFFERED_LOG, `${offered ? 'offered' : 'not-offered'}\n`);
     if (process.env.FWDLOOP_TEST_DRAFT_LOG) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_LOG, `${JSON.stringify(messages)}\n`);

@@ -72,7 +72,7 @@ test('C4: the panel passes the pick and the thinking tick to the draft child as 
   assert.equal((await w.post('/api/author/draft', w.card({}))).status, 202);
   await until(() => existsSync(file) && readFileSync(file, 'utf8').trim() !== ''); // the echo script writes the file in two steps: wait for its content, not just the file
   const first = JSON.parse(readFileSync(file, 'utf8').trim().split('\n')[0]);
-  assert.deepEqual(first.slice(first.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY']);
+  assert.deepEqual(first.slice(first.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY', '--action', 'check']); // M13 am11: a card with a Destination asks the AI about its last line
   await until(async () => { const j = (await w.get('/api/author/live')).json(); return !j.draft || ['stopped', 'red', 'green'].includes(j.draft.phase); });
   const w2 = await world({ bin: ARGV_ECHO });
   const file2 = path.join(w2.work, 'argv.jsonl');
@@ -80,7 +80,7 @@ test('C4: the panel passes the pick and the thinking tick to the draft child as 
   assert.equal((await w2.post('/api/author/draft', w2.card({ thinking: true }))).status, 202);
   await until(() => existsSync(file2) && readFileSync(file2, 'utf8').trim() !== ''); // the echo script writes the file in two steps: wait for its content, not just the file
   const second = JSON.parse(readFileSync(file2, 'utf8').trim().split('\n')[0]);
-  assert.deepEqual(second.slice(second.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY', '--thinking']);
+  assert.deepEqual(second.slice(second.indexOf('--model')), ['--model', 'fake-ticked', '--provider', 'DEEPSEEK_API_KEY', '--thinking', '--action', 'check']);
 });
 
 test('C5: the drafter takes the thinking tick as an intent only: on lets the model choose its tool, off forces it; neither puts a thinking field on our request (bareagent does the switching)', async () => {

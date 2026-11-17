@@ -182,7 +182,7 @@ test('P4c: a Not-checked note code wrote is [default], a note the person chose i
   const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
   const ai = 'line 3: whether the tone suits the role';
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt'), FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([ai]) } });
-  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept'].join('\n');
+  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept', 'write it out'].join('\n');
   const id = (await w.post('/api/author/draft', w.card({ flowName: 'job2', job, inputs: `${w.card().inputs}\nflights: ${ADDRESS}` }))).json().draftId;
   let g = await settle(w, id, ['questions-open', 'green', 'red', 'stopped']);
   await childGone(w, id);
@@ -209,7 +209,7 @@ async function flightsPlanAnswered(answer, ai) {
   const ADDRESS = 'https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-11-18+one+way&hl=en&curr=USD';
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_MAP: MAP, FWDLOOP_TEST_DRAFT_PAGE: path.join(FIX, 'page-ams-lhr.txt'), FWDLOOP_TEST_DRAFT_NOTCHECKED: JSON.stringify([ai]), FWDLOOP_TEST_DRAFT_SUGGEST: SUGGEST, FWDLOOP_TEST_DRAFT_LEDGER: LEDGER } });
   writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
-  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept'].join('\n');
+  const job = ['Read my resume,', '~ under $150', '~ not a red-eye', '~ nonstop', 'and read the JD to compare it against,', 'write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,', '~ plain words only', 'Ask 30m: check it with me,', '~nothing goes out before I accept', 'write it out'].join('\n');
   const id = (await w.post('/api/author/draft', w.card({ flowName: 'job2', job, inputs: `${w.card().inputs}\nflights: ${ADDRESS}` }))).json().draftId;
   let g = await settle(w, id, ['questions-open', 'green', 'red', 'stopped']);
   await childGone(w, id);

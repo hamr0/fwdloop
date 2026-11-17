@@ -146,17 +146,17 @@ test('(2) cap must be a number above 0; the destination is one folder (never a l
   assert.deepEqual(dest(''), ['destination'], 'M13 am6: empty is refused');
 });
 
-test('(d) a destination is sent at the ADDED last step and the prose says so; an empty destination writes no send line; the line is never typed', () => {
-  // M13 am8: code adds `write it out` (and an Ask before it when the last line is not one), so the send is the added last line, not a typed one
+test('(d) M13 am11: a destination is a tentative send at the LAST typed line (the draft decides if it is the action); an empty destination writes no send line', () => {
+  // M13 am11: code adds no line; the card writes the send on the last typed line, tentatively
   const s = scene();
   const shorter = 'one\nAsk: ok?\n~a rule\nthree';
   const withDest = cardToProse(s.card({ job: shorter }));
-  assert.match(withDest, new RegExp(`\\nguardrail: send at line 5 to file:${s.outDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`), 'three typed lines + the added Ask + the added write = 5');
-  assert.deepEqual(parseSignedText(withDest).arbiter.sends.map((x) => x.line), [5]);
+  assert.match(withDest, new RegExp(`\\nguardrail: send at line 3 to file:${s.outDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`), 'three typed lines: the send sits on the last');
+  assert.deepEqual(parseSignedText(withDest).arbiter.sends.map((x) => x.line), [3]);
   const longer = cardToProse(s.card({ job: `${shorter}\nfour\nfive` }));
-  assert.match(longer, /guardrail: send at line 7 to /);
+  assert.match(longer, /guardrail: send at line 5 to /);
   const endsInAsk = cardToProse(s.card({ job: 'one\nAsk: ok?' }));
-  assert.match(endsInAsk, /guardrail: send at line 3 to /, 'a last line that is an Ask gets only the write');
+  assert.match(endsInAsk, /guardrail: send at line 2 to /, 'a last line that is an Ask carries the tentative send too; the draft strips it when it is not the action');
   assert.doesNotMatch(cardToProse(s.card({ destination: '' })), /send at/);
   // a stale line number in the request body is ignored: only the folder is read
   assert.match(cardToProse(cardFields({ ...s.card(), destination: s.outDir, destinationLine: '2' })), /send at line 5 to/);
@@ -172,8 +172,7 @@ test('(e) an ask wait that is not a number with m or h is refused on the card, b
   const prose = cardToProse(s.card({ job: 'one\nAsk: is it right?\nAsk 5m: and now?\ntwo', askWait: '2H' }));
   assert.match(prose, /\n2\. ask 2h: is it right\?\n/, 'the default wait is written into the signed text');
   assert.match(prose, /\n3\. ask 5m: and now\?\n/);
-  // the third ask is the one code adds after the last (non-Ask) line, at the card's wait
-  assert.equal(parseSignedText(prose).arbiter.asks.map((a) => a.ttlMs).join(), `${2 * 3600000},${5 * 60000},${2 * 3600000}`);
+  assert.equal(parseSignedText(prose).arbiter.asks.map((a) => a.ttlMs).join(), `${2 * 3600000},${5 * 60000}`, 'M13 am11: code adds no Ask');
 });
 
 test('(b) a ~ line before the first step is refused by its line, in a sentence; empty lines never become steps', () => {
@@ -181,7 +180,7 @@ test('(b) a ~ line before the first step is refused by its line, in a sentence; 
   const r = checkCard(s.card({ job: '\n~too early\nstep one' }), { root: s.root });
   assert.deepEqual(refusedFields(r), ['job']);
   assert.match(r.refusals[0].say, /^Line 2 .*no step is above it/);
-  assert.equal(cardToProse(s.card({ job: '\n\nstep one\n\n\nstep two\n\n' })).startsWith('1. step one\n2. step two\n3. ask 1h: check the result with me\n4. write it out\n\nArbiter guardrails'), true);
+  assert.equal(cardToProse(s.card({ job: '\n\nstep one\n\n\nstep two\n\n' })).startsWith('1. step one\n2. step two\n\nArbiter guardrails'), true);
 });
 
 test('(a) the job box becomes exactly the job file the fixture has (numbers in order, ~ as guardrail under its step, Ask 30m with its own wait)', () => {

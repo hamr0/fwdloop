@@ -36,7 +36,7 @@ test('a ticket job shows its server and tools, filter, watch and each step\'s to
     'STEPS',
   ]);
   const s = t.indexOf('  1. (line 1) read it');
-  assert.equal(t[s + 1], '     grants: read | reads: a | emits: x | check: hitl');
+  assert.equal(t[s + 1], '     grants: read | reads: a | emits: x | check: No machine check of the content: you check it at the ask.');
   assert.equal(t[s + 2], '     tools: issue_read');
   assert.equal(t[s + 3], '  2. (line 2) check', 'a step with no mcpTools gets no row');
 });
@@ -59,4 +59,13 @@ test('M13 p4: a declaration with a flowType shows it in the card\'s own words, a
   assert.equal(t[i + 1], '  mcp: github · tools: issue_read, list_issues');
   assert.ok(rows({ flowType: 'mcp', mcp: { server: 'github', tools: ['issue_read'] } }).includes('  flow type: MCP'));
   assert.equal(rows({}).some((r) => r.startsWith('  flow type:')), false);
+});
+
+test('a non-ask hitl step prints the card\'s words, not "check: hitl"; the ask line keeps its text', () => {
+  const t = build().split('\n');
+  const s1 = t.findIndex((l) => l.startsWith('  1. (line 1)'));
+  const s2 = t.findIndex((l) => l.startsWith('  2. (line 2)'));
+  assert.ok(!t[s1 + 1].includes('check: hitl'));
+  assert.ok(t[s1 + 1].endsWith('| check: No machine check of the content: you check it at the ask.'));
+  assert.ok(t[s2 + 1].endsWith('| check: hitl'), 'the ask line (pure stop) is unchanged');
 });

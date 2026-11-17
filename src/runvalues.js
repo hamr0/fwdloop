@@ -19,6 +19,7 @@ import { join } from 'node:path';
 
 import { readFileInside, readdirInside } from './flow.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
+import { DEFAULT_ACTION_WAIT_MS } from './action-stop.js';
 
 export const VALUES_FILE_RE = /^signed-values(?:-r(\d+))?\.json$/;
 
@@ -50,6 +51,8 @@ export function flowValues(arbiter) {
   const sends = arbiter.sends ?? [];
   const destination = sends.length === 1 && sends[0].target?.kind === 'file' ? String(sends[0].target.path) : null;
   const askWaits = Object.fromEntries((arbiter.asks ?? []).map((a) => [String(a.line), waitText(a.ttlMs)]));
+  // M13 am11a 2: a job with an action and no Ask line keeps the card's Ask wait (1h unless changed) under the action's line, signed with the Destination and the Cap in the same two clicks
+  if ((arbiter.asks ?? []).length === 0 && sends.length === 1) askWaits[String(sends[0].line)] = waitText(DEFAULT_ACTION_WAIT_MS);
   return { capUsd: arbiter.capUsd, destination, askWaits };
 }
 
@@ -169,7 +172,12 @@ export function applyRunValues(arbiter, flow, flowSignatureHash, picked) {
     arbiter: {
       ...arbiter,
       capUsd: v.capUsd,
-      sends: (arbiter.sends ?? []).map((s) => (v.destination === null ? s : { ...s, target: { ...s.target, path: v.destination } })),
+      sends: (arbiter.sends ?? []).map((s) => ({
+        ...s,
+        ...(v.destination === null ? {} : { target: { ...s.target, path: v.destination } }),
+        // M13 am11a: the stop before the action waits this long when the job has no Ask line
+        ...((arbiter.asks ?? []).length === 0 && v.askWaits[String(s.line)] !== undefined ? { waitMs: parseWaitMs(v.askWaits[String(s.line)]) } : {}),
+      })),
       asks: (arbiter.asks ?? []).map((a) => ({ ...a, ttlMs: parseWaitMs(v.askWaits[String(a.line)]), ttlSigned: true })),
     },
   };

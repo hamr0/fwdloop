@@ -63,12 +63,20 @@ const withoutSheet = (r) => {
   return { ...r, toolCalls: [{ ...r.toolCalls[0], arguments: args }, ...r.toolCalls.slice(1)] };
 };
 
+/** The last numbered line of the job listing an action question carries (what a default fake AI names as the action). */
+const lastListedLine = (messages) => {
+  const nums = [...String(messages[messages.length - 1]?.content ?? '').matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
+  return nums.length ? nums[nums.length - 1] : null;
+};
+
 /** A scripted provider: replies[i] answers call i (the last repeats). Records every call. */
 export function fakeProvider(replies) {
   const calls = [];
   const blockCalls = [];
   const blockTurns = []; // M17 am2: each list turn's tool schema and messages, for tests that read what the AI is offered and told
   const provider = {
+    recognise: /** @type {number|null|undefined} */ (process.env.FWDLOOP_TEST_DRAFT_ACTION === 'none' ? null : undefined), // undefined = the AI names the job's last line; null = none; a number = that line
+    suggest: /** @type {string|undefined} */ (process.env.FWDLOOP_TEST_DRAFT_ACTION_LINE),
     lastMalformedToolCall: null,
     calls,
     blockCalls,
@@ -80,7 +88,11 @@ export function fakeProvider(replies) {
       const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [], ...(tools[0]?.parameters?.properties?.sheetChecks ? { sheetChecks: sheetSuggestionsOf(replies) } : {}) }, answer_note_question: noteLines ? { lines: noteLines } : undefined }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
       if (blockTurn) { blockCalls.push(tools[0].name); blockTurns.push({ name: tools[0].name, schema: tools[0].parameters, messages: JSON.parse(JSON.stringify(messages)) }); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
       calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });
-      const r = withoutSheet(replies[Math.min(calls.length - 1, replies.length - 1)]);
+      // M13 am11: the two action questions are answered from `provider.recognise` (the line the AI names, or null) and `provider.suggest` (its one line); they take no place in the declaration queue
+      if (tools[0]?.name === 'record_action') return { text: '', toolCalls: [{ id: 'a1', name: 'record_action', arguments: { action: { line: provider.recognise === undefined ? lastListedLine(messages) : provider.recognise } } }], usage: usage(), stopReason: 'tool_calls', model: MODEL };
+      if (tools[0]?.name === 'suggest_action') return { text: '', toolCalls: [{ id: 'a2', name: 'suggest_action', arguments: { text: provider.suggest ?? 'Write it out to the Destination.' } }], usage: usage(), stopReason: 'tool_calls', model: MODEL };
+      const asked = calls.filter((c) => c.tools[0] !== 'record_action' && c.tools[0] !== 'suggest_action').length;
+      const r = withoutSheet(replies[Math.min(asked - 1, replies.length - 1)]);
       this.lastMalformedToolCall = r.malformedToolCall ?? null;
       return r;
     },

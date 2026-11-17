@@ -76,6 +76,8 @@ export const REASON = Object.freeze({
   manyInputs: 'the job has more than one input and code cannot pick which one the claims quote',
   oneSidedTime: 'a time limit the AI proposes must be a range, so you judge it at Accept.',
   countNeedsFact: 'a result count needs a fact to count; this line has none',
+  // borrowed-from: bareloop src/checkblock.js@v0.58.0
+  countNeedsSuggested: 'a result count needs a fact to count; add the suggested fact on this line to count its results',
   lookNoWords: "the page does not hold the words of the look's fact for this rule",
   afterLast: 'no more tries: Start over (rows are never changed by the AI after the last try)',
   noPick: 'No check was picked for it, so you judge it at Accept.',
@@ -243,7 +245,9 @@ export class CheckBlock {
     const said = this.said(r.line);
     if (r.kind === 'count') return [r.min, r.max].filter((x) => Number.isInteger(x)).some((n) => numberIn(said, n));
     // a fact the person asked for BY NAME ("the release heading") is in the job too: the look's page words rarely echo the job's own words
-    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && typeof r.name === 'string' && inText(said, r.name));
+    // borrowed-from: bareloop src/checkblock.js@v0.58.0
+    // A phrase or place is job-derived only when its own words are in the person's text: a name the AI gave it is no proof (hamr 2026-11-15, live run mwi76vh8: "friendly" for "Select flight")
+    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && r.shape !== 'phrase' && r.shape !== 'place' && typeof r.name === 'string' && inText(said, r.name));
   }
 
   /** a `!` count row is built unless a `~` rule on its line already names the number */
@@ -445,7 +449,8 @@ export class CheckBlock {
           r.grown = words.length ? words : undefined;
         }
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
-    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = REASON.countNeedsFact; }
+    // borrowed-from: bareloop src/checkblock.js@v0.58.0
+    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
     this.buildDefaults(l, lineParts, lineRows, factLines);
   }

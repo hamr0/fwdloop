@@ -7467,3 +7467,522 @@ Kinds decided by fwd's own src: `parseSignedText` (`src/signed-text.js`: `arbite
 - Seen on hamr's walks: the word "it" from "write it out" (M17 walk) and, on draft walk-m17-aging1-2 (2026-11-15, after M17 am7), `line 1: "aging report" — there is no column 'aging report' [default]` from "Read the aging report". A word of the job's prose that is no `~` rule is read as a column name and Not checked as missing.
 - hamr's ruling (2026-11-15, not signed text): leave it; teaching the model to skip such words would be fitting to a probabilistic model. Recorded only; fix only if a live failure needs it.
 - Related, already recorded: F196 (c) flights "destination city" twice (survey path C2).
+
+### F199 PRE-REGISTERED (2026-11-16, $0): bareloop v0.58.0 fixes 1-4 in fwd, copied as released (hamr: copy as released, including fix 1's substring test)
+- Source: `git -C ../bareloop show v0.58.0:<path>`. Real path for every fix: the real `CheckBlock` (`src/checkblock.js`) driven by `fromJob`, `addLook`, `applyDelta`, `reconcile` (the product path with `split: true`); no mock. Test: `test/f199-bareloop-058-fixes.test.js`. Fixture: a three-result flights text with "Select flight" three times.
+- **Fix 1, addLook tie guard.** Input: line `list 3 flights` with `~ be friendly`; the look's fact `{name:'friendly', shape:'phrase', words:['Select flight'], forRule:1}`. Bug-in-fwd bar (today): rule `L2.~1` is `built` and holds a link (`links.length 1`); no `fact` row. After the copy: `L2.~1` is `not-checked`, holds no link, and an ordinary `L2.fact.friendly` row exists.
+- **Fix 2, inJob guard.** Input: same line and rule, the same fact with NO `forRule` (a `!` row). Bug-in-fwd bar: `L2.fact.friendly` has `derived: true` (the AI-written name "friendly" is in the job text) and is `built`. After the copy: `derived` false, the row is Suggested (`held`).
+- **Fix 3, Audit decided words (58e6a3f1 + `decidedWords`).** Not pre-registered as a build: see the STOP below.
+- **Fix 4, `REASON.countNeedsSuggested`.** Input: line `list 3 flights` with a `!` count edit (min 3) and a look fact "Select flight" not in the job (so it is held, Suggested). Bug-in-fwd bar: the count row's reason is `a result count needs a fact to count; this line has none`. After the copy: `a result count needs a fact to count; add the suggested fact on this line to count its results`.
+- **Revert-alone rule:** each fix's test must go red when only that fix is reverted.
+- **STOP, fix 3 (found before any test):** bareloop 58e6a3f1 changes the draft READOUT and the Audit drafting table to print `agreed — <words>` / `you wrote — <words>` / `dropped — Not checked` in place of `you were asked: ...` / `you said: ...`. fwd signed text fixes the old words: docs/wiki/the-module-ladder.md:2818 (M10 am2 item 4) "The Audit shows it under the drafting step as `you were asked: …` / `you said: …`" and :3604 (M14 am3) "The row uses today's words: `you were asked: <question>` and `you said: <answer>`. No new screen words". Also fwd's answer record has no `words`/`agreeWords` field today (src/setup.js humanRows), so the copy would add stored fields and a writer too. Not built; hamr to rule (amendment needed).
+
+### F199 RESULT (2026-11-16, $0, [MEASURED], `test/f199-bareloop-058-fixes.test.js`): fixes 1, 2, 4 PASS on the letter; fix 3 NOT BUILT (stopped on signed words)
+- Red-first: all 3 tests red on the unchanged code (the pre-registered wrong outputs: rule built with a link; `derived: true`; reason "this line has none").
+- **Fix 1 PASS.** Copied (`addLook` tie guard, `weekOnly` was already in fwd's `src/checklist.js`). After: `L2.~1` is `not-checked`, no link, an ordinary `L2.fact.friendly` row. Revert-alone: test 1 red, tests 2 and 4 green.
+- **Fix 2 PASS.** Copied (`inJob`: a phrase or place is job-derived only by its own words; fwd's `numberIn` count branch kept as fwd's). After: `derived` false, row Suggested (`held`). Revert-alone: test 2 red only.
+- **Fix 4 PASS.** Copied (`REASON.countNeedsSuggested` and the held-fact test in `buildLine`). Revert-alone: test 4 red only.
+- **Fix 3:** not built, the signed words clash (see the STOP above); awaits hamr.
+- Related files (13 files, 94 tests): 1 fail on first run, `test/m16-checkblock-rows.test.js` A1, a ported test that asserted the old link on "the version must be named" with words "### Fixed". bareloop v0.58.0 changed that same test the same way; ported its edit (rule's own words name the phrase, plus the `unnamed` case). Not a signed text. After: 13/13 pass; `npm run typecheck` clean.
+- **2026-11-16, fix 1 WITHDRAWN by hamr.** Copied, it broke 25 tests whose fixture models the wrong tie, and word-containment would cut real intent matches (rule "no layovers" vs page "Nonstop"). Reverted in 434adc1d; the `m16-checkblock-rows` A1 edit and the fix 1 test went with it. Fixes 2 and 4 kept. Next design: the look AI matches intent AND words (page words plus a one-line why, or "the page can't show the rule"), code checks, a link whose words differ from the rule becomes a question to the person (Agree / Drop it / type). Needs a pre-registered paid POC and a signed amendment.
+
+## F200 — page look ties: same words / meaning match / nonsense ($0 survey, pre-registered)
+
+**Question.** When fwd's page look (AI, `src/pagemap.js` mapPrompt) ties a page fact to a person's `~` rule (`forRule`), how often is the tie:
+1. **SAME WORDS** — the fact's page words (or a whole word of them) appear in the rule text, case-insensitive, whole-word. Decided by code: the script imports the whole-word logic of `inText` from `src/checkblock.js` (read-only; it is not exported, so the script copies its body byte for byte).
+2. **MEANING MATCH** — words differ but the page words carry the rule's meaning (rule "no layovers", page "Nonstop"; rule "not a red-eye", time label "Departure time" with a reading).
+3. **NONSENSE** — the page words cannot check the rule (rule "be friendly" / "plain words only", page "Select flight").
+
+Also counted: rules with no tied fact.
+
+**Data.** The 57 saved drafts under `~/.config/fwdloop/flows` holding `"forRule"` (mostly `.drafts/<id>/draft*/page-look.json`). $0, read-only, no provider call. Classes 2 and 3 are hand-labelled, one written reason per unique tie; borderline ones are marked as such, not forced. Counts are given both total and de-duplicated by (rule, shape, words). Rules or page words that look personal are masked.
+
+**Expectation to be measured.** How many ties a words-contain guard (bareloop v0.58.0 `named`, withdrawn from fwd as fix 1 of F199) would have cut that were meaning matches. A high number means that guard destroys real intent; a number near 0 means it only cuts nonsense. No bar is set; the number is reported as found.
+
+**F200 results ($0, 2026-11-16).** Script `.claude/scratch/f200/survey.mjs` (untracked; `inText` copied byte for byte, `norm` checked identical), rows in `.claude/scratch/f200/ties.json`. 44 page-look ties in 15 draft ids (`look.facts` with `forRule`; 49 more `forRule` ties are sheet column ties, not page look, left out). Rules were read from each draft's `prose.txt` (`forRule` is the 1-based place in the line's `~` rules, count rules included).
+
+| class | total | unique (rule, shape, words, fact) |
+|---|---|---|
+| 1 same words | 22 | 5 |
+| 2 meaning match | 22 | 5 |
+| 3 nonsense | 0 | 0 |
+| rules on a looked-at line with no tied fact | 8 | 2 |
+
+- Class 1: all phrase facts, rule "nonstop", page word "Nonstop"; fact names vary ("stops", "nonstop", "stop count", "nonstop word", "nonstop wording"). Class 2: all money facts, rule "under $150" (or "$40"), page word "From" (the price label), 21 of 22 with a `reading` (`lt 150`, `lt 40`). Borderline note: "From" is a starting-price label on a flight card, not each flight's own price; labelled meaning match because the label plus the reading is what checks the rule. Class 3: none in this corpus. Shapes of nonsense ties: none to report. Reading present on 21 of 22 meaning matches (1 tie, "price" "From" vs "under $150", has none).
+- No-tie rules: "exactly 3 bullets" and "under 80 words" (4 each) sit on lines with a look; they are count rules and stay with the pick path.
+- **Would-cut number.** bareloop v0.58.0 `named` (the withdrawn F199 fix 1) tests phrase and place ties only, whole-word-ish `includes`. Here all 22 phrase ties contain their words, so it would have cut **0** ties, **0** meaning matches; the 22 money meaning matches are outside its shape test. A words-contain test applied to ALL shapes would have cut 22 of 44 (50%), every one a meaning match.
+- Examples masked/none needed (no personal words). Class 1: rule "nonstop" vs "Nonstop" (fact "stops"; fact "nonstop"; "stop count"). Class 2: rule "under $150" vs "From" (price, lt 150); "under $40" vs "From" (price limit, lt 40); "under $150" vs "From, From" (price). Class 3: none.
+- **Reading of the corpus.** It is narrow: one flights job family, saved drafts only. It holds none of the live nonsense tie that started F199 (rule "be friendly" vs "Select flight", bareloop mwi76vh8). So F200 cannot say how often nonsense happens; it shows that the phrase-only guard cut nothing here and that a whole-shape words guard would be harmful on money.
+
+
+## F201 — look prompt B (intent + can't-show) vs today's, paid POC (pre-registered)
+
+**hamr's direction (2026-11-16, his words, the goal).** "one clean flow: AI translates intent from guardrails ~, suggests from the job !, defaults $; agents say this matches this from page/url/doc/sheet, and the code responds yes I can / can't do this; humans eye it, drop it, add it, and we check again. If anything, it's about making the injected text to agents unambiguous, goal oriented and very very clear." No code carve-outs (no words-contain guard, no special-case lists).
+
+**Problem (F199, F200).** `src/pagemap.js` `mapPrompt` (borrowed from bareloop) says "For each job line and for each rule, say which fact(s) every result must carry, and give the PAGE'S OWN WORDS for it." It gives no way to say the page cannot show a rule, so on bareloop run mwi76vh8 DeepSeek flash tied `~ be friendly` to the phrase "Select flight", signed as a must-say check under the person's name.
+
+**Arms.** A = today's `mapPrompt` + `MAP_SYSTEM`, unchanged (src, not edited). B = the prompt below + the same system line (`poc/f201-lookprompt/promptB.mjs`; src unchanged). B keeps A's answer form; `parseMapAnswer` checks only the fields it knows and ignores unknown ones (read, not assumed), so it reads B's `why` and `cannot` as they are; no harness-side parser is needed. The harness reads `cannot` from the answer's JSON itself.
+
+**Cases (real only; copied read-only to `.claude/scratch/f201/cases/`; job lines built by the real parser `parseSignedText` and the drafter's `hideCounts`, label `flights`, the page the look read).**
+1. `c1-bareloop-mwi76vh8`: bareloop run mwi76vh8 (session smwi75mbqjjbs): "List 3 flights from Boston to Chicago" with `~ under $450`, `~ departure time between 05:00 and 21:00`, `~ be friendly`; page = the run's `source-seed/tree/input/flights.txt`. The original look call's prompt is not in `draft-log.jsonl` (line 13 holds only the answer: label `page-map`, input `flights`), so the label is the input name `flights` and the job is written in fwd's signed form (line 1 = the job line, its three rules).
+2. `c2-fwd-f41b`: fwd draft `d-00mvhunl83-f41b/draft` (F200): "list 3 flights from Madrid to Rome", `under $150; nonstop`, its saved page.
+3. `c3-fwd-69d1`: fwd draft `d-00mvihbmok-69d1/draft` (F200): same job, another day's saved page.
+4. `c4-fwd-b310`: fwd draft `d-00mvmd5209-b310/draft` (F200): `under $40; nonstop`, its saved page.
+Cases 2-4 are one job family (the only one in the saved drafts, as F200 found); they differ in the saved page and the limit. Expected ties (F200 labels): line 2 rule 1 (money "From" + a reading: meaning match) and line 2 rule 2 (phrase "Nonstop": same words). Case 1's rules 1 and 2 are expected ties too; rule 3 (`~ be friendly`) is the nonsense rule.
+
+**Model and call path.** deepseek-flash direct (slot `DEEPSEEK_API_KEY`, Settings prices in/out 0.6/1.2 per 1M, `legacyMaxTokens` on), as `src/drafter.js` `makeCallModel`: `new Loop({ provider, rates, onLlmResult })`, `run([system, user], [], { maxTokens: 16000, thinkingMode })`, attempt 1 thinking off, the one retry on an unreadable answer thinking on, every round metered, provider timeouts `LIVE_PROVIDER_OPTIONS` (300s idle, 240s total). The lookAtPage post-checks (the saved-page word checks) are not run: the AI's answer is what is scored. Key only from env `DEEPSEEK_API_KEY` (set by the orchestrator); an empty key is refused at $0.
+
+**Samples.** 10 looks per case per arm = 80 looks, interleaved (sample, case, arm A then B). Cap $1 (the harness stops before a look when spent >= $0.95; an unpriced round stops the batch and is never priced as 0). Results: `.claude/scratch/f201/results-<tag>.jsonl`, one row per look (raw answer text, parsed facts, cannot list, tokens, cost, ok / unreadable); a tag that already has results is refused. Scorer: `poc/f201-lookprompt/score.mjs`. NONSENSE = a look on case 1 with any fact tied (`from` = `line 1 rule 3`) to `~ be friendly`. KEPT = on cases 2-4, the count of expected ties present (max 2 per look). New ties not in the expected list are reported for hand labelling, not scored. COST per arm = sum of every round's cost.
+
+**The exact B prompt** (the job block and the page are filled in per case; the text between is verbatim):
+
+```
+THE JOB (each ~ rule applies to the line above it):
+<LINE n: text, then "~ rule m: rule" lines, as in A>
+
+Your goal: the ~ rules are the person's intent. For each rule, say which words on the page would let code check that every result keeps it. Code will look for the words you give, and the person will see them and can drop them.
+
+A "result" is one item the page lists (one flight, one stay, one row).
+
+For each job line and for each ~ rule, do ONE of two things:
+1. The page can show the rule. Give a fact: the PAGE'S OWN WORDS that a result carries when it keeps the rule. The words do not have to be the rule's words, but they must carry the rule's MEANING. Add a one-line "why" that says what those words on a result mean for the rule.
+2. The page cannot show the rule: how the answer is written, its tone or style, or anything the page does not hold. Give NO fact for it. Put it in "cannot" with its line and rule number and a one-line "why".
+Never tie a rule to page words that do not carry its meaning. A rule with no fact is a correct answer when the page cannot show it.
+
+Return ONLY a JSON object, no prose, no code fence:
+{"facts":[{"name":"<letters and spaces only>","from":"<line N | line N rule M>","shape":"place|money|time|phrase","words":["<page words>", ...],"why":"<one line>","currency":["<symbol>"],"unit":["<words after the amount>"],"reading":<optional, see below>}],"cannot":[{"from":"line N rule M","why":"<one line>"}]}
+
+shape meanings:
+- place: words = ways the page writes the place (a city, an airport name), copied from the page.
+- money: words = the label(s) written right BEFORE the amount, copied from the page. currency / unit = how the page writes the currency ("$") and/or the words after the amount ("US dollars"); give every spelling the page uses, as lists.
+- time: words = the label(s) written right BEFORE the time that is the one the rule is about, copied from the page.
+- phrase: words = fixed words a result's text must contain, copied from the page.
+Several words in one list are alternatives for the same fact. Put the best one first.
+reading (optional, only on a time or money fact): when a ~ rule is a limit on that fact that the page cannot hold in words (for example "not a red-eye" is a limit on the departure time), give your own best reading of the rule as that limit: {"op":"between","lo":<bound>,"hi":<bound>} or {"op":"lt|lte|gt|gte","value":<bound>}. A time bound is a "HH:MM" string on a 24-hour clock; a money bound is a number. Leave reading out when a page word already carries the rule.
+
+PAGE TEXT (the input "<label>"):
+<the saved page text>
+```
+The system line is A's `MAP_SYSTEM`, the same. The prompt holds no words from the cases' own pages or rules.
+
+**Bars (verbatim).**
+1. NONSENSE on case 1: B's count < A's count. If A's count is 0 of 10, the result is INCONCLUSIVE (the test can't tell them apart).
+2. KEPT on cases 2-4: B's total ≥ A's total − 1.
+3. COST: B's total ≤ A's total × 1.2.
+B PASSES only if (1), (2) and (3) all hold. A FAIL on the letter stays FAIL.
+
+**Harness proof ($0, before any paid run).** `node poc/f201-lookprompt/run.mjs --tag dry1 --dry --samples 2` (fake provider) wrote 16 looks and the scorer read them end to end; a repeated tag, an empty key, and `--preflight` (dummy key, no call: model deepseek-flash, rates 0.0006/0.0012 per 1K) behaved as designed. No provider call, no key read.
+
+**Results (2026-11-16).** Two paid batches, each stopped early by a provider "socket hang up" (cost unknown, so the harness stops and never prices it as 0). Score files `.claude/scratch/f201/results-paid1.jsonl`, `results-paid2.jsonl`; scored with `node poc/f201-lookprompt/score.mjs --tag paid1|paid2`.
+
+| | looks | spent | bars (1)(2)(3) |
+|---|---|---|---|
+| paid1 | 21 | $0.1373 | PASS |
+| paid2 | 13 | $0.0831 | PASS |
+
+Pooled: NONSENSE on c1 (bareloop mwi76vh8, `~ be friendly`): A 2/5, B 0/5; B listed the rule under `cannot` every time. KEPT on c2-4: A 22, B 22 (all expected ties). COST: A $0.1079, B $0.1125 (+4%).
+
+PASS on the bars per batch; the run did not reach its planned 10 samples (two provider socket hang-ups, both on case c3 arm A, different samples); arms are unequal because of the early stops. hamr accepted it and ruled adopt B, 2026-11-16.
+
+## F202 — last line is the action; fingerprint decides if a send stops ($0 POC, pre-registered)
+
+**Question.** hamr's design (2026-11-16, agreed, NOT signed): the job's last line is the action in the person's words; code never adds hidden lines (replaces M13 am8's code-added `ask: check the result with me` + `write it out`, `src/added-end.js`). Before anything LEAVES the machine: sha256 of what is about to leave equals the artifact accepted at the last Ask in THIS run -> send, no stop; changed since, or no Ask accept this run -> stop once and ask; a write to a local folder Destination never stops. What does today's code do for each part, and can the fingerprint rule be decided from records the run already writes?
+
+**Method.** $0. Fake provider (injected `modelStep`), real `writeFlow` / `runFlow` / `resumeRun` / `makeParkingAskStep` / `answerAsk` / `sendViaPrimitive`, fixtures built in a mkdtemp root. No `src/` change. Code in `poc/f202-action/`, scratch in `.claude/scratch/f202/`. Not in this POC (paid, later F203): the drafter recognising the action line and suggesting a missing one.
+
+**Cases and bars (each PASS/FAIL on the letter).**
+- (a) TODAY, typed last line "and once I accept, write it out." with a folder Destination: record what `addEnd` and the saved plan of hamr's walk `d-00mwj6ixcw-27c2` produce. Expected: two added lines, two writes. Baseline, not a bar.
+- (b) TODAY, hand-written plan (no drafter) whose last step is a send/write of an earlier output to a folder Destination with NO Ask anywhere: record exactly whether it is refused at sign/preflight (and the words) or runs. Baseline.
+- (c) FINGERPRINT, outside destination, Ask then action, nothing changed between: does today's runner already ship the accepted artifact by sha256 with no extra stop? Only `file:` destinations exist (`checkSendDestination`, src/runner.js:552), so `file:` is the labelled stand-in for an outside destination. Bar: one stop (the Ask) only.
+- (d) CHANGED AFTER ASK: Ask, then a step that changes the artifact, then the action. Bar for the design: the change is detectable by comparing the sha256 recorded at Accept with the sha256 of what is about to leave, using records the run already writes (name record + field). PASS if the needed values already exist in the run records; FAIL if a new record/field would be needed (say which).
+- (e) RESTART: the accept sha256 survives a restart mid-run (resume). Read the code path. PASS if it is in a write-once record read on resume.
+- (f) Prototype only in `poc/f202-action/`: `decideSend({ destinationLeavesMachine, acceptedSha, outgoingSha })` -> `'send' | 'stop-changed' | 'stop-unseen' | 'write'`; table tests for the 4 rows (local folder -> write; outside + same sha -> send; outside + different -> stop-changed; outside + no accept -> stop-unseen). Bars: all 4 rows right; run against the real run records of (c) and (d): (c) gives `send`, (d) gives `stop-changed`.
+
+A FAIL stays FAIL on the letter. Results are appended below, never by rewriting this block.
+
+**Results (2026-11-16).** Run: `node poc/f202-action/run.mjs` ($0, fake provider, real `writeFlow`/`runFlow`/`resumeRun`/`makeParkingAskStep`/`answerAsk`/`sendViaPrimitive`; raw output `.claude/scratch/f202/results.json`, not tracked). Tests: `node --test poc/f202-action/decide.test.mjs` 4 of 4; with the compare flipped (`===` to `!==`) 2 of 4 fail, restored 4 of 4.
+
+- **(a) TODAY, baseline.** `addEnd` on a typed 3-line job with a Destination returns 5 lines: the 3 typed (the last still "and once I accept, write it out.") plus `4. ask: check the result with me` and `5. write it out` (src/added-end.js:17-32). hamr's walk draft `d-00mwj6ixcw-27c2` (`draft-1/readout.txt`, `declaration.json`): line 4 (typed "and once I accept, write it out.") is an ordinary hitl model step granted `write`, reading `accepted_flights`, emitting `flights_written`; line 5 added Ask; line 6 added send. Two write steps, as expected.
+- **(b) TODAY, baseline.** (b1) hand-written plan with a signed send at the last line and NO Ask is refused at signing by `writeFlow`: `arbiter: field "sends" send at line 2 has no ask at an earlier line (asks: [])` (and src/declaration.js:1224 `send at line N (steps[i]) has no signed ask at an earlier line to read from`). (b2) a plan with NO send slot and NO Ask whose last step is granted `write` SIGNS (`ok: true`) and RUNS to `complete`; the runner ran it as an ordinary model step (my fake wrote nothing; whether the real `write` primitive is confined to a folder was not checked).
+- **(c) FINGERPRINT, no change after the Ask: PASS.** One park (the Ask), accept, resume, the send shipped: `sendViaPrimitive` was called once with `acceptedSha == contentSha == eb14489a...`, file `c-run-1-sent.md` written, outcome `complete`; no second stop. Stand-in: `file:` is the only destination kind (src/runner.js:552 refuses anything not `file:`), so "outside the machine" is labelled `file:` here.
+- **(d) CHANGED AFTER ASK: PASS on the bar, with a finding that goes against the design's premise.** The values exist: accepted sha = `answer.<askId>.consumed.json` `.artifactSha256` joined to `asks/<askId>.json` `.emits` (src/ask.js:552, 664-686); the outgoing value is `sha256Hex(serializeArtifact(artifact))` of the artifact about to leave, equal to the sha of `artifacts/<emits>.json` (checked: note-ok file sha == recorded accept sha). In the run: accepted `eb14489a...`; the later artifact `note2` (a footer added after the accept) `647d9e6f...`; `decideSend` on those gives `stop-changed`. No new record or field is needed; the outgoing hash is computed at use time, as send.js:131-138 already does. BUT today's code never ships `note2`: the send step ships the ASK's own artifact by identity (src/runner.js:1948-1981, `contentResult = readArtifactResult(runDir, askArtifactId)`), so the run completed with ONE stop and the file held the OLD text (no footer). The change after the accept is silently dropped, not detected. Also the validator refused my first (d) plan: a hitl step after the last Ask is red (`step "note2" (line 3) is hitl after the last signed ask — nothing may leave unseen`, src/declaration.js:1258-1260); only a guardrailed green/softgreen step after the Ask signed.
+- **(e) RESTART: PASS.** The accept sha is in a write-once record: `answer.<askId>.consumed.json` written with `flag: 'wx'` (src/ask.js:574), joined to the write-once `asks/<askId>.json` (src/ask.js:597-605, `emits`); on resume `readAcceptedHashesByEmits(runDir)` (src/runner.js:2552, 2951) rebuilds `acceptedAskEmitsThisRun` (src/runner.js:2682-2686, 2967-2971). Live evidence: in (c) and (d) the accept was answered between two processes' worth of folds (`runFlow` parked, `answerAsk`, `resumeRun` shipped) and the send saw the sha.
+- **(f) PASS.** The 4 table rows are right (local -> `write`; outside+same -> `send`; outside+different -> `stop-changed`; outside+no accept -> `stop-unseen`). Against the real records: (c) `send`, (d) `stop-changed` (and `send` if the action shipped the accepted artifact, which is what today's code does).
+
+
+## F203 — AI spots or suggests the job's final action (paid POC, pre-registered)
+
+**hamr's two rules (2026-11-16, agreed, NOT signed), verbatim from the brief:**
+- a) The action/write of the whole job comes at the end. If the job does not mention one, the AI suggests one based on the job context, and the person confirms (question: Agree / Drop it / type your own).
+- b) If the job already ends with an action: if the result's hash changed since the last human check, stop and ask; if no change, proceed. (Proven at $0 in F202; not in this POC.)
+
+**Question.** Rule (a) plus recognising an existing action line is the riskiest AI part. Can deepseek-flash, asked DIRECTLY through a forced tool call with required typed fields (never an optional field: deepseek-flash used an offered questions field 0 of 40 times in an earlier POC), (1) say which line of a job is its final action, and (2) when there is none, suggest one last line and name the earlier line whose output it ships?
+
+**Method.** Code in `poc/f203-action-ai/` (`run.mjs`, `score.mjs`, `cases.mjs`, `prompts.mjs`); no `src/` change. Real call path copied from `src/drafter.js` `forcedTurn`: `new Loop({ provider, rates, onLlmResult })`, a tool whose `execute` captures the arguments and throws `HaltError`, `maxTokens` 16000 (`DRAFT_MAX_TOKENS`), `LIVE_PROVIDER_OPTIONS` (timeout 300s, deadline 240s), `toolChoice` forced, `thinkingMode: 'off'` on both attempts (DeepSeek cannot combine thinking with a forced call; the drafter's own forced turns do the same), one retry when there is no usable call. Model `deepseek-flash` direct, key only from env `DEEPSEEK_API_KEY` (refused at $0 when empty), prices from the real `config.json`. Every round metered; a round with no usage is priced at the CEILING (`ceilingCostUsd`: max(32000, prompt/3) input tokens + 16000 output at the model's price), marked `estimatedAtCeiling`, retried once, never priced 0, never stops the batch. Hard cap: no call starts once spent >= $0.95 (stated cap $1). 5 samples per case, interleaved (sample 1 of every case, then sample 2, ...). A tag that already has results refuses (`wx`).
+The model sees the job the way the drafter lists it (`src/checklist.js` `ledgerUserText` form: `n. text`, `   gN: rule`) and `Destination: folder /home/hamr/fwdloop-out`. SUGGEST runs on the 4 no-action cases every sample, independent of what RECOGNISE answered (so the bar has 20 samples); in the product it would run only after a null.
+
+**Two asks.**
+1. RECOGNISE, tool `record_action`, required `action: { line: <n>|null, reads: <n>|null }`. Code checks: `line` is the LAST line (else refused: not the last line); `reads` is an integer and an earlier line (else refused). `null` leads to SUGGEST. Anything not that shape is unreadable.
+2. SUGGEST, tool `suggest_action`, required `{ text, reads }`. Code checks: `reads` is a line of the job (an integer 1..N); `text` is one line (no newline), non-empty, at most 100 characters.
+
+**Meaning of `reads` (my choice, pre-registered):** the earlier line that MAKES the result shipped, never an Ask line. For a no-action case it is the LAST line that makes a result. Code does not check "not an Ask line" (the brief names only "earlier line"); an answer naming an Ask line is wrong against the expected value and counts as let through if code accepts it. A diagnostic counts them.
+
+**Cases** (8 real jobs from saved drafts, `~/.config/fwdloop/flows/.drafts/<id>/card.json` `job`; Destination `/home/hamr/fwdloop-out` for all). Texts are the person's box form; nothing personal in any of them. The 9a4c draft was stored numbered with `guardrail:` prefixes; rewritten in the box form (`~`).
+
+- **A1** (ends with a typed action; draft `d-00mwj6ixcw-27c2`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the flights page,
+  2. list 3 flights from Boston to Chicago,
+     g1: under $450
+     g2: be friendly
+  3. Ask 30m: check it with me,
+  4. and once I accept, write it out.
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A2** (ends with a typed action; draft `d-00muw963t5-9a4c`). Expected: RECOGNISE line 5, reads 3.
+  ```
+  The job:
+  1. Read my resume,
+  2. and read the JD to compare it against,
+  3. write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,
+     g1: 3 sections, all under 600 words
+  4. Ask 30m: check it with me,
+     g1: nothing goes out before I accept
+  5. and once I accept, write it out.
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A3** (ends with a typed action; draft `d-00mv3x015g-68d2`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the aging report
+  2. Put each invoice in its overdue bucket as of 2026-10-11: Current, 1-30, 31-60, 61-90, 90+
+     g1: every invoice appears exactly once
+  3. Ask: check it with me
+  4. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **A4** (ends with a typed action; draft `d-00mvunom9z-25bb`). Expected: RECOGNISE line 4, reads 2.
+  ```
+  The job:
+  1. Read the ticket
+  2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
+     g1: priority P1 only
+     g2: run a ticket again when its state changes
+  3. Ask: check the note with me
+  4. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N1** (no action; draft `d-00mwhyk4xh-78fe`; unstripped, as typed). Expected: RECOGNISE line null; SUGGEST reads 2.
+  ```
+  The job:
+  1. Read the aging report
+  2. For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+
+     g1: every invoice appears exactly once
+     g2: each invoice is in one bucket
+     g3: days past due = days since 'Due date' as of 2026-10-11
+  3. Ask 1h: check it with me
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N2** (no action; draft `d-00mvzr0lvb-72f9`; unstripped, as typed). Expected: RECOGNISE line null; SUGGEST reads 5.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask: check it with me
+  3. List 3 jobs for this week from the notes
+  4. Ask: check it with me
+  5. Write a short closing note to my neighbour
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N3** (no action; draft `d-00mvia7zwl-691f`; STRIPPED: last line "and once I accept, write it out." removed). Expected: RECOGNISE line null; SUGGEST reads 2.
+  ```
+  The job:
+  1. Read the expenses sheet,
+  2. list every expense over 500,
+     g1: Price over 500
+  3. Ask 30m: check it with me,
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **N4** (no action; draft `d-00muw963t5-9a4c`; STRIPPED: last line "and once I accept, write it out." removed). Expected: RECOGNISE line null; SUGGEST reads 3.
+  ```
+  The job:
+  1. Read my resume,
+  2. and read the JD to compare it against,
+  3. write me a summary resume: how it matches the JD, with a summary of work history blurb, professional skills, soft skills, 3 sections all under 600 words, 200ish each,
+     g1: 3 sections, all under 600 words
+  4. Ask 30m: check it with me,
+     g1: nothing goes out before I accept
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+
+**Prompts, verbatim** (the user message is the job listing above).
+
+*RECOGNISE system:*
+```
+A person wrote a numbered list of steps for a job. The job's finished result must end up in the Destination named below the list.
+
+Your one task: find the step, if there is one, that delivers the finished result to the Destination. A delivering step puts the result into the Destination (it stores, sends or files it there). A step that only reads, makes, lists, checks or asks something is not a delivering step.
+
+Answer by calling the tool record_action exactly once, with the field "action" holding two fields. Both are required.
+- line: the number of the delivering step, or null if no step delivers the result.
+- reads: the number of the earlier step that makes the result being delivered (a step that makes the result, never a step that asks the person to look). Use null when line is null.
+```
+*RECOGNISE tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the step that delivers the result to the Destination, or null if none does."
+        },
+        "reads": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the earlier step that makes the result being delivered; null when line is null."
+        }
+      },
+      "required": [
+        "line",
+        "reads"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+*SUGGEST system:*
+```
+A person wrote a numbered list of steps for a job. The job's finished result must end up in the Destination named below the list. The list has no step that delivers the result there.
+
+Your one task: suggest ONE new last step that delivers the finished result to the Destination.
+
+Rules:
+- Write the step as one short plain sentence, in the person's voice, like their other steps. It must say that the result goes to the Destination.
+- Do not repeat or change any existing step. Do not write a step that asks the person a question.
+- reads is the number of the existing step that makes the finished result: the last step that makes a result, never a step that asks the person to look.
+
+Answer by calling the tool suggest_action exactly once. Both fields are required: text (the new step) and reads (a step number).
+```
+*SUGGEST tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The one new last step, one short plain sentence."
+    },
+    "reads": {
+      "type": "integer",
+      "description": "Number of the existing step that makes the finished result to deliver."
+    }
+  },
+  "required": [
+    "text",
+    "reads"
+  ],
+  "additionalProperties": false
+}
+```
+
+**Samples and cost.** 5 per case: RECOGNISE 8 x 5 = 40 calls, SUGGEST 4 x 5 = 20 calls (plus retries). Cap $1 (hard stop at spent >= $0.95); expected spend well under $0.10.
+
+**Bars (each PASS/FAIL on the letter; score = `node poc/f203-action-ai/score.mjs paid1`, final attempt of each sample).**
+1. RECOGNISE: >= 36 of 40 right overall (right = `line` equals the expected line, `null` when no action), and no case below 4/5.
+2. SUGGEST: on the 4 no-action cases, >= 18 of 20 have the right `reads` and one short line.
+3. No answer code would let through wrong: every wrong answer is caught by code's checks (last line / earlier line) or is a null that leads to a SUGGEST. Counted as let through: RECOGNISE accepted by code on a no-action case, or accepted with a `reads` other than expected; SUGGEST accepted with a `reads` other than expected.
+Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
+
+## F204 — "is there a last step that writes or sends everything before it?" (paid POC, pre-registered)
+
+**hamr (2026-11-16), on F203's RECOGNISE 24/40:** "too tight, question should [be]: is there a last step that writes/sends everything that came before it".
+
+**Why.** F203 stays FAIL (bar 1: RECOGNISE 24/40; SUGGEST was 20/20). The model answered null on jobs ending "Write it out" because the F203 prompt asked for a step that "delivers the finished result to the Destination", and "Write it out" does not name the Destination. F204 asks hamr's question instead and adds 4 held-out real jobs.
+
+**Method.** Code in `poc/f204-action-ai/`, a copy of F203's harness (same call path copied from `src/drafter.js` `forcedTurn`: Loop + `onLlmResult` metering, HaltError-capturing tool, `maxTokens` 16000, `thinkingMode: 'off'`, `LIVE_PROVIDER_OPTIONS`, forced `toolChoice`, one retry on no usable call; ceiling pricing for a call with no usage; wx-tagged result files; `--dry`, `--preflight`). Model `deepseek-flash` direct, key only from env `DEEPSEEK_API_KEY`. No `src/` change. Destination `/home/hamr/fwdloop-out`. The model sees the job as in F203 (`n. text`, `   gN: rule`, then `Destination: folder /home/hamr/fwdloop-out`).
+
+**Two asks.**
+1. RECOGNISE, tool `record_action`, required `action: { line: <n>|null }` only (no `reads`: the step writes everything before it; code knows what came before). Code check: `line` must be the LAST line, else refused. `null` leads to SUGGEST. Anything else is unreadable.
+2. SUGGEST, tool `suggest_action`, required `{ text }` only. Code check: one non-empty line, at most 100 characters.
+
+**Cases (12; 5 samples each).** The 8 F203 cases A1-A4, N1-N4 are unchanged (same texts, same expected line or null; texts are in the F203 block above). 4 NEW held-out jobs from saved drafts not used in F203 (`~/.config/fwdloop/flows/.drafts/<id>/card.json` `job`, read-only; nothing personal in any text; none stripped):
+
+- **H1** (ends with a typed action; held-out; draft `d-00mw0jdbj3-ae4f`; unstripped, as typed). Expected: RECOGNISE line 7.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask 1h: check it with me
+  3. List 3 jobs for this week from the notes
+     g1: exactly 3 bullets
+  4. Ask 1h: check it with me
+  5. Write a short closing note to my neighbour
+     g1: under 80 words
+  6. Ask 1h: check it with me
+  7. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H2** (ends with a typed action; held-out; draft `d-00mv54iebr-5ec3`; unstripped, as typed). Expected: RECOGNISE line 5.
+  ```
+  The job:
+  1. Read my resume and park it for later
+  2. Read the JD and park it for later
+  3. Write me a summary resume from the parked resume and JD: how it matches the JD, with a work history blurb, professional skills and soft skills
+     g1: 3 sections: Work History, Professional Skills, Soft Skills, all under 600 words
+  4. Ask: check it with me
+     g1: nothing goes out before I accept
+  5. Write it out
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H3** (no action; held-out; draft `d-00mw7meob1-e8cf`; unstripped, as typed). Expected: RECOGNISE line null.
+  ```
+  The job:
+  1. Write 3 lines about my garden from the notes
+  2. Ask 1h: check it with me
+  3. List 3 jobs for this week from the notes
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+- **H4** (no action; held-out; draft `d-00mwhyslvk-f7b7`; unstripped, as typed). Expected: RECOGNISE line null.
+  ```
+  The job:
+  1. Read the ticket
+  2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
+     g1: priority P1 only; run a ticket again when its state changes; at most 3 words
+  3. Ask 1h: check the note with me
+  
+  Destination: folder /home/hamr/fwdloop-out
+  ```
+
+
+Expected, pre-written: A1 line 4, A2 line 5, A3 line 4, A4 line 4, N1 null, N2 null, N3 null, N4 null (N3 and N4 are the F203 stripped ones), H1 line 7, H2 line 5, H3 null, H4 null. Held-out = H1-H4.
+
+**Prompts, verbatim** (the user message is the job listing above).
+
+*RECOGNISE system:*
+```
+A person wrote a numbered list of steps for a job. The finished result goes to the Destination named below the list.
+
+Is there a last step that writes or sends everything that came before it? Answer with that step's number, or null if there is none.
+
+A step that only reads, makes, lists, checks or asks something is not one. The step does not have to name the Destination: the Destination is only where the result goes.
+
+Answer by calling the tool record_action exactly once, with the field "action" holding one required field: line (the step's number, or null).
+```
+*RECOGNISE tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Number of the last step that writes or sends everything that came before it, or null if there is none."
+        }
+      },
+      "required": [
+        "line"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}
+```
+*SUGGEST system:*
+```
+A person wrote a numbered list of steps for a job. The finished result goes to the Destination named below the list. The list has no last step that writes or sends everything that came before it.
+
+Your one task: suggest ONE last step that writes or sends everything that came before it to the Destination.
+
+Rules:
+- Write the step as one short plain sentence, in the person's voice, like their other steps. It must say that the result is written or sent to the Destination.
+- Do not repeat or change any existing step. Do not write a step that asks the person a question.
+
+Answer by calling the tool suggest_action exactly once. The one required field is text (the new step).
+```
+*SUGGEST tool schema:*
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "The one new last step, one short plain sentence."
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "additionalProperties": false
+}
+```
+
+
+**Samples and cost.** RECOGNISE 12 x 5 = 60 calls; SUGGEST on the 6 no-action cases (N1-N4, H3, H4) every sample, independent of RECOGNISE: 30 calls; plus retries. Cap $0.90 for this POC (hard stop at spent >= $0.90; F201 and F203 spent about $0.25 of hamr's $1 approvals); expected spend well under $0.20. Paid command, tag paid1: `DEEPSEEK_API_KEY=... node poc/f204-action-ai/run.mjs --tag paid1` then `node poc/f204-action-ai/score.mjs paid1`.
+
+**Bars (each PASS/FAIL on the letter; final attempt of each sample).**
+1. RECOGNISE: >= 54 of 60 right overall (right = `null` on a no-action case; the last line, accepted by code, on an action case), no case below 4/5, and on the 4 held-out cases >= 18 of 20.
+2. SUGGEST on the 6 no-action cases: >= 27 of 30 are one short line (non-empty, one line, <= 100 chars) that says it writes or sends to the Destination. Exact check: the text contains the Destination path `/home/hamr/fwdloop-out` OR matches `/\b(write|save|send)/i` (a word starting write, save or send, case-insensitive).
+3. No duplicate: on the 6 action cases (A1-A4, H1, H2) a null answer counts as a FAIL for that sample, because it would lead to a second write. Bar: 0 null answers on action cases (30 samples).
+Overall PASS only if 1, 2 and 3 hold. A FAIL on the letter stays FAIL; criteria are never refitted. Results are appended below, never by rewriting this block.
+
+### F204 Results (paid1, 2026-11-16)
+
+Run: tag paid1, 90 calls, spent $0.03351, not capped, 0 calls priced at the ceiling, 0 unreadable. Scored with `node poc/f204-action-ai/score.mjs paid1` (raw rows in `poc/f204-action-ai/out/paid1.jsonl`).
+
+| Case | Kind | RECOGNISE | SUGGEST |
+|---|---|---|---|
+| A1-A4 | action | 5/5 each | - |
+| N1 | none | 5/5 | 5/5 |
+| N2 | none | 3/5 | 5/5 |
+| N3 | none | 5/5 | 5/5 |
+| N4 | none | 5/5 | 5/5 |
+| H1 | action, held-out | 5/5 | - |
+| H2 | action, held-out | 5/5 | - |
+| H3 | none, held-out | 5/5 | 5/5 |
+| H4 | none, held-out | 1/5 | 5/5 |
+
+- RECOGNISE overall 54/60; held-out 16/20; lowest case 1/5 (H4).
+- SUGGEST overall 30/30.
+- Diagnostic: refused 4; nulls on no-action cases 24; accepted on no-action cases 2.
+
+**Bars.** 1 FAIL (lowest case 1/5 is below 4/5; held-out 16/20 is below 18/20; overall 54/60 meets its number). 2 PASS (30/30 >= 27). 3 PASS (0 nulls on action cases; 30/30 typed write lines recognised). **OVERALL FAIL. Stays FAIL on the letter; criteria not refitted.**
+
+**Failure detail.**
+- H4 (ticket job ending on an Ask; line 2 "Write a one-paragraph triage note..."): 4 of 5 answered line 2. Code refused all 4 (it is not the last line); in the design that leads to the suggestion question. No harm.
+- N2 (garden job whose last line is "Write a short closing note to my neighbour", a content step): 2 of 5 answered line 5. Code accepted it (it is the last line). Harm if unseen: that line would be treated as the write step (no AI runs there) and the note would not be written.
+
+**Ruling (hamr, 2026-11-16).** Build it despite the FAIL ("users can change intent with revise, it's fail safe and 6 out of 60 is small"). The AI's pick shows on the card for the person to drop, and Revise changes it. This is a ruling to build, not a PASS.
+
+**Known limit (carry into the release CHANGELOG "Known limits").** On a job whose last line writes new content (e.g. "Write a short closing note"), the AI can take it for the final write in about 2 of 5 drafts. It shows on the card as the AI's pick, and the person drops it or revises.

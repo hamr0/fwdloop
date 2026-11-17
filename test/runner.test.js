@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { makeFileAskStep } from '../src/ask.js';
+import { makeFileAskStep, sha256Hex, serializeArtifact } from '../src/ask.js';
 import {
   runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
@@ -345,12 +345,12 @@ const DIVERGENT_DECLARATION = {
       goal: 'Second question, are you sure?', primitives: [], reads: ['asked_early'], emits: 'asked_late', fromLine: 50, close: { class: 'hitl' },
     },
     {
-      goal: 'Send the result.', primitives: ['write'], reads: ['asked_early', 'asked_late'], emits: 'sent', fromLine: 3, close: { class: 'hitl' },
+      goal: 'Send the result.', primitives: ['write'], reads: ['asked_early'], emits: 'sent', fromLine: 3, close: { class: 'hitl' },
     },
   ],
 };
 
-test('M3 item 8: a send reading more than one signed ask\'s artifact is refused at SIGNING time, naming both ids', () => {
+test('M3 item 8 / M13 am11: a send that does not read the step right before it (an earlier ask only) is refused at SIGNING time, naming that step', () => {
   const root = tmpRoot('job-divergent');
   const written = writeFlow({
     root, name: 'div', proseText: DIVERGENT_PROSE, declaration: DIVERGENT_DECLARATION, signedBy: SIGNED_BY, signedAt: SIGNED_AT, catalogue: CATALOGUE,
@@ -358,8 +358,8 @@ test('M3 item 8: a send reading more than one signed ask\'s artifact is refused 
   // The fix working IS the point: this declaration is no longer signable.
   assert.equal(written.ok, false, 'this declaration must now be REFUSED at signing time (item 8) — it was never valid, only invisible to the old line-based check');
   assert.ok(
-    written.reds.some((r) => /reads the emits of more than one earlier signed ask step \(asked_early, asked_late\) — exactly 1 required/.test(r)),
-    `expected a red naming both "asked_early" and "asked_late", got:\n${written.reds.join('\n')}`,
+    written.reds.some((r) => /must read the output of the step before it \("asked_late"\)/.test(r)),
+    `expected a red naming "asked_late", got:\n${written.reds.join('\n')}`,
   );
 });
 
@@ -992,7 +992,7 @@ test('M2 amendment 1 item 2: job #1\'s unasked hitl steps (aging_cells, customer
   let seenEvidence = null;
   const askStep = async ({ evidence }) => {
     seenEvidence = evidence;
-    return { decision: 'accept' };
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) }; // M13 am11: an accept records what was shown, as the answer door does
   };
 
   const result = await runFlow({
@@ -1155,7 +1155,7 @@ test('M2 amendment 1 item 2: the unjudged list resets after an ask — a synthet
   const evidences = [];
   const askStep = async ({ evidence }) => {
     evidences.push(evidence);
-    return { decision: 'accept' };
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) };
   };
 
   const result = await runFlow({
@@ -1229,7 +1229,9 @@ test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries e
   assert.equal(askJson.evidence.unjudged.length, 2);
   assert.deepEqual(askJson.evidence.unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
 
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
+  // M13 am11: the answer door records the sha256 of what was shown; without it nothing counts as accepted and the run stops once more before the action
+  const accept = (a) => writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString(), artifactSha256: sha256Hex(serializeArtifact(a.evidence.artifact)) }));
+  accept(askJson);
 
   // Wait for the SECOND ask to land, then answer it too.
   const secondAskDeadline = Date.now() + 3000;
@@ -1244,7 +1246,7 @@ test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries e
   }
   assert.ok(secondAskJson, 'the second ask must reach disk');
   assert.equal(secondAskJson.evidence.unjudged.length, 0, 'nothing unjudged happened between the two asks');
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
+  accept(secondAskJson);
 
   const result = await runPromise;
   assert.equal(result.outcome, 'complete', result.red);
@@ -1304,10 +1306,10 @@ test('a reason-less rejection is refused and re-asked, never advances', async ()
   const { fn: modelStep } = job1ModelStepWithContexts();
 
   let asked = 0;
-  const askStep = async () => {
+  const askStep = async ({ evidence }) => {
     asked += 1;
     if (asked === 1) return { decision: 'reject', reason: '' };
-    return { decision: 'accept' };
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) }; // M13 am11: an accept records what was shown
   };
 
   const result = await runFlow({

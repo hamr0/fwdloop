@@ -112,7 +112,7 @@ export function applySheetWords(text, words, jobLines, label) {
     if (found.kind === 'tie') { dropped.push({ ...rec, reason: 'column-tie', other: found.columns.map((c) => `"${c}"`).join(', ') }); continue; }
     if (found.kind === 'none') { dropped.push({ ...rec, reason: 'no-fit', other: String(found.rows) }); continue; }
     // the person already named this column in a rule of the line (an answer they gave, or their own words): the word is that column, asked no more
-    if (rules.some((r, i) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
+    if (rules.some((r) => countPhrase(r, found.column) > 0)) { facts.push(fact(found.column)); continue; }
     if (at.rule !== undefined) ruleWords.add(`${at.line}\u0000${w.word.toLowerCase()}`);
     if (at.rule !== undefined && tiedRules.has(`${at.line}\u0000${at.rule}`)) continue;
     // F196: the line's prose word that a tied `~` rule of the line also says is settled by that rule (one word, one question, whichever the look tied the ask to)

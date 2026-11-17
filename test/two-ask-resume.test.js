@@ -18,7 +18,7 @@ import path from 'node:path';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
+import { runFlow, resumeRun, makeParkingAskStep, readAsk } from '../src/runner.js';
 import { answerAsk, serializeArtifact, writeAskArchive } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { sandboxSend, SEND_DIR } from './send-sandbox.js';
@@ -45,7 +45,7 @@ assert.ok(TWO_ASK_PROSE.includes('5. ask: one more look'), 'fixture anchor moved
 const declaration = JSON.parse(fixture('job2.m1.declaration.json'));
 const send = declaration.steps.pop();
 send.fromLine = 6;
-send.reads = ['resume-summary-approved'];
+send.reads = ['resume-summary-final']; // M13 am11: the action reads the step right before it (the second Ask)
 declaration.steps.push({
   goal: 'Show the summary again and pause until the human accepts it a second time; nothing is written out before that.',
   primitives: [],
@@ -113,7 +113,7 @@ test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after l
   } finally { cleanShipped(runId); }
 });
 
-test('M4b p3 follow-up: ask 1\'s artifact edited by one byte after its accept is still refused at send (earlier-process accept)', async () => {
+test('M4b p3 follow-up / M13 am11: ask 1\'s artifact edited by one byte after its accept: what goes out changed since the last accept, so the run stops once (earlier-process accept)', async () => {
   const runId = 'twoask-earlier-tamper';
   cleanShipped(runId);
   try {
@@ -122,8 +122,9 @@ test('M4b p3 follow-up: ask 1\'s artifact edited by one byte after its accept is
     assert.ok(before.includes('worked places'));
     writeFileSync(a.approvedFile, before.replace('worked places', 'worked placeS'));
     const res = await resumeRun(baseArgs(a.root, runId));
-    assert.equal(res.outcome, 'red');
-    assert.match(res.red, /the artifact changed after it was accepted/);
+    // M13 am11: the last Ask's accept is the one compared; what goes out changed since it, so the run stops once and asks; nothing is written
+    assert.equal(res.outcome, 'paused', res.red);
+    assert.equal(readAsk(res.runDir).question, 'This changed since you accepted it.');
     assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
   } finally { cleanShipped(runId); }
 });
@@ -166,7 +167,7 @@ async function rejectRepark(runId) {
   };
 }
 
-test('M4b am2 (xi): an archived ask with no emits (old run) — send refuses by name, nothing ships', async () => {
+test('M4b am2 (xi) / M13 am11: an EARLIER ask\'s archive with no emits (old run) no longer matters: only the last Ask\'s accept is compared, so the send goes', async () => {
   const runId = 'twoask-no-emits';
   cleanShipped(runId);
   try {
@@ -180,9 +181,8 @@ test('M4b am2 (xi): an archived ask with no emits (old run) — send refuses by 
     }
     assert.equal(stripped, 1, 'ask 1 archive must have carried emits');
     const res = await resumeRun(baseArgs(a.root, runId));
-    assert.equal(res.outcome, 'red');
-    assert.match(res.red, /no accepted-artifact hash was recorded/);
-    assert.deepEqual(shippedFiles(runId), []);
+    assert.equal(res.outcome, 'complete', res.red);
+    assert.equal(shippedFiles(runId).length, 1);
   } finally { cleanShipped(runId); }
 });
 

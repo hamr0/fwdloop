@@ -106,7 +106,7 @@ const DECLARATION = {
       goal: 'Do a quick pass afterward to double-check nothing changed.', primitives: [], reads: [], emits: 'post-accept-check', fromLine: 5, close: { class: 'softgreen', shape: {} },
     },
     {
-      goal: 'Write the human-accepted summary resume out to a file.', primitives: ['write'], reads: ['resume-summary', 'resume-summary-approved'], emits: 'resume-summary-output', fromLine: 6, close: { class: 'hitl' },
+      goal: 'Write the human-accepted summary resume out to a file.', primitives: ['write'], reads: ['post-accept-check'], emits: 'resume-summary-output', fromLine: 6, close: { class: 'hitl' },
     },
   ],
 };
@@ -124,8 +124,6 @@ function writeTempDocxLike(dir, name, text) {
   writeFileSync(p, text);
   return p;
 }
-
-const ACCEPT_ASK = async () => ({ decision: 'accept' });
 
 /** Builds the fake modelStep for this flow. `onQuickPass` runs synchronously
  *  during the intervening step's own modelStep call — strictly after the
@@ -174,33 +172,11 @@ function outsideSecret(prefix) {
   return target;
 }
 
-async function runToSendGate(root, { onQuickPass, captureSend } = {}) {
-  writeTestFlow(root);
-  const srcDir = tmpRoot('sources');
-  const resume = writeTempDocxLike(srcDir, 'resume.docx', 'Resume text goes here.');
-  const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
-  const { fn: modelStep, calls } = makeModelStep({ onQuickPass });
-
-  const result = await runFlow({
-    root,
-    name: 'job2r4',
-    runId: 'run-1',
-    sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }],
-    catalogue: CATALOGUE,
-    modelStep,
-    askStep: ACCEPT_ASK,
-    sendStep: captureSend,
-    primitives: {},
-    businessDate: BUSINESS_DATE,
-  });
-  return { result, quickPassCalls: calls };
-}
-
 // ---------------------------------------------------------------------------
 // Sanity: the untouched flow completes and ships the real accepted content.
 // ---------------------------------------------------------------------------
 
-test('F48 r4 sanity: the intervening step does not break a normal accept -> send run', async () => {
+test('F48 r4 sanity (M13 am11): an Ask, a step after it, then the action: the result changed after the accept, so the run stops once; Accept ships the step before the action', async () => {
   const root = tmpRoot('sanity');
   let sentContent = null;
   let sendCalls = 0;
@@ -209,55 +185,68 @@ test('F48 r4 sanity: the intervening step does not break a normal accept -> send
     sentContent = content;
     return { ok: true, bytes: JSON.stringify(content ?? {}).length };
   };
-
-  const { result, quickPassCalls } = await runToSendGate(root, { captureSend });
-
-  assert.equal(result.outcome, 'complete', result.red);
-  assert.equal(quickPassCalls(), 1);
+  const flow = await parkAtTheStop(root, { captureSend });
+  assert.equal(flow.stop.outcome, 'paused', flow.stop.red);
+  assert.equal(sendCalls, 0, 'nothing is sent before the stop is accepted');
+  assert.equal(answerAsk({ runDir: flow.stop.runDir, askId: flow.stop.askId, decision: 'accept' }).ok, true);
+  const done = await resumeRun(flow.resumeArgs);
+  assert.equal(done.outcome, 'complete', done.red);
   assert.equal(sendCalls, 1);
-  assert.deepEqual(sentContent, result.artifacts['resume-summary-approved']);
+  assert.deepEqual(sentContent, { text: 'checked' });
 });
 
+/** Park at the Ask, accept it, resume: the run reaches the action with a changed result and parks at the stop. */
+async function parkAtTheStop(root, { captureSend }) {
+  writeTestFlow(root);
+  const srcDir = tmpRoot('sources');
+  const resume = writeTempDocxLike(srcDir, 'resume.docx', 'Resume text goes here.');
+  const jd = writeTempDocxLike(srcDir, 'jd.md', 'JD text goes here.');
+  const { fn: modelStep } = makeModelStep();
+  const base = { root, name: 'job2r4', catalogue: CATALOGUE, modelStep, sendStep: captureSend, primitives: {}, businessDate: BUSINESS_DATE };
+  const parked = await runFlow({ ...base, runId: 'run-1', sources: [{ id: 'resume', path: resume }, { id: 'jd', path: jd }], askStep: makeParkingAskStep() });
+  assert.equal(parked.outcome, 'paused', parked.red);
+  assert.equal(answerAsk({ runDir: parked.runDir, askId: parked.askId, decision: 'accept' }).ok, true);
+  const resumeArgs = { ...base, runId: 'run-1' };
+  const stop = await resumeRun(resumeArgs);
+  return { stop, resumeArgs };
+}
+
 // ---------------------------------------------------------------------------
-// The three send-slot tamper scenarios (M4a redesign spec): after accept,
-// before send, the accepted artifact is (1) deleted, (2) swapped for a
-// symlink outside the run dir, (3) replaced with invalid JSON. In every
-// case: the run halts red naming the artifact, the fake send is NEVER
-// called (so nothing would reach a real destination), and audit.jsonl has
-// no green send row.
+// The three send-slot tamper scenarios (M4a redesign spec), moved to the stop (M13 am11): after the stop is accepted, before the send, the artifact about to go out is
+// (1) deleted, (2) swapped for a symlink outside the run dir, (3) replaced with invalid JSON. In every case: the run halts red naming the artifact, the fake send is
+// NEVER called (so nothing would reach a real destination), and audit.jsonl has no green send row.
 // ---------------------------------------------------------------------------
 
 for (const scenario of ['deleted', 'symlinked-outside', 'invalid-json']) {
-  test(`F48 r4: send slot halts red when the accepted artifact is ${scenario} between accept and send`, async () => {
+  test(`F48 r4: send slot halts red when the artifact about to go out is ${scenario} between the accept and the send`, async () => {
     const root = tmpRoot(scenario);
     let sendCalls = 0;
     const captureSend = async (target, filename, content) => {
       sendCalls += 1;
       return { ok: true, bytes: JSON.stringify(content ?? {}).length };
     };
+    const flow = await parkAtTheStop(root, { captureSend });
+    assert.equal(flow.stop.outcome, 'paused', flow.stop.red);
+    assert.equal(answerAsk({ runDir: flow.stop.runDir, askId: flow.stop.askId, decision: 'accept' }).ok, true);
 
-    const tamper = () => {
-      const p = artifactPath(root, 'run-1', 'resume-summary-approved');
-      assert.ok(existsSync(p), `expected the accepted artifact to already be on disk at ${p}`);
-      if (scenario === 'deleted') {
-        unlinkSync(p);
-      } else if (scenario === 'symlinked-outside') {
-        const target = outsideSecret(scenario);
-        unlinkSync(p);
-        symlinkSync(target, p);
-      } else if (scenario === 'invalid-json') {
-        writeFileSync(p, '{ not valid json');
-      }
-    };
+    const p = artifactPath(root, 'run-1', 'post-accept-check');
+    assert.ok(existsSync(p), `expected the artifact about to go out to be on disk at ${p}`);
+    if (scenario === 'deleted') {
+      unlinkSync(p);
+    } else if (scenario === 'symlinked-outside') {
+      const target = outsideSecret(scenario);
+      unlinkSync(p);
+      symlinkSync(target, p);
+    } else if (scenario === 'invalid-json') {
+      writeFileSync(p, '{ not valid json');
+    }
+    const result = await resumeRun(flow.resumeArgs);
 
-    const { result } = await runToSendGate(root, { onQuickPass: tamper, captureSend });
+    assert.notEqual(result.outcome, 'complete', 'a tampered artifact must never let the run complete');
+    assert.match(result.red, /post-accept-check/, `expected the halt to name the artifact, got: ${result.red}`);
+    assert.equal(sendCalls, 0, 'sendStep must never be called once the artifact read is refused');
 
-    assert.notEqual(result.outcome, 'complete', 'a tampered accepted artifact must never let the run complete');
-    assert.match(result.red, /send:.*resume-summary-approved/, `expected the halt to name the artifact, got: ${result.red}`);
-    assert.equal(sendCalls, 0, 'sendStep must never be called once the accepted artifact read is refused');
-
-    const runDir = runDirOf(root, 'run-1');
-    const auditRows = readAudit(runDir);
+    const auditRows = readAudit(runDirOf(root, 'run-1'));
     const sendRows = auditRows.filter((row) => row.step?.goal?.includes('Write the human-accepted'));
     assert.equal(sendRows.length, 0, `no send-step audit row (green or otherwise) may exist — got ${JSON.stringify(sendRows)}`);
   });

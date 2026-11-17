@@ -170,6 +170,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 
 **Parked, not scheduled: the Tickets filter rule is found by a word reader** (hamr, 2026-11-15, unsigned). M17 am6 P3 ties the AI's filter/watch suggestion to a `~` rule with a fixed code table over the person's own words (src/ticketrows.js `ticketRuleField`: P0-P3 or label = filter; state/labels then change = watch). Missed wordings ("high priority", "urgent", "status changes", "tagged bug", "P1s") show as Not checked and the job gets no filter. bareloop has no tie today; its planned tag (the drafter names `rule: N` or `new`, code checks it exists; feat/one-list-rubric 421e06ef, unreleased) replaces the word reader when released. Not seen failing live.
 
+**Parked, not scheduled: tell a content-writing last line from the final write-out** (hamr, 2026-11-16, unsigned). F204 (docs/logs/FINDINGS.md): on a job whose last line writes new content ("Write a short closing note to my neighbour"), the AI took it for the final write in 2 of 5 drafts; code accepts it because it is the last line, so the note would not be written. M13 am11 (signed as am10, 2026-11-16) ships with this as a known limit: the pick shows on the card as the AI's `[agent]` row with Drop, and Revise changes it. Later: one more paid round making "a step that writes new content" vs "write everything that came before it" clearer to the AI, pre-registered with held-out cases.
+
 **Next, not scheduled: one check flow** (hamr, 2026-11-14, unsigned DRAFT; module number: hamr picks; after M16 ships). DRAFT for hamr to edit. Not signed, not built. It needs its scope, exit and negative scenario signed by hamr before it starts.
 
 **hamr's words.**

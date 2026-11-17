@@ -9,7 +9,7 @@ import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
+import { runFlow, resumeRun, makeParkingAskStep, readAsk } from '../src/runner.js';
 import { answerAsk, sha256Hex, serializeArtifact } from '../src/ask.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { validateDeclaration } from '../src/declaration.js';
@@ -173,7 +173,7 @@ test('resume rebuilds the text: parked ask.json holds it, the accept ships it by
   clean('am9-resume');
 });
 
-test('a 1-byte change to the output of a step after the accept is refused at the send; nothing is written', async () => {
+test('a 1-byte change to the output of a step after the accept stops the run once at the send (M13 am11: "This changed since you accepted it."); nothing is written', async () => {
   const r = root(); clean('am9-tamper'); modelRound = 0;
   sign(r, 'j');
   const parked1 = await runFlow(args(r, 'j', 'am9-tamper', { askStep: makeParkingAskStep(), sources: [] }));
@@ -185,12 +185,12 @@ test('a 1-byte change to the output of a step after the accept is refused at the
   assert.ok(before.includes('TEXT TWO'));
   writeFileSync(f, before.replace('TEXT TWO', 'TEXT TWo'));
   const res = await resumeRun(args(r, 'j', 'am9-tamper'));
-  assert.equal(res.outcome, 'red');
-  assert.match(res.red, /the artifact changed after it was accepted/);
+  assert.equal(res.outcome, 'paused', res.red);
+  assert.equal(readAsk(res.runDir).question, 'This changed since you accepted it.');
   assert.deepEqual(shipped('am9-tamper'), []);
 });
 
-test('a job signed before am8 (the send line is the person\'s own words) is unchanged: the Ask shows its one step', async () => {
+test('a plan signed with the Ask reading one step (before am9) is unchanged: the Ask shows its one step, whatever the action line\'s words', async () => {
   const r = root(); clean('am9-old'); modelRound = 0;
   const prose = PROSE('4. ask 1h: check it with me\n5. and write the result out');
   const decl = declaration(['n2']); decl.steps[3].goal = 'check it with me'; decl.steps[4].goal = 'and write the result out';
@@ -205,7 +205,7 @@ test('a job signed before am8 (the send line is the person\'s own words) is unch
   clean('am9-old');
 });
 
-test('plan: code sets the last Ask to read every work step (nearest first), only for an am8 plan; validateDeclaration accepts it', () => {
+test('plan: code sets the Ask right before the action to read every work step (nearest first); validateDeclaration accepts it', () => {
   const p = parseSignedText(PROSE());
   assert.equal(p.ok, true);
   const model = declaration(['n2']); // what the drafter sent: one read
@@ -216,5 +216,5 @@ test('plan: code sets the last Ask to read every work step (nearest first), only
   assert.equal(v.ok, true, JSON.stringify(v.reds));
   const old = parseSignedText(PROSE('4. ask 1h: check it with me\n5. and write the result out'));
   const oldSteps = declaration(['n2']).steps.map((x) => (x.fromLine === 5 ? { ...x, goal: 'and write the result out' } : x));
-  assert.equal(readEveryStep(oldSteps, old.arbiter), oldSteps, 'an old plan comes back as it was');
+  assert.deepEqual(readEveryStep(oldSteps, old.arbiter)[3].reads, ['n2', 'n1'], 'M13 am11: the action line\'s words no longer matter (a stored plan is never rewritten: this runs at draft time only)');
 });

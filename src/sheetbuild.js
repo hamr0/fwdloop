@@ -9,7 +9,7 @@
 // One writer per field: `id`, `claim`, `covers` and `table` (when absent and the line reads one sheet) are assigned here. A rule row's id is `l<line>r<rules>`, an agent row's `l<line>a<k>`; the claim is the id.
 // What this throws away: a suggestion's `id`, `claim`, `text` (and its `covers`: an agent row's is only the rule no rule row holds); a refused suggestion's check (only its reason is kept, on the rules it named).
 // Third outcomes, named: a suggestion that is not an object, names no rule or op bareguard has, a table it cannot read, a column that is no header: refused with that helper's words; a rule that no
-// check holds is Not checked with the last refusal that named it, or the no-pick sentence (`NO_SUGGESTION`).
+// check holds is Not checked with the last refusal that named it, or the no-pick sentence (`NO_VALUE_WHY`).
 import { rubricVocabulary, claimSchema, groundedLiterals } from 'bareguard';
 import { SHEET_RULES, sheetCheckColumns, sheetCheckReds, bareguardChecks } from './sheetchecks.js';
 import { tableChecksFailingOnInput } from './sheetrun.js';
@@ -23,9 +23,6 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 
 /** the fields of a suggestion code does not read: it names every check itself */
 export const SUGGESTION_DROPPED = Object.freeze(['id', 'claim', 'text', 'covers']);
-
-/** M17 am7 item 2: the words of a rule no check holds and nothing refused: the one no-pick sentence (src/ticketrows.js), not a third copy */
-export const NO_SUGGESTION = NO_VALUE_WHY;
 
 /**
  * @param {any} ai a suggestion as the AI sent it @returns {{covers: number[], fields: Record<string, any>}}
@@ -102,7 +99,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
     if (isColumnChoiceRule(text)) return { rule: n, text, state: 'column', reason: null, id: null };
     if (held.has(n)) return { rule: n, text, state: 'built', reason: null, id: /** @type {string} */ (held.get(n)) };
     if (coveredByAgent.has(n)) return { rule: n, text, state: 'agent-row', reason: null, id: /** @type {string} */ (coveredByAgent.get(n)) };
-    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? NO_SUGGESTION, id: null };
+    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? NO_VALUE_WHY, id: null };
   });
   return { rows, ruleRows, agentRows, checks: [...ruleRows, ...agentRows].map((p) => p.check), refused };
 }
@@ -111,7 +108,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
  * The declaration with every green sheet step's `close.sheet` REWRITTEN by code from what the AI suggested there (`buildSheetLine`). A step with no suggestion is left alone; a step none of whose
  * suggestions can be built loses `close.sheet` (its rules are Not checked with their reasons). Pure over the declaration it is given (a copy is returned).
  * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>}} o
- * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], unbuilt: {line: number, lost: string[]}[]}>} `unbuilt`: the green sheet steps left with no check, each with its rules as Not-checked lines. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_SUGGESTION`), for each rule of a
+ * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], unbuilt: {line: number, lost: string[]}[]}>} `unbuilt`: the green sheet steps left with no check, each with its rules as Not-checked lines. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_VALUE_WHY`), for each rule of a
  *   rewritten line that no check holds
  */
 export async function buildSheetChecks({ declaration, lines, tables }) {
@@ -145,7 +142,7 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     const line = lines.find((l) => l.n === st.fromLine);
     const rules = line ? rulesOfLine(line).filter((r) => !isColumnChoiceRule(r)) : [];
     if (rules.length === 0) continue;
-    unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_SUGGESTION}`) });
+    unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_VALUE_WHY}`) });
   }
   return { declaration: { ...declaration, steps }, notChecked, refused, unbuilt };
 }

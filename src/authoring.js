@@ -22,7 +22,6 @@ import path from 'node:path';
 import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
-import { addedLinesOf } from './added-end.js';
 import { factRows, factSentence, countSentence } from './citedcheck.js';
 import { plainWords, labelled, tagged } from './checkwords.js';
 import { listLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
@@ -44,6 +43,7 @@ import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
 import { mcpPickHere } from './mcp-pick.js';
+import { hitlWords } from './checked.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
@@ -181,11 +181,15 @@ const READOUT_HEADS = {
   refused: 'REFUSED LINES',
   jobLines: 'JOB LINES',
 };
-/** Zero-based indexes of the heading lines in a readout's text (split on "\n"): the panel renders those bold. */
+// borrowed-from: bareloop src/authorreadout.js@v0.58.0
+/** The readout's top line prefix: ONE owner for the text `buildReadout` writes and the bold `readoutHeadIndexes` finds. */
+export const READOUT_HEADER_PREFIX = 'DRAFT READOUT — NOT SIGNED — flow ';
+
+/** Zero-based indexes of the header and heading lines in a readout's text (split on "\n"): the panel renders those bold. */
 export function readoutHeadIndexes(text) {
   const heads = new Set(Object.values(READOUT_HEADS));
   const idx = [];
-  String(text).split('\n').forEach((l, i) => { if (heads.has(l)) idx.push(i); });
+  String(text).split('\n').forEach((l, i) => { if (heads.has(l) || l.startsWith(READOUT_HEADER_PREFIX)) idx.push(i); });
   return idx;
 }
 
@@ -194,7 +198,7 @@ export function buildReadout({
   declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
 }) {
   const out = [];
-  out.push(`DRAFT READOUT — NOT SIGNED — flow "${name}"`, '');
+  out.push(`${READOUT_HEADER_PREFIX}"${name}"`, '');
   out.push(`Drafted by: ${modelId ?? '?'} in ${rounds} round(s), cost ${usd(costUsd, spendComplete)}`);
   if (typeof root === 'string') out.push(`Flows root: ${root}  (the flow is written to <flows root>/${name} when you sign)`);
   out.push(`Cap per run (signed by you in the prose): $${arbiter.capUsd}`, '');
@@ -220,11 +224,14 @@ export function buildReadout({
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
   const onList = listLinesOf(declaration);
-  const addedLines = addedLinesOf(lines, arbiter); // M13 am8: the lines code added at the end are marked `added`
+  // display only: a hitl step that is not an Ask line prints the card's words (src/checked.js hitlWords); an Ask line (pure stop) keeps `hitl`
+  const askLineNos = (arbiter.asks ?? []).map((a) => a.line);
+  const lastAskIdx = declaration.steps.reduce((m, st, i) => (askLineNos.includes(st.fromLine) ? i : m), -1);
+  const checkText = (st, i) => (st.close?.class === 'hitl' && !askLineNos.includes(st.fromLine) ? hitlWords(askLineNos.length > 0, lastAskIdx !== -1 && i > lastAskIdx) : st.close?.class);
   declaration.steps.forEach((st, i) => {
-    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}${addedLines.has(st.fromLine) ? '  [added]' : ''}`);
+    out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
-      + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${st.close?.class}`);
+      + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${checkText(st, i)}`);
     if (Array.isArray(st.mcpTools) && st.mcpTools.length) out.push(`     tools: ${st.mcpTools.join(', ')}`);
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     // M16: a list line's checks carry the tag of the row that built each (`[you]`, `[agent]`, `[default]`); any other line keeps today's words
@@ -339,6 +346,8 @@ export function writePlanFiles(dir, files, opts = {}) {
 export async function draftToDir({
   proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
+  // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
+  actionMode = /** @type {null|'check'|'known'} */ (null),
 }) {
   const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
   const nameCheck = checkFlowName(name);
@@ -423,7 +432,7 @@ export async function draftToDir({
   let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
     proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(columnAnswers === undefined ? {} : { columnAnswers }), ...(carriedColumns === undefined ? {} : { carriedColumns }), onColumns: (rec) => { columnRecord = rec; }, ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
-    flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }),
+    flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }), actionMode,
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
@@ -441,12 +450,14 @@ export async function draftToDir({
   const paidFail = (red) => ({
     ok: false, wrote: true, dir, reds: [red], costUsd: result.costUsd, spendComplete: result.spendComplete, stop: 'write', rounds: result.rounds, calls: result.calls, leaks: 0,
   });
-  const parsed = parseSignedText(prose.text); // the drafter already proved it parses
+  // M13 am11: the prose as the drafter kept it (its tentative send line stays or is taken out); every file below is made from this one text
+  const proseOut = typeof result.proseText === 'string' ? result.proseText : prose.text;
+  const parsed = parseSignedText(proseOut); // the drafter already proved it parses
   if (!parsed.ok) return paidFail(`parse: ${parsed.reds.join('; ')}`);
   const dj = (o) => `${JSON.stringify(o, null, 2)}\n`;
   /** @type {Record<string, string>} */
   const files = {};
-  files['prose.txt'] = prose.text; // verbatim
+  files['prose.txt'] = proseOut; // verbatim (M13 am11: as the drafter kept it)
   const targetText = dj({ root, name });
   files['target.json'] = targetText;
   // M4d am6 item 6: the pick is remembered beside the draft (written below as model.json, outside the signed files) so the signed job runs with it.
@@ -464,6 +475,8 @@ export async function draftToDir({
     revisions: result.revisions, thinking: result.thinking, inputs: result.inputs, log: result.log,
     // M16 P4: what the plan card shows of the list (rows with tags and reasons, the suggestions), drawn by the page; Drop and Add rebuild it
     ...(result.checkCard ? { checkCard: result.checkCard } : {}),
+    // M13 am11: the job's action (the last line the AI named, or the person agreed or typed), or null: the plan card's row `› line <n> writes everything before it`
+    action: result.action ?? null,
   }), secrets);
   let hash = null;
   if (result.ok) {
@@ -476,7 +489,7 @@ export async function draftToDir({
     files['input-facts.json'] = inputFactsText;
     files['readout.txt'] = readoutText;
     const h = specHash({
-      proseText: prose.text, declarationText, inputFactsText, readoutText, targetText,
+      proseText: proseOut, declarationText, inputFactsText, readoutText, targetText,
     });
     if (!h.ok) return paidFail(`hash: ${h.red}`);
     hash = h.hash; // spec.hash is written only after a clean sweep, below

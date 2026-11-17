@@ -25,6 +25,12 @@ import { splitReadNotes, signedFactNames } from './pagedropwords.js';
 
 const list = (xs) => xs.join(', ');
 
+/** The words for a step with no machine check of its content: the ONE owner (the card and the draft readout both call it). @param {boolean} hasAsk the job has a signed ask @param {boolean} afterLastAsk the step comes after the last ask */
+export function hitlWords(hasAsk, afterLastAsk) {
+  if (afterLastAsk) return 'No machine check of the content; you check it after you accept.';
+  return hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.';
+}
+
 /**
  * One entry per step, in plan order: the plain sentences for what its typed close checks.
  * M10b piece 4: with `lines` (the signed job lines) a step that reads a sheet also carries `sheet`, its line's block (src/sheetblock.js `sheetLineBlocks`: guardrails,
@@ -69,8 +75,7 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       // M10 am16: each check the person picked, in the words it was picked in (src/checkwords.js, the one place)
       if (!listed && Array.isArray(shape.picked)) for (const c of shape.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));
     } else {
-      if (lastAsk !== -1 && i > lastAsk) out.push('No machine check of the content; you check it after you accept.');
-      else out.push(hasAsk ? 'No machine check of the content: you check it at the ask.' : 'No machine check of the content; the machine checks only that the step happened.');
+      out.push(hitlWords(hasAsk, lastAsk !== -1 && i > lastAsk));
     }
     // M10 am22 (1)(4): the checks the person picked for a fact line, beside its fact rows
     if (!listed && cls === 'green' && Array.isArray(st.close.picked)) for (const c of st.close.picked) out.push(labelled(`You picked: ${plainWords(c)}.${keptOf(st.fromLine, c)}`, 'picked'));

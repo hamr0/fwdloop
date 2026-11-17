@@ -30,10 +30,12 @@ test('(c) the readout: each guardrail sits as "  ~ <guardrail>" right under its 
   assert.equal(t[t.indexOf('  2. check with me') + 1], '');
 });
 
-test('(c) the readout: the five headings are found by the one list, and only they', () => {
+test('(c) the readout: the header line and the five headings are found by the one list, and only they', () => {
   const t = readout().split('\n');
+  assert.equal(readoutHeadIndexes(readout())[0], 0, 'the top DRAFT READOUT line is bold');
   const heads = readoutHeadIndexes(readout()).map((k) => t[k]);
-  assert.deepEqual(heads, ['INPUTS', 'STEPS', 'ASKS (human stops)', 'SEND TARGET (nothing leaves before an accepted ask)', 'JOB LINES']);
+  assert.match(heads[0], /^DRAFT READOUT — NOT SIGNED — flow "/);
+  assert.deepEqual(heads.slice(1), ['INPUTS', 'STEPS', 'ASKS (human stops)', 'SEND TARGET (nothing leaves before an accepted ask)', 'JOB LINES']);
 });
 
 test('(c) the page renders exactly those lines bold, the rest escaped plain', () => {
@@ -43,7 +45,7 @@ test('(c) the page renders exactly those lines bold, the rest escaped plain', ()
   const readoutHtml = new Function(`${src}\nreturn readoutHtml;`)();
   const text = readout();
   const html = readoutHtml({ readout: text, readoutHeads: readoutHeadIndexes(text) });
-  assert.equal((html.match(/<b class="readout-head">/g) || []).length, 5);
+  assert.equal((html.match(/<b class="readout-head">/g) || []).length, 6);
   assert.match(html, /<b class="readout-head">JOB LINES<\/b>\n  1\. read it,\n  ~ 3 sections/);
   assert.match(html, /\n  line 2: &quot;ok\?&quot;|\n  line 2:/);
   assert.equal(readoutHtml({ readout: '<script>', readoutHeads: [] }), '&lt;script&gt;', 'no head list = plain text, escaped');

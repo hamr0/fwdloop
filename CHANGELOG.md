@@ -5,6 +5,54 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] - 2026-11-17
+
+The job's last action (M13 am11, with am11a, am11b and am11c, signed 2026-11-16), and the Audit says what was decided
+(M17 am8). Code no longer adds a last line to your job: the last line you write is the action, or the AI suggests one,
+and a write that has not been seen stops once for you. The POCs behind it (F199-F204) are in
+`docs/logs/FINDINGS.md`.
+
+### Added
+- The job's last action (M13 am11). If your last line writes or sends everything before it, the AI says so, and the
+  plan card shows `› line <n> writes everything before it [agent]`, with no Drop; a line you picked (Agree, or your own
+  words) shows `[you]`. To change either, Revise. Code adds no last line, and the grey added lines, the `added` marks
+  in the plan and the old hint are gone. The New job hint reads "Your last line writes the result to the Destination.
+  Leave it out and fwdloop suggests one."
+- No write line: the AI suggests one and asks `Your job has no last step that writes it out. I suggest: "<its line>". `
+  with Agree or the box. Agree adds that line as your last line; your own words add yours. There is no Drop it, so
+  every job with a Destination ends with its write.
+- The stop before the write (am11, am11a). The send ships the step right before it. If what goes out has the same
+  sha256 as what you accepted at your last Ask in this run, it goes. If it changed, the run stops once and asks:
+  "This changed since you accepted it."; if nothing was accepted in this run: "You have not seen this yet." The
+  buttons are Accept and Not now (Not now stops the run, $0). The stop waits for the last Ask's wait, else the card's
+  Ask wait (1h, signed with the Destination and the cap). When the wait runs out it ends like an expired Ask: nothing
+  is written, $0, and Reopen opens it again. The Ask tab shows the stop with its own question line and the two buttons.
+- A job needs no Ask before its last line (am11c). The stop above covers a job with no Ask.
+- The Audit says what was decided (M17 am8, copied from bareloop v0.58.0). An answer picked with a button reads one
+  line: `agreed — <the rule that was signed>`, `you wrote — <your words>`, or `dropped — Not checked`, never the old
+  question. A drafter question answered in the box keeps `you were asked` / `you said`; a record written before this
+  keeps its words.
+- The page look prompt (F201, paid POC, hamr ruled adopt): it now states the goal, asks for the why of each fact, and
+  lets the AI list what it cannot read.
+
+### Changed
+- A Revise costs up to two more small AI rounds: one to say whether your last line is the action, and, with no write
+  line, one to suggest it.
+- A step with no machine check of its content that is not on an Ask line prints the card's own words in the draft
+  readout, from one owner, instead of `check: hitl`. The readout's header line is bold.
+- The Audit "checks" fold is built like the step folds, so its box, caret and text match the rows; the word "checks"
+  is bold and the "passed" words match it in size and colour.
+- README: strikes are a repeated miss in one step, and pages are saved copies.
+
+### Fixed
+- A send no longer needs an Ask before it at parse; the hitl-after-last-Ask red applies only to a job with no action.
+- Old jobs that cannot run under these rules are refused at start at $0, with the reason. Jobs signed before this are
+  not rewritten.
+
+### Known limits
+- On a job whose last line writes new content ("Write a short closing note"), the AI can take it
+  for the action in about 2 of 5 drafts. It shows on the card as the AI's pick; Revise.
+
 ## [0.34.0] - 2026-11-15
 
 One check list for sheet jobs and Tickets jobs (M17, signed 2026-11-14, amendments 1 to 7). The check list from

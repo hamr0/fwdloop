@@ -100,6 +100,19 @@ export function tooManyAsksText(asks) {
   return redactSecrets(`Your job has ${asks.length} rules I can't check or had to guess. Please rewrite it so each one says what to look for. My readings: ${list}.`);
 }
 
+// borrowed-from: bareloop src/draftspend.js@v0.58.0 (decidedWords)
+/**
+ * M17 am8: what a button-picked answer decided, as the one Audit line; null when the row has no pick (a box-answered drafter question, an older record).
+ * @param {{choice?: string, words?: string}} h
+ * @returns {string|null}
+ */
+export function decidedWords(h) {
+  if (h.choice === 'agree' && typeof h.words === 'string') return `agreed \u2014 ${h.words}`;
+  if (h.choice === 'rule' && typeof h.words === 'string') return `you wrote \u2014 ${h.words}`;
+  if (h.choice === 'drop') return 'dropped \u2014 Not checked';
+  return null;
+}
+
 /**
  * What a typed answer to a look ask does, the ONE place that decides (the panel's answer route, the setup record and the Result tab all read it).
  * `agree` / `yes` to a reading ask takes the code's reading; `drop it` to a can't-check ask leaves the rule Not checked (no `~` line); anything else is the
@@ -107,11 +120,16 @@ export function tooManyAsksText(asks) {
  * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
  * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
  * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
- * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
+ * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean, action?: 'known', actionLine?: string}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed, choice) {
   const typedText = String(typed ?? '').replace(/\s*\n\s*/g, ' ').trim();
   if (q.source !== 'look') return { rule: typedText, left: false };
+  // M13 am11 rule 2: the question about the job's last action adds no `~` rule. Agree adds the suggested line, the box adds the typed words; there is no Drop it (am11c).
+  if (q.source === 'look' && q.ask === 'action') {
+    if (choice === 'drop') return { rule: null, left: true }; // M13 am11c: there is no Drop it here; the answer door refuses it (the question is about the job line, not a ~ rule)
+    return { rule: null, left: false, action: 'known', actionLine: choice === 'agree' && typeof q.proposal === 'string' ? q.proposal : typedText };
+  }
   if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole
     const shapeC = q.ask === 'check' || q.ask === 'no-check';
     if (choice === 'agree' && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check')) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
