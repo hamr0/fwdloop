@@ -1,0 +1,13 @@
+url: https://site.example.com/flights-to-chicago
+- main [ref=1]
+  - heading "Cheap flights from Boston to Chicago" [level=1] [ref=2]
+  - listitem [ref=3]
+    - StaticText "Boston to Chicago, nonstop. Flights from $389 round trip, book by Friday" [ref=4]
+  - listitem [ref=5]
+    - StaticText "Boston to Chicago via Detroit. Flights from $412 one way" [ref=6]
+  - listitem [ref=7]
+    - StaticText "Boston to Chicago, business class. Flights from $1,120 round trip" [ref=8]
+  - listitem [ref=9]
+    - StaticText "Partner fare in euros. Flights from €420 round trip" [ref=10]
+  - paragraph [ref=11]
+    - StaticText "Prices are per person and change often. Check the airline for the latest fare and baggage rules before you book." [ref=12]
