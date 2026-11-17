@@ -1,0 +1,16 @@
+url: https://www.google.com/search?q=flights%20Boston%20to%20Chicago&hl=en
+SYNTHETIC SAMPLE in the real format (links: true): a link line carries ` <href>` after its name. Used only by --dry.
+- search [ref=31]
+  - link "Google homepage" <https://www.google.com/?hl=en> [ref=132]
+- navigation [ref=111]
+  - link "Images" <https://www.google.com/imghp?hl=en> [ref=798]
+- main [ref=200]
+  - link "Ad Flights from $59 Sponsor" <https://www.googleadservices.com/pagead/aclk?sa=L&adurl=https://ads.example.com/> [ref=300]
+  - link "Flight to Chicago - United https://www.united.com" <https://www.united.com/en/us/fly/chicago> [ref=465]
+  - link "Redirected one https://a.example.org" <https://www.google.com/url?q=https://a.example.org/page1&sa=U> [ref=466]
+  - link "Cheap Flights - Expedia https://www.expedia.com" <https://www.expedia.com/lp/flights/bos/chi/boston-to-chicago> [ref=467]
+  - link "Same again" <https://www.expedia.com/lp/flights/bos/chi/boston-to-chicago> [ref=468]
+  - link "KAYAK https://www.kayak.com" <https://www.kayak.com/flight-routes/Boston-BOS/Chicago-CHI> [ref=469]
+  - link "FlightAware https://www.flightaware.com" <https://www.flightaware.com/live/findflight?origin=KBOS> [ref=470]
+  - link "Skyscanner https://www.skyscanner.net" <https://www.skyscanner.net/routes/bos/chia/boston-to-chicago.html> [ref=471]
+  - link "Sixth result" <https://six.example.net/x> [ref=472]
