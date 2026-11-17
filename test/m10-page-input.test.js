@@ -78,6 +78,19 @@ test('a site that blocks us is recorded as it is, read once, never worked around
   } finally { await srv.close(); }
 });
 
+// F212: barebrowse 0.26.0 writes the marker with trailing words (node_modules/barebrowse/src/index.js:630), not the bare `[BOT CHALLENGE DETECTED]`
+test('the marker barebrowse really writes ("[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]") is refused as a bot challenge', async () => {
+  const real = '[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]';
+  const srv = await startPageServer({ '/bot': { body: `${real}\n${pageText()}\n` } });
+  try {
+    const fc = fakeConnect();
+    const r = await fetchPageText(`${srv.base}/bot`, { connect: fc.connect, ...FAST });
+    assert.equal(r.ok, false);
+    assert.match(!r.ok ? r.error : '', /bot challenge/);
+    assert.equal(fc.calls.connect.length, 1, 'one try, no retry');
+  } finally { await srv.close(); }
+});
+
 test('an address with a password, a secret shape, or not http is refused before any browser starts', async () => {
   const fc = fakeConnect();
   for (const u of ['http://user:pw@127.0.0.1/x', 'https://x.test/?k=sk-abcdefghijklmnopqrstuvwxyz', 'file:///etc/passwd', 'nope']) {
