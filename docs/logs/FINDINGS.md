@@ -8189,3 +8189,25 @@ A FAIL on the letter stays FAIL.
 **Results file.** `.claude/scratch/f205/results-f208-<tag>.jsonl`, same row shape as F207; a repeated tag is refused. Harness `poc/f205-search/run208.mjs` and `score208.mjs` (marked copies of run207 / score207: the job, the limit and the page saving are the differences).
 
 **Limits.** One machine, one Dutch IP (the region may still give euro prices, F207), one burst. Whether a priced laptop is a "best budget laptop" is not judged. A guardrail such as RAM has no price reader; whether the look ties it is only reported.
+
+### F208 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run208.mjs --tag p1` (paid, deepseek-flash); scored with `node poc/f205-search/score208.mjs p1` from `.claude/scratch/f205/results-f208-p1.jsonl` plus the saved pages `.claude/scratch/f205/f208-pages/p1-*` (both gitignored). 5 searches, 25 pages opened, 13 looks, total $0.03789 ($0.00291 per look), 23 look seconds, not stopped, every look answered in 1 attempt and priced.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar >= 3 of 5). Every sample had 0 hosts with a price row (bar: 2); 0 price rows, 0 other-currency, 0 over, 0 unsigned rows on any page. Not refit.
+
+**Only 13 looks.** Of the 25 opened pages, 12 were the same landing page as an earlier link in the same sample (`pcworld.com/article/436674/best-pc-laptops.html`: 4 links in each of samples 3 to 5, 2 in samples 1 and 2), so dedupe left 2 to 4 hosts per sample: pcworld.com (5 looks), reddit.com (5, `r/LaptopForStudent/comments/1te3pqh/...`), tomshardware.com (2, samples 1 and 2, `/laptops/best-laptops`), edition.cnn.com (1 look, sample 1, 375 chars). In sample 2 the edition.cnn.com page read NO: "came back with only 105 characters of text (less than 200)" (so no look).
+
+**What the saved pages show** (checked in the files):
+- (a) pcworld: the snapshot header says `97,976 chars → 15,780 chars (84% pruned)` (the 15,886-char saved text). The text holds `Best Prices Today:` 9 times, each followed by `RETAILER` and `PRICE` labels and no amount. The look's `no-value` drops match: on pcworld, `no-value` for `PRICE` (4 looks), for `Best Prices Today:` (2 looks), and `reads-no-result` (4 looks); one `s1` drop on `budget label` (sample 4). The look tied a money fact to line 1 rule 1 on 4 of the 5 pcworld looks (words `PRICE` and `Best Prices Today:`, or `PRICE` alone).
+- (b) tomshardware (`best-laptops`, 18,899 chars, header `39,702 chars → 18,803 chars (53% pruned)`): all 8 lines with `$<digit>` are sidebar deal headlines (4 links and their StaticText), for example "Best gaming and productivity laptop deals under $1,000", "$10 programmer saves BIOS-locked Lenovo ThinkPads from the dump", "...a huge $600 saving on this RTX 5070 Ti gaming laptop from HP, now under $2,100". The look made no money fact on either tomshardware look.
+- (c) lines with a `$<digit>` per page: pcworld 3 (one prose "Asus' $7,000 ProArt P16 ... 128GB of unified memory" and the link and StaticText of "Best gaming laptops under $1,000"); reddit 0; tomshardware 8; edition.cnn.com 0 (the one read, 375 chars, header `1,264 chars → 265 chars (79% pruned)`). Reddit pages were 7.2k to 8.4k chars from about 70k (89 to 90% pruned).
+
+**Rule 2 (`at least 16GB RAM`), reported only:** 1 kept fact, pcworld sample 5, phrase "128GB of unified memory" (the `ProArt P16` sentence above); 0 dropped with rule 2.
+
+**Reading, facts only:**
+- The page reader (snapshot `mode: 'act'`) prunes most of an article's text (pcworld 84%, reddit about 90%, edition.cnn.com 79%).
+- The review article's price boxes read only `Best Prices Today:` then `PRICE`, with no amount, at read time.
+- So a price is a poor bar for research pages. How much of an article survives the read, and whether the laptop names and specs survive, is not measured here.
+
+**Possible next arm ($0, unsigned, not run):** read the same landing URLs with barebrowse's reading mode (find what barebrowse offers, for example `readable`) versus `act`; measure the chars kept and whether the laptop names, specs and prices appear.
