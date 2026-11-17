@@ -8033,3 +8033,9 @@ Reason: the format probe above found no hrefs in the snapshot without `links: tr
 - Locale pinned: google `&hl=en`, duckduckgo `&kl=us-en`, bing `&setlang=en`.
 - `extractResultLinks` reads only the real ` <url>` markers; it drops the engine's own hosts and ad/redirect links, unwraps a redirect only if one shows, dedupes by URL, takes the first 5.
 - One more format probe is allowed (google, query 1, no opening, tag `probe2`); it is not a counted result.
+
+### F205 FORMAT PROBE 2 (2026-11-17, $0; tag `probe2`, one real request: google, query 1, no opening; NOT a counted result)
+
+Harness `poc/f205-search/run.mjs --tag probe2 --max-searches 1 --no-open` (search page read by the links:true copy). Read ok, 42,560 chars; `extractResultLinks` returned **0** links. Snapshot saved (gitignored) as `.claude/scratch/f205/probe2-google-q1.json`. With `links: true` the ` <url>` markers are present, but Google's organic result hrefs are opaque redirects of the form `https://www.google.com/goto?url=CAES...` (a token, not the destination URL; no `/url?q=` seen), ads are `https://www.google.com/aclk?...`, and flight-widget links are `https://www.google.com/travel/clk/g?w=...`. The destination host appears only as displayed text in the link name (e.g. `... United Airlines https://www.united.com`). Nothing in the text can be unwrapped to the real page, so the extractor (engine hosts dropped, redirects unwrapped only if shown) yields none. Opening a `/goto` link would be a workaround (let Google redirect it) and was not done. DuckDuckGo and Bing were not probed (one probe allowed). Unmeasured: whether those two engines show real hrefs.
+
+Dry proofs (no network, fake `connect`, synthetic sample `poc/f205-search/sample-snapshot.txt`): `--dry` write + score; a repeated tag is refused (exit 2); `--dry-break` (every opened page 404) makes the scorer print Bar 2 FAIL.
