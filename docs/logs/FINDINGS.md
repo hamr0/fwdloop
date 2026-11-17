@@ -8024,3 +8024,12 @@ One `fetchPageText` request: google, query 1, no opening. Sample saved as `.clau
 - A result link line is `- link "<title> <site name> <displayed URL>" [ref=N]` with the displayed (cite) URL inside the accessible name, e.g. `https://www.united.com`, `https://www.cheaptickets.nl/vliegtickets`, `https://www.klm.nl › netherlands › chicago`, `https://www.skyscanner.net › routes › bos › chia › bost...`. Paths appear as `›` breadcrumbs and are truncated with `...`; a following `StaticText "https://host"` often repeats the host only. The page language was Dutch (consent/locale not set).
 - So the real href of a result is NOT in the snapshot. Only the displayed host (sometimes a truncated path) is. A code step cannot open the exact result page from this text; it could only open a host or truncated path.
 Harness not finished: stopped here for hamr's ruling (see report).
+
+### F205 AMENDMENT 1 (2026-11-17, before any counted result; there are NO results yet)
+
+Reason: the format probe above found no hrefs in the snapshot without `links: true`. Arms changed (bars UNCHANGED, still Bar 1 / Bar 2 / Verdict as written above):
+- The search page is read by a marked COPY of `fetchPageText`'s body in `poc/f205-search/run.mjs`: same `CONNECT_OPTIONS`, goto, status check, `waitForNetworkIdle`, bot-challenge and size floors; the ONLY difference is snapshot `{...SNAPSHOT_OPTIONS, links: true}`. `src/` stays untouched.
+- Result pages (the opened top-5) are read by the real `fetchPageText`, unchanged.
+- Locale pinned: google `&hl=en`, duckduckgo `&kl=us-en`, bing `&setlang=en`.
+- `extractResultLinks` reads only the real ` <url>` markers; it drops the engine's own hosts and ad/redirect links, unwraps a redirect only if one shows, dedupes by URL, takes the first 5.
+- One more format probe is allowed (google, query 1, no opening, tag `probe2`); it is not a counted result.
