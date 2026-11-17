@@ -8242,3 +8242,27 @@ A FAIL on the letter stays FAIL (a page where A has 0 brand lines needs B at lea
 **Results file** `.claude/scratch/f205/results-f209-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run209.mjs`, scorer `score209.mjs`. Dry mode (fake connect) and a FAIL demo before the real run `--tag r1`.
 
 **Limits.** One machine, one Dutch IP, one moment; pages change; counts of lines are not a judgement of whether the text is the right article text.
+
+### F209 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run209.mjs --tag r1` ($0, 8 pages x 3 arms, all 24 reads ok), scored with `node poc/f205-search/score209.mjs r1` from `.claude/scratch/f205/results-f209-r1.jsonl`; texts in `.claude/scratch/f205/f209-pages/r1-<arm>-<n>.txt` (gitignored). Harness proofs before the run (commit 9b18b9c3): dry GO, a repeated tag refused, a FAIL demo (readable() not ok: NO-GO).
+
+**VERDICT: NO-GO on the letter. Not refit.**
+- **Bar 1 FAIL:** B (`page.readable()`) read ok on all 8 and kept at least 2x A's chars on 1 of 8 pages (bar 6): pcworld only.
+- **Bar 2 FAIL:** pcworld ok (brand lines A 24, B 66; spec lines A 1, B 16); tomshardware no (brand A 22, B 1; spec A 0, B 0).
+
+**Per page (chars; brand / spec / dollar lines), A = real `fetchPageText` (act), B = `readable()`, C = `snapshot({mode:'read'})` (reported only):**
+- pcworld: A 15,886 (24/1/3); B 33,119 (66/16/4); C 71,061 (86/22/7)
+- reddit: A 8,121 (0/0/0); B 4,021 (8/8/6); C 45,922 (16/14/15)
+- tomshardware: A 18,899 (22/0/8); B 1,267 (1/0/0); C 23,221 (58/0/9)
+- cnn: A 375 (0/0/0); B 162 (0/0/0); C 763 (0/0/0)
+- realpython: A 54,871 (0/0/0); B 12,854 (0/0/0); C 92,234 (1/0/0)
+- docs.python.org csv: A 54,508 (0/0/0); B 20,890 (0/0/0); C 108,800 (0/0/0)
+- accuweather: A 12,483 (0/0/0); B 2,246 (0/0/0); C 20,214 (0/0/0)
+- weather.com: A 8,565 (0/0/1); B 169 (0/0/0); C 15,620 (0/0/2)
+
+**Reported, not scored:**
+- Dollar lines per arm per page are in the list above. pcworld B holds 4 `$` lines near laptop names; three of them: "...Apple's standard US starting price is $699...", "The Acer Nitro V 16 AI, which can occasionally be found as low as $629 at times...", "Asus ProArt P16: Asus' $7,000 ProArt P16 with Nvidia's new RTX Spark chip has 128GB of unified memory...".
+- `readable()` kept more than act on 1 page (pcworld, 2.1x), fewer on the other 7 (tomshardware 1,267 vs 18,899; weather.com 169 vs 8,565). On reddit B kept less text than A but more brand, spec and dollar lines (8/8/6 vs 0/0/0).
+- Arm C (`snapshot({mode:'read'})`) kept more chars than A on all 8 pages (2.0x on cnn, 4.5x on pcworld, 5.7x on reddit) and had at least as many brand, spec and dollar lines as A on every page, but it was never scored.
+- Cleanup: the harness leaves no processes of its own; two `/tmp/barebrowse-ff-*` dirs exist, named for pid 897002, an hours-old barebrowse MCP server and not this run, so they were left.
