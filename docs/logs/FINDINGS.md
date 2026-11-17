@@ -8397,3 +8397,27 @@ A FAIL on the letter stays FAIL.
 **Results file** `.claude/scratch/f205/results-f212-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run212.mjs`, scorer `score212.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
 
 **Limits.** One machine, one Dutch IP, one burst of 12 reads; shop sites may serve a bot challenge or a geo page; a "product line" is a line with the word lenovo and a dollar amount, not a judgement that it is a refurbished laptop or a result row.
+
+### F212 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run212.mjs --tag r1` ($0; 6 sites x arms A and C, query `lenovo refurbished laptop`), scored with `node poc/f205-search/score212.mjs r1` from `.claude/scratch/f205/results-f212-r1.jsonl`; texts in `.claude/scratch/f205/f212-pages/r1-<arm>-<site>.txt` (gitignored). Harness proofs before the run (commit 824a6941): dry GO, a repeated tag refused, a FAIL demo (euros, no lenovo: NO-GO).
+
+**VERDICT: NO-GO on the letter, not refit.** 0 of 6 sites passed (bar 3 of 6); every site had 0 product lines in arm A.
+
+**Per site, arm A (real `fetchPageText`, act) then arm C (0.28.0 read, reported only):**
+- **ebay:** A and C both not ok: "came back as an error page (HTTP 403)", 1.8 s and 1.5 s.
+- **newegg:** A and C both not ok: "came back as an error page (HTTP 403)", 1.8 s each.
+- **backmarket:** A ok, 605 chars; C ok, 995 chars. The landing URL is `https://www.backmarket.com/testchallengepage?next=...` and the text carries the marker `[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]`, a Cloudflare "Ray ID" and "Performance and Security by Cloudflare". 0 usd, 0 eur, 0 product lines.
+- **bestbuy:** A ok, 627 chars; C ok, 1,115 chars; landing is the asked URL (22.8 s). The text is a "Choose a country." page with English, Francais, Espanol buttons and links "Canada" and "United States". 0 usd, 0 eur, 0 product.
+- **amazon:** A ok, 31,135 chars; C ok, 82,305 chars; landing `https://www.amazon.com/s?k=lenovo+refurbished+laptop` (host unchanged). 0 usd, 0 eur by the pre-registered regexes, 0 product lines (A has 17 lines with "Lenovo" in them, headings and link names, none with a `$` amount). The page's prices are written `EUR 323.92` (a non-breaking space after EUR): 49 lines in A and 55 in C match `/EUR\s?\d/`, which is not one of the pre-registered forms; 18 (A) and 20 (C) "Price, product page" labels. The results heading reads "1-16 of over 1,000 results for ...".
+- **walmart:** A ok, 515 chars; C ok, 1,747 chars; the landing of C is `https://www.walmart.com/blocked?url=...`, and A's text opens with a dialog "Robot or human?" and "Human verification challenge" with "Press & Hold Human Challenge". 0 usd, 0 eur, 0 product.
+
+**Landing host vs asked host:** unchanged on every ok read (`hostDiffers` false); ebay and newegg have no landing (not ok).
+
+**Seconds per read:** 1.5 to 22.8 (bestbuy 22.8 and 22.4, walmart 13.5 and 6.5, amazon 8.5 and 8.8).
+
+**One fact about `fetchPageText` (checked in the files, not beyond):** barebrowse 0.26.0 writes the marker `[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]` (node_modules/barebrowse/src/index.js:630), while `src/pagefetch.js:159` tests `/\[BOT CHALLENGE DETECTED\]/`. The marker in the saved backmarket A text did not match that pattern, so `fetchPageText` returned `ok: true` for the challenge page; the walmart A read was also `ok: true` with a human-check dialog and no such marker.
+
+**Product lines:** none on any site, so no quoted lines.
+
+**Cleanup:** the harness left no processes or `/tmp/barebrowse-*` dirs of its own; the two `/tmp/barebrowse-ff-897002-*` dirs belong to the old MCP server and were left.
