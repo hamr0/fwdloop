@@ -8347,3 +8347,24 @@ Run: `node poc/f205-search/run210.mjs --tag r1` ($0; barebrowse 0.28.0 from `.cl
 ### F211 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
 
 Reason: the cost projection above ($0.162 for 5 samples at the measured average rate, over the $0.13 stop). hamr approved up to $1 for the search POCs and took option (a). Changed: the HARD CAP from $0.15 to **$0.25** and the stop (no look starts once spent is this or more) from $0.13 to **$0.22**. Everything else, including the bars (sample PASS: at least 2 distinct landing hosts each with at least 1 price row; verdict PASS: at least 3 of 5 samples), is UNCHANGED. The harness is built after this commit (`poc/f205-search/run211.mjs`, `score211.mjs`).
+
+### F211 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run211.mjs --tag p1` (paid, deepseek-flash, arm C read on barebrowse 0.28.0); scored with `node poc/f205-search/score211.mjs p1` from `.claude/scratch/f205/results-f211-p1.jsonl`; page texts in `.claude/scratch/f205/f211-pages/p1-s<sample>-<n>.txt` (gitignored). Cost $0.07607 over 10 looks ($0.00761 per look), 31 look seconds.
+
+**VERDICT: FAIL on the letter. Not refit, not re-run.** 0 of 3 samples passed (each had 0 hosts with a price row; bar 2). The batch STOPPED in sample 3 on an unpriced round: the reddit look (`r/RobotVacuums/comments/1rmwxpt/...`) failed with "the call about the page failed: socket hang up", no metering, cost 0 recorded as unpriced (stop rule: never priced as 0). Samples 4 and 5 never ran, so the 5-sample bar (at least 3 of 5) is not reachable by this run.
+
+**Pages.** 3 searches ok (5 organic links each). After dedupe by landing URL: sample 1 had 4 looks and sample 2 had 4 looks; in sample 3 the vacuumwars look ran and the reddit look failed. Hosts: vacuumwars.com (`/best-robot-vacuum-under-600/`, 56,397 chars each time) and reddit.com (r/RobotVacuums threads `1rmwxpt`, `1mzpgar`, `1p37l56`, 38k to 49k chars). Look cost: vacuumwars $0.0092 each; reddit $0.0073 to $0.0243 (the $0.02428 and $0.02425 host totals are 3 reddit looks each).
+
+**The look tied money facts to rule 1 every time it made one**, and code dropped them. Example, vacuumwars (all 3 looks): a money fact with words `["$"]`, currency `["$"]`, reading `lt 400`; code dropped it as `n2` for `$` and `no-label`; the one kept fact was a phrase fact "Under $300" (forRule 1), which is not a money fact and gives no price row. Reddit looks tied money facts with words such as `["for","sale for"]`, `["$"]`, `["for","at"]`, `["for","was","at"]`; one reddit look made no money fact.
+
+**Dropped reasons per host** (counted from the file):
+- vacuumwars.com: `n2` "$" x3; `no-label` x3.
+- reddit.com: `n2` "for" x3; `n2` "$" x2; `no-label` x5; `no-value` "at" x2; `r1` "sale for" x1; `r1` "was" x1.
+- `n2` reads (src/pagedropwords.js:20): "the word is written more than once inside one line of the page, so one result cannot show it once"; the drop is made at src/pagerules.js:311 (`maxPerLine(lines, w) <= 1`, else `drop(..., 'n2')`).
+
+**The pages hold prices.** Lines with a `$<digit>` in the saved texts: vacuumwars 38 per page; reddit 53 (`1rmwxpt`), 46 (`1mzpgar`), 17 to 21 (`1p37l56`), 57 (a sample-3 read of `1rmwxpt`).
+
+**Reading, facts only.** fwd's page rules assume one line is one result with its label written once (a list page). In read-mode article and forum text, several prices sit in one line, so the label word (`$`, `for`) repeats and `n2` drops it; the prices are on the page but the line-per-result rules drop the tie. Both hosts' pages returned prices in text; no price row resulted.
+
+**Spend so far on the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607): $0.17510 of hamr's $1. (The coordinator's figure of $0.17532 differs by $0.00022; this sum is from the three recorded totals.)
