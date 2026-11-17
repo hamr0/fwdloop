@@ -8089,3 +8089,19 @@ Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/
 Harness built after the pre-registration (commit 3e161986): `poc/f205-search/run206.mjs`, `score206.mjs`, synthetic `sample206.txt`. Dry proofs (fake `connect`): `--dry` write + score (GO), a repeated tag refused (exit 2), `--dry-break` (every landing back on google.com) makes the scorer print Bar 2 FAIL (0%, NO-GO).
 
 Probe (`node poc/f205-search/run206.mjs --tag probe1 --max-searches 1 --max-opens 1`): search read ok (45,345 chars), 5 organic `/goto` links (the `/goto` href carries a `url=` token plus a `gsessionid=` parameter), excluded: aclk 3, travelClk 0, otherGoogle 33. The first goto link opened once: landing URL captured from `goto()`'s `{url}` = `https://www.united.com/en/de/deals/flights-to-chicago`, landed off Google, read ok, 8,912 chars, 9,857 ms. So the landing URL is typed data from the browser and one open of a `/goto` token reaches the real page, on this one request.
+
+### F206 RESULT (2026-11-17, tag b1)
+
+Run: `node poc/f205-search/run206.mjs --tag b1`; scored with `node poc/f205-search/score206.mjs b1` from `.claude/scratch/f205/results-f206-b1.jsonl` (gitignored). 5 search rows, 25 open rows.
+
+**VERDICT: GO** (both bars pass on the letter).
+- **Bar 1 PASS:** 5/5 searches read ok, 5 organic `/goto` links on each. Excluded over all searches: aclk 20, travelClk 0, otherGoogle 181.
+- **Bar 2 PASS:** 25 opened, 25 landed off Google, 23 read ok = 92% (bar 60%). The 2 failures were both `stackoverflow.com/questions/41585078/how-do-i-read-and-write-csv-files` (python query, links 3 and 5): "came back as an error page (HTTP 403), so there is nothing to read".
+
+**Not scored, facts only:**
+- Distinct `/goto` tokens often land on the SAME page: `pcworld.com/article/436674/best-pc-laptops.html` came up 4 of 5 on the laptop query; `docs.python.org/3/library/csv.html` 2 (python query); the stackoverflow page 2; `weather.com/pt/lisbon/city/lisbon/tenday` 2 (weather query). 25 opens reached 19 distinct landing URLs. A build must dedupe by landing URL, not by href.
+- `gl=us` did not stop Dutch landings on the flights queries: `united.com/en/nl/...`, `klm.nl/en-nl/...`, `vliegtickets.nl/...`. Some flights landings are site homepages or account pages (`klm.nl/en/`, `vliegtickets.nl/`, `united.com/en/nl/manageres/mytrips`).
+- Weather Lisbon, by URL only: 3 of 5 yes (weather.com x2 and accuweather `.../lisbon/...`); `bbc.com/weather/2267057` and `weather.metoffice.gov.uk/forecast/eycs2h2ky` are unknown by URL.
+- Flight results are airline and deal pages; whether they hold fare lists is not measured.
+- The `/goto` hrefs carry a `gsessionid=` parameter on some links; whether a token works outside the page that produced it is untested.
+- Cleanup: no `/tmp/barebrowse-*` dirs left.
