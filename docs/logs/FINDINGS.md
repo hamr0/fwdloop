@@ -8636,3 +8636,32 @@ Also reported: whether the ebay and newegg 403 pages are flagged.
 **Files.** `.claude/scratch/f205/results-f216-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run216.mjs`, scorer `score216.mjs`. Proofs before the real tag `r1`: dry mode with a fake page (including a FAIL demo).
 
 **Limits.** One machine, one Dutch IP, one burst; challenge pages vary by time and IP; a human-check iframe may not render in headless Firefox (the changelog says so).
+
+### F216 RESULT (2026-11-17, tag r1)
+
+**Who ran it and why:** hamr ran `run216.mjs --tag r1` himself, from his terminal, after the auto-mode classifier refused the agent's run of the walmart hold step. Scored with `node poc/f205-search/score216.mjs r1` from `.claude/scratch/f205/results-f216-r1.jsonl`; texts in `.claude/scratch/f205/f216-pages/r1-<engine>-<site>.txt` (gitignored). Library: the pinned anti-bot copy `/home/hamr/PycharmProjects/bb-antibot` @ e447613, headless, incognito. 14 reads (7 sites x 2 engines), all returned a text.
+
+**VERDICT: GO** (all three bars pass).
+- **Bar 1 PASS:** the walmart challenge was shown on 1 engine (chromium: text carries the marker and "Robot or human?" words) and `botBlocked` was true there.
+- **Bar 2 PASS:** `hold(1004, 12000)` plus an 8 s wait cleared walmart on chromium: `botBlocked` false after, 54 product lines, 70,141 chars, no challenge words after, URL unchanged.
+- **Bar 3 PASS:** amazon and duckduckgo were flagged on neither engine (0 false flags; neither text carries challenge words).
+
+**Per site and engine** (HTTP status; `botBlocked`; chars; product lines = `/lenovo/i` with a `$` or EUR amount on the same line; seconds):
+- **ebay:** chromium 403; false; 149; 0; 3 s. Firefox 200; false; 132,246; 0; 10 s.
+- **newegg:** chromium 403; **true** (marker, Cloudflare "Ray ID"); 568; 0; 3 s. Firefox 403; false; 7,244; 0; 11 s.
+- **backmarket:** chromium 200; **true** (marker, Cloudflare); 605; 0; 6 s. Firefox 200; false; 15,365; 0; 8 s.
+- **bestbuy:** chromium 200; false; 627; 0; 22 s. Firefox 200; false; 507; 0; 6 s.
+- **amazon:** chromium 200; false; 26,043; 0; 7 s. Firefox status 0; false; 30,153; 0; 9 s.
+- **walmart:** chromium 200; **true**; 578; 0 (then hold: false, 70,141 chars, 54); 33 s with the hold. Firefox 200; false; 89,644; **54**; 13 s (no challenge shown, `hold` not attempted).
+- **duckduckgo:** chromium 200; false; 8,771; 0; 4 s. Firefox 200; false; 8,611; 0; 5 s.
+
+**Facts from the texts:**
+- **walmart:** the chromium challenge text is the "Robot or human?" dialog with a Press & Hold button; after the hold the page lists products such as `link "Lenovo V14 G5 14" FHD Laptop, Intel Core i7-13620H, 16GB RAM, 1TB SSD, Windows 11 Home $629.00 Was $999.99"`. Firefox was not challenged and showed the same 54 product lines at once.
+- **ebay:** chromium got HTTP 403 and was not flagged (the text is the `[HTTP 403 — the page may be an error page]` warning only, 0 chars after pruning). Firefox status 200, 132,246 chars (from 370,005): 217 lines with "lenovo", 142 with `$`, 134 with "refurb"; the 0 product lines is because the listing writes the item name, the brand ("Lenovo", "Good - Refurbished") and the price on separate lines, and the `$` lines in the text are filter ranges such as "Under $240.00".
+- **newegg:** chromium got the Cloudflare challenge page, flagged. Firefox got HTTP 403 (a `[HTTP 403 ...]` line in the text, no marker, not flagged) with a 7,076-char page: a cookie dialog and a search box and heading rewritten to "lenovolaptop"; the page header URL is `newegg.com/p/pl?d=lenovolaptop&N=4016&Tpk=lenovo+refurbished+laptop`, while the recorded landing from `goto` is the asked URL. 0 lines with "lenovo" next to an amount.
+- **backmarket:** firefox 200 and not challenged, 15,365 chars (from 98,699): 3 lines with "lenovo" (the search box value and the heading "Your search: lenovo refurbished laptop"), 0 with `$` or EUR, so the page text holds no listed products.
+- **bestbuy:** both engines read a "Choose a country." page (English, Francais, Espanol, Canada, United States), not flagged, no products.
+- **amazon:** the prices are EUR again: chromium 33 lines with `EUR 323.92` style amounts (non-breaking space after EUR), firefox 35 lines (plain space), 0 with `$`; 16 and 13 lines with "lenovo", none carrying an amount on the same line.
+- **duckduckgo:** both engines returned a results page this time (8,771 and 8,611 chars; F205 b1 had 982 to 992 chars): about 51 and 47 lines with "lenovo", about 46 and 45 with "refurb", 0 with an amount. Two lines from the chromium text: `heading "New & Refurbished Lenovo Laptops | Lenovo India" [level=2] [ref=47]` and `link "Find deals and compare prices on lenovo 15 inch laptop refurbished at Amazon.com. Browse & discover thousands of brands. Read customer reviews & find best selle...`.
+
+**Reported (not scored):** ebay chromium 403 not flagged; ebay firefox 200 not flagged; newegg 403 on both, chromium flagged, firefox not flagged.
