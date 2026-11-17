@@ -8056,3 +8056,30 @@ Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/
 - **Cleanup:** the harness left no browser processes and no `/tmp/barebrowse-*` dirs (the barebrowse processes still running are hours-old MCP servers, not this run).
 
 **Possible next arms, unsigned and not run:** (a) Google, following its own `/goto` redirect once to reach the result page. (b) Bing with a pinned region (`mkt=en-US` / `cc=US`). (c) A saved DuckDuckGo page text, to see what it served.
+
+## F206 PRE-REGISTRATION (2026-11-17, $0, no AI; Google /goto redirect, one open per link; written before any real request, NOT yet run)
+
+**Question (hamr, "go", 2026-11-17).** Google reads without a bot challenge (F205 b1: 5/5) but its organic links are opaque `google.com/goto?url=` tokens. If code opens each token once, does it land on the real result page, and can that page be read? No AI call, no key, no `pass`; `src/` untouched. Same branch `poc/f205-search`.
+
+**Facts checked first.** barebrowse's `goto()` resolves to `{url, status}` where `url` is the final URL after HTTP redirects (node_modules/barebrowse/src/index.js, typedef "What goto() resolves to", and the navigation helper). So the landing URL is typed data from the browser, not guessed from page text. A redirect done by the page itself (script or meta refresh) is not an HTTP redirect; if `goto` reports a google.* url for such a page, it counts as not landed.
+
+**Arm (one only): Google.**
+- Search URL: `https://www.google.com/search?q=<words>&hl=en&gl=us` (`gl=us` is new: pins the region; b1 showed a Dutch region).
+- Same 5 queries as F205: `flights Boston to Chicago`; `cheap flights Madrid to Rome`; `best budget laptop 2026`; `python read csv file`; `weather Lisbon this week`. Same 20 s gap between searches. Same search-page read as F205 (the `links: true` copy `fetchSearchPage`).
+- Organic links = the first 5 DISTINCT `https://www.google.com/goto?...` hrefs on `link` lines. Excluded and counted per kind: `/aclk` (ads), `/travel/clk` (flight widget), any other google path.
+- Each organic link is opened ONCE, 5 s apart, one browser at a time, with a marked copy of `fetchPageText`'s body (`fetchPageOpen` in `poc/f205-search/run206.mjs`) whose ONLY difference is that it also returns the landing URL (`goto`'s `url`). Same connect options, status check, idle wait, bot-challenge and size floors as the real one.
+
+**Recorded per open** (JSONL row, `kind: 'open'`): the goto href, the landing URL, landed-off-Google (landing host is not `google.*`; a landing on google.*, e.g. a "Redirect Notice" page, is NOT landed), ok, error, chars, ms. Per search (`kind: 'search'`): url, ok, error, chars, organic links (list), excluded counts by kind, ms.
+
+**Results file.** `.claude/scratch/f205/results-f206-<tag>.jsonl`; a tag with results is refused, never overwritten.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** at least 4 of 5 searches read ok AND each of those yields at least 5 organic goto links.
+2. **Bar 2:** of ALL opened links, at least 60% land off Google AND read ok (`ok` from the copy of `fetchPageText`).
+3. **Verdict:** GO when both bars pass, NO-GO otherwise. A FAIL on the letter stays FAIL.
+
+**Also reported, not scored:** landing hosts per query; for 'weather Lisbon this week', yes/no per landing URL whether its host or path is about Lisbon (by the URL only, no judging of page text).
+
+**Limits.** One machine, one Dutch IP, one burst. Whether the landing page is the page the person would choose is not measured.
+
+**Format probe (not a counted result).** One real request is allowed: google q1, open only its first goto link, to prove the landing URL is captured.
