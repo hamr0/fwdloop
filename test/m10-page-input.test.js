@@ -61,14 +61,14 @@ test('a browser that never answers is cut by our own deadline', async () => {
 
 test('a site that blocks us is recorded as it is, read once, never worked around', async () => {
   const srv = await startPageServer({
-    '/bot': { body: `${pageText()}\n[BOT CHALLENGE DETECTED]\n` },
+    '/bot': { body: pageText() },
     '/denied': { status: 403, body: 'Access denied' },
   });
   try {
-    const fc = fakeConnect();
+    const fc = fakeConnect({ botBlocked: true });
     const r = await fetchPageText(`${srv.base}/bot`, { connect: fc.connect, ...FAST });
     assert.equal(r.ok, false);
-    assert.match(!r.ok ? r.error : '', /bot challenge/);
+    assert.equal(!r.ok ? r.error : '', `${srv.base}/bot asked for a human check (a bot challenge), so the page could not be read`);
     assert.equal(fc.calls.connect.length, 1, 'one try, no retry');
     assert.equal(fc.calls.goto.length, 1);
     const fd = fakeConnect();
@@ -78,16 +78,15 @@ test('a site that blocks us is recorded as it is, read once, never worked around
   } finally { await srv.close(); }
 });
 
-// F212: barebrowse 0.26.0 writes the marker with trailing words (node_modules/barebrowse/src/index.js:630), not the bare `[BOT CHALLENGE DETECTED]`
-test('the marker barebrowse really writes ("[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]") is refused as a bot challenge', async () => {
+// F222: barebrowse 0.30.0 sets page.botBlocked when it writes its marker; callers read the flag, not the text
+test('the marker text without the botBlocked flag is not refused as a bot challenge (F222)', async () => {
   const real = '[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]';
   const srv = await startPageServer({ '/bot': { body: `${real}\n${pageText()}\n` } });
   try {
-    const fc = fakeConnect();
-    const r = await fetchPageText(`${srv.base}/bot`, { connect: fc.connect, ...FAST });
-    assert.equal(r.ok, false);
-    assert.match(!r.ok ? r.error : '', /bot challenge/);
-    assert.equal(fc.calls.connect.length, 1, 'one try, no retry');
+    for (const flag of [false, undefined, 'true', 1]) {
+      const r = await fetchPageText(`${srv.base}/bot`, { connect: fakeConnect({ botBlocked: flag }).connect, ...FAST });
+      assert.equal(r.ok, true, `botBlocked ${String(flag)}: ${!r.ok ? r.error : ''}`);
+    }
   } finally { await srv.close(); }
 });
 
