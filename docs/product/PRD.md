@@ -102,6 +102,8 @@ default compressor, no self-adjusted budgets ever, no cloud or multi-user, no le
 flows, no fully automated flow without a human stop, and **no patching or inventing a baresuite
 primitive** (docs/archive/PRD.md:404-409).
 
+Open web research and web search: fwdloop proves well-defined, repeatable jobs (D/R/H checks); the person brings the link. M18 search withdrawn by hamr 2026-11-17 (F205-F216).
+
 **No LLM judge.** Our `softgreen` is a declared shape checked mechanically; a second model never
 decides a close (docs/archive/PRD.md:411-413). Name collision worth keeping straight: bareloop's
 `softgreen` is a **judged** close with a calibration gate — same word, different mechanism
@@ -171,6 +173,8 @@ prerequisite is met — fwdloop is on ^0.49.0 (0.48 at the fs-gate switch-over, 
 **Parked, not scheduled: the Tickets filter rule is found by a word reader** (hamr, 2026-11-15, unsigned). M17 am6 P3 ties the AI's filter/watch suggestion to a `~` rule with a fixed code table over the person's own words (src/ticketrows.js `ticketRuleField`: P0-P3 or label = filter; state/labels then change = watch). Missed wordings ("high priority", "urgent", "status changes", "tagged bug", "P1s") show as Not checked and the job gets no filter. bareloop has no tie today; its planned tag (the drafter names `rule: N` or `new`, code checks it exists; feat/one-list-rubric 421e06ef, unreleased) replaces the word reader when released. Not seen failing live.
 
 **Parked, not scheduled: tell a content-writing last line from the final write-out** (hamr, 2026-11-16, unsigned). F204 (docs/logs/FINDINGS.md): on a job whose last line writes new content ("Write a short closing note to my neighbour"), the AI took it for the final write in 2 of 5 drafts; code accepts it because it is the last line, so the note would not be written. M13 am11 (signed as am10, 2026-11-16) ships with this as a known limit: the pick shows on the card as the AI's `[agent]` row with Drop, and Revise changes it. Later: one more paid round making "a step that writes new content" vs "write everything that came before it" clearer to the AI, pre-registered with held-out cases.
+
+**Withdrawn, not scheduled: M18 search (hamr 2026-11-17)** (first parked the same day on "park m18", then withdrawn on "Withdraw M18"). The scope is signed (docs/wiki/the-module-ladder.md, ladder commit 4d479cad) and not built. Why withdrawn, from F205 to F216 (docs/logs/FINDINGS.md): Google reads fine, but its result links must be followed (F206 GO); the act read prunes articles, and read mode on barebrowse 0.28.0 keeps them (F210 GO); fwd's page rules assume one result per line, so prices in article and forum text are dropped as `n2` (F211); shop sites block robots or show euros from this machine's Dutch IP (F207, F212); and the "feeling lucky" search for a refurbished laptop under 600 EUR found 0 qualifying pages in 5 samples (F215). hamr's reason: fwdloop proves well-defined, repeatable jobs (D/R/H checks), and open research is not its job. barebrowse's anti-bot copy (unreleased) spots the Walmart, Back Market and Newegg robot checks in Chromium; Firefox often is not challenged; fwd never clicks, so `hold` is not used (F216).
 
 **Next, not scheduled: one check flow** (hamr, 2026-11-14, unsigned DRAFT; module number: hamr picks; after M16 ships). DRAFT for hamr to edit. Not signed, not built. It needs its scope, exit and negative scenario signed by hamr before it starts.
 

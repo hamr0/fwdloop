@@ -7986,3 +7986,682 @@ Run: tag paid1, 90 calls, spent $0.03351, not capped, 0 calls priced at the ceil
 **Ruling (hamr, 2026-11-16).** Build it despite the FAIL ("users can change intent with revise, it's fail safe and 6 out of 60 is small"). The AI's pick shows on the card for the person to drop, and Revise changes it. This is a ruling to build, not a PASS.
 
 **Known limit (carry into the release CHANGELOG "Known limits").** On a job whose last line writes new content (e.g. "Write a short closing note"), the AI can take it for the final write in about 2 of 5 drafts. It shows on the card as the AI's pick, and the person drops it or revises.
+
+## F205 PRE-REGISTRATION (2026-11-17, $0, no AI; page search go/no-go; written before any real run, NOT yet run)
+
+**Question (hamr, 2026-11-17).** A future "Search" job: the AI suggests search words from the job, the person confirms them, then the job searches a search engine through barebrowse, opens the top 5 result pages read-only, and keeps what matches the job's rules. Can fwd's REAL page-read path (1) read a search engine's results page without a bot challenge, and (2) read the top-5 result pages? No AI call, no key, no `pass`; `src/` is untouched.
+
+**Method.** Code in `poc/f205-search/` (`run.mjs`, `score.mjs`). Every page is read with `fetchPageText(url)` from `src/pagefetch.js` (barebrowse 0.26.0 `connect` -> goto -> waitForNetworkIdle -> snapshot, `mode: 'act'`); its `ok` and `error` are recorded as-is (it already refuses `[BOT CHALLENGE DETECTED]`, HTTP errors and chrome-only pages). The result links come out of the results-page TEXT through `extractResultLinks(engine, text)` in `run.mjs`, the way a future code step would get them: the first 5 organic result URLs, http(s), not the engine's own host or its ad/redirect hosts; an engine redirect link is unwrapped only if the text actually shows one. If the snapshot carries no URLs at all, the POC stops and that is the finding.
+
+**Arms (3 engines x 5 queries = 15 searches).** Search URLs are built by code from the words:
+- google `https://www.google.com/search?q=`
+- duckduckgo `https://html.duckduckgo.com/html/?q=`
+- bing `https://www.bing.com/search?q=`
+
+Queries: (1) `flights Boston to Chicago` (2) `cheap flights Madrid to Rome` (3) `best budget laptop 2026` (4) `python read csv file` (5) `weather Lisbon this week`.
+
+**Order.** Query-major (q1 google, q1 duckduckgo, q1 bing, q2 google, ...), 20 s between search requests. Then, for each results page that read ok, its top-5 links are opened through `fetchPageText`, one at a time, 5 s apart. Never two browsers at once.
+
+**Recorded per request** (one JSONL row): engine, query, url, ok, error, chars, links found (list), ms. Search rows and opened-page rows are told apart by a `kind` field (`search` / `open`); opened rows also name the search they came from (`from`).
+
+**Results file.** `.claude/scratch/f205/results-<tag>.jsonl`. A tag that already has results is refused, never overwritten (`wx` write).
+
+**Bars (fixed now, never refit).**
+1. **Bar 1, per engine:** PASS when at least 4 of its 5 searches read ok AND `extractResultLinks` yields at least 5 links on each of those.
+2. **Bar 2, per engine that passed Bar 1:** PASS when at least 60% of its opened result pages read ok (`fetchPageText` ok). Report the failures per host with their error words.
+3. **Verdict:** GO when at least one engine passes both bars. NO-GO otherwise.
+
+A FAIL on the letter stays FAIL.
+
+**Limits.** One machine, one IP, one burst: a search engine may treat a burst as a bot. Snippets on the results page are not measured. Whether the top 5 are the "right" pages is not measured.
+
+**Format probe (not a counted result).** One real request (google, query 1, no opening) was allowed only to learn the snapshot's link format so `extractResultLinks` can be written. It is saved under `.claude/scratch/f205/` and is not in any results file.
+
+### F205 FORMAT PROBE (2026-11-17, $0; one real request, NOT a counted result, not in any results file)
+
+One `fetchPageText` request: google, query 1, no opening. Sample saved as `.claude/scratch/f205/probe-google-q1.json` (`{ok, text, url}`). Read ok (20,571 chars, no bot challenge on this one request). Format seen in the `mode: 'act'` text:
+- `SNAPSHOT_OPTIONS` is `{ mode: 'act' }` with no `links: true`; barebrowse prints a link's href as ` <url>` only when `links: true` (src/links.js, src/aria.js). The probe text has 0 such `<http...>` href markers.
+- A result link line is `- link "<title> <site name> <displayed URL>" [ref=N]` with the displayed (cite) URL inside the accessible name, e.g. `https://www.united.com`, `https://www.cheaptickets.nl/vliegtickets`, `https://www.klm.nl › netherlands › chicago`, `https://www.skyscanner.net › routes › bos › chia › bost...`. Paths appear as `›` breadcrumbs and are truncated with `...`; a following `StaticText "https://host"` often repeats the host only. The page language was Dutch (consent/locale not set).
+- So the real href of a result is NOT in the snapshot. Only the displayed host (sometimes a truncated path) is. A code step cannot open the exact result page from this text; it could only open a host or truncated path.
+Harness not finished: stopped here for hamr's ruling (see report).
+
+### F205 AMENDMENT 1 (2026-11-17, before any counted result; there are NO results yet)
+
+Reason: the format probe above found no hrefs in the snapshot without `links: true`. Arms changed (bars UNCHANGED, still Bar 1 / Bar 2 / Verdict as written above):
+- The search page is read by a marked COPY of `fetchPageText`'s body in `poc/f205-search/run.mjs`: same `CONNECT_OPTIONS`, goto, status check, `waitForNetworkIdle`, bot-challenge and size floors; the ONLY difference is snapshot `{...SNAPSHOT_OPTIONS, links: true}`. `src/` stays untouched.
+- Result pages (the opened top-5) are read by the real `fetchPageText`, unchanged.
+- Locale pinned: google `&hl=en`, duckduckgo `&kl=us-en`, bing `&setlang=en`.
+- `extractResultLinks` reads only the real ` <url>` markers; it drops the engine's own hosts and ad/redirect links, unwraps a redirect only if one shows, dedupes by URL, takes the first 5.
+- One more format probe is allowed (google, query 1, no opening, tag `probe2`); it is not a counted result.
+
+### F205 FORMAT PROBE 2 (2026-11-17, $0; tag `probe2`, one real request: google, query 1, no opening; NOT a counted result)
+
+Harness `poc/f205-search/run.mjs --tag probe2 --max-searches 1 --no-open` (search page read by the links:true copy). Read ok, 42,560 chars; `extractResultLinks` returned **0** links. Snapshot saved (gitignored) as `.claude/scratch/f205/probe2-google-q1.json`. With `links: true` the ` <url>` markers are present, but Google's organic result hrefs are opaque redirects of the form `https://www.google.com/goto?url=CAES...` (a token, not the destination URL; no `/url?q=` seen), ads are `https://www.google.com/aclk?...`, and flight-widget links are `https://www.google.com/travel/clk/g?w=...`. The destination host appears only as displayed text in the link name (e.g. `... United Airlines https://www.united.com`). Nothing in the text can be unwrapped to the real page, so the extractor (engine hosts dropped, redirects unwrapped only if shown) yields none. Opening a `/goto` link would be a workaround (let Google redirect it) and was not done. DuckDuckGo and Bing were not probed (one probe allowed). Unmeasured: whether those two engines show real hrefs.
+
+Dry proofs (no network, fake `connect`, synthetic sample `poc/f205-search/sample-snapshot.txt`): `--dry` write + score; a repeated tag is refused (exit 2); `--dry-break` (every opened page 404) makes the scorer print Bar 2 FAIL.
+
+### F205 RESULT (2026-11-17, tag b1)
+
+Run: `node poc/f205-search/run.mjs --tag b1`; scored with `node poc/f205-search/score.mjs b1` from `.claude/scratch/f205/results-b1.jsonl` (gitignored). 15 search rows, 20 open rows.
+
+**VERDICT: NO-GO on the letter, not refit.** No engine passed Bar 1 (google FAIL, duckduckgo FAIL, bing FAIL), so Bar 2 was scored for none.
+
+- **Google:** 5/5 searches read ok (28,697 to 51,053 chars), no bot challenge, 0 links on every search. Its organic hrefs are `google.com/goto?url=` tokens (probe 2), which the extractor cannot unwrap. Bar 1 FAIL.
+- **DuckDuckGo (html):** 5/5 read ok, but only 982 to 992 chars each and 0 links on every search. This is likely not a results page. The text was not saved, so the cause is unchecked. Bar 1 FAIL.
+- **Bing:** 5/5 read ok. Links per search, in query order: 3, 2, 5, 5, 5. Bar 1 needs at least 5 on each ok search; 3 of 5 had 5 links, so FAIL (3 of 5).
+  - On the two flights queries the links were few: query 1 gave 3 (2 of them `google.com/travel/flights/...`, 1 skyscanner); query 2 gave 2 (both skyscanner).
+  - Opened pages: 20/20 read ok (all five searches had links: 3+2+5+5+5 = 20). Recorded, not scored, because Bar 1 failed.
+  - Result quality, facts only: "best budget laptop 2026" returned pages about Best, a Dutch town (nl.wikipedia.org/wiki/Best, gemeentebest.nl, ons-best.nl, beleefbest.nl). "weather Lisbon this week" returned Staphorst (NL) weather (accuweather, weather.com, meteoblue, buienradar). `setlang=en` set the language but not the region; the machine's IP looks Dutch.
+- **Timing:** search reads took 3.0 to 6.6 s (duckduckgo, google) and 22 to 27 s (bing).
+- **Cleanup:** the harness left no browser processes and no `/tmp/barebrowse-*` dirs (the barebrowse processes still running are hours-old MCP servers, not this run).
+
+**Possible next arms, unsigned and not run:** (a) Google, following its own `/goto` redirect once to reach the result page. (b) Bing with a pinned region (`mkt=en-US` / `cc=US`). (c) A saved DuckDuckGo page text, to see what it served.
+
+## F206 PRE-REGISTRATION (2026-11-17, $0, no AI; Google /goto redirect, one open per link; written before any real request, NOT yet run)
+
+**Question (hamr, "go", 2026-11-17).** Google reads without a bot challenge (F205 b1: 5/5) but its organic links are opaque `google.com/goto?url=` tokens. If code opens each token once, does it land on the real result page, and can that page be read? No AI call, no key, no `pass`; `src/` untouched. Same branch `poc/f205-search`.
+
+**Facts checked first.** barebrowse's `goto()` resolves to `{url, status}` where `url` is the final URL after HTTP redirects (node_modules/barebrowse/src/index.js, typedef "What goto() resolves to", and the navigation helper). So the landing URL is typed data from the browser, not guessed from page text. A redirect done by the page itself (script or meta refresh) is not an HTTP redirect; if `goto` reports a google.* url for such a page, it counts as not landed.
+
+**Arm (one only): Google.**
+- Search URL: `https://www.google.com/search?q=<words>&hl=en&gl=us` (`gl=us` is new: pins the region; b1 showed a Dutch region).
+- Same 5 queries as F205: `flights Boston to Chicago`; `cheap flights Madrid to Rome`; `best budget laptop 2026`; `python read csv file`; `weather Lisbon this week`. Same 20 s gap between searches. Same search-page read as F205 (the `links: true` copy `fetchSearchPage`).
+- Organic links = the first 5 DISTINCT `https://www.google.com/goto?...` hrefs on `link` lines. Excluded and counted per kind: `/aclk` (ads), `/travel/clk` (flight widget), any other google path.
+- Each organic link is opened ONCE, 5 s apart, one browser at a time, with a marked copy of `fetchPageText`'s body (`fetchPageOpen` in `poc/f205-search/run206.mjs`) whose ONLY difference is that it also returns the landing URL (`goto`'s `url`). Same connect options, status check, idle wait, bot-challenge and size floors as the real one.
+
+**Recorded per open** (JSONL row, `kind: 'open'`): the goto href, the landing URL, landed-off-Google (landing host is not `google.*`; a landing on google.*, e.g. a "Redirect Notice" page, is NOT landed), ok, error, chars, ms. Per search (`kind: 'search'`): url, ok, error, chars, organic links (list), excluded counts by kind, ms.
+
+**Results file.** `.claude/scratch/f205/results-f206-<tag>.jsonl`; a tag with results is refused, never overwritten.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** at least 4 of 5 searches read ok AND each of those yields at least 5 organic goto links.
+2. **Bar 2:** of ALL opened links, at least 60% land off Google AND read ok (`ok` from the copy of `fetchPageText`).
+3. **Verdict:** GO when both bars pass, NO-GO otherwise. A FAIL on the letter stays FAIL.
+
+**Also reported, not scored:** landing hosts per query; for 'weather Lisbon this week', yes/no per landing URL whether its host or path is about Lisbon (by the URL only, no judging of page text).
+
+**Limits.** One machine, one Dutch IP, one burst. Whether the landing page is the page the person would choose is not measured.
+
+**Format probe (not a counted result).** One real request is allowed: google q1, open only its first goto link, to prove the landing URL is captured.
+
+### F206 FORMAT PROBE (2026-11-17, $0; tag `probe1`; google q1, first goto link opened once; NOT a counted result)
+
+Harness built after the pre-registration (commit 3e161986): `poc/f205-search/run206.mjs`, `score206.mjs`, synthetic `sample206.txt`. Dry proofs (fake `connect`): `--dry` write + score (GO), a repeated tag refused (exit 2), `--dry-break` (every landing back on google.com) makes the scorer print Bar 2 FAIL (0%, NO-GO).
+
+Probe (`node poc/f205-search/run206.mjs --tag probe1 --max-searches 1 --max-opens 1`): search read ok (45,345 chars), 5 organic `/goto` links (the `/goto` href carries a `url=` token plus a `gsessionid=` parameter), excluded: aclk 3, travelClk 0, otherGoogle 33. The first goto link opened once: landing URL captured from `goto()`'s `{url}` = `https://www.united.com/en/de/deals/flights-to-chicago`, landed off Google, read ok, 8,912 chars, 9,857 ms. So the landing URL is typed data from the browser and one open of a `/goto` token reaches the real page, on this one request.
+
+### F206 RESULT (2026-11-17, tag b1)
+
+Run: `node poc/f205-search/run206.mjs --tag b1`; scored with `node poc/f205-search/score206.mjs b1` from `.claude/scratch/f205/results-f206-b1.jsonl` (gitignored). 5 search rows, 25 open rows.
+
+**VERDICT: GO** (both bars pass on the letter).
+- **Bar 1 PASS:** 5/5 searches read ok, 5 organic `/goto` links on each. Excluded over all searches: aclk 20, travelClk 0, otherGoogle 181.
+- **Bar 2 PASS:** 25 opened, 25 landed off Google, 23 read ok = 92% (bar 60%). The 2 failures were both `stackoverflow.com/questions/41585078/how-do-i-read-and-write-csv-files` (python query, links 3 and 5): "came back as an error page (HTTP 403), so there is nothing to read".
+
+**Not scored, facts only:**
+- Distinct `/goto` tokens often land on the SAME page: `pcworld.com/article/436674/best-pc-laptops.html` came up 4 of 5 on the laptop query; `docs.python.org/3/library/csv.html` 2 (python query); the stackoverflow page 2; `weather.com/pt/lisbon/city/lisbon/tenday` 2 (weather query). 25 opens reached 19 distinct landing URLs. A build must dedupe by landing URL, not by href.
+- `gl=us` did not stop Dutch landings on the flights queries: `united.com/en/nl/...`, `klm.nl/en-nl/...`, `vliegtickets.nl/...`. Some flights landings are site homepages or account pages (`klm.nl/en/`, `vliegtickets.nl/`, `united.com/en/nl/manageres/mytrips`).
+- Weather Lisbon, by URL only: 3 of 5 yes (weather.com x2 and accuweather `.../lisbon/...`); `bbc.com/weather/2267057` and `weather.metoffice.gov.uk/forecast/eycs2h2ky` are unknown by URL.
+- Flight results are airline and deal pages; whether they hold fare lists is not measured.
+- The `/goto` hrefs carry a `gsessionid=` parameter on some links; whether a token works outside the page that produced it is untested.
+- Cleanup: no `/tmp/barebrowse-*` dirs left.
+
+## F207 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.50 (hamr approved); M18 path; written before the harness and before any request, NOT yet run)
+
+**Question.** On M18's signed path (docs/wiki/the-module-ladder.md "M18", signed 2026-11-17): Google once (`hl=en&gl=us`), the top 5 organic `/goto` links, each opened once, deduped by landing URL, pages read by the page reader; do the landing pages carry flight prices that fwd's REAL page look can tie to the rule `~ under $450`, quoted in the page's own words?
+
+**Real path.** The look is `lookAtPage` (src/pagelook.js), unchanged: the same `mapPrompt` and `MAP_SYSTEM` (src/pagemap.js), the same `parseMapAnswer`, `applyPageWords` rules, `dryReadMoney` and `dryReadPhrases` that keep or drop facts. The call is the drafter's `makeCallModel` body copied (src/drafter.js ~line 606): `new Loop({ provider, rates, onLlmResult })`, `loop.run([{system: MAP_SYSTEM}, {user: content}], [], { maxTokens: DRAFT_MAX_TOKENS (16000), thinkingMode: attempt 1 off ("draftThinking" default), attempt 2 on })`; a cut-off (`max_tokens`) answer is unreadable. The provider is `makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', ...LIVE_PROVIDER_OPTIONS })` (row and prices from `~/.config/fwdloop/config.json`; timeout 300 s, deadline 240 s). Every round is metered through `onLlmResult`. The job is built by the real parser `parseSignedText`:
+```
+1. find flights from Boston to Chicago,
+   guardrail: under $450
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter guardrails: ... guardrail: source flights = page:<the search url>
+```
+and the look is given the lines as the drafter gives them (`hideCounts` over `{n, text, rule}`), label `flights`. The page text is the page reader's snapshot (the copy `fetchPageOpen` of `fetchPageText`'s body; its only difference is that it also returns the landing URL, F206). Nothing in `src/` is changed.
+
+**Samples.** 5. Each: a fresh Google search `flights Boston to Chicago` (copy with `links: true`, F205), 20 s between samples; the first 5 distinct `/goto` links, each opened once 5 s apart; a link whose landing is google.* does not count; pages with the same landing URL count once (first kept); one look per page that read ok.
+
+**Price row (code, per kept look fact).** The fact is `shape: money`, `forRule` = 1 (the `under $450` rule), and every word in it appears verbatim in the page text (squashed). The amount is read by fwd's own reader `moneyResultLines(text, fact)` (src/pagedry.js; the reader the run's checker uses): each page line where a kept label is followed by a number gives one value. The currency is the sign written right after the label on that line: `$` = USD; `€` or `£` = `other-currency` (counted separately, never a price row); no sign = USD only if the fact's `currency` list has `$` / `USD`, else `unsigned` (not a row). A USD value under 450 is a price row; a USD value of 450 or more is counted as `over` and is not a row.
+
+**Bars (fixed now, never refit).**
+- **Sample PASS:** at least 2 distinct landing hosts (a leading `www.` ignored) each give at least 1 price row.
+- **Verdict PASS:** at least 3 of the 5 samples pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** per host per sample: price rows, other-currency rows, over rows, unsigned rows, and whether the page read ok; the cost per look, total cost, seconds.
+
+**Cost.** HARD CAP $0.50 (hamr). No look starts once spent is $0.45 or more (one look can overshoot; the ceiling hold of one look is reported). An unpriced round (no `costUsd`) stops the batch and is never priced as 0. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is read from the environment by `makeProvider`, never printed. The run is started by hamr.
+
+**Results file.** `.claude/scratch/f205/results-f207-<tag>.jsonl`: one row per look (the raw answer of each attempt, the parsed facts, the kept facts, dropped, price rows, other-currency rows, cost, tokens, seconds), plus search and page rows; a repeated tag is refused. Harness `poc/f205-search/run207.mjs`, scorer `score207.mjs`.
+
+**Limits.** One machine, one Dutch IP, one burst; the landing pages differ each sample; whether a price is for the Boston-to-Chicago route is not judged (the rule is only `under $450`); a page that holds no fares is a correct "no row".
+
+### F207 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run207.mjs --tag p1` (paid, deepseek-flash); scored with `node poc/f205-search/score207.mjs p1` from `.claude/scratch/f205/results-f207-p1.jsonl` (gitignored). 5 searches, 25 pages, 25 looks, total $0.06114 ($0.00245 per look), 41 look seconds, not stopped, all 25 looks `lookOk` (every look answered in 1 attempt, no unpriced round). No price row, other-currency, over or unsigned row on any page.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar >= 3 of 5). Every sample had 0 hosts with a price row (bar: 2). Not refit.
+
+**What was read.** 5/5 searches ok with 5 organic links each; all 25 opened pages landed off Google, read ok, none a duplicate landing. Hosts: united.com 19 pages (deals en/de and en/nl, flight status, baggage, in-flight, flexible booking), trip.com 3 (`/flights/cheap-flights-to-united-states-66/`, samples 1 to 3), cheaptickets.nl 2 (samples 4 and 5), booking.com 1 (sample 4).
+
+**The look DID tie a money fact to line 1 rule 1** (`from: "line 1 rule 1"`, reading `lt 450`) on trip.com (all 3 pages: word `US$`, currency `US$` or `US$`/`$`), booking.com (words `€`, `€ `, currency `€`), cheaptickets.nl (1 of 2 pages: words `prijs`, `vanaf`, currency `$`/`€`) and united.com (1 of 19 pages, the en/nl flightstatus page in sample 1: words `€`, `€`, currency `€`). Code then dropped every one of those facts. Dropped reasons per host, from the file:
+- **trip.com** (3 looks, each): `not-on-page` for word `US$`; `n2` for word `US$`; `no-label` for the fact.
+- **booking.com** (1 look): `reads-no-result`.
+- **united.com** (the 1 look with a money fact): `no-value` for word `€`; `reads-no-result`. The other 18 united looks gave no money fact (kept facts were only phrase facts such as `From*`, `To*`, `Chicago`, or none).
+- **cheaptickets.nl** (the 1 look with a money fact): `not-on-page` for `prijs`, `vanaf`, `$`, `€`; `no-label`; plus `s1` on the origin/destination Boston facts. The other cheaptickets look gave no money fact.
+
+**Not counted: hamr's $0 follow-up after the batch** (the 2 landing pages re-read with the real `fetchPageText`; scratch script `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/be6e3ca8-1b14-435a-a323-6ccefd1cbd58/scratchpad/peek.mjs`), as reported to me, not re-run by me:
+- (a) the trip.com landing is "cheap flights to United States" with Bangkok to LA/Guam fares: off-topic, but it carries `US$254`, `US$575`, with `US$` glued to the number.
+- (b) the booking.com landing IS Boston to Chicago, but all its prices are in euros (`€ 64, November 17`), since the machine's IP is Dutch.
+
+**Unchecked:** why the word `US$` is `not-on-page` when `US$254` is on the page. A word-edge rule is the likely place; the code was not read for it.
+
+**Reading, from the measurements above:** prices exist on landing pages, and the look made the tie to rule 1. Two blockers were measured: the region (euro prices on the Dutch IP, so `€` words and `reads-no-result`) and landings that are off-topic or hold no price (19 of the 25 pages were united.com pages, and 18 of those gave no money fact).
+
+## F208 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15 (hamr approved about $0.10); M18 path on a research job; written before the harness and before any request, NOT yet run)
+
+**Question.** Does M18's path work for a research job, not only flights? The same path as F207 (Google once with `hl=en&gl=us`, top 5 organic `/goto` links, each opened once, deduped by landing URL, read by the page reader, one REAL page look per page that read ok), with the same provider, the same real look (`lookAtPage`, `mapPrompt`, `parseMapAnswer`, the same keep-or-drop rules) and the same money reader (`moneyResultLines`, src/pagedry.js). Only the job and the search words change. No `pass`, no key, no paid call by me; hamr runs the batch. `src/` untouched. Same branch.
+
+**Job** (the real parser `parseSignedText`, then `hideCounts`, as F207 built it):
+```
+1. find the best budget laptops for 2026,
+   guardrail: under $700; at least 16GB RAM
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter: cap $0.25 per run; send at line 3 to file:poc/m0/out; source laptops = page:<search url>
+```
+The page input label is `laptops`. Search words: `best budget laptop 2026`; search URL `https://www.google.com/search?q=best%20budget%20laptop%202026&hl=en&gl=us`.
+
+**Samples.** 5, same timing as F207 (20 s between samples, 5 s between opens), first 5 distinct `/goto` links, a landing on google.* does not count, a repeated landing URL counts once, one look per page that read ok.
+
+**Price row** (same code as F207, limit 700). A kept look fact with `shape: money`, `forRule` 1 (`under $700`), every word verbatim in the page text; fwd's reader `moneyResultLines` gives each (quote, value); the sign right after the label gives the currency (`$` = USD; `€` / `£` = other-currency; no sign = USD only if the fact's `currency` list has `$`/`USD`, else unsigned). A USD value under 700 is a price row; 700 or more is `over`. Other-currency, over and unsigned are never rows.
+
+**Bars (fixed now, never refit).**
+- **Sample PASS:** at least 2 distinct landing hosts (leading `www.` ignored) each give at least 1 price row.
+- **Verdict PASS:** at least 3 of the 5 samples pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** per host per sample: price rows, other-currency, over, unsigned, page read ok; any fact tied to rule 2 (`at least 16GB RAM`): its shape, words, kept or dropped with the reason; all dropped reasons per host; cost per look, total, seconds. The text of every opened page is saved to `.claude/scratch/f205/f208-pages/<tag>-s<sample>-<n>.txt` (gitignored) so a drop can be checked against the page (F207 lacked this).
+
+**Cost.** HARD CAP $0.15. No look starts once spent is $0.13 or more. An unpriced round stops the batch, never priced as 0. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is never printed.
+
+**Results file.** `.claude/scratch/f205/results-f208-<tag>.jsonl`, same row shape as F207; a repeated tag is refused. Harness `poc/f205-search/run208.mjs` and `score208.mjs` (marked copies of run207 / score207: the job, the limit and the page saving are the differences).
+
+**Limits.** One machine, one Dutch IP (the region may still give euro prices, F207), one burst. Whether a priced laptop is a "best budget laptop" is not judged. A guardrail such as RAM has no price reader; whether the look ties it is only reported.
+
+### F208 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run208.mjs --tag p1` (paid, deepseek-flash); scored with `node poc/f205-search/score208.mjs p1` from `.claude/scratch/f205/results-f208-p1.jsonl` plus the saved pages `.claude/scratch/f205/f208-pages/p1-*` (both gitignored). 5 searches, 25 pages opened, 13 looks, total $0.03789 ($0.00291 per look), 23 look seconds, not stopped, every look answered in 1 attempt and priced.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar >= 3 of 5). Every sample had 0 hosts with a price row (bar: 2); 0 price rows, 0 other-currency, 0 over, 0 unsigned rows on any page. Not refit.
+
+**Only 13 looks.** Of the 25 opened pages, 12 were the same landing page as an earlier link in the same sample (`pcworld.com/article/436674/best-pc-laptops.html`: 4 links in each of samples 3 to 5, 2 in samples 1 and 2), so dedupe left 2 to 4 hosts per sample: pcworld.com (5 looks), reddit.com (5, `r/LaptopForStudent/comments/1te3pqh/...`), tomshardware.com (2, samples 1 and 2, `/laptops/best-laptops`), edition.cnn.com (1 look, sample 1, 375 chars). In sample 2 the edition.cnn.com page read NO: "came back with only 105 characters of text (less than 200)" (so no look).
+
+**What the saved pages show** (checked in the files):
+- (a) pcworld: the snapshot header says `97,976 chars → 15,780 chars (84% pruned)` (the 15,886-char saved text). The text holds `Best Prices Today:` 9 times, each followed by `RETAILER` and `PRICE` labels and no amount. The look's `no-value` drops match: on pcworld, `no-value` for `PRICE` (4 looks), for `Best Prices Today:` (2 looks), and `reads-no-result` (4 looks); one `s1` drop on `budget label` (sample 4). The look tied a money fact to line 1 rule 1 on 4 of the 5 pcworld looks (words `PRICE` and `Best Prices Today:`, or `PRICE` alone).
+- (b) tomshardware (`best-laptops`, 18,899 chars, header `39,702 chars → 18,803 chars (53% pruned)`): all 8 lines with `$<digit>` are sidebar deal headlines (4 links and their StaticText), for example "Best gaming and productivity laptop deals under $1,000", "$10 programmer saves BIOS-locked Lenovo ThinkPads from the dump", "...a huge $600 saving on this RTX 5070 Ti gaming laptop from HP, now under $2,100". The look made no money fact on either tomshardware look.
+- (c) lines with a `$<digit>` per page: pcworld 3 (one prose "Asus' $7,000 ProArt P16 ... 128GB of unified memory" and the link and StaticText of "Best gaming laptops under $1,000"); reddit 0; tomshardware 8; edition.cnn.com 0 (the one read, 375 chars, header `1,264 chars → 265 chars (79% pruned)`). Reddit pages were 7.2k to 8.4k chars from about 70k (89 to 90% pruned).
+
+**Rule 2 (`at least 16GB RAM`), reported only:** 1 kept fact, pcworld sample 5, phrase "128GB of unified memory" (the `ProArt P16` sentence above); 0 dropped with rule 2.
+
+**Reading, facts only:**
+- The page reader (snapshot `mode: 'act'`) prunes most of an article's text (pcworld 84%, reddit about 90%, edition.cnn.com 79%).
+- The review article's price boxes read only `Best Prices Today:` then `PRICE`, with no amount, at read time.
+- So a price is a poor bar for research pages. How much of an article survives the read, and whether the laptop names and specs survive, is not measured here.
+
+**Possible next arm ($0, unsigned, not run):** read the same landing URLs with barebrowse's reading mode (find what barebrowse offers, for example `readable`) versus `act`; measure the chars kept and whether the laptop names, specs and prices appear.
+
+## F209 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; barebrowse article reading vs act; written before the harness and before any read, NOT yet run)
+
+**Question.** Does barebrowse's article reading keep the article text that `mode: 'act'` prunes (F208: pcworld 84% pruned, reddit about 90%, cnn 79%)? Same branch `poc/f205-search`; `src/` untouched.
+
+**What barebrowse 0.26.0 offers** (read first: node_modules/barebrowse/src/index.js, readable.js, prune.js). Two ways to read an article:
+1. `page.readable()`: Mozilla Readability (Firefox Reader View engine) run inside the live page; returns `{ ok, title, byline, text, confidence, hint }`, or `{ ok: false, hint }` on a non-article page. This is **arm B**, the exact call. The text is the result's `text` (the title is kept apart, so B's chars are `title + text`).
+2. `page.snapshot({ mode: 'read' })`: the same ARIA snapshot with the 'read' (browse) prune, which keeps paragraphs and long text; the act-mode hint itself suggests it. This is **arm C**, recorded and reported only, never scored.
+
+**Pages (8, fixed, taken from the saved result files, never re-searched; each read once per arm):**
+- from F208 p1: `https://www.pcworld.com/article/436674/best-pc-laptops.html`; `https://www.reddit.com/r/LaptopForStudent/comments/1te3pqh/best_budget_laptop_for_students_in_2026_honest/`; `https://www.tomshardware.com/laptops/best-laptops`; `https://edition.cnn.com/cnn-underscored/reviews/best-budget-laptops` (the page that read ok in sample 1)
+- from F206 b1: `https://realpython.com/python-csv/`; `https://docs.python.org/3/library/csv.html`; `https://www.accuweather.com/en/pt/lisbon/274087/weather-forecast/274087`; `https://weather.com/pt/lisbon/city/lisbon/tenday`
+
+**Arms** (each page: A, then B, then C, 5 s apart, one browser at a time; a fresh connect per read):
+- **A:** the real `fetchPageText` (`mode: 'act'`), unchanged.
+- **B:** a marked copy of `fetchPageText`'s body (same `CONNECT_OPTIONS`, goto with status check, `waitForNetworkIdle`, the bot-challenge floor) with `page.readable()` in place of the snapshot. B's `ok` is `readable().ok` and the page is not left empty: the size floors of `fetchPageText` are NOT applied to B (so a short result is measured, not hidden).
+- **C:** the same copy with `snapshot({ mode: 'read' })`.
+
+**Recorded per read:** page, arm, ok, error, chars, and by code: (i) brand lines = lines matching `/\b(Acer|Asus|Dell|HP|Lenovo|Apple|MacBook|Microsoft|Surface|Samsung|Razer|MSI)\b/`; (ii) spec lines = `/\b\d+\s?GB\b/i`; (iii) dollar lines = `/\$\d/`. Each text saved to `.claude/scratch/f205/f209-pages/<tag>-<arm>-<n>.txt` (gitignored).
+
+**Bars (fixed now, never refit).**
+- **Bar 1:** on at least 6 of the 8 pages, B reads ok AND keeps at least 2x A's chars.
+- **Bar 2:** on pcworld AND tomshardware, B's brand lines are at least 2x A's AND B's spec lines are at least 2x A's.
+- **Verdict:** GO when both bars pass.
+A FAIL on the letter stays FAIL (a page where A has 0 brand lines needs B at least 1; "2x of 0" is read as B > A).
+
+**Reported, not scored:** dollar lines per arm per page; whether pcworld's B text holds any `$` amount near a laptop name (up to 3 lines quoted); arm C's numbers.
+
+**Results file** `.claude/scratch/f205/results-f209-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run209.mjs`, scorer `score209.mjs`. Dry mode (fake connect) and a FAIL demo before the real run `--tag r1`.
+
+**Limits.** One machine, one Dutch IP, one moment; pages change; counts of lines are not a judgement of whether the text is the right article text.
+
+### F209 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run209.mjs --tag r1` ($0, 8 pages x 3 arms, all 24 reads ok), scored with `node poc/f205-search/score209.mjs r1` from `.claude/scratch/f205/results-f209-r1.jsonl`; texts in `.claude/scratch/f205/f209-pages/r1-<arm>-<n>.txt` (gitignored). Harness proofs before the run (commit 9b18b9c3): dry GO, a repeated tag refused, a FAIL demo (readable() not ok: NO-GO).
+
+**VERDICT: NO-GO on the letter. Not refit.**
+- **Bar 1 FAIL:** B (`page.readable()`) read ok on all 8 and kept at least 2x A's chars on 1 of 8 pages (bar 6): pcworld only.
+- **Bar 2 FAIL:** pcworld ok (brand lines A 24, B 66; spec lines A 1, B 16); tomshardware no (brand A 22, B 1; spec A 0, B 0).
+
+**Per page (chars; brand / spec / dollar lines), A = real `fetchPageText` (act), B = `readable()`, C = `snapshot({mode:'read'})` (reported only):**
+- pcworld: A 15,886 (24/1/3); B 33,119 (66/16/4); C 71,061 (86/22/7)
+- reddit: A 8,121 (0/0/0); B 4,021 (8/8/6); C 45,922 (16/14/15)
+- tomshardware: A 18,899 (22/0/8); B 1,267 (1/0/0); C 23,221 (58/0/9)
+- cnn: A 375 (0/0/0); B 162 (0/0/0); C 763 (0/0/0)
+- realpython: A 54,871 (0/0/0); B 12,854 (0/0/0); C 92,234 (1/0/0)
+- docs.python.org csv: A 54,508 (0/0/0); B 20,890 (0/0/0); C 108,800 (0/0/0)
+- accuweather: A 12,483 (0/0/0); B 2,246 (0/0/0); C 20,214 (0/0/0)
+- weather.com: A 8,565 (0/0/1); B 169 (0/0/0); C 15,620 (0/0/2)
+
+**Reported, not scored:**
+- Dollar lines per arm per page are in the list above. pcworld B holds 4 `$` lines near laptop names; three of them: "...Apple's standard US starting price is $699...", "The Acer Nitro V 16 AI, which can occasionally be found as low as $629 at times...", "Asus ProArt P16: Asus' $7,000 ProArt P16 with Nvidia's new RTX Spark chip has 128GB of unified memory...".
+- `readable()` kept more than act on 1 page (pcworld, 2.1x), fewer on the other 7 (tomshardware 1,267 vs 18,899; weather.com 169 vs 8,565). On reddit B kept less text than A but more brand, spec and dollar lines (8/8/6 vs 0/0/0).
+- Arm C (`snapshot({mode:'read'})`) kept more chars than A on all 8 pages (2.0x on cnn, 4.5x on pcworld, 5.7x on reddit) and had at least as many brand, spec and dollar lines as A on every page, but it was never scored.
+- Cleanup: the harness leaves no processes of its own; two `/tmp/barebrowse-ff-*` dirs exist, named for pid 897002, an hours-old barebrowse MCP server and not this run, so they were left.
+
+## F210 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; fresh pages: act vs read (and zoom if barebrowse can pick) on barebrowse 0.28.0; written before the harness and before any page is read, NOT yet run)
+
+**Why.** F209's arm C (`snapshot({mode:'read'})`) looked strong (more chars than act on 8 of 8 pages, at least as many brand, spec and dollar lines on every page) but it was seen, not scored. F210 uses FRESH pages, with bars fixed before any of them is read. Same branch `poc/f205-search`; `src/` and the repo's `node_modules` untouched.
+
+**barebrowse 0.28.0** (npm, 2026-11-16) is installed ONLY into `.claude/scratch/f210/bb028/` (`npm install barebrowse@0.28.0 --prefix .claude/scratch/f210/bb028`, gitignored) and imported from there. Read first: its CHANGELOG and README "Map + zoom".
+- **Zoom calls:** `snapshot({ map: true })` returns an outline of the page's big boxes (ref + size); `snapshot({ within })` returns one box (or several) as if it were the whole page, where `within` is a ref from a previous map, a role (`'table'`, `'group'`), `role "name"`, or `role after "heading"`; two or more matches return the map and pick nothing; none throws.
+- **Does zoom need a pick? Yes.** barebrowse has no default or auto pick: `within` always takes a box named by the caller (a ref, a role, a name), and with two or more matches it refuses to pick (README: "never picks one"). Choosing a box (for example "the biggest one", or "the group") would be a rule fwd invents, not one barebrowse makes. So **arm Z is left out**; the reason is recorded here and in the result, and the POC goes on with A vs C.
+
+**Pages.** 3 fresh Google searches (`hl=en&gl=us`, the F206 path: `/goto` followed once to learn the landing URL, 20 s apart): (1) `best noise cancelling headphones 2026` (2) `best robot vacuum under $400` (3) `best budget smartphone 2026`. Top 5 organic `/goto` links each, landing URLs deduped across all three searches, so up to 15 pages. The landing URLs are resolved by `goto` only (no snapshot); the list is recorded in the results file before any arm reads a page, and each distinct landing URL is then read directly.
+
+**Arms** (every page: A then C, 5 s apart, one browser at a time, a fresh connect per read):
+- **A:** the real `fetchPageText` (act, installed barebrowse 0.26.0), unchanged.
+- **C:** `snapshot({ mode: 'read' })` on 0.28.0, through a marked copy of the same connect/goto/idle path, with no size floors.
+- **Z:** not run (above).
+
+**Recorded per read:** ok, error, chars, seconds, and by code: dollar lines `/\$\d/`; spec lines `/\b\d+(\.\d+)?\s?(GB|TB|mAh|hours?|hrs?|Hz|W|Pa|mm|inch(es)?|")\b/i`. Each text saved to `.claude/scratch/f205/f210-pages/<tag>-<arm>-<n>.txt` (gitignored).
+
+**Bars (fixed now, scored for C against A, never refit; Z would be scored separately the same way).** "Pages" below = the pages BOTH arms read ok.
+- **Bar 1:** on at least 70% of the pages, C keeps at least 1.5x A's chars.
+- **Bar 2:** C's dollar lines plus spec lines are at least A's on at least 80% of the pages, AND C's total of those lines across all the pages is at least 1.5x A's total.
+- **Verdict for C:** GO when both pass.
+
+**Reported, not scored:** per page, chars and counts per arm; read seconds per arm; up to 3 lines per arm that put a product name and a `$` amount on one line, by the code rule `/\b[A-Z][A-Za-z]+\s+[A-Z0-9][\w-]*\b.*\$\d/` (a rough name shape; no judgement).
+
+**Results file** `.claude/scratch/f205/results-f210-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run210.mjs`, scorer `score210.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one moment; pages change between reads; a page that fails to read in either arm leaves the bars; line counts are not a judgement of article quality.
+
+### F210 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run210.mjs --tag r1` ($0; barebrowse 0.28.0 from `.claude/scratch/f210/bb028/` for arm C, the repo's installed 0.26.0 for arm A), scored with `node poc/f205-search/score210.mjs r1` from `.claude/scratch/f205/results-f210-r1.jsonl`; texts in `.claude/scratch/f205/f210-pages/r1-<arm>-<n>.txt` (gitignored). Harness proofs before the run (commit a7f0e1eb): dry GO, a repeated tag refused, a FAIL demo (C same as A: NO-GO).
+
+**Arm Z: not run.** barebrowse 0.28.0's zoom is `snapshot({ map: true })` then `snapshot({ within })`; `within` always takes a box the caller names (a ref, a role, `role "name"`, `role after "heading"`) and with two or more matches it returns the map and picks nothing. There is no default or auto pick, so any rule for choosing the box would be invented by fwd. Not built.
+
+**Page list.** 3 searches ok, 5 organic links each; 15 links resolved by `goto`, 14 landed off Google, 5 were repeats of an earlier landing URL, leaving 9 distinct pages: recordingnow.com best-noise-cancelling-headphones; reddit r/SonyHeadphones; vacuumwars.com best-robot-vacuum-under-600; reddit r/RobotVacuums (2 threads); nytimes.com/wirecutter best-budget-android-phone; reddit r/phones (2 URLs, a thread and a comment); techadvisor.com best-budget-phone. All 9 read ok by both arms.
+
+**VERDICT for C: GO.**
+- **Bar 1 PASS:** C kept at least 1.5x A's chars on 9 of 9 pages (100%; bar 70%).
+- **Bar 2 PASS:** C's dollar lines plus spec lines were at least A's on 8 of 9 pages (89%; bar 80%), and the totals were A 81, C 288 (3.56x; bar 1.5x). The one page where C had fewer: #8, the reddit r/phones comment URL (A: 0 dollar and 1 spec line, C: 0 and 0).
+
+**Per page (chars; dollar lines / spec lines), A then C:**
+- #1 recordingnow.com: A 12,369 (30/1); C 61,669 (58/6)
+- #2 reddit r/SonyHeadphones: A 18,436 (0/0); C 57,854 (5/1)
+- #3 vacuumwars.com: A 32,432 (16/13); C 56,397 (38/15)
+- #4 reddit r/RobotVacuums (under-400-500): A 9,736 (2/0); C 40,269 (53/0)
+- #5 reddit r/RobotVacuums (best-under-400): A 8,912 (2/0); C 38,642 (46/0)
+- #6 nytimes wirecutter: A 17,348 (9/1); C 56,839 (29/11)
+- #7 reddit r/phones thread: A 16,756 (0/0); C 51,540 (1/0)
+- #8 reddit r/phones comment: A 16,684 (0/1); C 48,246 (0/0)
+- #9 techadvisor.com: A 20,261 (6/0); C 88,675 (10/15)
+
+**Read seconds:** A 57 s total, C 58 s total (3.7 to 8.0 s per page, both arms).
+
+**Product-name + `$` lines (code rule, reported only):** arm A's three matches are headings, for example "Best Robot Vacuum $300–$600: Ecovacs T90 Pro Omni". Arm C's three come from the first page (recordingnow.com) and are headphones above $1,000, for example "The Dali IO-12 at $1,750 and Focal Bathys MG at $1,499 USD retail price...". These do not show whether C's lines are under any price limit.
+
+**Cleanup:** no process or `/tmp/barebrowse-*` dir from this run is left. The two `/tmp/barebrowse-ff-897002-*` dirs and a firefox (pid 2648025) belong to the old barebrowse MCP server (pid 897002) and were left alone.
+
+## F211 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15 (hamr approved about $0.10); written before any harness; **STOPPED at the cost projection: not built, waiting for hamr's ruling**)
+
+**Question.** Same as F208, but each landing page is read with arm C of F210 (`snapshot({ mode: 'read' })` on barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`, through the same marked copy of the connect/goto/idle path, no size floors). Does fwd's real look (`lookAtPage`, the drafter's call body, deepseek-flash, fwd's money reader) now give price rows? I (the harness) make no paid call; hamr runs the batch.
+
+**Job** (the real `parseSignedText` and `hideCounts`, as F208): line 1 `find the best robot vacuums under $400,` with the one guardrail `under $400`; the same ask, send and source lines; page label `vacuums`. **Search words** `best robot vacuum under $400` (Google, `hl=en&gl=us`, `/goto` followed). 5 samples, top 5 links each, deduped by landing URL.
+
+**Price row** as F207 and F208, limit 400: a kept money fact tied (`forRule`) to rule 1, words verbatim on the page, a code-read (`moneyResultLines`) USD amount under 400; non-USD is other-currency, never a row.
+
+**Bars (fixed now, never refit).** Sample PASS: at least 2 distinct landing hosts each give at least 1 price row. Verdict PASS: at least 3 of 5 samples pass. Also reported: all dropped reasons per host, cost per look, seconds. Every page text saved to `.claude/scratch/f205/f211-pages/<tag>-s<sample>-<n>.txt`.
+
+**Cost rules.** HARD CAP $0.15; no look starts once spent is $0.13 or more; an unpriced round stops the batch; an empty key refuses at $0.
+
+**Cost projection (measured, from saved files).**
+- F208 p1: 13 looks on 157,632 page chars cost $0.03789, i.e. **2.40e-7 $ per page char** (per look 2.1e-7 to 2.8e-7 on pages of 7.5k to 19k chars; the cnn 375-char page cost $0.00065, a fixed part).
+- F210 r1, arm C pages of the robot-vacuum search: vacuumwars.com 56,397 + reddit r/RobotVacuums 40,269 + reddit r/RobotVacuums 38,642 = **135,308 chars per sample** (3 distinct pages; the other 2 of 5 links were repeats).
+- Per sample: 135,308 x 2.40e-7 = **$0.0325**. For 5 samples if each returns those 3 pages: **$0.162** (at the cheapest measured rate, 2.10e-7: $0.142).
+- Both are over the $0.13 stop, and over the $0.15 cap at the average rate. With the stop at $0.13 the batch would end after about 4 samples (about 4 x $0.0325 = $0.130), so 5 samples cannot be run to the end under the stated rules. Read mode pages are 3x to 5x the size of act pages (F208: 7.5k to 19k).
+
+**Status.** Per hamr's instruction (projection over $0.13: stop and report before building, do not shrink the samples), the harness is NOT built. Options for hamr to rule, not chosen here: (a) raise the stop and cap (about $0.17 for 5 samples at the average rate, $0.20 with margin); (b) keep the cap and score fewer samples (the bar says 3 of 5, so a 4-sample run could not reach the pre-registered 5); (c) a size limit on the page text given to the look (a change to the real path, so a different POC).
+
+### F211 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
+
+Reason: the cost projection above ($0.162 for 5 samples at the measured average rate, over the $0.13 stop). hamr approved up to $1 for the search POCs and took option (a). Changed: the HARD CAP from $0.15 to **$0.25** and the stop (no look starts once spent is this or more) from $0.13 to **$0.22**. Everything else, including the bars (sample PASS: at least 2 distinct landing hosts each with at least 1 price row; verdict PASS: at least 3 of 5 samples), is UNCHANGED. The harness is built after this commit (`poc/f205-search/run211.mjs`, `score211.mjs`).
+
+### F211 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run211.mjs --tag p1` (paid, deepseek-flash, arm C read on barebrowse 0.28.0); scored with `node poc/f205-search/score211.mjs p1` from `.claude/scratch/f205/results-f211-p1.jsonl`; page texts in `.claude/scratch/f205/f211-pages/p1-s<sample>-<n>.txt` (gitignored). Cost $0.07607 over 10 looks ($0.00761 per look), 31 look seconds.
+
+**VERDICT: FAIL on the letter. Not refit, not re-run.** 0 of 3 samples passed (each had 0 hosts with a price row; bar 2). The batch STOPPED in sample 3 on an unpriced round: the reddit look (`r/RobotVacuums/comments/1rmwxpt/...`) failed with "the call about the page failed: socket hang up", no metering, cost 0 recorded as unpriced (stop rule: never priced as 0). Samples 4 and 5 never ran, so the 5-sample bar (at least 3 of 5) is not reachable by this run.
+
+**Pages.** 3 searches ok (5 organic links each). After dedupe by landing URL: sample 1 had 4 looks and sample 2 had 4 looks; in sample 3 the vacuumwars look ran and the reddit look failed. Hosts: vacuumwars.com (`/best-robot-vacuum-under-600/`, 56,397 chars each time) and reddit.com (r/RobotVacuums threads `1rmwxpt`, `1mzpgar`, `1p37l56`, 38k to 49k chars). Look cost: vacuumwars $0.0092 each; reddit $0.0073 to $0.0243 (the $0.02428 and $0.02425 host totals are 3 reddit looks each).
+
+**The look tied money facts to rule 1 every time it made one**, and code dropped them. Example, vacuumwars (all 3 looks): a money fact with words `["$"]`, currency `["$"]`, reading `lt 400`; code dropped it as `n2` for `$` and `no-label`; the one kept fact was a phrase fact "Under $300" (forRule 1), which is not a money fact and gives no price row. Reddit looks tied money facts with words such as `["for","sale for"]`, `["$"]`, `["for","at"]`, `["for","was","at"]`; one reddit look made no money fact.
+
+**Dropped reasons per host** (counted from the file):
+- vacuumwars.com: `n2` "$" x3; `no-label` x3.
+- reddit.com: `n2` "for" x3; `n2` "$" x2; `no-label` x5; `no-value` "at" x2; `r1` "sale for" x1; `r1` "was" x1.
+- `n2` reads (src/pagedropwords.js:20): "the word is written more than once inside one line of the page, so one result cannot show it once"; the drop is made at src/pagerules.js:311 (`maxPerLine(lines, w) <= 1`, else `drop(..., 'n2')`).
+
+**The pages hold prices.** Lines with a `$<digit>` in the saved texts: vacuumwars 38 per page; reddit 53 (`1rmwxpt`), 46 (`1mzpgar`), 17 to 21 (`1p37l56`), 57 (a sample-3 read of `1rmwxpt`).
+
+**Reading, facts only.** fwd's page rules assume one line is one result with its label written once (a list page). In read-mode article and forum text, several prices sit in one line, so the label word (`$`, `for`) repeats and `n2` drops it; the prices are on the page but the line-per-result rules drop the tie. Both hosts' pages returned prices in text; no price row resulted.
+
+**Spend so far on the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607): $0.17510 of hamr's $1. (The coordinator's figure of $0.17532 differs by $0.00022; this sum is from the three recorded totals.)
+
+## F212 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; shop-site search pages read from this machine; written before the harness and before any read, NOT yet run)
+
+**Direction (hamr, 2026-11-17).** For shopping jobs, search ON the shop sites themselves, through each site's own search page, which is a list page. The AI will later suggest the sites and the person agrees. This POC checks only the riskiest part: do those search pages read, from this machine (a Dutch IP), as lists of products with `$` prices? Same branch `poc/f205-search`; `src/` untouched.
+
+**Sites (fixed list); query `lenovo refurbished laptop`, URL-encoded by code (`encodeURIComponent`):**
+1. ebay `https://www.ebay.com/sch/i.html?_nkw=<q>`
+2. backmarket `https://www.backmarket.com/en-us/search?q=<q>`
+3. bestbuy `https://www.bestbuy.com/site/searchpage.jsp?st=<q>`
+4. newegg `https://www.newegg.com/p/pl?d=<q>`
+5. amazon `https://www.amazon.com/s?k=<q>`
+6. walmart `https://www.walmart.com/search?q=<q>`
+
+**Arms** (each URL read once per arm, A then C, 5 s apart, one browser at a time, a fresh connect per read):
+- **A (scored):** the real `fetchPageText` (act, installed barebrowse 0.26.0), unchanged.
+- **C (reported only):** `snapshot({ mode: 'read' })` on barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`, through F210's marked copy (`readC` in run210.mjs).
+
+**Recorded per read:** ok, the error words, chars, and by code: usd lines `/\$\s?\d/`; eur lines `/€\s?\d|\d\s?€/`; product lines = lines matching `/lenovo/i` that also match `/\$\s?\d/`. The landing URL is read from the `url:` header line that barebrowse itself writes at the top of a snapshot (the page's current URL; `fetchPageText` returns the text, not goto's result); also recorded: whether the landing host differs from the asked host (for example a redirect to a .nl site). Texts saved to `.claude/scratch/f205/f212-pages/<tag>-<arm>-<site>.txt` (gitignored).
+
+**Bars (fixed now, never refit; arm A only).**
+- **Site PASS:** reads ok, at least 5 product lines, and usd lines greater than eur lines.
+- **Verdict GO:** at least 3 of the 6 sites pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** C's numbers per site; up to 2 quoted product lines per passing site.
+
+**Results file** `.claude/scratch/f205/results-f212-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run212.mjs`, scorer `score212.mjs`. Before the real tag `r1`: dry mode end to end and a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one burst of 12 reads; shop sites may serve a bot challenge or a geo page; a "product line" is a line with the word lenovo and a dollar amount, not a judgement that it is a refurbished laptop or a result row.
+
+### F212 RESULT (2026-11-17, tag r1)
+
+Run: `node poc/f205-search/run212.mjs --tag r1` ($0; 6 sites x arms A and C, query `lenovo refurbished laptop`), scored with `node poc/f205-search/score212.mjs r1` from `.claude/scratch/f205/results-f212-r1.jsonl`; texts in `.claude/scratch/f205/f212-pages/r1-<arm>-<site>.txt` (gitignored). Harness proofs before the run (commit 824a6941): dry GO, a repeated tag refused, a FAIL demo (euros, no lenovo: NO-GO).
+
+**VERDICT: NO-GO on the letter, not refit.** 0 of 6 sites passed (bar 3 of 6); every site had 0 product lines in arm A.
+
+**Per site, arm A (real `fetchPageText`, act) then arm C (0.28.0 read, reported only):**
+- **ebay:** A and C both not ok: "came back as an error page (HTTP 403)", 1.8 s and 1.5 s.
+- **newegg:** A and C both not ok: "came back as an error page (HTTP 403)", 1.8 s each.
+- **backmarket:** A ok, 605 chars; C ok, 995 chars. The landing URL is `https://www.backmarket.com/testchallengepage?next=...` and the text carries the marker `[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]`, a Cloudflare "Ray ID" and "Performance and Security by Cloudflare". 0 usd, 0 eur, 0 product lines.
+- **bestbuy:** A ok, 627 chars; C ok, 1,115 chars; landing is the asked URL (22.8 s). The text is a "Choose a country." page with English, Francais, Espanol buttons and links "Canada" and "United States". 0 usd, 0 eur, 0 product.
+- **amazon:** A ok, 31,135 chars; C ok, 82,305 chars; landing `https://www.amazon.com/s?k=lenovo+refurbished+laptop` (host unchanged). 0 usd, 0 eur by the pre-registered regexes, 0 product lines (A has 17 lines with "Lenovo" in them, headings and link names, none with a `$` amount). The page's prices are written `EUR 323.92` (a non-breaking space after EUR): 49 lines in A and 55 in C match `/EUR\s?\d/`, which is not one of the pre-registered forms; 18 (A) and 20 (C) "Price, product page" labels. The results heading reads "1-16 of over 1,000 results for ...".
+- **walmart:** A ok, 515 chars; C ok, 1,747 chars; the landing of C is `https://www.walmart.com/blocked?url=...`, and A's text opens with a dialog "Robot or human?" and "Human verification challenge" with "Press & Hold Human Challenge". 0 usd, 0 eur, 0 product.
+
+**Landing host vs asked host:** unchanged on every ok read (`hostDiffers` false); ebay and newegg have no landing (not ok).
+
+**Seconds per read:** 1.5 to 22.8 (bestbuy 22.8 and 22.4, walmart 13.5 and 6.5, amazon 8.5 and 8.8).
+
+**One fact about `fetchPageText` (checked in the files, not beyond):** barebrowse 0.26.0 writes the marker `[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]` (node_modules/barebrowse/src/index.js:630), while `src/pagefetch.js:159` tests `/\[BOT CHALLENGE DETECTED\]/`. The marker in the saved backmarket A text did not match that pattern, so `fetchPageText` returned `ok: true` for the challenge page; the walmart A read was also `ok: true` with a human-check dialog and no such marker.
+
+**Product lines:** none on any site, so no quoted lines.
+
+**Cleanup:** the harness left no processes or `/tmp/barebrowse-*` dirs of its own; the two `/tmp/barebrowse-ff-897002-*` dirs belong to the old MCP server and were left.
+
+## F213 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.05; DeepSeek Search + Fetch APIs, no barebrowse; written before the harness and before any call, NOT yet run)
+
+**Direction (hamr, 2026-11-17).** For finding and reading pages, use DeepSeek's own Search API and Fetch API. Same branch `poc/f205-search`. I (the harness author) make no real call and use no key; hamr runs the paid batch. No new dependency (node's built-in `fetch`).
+
+**What the official docs say** (read on api-docs.deepseek.com 2026-11-17, not from aggregators):
+- **Where:** the change log https://api-docs.deepseek.com/updates/ has 2026-10-17 "Opening up the in-house search API" and 2026-11-13 "Releasing the full suite of application APIs" (Search and Fetch, OCR, ASR, TTS as standalone APIs); both point to the guide https://api-docs.deepseek.com/guides/search ("Search & Fetch guide").
+- **Endpoints, method, auth** (guide): Search `POST https://api.deepseek.com/v1/tools/search`; Fetch `POST https://api.deepseek.com/v1/tools/fetch`; headers `Authorization: Bearer <DeepSeek API Key>` and `Content-Type: application/json`.
+- **Search request** (guide): `query` (required, 1 to 128 characters; operators `site:`, `-site:`, `-`, quotes, `lang:`, `after:`, `before:`), `count` (default 10, 1 to 50), `ori_question` (optional, 1 to 128), `localization` ("an optional IP address used to localize search results", default empty), `need_content` (default false: `content` always an empty string); unknown fields are ignored. **There is no locale, region or language field**; the guide offers only the `lang:` operator and the `localization` IP address. The guide does not say whether results depend on the caller's or the server's location.
+- **Search response** (guide): `results` array (empty when no match); each item `rerank_score` (0 to 3), `title`, `url`, `snippet` (typically 100 to 200 chars), `summary` (typically 600 to 800 chars), `content`, `site_name`, `site_icon`, `date`, `authority` (0 to 4, -1 unknown).
+- **Fetch request** (guide): one field `url` (http or https, host required, at most 8192 characters, no user name or password). **Fetch response:** `title` (empty when unavailable) and `content`, the page as Markdown text. **A size limit or truncation of `content` is not stated.** "Fetching is subject to the target site's availability and access policies."
+- **Price** (pricing page https://api-docs.deepseek.com/quick_start/pricing.md and the guide): Search $0.75 per 1,000 searches; Web fetch $0.75 per 1,000 fetches; the guide: "billed per successful request, not by tokens or by the number of returned results", billed only on HTTP 200 with a produced result (Search: a non-empty `results`; Fetch: page content); failed requests, empty results and timeouts are not billed; charges come from the balance, granted balance first. So one successful call = $0.00075.
+- **Rate limits** (guide): Search 100 QPS, Fetch 25 QPS, per account, tracked separately; Fetch also has a per-domain QPS limit whose value is not stated; over the limit returns HTTP 429.
+- **Usage or billing field in a response:** not stated (none documented).
+- **Errors** (guide): body `{"error": {message, type, param, code}}`; 400 bad request, 401 bad key, 402 insufficient balance, 403 Fetch rejected by security policy, 404 Fetch could not retrieve usable content (unavailable URL, site policy block, target site error, unsupported content type, no extractable Markdown), 408, 413, 429, 500, 504.
+- **Not stated by the docs (recorded, none blocks the run):** a locale/region field (so none is set; `localization` is an IP address and fwd has no US IP to give, so it is left empty and the search is as DeepSeek serves it); the Fetch content size limit; the per-domain Fetch rate; a usage field.
+
+**Question.** Through DeepSeek Search plus Fetch (no barebrowse), do we get (a) real result links, (b) page text that code can read, (c) `$` prices rather than euros (DeepSeek fetches from its side, not from this Dutch machine), (d) no robot or challenge pages?
+
+**Calls.** Queries: (1) `best budget laptop 2026` (2) `best robot vacuum under $400` (3) `lenovo refurbished laptop`. Per query one Search with `{ query, count: 5 }` (no `localization`, `need_content` false); the result URLs are deduped (first kept); each distinct URL gets one Fetch `{ url }`. 3 Search calls plus up to 15 Fetch calls, 2 s apart, one at a time, a 60 s client deadline per call.
+
+**Recorded per call:** HTTP status, ok, the error words, chars, the URL, seconds. Fetch also: usd lines `/\$\s?\d/`; eur lines `/€\s?\d|\d\s?€|EUR\s?\d/` (EUR covers the non-breaking-space form F212 found); challenge lines `/robot or human|press (&|and) hold|captcha|BOT CHALLENGE|verify you are human|testchallengepage/i`. Fetch text saved to `.claude/scratch/f205/f213-pages/<tag>-q<n>-<k>.txt` (gitignored). A Fetch is ok when HTTP 200 and `content` is a non-empty string.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** at least 2 of the 3 searches return at least 5 result URLs.
+2. **Bar 2:** at least 60% of the Fetch calls return ok with at least 1,000 chars and 0 challenge lines.
+3. **Bar 3:** over all fetched pages the total usd lines are greater than the total eur lines, AND on query 3 (lenovo) at least 2 fetched pages each have at least 3 usd lines.
+4. **Verdict GO:** all three bars pass.
+A FAIL on the letter stays FAIL.
+
+**Reported, not scored:** for a URL also read in F210 or F211 (their results files), the Fetch chars next to the read-mode chars; seconds per call; up to 2 quoted usd lines per query.
+
+**Cost.** Each call is priced as (successful call) x $0.00075 (the pricing page and the guide above). Successful = HTTP 200 with a non-empty `results` (Search) or non-empty `content` (Fetch); any other HTTP answer is recorded unbilled per the guide. A call whose billing cannot be known (no HTTP answer at all, such as a network error or the client deadline, or a 200 whose body is not JSON) stops the batch and is recorded at one price ($0.00075), never at 0. HARD CAP $0.05 (the full run is at most 18 calls = $0.0135); no call starts if spent plus one price would pass the cap. An empty `DEEPSEEK_API_KEY` refuses at $0 before any write. The key is read from the environment and never printed.
+
+**Results file** `.claude/scratch/f205/results-f213-<tag>.jsonl`; a repeated tag is refused. Harness `poc/f205-search/run213.mjs`, scorer `score213.mjs`. Proofs before the real run: dry mode (a fake HTTP layer), a refused tag, an empty key, and a FAIL demo.
+
+**Limits.** One account, one burst; Search results are as DeepSeek serves them with no locale set; Fetch is subject to site policy (403/404 are possible); chars are Markdown chars, not snapshot chars, so F210 and F211 chars compare only roughly.
+
+### F213 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run213.mjs --tag p1` (paid, DeepSeek Search + Fetch, no barebrowse); scored with `node poc/f205-search/score213.mjs p1` from `.claude/scratch/f205/results-f213-p1.jsonl`; Fetch texts in `.claude/scratch/f205/f213-pages/p1-q<n>-<k>.txt` (gitignored). 3 Search calls and 15 Fetch calls, all HTTP 200, none stopped; spent $0.01350 (18 x $0.00075). No `localization` or locale set (the docs have no locale field; `localization` takes an IP).
+
+**VERDICT: GO** (all three bars pass).
+- **Bar 1 PASS:** 3 of 3 searches returned 5 result URLs (bar 2 of 3); search calls took 0.5 to 0.7 s.
+- **Bar 2 PASS:** 15 of 15 fetches ok with at least 1,000 chars and 0 challenge lines (100%; bar 60%).
+- **Bar 3 PASS:** usd lines 132 vs eur lines 18 over all fetched pages (usd > eur); on query 3 (lenovo) 3 fetched pages each have at least 3 usd lines (bar 2): the three lenovo.com pages with 10 each.
+
+**Per fetch (host; chars; usd lines; eur lines; seconds):**
+- q1-1 www.pcmag.com 16,817; 2; 0; 0.3
+- q1-2 uk.pcmag.com 105,049; 21; 0; 0.5
+- q1-3 www.cnet.com 15,593; 16; 0; 0.3
+- q1-4 tech.yahoo.com 17,314; 6; 0; 0.3
+- q1-5 www.bgr.com 11,454; 12; 0; 0.3
+- q2-1 www.zdnet.com 4,367; 3; 0; 0.3
+- q2-2 me.mashable.com 16,893; 11; 0; 0.3
+- q2-3 me.mashable.com 15,345; 5; 0; 0.4
+- q2-4 mashable.com 21,053; 13; 0; 0.3
+- q2-5 gagadget.com 38,336; 13; 0; 0.4
+- q3-1 www.lenovo.com 13,452; 10; 0; 11.2
+- q3-2 www.lenovo.com 13,452; 10; 0; 14.2
+- q3-3 www.lenovo.com 13,236; 10; 0; 4.6
+- q3-4 www.cdn.amazon.it 5,903; 0; 7; 0.3
+- q3-5 www.refurbed.nl 12,219; 0; 11; 0.3
+
+**Not scored, facts only:**
+- (a) The Lenovo outlet listing `https://www.lenovo.com/us/outletus/en/laptops/` came back 3 times under different query strings (`?IPromoID=LEN246588#1`, `?orgRef=...google...gclid...#1`, `?orgRef=...retailmenot...__cf_chl_tk...#1`), as q3-1 to q3-3. The pre-registered dedupe on the full URL kept all three, so the page was fetched 3 times (13,452, 13,452 and 13,236 chars). A build needs a canonical URL for dedupe; no rule is picked here. Query 1 also has URLs that differ only by a `#` fragment or tracking parameter (`pcmag.com/picks/the-best-laptops?srch_tag=...#3`), but no repeated page there.
+- (b) The euro pages came from the search results, not from Fetch: `www.cdn.amazon.it` and `www.refurbed.nl`, both on query 3 (7 and 11 eur lines, 0 usd). `localization` was left empty and the docs say it takes an IP address.
+- (c) Fetch took 0.3 to 0.5 s on most pages and 4.6 to 14.2 s on lenovo.com (11.2, 14.2, 4.6).
+- (d) F210/F211 comparison: none of the 15 fetched URLs matches a URL in the F210 (arm C) or F211 results, so there is no Fetch-versus-read-mode chars pair.
+- Quoted usd lines (up to 2 per query, from the scorer): query 1 pcmag "With a list price just under $400, we've seen it dip below $300..."; query 2 zdnet "# This $200 robot vacuum proves budget cleaners are finally worth your money"; query 3 lenovo.com outlet list lines such as "...CERTIFIED REFURBISHED$599.00Delivery FREE Standard Delivery..." and "...Lenovo Outlet Price$1,332.9225% off".
+
+**Spend so far across the paid search POCs:** F207 $0.06114, F208 $0.03789, F211 $0.07607, F213 $0.01350: $0.18860 of hamr's $1.
+
+## F214 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.12 (hamr approved about $0.10); written before any harness; **STOPPED at the cost projection: not built, waiting for hamr's ruling**)
+
+**Question.** On F213's path (DeepSeek Search, then Fetch), can a model step give rows of `{name, price, quote}` where code proves each one: the quote is on the fetched page, the price sits inside that quote, and the price is a USD amount under the limit? I make no paid call and use no key; hamr runs the batch. Same branch `poc/f205-search`.
+
+**Jobs** (one per query; search words as F213): q1 `best budget laptop 2026`, rule `under $500`; q2 `best robot vacuum under $400`, rule `under $400`; q3 `lenovo refurbished laptop`, rule `under $500`. Per sample and query: Search (`count` 5, no `localization`), dedupe by canonical URL (scheme + host + path; query string and `#` dropped; a POC rule, not a product rule), Fetch each page, one model call per fetched page. 2 samples, Searches 2 s apart, each sample re-runs Search.
+
+**Which model call (checked in src).** fwd's existing page-quoting step (`makeLiveModelStep` with `stepMeta.cited`, src/model-step.js) answers in `CITED_SCHEMA` = `results: [{ quote, values: {} }]`, told the signed close's fact brief (`citedBrief`, src/citedcheck.js `factBrief`), and it runs inside the runner (spend.jsonl, diaries, signed close, granted tools). It carries a quote and values, not `{name, price, quote}`, and its brief comes from a signed look's kept facts, which this POC does not have (F211: the look drops those ties on article text). So **a marked POC copy** of `makeLiveModelStep`'s call is used: the same `Loop` with `onLlmResult` metering, provider `makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', ...LIVE_PROVIDER_OPTIONS })`, `maxTokens` 16000, `thinkingMode` as attempt 1 (off), the one tool `emit_artifact` forced on the first call, the step's own system line ("You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted - never invent a figure."), schema `{ rows: [{ name: string, price: string, quote: string }], done: boolean, blocker: string|null }`, the goal line = the job line verbatim, the page as the read, and the told rule "quote = the exact sentence or line from the page that holds the name and the price, copied character for character".
+
+**Code check per row** (whitespace runs become one space and NBSP a space, on the quote and the page): (i) the quote is a substring of the page; (ii) `price` appears inside the quote; (iii) code reads the amount from `price`: a `$` or `USD` sign and under the limit. Reasons: `quote-not-on-page`, `price-not-in-quote`, `not-usd`, `over-limit`, `unreadable-price`, `pass`.
+
+**Bars (fixed now, never refit).** Query-sample PASS: at least 2 distinct hosts each give at least 1 `pass` row. Verdict PASS: at least 4 of the 6 query-samples pass. Reported, not scored: rows claimed vs passed with a count per reason (the key number is the share of claimed rows that code rejected); per host per sample; cost per call and in total, seconds; up to 3 passing rows per query quoted.
+
+**Cost rules.** Search and Fetch priced at the official $0.00075 per billable call (as F213; https://api-docs.deepseek.com/guides/search); model rounds metered with `onLlmResult`; HARD CAP $0.12; no model call starts once spent is $0.10 or more; a round whose cost is unknown stops the batch; an empty key refuses at $0.
+
+**Cost projection (measured from saved files).**
+- F213 p1 pages after the canonical-URL dedupe (the three lenovo.com outlet URLs become one): q1 5 pages, 166,227 chars (one page, uk.pcmag.com, is 105,049); q2 5 pages, 95,994 chars; q3 3 pages, 31,574 chars. **293,795 page chars per sample, 13 pages.**
+- F208 p1 measured **2.40e-7 $ per page char** for a look (page in, a short answer out). A row answer is longer than a look's answer, so this is a floor.
+- Per sample: 293,795 x 2.40e-7 = **$0.0706** for the model calls, plus 16 Search and Fetch calls x $0.00075 = $0.0120: about **$0.083**.
+- Two samples: **$0.141** for the model plus **$0.024** for the API calls = **about $0.165**, over the $0.10 stop and over the $0.12 cap. One sample alone (about $0.083) fits. The uk.pcmag.com page alone is 105,049 chars, about $0.025 per call.
+
+**Status.** Per the rule (projection over $0.10: stop and report before building), the harness is NOT built. Options for hamr to rule, none chosen here: (a) raise the stop and cap (about $0.20 stop and $0.25 cap for 2 samples at the floor rate); (b) one sample (about $0.083, fits; but the bar says 4 of 6 query-samples, so the pre-registered bar would be 2 of 3, a changed bar); (c) a page-size limit given to the model (changes the path: a different POC).
+
+### F214 AMENDMENT 1 (2026-11-17, before any harness; there are NO results yet)
+
+Reason: the cost projection above (about $0.165 for 2 samples, over the $0.10 stop and the $0.12 cap). hamr took option 1 (his $1 approval for the search POCs covers it; $0.19 spent so far on F207, F208, F211, F213). Changed: the stop (no model call starts once spent is this or more) from $0.10 to **$0.20**, and the HARD CAP from $0.12 to **$0.25**. Everything else, including the bars (query-sample PASS: at least 2 distinct hosts each with at least 1 `pass` row; verdict PASS: at least 4 of 6 query-samples) and the 2 samples, is UNCHANGED. The harness is built after this commit.
+
+### F214 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run214.mjs --tag p1` (paid; DeepSeek Search + Fetch, then one deepseek-flash call per page, the marked copy of `makeLiveModelStep`'s call); scored with `node poc/f205-search/score214.mjs p1` from `.claude/scratch/f205/results-f214-p1.jsonl`; page texts in `.claude/scratch/f205/f214-pages/` (gitignored). 2 samples x 3 queries: 6 Searches, 26 Fetches (all ok, none without a model call), 26 model calls. Total spent $0.12978 ($0.10578 model, $0.00407 per call, 50 model seconds; the rest Search and Fetch). Not stopped. After the canonical-URL dedupe, queries 1 and 2 kept all 5 URLs and query 3 kept 3 of 5 (the lenovo outlet variants merged).
+
+**VERDICT: FAIL on the letter, 2 of 6 query-samples (bar 4). Not refit.**
+
+**Passes per query-sample (hosts with at least 1 `pass` row; bar 2):**
+- q1 (laptop, limit $500): sample 1 had 1 host (pcmag.com), sample 2 had 0. FAIL, FAIL.
+- q2 (vacuum, limit $400): sample 1 had 2 hosts (zdnet.com, me.mashable.com); sample 2 had 3 (zdnet.com, me.mashable.com, mashable.com). PASS, PASS.
+- q3 (lenovo, limit $500): lenovo.com only, 1 pass row in each sample. FAIL, FAIL.
+
+**Rows: 73 claimed, 8 passed, 65 rejected by code (89%).** Reasons:
+- `over-limit` 48 (the prices written are real and above the job's limit; for example the lenovo outlet rows at $599.00 to $1,642.56);
+- `price-not-in-quote` 14;
+- `not-usd` 3;
+- `quote-not-on-page` **0** (no row was rejected for a quote that is not on the page);
+- `unreadable-price` 0.
+
+**No model call ended without `emit_artifact`** (0 of 26; one call, me.mashable.com in sample 1, used a second round).
+
+**Duplicates, from the file:**
+- The model listed the same name three times in one call: cnet.com sample 2, "HP OmniBook 5 14" with prices $1,100, $660 and $1,200 (all `over-limit`). No call listed the same name and price twice.
+- The same pass row came back in both samples, not twice in one call: zdnet.com "3i G10+ | $200" (sample 1 and sample 2), me.mashable.com "Roborock Q10 S5+ | $379.99" (both samples). The lenovo.com pass row is the same item written two ways, once per sample: "Refurbished IdeaPad (Part Number 82XBX00LR1) | $280.92" and "Refurbished laptop — Part Number 82XBX00LR1 (Intel N100, 15.6" FHD, 4GB, 128GB UFS) | $280.92"; the other 7 lenovo rows per sample are also the same items written two ways, all `over-limit`.
+
+**The misses are `price-not-in-quote` (14).** Three, with the quote the model gave:
+- cnet.com sample 1: price "$500 at Costco (on sale for $619 at Amazon)"; quote "The Aspire 14 AI is on sale for $619 at Amazon and only $500 at Costco, making it easily the cheapest Copilot Plus PC I've reviewed." (the price field is a rewrite, not a copy).
+- uk.pcmag.com sample 2: price "$699"; quote "Expect prices from $700 for the MacBook Neo to more than $5,000 for the most decked-out Pro." (no `$699` in the quote).
+- pcmag.com sample 2: price "just under $400 (seen below $300)"; quote "With a list price just under $400, we've seen it dip below $300 since our review." (the same sentence passed in sample 1, where the price was "just under $400").
+Others in this group: "$799 (base); $999 (16GB)", "less than $1,000 (entry-level; ...)", "no explicit price stated (matching the Neo's starting price)", "€299.00" (cdn.amazon.it), and mashable.com sample 1 "$399.99" with a quote that is a heading ("Best robot vacuum and mop combo under $400 (on sale) / ### Roborock Q10 S5+") that holds no price.
+
+**One pass row to note:** pcmag.com sample 1, "Acer Aspire 3 | just under $400", quote "With a list price just under $400, we've seen it dip below $300 since our review." The code read the amount as 400, under the $500 limit.
+
+**Reading, facts only.** Every quote the model gave was found on the page. Code's rejects were mostly correct ones: prices over the job's limit, or euros. The model also wrote prices that are not copies of the quote (14 `price-not-in-quote`). The FAIL comes from too few distinct hosts with an item under the limit (q1: only a "just under $400" sentence, one host in one sample; q3: one outlet item under $500 on one host; gagadget.com gave 0 rows both samples), not from false rows passing.
+
+**Spend so far across the search POCs** (F207 $0.06114, F208 $0.03789, F211 $0.07607, F213 $0.01350, F214 $0.12978), summed from the recorded totals: **$0.31838** of hamr's $1.
+
+## F215 PRE-REGISTRATION (2026-11-17, PAID, hard cap $0.15; "feeling lucky" for a refurbished laptop under 600 EUR in the EU/NL; free search plus the real fwd page path, no DeepSeek Search or Fetch (hamr ruled paid search and fetch services out); written before the harness and before any request, NOT yet run)
+
+**Question (hamr, 2026-11-17, "one last poc before pass, i am feeling lucky if you can find one qualifying page for all checks").** Can the path find ONE page, within the first 5 organic Google links for `refurbished laptop under 600 euro` (searched as the EU/NL), that qualifies by code on every check: it reads ok, it has a price row under 600 EUR, and a kept fact for `refurbished`? Same branch `poc/f205-search`; I make no paid call and use no key; hamr runs the batch. `src/` untouched.
+
+**Path.**
+- **Search:** Google through barebrowse as F206: the search page read with the marked `links: true` copy (`fetchSearchPage`), URL `https://www.google.com/search?q=refurbished%20laptop%20under%20600%20euro&hl=en&gl=nl`; the organic links are the `/goto` hrefs (`extractGotoLinks`), in order. A link's landing URL is resolved by `goto` only (`readC(href, 'landing')`, F210/F211, barebrowse 0.28.0 from `.claude/scratch/f210/bb028/`); landing pages are deduped by canonical URL (scheme + host + path) and a landing on google.* does not count.
+- **Page read:** each landing page is read with the REAL `fetchPageText` (act, barebrowse 0.26.0, with the bot-challenge fix a6a40287).
+- **Page look:** the REAL page look, as F207/F208: `lookAtPage` (`mapPrompt`, `parseMapAnswer`, the drafter's keep-or-drop rules, `dryReadMoney`, `dryReadPhrases`) with the drafter's call body copied (`Loop`, `onLlmResult`, `maxTokens` 16000, thinking attempt 1 off / attempt 2 on), provider `makeProvider('DEEPSEEK_API_KEY', { model: 'deepseek-flash', ...LIVE_PROVIDER_OPTIONS })`, every round metered.
+
+**Job** (real `parseSignedText` and `hideCounts`, in fwd's signed form, label `laptops`):
+```
+1. find a refurbished laptop under €600,
+   guardrail: under €600; refurbished
+2. ask 30m: check it with me,
+3. write it out.
+Arbiter: cap $0.25 per run; send at line 3 to file:poc/m0/out; source laptops = page:<the search url>
+```
+**Checked first, $0 (scratch script):** the real parser keeps `under €600; refurbished` as the guardrail of line 1, `hideCounts` passes it on, and `mapPrompt` shows the look `~ rule 1: under €600` and `~ rule 2: refurbished`; the signed-text parser and the money code (src/citedcheck.js `CURRENCY_SIGNS` = `$ € £`; src/pagerules.js reads `[$€£]` before an amount) take `€`. No STOP needed.
+
+**How fwd's money reader handles €** (measured on 5 strings with `moneyResultLines`, src/pagedry.js, the reader F207 used): a sign `€` right before the number is read (`Price: €549.00` gives 549.00; `Price €549` gives 549); a `€` AFTER the number is not read as a sign; and it treats `,` as a thousands mark and `.` as the decimal point only: `Price: € 549,00` gives the value **54900**, `Prijs: €1.299,00` gives **1.299**, and `Price: 549,00 €` gives 54900. So a Dutch-format amount can be read as far too big (not a row) or, with dot-thousands, as far too small (a false row). POC guard, stated now: a price row is counted ONLY if the amount's text on the page is not of the form `d.ddd` (a dot then exactly 3 digits, with or without `,dd` after it); such a row is recorded as `suspect-format` and never qualifies. No other reading rule is added; a page whose prices are written `549,00` is simply not read (value 54900, over 600), which is a fact about fwd's reader, reported.
+
+**Feeling lucky, per sample.** Search, then open the landing pages in link order and stop at the FIRST qualifying page, or after 5 distinct landing pages. A page qualifies when it reads ok (`fetchPageText` not refused) and BOTH hold, by code:
+- (a) at least 1 price row: a kept money fact tied (`forRule`) to rule 1 (`under €600`), every word verbatim on the page (squashed), and a code-read amount (the reader above) in EUR under 600: the sign right after the label is `€`, or no sign and the fact's `currency` list holds `€`; a `$` or `£` sign is other-currency, never a row; a non-`d.ddd` amount text (guard above);
+- (b) a kept fact tied (`forRule`) to rule 2 (`refurbished`), every word verbatim on the page.
+
+**Samples.** 5, each re-running the search, 20 s apart; 5 s between page reads.
+
+**Bars (fixed now, never refit).** Sample PASS: a qualifying page is found within the first 5 links. Verdict PASS: at least 4 of the 5 samples pass. A FAIL on the letter stays FAIL.
+
+**Also reported:** per sample which link number qualified (the "luck depth") and the host; for each page that did not qualify, why (refused with its words, no price row, no refurbished fact, the look's dropped reasons); cost per look and in total; whether the same page wins across samples.
+
+**Cost.** HARD CAP $0.15; no look starts once spent is $0.13 or more; an unpriced round stops the batch; an empty key refuses at $0. Projection: F208's measured rate is 2.40e-7 $ per page char for a look; act pages ran 7.5k to 19k chars ($0.002 to $0.005 each). Five links in each of 5 samples would be at most 25 looks, about $0.09 at 15k chars each; the first-qualifying-page stop makes it less. A run of large pages (30k chars average) would reach the $0.13 stop, and the batch would then end early and be reported as it stands.
+
+**Files.** Every page text saved to `.claude/scratch/f205/f215-pages/`; results `.claude/scratch/f205/results-f215-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run215.mjs`, scorer `score215.mjs`. Proofs before the paid run: dry mode, a refused tag, an empty key, a FAIL demo.
+
+**Limits.** One machine, one Dutch IP, one burst; Google as served with `gl=nl`; the guard above is mine and is stated before the run; "refurbished" is judged only by the look's kept fact with words on the page, not by what the page sells.
+
+### F215 RESULT (2026-11-17, tag p1)
+
+Run: hamr ran `run215.mjs --tag p1` (paid, deepseek-flash, free search plus the real page path); scored with `node poc/f205-search/score215.mjs p1` from `.claude/scratch/f205/results-f215-p1.jsonl`; page texts in `.claude/scratch/f205/f215-pages/` (gitignored). 5 searches ok (10 organic links each), 25 pages opened (5 per sample, all read ok by `fetchPageText`), 25 looks, $0.10131 ($0.00405 per look), 45 look seconds. Not stopped.
+
+**VERDICT: FAIL on the letter, 0 of 5 samples** (bar 4 of 5). No page qualified in any sample (0 of 25); no winning page. Not refit.
+
+**What the top 5 were.** Mostly price-comparison and feed pages: bigshopper.nl (5 looks, 7.5k chars), kelkoo.nl (5, 43k chars), shopping.channable.com (5, 2.9k), theecodealz.com (5, 7.9k to 8.4k), remarkt.nl (2, 37k), shopping.producthero.com (2, 3.3k), it.adstrong.eu (1, 841 chars). The same hosts came up in the same order across samples; the list per sample was 4 to 5 distinct hosts.
+
+**Why no page qualified** (counted from the file):
+- **No price row on any page:** 0 price rows, 0 over-limit, 0 other-currency, 0 `suspect-format`, 0 unsigned across all 25 looks.
+- **Refurbished fact (rule 2) kept on 7 of 25 pages:** theecodealz.com 4 of 5, remarkt.nl 2 of 2, kelkoo.nl 1 of 5; none on bigshopper.nl, shopping.channable.com, shopping.producthero.com, it.adstrong.eu.
+- **remarkt.nl** (a refurbished-laptop shop; looks in samples 3 and 5): a refurbished fact on both, no price row. Dropped reasons: sample 3 `no-value` "Incl. BTW" and `reads-no-result`; sample 5 `n2` "€" and `no-label`.
+- **theecodealz.com** (5 looks): `n2` "€" on 5 of 5, `no-label` on 5 of 5, `no-value` "Price" on 1; a refurbished fact on 4 of 5.
+- **kelkoo.nl:** `reads-no-result` on 4 of 5 looks, `r1` "From" (1), `r1` "Min. prijs:" (1), `not-on-page` "laptop" (1).
+- **bigshopper.nl:** `no-label` on 6 drops, `not-on-page` "EUR" (2), "€" (2), "refurbished" (2), an empty word (2), `r1l` (1).
+- **shopping.channable.com, shopping.producthero.com, it.adstrong.eu:** no dropped reasons recorded; the looks kept no money or refurbished fact.
+
+**The money-reader facts, found at $0 by reading the code and measured on five strings before the run (see the pre-registration):** fwd's `moneyResultLines` reads a `€` sign before the number, treats a comma as a thousands mark and a dot as the decimal point, so `€1.299,00` reads as 1.299 and `€ 549,00` as 54900. None was seen as a row in this run: `suspect-format` count in the file is 0 (the guard never fired).
+
+**Reading, facts only.** The look made no price tie that survived the code checks on any of these pages; the euro sign repeats within a line on the pages where it got that far (`n2` "€"), as `$` did in F211. Page read was not the blocker here (25 of 25 read ok).
+
+## F216 PRE-REGISTRATION (2026-11-17, $0, no AI, no key; barebrowse anti-bot copy on the F212 shop sites; written before the harness and before any read, NOT yet run)
+
+**Question (hamr).** Does barebrowse's anti-bot copy flag the walmart "Press & Hold" challenge, clear it with `hold`, and avoid false flags? Same branch `poc/f205-search`; `src/` and the repo's `node_modules` untouched.
+
+**Library.** The pinned copy `/home/hamr/PycharmProjects/bb-antibot` (branch `fix/challenge-detect-hold` @ e447613), imported as `import { connect } from '/home/hamr/PycharmProjects/bb-antibot/src/index.js'`, not modified. Read first: its CHANGELOG [Unreleased] and README. What it says: `page.botBlocked` is recomputed on every `snapshot()` from the tree (so it clears after `hold()` or a click); detection now also looks at structure (an iframe named like a challenge or captcha as the content of a small page or in a dialog, and the "Robot or human?" heading as a phrase; Cloudflare `cf-mitigated: challenge` flags on both engines); Firefox `snapshot()` now writes the `[BOT CHALLENGE DETECTED ...]` line when blocked; `hold(ref, ms = 10000)` presses an element, waits and releases, on both engines (its notes: passed Walmart 3 of 3 on Chromium with 12 s). Engine: `connect({ engine: 'chromium' | 'firefox' })`; the mode default is `headless` and is set explicitly here, with `incognito: true` and `blockPrivateNetwork: true` as fwd's reads do.
+
+**Sites (F212 URLs plus one), query `lenovo refurbished laptop`:** ebay `https://www.ebay.com/sch/i.html?_nkw=<q>`; newegg `https://www.newegg.com/p/pl?d=<q>`; backmarket `https://www.backmarket.com/en-us/search?q=<q>`; bestbuy `https://www.bestbuy.com/site/searchpage.jsp?st=<q>`; amazon `https://www.amazon.com/s?k=<q>`; walmart `https://www.walmart.com/search?q=<q>`; duckduckgo `https://html.duckduckgo.com/html/?q=lenovo%20refurbished%20laptop`.
+
+**Reads.** Every site on BOTH engines (chromium, then firefox), 5 s apart, one browser at a time: connect, `goto` (30 s), wait for network idle (1.5 s quiet, 20 s cap), `snapshot({ mode: 'act' })`.
+
+**Recorded per read:** engine, `botBlocked` after goto and snapshot, HTTP status (from `goto`), chars, whether the marker text `BOT CHALLENGE DETECTED` appears, whether challenge words appear (`/robot or human|press (&|and) hold|captcha|BOT CHALLENGE|verify you are human|testchallengepage|human verification/i`), product lines (`/lenovo/i` with `/\$\s?\d/`, `/€\s?\d|\d\s?€|EUR\s?\d/`), the landing URL (goto's `url`). Each text saved to `.claude/scratch/f205/f216-pages/<tag>-<engine>-<site>.txt` (including the DuckDuckGo text). **Walmart only, per engine:** if `botBlocked` and the snapshot holds `button "Press & Hold Human Challenge" [ref=N]`, call `hold(N, 12000)`, wait 8 s, snapshot again; record `botBlocked` after, the URL, chars and product lines.
+
+**Bars (fixed now, never refit).**
+1. **Bar 1:** the walmart challenge is flagged (`botBlocked` true) on every engine that shows it (its text carries the challenge words); at least one engine must show it.
+2. **Bar 2:** `hold` clears walmart (`botBlocked` false and at least 5 product lines after) on at least 1 engine.
+3. **Bar 3:** no false flag: amazon and duckduckgo are not flagged (on either engine) unless their text shows challenge words (recorded either way).
+4. **Verdict GO** when all three pass.
+Also reported: whether the ebay and newegg 403 pages are flagged.
+
+**Files.** `.claude/scratch/f205/results-f216-<tag>.jsonl` (a repeated tag is refused); harness `poc/f205-search/run216.mjs`, scorer `score216.mjs`. Proofs before the real tag `r1`: dry mode with a fake page (including a FAIL demo).
+
+**Limits.** One machine, one Dutch IP, one burst; challenge pages vary by time and IP; a human-check iframe may not render in headless Firefox (the changelog says so).
+
+### F216 RESULT (2026-11-17, tag r1)
+
+**Who ran it and why:** hamr ran `run216.mjs --tag r1` himself, from his terminal, after the auto-mode classifier refused the agent's run of the walmart hold step. Scored with `node poc/f205-search/score216.mjs r1` from `.claude/scratch/f205/results-f216-r1.jsonl`; texts in `.claude/scratch/f205/f216-pages/r1-<engine>-<site>.txt` (gitignored). Library: the pinned anti-bot copy `/home/hamr/PycharmProjects/bb-antibot` @ e447613, headless, incognito. 14 reads (7 sites x 2 engines), all returned a text.
+
+**VERDICT: GO** (all three bars pass).
+- **Bar 1 PASS:** the walmart challenge was shown on 1 engine (chromium: text carries the marker and "Robot or human?" words) and `botBlocked` was true there.
+- **Bar 2 PASS:** `hold(1004, 12000)` plus an 8 s wait cleared walmart on chromium: `botBlocked` false after, 54 product lines, 70,141 chars, no challenge words after, URL unchanged.
+- **Bar 3 PASS:** amazon and duckduckgo were flagged on neither engine (0 false flags; neither text carries challenge words).
+
+**Per site and engine** (HTTP status; `botBlocked`; chars; product lines = `/lenovo/i` with a `$` or EUR amount on the same line; seconds):
+- **ebay:** chromium 403; false; 149; 0; 3 s. Firefox 200; false; 132,246; 0; 10 s.
+- **newegg:** chromium 403; **true** (marker, Cloudflare "Ray ID"); 568; 0; 3 s. Firefox 403; false; 7,244; 0; 11 s.
+- **backmarket:** chromium 200; **true** (marker, Cloudflare); 605; 0; 6 s. Firefox 200; false; 15,365; 0; 8 s.
+- **bestbuy:** chromium 200; false; 627; 0; 22 s. Firefox 200; false; 507; 0; 6 s.
+- **amazon:** chromium 200; false; 26,043; 0; 7 s. Firefox status 0; false; 30,153; 0; 9 s.
+- **walmart:** chromium 200; **true**; 578; 0 (then hold: false, 70,141 chars, 54); 33 s with the hold. Firefox 200; false; 89,644; **54**; 13 s (no challenge shown, `hold` not attempted).
+- **duckduckgo:** chromium 200; false; 8,771; 0; 4 s. Firefox 200; false; 8,611; 0; 5 s.
+
+**Facts from the texts:**
+- **walmart:** the chromium challenge text is the "Robot or human?" dialog with a Press & Hold button; after the hold the page lists products such as `link "Lenovo V14 G5 14" FHD Laptop, Intel Core i7-13620H, 16GB RAM, 1TB SSD, Windows 11 Home $629.00 Was $999.99"`. Firefox was not challenged and showed the same 54 product lines at once.
+- **ebay:** chromium got HTTP 403 and was not flagged (the text is the `[HTTP 403 — the page may be an error page]` warning only, 0 chars after pruning). Firefox status 200, 132,246 chars (from 370,005): 217 lines with "lenovo", 142 with `$`, 134 with "refurb"; the 0 product lines is because the listing writes the item name, the brand ("Lenovo", "Good - Refurbished") and the price on separate lines, and the `$` lines in the text are filter ranges such as "Under $240.00".
+- **newegg:** chromium got the Cloudflare challenge page, flagged. Firefox got HTTP 403 (a `[HTTP 403 ...]` line in the text, no marker, not flagged) with a 7,076-char page: a cookie dialog and a search box and heading rewritten to "lenovolaptop"; the page header URL is `newegg.com/p/pl?d=lenovolaptop&N=4016&Tpk=lenovo+refurbished+laptop`, while the recorded landing from `goto` is the asked URL. 0 lines with "lenovo" next to an amount.
+- **backmarket:** firefox 200 and not challenged, 15,365 chars (from 98,699): 3 lines with "lenovo" (the search box value and the heading "Your search: lenovo refurbished laptop"), 0 with `$` or EUR, so the page text holds no listed products.
+- **bestbuy:** both engines read a "Choose a country." page (English, Francais, Espanol, Canada, United States), not flagged, no products.
+- **amazon:** the prices are EUR again: chromium 33 lines with `EUR 323.92` style amounts (non-breaking space after EUR), firefox 35 lines (plain space), 0 with `$`; 16 and 13 lines with "lenovo", none carrying an amount on the same line.
+- **duckduckgo:** both engines returned a results page this time (8,771 and 8,611 chars; F205 b1 had 982 to 992 chars): about 51 and 47 lines with "lenovo", about 46 and 45 with "refurb", 0 with an amount. Two lines from the chromium text: `heading "New & Refurbished Lenovo Laptops | Lenovo India" [level=2] [ref=47]` and `link "Find deals and compare prices on lenovo 15 inch laptop refurbished at Amazon.com. Browse & discover thousands of brands. Read customer reviews & find best selle...`.
+
+**Reported (not scored):** ebay chromium 403 not flagged; ebay firefox 200 not flagged; newegg 403 on both, chromium flagged, firefox not flagged.

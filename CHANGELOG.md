@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.1] - 2026-11-18
+
+A page that asks for a human check is now refused as such. Search was tried (POCs F205-F216 in `docs/logs/FINDINGS.md`),
+signed as M18 and withdrawn by hamr on 2026-11-17: open web research is out of scope, and the person brings the link.
+
+### Fixed
+- A robot-check page is refused. barebrowse's real marker, `[BOT CHALLENGE DETECTED — …]`, carries trailing text, and
+  only the bare marker was matched, so a real challenge page could be read as a page. Now the page is refused with
+  "asked for a human check (a bot challenge), so the page could not be read".
+
+### Development only (not in the package)
+- Search POCs F205-F216 are recorded in `docs/logs/FINDINGS.md`. M18 (search) was signed and then withdrawn by hamr on
+  2026-11-17. The PRD's out-of-scope list now names open web research and web search. The POC scripts under
+  `poc/f205-search/` are not part of the package.
+
 ## [0.35.0] - 2026-11-17
 
 The job's last action (M13 am11, with am11a, am11b and am11c, signed 2026-11-16), and the Audit says what was decided

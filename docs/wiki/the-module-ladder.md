@@ -4020,3 +4020,38 @@ Peer state (2026-11-13):
 **M13 am11 EXIT — SIGNED by hamr 2026-11-16 ("sign m13 am11 exit."), the text exactly as shown.**
 
 > **M13 am11 exit (with am11a, am11b, am11c).** Evidence: hamr's live walk 2026-11-16 on the real panel, deepseek-flash, input `~/fwdloop-out/am11-walk/notes.txt`. `am11-a3` (Read / ~ / Ask: check it with me / Write it all to the Destination.): card `› line 3 writes everything before it [agent]`, no Drop; run-1 paused at the Ask, accepted, wrote `am11-a3-run-1-notes_out.md` with no second stop. `am11-b3` (no write line): the suggestion question offered Agree and the box, no Drop it; after Agree the card showed `› line 3 writes everything before it [you]`. `am11-c2` and `am11-c3` (no Ask): run-1 stopped before the write, Accept wrote the file. `am11-c4`: Not now stopped the run (paused, stop-asked, stopped, $0), no file written. Practice walk on a scratch panel ($0.02): the stop waited the signed 1h. Full suite at fddb58f5: 5048 tests, 5043 pass, 0 fail, 5 skipped. Not walked: an expired stop and Reopen, and the stop `This changed since you accepted it.` (both covered by tests only).
+
+## M18 — search the web for a job
+
+**M18 scope — SIGNED by hamr 2026-11-17 ("sign m18"), the text exactly as shown; the number M18 is hamr's pick ("whatever module next, m18?").** hamr's picks before signing: (A) "red", (B) "pin to US". Why: F205, F206 (branch poc/f205-search).
+
+> **M18 — search the web for a job**
+>
+> 1. **The search words come from your job.** When a job has no page link but asks for something on the web (for example "find flights Boston to Chicago under $450"), the AI suggests search words. They show on the card as an `!` row, `search: <words>` [agent]. You Agree or type your own words, which makes them [you]. The words are signed with the job and never change during a run.
+> 2. **One search per run.** At run start, code searches Google once with the signed words, with the region set to the US. It takes the first 5 result links, skipping ads and Google's own pages. It opens each link once and keeps the page it lands on. A page that lands back on Google doesn't count. Two links that land on the same page count once.
+> 3. **Read-only, any site.** Result pages may be on any site. Code only opens and reads them. It never types, clicks, or signs in. Each page is frozen at run start, like every page input today.
+> 4. **Each page is read like a page job today.** Your rules are checked on each page with the existing checks. A result needs its fact on the page and a link back to it.
+> 5. **The Result is one list.** For flights: flight, price, link. Every row passes your rules. Under the list, every opened page that gave no row is named, with its reason (could not be read, HTTP 403, no matching result, a home page). If no page gives a row, the run is red, and it still names every opened page with its reason.
+> 6. **Nothing else changes.** Page jobs with a typed link work as today.
+>
+> **Done when:**
+> - A flights job ("flights Boston to Chicago under $450") on your real panel, on deepseek-flash: the card suggests the search words, you Agree, sign, and the run is green. The Result lists at least 2 flights from at least 2 different sites, each with a price under $450 and a link to its page.
+> - The same job's Result names every opened page that gave no row, with its reason.
+> - A typed-link page job still runs green as before.
+>
+> **Must fail when:**
+> - The AI changes the search words after you sign them, or searches twice in one run.
+> - More than 5 pages are opened, or a page that landed on Google counts as a result.
+> - The same landing page counts twice.
+> - A result row has no link, or has a price that breaks your rule.
+> - An opened page that gave no row is left unnamed.
+> - A run with no row is green.
+> - Code types, clicks or signs in on a result page.
+>
+> **Cap:** build $0; POCs and live exit walk about $0.50.
+>
+> Why: F205 (Google reads without a robot check; its links hide behind redirects; Bing guesses the region) and F206 GO (Google with redirects followed: 25 of 25 landed on the real site, 23 read). hamr 2026-11-17: the AI captures the search words from the job and the person confirms them; it may open any page, since it's just research; the result is flight, price, link; a run with no row is red; the search region is pinned to the US.
+
+**Parked by hamr 2026-11-17 ("park m18").** Not built. Why: F205-F212 (docs/logs/FINDINGS.md); PRD "Parked, not scheduled". The signed text above stays as signed.
+
+**Withdrawn by hamr 2026-11-17.** Not built. Why: F205-F215 (docs/logs/FINDINGS.md): search adds guessing in front of a product that proves small repeatable jobs; the person brings the link. The signed text above stays as signed.

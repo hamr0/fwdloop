@@ -92,3 +92,7 @@
 ## [2026-11-10] index-flat | 20 row(s) (10 product, 8 logs, 2 archive)
 ## [2026-11-10] index-flat | 20 row(s) (10 product, 8 logs, 2 archive)
 ## [2026-11-15] index-flat | 20 row(s) (10 product, 8 logs, 2 archive)
+## [2026-11-17] index-flat | 20 row(s) (10 product, 8 logs, 2 archive)
+## [2026-11-18] index-flat | 20 row(s) (10 product, 8 logs, 2 archive)
+## [2026-11-18] apply-reorg | moved 0, skipped 0, 0 oversized split candidate(s), 0 link(s) rewritten, 0 sync failure(s), 0 empty dir(s) removed, CLAUDE.md updated: true
+## [2026-11-18] reorg | discover+apply-reorg+lint over 14 doc(s), due reported
