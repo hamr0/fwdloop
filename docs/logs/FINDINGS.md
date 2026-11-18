@@ -8764,3 +8764,19 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 - (c) with the POC patch: (a) reads `~ Amount over 500` and (b) reads `~ use the column 'Amount' for 'Price'`, on the job box, the card row and the signed job; line count unchanged; one rule on the line; `columns` told-only list empty for a rule answer.
 - (d) a column answer on a prose word (no rule number) is byte-identical to today (job, added, columns).
 - (e) pre-break: the patched copy built WITHOUT the edit gives (b) as today, so (c) is red.
+
+### F221 RESULT (2026-11-18, $0, `NODE_ENV=test node poc/f221-single/run.mjs`; harness committed with this entry; fake nothing: no provider is called)
+**VERDICT: PASS on the letter, with one part UNCHECKED.** Today's red is real and is the pre-registered (b). POC patch = a derived copy of the real `src/panel/authorcard.js` with two string edits (each must match once); `src/` untouched.
+- **(a) today:** `~ Price over 500` + Agree to `Amount` (through the real `ruleOfAnswer`): job box `~ Amount over 500`, card row `Amount over 500`, signed `guardrail: Amount over 500`, 4 lines, one rule. Already right on today's code (M17 ruling 1).
+- **(b) today (the gap, red against am9a):** `~ under budget` + Agree to `Amount` for `Price`: the rule STAYS `under budget` on the box, the card and the signed job; the column is only told to the AI (`columns: [{line:2, word:'Price', column:'Amount'}]`). Cause: `applyAnswers` sends a swap-less answer down the "prose word" path (`proseCol`, authorcard.js:188) and the replace branch is skipped (:190).
+- **(c) patched:** (a) unchanged; (b) reads `~ use the column 'Amount' for 'Price'` on the box, the card row (`parseJobBox` steps) and the signed job (`cardToProse` guardrail line); lines 4 to 4, one rule on the line, told-only `columns` empty.
+- **(d) PASS:** an Agree on a prose word (no rule number) is identical to today (job unchanged, `columns` carries it).
+- **(e) pre-break seen red:** with the patch removed the (c) check on `under budget` fails (old words stay). A drift check (unpatched derived copy equals the real module) passed.
+- **UNCHECKED:** the plan card drawn from the redraft's plan needs the AI; at $0 only its inputs (the job box and `cardToProse`) were read.
+- **Build notes (src/ the build must change for am9 + am9a):**
+  1. `src/panel/authorcard.js:188` `proseCol`: only when `!Number.isInteger(x.ruleNo)`; drop `|| swapped === null` (am9a 1, 3).
+  2. `src/panel/authorcard.js:190` replace branch: drop the `(!isColumnChoiceRule(...) || swapped !== null)` clause; it already writes `swapped ?? x.rule` through `replaceRuleOnJob`, so a swap-less word gives `use the column '<c>' for '<w>'`. Update the :182-187 comments and the `columns` return only for the prose path.
+  3. `src/sheetlook.js:112` tie branch: keep the drop for `at.rule === undefined`; for a rule push an ask with `columns` and `readings` (F220); the single-column ask at :121 stays.
+  4. `src/drafter.js:789` question record: carry `columns` (and `readings`); today it drops them. The picked column's reading rides as `proposal`.
+  5. `src/panel/author.js:814-818` the answer door: new choice `column` (checked against the question's own `columns`; refuses `rule` and `agree` on a tie, refuses `column` elsewhere with the signed words); `:830-841` `ruleOfAnswer` call; `src/pageask.js:125-141` `ruleOfAnswer` gets the `column` choice (rule = reading of the picked column).
+  6. Picker page (native select, Send, Drop it) in the panel's question view; Audit words `you were asked / you said <column>` at `src/pageask.js:109` `decidedWords`.
