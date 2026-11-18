@@ -8944,3 +8944,24 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 | (e) cleanup | PASS | no chromium/firefox started by this run remains (the one new firefox pid after the run has the MCP's parent 4336, not mine; chromium count unchanged); /tmp/barebrowse-* dir list identical before and after. |
 
 **Surprises.** (1) Walmart hung until fwd's own 90 s deadline instead of returning a challenge page, so the typed flag was not exercised (barebrowse N34 saw a challenge there before; today it did not come back at all). (2) Target read fine (54553 chars) with no challenge. (3) The flag never disagreed with the marker where both were read. A challenge case is still needed to prove (a) and (c): a different robot-check page, or a rerun; not fitted here.
+
+## F222b PRE-REGISTRATION (2026-11-18, $0, no AI, no key; barebrowse 0.30.0 botBlocked true case; written before the harness, NOT yet run)
+
+**Question.** F222 r1 never saw `page.botBlocked` come back true, so bars (a) and (c) were INCONCLUSIVE. Does the flag go true, and agree with the `[BOT CHALLENGE DETECTED` marker, on a page that really is a challenge? Branch `bb030-bot-flag`; `src/` and `test/` untouched.
+
+**What `isChallengePage` flags** (`node_modules/barebrowse/src/challenge.js`): true when the engine reports `cf-mitigated: challenge`, when the AX tree is empty, when the flattened tree text contains any STRONG_PHRASE ('just a moment', 'checking if the site connection is secure', 'checking your browser', 'verify you are human', 'prove your humanity', 'attention required', 'enable javascript and cookies to continue', 'please complete the security check', 'robot or human?'), when it contains a WEAK_PHRASE on a tiny page (<30 nodes or <50 chars), or when an iframe named like challenge/captcha/verif sits on a field-less small page or dialog.
+
+**Harness.** `poc/f222-bb-flag/run222b.mjs`: fwd's REAL `fetchPageText` (unchanged) with the same recording wrapper as r1 around barebrowse's real `connect` (records `page.botBlocked`, marker in the snapshot text, text length, fwd's result).
+
+**Pages.**
+- R (real) = https://nowsecure.nl/ (public Cloudflare challenge test page), options untouched.
+- L (local) = a tiny node http server on 127.0.0.1:8791 (not 8765) serving HTTP 200 with a page copying the Cloudflare rule: title "Just a moment...", heading "Checking if the site connection is secure", text "Enable JavaScript and cookies to continue" (the STRONG_PHRASES 'just a moment', 'checking if the site connection is secure', 'enable javascript and cookies to continue'). Quoted rule copied: `STRONG_PHRASES.some((p) => lower.includes(p))`.
+- L0 (control) = same server, another path, HTTP 200, a normal page of real prose (several paragraphs, well over MIN_PAGE_CHARS 200 and MIN_CONTENT_CHARS 100, none of the challenge phrases).
+- **Deviation, stated plainly:** fwd's CONNECT_OPTIONS sets `blockPrivateNetwork: true`, which blocks 127.0.0.1. For L and L0 ONLY the wrapper overrides it to `blockPrivateNetwork: false` (all other options untouched). R runs with options untouched.
+
+**Bars (fixed now, each can fail; never refit).**
+- (a') On every page that snapshots, `botBlocked === true` exactly when the snapshot text carries the marker.
+- (c'-L) L: `botBlocked` true AND fwd refuses with words containing "asked for a human check".
+- (c'-R) R: same as c'-L; if R does not challenge from this machine (flag false, or no snapshot), INCONCLUSIVE.
+- (L0) L0: `botBlocked` false and fwd ok.
+- (e) None of my browser PIDs or /tmp/barebrowse-* dirs left after; the local server closed.
