@@ -744,6 +744,7 @@
   .chat-question .q-line{font-size:12px;color:var(--text-faint);margin-top:4px;overflow-wrap:anywhere;}
   .chat-question .q-text{font-size:13px;margin-top:4px;overflow-wrap:anywhere;white-space:pre-wrap;}
   .chat-question textarea{display:block;width:100%;max-width:100%;box-sizing:border-box;margin-top:8px;min-height:3.4em;font:inherit;padding:6px 8px;border:1px solid var(--border-strong);border-radius:0;background:var(--bg);color:var(--text);resize:vertical;}
+  .chat-question select{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin-top:8px;}
   .chat-question .q-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .chat-question .q-choices .btn{flex:1 1 auto;min-width:0;}
   .chat-question .q-or{display:block;font-size:12px;color:var(--text-faint);margin-top:8px;text-transform:none;letter-spacing:normal;font-weight:normal;}
@@ -1432,6 +1433,7 @@
               <button class="btn small" type="button" id="chat-q-agree" data-testid="chat-q-agree" hidden>Agree</button>
               <button class="btn small" type="button" id="chat-q-drop" data-testid="chat-q-drop" hidden>Drop it</button>
             </div>
+            <select id="chat-q-column" data-testid="chat-q-column" aria-label="Choose a column" hidden></select>
             <label class="q-or" id="chat-q-or" data-testid="chat-q-or" for="chat-q-answer">Or type a new rule:</label>
             <textarea id="chat-q-answer" data-testid="chat-q-answer" rows="2" autocomplete="off" spellcheck="false" aria-label="Your answer" placeholder="Your answer, on one line"></textarea>
             <div class="hint q-err" id="chat-q-error" data-testid="chat-q-error" role="alert"></div>
@@ -5716,6 +5718,8 @@
     var qChoices = document.getElementById("chat-q-choices");
     var qAgree = document.getElementById("chat-q-agree");
     var qDrop = document.getElementById("chat-q-drop");
+    var qColumn = document.getElementById("chat-q-column");
+    var qOr = document.getElementById("chat-q-or");
     var extrasEl = document.getElementById("chat-extras");
     var newBox = document.getElementById("jf-new");
     var runBox = document.getElementById("jf-run");
@@ -5964,13 +5968,13 @@
       if(!q) return null;
       // M10 am2 item 1 / am5 item 1: a question the page look raised is ONE plain chat message (bareloop's words); the head and line rows stay empty
       if(q.source === "look"){
-        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), agree: q.proposes === true, drop: q.drops === true };
+        return { key: String(state.draftId) + ":" + q.k, k: q.k, head: "", line: "", question: "A question the plan raised (" + q.k + " of " + state.total + "), about job line " + q.line + ": " + (typeof q.shown === "string" ? q.shown : q.question), agree: q.proposes === true, drop: q.drops === true, columns: Array.isArray(q.columns) ? q.columns : [] };
       }
       return {
         key: String(state.draftId) + ":" + q.k, k: q.k,
         head: "A question the plan raised (" + q.k + " of " + state.total + ")",
         line: q.lineText ? "About job line " + q.line + ": " + q.lineText : "About job line " + q.line,
-        question: q.question, agree: false, drop: false
+        question: q.question, agree: false, drop: false, columns: []
       };
     }
     // pure: the plan view's model for a plan with a list: each job line with its `~` rules, its lead sentence (src/checked.js), the built rows of the list, a sheet line's block; then the suggestions and the three folds
@@ -6847,6 +6851,15 @@
         qHead.hidden = v.head === ""; qLine.hidden = v.line === ""; // a look question is one plain message: no empty rows
         // M10 am29: every question has the labelled box; a look question also has Agree (only when it proposes something) and Drop it
         qAgree.hidden = !v.agree; qDrop.hidden = !v.drop; qChoices.hidden = !(v.agree || v.drop);
+        // M17 am9 item 2: a column tie is a closed question: ONE choose-one picker (a native select) listing every tied column, Send, and Drop it; no box to type your own words, no Agree
+        qColumn.textContent = "";
+        qColumn.hidden = v.columns.length === 0;
+        qOr.hidden = v.columns.length > 0; qAnswer.hidden = v.columns.length > 0;
+        if(v.columns.length){
+          var first = document.createElement("option"); first.value = ""; first.textContent = "Choose a column"; qColumn.appendChild(first);
+          v.columns.forEach(function(c){ var o = document.createElement("option"); o.value = c; o.textContent = c; qColumn.appendChild(o); });
+        }
+        qColumn.value = "";
         qAnswer.value = ""; qError.textContent = "";
       }
     }
@@ -7083,16 +7096,16 @@
     });
     function doAnswer(choice){
       if(qBusy || !sessionId || !lastState || lastState.phase !== "questions-open") return;
-      qBusy = true; qSend.disabled = true; qAgree.disabled = true; qDrop.disabled = true; qError.textContent = "";
+      qBusy = true; qSend.disabled = true; qAgree.disabled = true; qDrop.disabled = true; qColumn.disabled = true; qError.textContent = "";
       var id = sessionId;
-      var body = choice === "agree" || choice === "drop" ? {k: lastState.openK, choice: choice} : {k: lastState.openK, answer: qAnswer.value, choice: "rule"};
+      var body = choice === "agree" || choice === "drop" ? {k: lastState.openK, choice: choice} : !qColumn.hidden ? {k: lastState.openK, answer: qColumn.value, choice: "column"} : {k: lastState.openK, answer: qAnswer.value, choice: "rule"};
       authorPost("/api/author/" + id + "/answer", body).then(function(r){
-        qBusy = false; qSend.disabled = false; qAgree.disabled = false; qDrop.disabled = false;
+        qBusy = false; qSend.disabled = false; qAgree.disabled = false; qDrop.disabled = false; qColumn.disabled = false;
         if(id !== sessionId) return;
         if(!(r.status >= 200 && r.status < 300 && r.body && r.body.ok === true)){ qError.textContent = refusalText(r); return; }
         qAnswer.value = "";
         poll();
-      }).catch(function(){ qBusy = false; qSend.disabled = false; qAgree.disabled = false; qDrop.disabled = false; qError.textContent = NETWORK_SAY; });
+      }).catch(function(){ qBusy = false; qSend.disabled = false; qAgree.disabled = false; qDrop.disabled = false; qColumn.disabled = false; qError.textContent = NETWORK_SAY; });
     }
     function doDraft(startedOverFrom){
       clearFieldErrors();
