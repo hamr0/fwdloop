@@ -48,5 +48,13 @@ export function findColumn(csvText, word) {
  * @param {string} word @param {FoundAsk} found @param {number} line @returns {string}
  */
 export const columnQuestion = (word, found, line, tied = false) => `no column '${word}'; '${found.column}' has numbers in ${found.numbers} of ${found.rows} rows. Use it?${columnTail(line, tied)}`;
+
+// borrowed-from: bareloop src/sheetfind.js@v0.60.0 (columnTieQuestion; the tail is fwd's signed M17 am9 item 1, a closed question: no `Answer "agree"`)
+/**
+ * The question for a tie (M17 am9): the real count, the columns in sheet order, then the tail of a `~` rule's closed question.
+ * @param {string} word @param {string[]} columns @param {number} line @returns {string}
+ */
+export const columnTieQuestion = (word, columns, line) => `I found ${columns.length} columns matching '${word}': ${columns.join(', ')}. Choose one. (your answer replaces that ~ rule on line ${line}).`;
+
 /** @param {number} line @param {boolean} [tied] the question is about one of the person's `~` rules (M17 ruling 1: the answer replaces that rule; the words are the page asks' own) @returns {string} the answer words the column question ends with (M10 am29: the panel cuts exactly this) */
 export const columnTail = (line, tied = false) => (tied ? ` Answer "agree", or type your own words (your answer replaces that ~ rule on line ${line}).` : ` Answer "agree", or type your own words (your answer becomes the agent's check on line ${line}).`);
