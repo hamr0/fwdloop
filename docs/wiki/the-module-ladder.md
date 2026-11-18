@@ -4055,3 +4055,42 @@ Peer state (2026-11-13):
 **Parked by hamr 2026-11-17 ("park m18").** Not built. Why: F205-F212 (docs/logs/FINDINGS.md); PRD "Parked, not scheduled". The signed text above stays as signed.
 
 **Withdrawn by hamr 2026-11-17.** Not built. Why: F205-F215 (docs/logs/FINDINGS.md): search adds guessing in front of a product that proves small repeatable jobs; the person brings the link. The signed text above stays as signed.
+
+**M15 am3 — SIGNED by hamr 2026-11-18 ("sign m15 am3"), the text exactly as shown.** Why: hamr 2026-11-18 picked copying bareloop v0.60.0's one markdown report per run ("1"), then "take all and match loop on md": the sent `.md` had no structure and an unchecked AI sentence looked as true as a code-checked figure. Draft: `.claude/scratch/m15-am3/draft.md`.
+
+> **M15 am3 — one markdown report per run, bareloop v0.60.0's layout.** This replaces M15 item 3's filename and its "no checks" (:3388), M15 am1's `## Result k` heading (:3404, now `#### Result k` inside the report), M13 am9 item 2's `## Line <n>:` sections (:3545) and M4e am1's "Never overwrites" (:1696; src/send.js:141-146) for this file only. Everything else of M15, am1, am2 and am9 stands.
+> 1. **One file per run, named like bareloop's.** `<job name>-YYYY-MM-DD.md` at the Destination folder root (the machine's local day). The same day again is `<job name>-YYYY-MM-DD-2.md`, `-3`, and so on. A name already taken lands under the next free name, never over the taken file, and the Result tab's Saved row says `saved under a new name because <taken name> was already taken`.
+> 2. **Layout.** Exactly:
+> ```
+> # <job name> — run-N
+> Passed · <date as 18 Nov 2026>
+>
+> ## <n>. <job line text>
+> Rule: <text>
+>
+> ### Checked by code
+> - <one bullet per thing code checked>
+>
+> ### The AI's answer (not checked — you judge it at Accept)
+> <the step's text>
+> ```
+> One `## <n>. <line text>` per work line, one `Rule: <text>` per `~` rule of that line. A line whose prose is checked gets `### The answer` instead of the not-checked heading. The title carries `run-N` only when the number can be read. `Passed` is written by the send step, the last step of the run, so no report exists for a run that did not reach it. An Ask line keeps M13 am9's words, `Line <n>: you accepted this at the Ask.`, in its place.
+> 3. **Checked by code.** Bullets only: each passed check of that line as the Result tab words it; a facts line writes am1/am2's results as `#### Result k`, one `Name: value` bullet per value (names as am2 (1)), then `from the page: "<quote>"`, byte for byte. A check no run result carries is left out. No check marks, no JSON.
+> 4. **Count and Total are code's.** Where a line has a `sumIf` or `countIf` sheet check, code writes `- Count: <n>` and `- Total: <n>` from the run's frozen table and the rows the step named, by bareloop v0.60.0's `sheetTotalLines`, with its strict number test (only a plain number counts: sign, digits, thousands commas of three; `12,50`, `1e3`, `0x10` do not) and a cell that is no number writes `not computed (row N has no number in the column "<name>")`. Count is always listed before Total, whatever the order of the checks. The AI's own numbers are never written there.
+> 5. **The AI's text** is written as the step's answer holds it; its own markdown headings are left as they are.
+> 6. **When and what is bound.** The body of the report (all of it but the title and the `Passed` line) is the whole-job text code builds at the last Ask (M13 am9 (1)), so what you accept is the body, hash-checked as today (M4b item 4, :932). The send writes the file only after that accept, `.md` only, to the signed Destination only. The `.md`'s own sha256 is recorded with the send as `sentSha256` (M15 item 4).
+> 7. **Result tab.** The top card's saved-file link (M15 item 5) opens this file, with the same two state words.
+> 8. **Unchanged:** Tickets MCP keeps its grid (M13 am2) and also gets this file (M15 item 3, "Tickets included"); JSON stays in the run folder and never goes to the Destination (M15 item 4); old runs are not rewritten.
+> **Done when:** a text job, a facts job and a sheet job with a count and a sum each write one report in this layout at $0 replay over real runs (section 3); the second send the same day writes `-2` and the Result tab says so. **Must fail when:** a value is dropped, changed or reordered; a quote differs by one character; JSON braces or check marks appear; Count or Total is the AI's number, or Total comes before Count; `12,50`, `1e3` or `0x10` is summed; a taken file is overwritten; a file exists before the Accept; a Tickets job loses its grid or its file.
+
+**M17 am9 — SIGNED by hamr 2026-11-18 ("sign m17 am9"), the text exactly as shown.** Why: bareloop v0.60.0 S1 asks on a column tie (hamr 2026-11-17); fwd dropped a tie on a `~` rule to Not checked (src/sheetlook.js:112); hamr 2026-11-18 "take all". Draft: `.claude/scratch/m15-am3/tie-draft.md`.
+
+> **M17 am9 — a column tie asks which column.** Copied from bareloop v0.60.0 (hamr 2026-11-17: a column tie must ask, never go Not checked silently). This replaces M10 am8 item 1's reason `two columns fit '<word>' equally` for a `~` rule's word, M10 item 7's "a tie offers nothing", and, for this question only, M10 am29's `Agree` and typed-rule box and M10 am32 A's three choices.
+> 1. **The question.** When a `~` rule's word is no column and two or more columns pass the same test equally, the draft asks one question: `I found 2 columns matching 'Price': Amount, Tax. Choose one. (your answer replaces that ~ rule on line N).` The count is the real count; the columns are listed in sheet order, none left out.
+> 2. **The box.** One choose-one picker (a native select) listing every tied column, with `Send`, and `Drop it`. There is no `Agree` (no single reading exists) and no box to type your own words: a closed question.
+> 3. **The door.** A new typed `choice`, `column`, whose text is the column's name. The door refuses `column` unless the text is one of the question's own tied columns, refuses `rule` (own words) and `agree` on a tie, and refuses `column` on any other question. A refusal leaves the question open and saves nothing, in these words: `This question has a list to choose from: pick one of the columns, or Drop it. Nothing was saved.` (a `column` on a question with no list: `That choice is not offered for this question. Nothing was saved.`).
+> 4. **The pick.** The picked column replaces that `~` rule in place, one rule in, one rule out (M17 ruling 1, :3832): the rule's own words with the job's word swapped for the column (`Price over 500` becomes `Amount over 500`; Tax gives `Tax over 500`); if the word is not inside the rule's text, the rule becomes `use the column '<column>' for '<word>'`. No line is added. `Drop it` leaves the rule Not checked, as M10 am30 says.
+> 5. **Still Not checked.** A tie on a word of a line's own prose (no `~` rule to replace) asks nothing and stays Not checked with the reason `two columns fit '<word>' equally`. A tie that the rule's own words settle (the rule already names a real header) asks nothing.
+> 6. **The CLI** keeps today's rule: it never answers draft questions ("Answer it in the panel").
+> 7. **The Audit.** A column pick keeps the question-and-answer form, `you were asked` / `you said <column>` (bareloop v0.60.0 `decidedWords` gives no one-line word for it); M17 am8's one-line words stay for Agree, own words and Drop it.
+> **Done when:** a draft on test/fixtures/m10b-sheets/expenses.csv (Amount and Tax both fit) with `~ Price over 500` asks one tie question at $0, the picker lists Amount and Tax, Tax gives `Tax over 500` and Amount gives `Amount over 500` with no line added; a 3-column and a 5-column tie list every column; `Drop it` leaves the rule Not checked; a tie on a prose word stays Not checked. **Must fail when:** a tie goes to Not checked on a `~` rule's word; a column outside the tied list, a `rule` or an `agree` answer to a tie is saved; the picker cuts the list; an own-words box shows on a tie; a pick adds a line or a second rule beside the replaced one; a tie on a prose word asks.
