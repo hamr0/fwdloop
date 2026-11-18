@@ -21,8 +21,13 @@ const cat = loadCatalogue();
 assert.equal(cat.ok, true);
 const CATALOGUE = cat.primitives;
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
-const shipped = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
-const clean = (runId) => { for (const f of shipped(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
+// M15 am3: the send writes `<job>-YYYY-MM-DD.md` (title, Passed line, the accepted body); SEND_DIR is this process's own folder, emptied after every test
+const shipped = () => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR) : []);
+const clean = () => { for (const f of shipped()) rmSync(path.join(SEND_DIR, f), { force: true }); };
+/** the accepted body of a written report: everything under the title and the Passed line */
+const bodyOf = (file) => readFileSync(path.join(SEND_DIR, file), 'utf8').split('\n\n').slice(1).join('\n\n').replace(/\n$/, '');
+const NOT_CHECKED = "### The AI's answer (not checked — you judge it at Accept)";
+const NOCTX = { ok: true, jobLines: [], tables: {}, okIdsOf: () => null };
 
 // work, ask, work, added ask, added write
 const PROSE = (last = '4. ask 1h: check the result with me\n5. write it out') => `1. Write the first note
@@ -45,7 +50,7 @@ const declaration = (lastAskReads) => ({
     step('write it out', 5, 'out', ['a2'], ['write']),
   ],
 });
-const WANT = '## Line 1: Write the first note\nTEXT ONE\n\nLine 2: you accepted this at the Ask.\n\n## Line 3: Write the second note\nTEXT TWO';
+const WANT = `## 1. Write the first note\n\n${NOT_CHECKED}\nTEXT ONE\n\nLine 2: you accepted this at the Ask.\n\n## 3. Write the second note\n\n${NOT_CHECKED}\nTEXT TWO`;
 
 let modelRound = 0;
 const modelStep = async (ctx) => {
@@ -74,7 +79,7 @@ const asker = ({ redoOnce = false } = {}) => {
 };
 
 test('the whole-job text: sections in job order, an earlier Ask one line, the last Ask and the send not sections (byte-exact)', async () => {
-  const r = root(); clean('am9-text'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   sign(r, 'j');
   const a = asker();
   const res = await runFlow(args(r, 'j', 'am9-text', { askStep: a.fn, sources: [] }));
@@ -83,14 +88,16 @@ test('the whole-job text: sections in job order, an earlier Ask one line, the la
   assert.deepEqual(a.shown[0].artifact, { text: 'TEXT ONE' }, 'an earlier Ask shows its one step, as today');
   assert.deepEqual(a.shown[1].artifact, { text: WANT });
   assert.equal(readJson(path.join(res.runDir, 'artifacts', 'a2.json')).text, WANT, 'the accepted artifact is the whole text');
-  const files = shipped('am9-text');
+  const files = shipped();
   assert.equal(files.length, 1);
-  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), WANT, 'the send writes exactly the accepted whole text');
-  clean('am9-text');
+  assert.match(files[0], /^j-\d{4}-\d{2}-\d{2}\.md$/, 'M15 am3 item 1: <job name>-YYYY-MM-DD.md');
+  assert.equal(bodyOf(files[0]), WANT, 'the send writes exactly the accepted whole text under its title and Passed line');
+  assert.match(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), /^# j\nPassed · \d{1,2} \w{3} \d{4}\n\n## 1\. /, 'no run number can be read from this run id: the title carries none');
+  clean();
 });
 
 test('the last line is already an Ask: it is the last Ask (no second one), same text', async () => {
-  const r = root(); clean('am9-ownask');
+  const r = root(); clean();
   const prose = `1. Write the first note
 2. ask 1h: look at the first note
 3. Write the second note
@@ -107,22 +114,22 @@ guardrail: send at line 5 to file:${SEND_DIR}
   const res = await runFlow(args(r, 'j', 'am9-ownask', { askStep: a.fn, sources: [] }));
   assert.equal(res.outcome, 'complete', res.red);
   assert.deepEqual(a.shown[1], { question: 'is this fine?', artifact: { text: WANT } });
-  clean('am9-ownask');
+  clean();
 });
 
 test('a work step with no readable saved output: the Ask refuses, naming the step; nothing is shown or sent', () => {
   const steps = declaration([]).steps;
   const askLines = new Map([[2, {}], [4, {}]]);
   const read = (id) => (id === 'n2' ? { ok: false, missing: true } : { ok: true, value: { text: 'x' } });
-  const out = wholeJobText({ steps, askLines, lastAskIndex: 3, readResult: read });
+  const out = wholeJobText({ steps, askLines, lastAskIndex: 3, readResult: read, context: NOCTX });
   assert.equal(out.ok, false);
   assert.equal(out.red, 'ask: the saved output "n2" of step "Write the second note" is missing — refusing to show the whole job');
-  const red = wholeJobText({ steps, askLines, lastAskIndex: 3, readResult: (id) => (id === 'n1' ? { ok: false, missing: false, red: 'artifact "n1" is not valid JSON' } : { ok: true, value: { text: 'x' } }) });
+  const red = wholeJobText({ steps, askLines, lastAskIndex: 3, readResult: (id) => (id === 'n1' ? { ok: false, missing: false, red: 'artifact "n1" is not valid JSON' } : { ok: true, value: { text: 'x' } }), context: NOCTX });
   assert.equal(red.red, 'ask: the saved output "n1" of step "Write the first note" — artifact "n1" is not valid JSON');
 });
 
 test('the run refuses at the last Ask when a step output is gone, naming the step; the Ask is never shown, nothing is sent', async () => {
-  const r = root(); clean('am9-gone'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   sign(r, 'j');
   const shown = [];
   const askStep = async ({ question, evidence, runDir }) => {
@@ -134,11 +141,11 @@ test('the run refuses at the last Ask when a step output is gone, naming the ste
   assert.equal(res.outcome, 'red');
   assert.equal(res.red, 'ask: the saved output "n1" of step "Write the first note" is missing — refusing to show the whole job');
   assert.deepEqual(shown, ['look at the first note']);
-  assert.deepEqual(shipped('am9-gone'), []);
+  assert.deepEqual(shipped(), []);
 });
 
 test('redo rebuilds the text from the redone step (in-process)', async () => {
-  const r = root(); clean('am9-redo'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   sign(r, 'j');
   const a = asker({ redoOnce: true });
   const res = await runFlow(args(r, 'j', 'am9-redo', { askStep: a.fn, sources: [] }));
@@ -147,13 +154,13 @@ test('redo rebuilds the text from the redone step (in-process)', async () => {
   assert.equal(last.length, 2);
   assert.equal(last[0].artifact.text, WANT);
   assert.equal(last[1].artifact.text, WANT.replace('TEXT TWO', 'TEXT TWO REDONE'));
-  const files = shipped('am9-redo');
-  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), WANT.replace('TEXT TWO', 'TEXT TWO REDONE'));
-  clean('am9-redo');
+  const files = shipped();
+  assert.equal(bodyOf(files[0]), WANT.replace('TEXT TWO', 'TEXT TWO REDONE'));
+  clean();
 });
 
 test('resume rebuilds the text: parked ask.json holds it, the accept ships it byte for byte', async () => {
-  const r = root(); clean('am9-resume'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   sign(r, 'j');
   const parked1 = await runFlow(args(r, 'j', 'am9-resume', { askStep: makeParkingAskStep(), sources: [] }));
   assert.equal(parked1.outcome, 'paused', parked1.red);
@@ -168,13 +175,13 @@ test('resume rebuilds the text: parked ask.json holds it, the accept ships it by
   assert.equal(answerAsk({ runDir: parked3.runDir, askId: parked3.askId, decision: 'accept' }).ok, true);
   const done = await resumeRun(args(r, 'j', 'am9-resume'));
   assert.equal(done.outcome, 'complete', done.red);
-  const files = shipped('am9-resume');
-  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), WANT.replace('TEXT TWO', 'TEXT TWO REDONE'));
-  clean('am9-resume');
+  const files = shipped();
+  assert.equal(bodyOf(files[0]), WANT.replace('TEXT TWO', 'TEXT TWO REDONE'));
+  clean();
 });
 
 test('a 1-byte change to the output of a step after the accept stops the run once at the send (M13 am11: "This changed since you accepted it."); nothing is written', async () => {
-  const r = root(); clean('am9-tamper'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   sign(r, 'j');
   const parked1 = await runFlow(args(r, 'j', 'am9-tamper', { askStep: makeParkingAskStep(), sources: [] }));
   assert.equal(answerAsk({ runDir: parked1.runDir, askId: parked1.askId, decision: 'accept' }).ok, true);
@@ -187,11 +194,11 @@ test('a 1-byte change to the output of a step after the accept stops the run onc
   const res = await resumeRun(args(r, 'j', 'am9-tamper'));
   assert.equal(res.outcome, 'paused', res.red);
   assert.equal(readAsk(res.runDir).question, 'This changed since you accepted it.');
-  assert.deepEqual(shipped('am9-tamper'), []);
+  assert.deepEqual(shipped(), []);
 });
 
 test('a plan signed with the Ask reading one step (before am9) is unchanged: the Ask shows its one step, whatever the action line\'s words', async () => {
-  const r = root(); clean('am9-old'); modelRound = 0;
+  const r = root(); clean(); modelRound = 0;
   const prose = PROSE('4. ask 1h: check it with me\n5. and write the result out');
   const decl = declaration(['n2']); decl.steps[3].goal = 'check it with me'; decl.steps[4].goal = 'and write the result out';
   sign(r, 'j', prose, decl);
@@ -199,10 +206,10 @@ test('a plan signed with the Ask reading one step (before am9) is unchanged: the
   const res = await runFlow(args(r, 'j', 'am9-old', { askStep: a.fn, sources: [] }));
   assert.equal(res.outcome, 'complete', res.red);
   assert.deepEqual(a.shown[1].artifact, { text: 'TEXT TWO' });
-  const files = shipped('am9-old');
-  assert.equal(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), 'TEXT TWO');
+  const files = shipped();
+  assert.equal(bodyOf(files[0]), `## 3. Write the second note\n\n${NOT_CHECKED}\nTEXT TWO`);
   assert.equal(wholeJobAskIndex({ steps: decl.steps, askLines: new Map([[2, {}], [4, {}]]), sendLines: new Map([[5, { line: 5 }]]) }), -1);
-  clean('am9-old');
+  clean();
 });
 
 test('plan: code sets the Ask right before the action to read every work step (nearest first); validateDeclaration accepts it', () => {
