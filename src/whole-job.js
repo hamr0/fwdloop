@@ -46,16 +46,18 @@ export function wholeJobAskIndex({ steps, askLines, sendLines }) {
 const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
 
 /**
- * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? bareloop's rule (v0.60.0 `proseNotChecked`): the heading says not checked only when the
- * signed list holds a Not checked `~` rule on that line; a line with none reads `### The answer`. A plan with no list on the line (signed before the list) keeps the older reading: only a green step whose
- * close is neither a quote check (`cited`) nor a sheet check is checked.
+ * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? Only when code really checked the step's own text (a green close with a words-per-section
+ * or picked check on it) AND the signed list holds no Not checked `~` rule on the line. A non-empty / `happened` check alone is no prose check, nor is a sheet or quote check (they check cells and quotes).
  * @param {any} step @param {any[]|null|undefined} [checkList] the plan's signed list (`declaration.checkList`)
  * @returns {boolean}
  */
 export function proseCheckedOf(step, checkList) {
   const rows = (Array.isArray(checkList) ? checkList : []).filter((r) => r && typeof r === 'object' && r.line === step?.fromLine);
-  if (rows.length > 0) return !rows.some((r) => r.kind === 'rule' && r.state === 'not-checked');
-  return step?.close?.class === 'green' && !(step.close.cited && typeof step.close.cited === 'object') && !Array.isArray(step.close.sheet);
+  if (rows.some((r) => r.kind === 'rule' && r.state === 'not-checked')) return false;
+  const c = step?.close;
+  if (c?.class !== 'green') return false;
+  const shape = c.shape && typeof c.shape === 'object' ? c.shape : {};
+  return shape.wordsPerSection !== undefined || (Array.isArray(shape.picked) && shape.picked.length > 0) || (Array.isArray(c.picked) && c.picked.length > 0);
 }
 
 /**
