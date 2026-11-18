@@ -6854,7 +6854,7 @@
         qHead.hidden = v.head === ""; qLine.hidden = v.line === ""; // a look question is one plain message: no empty rows
         // M10 am29: every question has the labelled box; a look question also has Agree (only when it proposes something) and Drop it
         qAgree.hidden = !v.agree; qDrop.hidden = !v.drop; qChoices.hidden = !(v.agree || v.drop);
-        // M17 am9 item 2: a column tie is a closed question: ONE choose-one picker (a native select) listing every tied column, Send, and Drop it; no box to type your own words, no Agree
+        // M17 am9 item 2: a column tie is a closed question: ONE choose-one picker (a native select) listing every tied column, the answer button, and Drop it; no box to type your own words, no Agree
         qColumn.textContent = "";
         qColumn.hidden = v.columns.length === 0;
         qOr.hidden = v.columns.length > 0; qAnswer.hidden = v.columns.length > 0;
