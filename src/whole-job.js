@@ -6,7 +6,7 @@
 import { renderReportBody } from './report.js';
 import { readRunSheets } from './sheetrun.js';
 import { readSheetChecks } from './sheet-record.js';
-import { lineRules as lineRulesOf } from './pagebits.js';
+import { lineRules } from './pagebits.js';
 
 /**
  * The Ask the action reads: the Ask right before the one signed send (M13 am11: the action ships the step before it). -1 = none.
@@ -41,6 +41,9 @@ export function wholeJobAskIndex({ steps, askLines, sendLines }) {
   const reads = steps[idx].reads ?? [];
   return work.length > 0 && reads.length === work.length && work.every((e) => reads.includes(e)) ? idx : -1;
 }
+
+/** the `~` rules of a signed job line, one string each: the parsed line carries them joined by "; " in `guardrail` (several `~` lines under one step are one guardrail), as the Result tab reads it @param {any} jl @returns {string[]} */
+const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
 
 /**
  * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? Only a green step whose close is neither a quote check (`cited`) nor a sheet check:

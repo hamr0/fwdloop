@@ -2,7 +2,7 @@
 // at $0, with the real panel on top. Never imported by src/.
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,8 @@ const args = (root, ms, extra = {}) => ({
 });
 
 /** job2 (a .docx + a .md input, so an M10 job) run for real, in process, at $0. `green`: accepted and sent; else parked at its ask; `red`: a reply that misses the shape. */
-export async function world({ mode = 'green', prose = (p) => p } = {}) {
+/** `taken`: the report's first-choice name for today is already a file in the send folder (M15 am3), so the send lands under `-2`. */
+export async function world({ mode = 'green', prose = (p) => p, taken = false } = {}) {
   const base = mkdtempSync(path.join(tmpdir(), 'fwdloop-m10am4s-'));
   const root = path.join(base, 'flows'); const src = path.join(base, 'src');
   mkdirSync(root); mkdirSync(src);
@@ -48,6 +49,10 @@ export async function world({ mode = 'green', prose = (p) => p } = {}) {
   writeFileSync(path.join(src, 'jd.md'), 'JD text goes here.');
   const sources = [{ id: 'resume', path: path.join(src, 'resume.docx') }, { id: 'jd', path: path.join(src, 'jd.md') }];
   const ms = modelStep(mode === 'red' ? 'no headings at all' : GOOD);
+  if (taken) {
+    const d = new Date();
+    writeFileSync(path.join(SEND_DIR, `job2-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.md`), 'a file of mine');
+  }
   const parked = await runFlow({ ...args(root, ms, { askStep: makeParkingAskStep() }), sources });
   let outcome = parked.outcome;
   if (mode === 'green') {
@@ -59,6 +64,9 @@ export async function world({ mode = 'green', prose = (p) => p } = {}) {
   const h = remember(await createPanelServer({ port: 0, root, settings: { home: path.join(base, 'cfg'), env: {} } }));
   HANDLES.push(h);
   const get = async (p, init) => { const r = await fetch(`http://127.0.0.1:${h.port}${p}`, init); const t = await r.text(); let body = t; try { body = JSON.parse(t); } catch { /* text */ } return { status: r.status, body, headers: r.headers, raw: t }; };
-  return { root, port: h.port, runDir: parked.runDir, outcome, get, delivered: path.join(SEND_DIR, 'job2-run-1-resume-summary-output.md') };
+  // M15 am3: the report is `job2-YYYY-MM-DD.md` (the send's own day), found in this process's send folder
+  return {
+    root, port: h.port, runDir: parked.runDir, outcome, get,
+    delivered: path.join(SEND_DIR, readdirSync(SEND_DIR).find((f) => /^job2-\d{4}-\d{2}-\d{2}(-\d+)?\.md$/.test(f)) ?? 'job2-no-report.md') };
 }
 
