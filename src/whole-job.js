@@ -46,18 +46,24 @@ export function wholeJobAskIndex({ steps, askLines, sendLines }) {
 const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
 
 /**
- * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? Only a green step whose close is neither a quote check (`cited`) nor a sheet check:
- * those check the facts or the claim boxes, never the AI's own sentence. A hitl or softgreen step's text is the AI's own reading (a shape check is a human-declared shape, not a judgement of the words).
- * @param {any} step @returns {boolean}
+ * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? bareloop's rule (v0.60.0 `proseNotChecked`): the heading says not checked only when the
+ * signed list holds a Not checked `~` rule on that line; a line with none reads `### The answer`. A plan with no list on the line (signed before the list) keeps the older reading: only a green step whose
+ * close is neither a quote check (`cited`) nor a sheet check is checked.
+ * @param {any} step @param {any[]|null|undefined} [checkList] the plan's signed list (`declaration.checkList`)
+ * @returns {boolean}
  */
-export const proseCheckedOf = (step) => step?.close?.class === 'green' && !(step.close.cited && typeof step.close.cited === 'object') && !Array.isArray(step.close.sheet);
+export function proseCheckedOf(step, checkList) {
+  const rows = (Array.isArray(checkList) ? checkList : []).filter((r) => r && typeof r === 'object' && r.line === step?.fromLine);
+  if (rows.length > 0) return !rows.some((r) => r.kind === 'rule' && r.state === 'not-checked');
+  return step?.close?.class === 'green' && !(step.close.cited && typeof step.close.cited === 'object') && !Array.isArray(step.close.sheet);
+}
 
 /**
  * What the report needs besides the steps: the signed lines' own words (the `~` rules), the run's frozen sheets and which sheet checks passed. Read once from the run folder.
- * @param {{ runDir: string, steps: any[], jobLines: any[]|null|undefined }} p
- * @returns {{ ok: true, jobLines: any[], tables: Record<string, any>, okIdsOf: (n: number) => Set<string>|null } | { ok: false, red: string }}
+ * @param {{ runDir: string, steps: any[], jobLines: any[]|null|undefined, checkList?: any[]|null }} p
+ * @returns {{ ok: true, jobLines: any[], checkList: any[]|null, tables: Record<string, any>, okIdsOf: (n: number) => Set<string>|null } | { ok: false, red: string }}
  */
-export function reportContextOf({ runDir, steps, jobLines }) {
+export function reportContextOf({ runDir, steps, jobLines, checkList }) {
   const checks = steps.flatMap((s) => (Array.isArray(s?.close?.sheet) ? s.close.sheet : []));
   /** @type {Record<string, any>} */
   let tables = {};
@@ -73,7 +79,7 @@ export function reportContextOf({ runDir, steps, jobLines }) {
     const last = tries.reduce((m, l) => (m === null || l.try >= m.try ? l : m), /** @type {any} */ (null));
     return last ? new Set(last.results.filter((/** @type {any} */ r) => r && r.ok === true).map((/** @type {any} */ r) => r.id)) : null;
   };
-  return { ok: true, jobLines: Array.isArray(jobLines) ? jobLines : [], tables, okIdsOf };
+  return { ok: true, jobLines: Array.isArray(jobLines) ? jobLines : [], checkList: Array.isArray(checkList) ? checkList : null, tables, okIdsOf };
 }
 
 /**
@@ -104,7 +110,7 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
     const jl = context.jobLines.find((/** @type {any} */ l) => l && l.n === s.fromLine);
     lines.push({
       n: s.fromLine, kind: 'work', text: s.goal, rules: lineRulesOf(jl), artifact: r.value,
-      checks: Array.isArray(s.close?.sheet) ? s.close.sheet : [], okIds: context.okIdsOf(s.fromLine), proseChecked: proseCheckedOf(s),
+      checks: Array.isArray(s.close?.sheet) ? s.close.sheet : [], okIds: context.okIdsOf(s.fromLine), proseChecked: proseCheckedOf(s, context.checkList),
     });
   }
   return { ok: true, value: { text: renderReportBody(lines, context.tables) } };
@@ -130,7 +136,7 @@ export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, cont
     ok: true,
     body: renderReportBody([{
       n: made?.fromLine, kind: 'work', text: made?.goal, rules: lineRulesOf(jl), artifact: content,
-      checks: Array.isArray(made?.close?.sheet) ? made.close.sheet : [], okIds: context.okIdsOf(made?.fromLine), proseChecked: proseCheckedOf(made),
+      checks: Array.isArray(made?.close?.sheet) ? made.close.sheet : [], okIds: context.okIdsOf(made?.fromLine), proseChecked: proseCheckedOf(made, context.checkList),
     }], context.tables),
   };
 }

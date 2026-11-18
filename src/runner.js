@@ -1915,7 +1915,7 @@ async function foldFromStep({
   let runUnjudged = unjudgedSinceLastAsk;
   // M13 am9: the Ask that shows the whole job (-1 = none: a job signed before am8 is unchanged)
   const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
-  const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines }) });
+  const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines, checkList }) });
 
   for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
@@ -2027,7 +2027,7 @@ async function foldFromStep({
         }
       }
       // M15 am3 item 6: what is written is the accepted body (the whole-job text built at the last Ask) under the title and the Passed line the send adds; the hash check stays on `content`
-      const sendBody = sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines }) });
+      const sendBody = sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines, checkList }) });
       if (!sendBody.ok) {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: sendBody.red,
@@ -2773,7 +2773,7 @@ export async function resumeRun({
     let priorArtifact = readArtifact(runDir, priorId);
     // M13 am9: the Ask that shows the whole job rebuilds `{text}` from the saved outputs, as the first pass did
     const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
-    const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines: read.lines }) });
+    const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines: read.lines, checkList: declaration.checkList }) });
     if (state.stepIndex === wholeIdx) {
       const whole = rebuildWhole();
       if (!whole.ok) {
