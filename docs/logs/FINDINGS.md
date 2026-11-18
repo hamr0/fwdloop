@@ -8751,3 +8751,16 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 - **(i) read, not run:** `bin/fwdloop` still holds `Answer it in the panel`.
 - **Pre-breaks (each seen red):** (1) a door that accepts any column text lets `Date` through ((b) red); (2) the patched copy built without the tie branch gives 0 asks ((a) red; also Step 1); (3) a pick written with no rule number leaves `~ Price over 500` and adds `~ use the column 'Tax' for 'Price'` beside it ((d) red); (4) a picker cut to two columns on the 5-column sheet ((e) red).
 - **Build facts found, not signed text (for the build brief):** (1) the real drafter's question record (src/drafter.js, the `questions` map) carries `line, question, source, ask, ruleNo, ruleText, proposal` and DROPS `columns` and `readings`: it must carry them, through questions.json, the panel state and the door, or the picker cannot be drawn and the door cannot check a column. (2) `applyAnswers` only rewrites a rule when `x.proposal` is a column-choice rule (`isColumnChoiceRule`), so a tie pick must hand the writer the picked column's reading as `proposal` (the POC does). (3) Not covered here, as pre-registered: the picker page (select, Send, 1280/390 walk) and the Audit words (item 7).
+
+## F221 PRE-REGISTRATION (2026-11-18, $0, no AI, no key; M17 am9a the single-column Agree rewrites the rule; written before the harness, NOT yet run)
+
+**Question.** On today's code, what does one offered column plus Agree do to a `~` rule, and does a POC patch in `poc/f221-single/` (a derived copy of the real `src/panel/authorcard.js` `applyAnswers`, one string edit, `src/` never touched) make it match signed M17 am9a items 1 and 2? Branch `m15-am3-one-report`.
+
+**Real parts.** `applyAnswers` (authorcard.js:177), `ruleOfAnswer` (pageask.js:125), `columnRuleWords` (sheetlook.js:24), `parseJobBox` and `cardToProse` (authorcard.js; the job box, the card's rows and the signed job text), `findColumn` on test/fixtures/m10b-sheets/expenses.csv for the single-column word. The plan card is drawn from the redraft's plan (needs the AI): UNCHECKED at $0, the card's rows are read from `parseJobBox(job).steps[].guardrails` and the signed job from `cardToProse`.
+
+**Bars (fixed now, each can fail; never refit).**
+- (a) today: `~ Price over 500` + Agree to column `Amount` (answer built through the real `ruleOfAnswer`): record the job box rule, the card row, the signed `guardrail:` line.
+- (b) today: `~ under budget` + Agree to `Amount` for word `Price`: record whether the old words stay. Expected from F220: they stay and the column is only told to the AI (`columns`), the am9a gap: RED against am9a.
+- (c) with the POC patch: (a) reads `~ Amount over 500` and (b) reads `~ use the column 'Amount' for 'Price'`, on the job box, the card row and the signed job; line count unchanged; one rule on the line; `columns` told-only list empty for a rule answer.
+- (d) a column answer on a prose word (no rule number) is byte-identical to today (job, added, columns).
+- (e) pre-break: the patched copy built WITHOUT the edit gives (b) as today, so (c) is red.
