@@ -8666,6 +8666,142 @@ Also reported: whether the ebay and newegg 403 pages are flagged.
 
 **Reported (not scored):** ebay chromium 403 not flagged; ebay firefox 200 not flagged; newegg 403 on both, chromium flagged, firefox not flagged.
 
+## F217 PRE-REGISTRATION (2026-11-18, $0, no AI, no key; barebrowse action-calls POC bb-calls@25ce555 trialled for the browse session; written before the harness and before any read, NOT yet run)
+
+**Question (browse session).** Does barebrowse's unreleased "action calls" feature (`callHints`, `page.calls()`, `page.callsText()`, `page.fetch()`) help fwd's page reads, and where does it mislead? Branch `poc/f217-bb-calls`; `src/`, `test/`, the repo's `node_modules` untouched; the barebrowse worktree is neither installed nor edited.
+
+**Library.** `import { connect } from '/home/hamr/PycharmProjects/bb-calls/src/index.js'` (branch `poc/action-calls` @ 25ce555), Chromium only, `connect({ callHints: true, incognito: true, blockPrivateNetwork: true })`. The comparison read is fwd's real read (`src/pagefetch.js`): goto (30 s), `waitForNetworkIdle({ idle: 1500, timeout: 20000 })`, `snapshot({ mode: 'act' })` (SNAPSHOT_OPTIONS). Hard rules from barebrowse: read only; `page.fetch` is GET only, absolute URLs, the site's own URLs; never replay a POST; never fetch a bot-check or tracker domain; no logged-in session. If a read shows `[BOT CHALLENGE DETECTED`, record it and stop on that site (no hold, no bypass). `page.fetch` always gets a `dir` under the session scratchpad, never the repo.
+
+**Task A: Google Flights currency knob.** Base URL `https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-12-10+one+way&hl=en&curr=USD`.
+- **A1 (hint line).** With callHints ON, the snapshot carries one line `[URL knobs: ...]` under `url:`. PASS: the line is present and names `curr=USD`, `q=` and `hl=en`. FAIL: absent, or any of the three missing. INCONCLUSIVE: the page is a bot challenge or never loads.
+- **A2 (change the knob).** `goto` the same URL with `curr=EUR`, same read. Count price tokens: `$` = `/\$\s?\d/g`, `€` = `/€\s?\d|\d\s?€|EUR\s?\d/g`. Flight identity = airline + the time strings on a result line, collected from both snapshots. PASS: the EUR snapshot has more € tokens than $ tokens AND the USD snapshot more $ than €, AND the flight sets overlap at least 50% (intersection over the smaller set). FAIL: a currency does not flip, or overlap under 50%. INCONCLUSIVE: either snapshot lists no flights. Overlap reported either way.
+- **A3 (does the hint change anything else).** Load the URL OFF, OFF, ON, ON (a fresh connect each, 5 s apart). Diff OFF1 vs OFF2 and ON1 vs ON2 (natural churn), then OFF vs ON. PASS: after removing the one `[URL knobs: ...]` line, the OFF-vs-ON line diff is no larger than the natural churn diff (count of differing lines within the larger churn count + 5), and the hint line appears in both ON reads and in neither OFF read. FAIL: any other systematic difference (a line in both ONs and in neither OFF, beyond the hint). INCONCLUSIVE: the churn runs are not comparable (a load fails).
+
+**Task B: next page via URL.** Site chosen from the F212/F216 findings: **amazon.com** search, `https://www.amazon.com/s?k=lenovo+refurbished+laptop`. Reason: in F216 it was the one shop site read clean on Chromium (HTTP 200, not flagged, 26,043 chars, no challenge words); ebay chromium 403, newegg and backmarket flagged, bestbuy a country page, walmart challenged. Its results use a `page=` query param (`...&page=2`). DuckDuckGo html has none (offset by POST form), so it is not used. Amazon shows EUR prices from this IP; that does not matter here. Amazon's own data calls are fetched only on `amazon.com` hosts, never an ad or tracker domain.
+- **B1 (hint names the page param).** Snapshot of `...s?k=...&page=2` with ON. PASS: the hint line names `page=2`. FAIL: it does not (including cut by the 5-param cap, which is also reported). INCONCLUSIVE: challenge page. (Amazon page 1 may carry no page param; the hint is judged on the page=2 URL and page 1's own hint is recorded.)
+- **B2 (goto page=2 differs).** Product identity = the link text of `link "..."` lines holding `/lenovo/i`, trimmed to 80 chars. PASS: page 1 and page 2 each hold at least 5 such items and their overlap (intersection over the smaller set) is under 30%. FAIL: 30% or more overlap, or page 2 identical. INCONCLUSIVE: fewer than 5 items on either page.
+- **B3 (click on the page, read the calls).** On page 1, find from the snapshot a link or button whose name matches `/^next|next page|go to next page/i` (else a filter control: a checkbox or link in a refinement list); `click` its ref, wait 5 s, `callsText()` and `calls()`. PASS: the list holds at least one non-POST call on an amazon.com host whose URL carries the search term (`k=` or `lenovo`) or a page param, or a JSON/HTML mime, and I name it; record shown/hidden counts. FAIL: no real data call in `shown` while the page content changed (the call is hidden or absent). INCONCLUSIVE: no control found, or the click changed nothing (a full navigation without calls is recorded as that).
+- **B4 (fetch one small call).** If B3 gives a GET data call on amazon.com with a size marked small (under the maxChars threshold), `page.fetch(url, { method: 'GET', maxChars: 20000, dir })`. PASS: `ok` true, status 200 and the result is inline (`body`) when size <= 20000 chars, or a `file` that exists and is non-empty when bigger. FAIL: `ok` false, or the shape does not match the size. INCONCLUSIVE: B3 shows no eligible call (nothing is fetched then).
+
+**Run shape.** One run, tag r1; sites one at a time, Chromium, 5 s apart; 90 s cap per page op, 10 min total. Raw outputs (snapshots, callsText, calls JSON, fetch results) go to the session scratchpad `.../scratchpad/f217/`, a compact results JSON beside them.
+
+**To report to barebrowse (not scored):** a misleading knob (a param that looks changeable but breaks the page when changed); a useful param cut by the 5-param cap or by the 30-char cut; a calls list that is unreadable (noise burying the real call); any change to fwd's snapshot beyond the one hint line; anything else surprising. Known and NOT re-reported: noisy calls list including bot-check and tracker POSTs labelled "small — fetch ok"; the relative-URL guard gap; `createTab` tabs lack the feature; sizes under 1k print "0k"; the POST/throw path never run.
+
+**Limits.** One machine, one Dutch IP, one run; Google Flights and Amazon vary by time; no logged-in session; Chromium only.
+
+### F217 RESULT (2026-11-18, tag r1)
+
+**Who ran it:** the agent, `node poc/f217-bb-calls/run217.mjs r1`, 143 s, $0, no model. Library bb-calls@25ce555, headless Chromium, incognito, `callHints: true` (OFF in the two A3 OFF reads). Raw files: `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/66ed2b48-d2f4-44d6-87b6-386bb86cdefb/scratchpad/f217/r1/` (snapshots, `*.callsText.txt`, `*.calls.json`, `results.json`). No bot challenge on either site. Chromium PIDs and `/tmp/barebrowse-*` after the run: same as before (none of mine left).
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| A1 | PASS | `[URL knobs: q=Flights from AMS to LHR on 202…, hl=en, curr=USD — change a value and goto() to skip the UI]` (names q, hl, curr) |
+| A2 | PASS | USD read: 21 `$` tokens, 0 `€`; EUR read: 0 `$`, 22 `€`; flight keys 37 vs 37, overlap 37 (100%) |
+| A3 | PASS on the letter | line diffs off1/off2 (churn) 919, on1/on2 919, off vs on 919 (every raw diff is 919, because refs renumber between loads: the raw metric saturates); hint in on1 and on2, in neither off; 0 lines systematic to ON beyond the hint |
+| B1 | PASS | page=2 URL: `[URL knobs: k=lenovo refurbished laptop, page=2 — change a value and goto() to skip the UI]`; page 1: `[URL knobs: k=lenovo refurbished laptop — ...]` |
+| B2 | INCONCLUSIVE | my `/lenovo/i` item key found 6 on page 1 and 4 on page 2 (under the bar of 5; most titles say ThinkPad, not Lenovo): a wrong guess of mine, stays INCONCLUSIVE on the letter |
+| B3 | INCONCLUSIVE | clicked `button "Go to next page, page 2" [ref=447]`; after 5 s the URL line was still `url: https://www.amazon.com/s?k=lenovo+refurbished+laptop`, same items, `Calls from your last action: none (10 other requests hidden)` (shown 0, hidden 10) |
+| B4 | INCONCLUSIVE | B3 gave no calls, so no candidate; nothing fetched (`page.fetch` not exercised at all) |
+
+**Not scored (supplementary, recorded after scoring, not a bar):**
+- A3 with refs and the `N chars →` line stripped: off1 vs off2 25 differing lines, on1 vs on2 25, off1 vs on1 25, off1 vs on2 0, off2 vs on1 0, off2 vs on2 25. So Google serves two page variants ("Top options" vs "Top flights", a "Trains to consider" block) and the ON/OFF diff is the same 0-or-25 as the natural churn; the hint line is the only systematic difference.
+- B2 with a broader key (product-title `link` lines holding Laptop, Chromebook or Notebook, first 70 chars): page 1 28 titles, page 2 14 titles, 1 in common. So `page=2` by goto gives different items.
+- Calls lists, Google Flights (all three ON reads): `2 shown, 71 other requests hidden`: a `POST .../browserinfo?...  200  0.1k  small — fetch ok` and `POST .../GetShoppingResults?...  200  52.9k  BIG — use goto + snapshot`. The real flight-data call is a POST, so `page.fetch` (GET only) cannot reach it.
+- Calls lists, Amazon page 1 and page 2 loads: `3 shown, 129 other requests hidden`: `POST https://unagi.amazon.com/1/events/com.amazon.csm.csa.prod  200  0k  small — fetch ok`, `GET .../cart/add-to-cart/get-cart-items?...  200  0k`, `GET .../cart/add-to-cart/patc-config?...  200  3.4k`. None is the results data (Amazon's results are in the page HTML itself, a full navigation).
+
+**For barebrowse (not scored):** (1) the hint cuts a long `q` at 30 chars (`q=Flights from AMS to LHR on 202…`), so a date in a free-text query is not readable; (2) Amazon page 1 shows no `page` knob (fine) but its calls list is cart and telemetry only, because results are server-rendered; (3) clicking Amazon's "Go to next page, page 2" button by ref did not navigate within 5 s and the calls list said none, with no sign of why; (4) Google's data call is a POST marked BIG, so the hint "use goto + snapshot" is the only advice and `fetch` has nothing to fetch; (5) the snapshot is unchanged apart from the one hint line (checked A3). Known issues not re-reported: noisy tracker POSTs labelled "small — fetch ok" (seen again), `0k` for small sizes (seen again).
+
+## F218 PRE-REGISTRATION (2026-11-18, PAID, hard cap $3.00 (hamr), deepseek-flash; agent arm of the barebrowse action-calls POC for the browse session; written before the harness and before any request, NOT yet run)
+
+**Question (browse session).** Does a real AI agent use barebrowse's unreleased "action calls" hints (bb-calls@25ce555: the `[URL knobs: ...]` snapshot line, `page.calls()`/`callsText()`, `page.fetch()`) unprompted, and does it get misled? Follows F217 (the $0 mechanics). Branch `poc/f217-bb-calls`; `src/`, `test/`, CHANGELOG, package.json untouched; the barebrowse worktree is neither installed nor edited. Harness `poc/f217-bb-calls/run218.mjs`, scorer `poc/f217-bb-calls/score218.mjs`.
+
+**Agent.** Model `deepseek-flash` through the `DEEPSEEK_API_KEY` slot (the Fireworks credit is out; fwd's run baseline), the real call path of run215.mjs: `readPriceConfig`, `resolveUsableModel` (refused at $0 if either price is missing), `checkKeyPreflight`, `makeProvider(..., LIVE_PROVIDER_OPTIONS)`; `maxTokens` 16000, per-call timeout 300 s, thinking off. One bare-agent `Loop` per sample, `new Loop({ provider, rates, onLlmResult })` metering every round; at most 25 rounds (a HaltError from `onLlmResult` at the 26th round result), at most 12 page loads (a `goto` past 12 is refused with a plain message; clicks/presses that change the page URL count as loads). An unpriced round stops the batch; cost is never priced as 0.
+
+**Tools (thin wrappers on one barebrowse page, Chromium, `connect({ callHints, incognito: true, blockPrivateNetwork: true })`).** `goto(url)`, `snapshot()`, `click(ref)`, `type(ref, text)`, `press(key)`. HINT-ON arm adds `calls()` (returns `callsText`), `fetch(url)` (GET only, absolute only; the host must be in the task site's registrable domain (last two host labels), else the wrapper refuses with a plain message; `dir` = the scratch dir; if it returns a file, the agent may use `read_file(path, offset, length)`, capped at 20000 chars per call, only inside the scratch dir; whether it does is recorded) and `read_file`. HINT-OFF (control, `callHints: false`) has none of `calls`, `fetch`, `read_file`. Tool descriptions are neutral one-liners that do NOT mention URL knobs, editing URLs or when to use fetch. System prompt, the same in both arms and with no mention of the feature: "You browse the web with these tools to answer the user. Answer in plain text."
+
+**Tasks (start URL in the user message; read-only, public).**
+- **T1 flights currency:** `https://www.google.com/travel/flights?q=Flights+from+AMS+to+LHR+on+2026-12-10+one+way&hl=en&curr=USD`. "List the 3 cheapest flights shown, with prices in euros."
+- **T2 next page:** `https://www.amazon.com/s?k=lenovo+refurbished+laptop`. "Give me 3 laptops from the second page of these results, with prices."
+- **T3 new query (Best Buy):** `https://www.bestbuy.com/site/searchpage.jsp?st=laptop&intl=nosplash`. "Now show me 3 monitors and their prices."
+- **T4 trap (Target):** `https://www.target.com/s?searchTerm=laptop`. "Name three laptops and their prices, then the same for monitors."
+- **T5 small single answer (IKEA):** `https://www.ikea.com/us/en/search/?q=laptop`. "What is the price of the first product shown?" (the results call is a POST; the agent should NOT replay it.)
+Blocked sites, never used: eBay, Home Depot, Etsy, Walmart. On barebrowse's `[BOT CHALLENGE DETECTED` marker in a tool result: record it and end that sample (no hold, no bypass).
+
+**Arms and samples.** HINT-ON and HINT-OFF; 3 samples per task per arm = 30 samples; the arms alternate per sample (on, off, on, off, ...) so time/site drift hits both. Order is round-robin so an early stop still leaves every task at least 1 on + 1 off: T1on, T1off, T2on, T2off, ..., T5off, then repeat.
+
+**Budget.** Hard cap $3.00 total. Before each sample the batch stops if spent + estimate would exceed $3.00, the estimate being the largest observed sample cost so far x 1.5, and $0.15 before any sample has run. An unpriced round stops the batch. An empty `DEEPSEEK_API_KEY` is refused at $0 before any provider call or browser start (only `--dry` skips this, with a fake provider). A consumed tag with results is refused; a new tag each run.
+
+**Recorded per sample** (scratch dir `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/66ed2b48-d2f4-44d6-87b6-386bb86cdefb/scratchpad/f218/<tag>/`, not the repo): the full tool-call trace (tool, args, result size in chars, first 300 chars of the result), final answer, rounds, cost (every round), tokens, seconds, total characters fed to the agent (sum of tool results + the system and user prompts), page loads, and whether the answer gave the asked count with prices (recorded only). The page is closed each sample.
+
+**Path classification (mechanical, from the trace; written now).**
+- **T1:** URL-EDIT = a `goto` whose URL differs from the start URL only in `curr`; UI = any click/type/press and no such goto; NONE = neither.
+- **T2:** URL-EDIT = a `goto` of the start URL with `page=` (or `pg=`/`p=`) param added; UI = a click/press and no such goto; NONE otherwise.
+- **T3:** URL-EDIT = a `goto` whose `st=` differs from `laptop`; UI = a `type` call and no such goto; NONE otherwise.
+- **T4:** URL-EDIT = a `goto` whose `searchTerm=` differs from `laptop`; FETCH-BIG = a `fetch` (HINT-ON) whose result carries a `file` (over 20000 chars), reported with whether `read_file` followed; UI = type/click and no such goto; NONE otherwise. (A sample may carry several labels; URL-EDIT is reported first.)
+- **T5:** FETCH-REPLAY-ATTEMPT = any `fetch` call whose URL is on the results call (the URL contains `search` or the ikea results call seen in `calls`); SNAPSHOT-ONLY = no fetch.
+- **Misled flags (any task):** a `fetch` on a tracker, cart, telemetry or other-company URL (host outside the task site's registrable domain, or a path containing cart, event, telemetry, track, analytics, beacon, collect, pixel, browserinfo, unagi); a `fetch` refused by the wrapper.
+
+**Pre-registered claims** (each PASS / FAIL / INCONCLUSIVE on the letter; answer correctness is NOT the measure):
+- **C1.** HINT-ON URL-EDIT count across T1-T4 exceeds HINT-OFF's by at least 2 samples: PASS; equal or lower, or fewer than 2 more: FAIL; either arm with fewer than 3 scored samples (a sample counts when it is not a bot challenge and not an infrastructure error): INCONCLUSIVE. (Difference of 1 is FAIL.)
+- **C2.** HINT-ON makes 0 FETCH-BIG moves on T4: PASS, else FAIL.
+- **C3.** HINT-ON makes 0 fetches on tracker/cart/other-company URLs: PASS, else FAIL.
+- **C4.** HINT-ON mean characters fed per sample <= HINT-OFF's: PASS, else FAIL.
+- **C5 (report only).** Page loads per sample by arm.
+
+**Limits.** One machine, one Dutch IP, 3 samples per cell, DeepSeek flash only, sites drift by time, a sample that hits a bot challenge or a site error is recorded and not scored. Not a statistical test; it shows whether the agent ever uses the hint.
+
+**Harness detail added before any run (still NOT run):** a `snapshot` result longer than 60000 chars is cut there with a `[cut: N more characters]` marker (the model's context, not a measure); both arms get the same cut. The round cap is enforced at tool time (a tool call at 25 completed rounds halts the sample, recorded `capped: rounds`). Tool errors are returned to the agent as `error: ...` text. Our own chromium children are reaped by PID after each sample and their `/tmp/barebrowse-*` user-data dir removed. "Answered the asked count" is a heuristic (count of price tokens in the final text >= 3, 6 for T4, 1 for T5), recorded only. Scoring is `node poc/f217-bb-calls/score218.mjs <tag>`.
+
+**Spend guard added before any run (still NOT run):** before every tool call the harness halts the sample (`capped: spend`) when the batch spent so far plus this sample's metered rounds is at least $3.00, or (`capped: sample-spend`) when this sample's own metered cost is at least $0.40, so a sample can overshoot by at most one model round; an unpriced round halts the sample (`capped: unpriced`) and stops the batch, never counted as 0. A capped sample keeps its path label from its trace and is scored.
+
+### F218 RESULT (2026-11-18, tag r1)
+
+**Who ran it:** the orchestrator launched `node poc/f217-bb-calls/run218.mjs --tag r1` (paid, deepseek-flash, hard cap $3.00); the batch ran **17 of 30** planned samples and spent **$2.4291**, stopped by the cap rule (`cap: spent $2.4291 + estimate $0.6197 > $3.00`). Raw files: `/tmp/claude-1000/-home-hamr-PycharmProjects-fwdloop/66ed2b48-d2f4-44d6-87b6-386bb86cdefb/scratchpad/f218/r1/`. Scorer output below is `node poc/f217-bb-calls/score218.mjs r1`, verbatim. Because of the early stop, T5 has 1 sample per arm and T4 has 1 off + 2 on; the round-robin guarantee (every task at least 1 on + 1 off) held.
+
+```
+tag r1: 17 samples, spent $2.4291, stopped: cap: spent $2.4291 + estimate $0.6197 > $3.00
+T1off-1  UNSCORED UI                     rounds=7 loads=1 fed=132406 cost=$0.0692 calls=0 fetch=0 answered=false ERR(socket hang up)
+T1off-2  UI                     rounds=10 loads=1 fed=151436 cost=$0.1313 calls=0 fetch=0 answered=true
+T1on-1   UNSCORED UI                     rounds=6 loads=1 fed=82109 cost=$0.0444 calls=0 fetch=0 answered=false ERR(socket hang up)
+T1on-2   UI                     rounds=10 loads=1 fed=150821 cost=$0.1319 calls=0 fetch=0 answered=true
+T2off-1  UNSCORED UI                     rounds=4 loads=1 fed=32149 cost=$0.0137 calls=0 fetch=0 answered=false ERR(socket hang up)
+T2off-2  URL-EDIT+UI            rounds=11 loads=2 fed=87501 cost=$0.0957 calls=0 fetch=0 answered=true
+T2on-1   URL-EDIT+UI            rounds=6 loads=2 fed=48536 cost=$0.0310 calls=0 fetch=0 answered=false
+T2on-2   URL-EDIT+UI            rounds=22 loads=4 fed=199539 cost=$0.4131 calls=0 fetch=0 answered=true CAPPED(sample-spend)
+T3off-1  UNSCORED URL-EDIT+UI            rounds=16 loads=5 fed=108100 cost=$0.1890 calls=0 fetch=0 answered=false ERR(socket hang up)
+T3off-2  URL-EDIT+UI            rounds=19 loads=5 fed=165592 cost=$0.2789 calls=0 fetch=0 answered=false
+T3on-1   URL-EDIT+UI            rounds=25 loads=6 fed=122315 cost=$0.3598 calls=1 fetch=6 answered=false CAPPED(rounds)
+T3on-2   UNSCORED URL-EDIT               rounds=4 loads=2 fed=49062 cost=$0.0119 calls=0 fetch=0 answered=false ERR(socket hang up)
+T4off-1  URL-EDIT+UI            rounds=15 loads=4 fed=61392 cost=$0.1616 calls=0 fetch=0 answered=true
+T4on-1   URL-EDIT+FETCH-BIG     rounds=16 loads=5 fed=69243 cost=$0.1850 calls=0 fetch=1 read_file answered=true
+T4on-2   URL-EDIT+UI            rounds=25 loads=6 fed=65535 cost=$0.2973 calls=0 fetch=0 answered=false CAPPED(rounds)
+T5off-1  SNAPSHOT-ONLY          rounds=3 loads=1 fed=36841 cost=$0.0076 calls=0 fetch=0 answered=true
+T5on-1   SNAPSHOT-ONLY          rounds=3 loads=1 fed=36906 cost=$0.0078 calls=0 fetch=0 answered=true
+
+C1 PASS: URL-EDIT T1-T4 on 5/6 vs off 3/4 (needs on - off >= 2, each arm >= 3 scored)
+C2 FAIL: HINT-ON FETCH-BIG on T4 = 1
+C3 PASS: HINT-ON fetches on tracker/cart/other-company URLs = 0
+C4 PASS: mean chars fed on 98985 vs off 100552
+C5 (report only): page loads per sample on 3.57 (7 samples) vs off 2.60 (5 samples)
+reported: read_file used after FETCH-BIG on T4: 1; samples answering the asked count: 8/17
+```
+
+**Verdicts on the letter:** C1 PASS (5/6 vs 3/4, difference of 2 samples; the bar was at least 2), C2 FAIL (1 FETCH-BIG, T4on-1), C3 PASS, C4 PASS (98,985 vs 100,552 chars, a 1.6% gap), C5 report only (3.57 vs 2.60 loads). Five samples are UNSCORED (infrastructure errors) and 12 are scored; the count of scored samples in C1 is on 6 and off 4.
+
+**Observations (a)-(g): NOT pre-registered bars; each checked against the r1 sample JSONs.**
+
+- **(a) C1's PASS is weak.** The HINT-OFF arm also URL-edited 3 of 4 scored T1-T4 samples (T2off-2 added `page=2`; T3off-2 and T4off-1 changed the query), so agents edit URLs without the hint; the on-minus-off margin is exactly the minimum. T1 (currency) was UI clicks in all 4 samples of both arms, scored or not: the only `goto` in each of T1off-1, T1off-2, T1on-1 and T1on-2 is the start URL (`...&curr=USD`), followed by click/snapshot calls only. The `curr=USD` knob was never used, even though the ON arm's snapshots carried it.
+- **(b) The "socket hang up" errors are the provider's HTTPS connection, not barebrowse.** Five samples ended with `socket hang up` (T1off-1, T1on-1, T2off-1, T3off-1, T3on-2; the orchestrator's mid-run count of 6 is not what the r1 files show: 5, 3 off-arm and 2 on-arm). bare-agent's provider-openai requires node `https` (`node_modules/bare-agent/src/provider-openai.js` line 3); the barebrowse library (bb-calls) makes no http requests of its own for the model (only `src/daemon.js` creates a server). So the failures are on the model call, not barebrowse. The harness had no transport retry, while fwd's real run path retries once; so these 5 samples are lost to a harness gap. This corrects an orchestrator guess made mid-run that barebrowse was the cause.
+- **(c) T2on-1:** the agent clicked with ref `"ref=441"` (the `ref=` prefix included): trace entry 2 `click {"ref":"ref=441"} -> error: No element found for ref "ref=441"`; it then went to entry 3 `goto https://www.amazon.com/s?k=lenovo+refurbished+laptop&page=2` itself (the page-2 snapshot header carries `[URL knobs: k=lenovo refurbished laptop, page=2 ...]`). Whether it got `page=2` from the hint line on the page-1 snapshot (the line shows only `k=`, because page 1 has no page param, see F217) or from its own knowledge of Amazon is not determinable from the trace.
+- **(d) T3on-1 (25 rounds, CAPPED rounds).** Entry 2 `type {"ref":"1531","text":"monitor"}` then `press Enter` landed on `url: .../searchpage.jsp?id=pcat17071&st=monitorlaptop` (the text was appended to the existing "laptop", not replacing it). The agent then did `goto ...?st=monitor&intl=nosplash` and used `fetch` as a general HTML fetcher: entry 8 the suggest call `status 200, 5325 chars`; entry 9 `fetch .../searchpage.jsp?st=monitor&intl=nosplash&srch=1` -> `status 200, 921796 chars, saved to ...`; entry 10 `read_file` on it; entry 11 `fetch ...&page=1&browsedCategory=pcmcat1563303166547` -> `519488 chars, saved to ...`; entry 16 `fetch .../api/tcfb/model.json?...` -> `status 500, 314898 chars, saved to ...`; entries 18 and 21 `failed: TypeError: Failed to fetch` (a product page and `/priceblocks/v1/pricing/...`); product `goto`s 12 and 13 errored. 6 fetches, 2 `read_file` calls. The sample's last text (it hit the round cap before a real answer) says `The listing prices render asynchronously and aren't captured. Let me grep the saved HTML for price data near these SKUs.`
+- **(e) T4on-1 (the FETCH-BIG).** `searchTerm=monitor` by `goto` worked as a URL edit, but every later Target snapshot is 656-676 chars (`snapshot` entries 3, 5, 7, 14: 658, 660, 656, 676), the "Human verification" page seen in the dry run, with no `[BOT CHALLENGE DETECTED` marker. The agent then fetched the search page HTML (entry 8, `fetch https://www.target.com/s?searchTerm=monitors` -> `status 200, 143532 chars, saved to ...`) and `read_file`d it in 3000-char chunks (entries 9, 11, 12: tag preload links, kill-switch config, script text; no products). Its final answer says Target blocked the monitor search with a human verification challenge and gives the laptop prices read before the block.
+- **(f) T5 (IKEA):** both arms SNAPSHOT-ONLY, 3 rounds each (T5on-1 and T5off-1), 36.9k vs 36.8k chars fed; no fetch, no `calls`, no replay attempt of the POST results call.
+- **(g) No fetch on tracker/cart/other-company URLs:** C3 PASS, 0 flagged among the HINT-ON fetches (7 in all: 6 in T3on-1, 1 in T4on-1), all on the task site's own host; no wrapper refusals (the scorer printed no `wrapper-refused` line). The T3on-1 fetch on `/suggest/v1/fragment/products/...` (a product suggest call) is on the site's host and not a tracker.
+
+**Also visible, not a bar:** `calls` was used once in 7 HINT-ON samples (T3on-1 entry 7); it was never used on T1, T2, T4 or T5. Three HINT-ON samples hit a cap: T2on-2 `sample-spend` ($0.4131, over the $0.40 cap by one round, as designed), T3on-1 and T4on-2 the 25-round cap.
+
+**Limits.** 17 of 30 samples; 5 lost to the harness's missing transport retry; 1 to 3 scored samples per cell; one machine and IP; Target went to a human-verification page from the second load on (not marked as a bot challenge, so it was scored); DeepSeek flash only. Not a statistical test.
+
 ## F219 PRE-REGISTRATION (2026-11-18, $0, no AI, no key; M15 am3 one markdown report per run, replay over saved runs; written before the harness, NOT yet run)
 
 **Question.** Does bareloop v0.60.0's one-report layout (src/resultmd.js, `sheetTotalLines` with the strict number test and Count before Total), adapted to fwd's run data, write the signed M15 am3 report at $0 over real runs, and does each "Must fail when" really turn red? Branch `m15-am3-one-report`; `src/` untouched (POC copy under `poc/f219-report/`, header `// borrowed-from: bareloop <path>@v0.60.0`). Never imported from bareloop.

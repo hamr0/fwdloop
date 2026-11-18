@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Docs
+- F217 and F218 findings in `docs/logs/FINDINGS.md`: a trial of barebrowse's unreleased action-calls feature, run for
+  the barebrowse team. Findings only; the test scripts were not kept.
+
 ## [0.36.0] - 2026-11-18
 
 One markdown report per run (M15 am3 and am3a), copied from bareloop v0.60.0, and a column tie now asks which column
