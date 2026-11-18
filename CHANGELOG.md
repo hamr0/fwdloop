@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.2] - 2026-11-18
+
+0.35.1 never reached npm: its publish stopped on the bug below. 0.35.2 carries everything in 0.35.1 plus this fix.
+
+### Fixed
+- The Audit tab's step headers could show a bare "done" or "waiting" instead of the sign and word (for example
+  "[✓] passed") when the Audit loaded before the run's details. It stayed wrong until the run changed. Now the Audit
+  redraws once the run details arrive.
+
 ## [0.35.1] - 2026-11-18
 
 A page that asks for a human check is now refused as such. Search was tried (POCs F205-F216 in `docs/logs/FINDINGS.md`),

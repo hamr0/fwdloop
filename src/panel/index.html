@@ -3078,7 +3078,12 @@
     var verdict = document.getElementById("active-wf-verdict");
     var date = document.getElementById("active-wf-date");
 
-    if(detail.signWords) signWords = detail.signWords;
+    if(detail.signWords){
+      var wordsChanged = JSON.stringify(detail.signWords) !== JSON.stringify(signWords);
+      signWords = detail.signWords;
+      // the audit reply can land before this detail: the groups it painted had no sign words, and the poll skips an unchanged audit
+      if(wordsChanged && lastAuditResult) renderAudit(lastAuditResult);
+    }
     name.textContent = detail.flow + " (" + detail.runId + ")";
     dot.className = dotClass(detail.glyph, detail.pulse);
     verdict.innerHTML = signHtml(detail.word, detail.line, detail.label);

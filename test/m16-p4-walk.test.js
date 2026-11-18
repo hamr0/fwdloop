@@ -160,3 +160,26 @@ for (const width of [1280, 390, 320]) {
     ok(m);
   });
 }
+
+// Reply order: the run's audit lands BEFORE its detail (the detail is held back 1.5 s by the page's own fetch, nothing in the page is edited).
+// The Audit group headers must still read with their sign words ("[✓] passed"), because the words come with the detail.
+test('browser: the Audit group words carry their sign when the audit reply lands before the run detail', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const w = await world();
+  const { flow } = await w.signedFlow();
+  assert.ok((await w.post('/api/author/run', { flow, inputs: w.inputs(), runId: 'r1' })).json().startId);
+  await until(async () => (await w.get(`/api/runs/${flow}/r1/audit`)).json()?.auditChecks?.always?.every((r) => r.result !== 'none') || null, 20000);
+  const exact = `/api/runs/${flow}/r1`;
+  await chrome.send('Page.enable');
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(function(){ var f = window.fetch; window.fetch = function(u, o){ var p = f.apply(this, arguments); if(String(u) === ${JSON.stringify(exact)}) return p.then(function(r){ return new Promise(function(ok){ setTimeout(function(){ ok(r); }, 1500); }); }); return p; }; })();` });
+  await chrome.open(`http://127.0.0.1:${w.h.port}/`, 1280);
+  await chrome.ev('document.getElementById("tab-audit").click()');
+  assert.ok(await chrome.waitFor('!!document.querySelector("#audit-groups [data-testid=audit-group-state]")', 20000), 'the audit groups are painted');
+  assert.ok(await chrome.waitFor('!document.getElementById("run-content").hidden', 20000), 'the run detail painted');
+  await new Promise((r) => setTimeout(r, 3500));   // past the held detail and at least one poll
+  const groups = await chrome.ev('Array.from(document.querySelectorAll("[data-testid=audit-group-state]")).map(function(e){ return {text: e.textContent, cls: e.className}; })');
+  const passed = groups.filter((g) => /passed/.test(g.text) && /audit-passed-word/.test(g.cls));
+  assert.ok(passed.length >= 1, JSON.stringify(groups));
+});
