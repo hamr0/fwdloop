@@ -37,3 +37,19 @@ test('a plan with no list: the text check decides', () => {
   assert.equal(out.ok, true);
   assert.equal(out.value.text.split('### The answer').length, 3);
 });
+
+// the practice walk's own run (w1-tie, copied from .claude/scratch/m15-am3/walk): line 1 is a hitl cells read with no ~ rule; nothing checks its text, so it reads as not checked
+import { readFileSync } from 'node:fs';
+import { reportContextOf } from '../src/whole-job.js';
+import { readArtifactResult } from '../src/runner.js';
+test('the walk\'s own declaration: the cells read on line 1 is headed not-checked; the sheet line keeps its checked bullets', () => {
+  const runDir = new URL('./fixtures/m15-walk-w1/run-1', import.meta.url).pathname;
+  const decl = JSON.parse(readFileSync(`${runDir}/job/declaration.json`, 'utf8'));
+  const context = reportContextOf({ runDir, steps: decl.steps, jobLines: [{ n: 2, guardrail: 'Amount over 500' }], checkList: decl.checkList });
+  const asks = new Map([[3, {}]]);
+  const out = wholeJobText({ steps: decl.steps, askLines: asks, lastAskIndex: 2, readResult: (id) => readArtifactResult(runDir, id), context });
+  assert.equal(out.ok, true, JSON.stringify(out));
+  const [one, two] = out.value.text.split('## 2.');
+  assert.ok(one.includes(NOT_CHECKED) && !one.includes('### The answer'), one);
+  assert.ok(two.includes('### Checked by code'), two);
+});

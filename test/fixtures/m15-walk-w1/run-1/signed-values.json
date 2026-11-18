@@ -1,0 +1,16 @@
+{
+  "flow": "w1-tie",
+  "flowSignatureHash": "075eba81b7f1352e58b124de1e2c79bca9fd8751261049256dbca045298bc0e0",
+  "version": 0,
+  "values": {
+    "capUsd": 0.2866,
+    "destination": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/m15-am3/walk/out/w1",
+    "askWaits": {
+      "3": "1h"
+    }
+  },
+  "hash": "4cfc2b21c953cd40e087adaa2ba340c6ac63b38ec4e9cf0e846b033698afc2ca",
+  "signedBy": "hamr",
+  "at": "2026-11-18T16:50:12.598Z",
+  "runId": "run-1"
+}

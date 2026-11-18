@@ -1,0 +1,234 @@
+{
+  "sheet": {
+    "lines": [
+      {
+        "n": 2,
+        "try": 1,
+        "passed": false,
+        "tables": [
+          {
+            "name": "expenses",
+            "tableSha": "2e9b53969beaea5b6f5d4b73c5e7cb8c9bc7bfd7aefe1a5878ac78f9977d8d4b"
+          }
+        ],
+        "checks": [
+          {
+            "id": "l2r1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "rows",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2r1",
+            "covers": [
+              1
+            ]
+          },
+          {
+            "id": "l2a1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "countIf",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a1",
+            "covers": [],
+            "row": "agent"
+          },
+          {
+            "id": "l2a2",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "sumIf",
+            "column": "Amount",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a2",
+            "covers": [],
+            "row": "agent"
+          }
+        ],
+        "claims": {
+          "l2r1": {
+            "rows": [
+              7,
+              9,
+              10,
+              14,
+              15,
+              19,
+              21,
+              22,
+              24,
+              26,
+              28,
+              30,
+              32,
+              33,
+              34,
+              37,
+              40,
+              41
+            ]
+          },
+          "l2a1": {
+            "value": 18
+          },
+          "l2a2": {
+            "value": 12945.39
+          }
+        },
+        "results": [
+          {
+            "id": "l2r1",
+            "text": "rows — rows where Amount > 500",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "l2a1",
+            "text": "count — count of rows where Amount > 500",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "l2a2",
+            "text": "sum — sum of Amount where Amount > 500",
+            "ok": false,
+            "result": "l2a2: claimed value does not match (12945.39)"
+          }
+        ],
+        "red": "l2a2: claimed value does not match (12945.39)"
+      },
+      {
+        "n": 2,
+        "try": 2,
+        "passed": true,
+        "tables": [
+          {
+            "name": "expenses",
+            "tableSha": "2e9b53969beaea5b6f5d4b73c5e7cb8c9bc7bfd7aefe1a5878ac78f9977d8d4b"
+          }
+        ],
+        "checks": [
+          {
+            "id": "l2r1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "rows",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2r1",
+            "covers": [
+              1
+            ]
+          },
+          {
+            "id": "l2a1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "countIf",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a1",
+            "covers": [],
+            "row": "agent"
+          },
+          {
+            "id": "l2a2",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "sumIf",
+            "column": "Amount",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a2",
+            "covers": [],
+            "row": "agent"
+          }
+        ],
+        "claims": {
+          "l2r1": {
+            "rows": [
+              7,
+              9,
+              10,
+              14,
+              15,
+              19,
+              21,
+              22,
+              24,
+              26,
+              28,
+              30,
+              32,
+              33,
+              34,
+              37,
+              40,
+              41
+            ]
+          },
+          "l2a1": {
+            "value": 18
+          },
+          "l2a2": {
+            "value": 13206.91
+          }
+        },
+        "results": [
+          {
+            "id": "l2r1",
+            "text": "rows — rows where Amount > 500",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "l2a1",
+            "text": "count — count of rows where Amount > 500",
+            "ok": true,
+            "result": null
+          },
+          {
+            "id": "l2a2",
+            "text": "sum — sum of Amount where Amount > 500",
+            "ok": true,
+            "result": null
+          }
+        ],
+        "red": null
+      }
+    ]
+  }
+}
