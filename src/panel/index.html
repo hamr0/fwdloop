@@ -6936,6 +6936,14 @@
       startOverBtn.disabled = !!st.busy;
       fitCardBoxes();
     }
+    // M17 am9a item 2: while a session is live the job box follows the server's newest card (`card.job`, the job as `applyAnswers` wrote it after an answer: the rule as answered). The page reads it, never
+    // recomputes it, and never touches the box while Revise has it open for typing.
+    function syncJobBoxFromSession(state){
+      var jt = state && state.card && state.card.job;
+      var box = document.getElementById("jf-job");
+      if(!sessionLive || reviseOpen || typeof jt !== "string" || jt === box.value) return;
+      setVal("jf-job", jt); fitCardBoxes();
+    }
     function renderActions(state){
       lastState = state;
       renderQuestion(state);
@@ -6948,6 +6956,7 @@
       var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}));
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
       refreshStartEnabled();
+      syncJobBoxFromSession(state);
       // while the draft is live and the list changed, bring the newest progress line into view.
       // Never moves keyboard focus, and an unchanged poll tick never scrolls.
       if(progressChanged && sessionLive && progressRow.lastElementChild){
