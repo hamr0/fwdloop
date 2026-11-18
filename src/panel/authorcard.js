@@ -184,10 +184,10 @@ export function applyAnswers(job, all) {
     const parts = isColumnChoiceRule(x.proposal) && Number.isInteger(x.ruleNo) ? columnChoiceParts(x.rule) : null;
     const swapped = parts ? swapColumnWord(String(x.ruleText ?? ''), parts.word, parts.column) : null;
     // M17 ruling 2: an agreed column for a word that is no `~` rule (the job's prose) adds NO `~` line; it is told to the AI, whose check (if it suggests one) is a `!` `[agent]` row built by code
-    // and so is an agreed column for a word that is not in the tied rule's text (nothing to rewrite): never a new line
-    const proseCol = isColumnChoiceRule(x.proposal) && isColumnChoiceRule(x.rule) && (!Number.isInteger(x.ruleNo) || swapped === null) ? columnChoiceParts(x.rule) : null;
+    // M17 am9a: an agreed column answer about a `~` rule always rewrites that rule in place: the word swapped for the column, else `use the column '<c>' for '<w>'`; never only told to the AI
+    const proseCol = isColumnChoiceRule(x.proposal) && isColumnChoiceRule(x.rule) && !Number.isInteger(x.ruleNo) ? columnChoiceParts(x.rule) : null;
     if (proseCol) { columns.push({ line: x.line, word: proseCol.word, column: proseCol.column }); continue; }
-    if (x.ask !== undefined && Number.isInteger(x.ruleNo) && (!isColumnChoiceRule(x.proposal) || !isColumnChoiceRule(x.rule) || swapped !== null)) {
+    if (x.ask !== undefined && Number.isInteger(x.ruleNo)) {
       const r = replaceRuleOnJob(out, x.line, String(x.ruleText ?? ''), swapped ?? x.rule);
       if (r.replaced) { out = r.job; done += 1; }
     } else appends.push({ line: x.line, answer: x.rule });

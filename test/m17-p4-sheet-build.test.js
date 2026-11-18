@@ -251,12 +251,13 @@ test('ruling 2 across a Revise: the agreed column is kept in the picks record (t
   assert.deepEqual(columnsOnLines(entries, lines.map((l) => ({ ...l, text: `${l.text} now` }))), []);
 });
 
-test('ruling 1 fallback: a rule-tied column answer whose word is not in the rule\'s text appends no ~ line and keeps the rule; the column goes to the AI', () => {
+test("M17 am9a: a rule-tied column answer whose word is not in the rule's text rewrites that rule to `use the column ...`; no line is added, nothing is only told to the AI", () => {
   const job = '1. Read the sheet\n2. Flag the big ones\n~ under 5000\n3. Write it out';
   const ask = { line: 2, rule: "use the column 'Amount' for 'Price'", left: false, ruleNo: 1, ruleText: 'under 5000', ask: 'reading', proposal: "use the column 'Amount' for 'Price'" };
   const r = applyAnswers(job, [ask]);
-  assert.equal(r.job, job, 'no ~ line, the rule is as written');
-  assert.deepEqual(r.columns, [{ line: 2, word: 'Price', column: 'Amount' }]);
+  assert.equal(r.job, "1. Read the sheet\n2. Flag the big ones\n~ use the column 'Amount' for 'Price'\n3. Write it out");
+  assert.deepEqual(r.columns, []);
+  assert.equal(r.job.split('\n').length, job.split('\n').length, 'no line added');
 });
 
 test('ruling 2: the draft writes the agreed columns into the plan\'s own picks record (no new file), and the next draft reads them back', async () => {
