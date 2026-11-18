@@ -108,7 +108,7 @@ async function loadConnect() {
   try {
     const mod = /** @type {any} */ (await import('barebrowse'));
     const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.resolve('barebrowse'))), '..', 'package.json'), 'utf8'));
-    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.30.0 or newer, which keeps the browser private, off the local network, closed when the run ends, and says whether the page loaded and whether a bot check stopped it` };
+    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.30.0 or newer, which keeps the browser private, off the local network, closed when the run ends, and says whether the page loaded` };
     return { ok: /** @type {const} */ (true), connect: /** @type {(opts: Record<string, any>) => Promise<FetchPage>} */ (mod.connect) };
   } catch (e) { return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse) could not be loaded: ${/** @type {Error} */ (e).message}` }; }
 }
