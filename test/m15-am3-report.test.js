@@ -27,9 +27,9 @@ test('a text line: the AI\'s answer sits under the not-checked heading, a checke
   assert.equal(renderReportBody([{ n: 1, kind: 'work', text: 'Say hi', artifact: a, proseChecked: true }], {}), '## 1. Say hi\n\n### The answer\n# own heading\nhello');
 });
 test('facts: #### Result k blocks, names as words, the quote byte for byte; an Ask line keeps its M13 am9 words', () => {
-  const art = { results: [{ quote: 'Wizz "Air" 08:00 — €99', values: { airline: 'Wizz Air', priceEur: 99, nonstop: true } }] };
+  const art = { results: [{ quote: ' Wizz "Air" 08:00 — €99 \n', values: { airline: 'Wizz Air', priceEur: 99, nonstop: true } }] };
   const body = renderReportBody([{ n: 1, kind: 'ask' }, { n: 2, kind: 'work', text: 'Flights', rules: ['under $150', 'nonstop'], artifact: art, checks: [] }], {});
-  assert.equal(body, 'Line 1: you accepted this at the Ask.\n\n## 2. Flights\nRule: under $150\nRule: nonstop\n\n### Checked by code\n#### Result 1\n- Airline: Wizz Air\n- Price eur: 99\n- Nonstop: true\n\nfrom the page: "Wizz "Air" 08:00 — €99"');
+  assert.equal(body, 'Line 1: you accepted this at the Ask.\n\n## 2. Flights\nRule: under $150\nRule: nonstop\n\n### Checked by code\n#### Result 1\n- Airline: Wizz Air\n- Price eur: 99\n- Nonstop: true\n\nfrom the page: " Wizz "Air" 08:00 — €99 \n"');
 });
 test('a work line with nothing to write has no section (bareloop v0.60.0)', () => {
   assert.equal(renderReportBody([{ n: 1, kind: 'work', text: 'Read', artifact: { cells: ['A1'] } }], {}), '');
