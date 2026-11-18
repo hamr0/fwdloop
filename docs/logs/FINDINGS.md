@@ -8916,3 +8916,18 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
   4. `src/drafter.js:789` question record: carry `columns` (and `readings`); today it drops them. The picked column's reading rides as `proposal`.
   5. `src/panel/author.js:814-818` the answer door: new choice `column` (checked against the question's own `columns`; refuses `rule` and `agree` on a tie, refuses `column` elsewhere with the signed words); `:830-841` `ruleOfAnswer` call; `src/pageask.js:125-141` `ruleOfAnswer` gets the `column` choice (rule = reading of the picked column).
   6. Picker page (native select, Send, Drop it) in the panel's question view; Audit words `you were asked / you said <column>` at `src/pageask.js:109` `decidedWords`.
+
+## F222 PRE-REGISTRATION (2026-11-18, $0, no AI, no key; barebrowse 0.30.0 botBlocked flag on fwd's real page read; written before the harness, NOT yet run)
+
+**Question.** With barebrowse 0.30.0 installed, does the typed `page.botBlocked` flag agree with the `[BOT CHALLENGE DETECTED` marker that `src/pagefetch.js:159` matches today, on fwd's real page read? Branch `bb030-bot-flag`; `src/` and `test/` untouched.
+
+**Harness.** `poc/f222-bb-flag/run222.mjs` calls fwd's REAL `fetchPageText` (src/pagefetch.js, unchanged) with a `connect` option wrapping barebrowse 0.30.0's real `connect` (from node_modules). After each snapshot the wrapper records `page.botBlocked`, whether the snapshot text contains the marker, the text length, and fwd's result (ok / error words). CONNECT_OPTIONS pass through untouched; the page object's behaviour is not changed.
+
+**Pages.** N = https://en.wikipedia.org/wiki/Amsterdam (normal). B1 = https://www.walmart.com/search?q=laptop and B2 = https://www.target.com/s?searchTerm=laptop (robot-check candidates, F216 / barebrowse N34). I = https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe, chosen because it embeds a live cross-site iframe (interactive-examples.mdn.mozilla.net, a different site from developer.mozilla.org), so it shows whether iframe content changes the flag or the text size.
+
+**Bars (fixed now, each can fail; never refit).**
+- (a) On every page, `botBlocked === true` exactly when the snapshot text carries the marker (agreement 4/4).
+- (b) N: `botBlocked` false and fwd ok.
+- (c) At least one of B1/B2: `botBlocked` true and fwd refuses with "asked for a human check". If neither site challenges, (c) is INCONCLUSIVE, not PASS.
+- (d) I: fwd's result reported with text length; PASS if it reads (ok) and the length is under fwd's page size limits (the limit found in src/pagefetch.js is reported); the length is reported either way.
+- (e) No chromium/firefox PIDs of mine and no /tmp/barebrowse-* dirs of mine left after.
