@@ -8965,3 +8965,16 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 - (c'-R) R: same as c'-L; if R does not challenge from this machine (flag false, or no snapshot), INCONCLUSIVE.
 - (L0) L0: `botBlocked` false and fwd ok.
 - (e) None of my browser PIDs or /tmp/barebrowse-* dirs left after; the local server closed.
+
+### F222b RESULT (tag r2)
+`timeout 300 node poc/f222-bb-flag/run222b.mjs`, barebrowse 0.30.0, one run. Raw: `.claude/scratch/bb030/r2/`. **VERDICT: (a'), (c'-L), (c'-R), (e) PASS; (L0) FAIL on the letter** (flag was right, fwd's own size floor refused the control).
+
+| item | verdict | evidence |
+|---|---|---|
+| (a') flag == marker | PASS | R: true/true, L: true/true, L0: false/false (3/3 snapshotted) |
+| (c'-L) L refused | PASS | `botBlocked` true, marker present, fwd error "http://127.0.0.1:8791/challenge asked for a human check (a bot challenge), so the page could not be read" (blockPrivateNetwork dropped for L/L0 only, as pre-registered) |
+| (c'-R) R refused | PASS | nowsecure.nl challenged from this machine: `botBlocked` true, marker present (1165 chars), fwd error "https://nowsecure.nl/ asked for a human check (a bot challenge), so the page could not be read" |
+| (L0) control | FAIL (letter) | `botBlocked` false (right), marker absent, but fwd NOT ok: "came back with only 130 characters of text (less than 200)". The snapshot (act mode) of the 6-paragraph HTML was 130 chars, so the control page's prose did not survive as text; my pre-registered "over MIN_PAGE_CHARS" assumed the snapshot keeps paragraph text. Not refitted; the flag question (false on a normal page) is answered by (a'). |
+| (e) cleanup | PASS | browser PID list and /tmp/barebrowse-* dir list identical before and after; port 8791 closed |
+
+**Surprises.** (1) The act-mode snapshot drops most static paragraph text, so a local control needs an interactive or different shape to clear fwd's floor; not pursued here. (2) The marker and flag agreed on all three pages; the true case is now seen on a real Cloudflare page and a local copy of its phrases.
