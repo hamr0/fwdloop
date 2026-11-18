@@ -172,7 +172,8 @@ test('browser: the Audit group words carry their sign when the audit reply lands
   assert.ok((await w.post('/api/author/run', { flow, inputs: w.inputs(), runId: 'r1' })).json().startId);
   await until(async () => (await w.get(`/api/runs/${flow}/r1/audit`)).json()?.auditChecks?.always?.every((r) => r.result !== 'none') || null, 20000);
   const exact = `/api/runs/${flow}/r1`;
-  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(function(){ var f = window.fetch; window.__detailPainted = false; window.fetch = function(u, o){ var p = f.apply(this, arguments); if(String(u) === ${JSON.stringify(exact)}) return p.then(function(r){ return new Promise(function(ok){ setTimeout(function(){ ok(r); }, 1500); }); }); return p; }; })();` });
+  await chrome.send('Page.enable');
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: `(function(){ var f = window.fetch; window.fetch = function(u, o){ var p = f.apply(this, arguments); if(String(u) === ${JSON.stringify(exact)}) return p.then(function(r){ return new Promise(function(ok){ setTimeout(function(){ ok(r); }, 1500); }); }); return p; }; })();` });
   await chrome.open(`http://127.0.0.1:${w.h.port}/`, 1280);
   await chrome.ev('document.getElementById("tab-audit").click()');
   assert.ok(await chrome.waitFor('!!document.querySelector("#audit-groups [data-testid=audit-group-state]")', 20000), 'the audit groups are painted');
