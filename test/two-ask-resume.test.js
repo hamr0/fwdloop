@@ -32,8 +32,16 @@ const CATALOGUE = catalogueLoaded.primitives;
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
 // M15 item 3: the shipped file is the accepted answer's text, not its JSON; the accepted artifact is `{text}`, so its JSON hash is the hash of the text put back in it
-const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
-const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
+// M15 am3: the report is `<job>-YYYY-MM-DD.md` (no run id in the name); SEND_DIR is this process's own folder, emptied after every test
+const shippedFiles = () => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR) : []);
+// M15 am3: the report is title + Passed line + body; the AI's accepted text is what follows the not-checked heading, to the end of the file
+const acceptedTextOf = (file) => {
+  const head = "### The AI's answer (not checked — you judge it at Accept)\n";
+  const at = file.indexOf(head);
+  assert.ok(at >= 0, `the report carries the accepted text under its heading: ${file}`);
+  return file.slice(at + head.length).replace(/\n$/, '');
+};
+const cleanShipped = (runId) => { for (const f of shippedFiles()) rmSync(path.join(SEND_DIR, f), { force: true }); };
 
 // job #2's prose with a SECOND ask inserted at line 5; the send (line 6) ships
 // the artifact accepted at ASK 1 (`resume-summary-approved`).
@@ -107,9 +115,9 @@ test('M4b p3 follow-up: ask 1 accepted in an earlier process still ships after l
     assert.match(a.recordedAtAsk1, /^[0-9a-f]{64}$/);
     const done = await resumeRun(baseArgs(a.root, runId));
     assert.equal(done.outcome, 'complete', done.red);
-    const files = shippedFiles(runId);
+    const files = shippedFiles();
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.recordedAtAsk1);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: acceptedTextOf(readFileSync(path.join(SEND_DIR, files[0]), 'utf8')) })), a.recordedAtAsk1);
   } finally { cleanShipped(runId); }
 });
 
@@ -125,7 +133,7 @@ test('M4b p3 follow-up / M13 am11: ask 1\'s artifact edited by one byte after it
     // M13 am11: the last Ask's accept is the one compared; what goes out changed since it, so the run stops once and asks; nothing is written
     assert.equal(res.outcome, 'paused', res.red);
     assert.equal(readAsk(res.runDir).question, 'This changed since you accepted it.');
-    assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
+    assert.deepEqual(shippedFiles(), [], 'nothing may reach the destination');
   } finally { cleanShipped(runId); }
 });
 
@@ -182,7 +190,7 @@ test('M4b am2 (xi) / M13 am11: an EARLIER ask\'s archive with no emits (old run)
     assert.equal(stripped, 1, 'ask 1 archive must have carried emits');
     const res = await resumeRun(baseArgs(a.root, runId));
     assert.equal(res.outcome, 'complete', res.red);
-    assert.equal(shippedFiles(runId).length, 1);
+    assert.equal(shippedFiles().length, 1);
   } finally { cleanShipped(runId); }
 });
 
@@ -199,9 +207,9 @@ test('M4b am2: reject -> re-park -> accept at ask 1, then ask 2, send in a later
     const done = await resumeRun(baseArgs(a.root, runId));
     assert.equal(done.outcome, 'complete', done.red);
     assert.equal(readFileSync(rejectedArchive, 'utf8'), before, 'existing archive not rewritten');
-    const files = shippedFiles(runId);
+    const files = shippedFiles();
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.acceptedHash);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: acceptedTextOf(readFileSync(path.join(SEND_DIR, files[0]), 'utf8')) })), a.acceptedHash);
     assert.equal(readJson(markerOf(a.runDir, a.acceptedAskId)).artifactSha256, a.acceptedHash);
   } finally { cleanShipped(runId); }
 });
@@ -227,9 +235,9 @@ test('M4b am2: a REJECTED ask\'s marker never supplies the hash, even if it carr
     writeFileSync(m, JSON.stringify({ ...readJson(m), artifactSha256: 'f'.repeat(64) }));
     const done = await resumeRun(baseArgs(a.root, runId));
     assert.equal(done.outcome, 'complete', done.red);
-    const files = shippedFiles(runId);
+    const files = shippedFiles();
     assert.equal(files.length, 1);
-    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), a.acceptedHash);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: acceptedTextOf(readFileSync(path.join(SEND_DIR, files[0]), 'utf8')) })), a.acceptedHash);
   } finally { cleanShipped(runId); }
 });
 
@@ -244,6 +252,6 @@ test('M4b am2: two accepted asks for one emits — resume refuses by name (never
     assert.equal(res.outcome, 'refused');
     assert.match(res.red, /more than one accepted ask/);
     assert.equal(existsSync(path.join(a.runDir, 'answer.json')), true, 'answer not consumed');
-    assert.deepEqual(shippedFiles(runId), []);
+    assert.deepEqual(shippedFiles(), []);
   } finally { cleanShipped(runId); }
 });
