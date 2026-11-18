@@ -50,7 +50,7 @@
   ],
   "dependencies": {
     "bare-agent": "^0.59.0",
-    "barebrowse": "^0.26.0",
+    "barebrowse": "^0.30.0",
     "bareguard": "^0.36.0",
     "litectx": "^0.32.0"
   },
