@@ -8931,3 +8931,16 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 - (c) At least one of B1/B2: `botBlocked` true and fwd refuses with "asked for a human check". If neither site challenges, (c) is INCONCLUSIVE, not PASS.
 - (d) I: fwd's result reported with text length; PASS if it reads (ok) and the length is under fwd's page size limits (the limit found in src/pagefetch.js is reported); the length is reported either way.
 - (e) No chromium/firefox PIDs of mine and no /tmp/barebrowse-* dirs of mine left after.
+
+### F222 RESULT (tag r1)
+`timeout 300 node poc/f222-bb-flag/run222.mjs` on barebrowse 0.30.0 (default engine: chromium, mode headless, CONNECT_OPTIONS untouched). Raw: `.claude/scratch/bb030/r1/`. One run. **VERDICT: (a) and (c) INCONCLUSIVE on the letter, (b) and (d) PASS.** No page raised the flag, so the flag's true case was never seen.
+
+| item | verdict | evidence |
+|---|---|---|
+| (a) flag == marker on all 4 | INCONCLUSIVE | agreed 3/3 on the pages that snapshotted (N, B2, I: `botBlocked` false, marker absent). B1 (walmart) never reached a snapshot (fwd's 90 s deadline), so no flag/marker pair; 4/4 not reachable. The true-true case was not observed. |
+| (b) N | PASS | wikipedia: `botBlocked` false, marker absent, fwd ok, 323991 chars, 12 s |
+| (c) B1/B2 challenged and refused | INCONCLUSIVE | B1: no snapshot, fwd error `could not be read: no answer inside 90 seconds` (a timeout, not a challenge verdict). B2 (target): `botBlocked` false, fwd ok, 54553 chars. Neither challenged. |
+| (d) I | PASS | MDN iframe page: fwd ok, 179351 chars (flag false, marker absent). fwd has no page size cap: `src/pagefetch.js` has only a floor (MIN_PAGE_CHARS 200, MIN_CONTENT_CHARS 100) and the 90 s deadline; 179351 is above no limit there. |
+| (e) cleanup | PASS | no chromium/firefox started by this run remains (the one new firefox pid after the run has the MCP's parent 4336, not mine; chromium count unchanged); /tmp/barebrowse-* dir list identical before and after. |
+
+**Surprises.** (1) Walmart hung until fwd's own 90 s deadline instead of returning a challenge page, so the typed flag was not exercised (barebrowse N34 saw a challenge there before; today it did not come back at all). (2) Target read fine (54553 chars) with no challenge. (3) The flag never disagreed with the marker where both were read. A challenge case is still needed to prove (a) and (c): a different robot-check page, or a rerun; not fitted here.
