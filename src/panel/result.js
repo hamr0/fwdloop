@@ -15,6 +15,7 @@ import { readFileInside } from '../flow.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { notCheckedLabelOf } from '../checked.js';
+import { REPORT_RENAMED } from '../report.js';
 import { checkSendDestination, readArtifactResult } from '../runner.js';
 import { flowTypeOf } from '../declaration.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
@@ -181,7 +182,7 @@ export function readDelivered(rec) {
  * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<flow>-<runId>-<emits>.md`
  * in the signed folder with the sha256 the send recorded for it (M15), or, for a send older than M15, `.json` with the sha256 the human's accept recorded for the ask that
  * send reads (`readAcceptedHashesByEmits`, the same record the send itself checked). No accepted hash = recorded as null, which reads as "changed", never as ok.
- * @returns {{path: string, dir: string|null, name: string, sha256: string|null}[]}
+ * @returns {{path: string, dir: string|null, name: string, note: string|null, sha256: string|null}[]}
  */
 export function deliveredOf({
   arbiter, declaration, runDir, root, flow, runId, auditRows,
@@ -197,11 +198,13 @@ export function deliveredOf({
     if (!step || !sentRow) continue; // eslint-disable-line no-continue
     // M15 item 4: a send since M15 wrote `<emits>.md` and recorded that file's own sha256 on its green audit row; an older send wrote the JSON, bound to the accept's hash
     const plain = isStr(sentRow.sentSha256) && sentRow.sentSha256 !== '';
-    const name = `${flow}-${runId}-${step.emits}.${plain ? 'md' : 'json'}`;
+    // M15 am3: a send since am3 recorded the name it wrote (`sentName`, `<job>-YYYY-MM-DD[-n].md`); an older .md send is `<flow>-<runId>-<emits>.md`, an older still the .json. Old files are not renamed.
+    const name = plain && isStr(sentRow.sentName) && sentRow.sentName !== '' ? sentRow.sentName : `${flow}-${runId}-${step.emits}.${plain ? 'md' : 'json'}`;
     const dest = checkSendDestination(`${send.target.kind}:${send.target.path}`, { root, runDir });
     const [askId] = (step.reads ?? []).filter((id) => askEmits.has(id));
     out.push({
       path: join(dest.ok ? dest.dir : send.target.path, name), dir: dest.ok ? dest.dir : null, name,
+      note: plain && isStr(sentRow.sentTaken) && sentRow.sentTaken !== '' ? REPORT_RENAMED(sentRow.sentTaken) : null,
       sha256: plain ? sentRow.sentSha256 : (hashes.ok && askId !== undefined ? (hashes.byEmits.get(askId) ?? null) : null),
     });
   }
@@ -283,6 +286,7 @@ export function buildResult({
     return {
       i, path: d.path, name: d.name, bytes: got.buf ? got.buf.length : null, state: got.state,
       words: got.state === 'gone' ? RESULT_FILE_GONE : (got.state === 'changed' ? RESULT_FILE_CHANGED : null),
+      note: d.note,
     };
   });
   // a run that failed delivered nothing: say its own first gap, never rows. A stop, a cap halt, a rerun and an expired ask are not a failure (the same

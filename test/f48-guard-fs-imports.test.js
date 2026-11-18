@@ -390,8 +390,12 @@ const ALLOWLIST = {
     names: { mkdirSync: 1 },
   },
   'src/send.js': {
-    reason: 'the write itself goes through bare-agent\'s shell_write tool, never a raw fs write (see the borrowed-from note) — this reads back the bytes ACTUALLY on disk after that write, to prove it landed (M2 "happened" re-read), not a run/flow-dir book read; M4e amendment 1: one lstat of the destination file name (presence only, nothing read, symlinks not followed) so a send never overwrites',
-    names: { readFileSync: 1, lstatSync: 1 },
+    reason: 'the write itself goes through bare-agent\'s shell_write tool, never a raw fs write (see the borrowed-from note) — this reads back the bytes ACTUALLY on disk after that write, to prove it landed (M2 "happened" re-read), not a run/flow-dir book read; M4e amendment 1 (its one lstat of the destination name moved to src/report.js with M15 am3)',
+    names: { readFileSync: 1 },
+  },
+  'src/report.js': {
+    reason: 'M15 am3: the report file name is picked before the write — one lstat per candidate name (presence only, nothing read, symlinks not followed) so a send never overwrites; moved here from src/send.js, same single call',
+    names: { lstatSync: 1 },
   },
   'src/docx.js': {
     reason: 'reads a caller-supplied BUSINESS document path (e.g. resume.docx), not a run/flow-dir book file — documented F48 exemption',

@@ -10,7 +10,7 @@ import { parseCsv } from './csv.js';
 import { MAP_UNREADABLE } from './pagemap.js';
 import { tieOf } from './pagerules.js';
 import { lineRules, countPhrase, wordsSaidOn, wordForms } from './pagebits.js';
-import { findColumn, columnQuestion } from './sheetfind.js';
+import { findColumn, columnQuestion, columnTieQuestion } from './sheetfind.js';
 
 /** how many data rows the prompt shows (the header is always shown): enough to see what a column holds, never the whole sheet */
 export const SHEET_PROMPT_ROWS = 5;
@@ -109,6 +109,16 @@ export function applySheetWords(text, words, jobLines, label) {
       continue;
     }
     if (w.kind !== 'number') { dropped.push({ ...rec, reason: 'no-column' }); continue; }
+    // M17 am9: a tie on a `~` rule's word asks which column (a closed question: the tied columns and each one's reading); a tie on a line's own prose word stays Not checked
+    if (found.kind === 'tie' && at.rule !== undefined) {
+      ruleWords.add(`${at.line}\u0000${w.word.toLowerCase()}`);
+      if (tiedRules.has(`${at.line}\u0000${at.rule}`)) continue;
+      asks.push({
+        line: at.line, rule: at.rule, source: 'look', ask: 'reading', ruleText, question: columnTieQuestion(w.word, found.columns, at.line), word: w.word,
+        columns: found.columns, readings: Object.fromEntries(found.columns.map((c) => [c, columnRuleWords(w.word, c)])),
+      });
+      continue;
+    }
     if (found.kind === 'tie') { dropped.push({ ...rec, reason: 'column-tie', other: found.columns.map((c) => `"${c}"`).join(', ') }); continue; }
     if (found.kind === 'none') { dropped.push({ ...rec, reason: 'no-fit', other: String(found.rows) }); continue; }
     // the person already named this column in a rule of the line (an answer they gave, or their own words): the word is that column, asked no more

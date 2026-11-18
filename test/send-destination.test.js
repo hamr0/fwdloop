@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
+  existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,7 +24,11 @@ let dest;
 let ctx;
 const ARTIFACT = { answer: 'accepted' };
 const SHA = sha256Hex(serializeArtifact(ARTIFACT));
-const send = (target, filename = 'run1-out.json') => sendViaPrimitive(target, filename, ARTIFACT, SHA, ctx);
+// M15 am3: the send writes `<job>-YYYY-MM-DD.md` (title, Passed line, the accepted body); the job here is `run1`
+const NOW = new Date(2026, 10, 18, 12);
+const FIRST = 'run1-2026-11-18.md';
+const send = (target, jobName = 'run1') => sendViaPrimitive(target, jobName, ARTIFACT, SHA, { ...ctx, report: { runNo: 1, now: NOW, body: 'Answer: accepted' } });
+const wrote = (folder) => (existsSync(folder) ? readdirSync(folder).filter((f) => f.startsWith('run1-')) : []);
 
 before(() => {
   base = mkdtempSync(join(tmpdir(), 'fwdloop-dest-'));
@@ -47,11 +51,11 @@ after(() => {
   rmSync(base, { recursive: true, force: true });
 });
 
-test('(a) an absolute folder outside the install folder is written with the accepted answer as plain text (M15 item 3)', async () => {
+test('(a) an absolute folder outside the install folder is written with the accepted body as a plain-text report (M15 item 3, am3)', async () => {
   const r = await send(`file:${dest}`);
   assert.equal(r.ok, true, r.red);
-  assert.equal(readFileSync(join(dest, 'run1-out.json'), 'utf8'), 'Answer: accepted');
-  unlinkSync(join(dest, 'run1-out.json'));
+  assert.equal(readFileSync(join(dest, FIRST), 'utf8'), '# run1 — run-1\nPassed · 18 Nov 2026\n\nAnswer: accepted\n');
+  unlinkSync(join(dest, FIRST));
 });
 
 test('(b) a relative target keeps today\'s meaning: inside the install folder, fenced to it', () => {
@@ -87,7 +91,7 @@ test('(c) the run folder, its inputs/, a flow folder and the config folder are r
       // eslint-disable-next-line no-await-in-loop
       const sent = await send(`file:${target}`);
       assert.equal(sent.ok, false);
-      assert.equal(existsSync(join(folder, 'run1-out.json')), false, 'nothing written');
+      assert.deepEqual(wrote(folder), [], 'nothing written');
     }
   }
 });
@@ -101,17 +105,19 @@ test('(d) a symlink swapped in after sign to point into a refused folder is refu
   const r = await send(`file:${link}`);
   assert.equal(r.ok, false);
   assert.match(r.red, /config folder/);
-  assert.equal(existsSync(join(cfg, 'run1-out.json')), false);
+  assert.deepEqual(wrote(cfg), []);
 });
 
-test('(e) an existing file with the result\'s name is never overwritten', async () => {
-  const existing = join(dest, 'run1-out.json');
+test('(e) an existing file with the report\'s name is never overwritten (M15 am3 item 1: the next free name is used)', async () => {
+  const existing = join(dest, FIRST);
   writeFileSync(existing, 'KEEP ME');
   const r = await send(`file:${dest}`);
-  assert.equal(r.ok, false);
-  assert.match(r.red, /already exists/);
+  assert.equal(r.ok, true, r.red);
+  assert.equal(r.name, 'run1-2026-11-18-2.md');
+  assert.equal(r.taken, FIRST);
   assert.equal(readFileSync(existing, 'utf8'), 'KEEP ME');
   unlinkSync(existing);
+  unlinkSync(join(dest, r.name));
 });
 
 test('(f) a target that is a file, or missing, is refused at sign', () => {
@@ -131,8 +137,8 @@ test('(g) a plain folder under the root (not a flow) is allowed at sign and the 
   assert.equal(signTime.ok, true, signTime.red);
   const r = await send(`file:${folder}`);
   assert.equal(r.ok, true, r.red);
-  assert.equal(readFileSync(join(folder, 'run1-out.json'), 'utf8'), 'Answer: accepted');
-  unlinkSync(join(folder, 'run1-out.json'));
+  assert.match(readFileSync(join(folder, FIRST), 'utf8'), /\nAnswer: accepted\n$/);
+  unlinkSync(join(folder, FIRST));
 });
 
 test('(h) inside a flow folder, the flow root itself, and .drafts are refused by name', () => {

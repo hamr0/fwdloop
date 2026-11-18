@@ -41,7 +41,7 @@ import {
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
 import { appendSpendRow } from '../provider.js';
-import { ruleOfAnswer, panelQuestionText, DROP_IT } from '../pageask.js';
+import { ruleOfAnswer, panelQuestionText, DROP_IT, TIE_PICK_SAY } from '../pageask.js';
 import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
 import { isFwdloopAlive } from '../liveness.js';
@@ -291,7 +291,7 @@ export function createAuthor(opts) {
       // A child never comes back to life, so a stale "alive" only delays the offer; asked AFTER the files were read, the questions are already on disk (C9's order is for a missing result)
       if (childRunning(dir)) return { ...shared, phase: newest > 0 ? (cur.kind === 'answers' ? 'redrafting' : 'revising') : 'drafting' };
       const lineText = (line) => parseJobBox(typeof card?.job === 'string' ? card.job : '').steps[line - 1]?.text ?? null;
-      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check' || x.ask === 'action'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys) } : {}) }));
+      const questions = q.questions.map((x) => ({ k: x.k, line: x.line, lineText: lineText(x.line), question: scrub(x.question, keys), answered: x.answer !== null, ...(x.source === 'look' ? { source: 'look', ask: x.ask, proposes: typeof x.proposal === 'string' && (x.ask === 'reading' || x.ask === 'check' || x.ask === 'action'), drops: Number.isInteger(x.ruleNo), shown: scrub(panelQuestionText(x), keys), ...(Array.isArray(x.columns) && x.columns.length > 0 ? { columns: x.columns.map((c) => scrub(c, keys)) } : {}) } : {}) }));
       return { ...shared, stepList: stepListOf(dir, rel, keys, true), phase: 'questions-open', plan: rel, questions, openK: q.open[0].k, total: q.questions.length };
     }
     if (q.questions.length > 0) return { ...shared, phase: 'stopped', say: ANSWERS_NOT_DRAFTED_SAY };
@@ -814,10 +814,14 @@ export function createAuthor(opts) {
       if (choice === undefined) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'This page is out of date. Reload it and answer again. Nothing was saved.' } };
       {
         const proposes = look && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check' || q.ask === 'action');
-        if (choice !== 'agree' && choice !== 'drop' && choice !== 'rule') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That answer is not one of the choices. Nothing was saved.' } };
+        if (choice !== 'agree' && choice !== 'drop' && choice !== 'rule' && choice !== 'column') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That answer is not one of the choices. Nothing was saved.' } };
+        // M17 am9 item 3: a column tie is a closed question. `column` is taken only as the name of one of ITS OWN tied columns; `rule` and `agree` are refused on it; `column` on any other question is not offered
+        if (Array.isArray(q.columns) && q.columns.length > 0) {
+          if (choice === 'rule' || choice === 'agree' || (choice === 'column' && !(typeof b.answer === 'string' && q.columns.includes(b.answer)))) return { status: 400, body: { ok: false, refused: 'bad-choice', say: TIE_PICK_SAY } };
+        } else if (choice === 'column') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That choice is not offered for this question. Nothing was saved.' } };
         if ((choice === 'agree' && !proposes) || (choice === 'drop' && !look)) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That choice is not offered for this question. Nothing was saved.' } };
       }
-      const answer = choice === 'agree' ? 'agree' : choice === 'drop' ? DROP_IT : typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim().replace(/^(?:~\s*)+/, '') : '';
+      const answer = choice === 'column' ? /** @type {string} */ (b.answer) : choice === 'agree' ? 'agree' : choice === 'drop' ? DROP_IT : typeof b.answer === 'string' ? (look ? b.answer.replace(/\s*\n\s*/g, ' ') : b.answer).trim().replace(/^(?:~\s*)+/, '') : '';
       if (answer === '') return { status: 400, body: { ok: false, refused: 'blank-answer', say: look ? LOOK_BLANK_ANSWER_SAY : BLANK_ANSWER_SAY } };
       if (!look && /[\r\n]/.test(answer)) return { status: 400, body: { ok: false, refused: 'one-line', say: ONE_LINE_ANSWER_SAY } };
       if (keys.some((k) => k.length >= 8 && answer.includes(k))) return { status: 400, body: { ok: false, refused: 'key', say: 'This answer contains an API key. Keys go in Settings only. Nothing was saved.' } };
@@ -836,7 +840,9 @@ export function createAuthor(opts) {
         const all = full.map((x) => {
           const typed = x.k === v.openK ? answer : x.answer;
           const ch = x.k === v.openK ? choice : x.choice;
-          return { line: x.line, question: x.question, answer: typed, ...ruleOfAnswer(x, typed, ch), ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, proposal: x.proposal };
+          const eff = ruleOfAnswer(x, typed, ch);
+          // M17 am9a: a picked column is the agreed column rule, the same shape an Agree to one offered column has, so applyAnswers rewrites the `~` rule in place
+          return { line: x.line, question: x.question, answer: typed, ...eff, ruleNo: x.ruleNo, ruleText: x.ruleText, ask: x.ask, proposal: ch === 'column' ? eff.rule : x.proposal };
         });
         const adds = all.filter((x) => x.rule !== null);
         // M13 am11 rule 2: the answer to the action question adds the agreed or typed line as the job's LAST line (numbered by the card), (there is no Drop it: the answer door refuses it); the redraft is told

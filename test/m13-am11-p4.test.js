@@ -17,8 +17,9 @@ import { decideAction, STOP_CHANGED, STOP_UNSEEN, stopWaitMs } from '../src/acti
 import { SEND_DIR } from './send-sandbox.js';
 
 const CATALOGUE = loadCatalogue().primitives;
-const shipped = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
-const clean = (runId) => { for (const f of shipped(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
+// M15 am3: the report is `<job>-YYYY-MM-DD.md`, so the folder (this process's own, emptied after every test) is listed whole
+const shipped = () => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR) : []);
+const clean = () => { for (const f of shipped()) rmSync(path.join(SEND_DIR, f), { force: true }); };
 const root = () => mkdtempSync(path.join(tmpdir(), 'fwdloop-am11p4-'));
 const step = (goal, fromLine, emits, reads, primitives = []) => ({ goal, primitives, reads, emits, fromLine, close: { class: 'hitl' } });
 const modelStep = async (ctx) => {
@@ -59,24 +60,24 @@ test('stopWaitMs: the last Ask\'s wait when the job has an Ask; else the signed 
 });
 
 test('an Ask right before the action, nothing changed: it goes with no extra stop', async () => {
-  const r = root(); clean('p4-same'); sign(r, SAME, SAME_STEPS);
+  const r = root(); clean(); sign(r, SAME, SAME_STEPS);
   const p1 = await runFlow(args(r, 'p4-same', { askStep: makeParkingAskStep() }));
   assert.equal(p1.outcome, 'paused', p1.red);
   assert.equal(answerAsk({ runDir: p1.runDir, askId: p1.askId, decision: 'accept' }).ok, true);
   const res = await resumeRun({ ...args(r, 'p4-same'), askStep: undefined });
   assert.equal(res.outcome, 'complete', res.red);
-  assert.equal(shipped('p4-same').length, 1);
-  clean('p4-same');
+  assert.equal(shipped().length, 1);
+  clean();
 });
 
 test('the result changed after the last accept: the run stops once, "This changed since you accepted it.", Accept ships what was shown', async () => {
-  const r = root(); clean('p4-chg'); sign(r, CHANGED, CHANGED_STEPS);
+  const r = root(); clean(); sign(r, CHANGED, CHANGED_STEPS);
   const p1 = await runFlow(args(r, 'p4-chg', { askStep: makeParkingAskStep() }));
   assert.equal(p1.outcome, 'paused', p1.red);
   assert.equal(answerAsk({ runDir: p1.runDir, askId: p1.askId, decision: 'accept' }).ok, true);
   const p2 = await resumeRun(args(r, 'p4-chg'));
   assert.equal(p2.outcome, 'paused', p2.red);
-  assert.deepEqual(shipped('p4-chg'), [], 'nothing written yet');
+  assert.deepEqual(shipped(), [], 'nothing written yet');
   const ask = readAsk(p2.runDir);
   assert.equal(ask.question, STOP_CHANGED);
   assert.equal(ask.kind, 'action-stop');
@@ -87,38 +88,40 @@ test('the result changed after the last accept: the run stops once, "This change
   assert.equal(answerAsk({ runDir: p2.runDir, askId: p2.askId, decision: 'accept' }).ok, true);
   const p3 = await resumeRun(args(r, 'p4-chg'));
   assert.equal(p3.outcome, 'complete', p3.red);
-  const files = shipped('p4-chg');
+  const files = shipped();
   assert.equal(files.length, 1);
   assert.match(readFileSync(path.join(SEND_DIR, files[0]), 'utf8'), /NOTE TIDY/);
-  clean('p4-chg');
+  clean();
 });
 
 test('no accept in this run: "You have not seen this yet."; the wait is the card\'s 1h when the job has no Ask', async () => {
-  const r = root(); clean('p4-none'); sign(r, NOASK, NOASK_STEPS);
+  const r = root(); clean(); sign(r, NOASK, NOASK_STEPS);
   const p1 = await runFlow(args(r, 'p4-none', { askStep: makeParkingAskStep() }));
   assert.equal(p1.outcome, 'paused', p1.red);
   const ask = readAsk(p1.runDir);
   assert.equal(ask.question, STOP_UNSEEN);
   assert.equal(Date.parse(ask.expiresAt) - Date.parse(ask.askedAt), 3600000);
-  assert.deepEqual(shipped('p4-none'), []);
+  assert.deepEqual(shipped(), []);
   assert.equal(answerAsk({ runDir: p1.runDir, askId: p1.askId, decision: 'accept' }).ok, true);
   const res = await resumeRun(args(r, 'p4-none'));
   assert.equal(res.outcome, 'complete', res.red);
-  assert.equal(shipped('p4-none').length, 1);
-  clean('p4-none');
+  assert.equal(shipped().length, 1);
+  // M15 am3: a job with no Ask writes the report of the step right before the action (what the stop showed and the accept hashed)
+  assert.match(readFileSync(path.join(SEND_DIR, shipped()[0]), 'utf8'), /\n## 2\. Tidy the note\n\n### The AI's answer \(not checked — you judge it at Accept\)\nNOTE TIDY\n$/);
+  clean();
 });
 
 test('Not now is the Stop: the run ends stopped, nothing written, $0; Resume asks again', async () => {
-  const r = root(); clean('p4-not'); sign(r, NOASK, NOASK_STEPS);
+  const r = root(); clean(); sign(r, NOASK, NOASK_STEPS);
   const p1 = await runFlow(args(r, 'p4-not', { askStep: makeParkingAskStep() }));
   assert.equal(p1.outcome, 'paused', p1.red);
   const stopped = await stopParkedRun({ root: r, name: 'j', runId: 'p4-not', catalogue: CATALOGUE });
   assert.equal(stopped.outcome, 'stopped', stopped.red);
-  assert.deepEqual(shipped('p4-not'), []);
+  assert.deepEqual(shipped(), []);
 });
 
 test('the wait runs out: the answer is late, nothing goes to the Destination, the run is ask-expired', async () => {
-  const r = root(); clean('p4-late'); sign(r, NOASK, NOASK_STEPS);
+  const r = root(); clean(); sign(r, NOASK, NOASK_STEPS);
   const p1 = await runFlow(args(r, 'p4-late', { askStep: makeParkingAskStep() }));
   const late = new Date(Date.parse(readAsk(p1.runDir).expiresAt) + 1000).toISOString();
   const ans = answerAsk({ runDir: p1.runDir, askId: p1.askId, decision: 'accept', clock: () => new Date(Date.parse(late) - 5000).toISOString() });
@@ -127,11 +130,11 @@ test('the wait runs out: the answer is late, nothing goes to the Destination, th
   const a = JSON.parse(readFileSync(file, 'utf8')); a.answeredAt = late; writeFileSync(file, JSON.stringify(a));
   const res = await resumeRun(args(r, 'p4-late'));
   assert.equal(res.outcome, 'ask-expired');
-  assert.deepEqual(shipped('p4-late'), []);
+  assert.deepEqual(shipped(), []);
 });
 
 test('what goes out is changed between the Accept and the send: refused by sha, nothing written', async () => {
-  const r = root(); clean('p4-tam'); sign(r, NOASK, NOASK_STEPS);
+  const r = root(); clean(); sign(r, NOASK, NOASK_STEPS);
   const p1 = await runFlow(args(r, 'p4-tam', { askStep: makeParkingAskStep() }));
   assert.equal(answerAsk({ runDir: p1.runDir, askId: p1.askId, decision: 'accept' }).ok, true);
   const f = path.join(p1.runDir, 'artifacts', 'n2.json');
@@ -139,7 +142,7 @@ test('what goes out is changed between the Accept and the send: refused by sha, 
   const res = await resumeRun(args(r, 'p4-tam'));
   assert.equal(res.outcome, 'red');
   assert.match(res.red, /changed after it was accepted/);
-  assert.deepEqual(shipped('p4-tam'), []);
+  assert.deepEqual(shipped(), []);
 });
 
 test('am11a 2: a job with an action and no Ask keeps the card\'s Ask wait in the signed values, under the action\'s line; it reaches the stop', async () => {

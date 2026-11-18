@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] - 2026-11-18
+
+One markdown report per run (M15 am3 and am3a), copied from bareloop v0.60.0, and a column tie now asks which column
+(M17 am9 and am9a). The POCs behind it (F219-F221) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- One markdown report per run. The Destination gets one file, `<job>-YYYY-MM-DD.md`, with a title, a `Passed` line and
+  a section for each line of the job: the rule, `### Checked by code`, and the AI's text. If the name is taken the
+  report is saved as `<job>-YYYY-MM-DD-2.md`, `-3` and so on, and the Result tab says
+  "saved under a new name because <name> was already taken". The first file is never touched.
+- Count and Total in `### Checked by code`, when the line has a rows check. Code adds them from the rows of that check
+  (Count first, then Total), with a strict number test.
+- A column tie asks. If a `~` rule's word fits two columns, the draft asks `I found 2 columns matching 'Price':
+  Amount, Tax. Choose one.` with a pick list, Send and Drop it. There is no Agree and no own-words box.
+- Every agreed column answer about a `~` rule rewrites that rule in place: on the job box, the plan card and the signed
+  job. No line is added.
+
+### Changed
+- The AI's text sits under `### The AI's answer (not checked — you judge it at Accept)`. It sits under `### The answer`
+  only when code checked that line's own text and the job has no Not checked `~` rule on the line.
+- The report replaces the old `<flow>-run-<n>-<name>.md` file, and replaces the refuse-on-taken-name for this file: a
+  taken name now picks the next free one. A job's send writes no JSON to the Destination.
+- The whole-job text shown at the last Ask is now the report's body: one `## <n>. <line>` section per work line, and
+  `Line <n>: you accepted this at the Ask.` for each Ask before it. The old `## Line <n>:` sections are gone.
+- A column pick in the Audit still reads `you were asked` / `you said <column>`.
+
+### Known limits
+- Not walked live: a Tickets MCP job's report and a facts (flights) report. Tests cover both.
+- Not walked live: Drop it on a tie and a tie of three columns.
+- Two runs of the same job that finish at the same instant could pick the same file name (check, then write).
+- Old runs are not rewritten. They keep the files they sent.
+
+### Development only (not in the package)
+- POCs F219 (report replay over five real runs), F220 (column tie ask) and F221 (an Agree rewrites the rule) are
+  recorded in `docs/logs/FINDINGS.md`. The POC scripts under `poc/` are not part of the package.
+
 ## [0.35.2] - 2026-11-18
 
 0.35.1 never reached npm: its publish stopped on the bug below. 0.35.2 carries everything in 0.35.1 plus this fix.

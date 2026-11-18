@@ -56,9 +56,13 @@ test('the same word twice for one rule is one ask', () => {
 // must fail (signed): a guardrail dropped with no reason
 test('two columns fit equally, or none fits, or the word is not a number: no ask, and a Not-checked line that says why', () => {
   const w = [{ from: 'line 1 rule 1', word: 'Price', kind: 'number' }];
+  // M17 am9: a tie on a `~` rule's word ASKS which column (it no longer goes Not checked); a tie on a line's own prose word stays Not checked
   const tie = applySheetWords(SHEET(40, 40, 40), w, JOB, 'aging');
-  assert.deepEqual(tie.asks, []);
-  assert.deepEqual(notCheckedLines(tie.dropped, JOB), ["line 1: \"under 5000\" — two columns fit 'Price' equally"]);
+  assert.equal(tie.asks.length, 1);
+  assert.deepEqual(tie.dropped, []);
+  const tieProse = applySheetWords(SHEET(40, 40, 40), [{ from: 'line 1', word: 'Price', kind: 'number' }], JOB, 'aging');
+  assert.deepEqual(tieProse.asks, []);
+  assert.deepEqual(notCheckedLines(tieProse.dropped, JOB), ["line 1: \"Price\" — two columns fit 'Price' equally"]);
   const none = applySheetWords(`Date,Note\n2026-09-01,a\n2026-09-02,b\n`, w, JOB, 'aging');
   assert.deepEqual(none.asks, []);
   assert.deepEqual(notCheckedLines(none.dropped, JOB), ["line 1: \"under 5000\" — no column fits 'Price'"]);

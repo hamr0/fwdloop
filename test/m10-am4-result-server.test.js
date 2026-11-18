@@ -64,7 +64,9 @@ test('/result (green): one card per working line (not the ask or the send), the 
   assert.deepEqual(r.body.pages, []);
   assert.equal(r.body.pageNote, null);
   const bytes = readFileSync(w.delivered);
-  assert.deepEqual(r.body.delivered, [{ i: 0, path: w.delivered, name: 'job2-run-1-resume-summary-output.md', bytes: bytes.length, state: 'ok', words: null }]);
+  // M15 am3: the report's name is `<job>-YYYY-MM-DD.md`; a free first name has no note
+  assert.match(path.basename(w.delivered), /^job2-\d{4}-\d{2}-\d{2}\.md$/);
+  assert.deepEqual(r.body.delivered, [{ i: 0, path: w.delivered, name: path.basename(w.delivered), bytes: bytes.length, state: 'ok', words: null, note: null }]);
 });
 
 test('/result (waiting at the ask): nothing is saved yet; no gap (a pause is not a red)', async () => {
@@ -115,7 +117,8 @@ test('/download: the saved file by index, with attachment + filename* + nosniff;
   assert.equal(ok.status, 200);
   assert.equal(ok.raw, bytes.toString('utf8'));
   assert.equal(ok.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(ok.headers.get('content-disposition'), 'attachment; filename="job2-run-1-resume-summary-output.md"; filename*=UTF-8\'\'job2-run-1-resume-summary-output.md');
+  const fileName = path.basename(w.delivered);
+  assert.equal(ok.headers.get('content-disposition'), `attachment; filename="${fileName}"; filename*=UTF-8''${fileName}`);
   assert.match(ok.headers.get('content-type'), /^text\/plain/);
   for (const bad of ['', '1', '-1', '1e2', 'x', '00000000']) assert.equal((await w.get(`/api/runs/job2/run-1/download?i=${bad}`)).status, 404, `i=${bad}`);
   assert.equal((await w.get('/api/runs/job2/run-1/download')).status, 404);

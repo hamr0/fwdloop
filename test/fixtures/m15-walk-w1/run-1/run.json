@@ -1,0 +1,17 @@
+{
+  "model": {
+    "slot": "DEEPSEEK_API_KEY",
+    "model": "deepseek-flash"
+  },
+  "thinking": false,
+  "inputs": [
+    {
+      "id": "expenses",
+      "source": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/m15-am3/walk/in/expenses.csv",
+      "frozen": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/m15-am3/walk/root/w1-tie/runs/run-1/inputs/expenses.csv",
+      "sha256": "b94f8b68cad9358cf6f8ca0146959c9c7ddb95fefa70cfa84fbc13f9bae1d230",
+      "bytes": 1318,
+      "tableSha": "2e9b53969beaea5b6f5d4b73c5e7cb8c9bc7bfd7aefe1a5878ac78f9977d8d4b"
+    }
+  ]
+}

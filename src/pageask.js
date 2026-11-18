@@ -10,6 +10,9 @@ import { columnTail } from './sheetfind.js';
 export const MAX_LOOK_ASKS = 3;
 /** the answer that drops a `~` rule the page cannot check: the person types it (any case, a closing full stop allowed) */
 export const DROP_IT = 'drop it';
+// borrowed-from: bareloop src/questionbox.js@v0.60.0 (CHOICE_SAYS.pickColumn)
+/** M17 am9 item 3: the door's refusal of a wrong answer to a column tie (signed words) */
+export const TIE_PICK_SAY = 'This question has a list to choose from: pick one of the columns, or Drop it. Nothing was saved.';
 /** @param {unknown} text @returns {boolean} */
 export const isDropIt = (text) => String(text ?? '').trim().replace(/\.$/, '').toLowerCase() === DROP_IT;
 /** the answers that accept the code's reading of a rule; anything else the person types is their own reading */
@@ -119,7 +122,7 @@ export function decidedWords(h) {
  * person's own words, taken word for word with newlines folded to spaces. A question that is not a look ask is never changed: its answer is its rule.
  * M10 am16: a shape guardrail's ask (`ask: 'check'` proposes a check, `'no-check'` found none) takes the same words: `agree` takes the proposal (and the check it
  * carries, `check`), `drop it` leaves the rule Not checked (either kind), anything else is the person's own words (`own`: a `~` rule on the line, no check).
- * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
+ * @param {{source?: string, ask?: string, proposal?: string|null, check?: Record<string, any>, readings?: Record<string, string>}} q @param {unknown} typed @param {'agree'|'drop'|'rule'|'column'} [choice] M10 am29: the button used; absent = today's words reading (CLI, old files)
  * @returns {{rule: string|null, left: boolean, check?: Record<string, any>, own?: boolean, action?: 'known', actionLine?: string}} `rule` = the words written as a new `~` rule (null when the rule is left Not checked)
  */
 export function ruleOfAnswer(q, typed, choice) {
@@ -130,6 +133,8 @@ export function ruleOfAnswer(q, typed, choice) {
     if (choice === 'drop') return { rule: null, left: true }; // M13 am11c: there is no Drop it here; the answer door refuses it (the question is about the job line, not a ~ rule)
     return { rule: null, left: false, action: 'known', actionLine: choice === 'agree' && typeof q.proposal === 'string' ? q.proposal : typedText };
   }
+  // M17 am9 item 4: a column picked from a tie is the reading the tie carried for that column (the rule's words are rewritten in place by applyAnswers); anything not on the list never reaches here (the door refuses it)
+  if (choice === 'column') return { rule: q.readings?.[typedText] ?? null, left: q.readings?.[typedText] === undefined };
   if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole
     const shapeC = q.ask === 'check' || q.ask === 'no-check';
     if (choice === 'agree' && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check')) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };

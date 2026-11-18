@@ -52,15 +52,15 @@ test('panelQuestionText cuts exactly the known tails of each ask kind and nothin
 });
 
 test('the wire: Agree and Drop it post {k, choice} and nothing else; the box\'s button posts {k, answer, choice: "rule"}', async () => {
-  const run = async (choice, typed) => {
+  const run = async (choice, typed, tie = false) => {
     /** @type {any[]} */
     const posts = [];
     const el = () => ({ disabled: false, textContent: '', value: typed });
     const make = new Function('authorPost', 'poll', `var qBusy = false; var sessionId = "s"; var lastState = {phase: "questions-open", openK: 3};
-      var qSend = this.qSend, qAgree = this.qAgree, qDrop = this.qDrop, qAnswer = this.qAnswer, qError = this.qError, NETWORK_SAY = "n";
+      var qSend = this.qSend, qAgree = this.qAgree, qDrop = this.qDrop, qAnswer = this.qAnswer, qError = this.qError, qColumn = this.qColumn, NETWORK_SAY = "n";
       function refusalText(r){ return "x"; }
       ${fnSrc('doAnswer')}\nreturn doAnswer;`);
-    const ctx = { qSend: el(), qAgree: el(), qDrop: el(), qAnswer: el(), qError: el() };
+    const ctx = { qSend: el(), qAgree: el(), qDrop: el(), qAnswer: el(), qError: el(), qColumn: { ...el(), hidden: !tie, value: 'Tax' } };
     const doAnswer = make.call(ctx, (url, body) => { posts.push([url, body]); return Promise.resolve({ status: 202, body: { ok: true } }); }, () => {});
     doAnswer(choice);
     await new Promise((r) => { setImmediate(r); });
@@ -70,11 +70,14 @@ test('the wire: Agree and Drop it post {k, choice} and nothing else; the box\'s 
   assert.deepEqual(await run('drop', 'typed words'), [['/api/author/s/answer', { k: 3, choice: 'drop' }]]);
   assert.deepEqual(await run('rule', 'agree, why not'), [['/api/author/s/answer', { k: 3, answer: 'agree, why not', choice: 'rule' }]]);
   assert.deepEqual(await run(undefined, 'yes'), [['/api/author/s/answer', { k: 3, answer: 'yes', choice: 'rule' }]], 'Enter in the box is the box\'s button');
+  // M17 am9 item 3: on a tie the Send button posts the picked column as the typed `column` choice, never the box's words
+  assert.deepEqual(await run('rule', 'ignored words', true), [['/api/author/s/answer', { k: 3, answer: 'Tax', choice: 'column' }]]);
+  assert.deepEqual(await run('drop', 'x', true), [['/api/author/s/answer', { k: 3, choice: 'drop' }]]);
 });
 
-test('the label "Or type a new rule:" is in the box for every question: never hidden by markup or by the page\'s render', () => {
+test('the label "Or type a new rule:" is in the box for every question but a column tie: never hidden by markup; the render hides it only for a tied-column list (M17 am9 item 2)', () => {
   assert.doesNotMatch(PAGE.match(/<label[^>]*id="chat-q-or"[^>]*>/)[0], /hidden/);
-  assert.doesNotMatch(fnSrc('renderQuestion'), /qOr/);
+  assert.match(fnSrc('renderQuestion'), /qOr\.hidden = v\.columns\.length > 0/);
 });
 
 test('the markup: Agree, Drop it, the label "Or type a new rule:" and Send, each once, in the one existing question box', () => {

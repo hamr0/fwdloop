@@ -79,7 +79,8 @@ import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
 // borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
 import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
-import { wholeJobAskIndex, wholeJobText } from './whole-job.js';
+import { wholeJobAskIndex, wholeJobText, reportContextOf, sendBodyOf } from './whole-job.js';
+import { runNumberOf } from './report.js';
 import { ACTION_STOP_KIND, decideAction, lastAcceptedSha, stopWaitMs } from './action-stop.js';
 import { fetchPageText, isWebUrl } from './pagefetch.js';
 import { readTicketMcp, configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine } from './ticket-mcp.js';
@@ -858,6 +859,8 @@ function makeAuditRow({
   memoText = /** @type {string|undefined} */ (undefined),
   badCalls = /** @type {any[]|undefined} */ (undefined),
   sentSha256 = /** @type {string|undefined} */ (undefined),
+  sentName = /** @type {string|undefined} */ (undefined),
+  sentTaken = /** @type {string|undefined} */ (undefined),
   savedBy = /** @type {string|undefined} */ (undefined),
   forcedRefused = /** @type {string|undefined} */ (undefined),
 }) {
@@ -891,6 +894,9 @@ function makeAuditRow({
   if (Array.isArray(badCalls) && badCalls.length > 0) row.badCalls = badCalls;
   // M15 item 4: the sha256 of the plain-text file a send wrote; the key is only on a green send row. The ONE writer; the Result tab reads it to tell the file changed.
   if (typeof sentSha256 === 'string') row.sentSha256 = sentSha256;
+  // M15 am3 item 1: the name the report was written under, and (only when its first choice was taken) that taken name, so the Result tab can say it. The ONE writer.
+  if (typeof sentName === 'string') row.sentName = sentName;
+  if (typeof sentTaken === 'string') row.sentTaken = sentTaken;
   // M4d am37 item 5: which way the model step saved its artifact - `first` (round 1), `forced` (the forced call after the fixed line), `fallback` (the unforced call); absent when it did not save. The ONE writer.
   if (savedBy === 'first' || savedBy === 'forced' || savedBy === 'fallback') row.savedBy = savedBy;
   // M4d am37, ruling A: the fixed say of a try whose forced call the provider refused with no usage returned (it booked $0); absent otherwise. The ONE writer.
@@ -1520,6 +1526,7 @@ export async function runFlow({
   const result = await foldFromStep({
     mcpServer: declaration.mcp?.server ?? null,
     checkList: declaration.checkList,
+    jobLines: read.lines,
     i0: 0,
     steps,
     askLines,
@@ -1901,12 +1908,14 @@ async function foldFromStep({
   mcpServer = /** @type {string|null} */ (null),
   // M16 item 5: the signed list (declaration.checkList): a list line's checks are tagged by their row in the Audit
   checkList = /** @type {any[]|undefined} */ (undefined),
+  // M15 am3: the signed job lines (their `~` rules are written in the report)
+  jobLines = /** @type {any[]|undefined} */ (undefined),
 }) {
   let runAcceptedThisRun = acceptedThisRun;
   let runUnjudged = unjudgedSinceLastAsk;
   // M13 am9: the Ask that shows the whole job (-1 = none: a job signed before am8 is unchanged)
   const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
-  const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id) });
+  const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines, checkList }) });
 
   for (let i = i0; i < steps.length; i += 1) {
     const step = steps[i];
@@ -2017,12 +2026,20 @@ async function foldFromStep({
           shaToSend = typeof stop.acceptedSha256 === 'string' ? stop.acceptedSha256 : decided.outgoingSha;
         }
       }
-      const filename = `${flowName}-${runId}-${step.emits}.md`;
+      // M15 am3 item 6: what is written is the accepted body (the whole-job text built at the last Ask) under the title and the Passed line the send adds; the hash check stays on `content`
+      const sendBody = sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines, checkList }) });
+      if (!sendBody.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: sendBody.red,
+        });
+      }
       // eslint-disable-next-line no-await-in-loop
-      const sendResult = await sendStep(target, filename, content, shaToSend, { root: flowRoot, runDir });
+      const sendResult = await sendStep(target, flowName, content, shaToSend, { root: flowRoot, runDir, report: { runNo: runNumberOf(runId), now: new Date(), body: sendBody.body } });
       const sendRow = makeAuditRow({
         step, attempt: 1, verdict: sendResult.ok ? 'green' : 'red', gap: sendResult.ok ? null : sendResult.red, usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
         ...(sendResult.ok && typeof sendResult.sha256 === 'string' ? { sentSha256: sendResult.sha256 } : {}),
+        ...(sendResult.ok && typeof sendResult.name === 'string' ? { sentName: sendResult.name } : {}),
+        ...(sendResult.ok && typeof sendResult.taken === 'string' ? { sentTaken: sendResult.taken } : {}),
       });
       recordAudit(sendRow);
       if (!sendResult.ok) {
@@ -2756,7 +2773,7 @@ export async function resumeRun({
     let priorArtifact = readArtifact(runDir, priorId);
     // M13 am9: the Ask that shows the whole job rebuilds `{text}` from the saved outputs, as the first pass did
     const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
-    const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id) });
+    const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines: read.lines, checkList: declaration.checkList }) });
     if (state.stepIndex === wholeIdx) {
       const whole = rebuildWhole();
       if (!whole.ok) {
@@ -2833,6 +2850,7 @@ export async function resumeRun({
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
       checkList: declaration.checkList,
+      jobLines: read.lines,
       i0: isStop ? state.stepIndex : state.stepIndex + 1,
       ...(isStop ? { stopAcceptedSha: typeof askResult.acceptedSha256 === 'string' ? askResult.acceptedSha256 : null } : {}),
       steps,
@@ -3043,6 +3061,7 @@ export async function continueRun({
     const result = await foldFromStep({
       mcpServer: declaration.mcp?.server ?? null,
       checkList: declaration.checkList,
+      jobLines: read.lines,
       i0: halt.stepIndex,
       resumeTries,
       steps,

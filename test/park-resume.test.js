@@ -906,8 +906,16 @@ test('F45 fix 3: history wallMs times the whole run (through the pause), not jus
 
 const sha256OfBytes = (buf) => createHash('sha256').update(buf).digest('hex');
 // M15 item 3: the shipped file is the accepted answer's text, not its JSON; the accepted artifact is `{text}`, so its JSON hash is the hash of the text put back in it
-const shippedFiles = (runId) => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR).filter((f) => f.includes(`-${runId}-`)) : []);
-const cleanShipped = (runId) => { for (const f of shippedFiles(runId)) rmSync(path.join(SEND_DIR, f), { force: true }); };
+// M15 am3: the report is `<job>-YYYY-MM-DD.md` (no run id in the name); SEND_DIR is this process's own folder, emptied after every test
+const shippedFiles = () => (existsSync(SEND_DIR) ? readdirSync(SEND_DIR) : []);
+// M15 am3: the report is title + Passed line + body; the AI's accepted text is what follows the not-checked heading, to the end of the file
+const acceptedTextOf = (file) => {
+  const head = "### The AI's answer (not checked — you judge it at Accept)\n";
+  const at = file.indexOf(head);
+  assert.ok(at >= 0, `the report carries the accepted text under its heading: ${file}`);
+  return file.slice(at + head.length).replace(/\n$/, '');
+};
+const cleanShipped = (runId) => { for (const f of shippedFiles()) rmSync(path.join(SEND_DIR, f), { force: true }); };
 const realSendArgs = (args) => ({ ...baseRunArgs(args), sendStep: sendViaPrimitive });
 
 async function parkJob2(prefix, runId) {
@@ -965,9 +973,9 @@ test('M4b p3 unchanged: an untouched accepted artifact ships, and the shipped by
     const recorded = readAnswer(a.runDir).artifactSha256;
     const done = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
     assert.equal(done.outcome, 'complete', done.red);
-    const files = shippedFiles(runId);
+    const files = shippedFiles();
     assert.equal(files.length, 1, `shipped: ${files}`);
-    assert.equal(sha256OfBytes(serializeArtifact({ text: readFileSync(path.join(SEND_DIR, files[0]), 'utf8') })), recorded);
+    assert.equal(sha256OfBytes(serializeArtifact({ text: acceptedTextOf(readFileSync(path.join(SEND_DIR, files[0]), 'utf8')) })), recorded);
   } finally { cleanShipped(runId); }
 });
 
@@ -986,7 +994,7 @@ test('negative (iii): the accepted artifact changed on disk between accept and s
     const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
     assert.equal(res.outcome, 'paused', res.red);
     assert.equal(readAsk(a.runDir).question, 'This changed since you accepted it.');
-    assert.deepEqual(shippedFiles(runId), [], 'nothing may reach the destination');
+    assert.deepEqual(shippedFiles(), [], 'nothing may reach the destination');
   } finally { cleanShipped(runId); }
 });
 
@@ -1005,7 +1013,7 @@ test('M4b p3 legacy: an accept answer.json with NO recorded hash (older version)
     const res = await resumeRun(realSendArgs({ root: a.root, modelStep: a.modelStep, runId }));
     assert.equal(res.outcome, 'paused', res.red);
     assert.equal(readAsk(a.runDir).question, 'You have not seen this yet.');
-    assert.deepEqual(shippedFiles(runId), []);
+    assert.deepEqual(shippedFiles(), []);
   } finally { cleanShipped(runId); }
 });
 
@@ -1032,8 +1040,8 @@ test('M4e am3 (b2): two flows whose run-1 both send to one destination folder pl
       }));
       assert.equal(done.outcome, 'complete', done.red);
     }
-    const files = shippedFiles(runId).sort();
+    const files = shippedFiles().sort();
     assert.equal(files.length, 2, `shipped: ${files}`);
-    assert.ok(files[0].startsWith('job2-run-1-') && files[1].startsWith('job2b-run-1-'), files.join(','));
+    assert.ok(/^job2-\d{4}-\d{2}-\d{2}\.md$/.test(files[0]) && /^job2b-\d{4}-\d{2}-\d{2}\.md$/.test(files[1]), files.join(','));
   } finally { cleanShipped(runId); }
 });

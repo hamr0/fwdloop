@@ -93,7 +93,7 @@ export function specHash({
  * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
  * @param {string} planDir
  * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, choice?:'agree'|'drop'|'rule', source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>, pairRule?:number}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, choice?:'agree'|'drop'|'rule'|'column', source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>, pairRule?:number, columns?:string[], readings?:Record<string,string>}[], open: {k:number, line:number, question:string, answer:null}[] }}
  */
 export function readQuestions(planDir) {
   const none = { questions: [], open: [] };
@@ -109,18 +109,18 @@ export function readQuestions(planDir) {
     let at;
     /** @type {string|null|undefined} the `~` rule the answer added (null = it left the rule Not checked), as the answer file recorded it */
     let rule;
-    /** @type {'agree'|'drop'|'rule'|undefined} M10 am29: which one the answer used (`agree`, `drop` or `rule`), when the file records it */
+    /** @type {'agree'|'drop'|'rule'|'column'|undefined} M10 am29: which one the answer used (`agree`, `drop` or `rule`), when the file records it */
     let choice;
     if (a.ok) {
       try {
         const j = JSON.parse(a.text);
         const t = j?.answer;
-        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; if (j.choice === 'agree' || j.choice === 'drop' || j.choice === 'rule') choice = j.choice; }
+        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; if (j.choice === 'agree' || j.choice === 'drop' || j.choice === 'rule' || j.choice === 'column') choice = j.choice; }
       } catch { /* unreadable = unanswered */ }
     }
     return {
       k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }), ...(choice === undefined ? {} : { choice }),
-      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}), ...(Number.isInteger(q.pairRule) ? { pairRule: q.pairRule } : {}) } : {}),
+      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}), ...(Number.isInteger(q.pairRule) ? { pairRule: q.pairRule } : {}), ...(Array.isArray(q.columns) && q.columns.length > 0 && q.readings && typeof q.readings === 'object' ? { columns: q.columns.map(String), readings: q.readings } : {}) } : {}),
     };
   });
   return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
