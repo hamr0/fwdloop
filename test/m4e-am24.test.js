@@ -441,7 +441,7 @@ test('P3: while a question is open the main button is off, the card is locked, t
 });
 
 test('P4: a poll tick never rewrites an answer being typed; only a NEW question (or none) clears the box', () => {
-  const prelude = `var qKey = ""; var questionBox = {hidden: true}; var qHead = {}; var qLine = {}; var qText = {}; var qAnswer = {value: ""}; var qError = {textContent: ""}; var qAgree = {}; var qDrop = {}; var qChoices = {}; var qOr = {};
+  const prelude = `var qKey = ""; var questionBox = {hidden: true}; var qHead = {}; var qLine = {}; var qText = {}; var qAnswer = {value: ""}; var qError = {textContent: ""}; var qAgree = {}; var qDrop = {}; var qChoices = {}; var qOr = {}; var qColumn = {};
     ${fnSrc('questionViewFor')}`;
   const render = new Function(`${prelude}\n${fnSrc('renderQuestion')}\nreturn { render: renderQuestion, a: qAnswer, err: qError, box: questionBox, head: qHead };`)();
   render.render(openState);
