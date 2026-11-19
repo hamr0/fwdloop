@@ -9080,3 +9080,11 @@ Harness: `poc/m19-p0/rescan.mjs`, run once, output `.claude/scratch/v061/p0b/out
 - Not a `~` rule of its draft: 19 (drafter gaps such as "completeness of the 3-flight list", "about 180 words per section", "that the list has exactly 3 flights", and refusal sentences such as "you didn't take the offered column"): no `~` rule text equals or holds them.
 - Draft not rebuildable: 4 (entries whose only drafts have no `declaration.json`, or one with a gone input), among them "line 2: "500" — two columns fit '500' equally".
 - Totals as printed: `{"not a ~ rule of its draft":19,"checked":9,"draft not rebuildable":4,"Not checked":2}` = 34 outcomes over 31 entries (3 entries have two outcomes, across their drafts); the per-entry lines are in `out.txt`.
+
+## F225 PRE-REGISTRATION (2026-11-19, $0, no AI, no key; M19 P4: the contested rule; written before the harness, NOT yet run)
+
+Bar, copied word for word from .claude/scratch/v061/draft.md section 6:
+
+**P4 — the contested rule ($0).** Over every saved `page-look.json` under `.drafts`: count facts whose `from` names the same line and rule as a `cannot` entry. Bar: the copied `applyPageRules` gives the same kept facts as today on every page look with no such pair; on each pair, the rule is no longer counted as checked by that fact.
+
+Method: copy the page-look files into .claude/scratch/v061/p4/; poc/m19-p4/replay.mjs runs fwd's real `applyPageRules` (src/pagerules.js) and a copy patched with bareloop v0.61.0's `contested` / `tieOfFact` change (copied from the tag, kept under poc/m19-p4/, not src/). Output to .claude/scratch/v061/p4/out.txt.
