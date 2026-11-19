@@ -4125,3 +4125,162 @@ Peer state (2026-11-13):
 **M17 am9 EXIT — SIGNED by hamr 2026-11-18 ("sign m17 am9 exit"), the text exactly as shown.**
 
 > **M17 am9 exit (with am9a).** Evidence: hamr's live walk 2026-11-18, job `walk-am3` with `~ Price over 500` on a sheet where Amount and Tax both fit: the draft asked `I found 2 columns matching 'Price': Amount, Tax. Choose one.` with a pick list, Send and Drop it, no Agree and no own-words box; picking Amount rewrote the rule to `~ Amount over 500` on the job lines, the plan card and the signed job, no line added; the readout's Your answers shows `> Amount`. Practice walk: picking Tax rewrote the job box to `~ Tax over 500`. Not walked: Drop it on a tie, a 3-column tie, an Agree on a rule without the word (`use the column '<c>' for '<w>'`) (covered by tests only).
+
+## M19 — shape jobs and the one check-list look, copied from bareloop v0.61.0
+
+**M19 scope — SIGNED by hamr 2026-11-19 ("sign m19."), the text exactly as shown (.claude/scratch/v061/m19-sign.md, sha256 21cc1c9ad5c3…, its title line left out); the number M19 is hamr's pick ("start as planned m19").** hamr's picks before signing: M19 placement, A (Ask-line rows keep "at the Ask"), C1, E1; O1 waits for P5. Why: bareloop v0.61.0 (fc56e1f3); F223 (NO-GO on the letter, A=1 B=0), F223b (GO on the letter, A=20 B=13, 12 of 13 from pre-M16 drafts; 1 real: "under $150").
+
+Placement: new module M19. Picks: A (Ask-line rows keep "at the Ask"), C1, E1. O1 stays open until P5.
+
+## Scope
+> **M19 — shape jobs and the one check-list look, copied from bareloop v0.61.0.**
+>
+> 1. **Copied, not built.** fwdloop copies bareloop's shape jobs and its check-list look from the released tag v0.61.0 (fc56e1f3), each file with a `// borrowed-from: bareloop <path>@v0.61.0 (fc56e1f3)` header, never an import, ported as M16 am3 (1) ports (a `new RegExp` rewritten as a literal, imports pointed at fwd's files, fwd's guard tests unchanged). Where a fwd signed rule differs, fwd's rule stays and the difference is listed under "Built after signing". The shape look's prompt (`SHAPE_SYSTEM`, `shapeLookPrompt`, `shapeMenuLines`) and every screen word of the pieces below are copied unchanged (section 3).
+> 2. **Rules first, as bareloop.** bareloop: "every `~` rule gets today's truth check first, and only a rule that would otherwise be Not checked takes the shape field proposed for it". The order is bareloop's: "the code truth check first, the shape look only for rules code left Not checked, Not checked only after the shape also fails; one list." A job whose rules all have a check makes no shape call, and its rows, card, signed list and close are byte-identical to today.
+> 3. **The AI suggests, code builds.** bareloop: "The AI only SUGGESTS; CODE builds or refuses every field (src/shapebuild.js, R1-R5, a real bound from the rule, bareguard's own refusal)." A shape field covers a `~` rule only with at least one real bound grounded in that rule. A negating rule ("no nonstop") never takes a shape field.
+> 4. **What stays fwdloop's own.** Steps, reads, Asks, Accept, the signed Destination and the send (the last step's write) are drafted and run as today; nothing leaves the machine without the signed Destination and a human Accept in the same run. A shape answer carries fwd's typed `done` and `blocker` like every artifact. The Tickets MCP grid (M13 am2), sheet lines (M16 am4, M17), Tickets filter and watch rows (M17 am2), the action row (M13 am11), and "How the page was read" stay as they are. Shape is not offered on a sheet line (bareloop: "a sheet line holds sheet checks: a shape part is not allowed beside them") and fwd has no repo jobs.
+> 5. **bareguard.** fwdloop raises bareguard from `^0.36.0` to `^0.37.0` (section 5).
+> 6. **The pieces**, in bareloop's order, S1-S9 (section 2). S10 and S11 are not copied (section 2).
+> 7. **What this replaces.** Where this copy and an earlier signed text disagree, the copy wins only where amendments A-E below say so; every other signed text stands.
+>
+> **Done when:** the pre-registered POCs P0-P8 (section 6) are run and recorded, P0 first; a page job whose rules all have checks (a flights job) drafts with no shape call and its signed list is identical to today's; a list-of-items job (bareloop's research tracker: title, status one of in progress / closed / finished, summary under 200 characters) and a facts+shape page job each draft and run green on deepseek-flash on hamr's real panel, end at Accept and write their report to the signed Destination; the card, Job tab, Audit and draft readout show the one look; Drop on a shape row and Add back each cost $0 and call no AI; a $0 rescan of every good signed fwd job refuses none and gives the same reds and greens as before.
+>
+> **Must fail when:** the AI writes a field or a bound; a bound reaches the signed shape that is not in the field's own `~` rule; a rule a truth check took is given to a shape; a negating rule takes a shape field; a job with every rule checked makes a shape call or changes; the shape prompt or a copied screen word differs from the tag; a Drop or Add back calls the AI or spends; a Tickets grid, a sheet line, an Ask line row, the action row or the send changes; anything is written before the Accept or outside the signed Destination; a file is copied from a bareloop branch instead of the tag.
+>
+> **Out of scope:** bareloop's "Shape on Deterministic (repo) jobs" (agreed in bareloop, not in the tag); per-item cite and conditional required (bareguard part 2); PDF/DOCX inputs for shape jobs (bareloop: "No PDFs yet"); the nested `object` kind (bareloop: "a nested object field is not offered yet"); any change bareloop makes after v0.61.0; old runs are not repaired.
+>
+> **Cap:** P0-P8 at $0 except P2 (about 5 cents); drafts and walks about 30 cents; build $0.
+
+## Pieces S1-S9
+> **S1.** The kind menu and the name rules are bareguard's own (`rubricVocabulary.rules.itemShape.fields.fields`, bareguard 0.37.0). Code builds or refuses each suggested field by bareloop's rules R1-R5, copied unchanged:
+
+> bareloop: "R1. A bound is grounded only in that field's own `~` rule. A field with no rule gets no grounded bounds."
+
+> bareloop: "R2. An AI-added field whose name has no word in the job line or its `~` rules is Suggested: held out of the signed shape, off until the person's Add, no bounds."
+
+> bareloop: "R3. oneOf keeps each grounded value and drops only the ungrounded ones."
+
+> bareloop: "R4. An item count is signed only when the person's words say "per <label stem>" or "each <label stem>"."
+
+> bareloop: "new rule R5: `equals` is allowed only on a field that has its own `~` rule (fromRule set). An AI-added field never gets `equals`."
+
+> And bareloop's gains ruling 1: "A shape field covers a `~` rule only with at least one real bound grounded in that rule (R1 grounding). `required` + `minChars 1` for a "has a title"-style rule stays (that bound is the rule). A bound-less field does not cover its rule: the rule stays Not checked." Each field is also judged alone by bareguard's `createRubric`, and its refusal is told in plain words.
+
+> **S2.** The shape look is bareloop's: "ONE AI call for the whole job that proposes, for the `~` rules still left Not checked, the fields of a list of items". It runs after the page look, the sheet look, the asks and the person's answers, only when `shapeCandidates` names at least one rule, and its prompt names only those rules. It goes through fwd's drafting call path (the provider slot, thinking per call, metered and booked as a drafting round, kind `shape-map`), with bareloop's plumbing: the cap checked before the call, a 429 waited once, a transport failure retried once and booked unpriced, an unreadable answer twice is no shape. bareloop (hamr 2026-11-18): "a failed, unreadable or capped shape look does not stop the draft (it goes on with no shape, the spend booked, a draft-log line `the shape look did not complete: <reason>; going on without a shape`)". Its prompt is copied unchanged (section 3.1).
+
+> **S3.** The one check block (M16) holds the shape rows, as bareloop's `CheckBlock.setShape`: a `[you]` row per `~` rule that took a field, an `[agent]` row per extra field (one with a word of the job is on and droppable; one with no word is Suggested with Add), and one `[default]` row only when the person's words gave an item count. Every shape row shows `[shape]`. bareloop: "A line is facts, sheet, or facts+shape." A truth check code picked but refused when it built the line is no check, so that rule is a shape candidate (bareloop `truthRefused`, live run mwnbs3np). A Drop is kept for a Revise (`shapeDropped` in fwd's `picks-record.json`, beside `sheetDropped`; no new run-folder file).
+
+> **S4.** bareloop: "A `~` rule the page look names BOTH in a fact's `from` and in a `cannot` entry (the same line and rule, exact; a `cannot` naming only a whole line contests nothing) is contested: no fact counts as checking it, so the rule stays a shape candidate and, if the shape also fails, Not checked". One owner: `applyPageRules`. fwd's page look already sends a `cannot` list (src/pagemap.js:2, F201).
+
+> **S5.** A step whose line holds a shape part is told, by code, the list-of-items answer, each field in plain words and one example item built by code (bareloop's `lineBriefs` and `shapeBriefOf`, the lines copied unchanged, section 3.6), answered through fwd's `emit_artifact` with `results` and fwd's `done` and `blocker`, not a step file. The close runs ONE bareguard `itemShape` check over `results`; on a facts+shape line it is closed and also lists `quote` and `values`, beside fwd's `cited` check, and the item count stays with the fact part (bareloop: "a count fault is reported once"). A red names the item and the field in bareloop's words (section 3.5). This is amendment B (the third brief exception) and amendment E (where the check sits in fwd's close).
+
+> **S6.** The card, the Job tab, the Audit and the draft readout wear bareloop's look (bareloop CHANGELOG, "hamr signed 2026-11-19, mock A"): "each job line is a block; its rows read `[you]`, `[agent]` or `[default]` first, then `truth`, `shape` or `file`, then the check; groups are CHECKED, NOT CHECKED (you judge these at Accept) and, on the card, SUGGESTED (add if you want it)". bareloop: "a long reason sits behind "why"; on the Audit the result word is at the right of the row and a failed row's reason sits indented under it". The draft readout tells the same groups (section 3.7). fwd's own rows stay and take the look: an Ask line's `~` rows, the action row, the Tickets filter and watch rows, the `!`/`$` rows of a sheet line and "How the page was read". This is amendment D (new screen words).
+
+> **S7.** The Audit's check list shows one block per job line and an "Every line" block for the rows no line owns (one-line job: those rows join its Line 1 block). A line's output-file check is kind `file`. bareloop F371: the run detail must carry `lines` and `jobNotChecked`.
+
+> **S8.** bareloop: "Result tab, every shape line, any number of fields (the signed mock A2; the grid and `SHAPE_FOLD_MIN` are gone): one folded row per item (`N · name  ✓ k of n  ▸`) that opens to one line per field with its mark and value; a failed item starts open, tinted, its failing field showing the red reason in the code-owned words." The stats line reads `<job> · <run> · N items · N passed · N failed`. The Tickets MCP grid is untouched (M13 am2). The report's shape section is amendment C.
+
+> **S9.** Every shape row has Drop, the person's own `~` rows too: bareloop "a dropped rule goes Not checked, and the card's "Add back" button undoes it (Revise keeps a Drop)". The dropped rule reads "You dropped it." under NOT CHECKED with an **Add back** button. Drop and Add back rebuild the list at $0 from the draft's saved files (M16 am3 (4)) and call no AI. A dropped `[agent]` field shows under SUGGESTED as `<field> (you dropped it)` with Add. bareloop's refusals are copied unchanged: `that check is already on the card`, `that check is already dropped`.
+
+## 3. Prompt and screen strings, verbatim from the tag (copied unchanged)
+
+Every string here is copied unchanged from `v0.61.0`. A test reads each from the tag's text recorded in a fixture and fails on any byte of difference.
+
+### 3.1 The shape look prompt (`src/shapelook.js`), copied unchanged
+
+`SHAPE_SYSTEM`:
+```
+You map a person's job to the SHAPE of an answer: a list of items, each item with named fields. You never grade and never invent bounds: a bound is only what the person wrote. Reply with JSON only.
+```
+
+`shapeMenuLines` and `shapeLookPrompt`, the source exactly as at the tag:
+```js
+export function shapeMenuLines() {
+  return Object.entries(SHAPE_KINDS).map(([k, b]) => `  ${k}: bounds ${b.length ? b.map((o) => (SHAPE_OPTION_VALUES[k]?.[o] ? `${o} (one of ${SHAPE_OPTION_VALUES[k][o].map((v) => `"${v}"`).join(', ')})` : o)).join(', ') : '(none)'}`);
+}
+
+export function shapeLookPrompt({ jobLines, lineNums, texts, left = [] }) {
+  const job = jobLines.map((l) => `LINE ${l.n}: ${l.text}${lineRules(l).map((r, i) => `\n~ rule ${i + 1}: ${r}`).join('')}`).join('\n');
+  const inputs = Object.entries(texts).map(([label, t]) => `Input "${label}"${t.length > SHAPE_SHOWN_CHARS ? ` (first ${SHAPE_SHOWN_CHARS} of ${t.length} characters)` : ''}:\n<<<\n${t.slice(0, SHAPE_SHOWN_CHARS)}\n>>>`).join('\n\n');
+  // only when code left some `~` rules without a check: say which, so the AI gives a field for those and no other (injected only IF the case happens)
+  const needs = left.length ? `Only these ~ rules have no check yet: ${left.map((x) => `line ${x.line} rule${x.rules.length === 1 ? '' : 's'} ${x.rules.join(', ')}`).join('; ')}. Give a field for no other rule. For each of these, give a field ONLY if that rule's own words give it a limit code can check: a number, a count of characters, words or entries, a list of allowed values, or yes/no. "Each item has a title" counts: required, with minChars 1. A rule whose words give no limit gets no field; it stays with the person. "fromRule" is the rule's number on the line (1 is its first rule). Extra fields are fine.\n` : '';
+  return `THE JOB (each ~ rule applies to the line above it):\n${job}\n\nTHE INPUTS:\n${inputs}\n\n`
+    + `A job line whose answer is a LIST OF ITEMS with named fields (for example one item per flight, per resume or per research topic) gets a shape. The lines a shape can be offered for: ${lineNums.join(', ')}. A line whose answer is not such a list gets none.\n`
+    + needs
+    + '- "extraFields": any other field you think would help (none is fine); its "fromRule" is null and code shows it to the person as a suggestion.\n'
+    + '- "kind" is one of the kinds below; "bounds" holds only the bounds that kind accepts, taken from that field\'s own rule. A yes/no rule ("the flight is nonstop") is kind boolean with "equals": true.\n'
+    + '- "itemCountFrom": the labels of the inputs that give exactly one item each, only when the person wrote it ("one blurb per resume"); otherwise [].\n'
+    + `- A field name is at most ${NAME_MAX_CHARS} characters and holds none of . : [ ] ; a list field writes its entries as "of": {"kind": "text", ...bounds}.\n\n`
+    + `The field kinds (and the bounds each kind accepts):\n${shapeMenuLines().join('\n')}\n\n`
+    + 'Return ONLY a JSON object, no prose, no code fence, with "shapes" empty when no line is a list of items:\n'
+    + '{"shapes":[{"line":1,"fields":[{"name":"...","kind":"...","required":true,"bounds":{},"fromRule":1}],"extraFields":[{"name":"...","kind":"...","required":false,"bounds":{},"fromRule":null}],"itemCountFrom":[]}]}';
+}
+```
+Constants copied unchanged: `SHAPE_CALL_LABEL = 'shape-map'`, `SHAPE_SHOWN_CHARS = 8000`, `MAX_SHAPE_FIELDS = 20`. `lineRules` is fwd's (`src/pagebits.js:88-91`), whose body is byte-identical to bareloop v0.61.0's (`src/rubricstep.js:829-832`), so the same job lines give the same prompt.
+The look's failure reasons copied unchanged: `the AI's look at the shape of the answer was not made: the $${ceilingUsd} ceiling was already spent`; `the AI's look at the shape of the answer was not made: spend could not be priced, so the ceiling could not be enforced`; `the call about the shape of the answer failed: <reason>`; and `MAP_UNREADABLE` with `about the page` replaced by `about the shape of the answer`. fwd's `MAP_UNREADABLE` (`src/pagemap.js:61`) is byte-identical to bareloop v0.61.0's (`src/pagemap.js:99`): `The AI's answer about the page was not readable twice. Nothing was signed.`, so the shape look's words are `The AI's answer about the shape of the answer was not readable twice. Nothing was signed.` (fwd's sheet look already makes the same swap, `src/sheetlook.js:176`).
+
+### 3.2 Not checked reasons and the draft-log line
+
+- `NO_FIELD_WHY` (src/shapebuild.js): `No field was picked for it, so you judge it at Accept.`
+- `NO_BOUND_WHY` (src/shapebuild.js): `The field picked for it has no limit from your words, so it checks nothing; you judge it at Accept.`
+- `REASON.dropped` (src/checkblock.js): `You dropped it.` (fwd's src/checkblock.js:85 already holds the same words.)
+- `REASON.suggested` (unchanged in fwd): `Suggested: not in your job, so it is not checked unless you add it.`
+- `SHAPE_TRUTH_WORDS` (src/shaperows.js): `whether each one is true — you judge it at Accept`
+- the draft-log and readout line (src/authorreadout.js :185, src/panel/authorsession.js :730): `the shape look did not complete: <reason>; going on without a shape` (readout form starts with `· `).
+
+### 3.3 Shape row words (src/shaperows.js)
+
+- `SHAPE_HEAD`: `Shape checks · code checks each item's form, not whether it is true` (kept in the code; the new look draws no "Shape checks" group: bareloop "The old "Shape checks", "other checks" and "Always checked" groups are gone").
+- `[default]` row: `the answer lists exactly N item` / `items`.
+- field row: `<name> · <sentence>`, sentence words: `not empty`, `at least N characters`, `under N characters` / `at most N characters`, `at least N words`, `under N words` / `at most N words`, `a number`, `an amount of money`, `a date`, `a time`, `a web address`, `one of: a, b`, `yes`, `no`, `yes or no`, `a list of <...>`, `at least N entries`, `under N entries` / `at most N entries`, `no repeats`, `at least <v>`, `over <v>`, `under <v>`, `text`.
+- floor row. fwd today: each step line's list holds a `$` floor row `L<n>.$floor` with the text `the file exists and its text is not empty (code's own floor)` (`src/checkblock.js:172`); the card does not draw it (`renderCard` skips `kind === 'floor'`, `src/checkblock.js:91`) and the Not checked list skips it (`src/blockassemble.js:115`); the Audit's per-try check #1 is `the output exists and isn't empty`, for every step (`src/try-checks.js:36`), unchanged here. Under S6 the floor row is drawn as bareloop's (`[default]`, kind `file`), with fwd's text. On a lists-items line (a shape part and no fact or countable part) its text is fwd's words with bareloop's clause: `the file exists (code's own floor); this line lists items, so it has no text check`. Every other line keeps fwd's text unchanged.
+- shape reds at signing (`shapeShapeReds`), copied unchanged: `a non-empty list of fields: {name, spec, rule?, row?}`, `the field name "<n>" is used twice`, `"<n>" is a key of the fact results on this line, so it cannot name a shape field`, `bareguard refuses this shape: <msg>`, `a whole number of items`, `maxItems is below minItems`; stage reds: `one shape part per step: the fields of a list of items all go in one`, `a sheet line holds sheet checks: a shape part is not allowed beside them`, `only a shape part carries the fields and the item count of a list of items`; the block's: `code could not build the line's shape part: <detail>`.
+
+### 3.4 Builder refusals (src/shapebuild.js), copied unchanged
+
+`<k> is not a bound of a <kind> field`; `a list entry cannot be a list`; `a list holds <kinds> entries`; `equals needs a rule of your own on this field`; `equals must be true or false`; `<k> <v> is not in a rule of yours for this field`; `"<x>" is not in your rule for this field`; `<k> <v> is not in your rule for this field`; `<hi> is below <lo>`; `an entry of <list> is not an object`; `the name "<nm>" is used twice`; `a nested object field is not offered yet`; `<kind> is not a field kind on the menu`; `rule <n> already has a field`; `no shape was suggested for the line`; `a suggestion is not an object`; `more than one shape was suggested for the line; the first is used`; `the count is not in your words (say "per" or "each" and the input, e.g. "one summary per resume")`; name rules (src/shapemenu.js `nameWhy`): `a field name is needed`, `a field name is at most <n> characters`, `a field name cannot hold "<c>"`, `"<name>" is a word the checker uses for its own gaps, so it cannot name a field`.
+
+### 3.5 Gap words (src/shapewords.js), copied unchanged (the whole file)
+
+Item reds: `item N is not an object with named fields`; `item N could not be read`; `item N has a field "<k>" that the job does not ask for`; `item N: "<f>" is too long (<n> characters, at most <b>)` (and `too short ... at least`, `words`); `item N: "<f>" has <n> entries, at most <b> are allowed` / `at least <b> are required`; `item N: "<f>" has too many entries to check (<n> against a limit of <b>)`; `is not a number as written` (`a money amount`, `a date`, `a time`, `a web address`); `is missing`; `is not the kind of value the job asks for`; `is not one of the allowed values`; `does not have the value the job asks for`; `is below the lowest value allowed`; `is above the highest value allowed`; `is not a list`; `could not be read`; `repeats an earlier entry`; list entry path `<f>, entry N`.
+Whole-field gaps: `<at>: <file> has no "results" list — give a list of items, one object per item`; `"results" in <file> could not be read`; `"results" in <file> is not a list (it is <x>) — give a list of items`; `"results" lists too many items to check (<n> against a limit of <b>)`; `"results" lists <n> item(s), at least <b> are required` / `at most <b> are allowed`; `and <n> more problem(s) in the items`; `the items cannot be checked (<kind>)`.
+fwd adaptation: `<at>` is `line <n>` and `<file>` is `the answer`, fwd's existing word for a step's saved artifact in a red (`src/closers.js:339`: `the answer has no "text" for your checks to read`); the words around them stay.
+
+### 3.6 The worker's brief (src/rubricstep.js), copied unchanged except the file contract
+
+Shape-only line:
+```
+Job line <n> is a LIST line. Write <file> as {"results": [{...}, {...}]} and nothing else — no "text", no "cites". One object per item: <count>.
+  Every item has these fields, named exactly as written (a field marked optional may be left out when it does not apply):
+    - <name>: <sentence>[ (optional)]
+  One example item: <json>
+  Write each value as plain text or a plain number or yes/no (true or false) as the field says, never as a sentence about the value.
+```
+`<count>`: `exactly N item(s)` or `one item for every one you find`. Text+list line: `Job line <n> is a TEXT line AND a LIST line. Write <file> as {"text": "...", "cites": {...}, "results": [{...}, {...}]}: "text" and "cites" as for any text line (the contract above), and "results" is the list of items. One object per item: <count>.` Facts+shape line, after fwd's fact brief: `  Each result ALSO carries these fields (named exactly as written; a field marked optional may be left out when it does not apply):`, the field lines, then `  One example result: {"quote":"<words copied from the page>","values":{...},...}`.
+fwd adaptation (adapted: fwd's existing save sentence + bareloop's list words). fwd's existing save sentence is `Call emit_artifact exactly once with this step's result.` (`src/model-step.js:381`, the step's system prompt). The first lines become:
+- shape-only line: `Job line <n> is a LIST line. Call emit_artifact exactly once with this step's result: {"results": [{...}, {...}]} — no "text", no "cites". One object per item: <count>.`
+- text+list line: `Job line <n> is a TEXT line AND a LIST line. Call emit_artifact exactly once with this step's result: {"text": "...", "results": [{...}, {...}]}: "text" as for any text line, and "results" is the list of items. One object per item: <count>.`
+bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema also requires `done` and has `blocker` (`DONE_PROPS`, `src/model-step.js:85`). The `cites` box is left out of the text+list line because fwd's writing lines carry no cites (M16 am1, :3654). The facts+shape lines need no new first line: they follow fwd's own fact brief (`citedBrief`, `src/citedcheck.js:383`, which already says `Answer with "results"`). Where it is told: a shape-only or text+list line's brief rides the step's user message under `answering` (fwd's existing key for a step's answer form, `src/model-step.js:394`; a sheet line never holds a shape part, so the key is never shared); a facts+shape line's extra lines ride beside fwd's fact brief under `quoting` (`src/model-step.js:392`).
+
+### 3.7 The look's group titles and tags
+
+- Card and Job tab (src/panel/index.html): group heads `CHECKED`, `NOT CHECKED` with `you judge these at Accept`, `SUGGESTED · add if you want it`; block for line-less rows `Every line`; reason toggle `▸ why`; button `Add back`; suggested dropped `<text> (you dropped it)`; tags `~ [you]`, `! [agent]`, `$ [default]`, `[shape]`; kind words `truth`, `shape`, `file` (`kindOfCheck`: `shape` = form of the items, `file` = the write fence, a guard, a line's output-file floor, `truth` = every other check). `splitNotChecked` drops a reason equal to `you judge it at Accept` (the group title says it).
+- Audit: the same groups, `Every line`, the result word at the right, the failed reason indented under the row.
+- Readout (src/authorreadout.js `readoutGroups`): `CHECKED · <n>`, `NOT CHECKED · <n> · you judge these at Accept`, `SUGGESTED · add if you want it`, `EVERY LINE`; rows `[tag]  kind  words`.
+- Result fold: `Result · line <n>`, `<job> · <run> · <N> items · <N> passed · <N> failed`, row `<i> · <first text field>`, `✓ k of n`.
+
+---
+
+## Amendments A-E
+> **A.** Not checked reasons say "at Accept", bareloop's words: every fwd run ends at an Accept before its write (an Ask's Accept, or the stop before the action, M13 am11). The list's reasons are bareloop's: `No check was picked for it, so you judge it at Accept.` replaces M17 am7 item 2's words (:3945), and fwd's other "at the Ask" reason sentences (src/pagedropwords.js, src/ticketrows.js, `NO_GUARDRAIL_WORDS`) end "at Accept"; the NOT CHECKED group title reads `you judge these at Accept`. M10 am16 (4) (:3421) and M16 item 3 (:3644) read "judged at Accept". A `~` rule on a signed Ask line keeps M17 am5's reason `you judge it at the Ask` (:3919): it names that very Ask, and bareloop has no Ask lines. **Must fail when:** a list reason says "at the Ask" for a rule that is not on an Ask line; a rule on an Ask line loses its reason.
+
+> **B.** A step whose line holds a shape part is told, before its first try, the fields of each item in code's plain words (the bounds as the person wrote them, `under 200 characters`) and one example item built by code (S5, section 3.6). It is told the fields only, never a verdict, never a check's result and never its other guardrails. This is a third exception to M6a am1 (2), like the fact rules (cited step) and the picks (M10 am28); for every other step the brief is unchanged. **Must fail when:** a shape step is not told a field; a step is told a verdict or a guardrail that is not a field of its shape; a step with no shape part gets a changed brief.
+
+> **C.** In the run's report, a shape line's section is bareloop's (`shapeMarkdown`, v0.61.0): `## <n>. <line>`, its `Rule:` lines, then the shape-checks line, the table of items with a `✓` and the item's value in each cell, and the Not checked line. This is the one place a check mark may appear in the report; M15 (:3391) and M15 am3 (:4084) "check marks" Must-fail lines hold for every other line. The section is part of the whole-job text built at the last Ask and hash-bound as M15 am3 item 6. **Must fail when:** a check mark appears outside a shape line's table; a value in the table differs from the accepted answer; a `✗` appears in a report.
+
+> **D.** The words of section 3 (3.2-3.7) are copied unchanged from v0.61.0 and become the card, Job tab, Audit, readout and Result words for the rows they name; the old group words they replace go (bareloop: the "Shape checks", "other checks" and "Always checked" groups; fwd's own: the readout's `always:`, WRITE FENCE and REFUSED / NOT CHECKED sections, bareloop F374's change). fwd's own rows keep their own words inside the new groups: an Ask line's rows, the action row, the Tickets filter and watch rows, "How the page was read". The card and the plan read from one model (bareloop `planFromSpec`), so M17 am4 (:3911) holds. **Must fail when:** a screen word of section 3 differs from the tag; a fwd row (Ask line, action, Tickets filter or watch, How the page was read) is lost from a card or the Audit; the card and the plan differ.
+
+> **E.** The copied files keep bareloop's names. A line's list-of-items check is the close's `itemShape` (one bareguard `itemShape` check over `results`), never `close.shape`, which stays the text shape of M10. A facts+shape line keeps its class (`cited` plus `itemShape`, one `results` list). A shape-only line's class is ruled by hamr before build, after P5 (open O1: softgreen with its closer reading `results`, or green with no `cited`). **Must fail when:** a list-of-items check is written into `close.shape`; a text-shape check is read from `itemShape`.
+
+## Bump
+> **M19 item 5 (bump).** fwdloop raises bareguard from `^0.36.0` (package.json:54) to `^0.37.0`, the first release with `itemShape` (ruling #83). Checked 2026-11-19: `npm view bareguard@0.37.0 version` = `0.37.0`, published 2026-11-18T21:17:49Z, `engines.node` `>=22` (fwd's engines already `>=22`, package.json:35). Its CHANGELOG `## [0.37.0]` (tarball in `.claude/scratch/v061/pkg/`): adds `itemShape` with kinds `text`, `number`, `oneOf`, `money`, `date`, `time`, `url`, `object`, `list`, `boolean`; name rules in `rubricVocabulary` (`reservedNames`, `nameForbiddenChars`, `nameMaxLength`); bareguard: "Every existing `rubricSha` is unchanged (a test pins two specs against the shas computed before this rule)." **Done when:** a $0 rescan of every good signed fwd job on 0.37.0 gives the same reds and greens as on 0.36.0. **Must fail when:** a saved job's red or green changes with the bump alone.
