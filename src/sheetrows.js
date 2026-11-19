@@ -12,6 +12,12 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 
 /** the key of a sheet row: the block's `L<line>.<tail>` shape, tail `sheet.<check id>` @param {number} line @param {string} id */
 export const sheetRowKey = (line, id) => `L${line}.sheet.${id}`;
+// borrowed-from: bareloop src/sheetrows.js@v0.60.0 (`sheetDefaultKey`, `sheetCheckBody`; the tag's own header says bareloop copied the rest of that file from fwd)
+/** @param {number} line */
+export const sheetDefaultKey = (line) => `L${line}.$sheet`;
+
+/** the fields that say what a check IS: all but the names code gives it (id, claim), the rules it covers and its row tag. Two drafts name checks differently, so "the very same check" is read on these @param {any} c @returns {Record<string, any>} */
+export function sheetCheckBody(c) { const { id: _i, claim: _c, covers: _v, row: _r, ...rest } = c; return rest; }
 /** @param {unknown} key @returns {boolean} the key is a sheet row's */
 export const isSheetKey = (key) => typeof key === 'string' && key.startsWith('L') && key.includes('.sheet.');
 

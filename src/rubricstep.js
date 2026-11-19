@@ -4,6 +4,11 @@
 import { lineRules } from './pagebits.js';
 import { factShapeReds } from './citedcheck.js';
 
+// borrowed-from: bareloop src/rubricstep.js@v0.60.0 (the one spelling of the keys of a repo job's stage row, of a job-level guard row and of the write-fence row; fwd has no repo job, so only the block's repo rows read them)
+export const stageKeyOf = (/** @type {string} */ name) => `S.${name}`;
+export const guardKeyOf = (/** @type {string} */ name) => `J.$guard.${name}`;
+export const FENCE_KEY = 'J.$fence';
+
 // ── the `rubric-step` stage: its parameters, and the rubric they build ───────────────────────────────────────────────
 //
 // A stage serves exactly ONE job line N and reads exactly one file, output/steps/N.json. Its parameters are
