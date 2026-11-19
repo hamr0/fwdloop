@@ -1,5 +1,6 @@
 // borrowed-from: bareloop src/checkblock.js@v0.57.0 (c18df406)
 // borrowed-from: bareloop src/checkblock.js@v0.60.0 (M19 S3: caught up from the earlier port; sheet rows, repo rows, droppable, choiceEntries and lineWordKeys as the tag has them)
+// borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 S3: the shape rows, setShape and the shape Drops; where a hunk is not taken the line says `fwd keeps`)
 // Where a signed fwd rule stays instead of the tag's line, the line says `fwd keeps` (hamr 2026-11-19: "checks move inside with the same flow we have, don't make unneccessary drift"): the `cant-check` question
 // (M10 am16 (3)), the own-words answer to any question (M10 am16), no `$prose` row and no floor row on the card (the card draws neither today), no `corrected` flag, and fwd's own sheet Not-checked words.
 // fwd never sets `repo` (it has no repo job), so the repo rows below are inert here and stay as the tag has them.
@@ -31,6 +32,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { sheetCheckName, sheetPlainText, coversWords } from './sheetblock.js';
 import { sheetCheckBody, sheetRowKey } from './sheetrows.js';
+import { shapeRowKey, shapeDefaultKey, shapeFieldText, buildShapePart, SHAPE_TRUTH_WORDS } from './shaperows.js';
+import { fieldSpec } from './shapebuild.js';
 
 /**
  * A row. `kind`: rule, fact, phrase, count, cited, numbers, floor. `by`: you (`~`), agent (`!`), default (`$`). A `~` row may carry `links` (the look's facts tied to it),
@@ -186,6 +189,10 @@ export class CheckBlock {
     this.sheetLines = new Set();
     /** S4: what code built from the AI's `sheetChecks` (src/sheetbuild.js `buildSheetChecks`), null until the row-edit turn has answered @type {SheetBuilt|null} */
     this.sheetBuilt = null;
+    /** shape jobs (clause 4): what code built from the AI's `itemShape` (src/shapebuild.js `buildShapes`), null until the row-edit turn has answered. A line in `built` is a SHAPE line: a line is exactly one class, facts, sheet or shape @type {ReturnType<typeof import('./shapebuild.js').buildShapes>|null} */
+    this.shapeBuilt = null;
+    /** shape jobs: the Drops the person made, kept beside the rows (`agent` = `<line>:<field name>`, `rules` = `<line>:<rule number>`) @type {{agent: Set<string>, rules: Set<string>}} */
+    this.shapeDrops = { agent: new Set(), rules: new Set() };
   }
 
   /** the mandatory guards of this job's class, by name: signedRows() adds one `$` guard row for each, once for the whole job @param {string[]} names @param {string[]|null} [fence] the signed write fence, when the job has one */
@@ -213,6 +220,98 @@ export class CheckBlock {
         const row = this.addRow({ key: sheetRowKey(n, p.check.id), line: n, kind: 'sheet', by: 'agent', from: 'agent', check: p.check });
         if (dropped.some((d) => d.line === n && isDeepStrictEqual(d.body, sheetCheckBody(p.check)))) row.choice = 'drop';
       }
+    }
+    this.reconcile();
+  }
+
+  /** shape jobs, rules first: does job line `n` hold a rule that took its shape field (no truth check could take it)? Only such a line carries shape rows and a shape part @param {number} n */
+  isShapeLine(n) { return !this.isSheetLine(n) && this.rows.some((r) => r.kind === 'rule' && r.line === n && r.can?.how === 'shape'); }
+
+  /**
+   * Shape jobs, rules first (hamr 2026-11-19): remember the shape code built from the shape look (src/shapebuild.js `buildShapes`). It decides nothing by itself: `matchRule` tries every rule's truth check (fact, cite, count, phrase, pick) FIRST,
+   * and a rule that ends with none and no open ask may take its shape field (`takesShape`). A line where no rule did has no shape rows at all (`syncShapeRows`), so a page job's rows stay as they were. A Drop the person made
+   * (an `[agent]` field, or a rule's own shape field) is kept for the same field when the shape is built again. Every row is reconciled.
+   * @param {ReturnType<typeof import('./shapebuild.js').buildShapes>} built
+   */
+  setShape(built) {
+    this.keepShapeDrops();
+    this.shapeBuilt = built;
+    this.reconcile();
+  }
+
+  /** the Drops the shape rows carry now, remembered beside the rows (a row can leave the list and come back) */
+  keepShapeDrops() {
+    for (const r of this.rows) {
+      if (r.kind === 'shape' && r.by === 'agent' && r.choice === 'drop' && r.field?.name !== undefined) this.shapeDrops.agent.add(`${r.line}:${r.field.name}`);
+    }
+  }
+
+  /**
+   * Rules first: may this rule, which no truth check could take, take the shape field the shape look proposed for it? Its own `[you]` row then carries the field. Null when it may not (no shape, a sheet or repo job, no field for the rule).
+   * @param {Row} r @returns {{name: string}|null}
+   */
+  takesShape(r) {
+    // a rule code marks as negating says what is NOT needed: it stays with the person (NEGATING_RE, the old ruling), never a shape field ("no nonstop" must not become nonstop = false)
+    if (this.repo !== null || r.kind !== 'rule' || this.isSheetLine(r.line) || NEGATING_RE.test(String(r.text))) return null;
+    const rs = this.shapeBuilt?.built[r.line]?.rows.find((x) => x.rule === r.rule && x.text === r.text);
+    return rs && rs.state === 'built' && typeof rs.name === 'string' ? { name: rs.name } : null;
+  }
+
+  /**
+   * The rules that are still Not checked once every truth check, the person's answers and the pending asks are settled, and that may still take a shape field (not a sheet or repo job, not left or negating by the person's words):
+   * the ONLY rules the shape look is asked about, and only when there is one. Call after `reconcile`.
+   * @returns {{line: number, rule: number}[]}
+   */
+  shapeCandidates() {
+    if (this.repo !== null) return [];
+    return this.rows.filter((r) => r.kind === 'rule' && !r.left && (!r.can?.ok || r.truthRefused) && !r.can?.ask && !this.isSheetLine(r.line) && !NEGATING_RE.test(String(r.text))).map((r) => ({ line: r.line, rule: Number(r.rule) }));
+  }
+
+  /**
+   * Shape rows live only on a line where a rule took its shape field: its `[agent]` extra fields (job-derived on, no-word Suggested) and its `$` count row are added there, and removed from any line where none did.
+   * Called after the rules are matched.
+   */
+  syncShapeRows() {
+    const built = this.shapeBuilt?.built ?? {};
+    for (const [k, b] of Object.entries(built)) {
+      const n = Number(k);
+      const live = this.isShapeLine(n);
+      const have = this.rows.filter((r) => r.kind === 'shape' && r.line === n);
+      if (!live) { if (have.length) { this.keepShapeDrops(); this.rows = this.rows.filter((r) => !(r.kind === 'shape' && r.line === n)); } continue; }
+      for (const f of b.fields.filter((x) => x.by === 'agent')) {
+        if (have.some((r) => r.key === shapeRowKey(n, f.name))) continue;
+        const row = this.addRow({ key: shapeRowKey(n, f.name), line: n, kind: 'shape', by: 'agent', from: 'agent', field: f, state: 'not-checked', reason: 'not yet matched' });
+        if (this.shapeDrops.agent.has(`${n}:${f.name}`)) row.choice = 'drop';
+      }
+      if (b.itemCount && !have.some((r) => r.key === shapeDefaultKey(n))) this.addRow({ key: shapeDefaultKey(n), line: n, kind: 'shape', by: 'default', from: 'default', state: 'not-checked', reason: 'not yet matched' });
+    }
+    // a line the shape look built nothing for keeps no shape rows
+    this.rows = this.rows.filter((r) => !(r.kind === 'shape' && built[r.line] === undefined));
+  }
+
+  /** the dropped shape fields the record keeps, tied to the line's words (not its number): an `[agent]` field by its name, a rule's own shape field by its rule number @returns {{lineWords: string, occurrence: number, name?: string, rule?: number}[]} */
+  shapeDroppedRecord() {
+    this.keepShapeDrops();
+    const keys = this.lineWordKeys();
+    const at = (/** @type {number} */ n) => keys.get(n) ?? { lineWords: '', occurrence: 0 };
+    return [
+      ...[...this.shapeDrops.agent].map((x) => { const i = x.indexOf(':'); return { n: Number(x.slice(0, i)), name: x.slice(i + 1) }; }).filter((d) => this.lines.some((l) => l.n === d.n)).map((d) => ({ ...at(d.n), name: d.name })),
+      ...[...this.shapeDrops.rules].map((x) => { const [n, rule] = x.split(':').map(Number); return { ...at(n), rule }; }).filter((d) => d.lineWords !== ''),
+    ];
+  }
+
+  /** a Revise keeps a Drop of the very same field (same line words, same name or rule number); a field this draft did not build is not dropped @param {{lineWords: string, occurrence: number, name?: string, rule?: number}[]} rec */
+  carryShapeDropped(rec) {
+    const keys = this.lineWordKeys();
+    for (const d of Array.isArray(rec) ? rec : []) {
+      if (!d || typeof d.lineWords !== 'string' || !Number.isInteger(d.occurrence)) continue;
+      const n = [...keys].find(([, k]) => k.lineWords === d.lineWords && k.occurrence === d.occurrence)?.[0];
+      if (n === undefined) continue;
+      if (typeof d.name === 'string') {
+        this.shapeDrops.agent.add(`${n}:${d.name}`);
+        const row = this.rows.find((r) => r.kind === 'shape' && r.by === 'agent' && r.line === n && r.field?.name === d.name);
+        if (row) { row.choice = 'drop'; row.keptFromLast = true; }
+      } else if (Number.isInteger(d.rule)) this.shapeDrops.rules.add(`${n}:${d.rule}`);
     }
     this.reconcile();
   }
@@ -1134,6 +1233,11 @@ export class CheckBlock {
       return Object.fromEntries(SIGNED_ROW_FIELDS.filter((f) => row[f] !== undefined && row[f] !== null).map((f) => [f, row[f]]));
     });
     return [...rows, ...this.guards.map((name) => ({ line: 0, key: guardKeyOf(name), from: 'default', by: 'default', kind: 'guard', state: 'built' })), ...(this.fence ? [{ line: 0, key: FENCE_KEY, from: 'default', by: 'default', kind: 'fence', state: 'built' }] : [])];
+  }
+
+  /** the `[you]` rule rows the person dropped (Not checked, "You dropped it."): the card gives each an Add back button @returns {{key: string, line: number, text: string}[]} */
+  droppedRulesView() {
+    return this.rows.filter((r) => r.kind === 'rule' && this.shapeDrops.rules.has(`${r.line}:${r.rule}`)).map((r) => ({ key: r.key, line: r.line, text: String(r.text ?? '') }));
   }
 
   /** the suggestions code has proved it can build, as the card offers them (Add): `{key, line, text}` */
