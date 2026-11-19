@@ -18,10 +18,6 @@ import { rulesOfLine } from './sheetblock.js';
 import { wordsSaidOn } from './pagebits.js';
 import { NO_VALUE_WHY } from './ticketrows.js';
 
-// borrowed-from: bareloop src/sheetbuild.js@v0.60.0 (`NO_CHECK_FITS_WHY`, `namedByTable`; hamr 2026-11-19: the tag's sentence for a rule only a table check named, fwd's NO_VALUE_WHY for every other rule)
-/** why a `~` rule that only a `table` check named is Not checked: a check was picked, but a table check judges the sheet itself and never a rule */
-export const NO_CHECK_FITS_WHY = 'A check was picked, but it cannot check this rule, so you judge it at Accept.';
-
 const V = /** @type {any} */ (rubricVocabulary);
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -87,15 +83,12 @@ export async function buildSheetLine({ line, tables, suggestions }) {
   const held = new Map();
   /** @type {Map<number, string>} */
   const coveredByAgent = new Map();
-  /** the rules a built `table` check named: it holds none of them (it judges the sheet, never a rule), so each reads the "cannot check this rule" sentence unless another check holds it */
-  const namedByTable = new Set();
   /** @type {Placed[]} */
   const ruleRows = [];
   /** @type {Placed[]} */
   const agentRows = [];
   for (const b of order) {
     const asRule = b.fields.rule !== 'table' && b.nums.length > 0 && b.nums.every((n) => !held.has(n) && !coveredByAgent.has(n));
-    if (b.fields.rule === 'table') for (const n of b.nums) namedByTable.add(n);
     const id = asRule ? `l${line.n}r${b.nums.join('_')}` : `l${line.n}a${agentRows.length + 1}`;
     // an [agent] row shows only a rule no rule row holds and no earlier [agent] row shows (F195's rule: never shown nowhere, never two rows); `row: 'agent'` is the tag's own typed field (src/sheetblock.js)
     const shown = asRule ? b.nums : b.fields.rule === 'table' ? [] : b.nums.filter((n) => !held.has(n) && !coveredByAgent.has(n));
@@ -108,7 +101,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
     if (isColumnChoiceRule(text)) return { rule: n, text, state: 'column', reason: null, id: null };
     if (held.has(n)) return { rule: n, text, state: 'built', reason: null, id: /** @type {string} */ (held.get(n)) };
     if (coveredByAgent.has(n)) return { rule: n, text, state: 'agent-row', reason: null, id: /** @type {string} */ (coveredByAgent.get(n)) };
-    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? (namedByTable.has(n) ? NO_CHECK_FITS_WHY : NO_VALUE_WHY), id: null };
+    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? NO_VALUE_WHY, id: null };
   });
   return { rows, ruleRows, agentRows, checks: [...ruleRows, ...agentRows].map((p) => p.check), refused };
 }
