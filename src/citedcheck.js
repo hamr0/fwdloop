@@ -220,7 +220,7 @@ export const FACT_LANGS = Object.freeze({ en: 'English', de: 'German', fr: 'Fren
 export const FACT_DECIMALS = Object.freeze(['.', ',']);
 
 /** @param {unknown} a @returns {boolean} the shape of `asSeen`: {input, lines: [string..], labels: [string..]}, nothing else */
-const asSeenOk = (a) => {
+const asSeenOk = (/** @type {any} */ a) => {
   const strs = (/** @type {unknown} */ v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
   return isRec(a) && typeof a.input === 'string' && a.input.trim() !== '' && strs(a.lines) && strs(a.labels) && Object.keys(a).every((k) => ['input', 'lines', 'labels'].includes(k));
 };
