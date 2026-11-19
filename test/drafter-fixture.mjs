@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
+import { SHAPE_SYSTEM } from '../src/shapelook.js';
+
 export const RATES = { in: 0.0003, out: 0.0012 };
 export const MODEL = 'deepseek-flash';
 
@@ -73,6 +75,7 @@ const lastListedLine = (messages) => {
 export function fakeProvider(replies) {
   const calls = [];
   const blockCalls = [];
+  const shapeCalls = [];
   const blockTurns = []; // M17 am2: each list turn's tool schema and messages, for tests that read what the AI is offered and told
   const provider = {
     recognise: /** @type {number|null|undefined} */ (process.env.FWDLOOP_TEST_DRAFT_ACTION === 'none' ? null : undefined), // undefined = the AI names the job's last line; null = none; a number = that line
@@ -80,11 +83,14 @@ export function fakeProvider(replies) {
     lastMalformedToolCall: null,
     calls,
     blockCalls,
+    shapeCalls,
     blockTurns,
     async generate(messages, tools, options) {
       // M16 (a) missing stub: the check block's own turns (ledger-suggest, row-edit) get an empty answer and take no place in the declaration queue these scripts are about
       // M17 p2e: the note question (one more turn of the list, when a line is facts-only) is answered "no" for every line it names, so it too stays out of the declaration queue
       const noteLines = tools[0]?.name === 'answer_note_question' ? [...String(messages.find((m) => /^LINE \d+:/m.test(String(m.content)))?.content ?? '').matchAll(/^LINE (\d+):/gm)].map((m) => ({ line: Number(m[1]), writtenWords: 'no' })) : null;
+      // M19 S2: the shape look (one call, no tool, asked when a `~` rule is still Not checked) is answered "no shape" and takes no place in the declaration queue these scripts are about (tests of the look itself: test/m19-s2-shapelook.test.js)
+      if (tools.length === 0 && messages[0]?.content === SHAPE_SYSTEM) { shapeCalls.push(messages.length); return { text: '{"shapes":[]}', toolCalls: [], usage: usage(), stopReason: 'stop', model: MODEL }; }
       const blockTurn = { suggest_extra_checks: process.env.FWDLOOP_TEST_DRAFT_LEDGER ? JSON.parse(process.env.FWDLOOP_TEST_DRAFT_LEDGER) : { extra: [] }, submit_edits: { edits: [], ...(tools[0]?.parameters?.properties?.sheetChecks ? { sheetChecks: sheetSuggestionsOf(replies) } : {}) }, answer_note_question: noteLines ? { lines: noteLines } : undefined }[tools[0]?.name]; // FWDLOOP_TEST_DRAFT_LEDGER=<json> is the list's ledger-suggest answer
       if (blockTurn) { blockCalls.push(tools[0].name); blockTurns.push({ name: tools[0].name, schema: tools[0].parameters, messages: JSON.parse(JSON.stringify(messages)) }); return { text: '', toolCalls: [{ id: 'b1', name: tools[0].name, arguments: blockTurn }], usage: usage(), stopReason: 'tool_calls', model: MODEL }; }
       calls.push({ messages: JSON.parse(JSON.stringify(messages)), tools: tools.map((t) => t.name), schemas: tools.map((t) => t.parameters), options });

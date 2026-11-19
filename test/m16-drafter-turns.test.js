@@ -30,7 +30,8 @@ test('(S2) the ledger-suggest call: its extra checks are `add` edits of the bloc
   assert.deepEqual(p.calls[0].options.toolChoice, { name: 'suggest_extra_checks' });
   assert.equal(p.calls[0].options.thinkingMode, 'off');
   assert.ok(r.checkRows.some((/** @type {any} */ x) => x.key === 'L1.phrase.raised bed by the fence' && x.by === 'agent' && x.from === 'agent'), r.checkRows.map((/** @type {any} */ x) => x.key).join('|'));
-  assert.deepEqual(kinds(r).slice(0, 2), ['ledger-suggest', 'row-edit']);
+  // M19 S2: this fixture gives no picks, so the two count rules are still Not checked: the shape look is asked (the router's stub answers "no shape") and is a round of its own between the ledger call and the row-edit turn
+  assert.deepEqual(kinds(r).slice(0, 3), ['ledger-suggest', 'shape-map', 'row-edit']);
   assert.ok(r.costUsd > 0 && r.spendComplete === true && r.rounds === r.calls, 'every round metered');
 });
 
