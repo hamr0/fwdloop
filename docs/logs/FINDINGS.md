@@ -9153,3 +9153,5 @@ Method: baseline of the rescan taken on the flows copy before any source edit, t
 Caveat: the rescan reads jobs signed before this change, so it proves "old part, no asSeen, still accepted"; a part WITH `asSeen` is proved only by the unit test, not by a signed saved job. The planner render (`asSeenBlock`) is not taken: fwd has no planner. Not unchecked: signature verification is `readFlow`'s (read ok = verified), nothing here signs.
 
 **Found, not fixed (fails outside the bar):** six existing tests assert the old sentence for a table-only rule and now fail on that sentence alone: test/m10b-piece3.test.js 5 and 6; test/m17-am7-table-row.test.js 3 ("(b) ... the Not checked line is the no-pick sentence"); test/m17-p4-f196.test.js 7; test/m17-p4-sheet-build.test.js 7; plus the M17 am7 signed item 2 (the ladder :3945, "a `~` rule that no check holds shows ... no-pick sentence"). That is a signed-text clash with ruling (ii); the tests are left as they are for hamr.
+
+Later (2026-11-19): (ii) NO_CHECK_FITS_WHY reverted in 32b2bada — M17 am7 item 2 signs the no-pick sentence for that rule; hamr: keep fwd's words.
