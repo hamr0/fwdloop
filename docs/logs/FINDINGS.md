@@ -9005,3 +9005,14 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 | (e) cleanup | PASS | one new firefox PID after the run has parent 4336 (the MCP's forkserver, same as F222), not mine; no /tmp/barebrowse-* dirs; port 8791 closed |
 
 L0 not judged (as pre-registered; flag false, 130 chars, fwd's size floor refused it, same as 0.30.0). Reported only: B1 failed with a network error, B2 ok 57933 chars, I ok 179478 chars. `test/m10-page-input.test.js` + `test/m10-page-freeze.test.js`: 19 pass, 0 fail.
+
+## F223 PRE-REGISTRATION (2026-11-19, $0, no AI, no key; M19 P0: do fwd's real jobs have ~ rules left Not checked that a real-bound shape field could cover; written before the harness, NOT yet run)
+
+Source: `.claude/scratch/v061/draft.md` section 6 "P0", frozen. Copied word for word:
+
+**P0 — the riskiest assumption, go/no-go ($0, no AI).** Do fwd's real saved drafts have `~` rules left Not checked that a real-bound shape field could cover?
+- Data: every signed flow's `declaration.json` `checkList` under `~/.config/fwdloop/flows/<name>/` (79 entries in flows/ today, `.drafts` excluded) and every draft under `~/.config/fwdloop/flows/.drafts/d-*/draft*/` (`not-checked.json`, `log.json`; 140 draft folders today), plus repo fixtures under `test/fixtures/` that hold a signed list (e.g. `m16-block`, `m10-walk-flights`, `m15-walk-w1`, `m17-f196-aging`). Dedupe by (job line text, rule text). Exclude Tickets filter/watch rules, rules on Ask lines and sheet lines.
+- Count A: `~` rules whose final state is Not checked. Count B (the candidate pool, by code only): A minus rules `NEGATING_RE` matches (fwd src/rubricstep.js:155), keeping a rule only if its words hold a limit bareloop's prompt names: a number, a count of characters / words / entries (`underNumbers`/`atMostNumbers` or a digit next to `characters|words|entries|items`), a closed list of values (`one of`, or `a, b or c`), yes/no, or "has a <name>".
+- Bar, frozen before the count: **GO** if B holds at least 3 distinct rules from at least 2 distinct jobs; **NO-GO** (shape brings fwd no gain; stop, report to hamr) if B is 0; between: report to hamr, no build. Also report A, B and each B rule's text. The bar can fail: B = 0 is a real outcome.
+
+Harness: `poc/m19-p0/count.mjs`. Read-only on `~/.config/fwdloop`; prints rule and job names only. Judged on the letter; a source with a different shape than assumed is reported, not fitted.
