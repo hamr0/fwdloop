@@ -432,7 +432,12 @@ export class CheckBlock {
       // a Drop is undone through Suggested (live draft 3): the row was proved buildable, so it is offered again with Add; only a row code can still build is offered
       if (r.can?.ok && r.choice !== 'add' && (!r.derived || r.choice === 'drop')) r.held = true;
     }
+    // shape rows live only on a line where a rule took its shape field (rules first): added or removed now that the rules are matched; their own state is set below
+    this.syncShapeRows();
+    for (const r of this.rows) if (r.kind === 'shape') r.can = { ok: true, how: 'shape' };
     // S4: an `[agent]` sheet row the person dropped is held out of the close and offered again under Suggested (Add); it is code's own check, already built, so no trial is needed
+    // shape jobs: an `[agent]` field the person dropped, or one with no word of the job (R2), is held out of the close and offered under Suggested (Add); it is code's own field, already built, so no trial is needed
+    for (const r of this.rows) if (r.kind === 'shape' && r.by === 'agent') { r.held = r.choice === 'drop' || (r.field?.held === true && r.choice !== 'add'); r.offer = { text: shapeFieldText({ name: r.field.name, spec: fieldSpec(r.field), rule: null }, []) }; }
     for (const r of this.rows) if (r.kind === 'sheet' && r.by === 'agent') { r.held = r.choice === 'drop'; r.offer = { text: sheetPlainText(sheetCheckName(r.check), sheetCheckSentence(r.check), coversWords(this.coverTexts(r))) }; }
   }
 
@@ -474,7 +479,17 @@ export class CheckBlock {
     r.can = said ? { ok: false, why: `a ~ rule already says it: line ${r.line} rule ${said.rule} names the number` } : { ok: true, how: 'count' };
   }
 
-  matchRule(/** @type {Row} */ r) {
+  /** RULES FIRST (hamr 2026-11-19): today's truth check for the rule; only a rule that ends with none and no open ask takes the shape field proposed for it (the strongest check wins, no ask) @param {Row} r */
+  matchRule(r) {
+    this.matchTruthRule(r);
+    // a truth check code picked but REFUSED when it built the line (live mwnbs3np: 4 results, a title said once) is no check: the rule is still Not checked, so it may take its shape field (hamr: shape for what code could not check)
+    if (r.can?.ask || (r.can?.ok && !r.truthRefused)) return;
+    const sh = this.takesShape(r);
+    if (sh === null) return;
+    r.can = this.shapeDrops.rules.has(`${r.line}:${r.rule}`) ? { ok: false, why: REASON.dropped } : { ok: true, how: 'shape', name: sh.name };
+  }
+
+  matchTruthRule(/** @type {Row} */ r) {
     if (this.repo !== null) { this.matchRepoRule(r); return; }
     // S1: the sheet look's column question, while the rule still says the words it was asked about (an answered, dropped or retyped rule is not asked again)
     if (r.sheetAsk && this.asks && !r.agreed && !r.left && r.text === r.sheetAsk.ruleText) { r.can = { ok: false, ask: 'reading', proposal: r.sheetAsk.proposal, question: r.sheetAsk.question, ...(r.sheetAsk.columns ? { columns: r.sheetAsk.columns, readings: r.sheetAsk.readings } : {}), why: REASON.waitingReading }; return; }
@@ -667,7 +682,7 @@ export class CheckBlock {
       }
       if (r.can.how === 'count') { countRow = r; continue; }
       const built = this.factsOf(r, facts);
-      if ('why' in built) { r.state = 'not-checked'; r.reason = `code could not build a legal check from it: ${built.why}`; continue; }
+      if ('why' in built) { r.state = 'not-checked'; r.reason = `code could not build a legal check from it: ${built.why}`; if (r.kind === 'rule') r.truthRefused = true; continue; }
       facts.push(...built.fresh);
       r.factNames = built.names;
       factRows.push({ r, src: built.src });
