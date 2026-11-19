@@ -8978,3 +8978,17 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 | (e) cleanup | PASS | browser PID list and /tmp/barebrowse-* dir list identical before and after; port 8791 closed |
 
 **Surprises.** (1) The act-mode snapshot drops most static paragraph text, so a local control needs an interactive or different shape to clear fwd's floor; not pursued here. (2) The marker and flag agreed on all three pages; the true case is now seen on a real Cloudflare page and a local copy of its phrases.
+
+## F222c PRE-REGISTRATION (2026-11-19, $0, no AI, no key; rerun of F222 N and F222b R/L on barebrowse 0.31.0; written before the run, NOT yet run)
+
+**Question.** Does barebrowse 0.31.0 (installed on branch `bb030-bot-flag`; `types/index.d.ts` diffed identical to 0.30.0) keep the `page.botBlocked` behaviour F222 and F222b saw on 0.30.0? `src/` and `test/` untouched.
+
+**Harness.** `poc/f222-bb-flag/run222.mjs` (cannot run N alone, so run whole; only N is judged, B1/B2/I are reported) and `poc/f222-bb-flag/run222b.mjs`, both unchanged, against barebrowse 0.31.0. Pages: N = wikipedia Amsterdam; R = https://nowsecure.nl/; L = local server 127.0.0.1:8791 copying the Cloudflare phrases (blockPrivateNetwork off for L/L0 only, as in F222b).
+
+**Bars (fixed now, each can fail; never refit).**
+- (N) `botBlocked` false and fwd ok.
+- (R) `botBlocked` true, marker present, fwd refuses with "asked for a human check". R not challenging = INCONCLUSIVE for R only.
+- (L) same as R.
+- (a) flag == marker on every page that snapshots.
+- (e) No browser PIDs or /tmp/barebrowse-* dirs of mine left after.
+- L0 is not judged (its F222b FAIL was a page-size design error).
