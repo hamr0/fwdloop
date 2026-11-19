@@ -1,4 +1,4 @@
-// borrowed-from: bareloop tests/shape-build.test.js@v0.61.0 (fc56e1f3) -- body unedited; only the two imports of shapelook.js and jobblock.js point at test/support (test-only copies, no src/ file)
+// borrowed-from: bareloop tests/shape-build.test.js@v0.61.0 (fc56e1f3) -- body unedited; only the import of jobblock.js points at test/support (a test-only copy, no src/ file)
 // Shape jobs (itemShape), clause 2 "Build or refuse" (docs/product/ITEM33-BUILD.md "Addendum 2026-11-18: shape jobs", code rules R1-R5): the builder of the shape of a job line from the AI's typed suggestion.
 // Fixtures are written here, in the live reply's shape (the POC's `fields` / `extraFields` / `itemCountFrom`); no bareguard itemShape is needed ($0, no model).
 import { test } from 'node:test';
@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { buildShapeLine, buildShapes, boundGrounded, fieldSpec, hasRealBound, NO_FIELD_WHY, NO_BOUND_WHY } from '../src/shapebuild.js';
 import { rubricVocabulary } from 'bareguard';
 import { SHAPE_KINDS, shapeAvailable, nameWhy, shapeNameRules } from '../src/shapemenu.js';
-import { shapeMenuLines } from './support/shapelook-extract.js';
+import { shapeMenuLines } from '../src/shapelook.js';
 
 const NR = { max: 128, forbidden: ['.', ':', '[', ']'], reserved: ['missing', 'wrong-type', 'wrong-value'] };
 const TRACKER = { n: 1, text: 'List my research items', rules: ['each item has a title', 'status is in progress, closed or finished', 'the summary is under 200 characters'] };
