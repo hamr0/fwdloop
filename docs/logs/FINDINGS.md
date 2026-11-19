@@ -9051,3 +9051,32 @@ Copied word for word from F223:
 Also reported (not part of the bar): rebuilt n, not rebuilt n by reason; for each of the 31 limit-looking `not-checked.json` entries, what today's builder did with it: checked (by which check), Not checked, not a `~` rule, or draft not rebuildable. An entry is tied to a `~` rule of its own draft only when its text equals the rule or holds it (case and spacing aside); no fuzzy match.
 
 Harness: `poc/m19-p0/rescan.mjs`, run once, output `.claude/scratch/v061/p0b/out.txt` (untracked). A bar that cannot be judged as written is INCONCLUSIVE.
+
+### F223b RESULT (2026-11-19, $0, run once: `node poc/m19-p0/rescan.mjs`, output in `.claude/scratch/v061/p0b/out.txt`, untracked)
+
+**Verdict on the letter: GO.** A = 20, B = 13 rules from 12 distinct job lines (bar: at least 3 rules from at least 2 jobs). **Read the caveat below before acting on it.**
+
+- Draft folders 228: rebuilt by today's builder (`rebuildBlock`, unchanged, on a copy) 148; not counted 80: 79 have no `declaration.json` (the draft never made a plan), 1 has an input file or page that changed or is gone. No draft fell back to a saved list (all 46 with a saved `checkList` rebuilt too). 148 of the rebuilt had no `checkList`, so the harness gave the copy a list on every non-Ask/send/sheet line (the shim in the pre-registration); this is the only departure.
+- Signed flows: 28 read from their saved `checkList` (F223's way), 1 fixture. 51 signed flows hold no `checkList` and no look, picks or AI replies, so they are not counted (a rebuild would guess).
+- Not checked `~` rule rows excluded: 2 Tickets, 0 Ask, 0 sheet. No row was held (state suggested).
+- A = 20 distinct (job line, rule); B = 13 (after `NEGATING_RE` and the same `LIMIT_RE` as F223). B list (job = draft folder, rule):
+  1. `d-00muw963t5-9a4c/draft`, `d-00muwfs2if-af64/draft`, `d-00muwz83wl-6ac7/draft`, `d-00mv548zrh-d6c7/draft`: "3 sections, all under 600 words" (resume job)
+  2. `d-00mv1g41wz-2c73/draft`: "3 sections, about 180 words each, under 600 words"
+  3. `d-00mv548zrh-d6c7/draft-1`: "3 sections, all under 600 words" (line "Three sections: Work History, ...")
+  4. `d-00mv54iebr-5ec3/draft`: "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"
+  5. `d-00mv2588dx-22eb/draft`: "under 100 words" (3 interviewer questions)
+  6. `d-00mvia7zwl-691f/draft`: "Price over 500" (expense list)
+  7. `d-00mvzr2yug-851a/draft`: "exactly 3 bullets" (3 jobs for this week)
+  8. `d-00mw0d9wgi-a755/draft`: "under 80 words" (closing note)
+  9. `d-00mw1yp3qj-ad93/draft-3`: "~ at most 60 words" (closing note)
+  10. `d-00mwgdao99-8d69/draft`: "under $150" (3 flights Madrid to Rome)
+- Not in B (in A): "every invoice appears exactly once", "every customer appears exactly once", "use the column 'Amount' for 'Price'", "three short bullet points", "Write one line about the weather from the notes", "why not", "be friendly" (no limit word, or negation).
+
+**Caveat that decides how to read the GO (checked in the draft logs).** 12 of the 13 B rows come from drafts whose `log.json` holds only `first` / `revision` turns: they were drafted before M16 and never had today's `check-suggest`, `ledger-suggest` or `row-edit` turns, which `rebuildBlock` replays from the log. Rebuilt without them, a count or word rule ("under 80 words") stays Not checked; the same rule in a draft that had the turns is checked (see the entry table: "under 80 words" and "exactly 3 bullets" are checked by a pick in one draft, "price under $150" by a fact). Only 1 of the 13 (`d-00mwgdao99-8d69/draft`, "under $150", a draft with the M16 turns) is a rule today's flow itself left Not checked. So the letter says GO, but the count is mostly an artefact of replaying today's builder over drafts that never asked the AI to pick checks. Whether today's drafter would pick checks for these rules is only answerable by a paid draft, which this POC does not do. The bar was met as written; I make no call on whether it should build.
+
+**The 31 limit-looking `not-checked.json` entries, through today's builder** (an entry is tied to a `~` rule of its own draft only when its text equals the rule or holds it; each entry's outcome set across its drafts):
+- Checked: 5 entries, by `fact` (4: "the under $150 ceiling", "that each listed flight is under $40", "price under $150", "that fares are truly under $150 US dollars") and by `pick` (3 more: "exactly 3 bullets", "under 80 words", and the two "One result is one record; ask for N results instead" lines for "exactly 3 list items" / "at most 80 words"). Tally per entry-outcome, as the harness prints it: checked 9 (entries with several drafts count once per outcome).
+- Not checked: 2: "under $150 price rule" and the "euros was listed twice" refusal line for "under $150" (6 drafts each, the Madrid-Rome job).
+- Not a `~` rule of its draft: 19 (drafter gaps such as "completeness of the 3-flight list", "about 180 words per section", "that the list has exactly 3 flights", and refusal sentences such as "you didn't take the offered column"): no `~` rule text equals or holds them.
+- Draft not rebuildable: 4 (entries whose only drafts have no `declaration.json`, or one with a gone input), among them "line 2: "500" — two columns fit '500' equally".
+- Totals as printed: `{"not a ~ rule of its draft":19,"checked":9,"draft not rebuildable":4,"Not checked":2}`. Entries with drafts in more than one outcome appear under each, so the four numbers sum to more than 31 outcomes-per-entry would; the per-entry lines are in `out.txt`.
