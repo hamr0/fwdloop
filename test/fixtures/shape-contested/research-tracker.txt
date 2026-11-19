@@ -1,0 +1,17 @@
+RESEARCH TRACKER - Platform team, Q4
+
+1. Evaluate queue libraries for the notification service
+   Owner: Priya. Status: in progress. Started 3 Nov.
+   Notes: Compared BullMQ and a Postgres-backed queue. Postgres option wins on operational simplicity; BullMQ wins on throughput. Waiting on load numbers from staging before we pick one.
+
+2. Why did checkout latency spike in October?
+   Owner: Tomas. Status: finished. Closed 28 Oct.
+   Notes: Root cause was an unindexed join introduced in the coupon rewrite. Index added, p95 back to 310 ms. Write-up is in the wiki.
+
+3. Can we drop support for the legacy mobile API?
+   Owner: Lena. Status: closed. Closed 9 Nov, decision: not yet.
+   Notes: 11 percent of active devices still call v1. Revisit after the March forced-update release.
+
+4. Accessibility audit of the onboarding flow
+   Owner: Priya. Status: in progress. Started 10 Nov.
+   Notes: Screen reader pass done on web. Android and iOS still to do. Three blocking issues found so far, all in the address form.
