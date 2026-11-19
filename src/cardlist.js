@@ -11,7 +11,8 @@ import { renderCard } from './checkblock.js';
 export function cardOfBlock(block) {
   const dropOffered = new Set(block.rows.filter((r) => r.state === 'built' && block.isBang(r)).map((r) => r.key));
   return {
-    rows: renderCard(block.rows).map((r) => ({
+    // M19 S3: the rows of a sheet line are drawn by src/sheetrows.js (`withSheetCard`), from the close the block's sheet part made; a dropped sheet check is the block's own suggested row
+    rows: renderCard(block.rows.filter((r) => !block.isSheetLine(r.line))).map((r) => ({
       key: r.key, line: r.line, by: r.by, state: r.state, text: r.text.replace(/^[~!$] /, ''), reason: r.reason ?? null, drop: dropOffered.has(r.key),
     })),
     suggested: block.suggestedView(),

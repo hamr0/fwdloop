@@ -45,11 +45,12 @@ export function pickedOf(part) {
 }
 
 /**
- * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>}} o
- *   `lineSet` = the lines the block was given; `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2)
+ * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>, sheetRoles?: string[]}} o
+ *   `lineSet` = the lines of the list (the block's step lines that are not sheet lines); `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2);
+ *   `sheetRoles` = the CSV inputs: the block's sheet part of a sheet line is the `close.sheet` of the line's first green step that reads one (M19 S3: the checks the block holds, drops and all)
  * @returns {{declaration: Record<string, any>, notChecked: string[], notCheckedBy: Record<string, 'you'|'agent'|'default'>, built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
  */
-export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set() }) {
+export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set(), sheetRoles = [] }) {
   if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], notCheckedBy: {}, built: new Set() };
   const c = block.reconcile();
   const partsOf = (/** @type {number} */ n) => c.map.filter((m) => m.line === n).map((m) => ({ ...c.parts[m.part], oldIndex: c.map.filter((x) => x.line === n).findIndex((x) => x.part === m.part) }));
@@ -60,8 +61,20 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   /** @type {Set<number>} */ const notSignable = new Set();
   /** @type {Set<number>} */ const pickedLines = new Set(Array.isArray(declaration.pickedLines) ? declaration.pickedLines : []);
   const guardrailClasses = isRec(declaration.guardrailClasses) ? { ...declaration.guardrailClasses } : {};
+  /** the sheet part the block built for a sheet line, or null (no check is left on it) @param {number} n */
+  const sheetPartOn = (n) => { const m = c.map.find((x) => x.line === n); const p = m ? c.parts[m.part] : null; return p && p.class === 'sheet' ? p : null; };
+  /** @type {Set<number>} the sheet lines that already gave their checks to a step: the first green step that reads a sheet takes them */
+  const given = new Set();
   const steps = declaration.steps.map((/** @type {any} */ st) => {
     const n = st?.fromLine;
+    // M19 S3: a sheet line's checks are the block's (rows, drops), written into `close.sheet` of the line's first green step that reads a sheet; every other step of the line keeps the AI's own close
+    if (isRec(st) && Number.isInteger(n) && block.isSheetLine(n) && !lineSet.has(n)) {
+      const part = sheetPartOn(n);
+      const { sheet: _ai, ...close } = isRec(st.close) ? st.close : /** @type {Record<string, any>} */ ({});
+      if (!part || !isRec(st.close) || st.close.class !== 'green' || !Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => sheetRoles.includes(r)) || given.has(n)) return isRec(st.close) ? { ...st, close } : st;
+      given.add(n);
+      return { ...st, close: { ...close, sheet: part.checks.map((/** @type {any} */ x) => ({ ...x })) } };
+    }
     if (!isRec(st) || !Number.isInteger(n) || !lineSet.has(n)) return st;
     const parts = partsOf(n);
     const signable = guarded(n);
@@ -101,7 +114,8 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   }
   const served = new Set(steps.filter((/** @type {any} */ st) => isRec(st)).map((/** @type {any} */ st) => st.fromLine));
   /** the signed list: the block's signed fields per row, the parts renumbered to the close's order, a row whose check cannot ride its line signed Not checked @type {any[]} */
-  const checkList = block.signedRows().map((/** @type {any} */ r) => {
+  // M19 S3: the rows of a sheet line are the block's own (state, Drop); the signed list and the Not-checked lines of a sheet line stay fwd's (src/sheetrows.js reads the close.sheet written above, src/sheetblock.js the reasons)
+  const checkList = block.signedRows().filter((/** @type {any} */ r) => !block.isSheetLine(r.line)).map((/** @type {any} */ r) => {
     const m = remap.get(r.line);
     const idx = isRec(r.part) && m ? m.get(r.part.part) : undefined;
     if (r.state === 'built' && r.kind !== 'floor' && (idx === null || idx === undefined)) {

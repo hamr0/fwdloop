@@ -475,6 +475,8 @@ export async function draftToDir({
     revisions: result.revisions, thinking: result.thinking, inputs: result.inputs, log: result.log,
     // M16 P4: what the plan card shows of the list (rows with tags and reasons, the suggestions), drawn by the page; Drop and Add rebuild it
     ...(result.checkCard ? { checkCard: result.checkCard } : {}),
+    // M19 S3: what code built from the AI's sheet suggestions (the block's `setSheet` input): Drop and Add rebuild the block from it at $0, never by asking again
+    ...(result.sheetBuilt ? { sheetBuilt: result.sheetBuilt } : {}),
     // M13 am11: the job's action (the last line the AI named, or the person agreed or typed), or null: the plan card's row `› line <n> writes everything before it`
     action: result.action ?? null,
   }), secrets);

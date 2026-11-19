@@ -1,5 +1,5 @@
-// M17 am2 + am3 (docs/wiki/the-module-ladder.md "M17 am2", "M17 am3"): the ONE builder of the sheet checks of a line. The AI never writes a sheet check: what it sends in the declaration round's
-// `close.sheet` is read here only as a typed SUGGESTION (bareguard's rule fields plus the `covers` numbers); code refuses or builds every one on bareguard's shapes and writes the check itself.
+// borrowed-from: bareloop src/sheetbuild.js@v0.60.0 (`buildSheetChecks`, and the `line` routing field `buildSheetLine` strips; bareloop copied `buildSheetLine` from this file, M17 am2/am3, so it stays as it is)
+// M17 am2 + am3 (docs/wiki/the-module-ladder.md "M17 am2", "M17 am3"): the ONE builder of the sheet checks of a line. The AI never writes a sheet check: what it sends on the row-edit reply (`sheetChecks`) is read here only as a typed SUGGESTION (bareguard's rule fields plus the `covers` numbers); code refuses or builds every one on bareguard's shapes and writes the check itself.
 // Ported from poc/f195-agentrows/build.mjs (F195 PASS, $0); no class code, no send-back loop, no word-to-column guess, no per-case validator patch.
 //   refusals (each by bareguard, in this order): the vocabulary (rule, op), the line's sheets, the schema (a field of the rule), `columnAt` (a column of the sheet's header), `checkTables`
 //   (and its problems), `groundedLiterals` (a number or date in the person's own words), `claimSchema` (an answer box), and for a `table` check `runTableChecks` on the sheet frozen at draft time.
@@ -58,7 +58,9 @@ export async function buildSheetLine({ line, tables, suggestions }) {
     if (!SHEET_RULES.includes(f.rule) || !isRec(V.rules[f.rule]?.ops) || !Object.hasOwn(V.rules[f.rule].ops, f.op)) { refuse('vocabulary', `no ${String(f.rule)} op "${String(f.op)}"`); continue; }
     const role = typeof f.table === 'string' ? f.table : roles.length === 1 ? roles[0] : null;
     if (role === null || !roles.includes(role)) { refuse('tables', `"${String(f.table)}" is not one of the line's sheets`); continue; }
-    const check = { ...f, table: role };
+    // `line` is the reply's own routing field (src/sheetoffer.js `sheetSuggestProp`), read by buildSheetChecks, never part of a check
+    const { line: _line, ...own } = f;
+    const check = { ...own, table: role };
     const bad = Object.keys(check).filter((k) => k !== 'rule' && !Object.hasOwn(V.rules[f.rule].fields, k));
     if (bad.length > 0) { refuse('schema', `field ${bad.join(', ')} is not a ${f.rule} field`); continue; }
     const probe = { id: 'probe', ...check, ...(f.rule === 'cells' ? { claim: 'probe' } : {}) };
@@ -104,39 +106,49 @@ export async function buildSheetLine({ line, tables, suggestions }) {
   return { rows, ruleRows, agentRows, checks: [...ruleRows, ...agentRows].map((p) => p.check), refused };
 }
 
+// borrowed-from: bareloop src/sheetbuild.js@v0.60.0 (`buildSheetChecks`: the suggestions and the sheet lines in, one result per line out; the check block (`setSheet`) holds the rows. fwd's own `buildSheetChecks` rewrote a declaration's
+// `close.sheet` per step; the declaration is now made from the block's rows by src/blockassemble.js)
 /**
- * The declaration with every green sheet step's `close.sheet` REWRITTEN by code from what the AI suggested there (`buildSheetLine`). A step with no suggestion is left alone; a step none of whose
- * suggestions can be built loses `close.sheet` (its rules are Not checked with their reasons). Pure over the declaration it is given (a copy is returned).
- * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>}} o
- * @returns {Promise<{declaration: any, notChecked: Record<string, string>, refused: {line: number, helper: string, why: string}[], unbuilt: {line: number, lost: string[]}[]}>} `unbuilt`: the green sheet steps left with no check, each with its rules as Not-checked lines. `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_VALUE_WHY`), for each rule of a
- *   rewritten line that no check holds
+ * Build the checks of every sheet line from the reply's suggestions, each routed to its job line by its own `line`. Every sheet line in `lines` gets a result, a line with no suggestion included (its rules are
+ * then Not checked with the no-pick sentence, never silently nothing). A suggestion that names no sheet line, or is not an object, is refused and listed with its helper.
+ * @param {{lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>, suggestions: any[]}} o
+ * @returns {Promise<{built: Record<number, Awaited<ReturnType<typeof buildSheetLine>>>, checks: any[], notChecked: Record<string, string>, refused: {line: number|null, helper: string, why: string}[]}>}
+ * `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_VALUE_WHY`), for each rule of a sheet line that no check holds
  */
-export async function buildSheetChecks({ declaration, lines, tables }) {
+export async function buildSheetChecks({ lines, tables, suggestions }) {
+  /** @type {Record<number, Awaited<ReturnType<typeof buildSheetLine>>>} */
+  const built = {};
   /** @type {Record<string, string>} */
   const notChecked = {};
-  /** @type {{line: number, helper: string, why: string}[]} */
+  /** @type {{line: number|null, helper: string, why: string}[]} */
   const refused = [];
-  if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked, refused, unbuilt: [] };
-  /** @type {Set<number>} */
-  const done = new Set();
-  const steps = [];
-  for (const st of declaration.steps) {
-    if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || !Array.isArray(st.close.sheet) || !Number.isInteger(st.fromLine) || done.has(st.fromLine)) { steps.push(st); continue; }
-    done.add(st.fromLine);
-    const line = lines.find((l) => l.n === st.fromLine);
-    if (!line) { steps.push(st); continue; }
-    const built = await buildSheetLine({ line, tables, suggestions: st.close.sheet });
-    for (const x of built.refused) refused.push({ line: st.fromLine, ...x });
-    for (const r of built.rows) if (r.state === 'not-checked') notChecked[`line ${st.fromLine}: "${r.text}"`] = /** @type {string} */ (r.reason);
-    const { sheet: _suggested, ...close } = st.close;
-    steps.push({ ...st, close: built.checks.length > 0 ? { ...close, sheet: built.checks } : close });
+  /** @type {Map<number, any[]>} */
+  const byLine = new Map(lines.map((l) => [l.n, []]));
+  for (const s of suggestions) {
+    if (!isRec(s)) { refused.push({ line: null, helper: 'schema', why: 'a suggestion is not an object' }); continue; }
+    const mine = byLine.get(/** @type {number} */ (s.line));
+    if (mine === undefined) { refused.push({ line: Number.isInteger(s.line) ? s.line : null, helper: 'line', why: `line ${String(s.line)} is not a sheet line` }); continue; }
+    mine.push(s);
   }
-  // M17 am5 / P5: a green step that reads a sheet and holds no check after the build (no suggestion, or none code could build) is REPORTED here, with each of its rules and the refusal that named it
-  // (else the no-pick sentence). What class such a step gets is the caller's to decide (src/blockassemble.js closeUnbuiltSheetSteps); this file writes no class.
+  for (const line of lines) {
+    const r = await buildSheetLine({ line, tables, suggestions: byLine.get(line.n) ?? [] });
+    built[line.n] = r;
+    for (const x of r.refused) refused.push({ line: line.n, ...x });
+    for (const row of r.rows) if (row.state === 'not-checked') notChecked[`line ${line.n}: "${row.text}"`] = /** @type {string} */ (row.reason);
+  }
+  return { built, checks: lines.flatMap((l) => built[l.n].checks), notChecked, refused };
+}
+
+/**
+ * M17 am5 / P5 (fwd's own, kept from the declaration-rewriting builder): the green steps that read a sheet and hold no check after the build (no suggestion, or none code could build), each with its rules as Not-checked lines
+ * and the refusal that named each (else the no-pick sentence). What class such a step gets is the caller's to decide (src/blockassemble.js closeUnbuiltSheetSteps); this file writes no class.
+ * @param {{declaration: any, lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], roles: string[], notChecked: Record<string, string>}} o
+ * @returns {{line: number, lost: string[]}[]}
+ */
+export function unbuiltSheetLines({ declaration, lines, roles, notChecked }) {
   /** @type {{line: number, lost: string[]}[]} */
   const unbuilt = [];
-  const roles = Object.keys(tables);
-  for (const st of steps) {
+  for (const st of isRec(declaration) && Array.isArray(declaration.steps) ? declaration.steps : []) {
     if (!isRec(st) || !isRec(st.close) || st.close.class !== 'green' || (Array.isArray(st.close.sheet) && st.close.sheet.length > 0) || isRec(st.close.cited) || !Number.isInteger(st.fromLine)) continue;
     if (!Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => roles.includes(r)) || unbuilt.some((u) => u.line === st.fromLine)) continue;
     const line = lines.find((l) => l.n === st.fromLine);
@@ -144,5 +156,5 @@ export async function buildSheetChecks({ declaration, lines, tables }) {
     if (rules.length === 0) continue;
     unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_VALUE_WHY}`) });
   }
-  return { declaration: { ...declaration, steps }, notChecked, refused, unbuilt };
+  return unbuilt;
 }

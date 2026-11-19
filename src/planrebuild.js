@@ -20,7 +20,7 @@ import { matchRecord, readRowChoices, RECORD_FILE } from './pickrecord.js';
 import { listLinesOf, cardLinesOf } from './checklistsign.js';
 import { csvRolesOf } from './sheetblock.js';
 import { withTicketRows } from './ticketrows.js';
-import { isSheetKey, sheetChoice, withSheetRows, withSheetCard, droppedSheetOf } from './sheetrows.js';
+import { isSheetKey, sheetRowsOf, withSheetRows, withSheetCard } from './sheetrows.js';
 import { validateDeclaration } from './declaration.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -73,6 +73,12 @@ export function rebuildBlock({ planDir, asks }) {
   if (!plan.ok) return no('This plan could not be read. Nothing was changed.');
   const blockLineNums = new Set(plan.jobLines.map((l) => l.n));
   const inBlock = (/** @type {{line: number}} */ x) => blockLineNums.has(x.line);
+  // M19 S3: a sheet line is the block's too; the draft saved what code built from the AI's sheet suggestions (log.json `sheetBuilt`), so the block holds its sheet rows again without a call. A plan that has sheet checks
+  // and no such record was drafted before this and cannot be rebuilt: the same sentence as an input that changed
+  const sheetBuilt = isRec(log?.sheetBuilt) && isRec(log.sheetBuilt.built) ? log.sheetBuilt : null;
+  if (sheetBuilt === null && (declaration.steps ?? []).some((/** @type {any} */ st) => isRec(st?.close) && Array.isArray(st.close.sheet))) return no(REBUILD_CHANGED_SAY);
+  const sheetLineNums = sheetBuilt === null ? [] : Object.keys(sheetBuilt.built).map(Number).filter((n) => tied.includes(n));
+  const notSheet = (/** @type {{line: number}} */ x) => !sheetLineNums.includes(x.line);
   const lines = parsed.lines;
   const allShape = offerRules(lines, parsed.arbiter, look.facts);
   const matched = matchRecord(Array.isArray(record.picks) ? record.picks : [], lines, allShape);
@@ -83,10 +89,10 @@ export function rebuildBlock({ planDir, asks }) {
   const leftSaved = look.dropped.filter((/** @type {any} */ d) => d?.reason === 'person-left' && Number.isInteger(d.line) && Number.isInteger(d.rule)).map((/** @type {any} */ d) => ({ line: d.line, rule: d.rule }));
   const leftFresh = [...matched.left.filter((x) => !isKept(x)), ...leftSaved.filter((x) => !matched.left.some((m) => m.line === x.line && m.rule === x.rule))].filter(inBlock);
   const block = setUpBlock({
-    texts, jobLines: plan.jobLines, look,
+    texts, jobLines: [...plan.jobLines, ...all.jobLines.filter((l) => sheetLineNums.includes(l.n))].sort((a, b) => a.n - b.n), look: { facts: look.facts.filter(notSheet), dropped: look.dropped.filter(notSheet) },
     kept: { picks: matched.picks.filter(inBlock).filter(isKept), left: matched.left.filter(inBlock).filter(isKept), askRules: matched.askRules.filter(inBlock) },
     fresh: { picks: matched.picks.filter(inBlock).filter((x) => !isKept(x)), left: leftFresh },
-    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines),
+    asks, countScope: (t) => codeScope(parsed.arbiter.sources, t) === 'in', leaveOut: ticketLeaveOut(declaration.flowType, plan.jobLines), sheetLines: sheetLineNums,
   });
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
   const askRules = allShape.filter((r) => !isKept(r));
@@ -103,6 +109,8 @@ export function rebuildBlock({ planDir, asks }) {
   // the choices the plan was made with (a Drop or an Add of an earlier edit), judged by the block again
   const choices = readRowChoices(path.join(planDir, RECORD_FILE));
   if (choices) block.carryChoices(choices);
+  // the sheet checks the draft built, in the draft's own order (after the AI's edits), and the Drops the plan was made with
+  if (sheetBuilt !== null) { block.setSheet(sheetBuilt); block.carrySheetDropped(Array.isArray(record.sheetDropped) ? record.sheetDropped : []); }
   block.reconcile();
   return { ok: true, block, declaration, lines, lineSet, parsed, texts, look, record, log, proseText: prose.text };
 }
@@ -120,7 +128,7 @@ function assembleAgain(b, from = b.declaration) {
     const src = b.lineSet.has(st?.fromLine) && isRec(st.close) && isRec(st.close.cited) ? st.close.cited.source : undefined;
     return typeof src === 'string' && docs.has(src) && Array.isArray(st.reads) ? { ...st, reads: st.reads.filter((/** @type {string} */ r) => r !== src) } : st;
   }) };
-  const built = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet, askLines: new Set(b.parsed.arbiter.asks.map((/** @type {any} */ a) => a.line)) });
+  const built = assembleFromBlock({ declaration: rest, block: b.block, lines: b.lines, lineSet: b.lineSet, askLines: new Set(b.parsed.arbiter.asks.map((/** @type {any} */ a) => a.line)), sheetRoles: csvRolesOf(b.parsed.arbiter) });
   // M16 am4: the sheet checks are rows on the list too, read from the steps the same way the draft read them
   const withSheet = withSheetRows({ declaration: built.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter) });
   // M17 am6: the Tickets filter and watch are rows on the list too, read from the declaration's fields the same way the draft read them
@@ -154,16 +162,21 @@ const fingerprint = (d) => JSON.stringify([d.checkList ?? null, (d.steps ?? []).
 export function rowEditPlan({ planDir, op, key, asks = true }) {
   const b = rebuildBlock({ planDir, asks });
   if (!b.ok) return { ok: false, say: b.say, refused: 'no-list' };
-  const dropped = droppedSheetOf(b.record);
   const before = assembleAgain(b);
   if (!before.ok) return { ok: false, say: before.say, refused: 'rebuild' };
   if (fingerprint(before.declaration) !== fingerprint(b.declaration)) return { ok: false, say: REBUILD_CHANGED_SAY, refused: 'changed' };
-  // a sheet row is a check of the AI's own sheet step: its Drop or Add changes `close.sheet` (src/sheetrows.js); any other row is the block's
-  const sheetDone = isSheetKey(key) ? sheetChoice({ declaration: b.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter), op, key, dropped }) : null;
-  const done = sheetDone ?? b.block.rowChoice(key, op);
+  // M19 S3: a sheet check is a row of the block like any other (its Drop or Add is the block's `rowChoice`). A `[you]` sheet row is drawn with the key of its check (src/sheetrows.js), which is no row of the block: the
+  // refusals for it are the words the plan card has always given
+  /** @type {string|null} */
+  let sheetKeyWhy = null;
+  if (isSheetKey(key) && !b.block.rows.some((r) => r.key === key)) {
+    const card = sheetRowsOf({ declaration: b.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter) }).card.find((r) => r.key === key);
+    sheetKeyWhy = op === 'drop' ? (card?.by === 'you' ? 'that check comes from a rule you wrote; edit the job to change it' : 'there is no such check on the list') : 'only a suggested check can be added';
+  }
+  const done = sheetKeyWhy !== null ? { ok: /** @type {const} */ (false), why: sheetKeyWhy } : b.block.rowChoice(key, op);
   if (!done.ok) return { ok: false, say: `${done.why[0].toUpperCase()}${done.why.slice(1)}${/[.!?]$/.test(done.why) ? '' : '.'} Nothing was changed.`, refused: 'bad-row' };
-  const droppedNow = sheetDone && sheetDone.ok ? sheetDone.dropped : dropped;
-  const after = assembleAgain(b, sheetDone && sheetDone.ok ? sheetDone.declaration : b.declaration);
+  const droppedNow = b.block.sheetDroppedRecord();
+  const after = assembleAgain(b);
   if (!after.ok) return { ok: false, say: after.say, refused: 'rebuild' };
   const target = readJson(planDir, 'target.json');
   const inputFactsText = readFileInside(planDir, 'input-facts.json');
@@ -209,7 +222,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
       [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}) }),
-      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet, droppedNow); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })() }),
+      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })() }),
       'spec.hash': `${h.hash}\n`,
     },
   };

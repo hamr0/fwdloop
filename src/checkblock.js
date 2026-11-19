@@ -30,7 +30,7 @@ import { factSentence, countSentence, factsOfLook } from './citedcheck.js';
 import { isDeepStrictEqual } from 'node:util';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { sheetCheckName, sheetPlainText, coversWords } from './sheetblock.js';
-import { sheetCheckBody, sheetRowKey, sheetDefaultKey } from './sheetrows.js';
+import { sheetCheckBody, sheetRowKey } from './sheetrows.js';
 
 /**
  * A row. `kind`: rule, fact, phrase, count, cited, numbers, floor. `by`: you (`~`), agent (`!`), default (`$`). A `~` row may carry `links` (the look's facts tied to it),
@@ -38,7 +38,7 @@ import { sheetCheckBody, sheetRowKey, sheetDefaultKey } from './sheetrows.js';
  * @typedef {Record<string, any>} Row
  */
 
-/** what `setSheet` is given: code's build of a job's sheet checks, per sheet line (the shape of the tag's `buildSheetChecks` result; M19 S3 wires fwd's own builder to it) @typedef {{built: Record<number, any>, checks?: any[], notChecked?: Record<string, string>, refused?: any[]}} SheetBuilt */
+/** what `setSheet` is given: code's build of a job's sheet checks, per sheet line @typedef {Awaited<ReturnType<typeof import('./sheetbuild.js').buildSheetChecks>>} SheetBuilt */
 
 /** the card's fixed words, one spelling (the renderer reads them; a test reads them too) */
 export const CARD_T = Object.freeze({ count: 'result count', cited: 'every claim is backed by a quote copied from', theInput: 'the input', numbers: 'every number in the text is in a checked quote of line', withWords: 'with the words' });
@@ -197,8 +197,9 @@ export class CheckBlock {
   isSheetLine(n) { return this.sheetLines.has(n); }
 
   /**
-   * S4: the checks code built from the AI's `sheetChecks` become rows of the one list: an `[agent]` row for each check that is no rule row's, a `[default]` row per sheet line that has a check. A `[you]` row is the `~` rule's own row
-   * (its state comes from the sheet, `matchSheetRule`). A Drop the person made on a check is kept for the same check (same typed fields) when the checks are built again; every row is reconciled.
+   * S4: the checks code built from the AI's `sheetChecks` become rows of the one list: an `[agent]` row for each check that is no rule row's. A `[you]` row is the `~` rule's own row (its state comes from the sheet,
+   * `matchSheetRule`). A Drop the person made on a check is kept for the same check (same typed fields) when the checks are built again; every row is reconciled.
+   * fwd keeps: no `[default]` sheet row (the tag adds one per sheet line, bareloop S4); fwd's list has none (M16 am4 (2): "a `[default]` sheet check does not exist").
    * @param {SheetBuilt} built
    */
   setSheet(built) {
@@ -212,25 +213,27 @@ export class CheckBlock {
         const row = this.addRow({ key: sheetRowKey(n, p.check.id), line: n, kind: 'sheet', by: 'agent', from: 'agent', check: p.check });
         if (dropped.some((d) => d.line === n && isDeepStrictEqual(d.body, sheetCheckBody(p.check)))) row.choice = 'drop';
       }
-      if (b.checks.length > 0) this.addRow({ key: sheetDefaultKey(n), line: n, kind: 'sheet', by: 'default', from: 'default' });
     }
     this.reconcile();
   }
 
-  /** the dropped sheet checks the record keeps: tied to the line's words (not its number) and to the check's own typed fields (code names every check, so an id says nothing across drafts) @returns {{lineWords: string, occurrence: number, check: Record<string, any>, text: string}[]} */
+  /**
+   * The dropped sheet checks the record keeps, as fwd's picks record has always written them (`{key, line, index, check, text}`, M17 am3): `index` is the check's place among its line's checks, `check` the check as built.
+   * fwd keeps this record shape (the tag ties each entry to the line's words instead, `{lineWords, occurrence, check, text}`): the record is a file of the plan folder, and a draft saved before this carries the old shape.
+   * @returns {{key: string, line: number, index: number, check: Record<string, any>, text: string}[]}
+   */
   sheetDroppedRecord() {
-    const keys = this.lineWordKeys();
-    return this.rows.filter((r) => r.kind === 'sheet' && r.by === 'agent' && r.choice === 'drop').map((r) => ({ ...(keys.get(r.line) ?? { lineWords: '', occurrence: 0 }), check: sheetCheckBody(r.check), text: String(r.offer?.text ?? '') }));
+    return this.rows.filter((r) => r.kind === 'sheet' && r.by === 'agent' && r.choice === 'drop').map((r) => ({
+      key: r.key, line: r.line, index: Math.max(0, (this.sheetBuilt?.built[r.line]?.checks ?? []).findIndex((/** @type {any} */ c) => c.id === r.check.id)), check: r.check, text: String(r.offer?.text ?? ''),
+    }));
   }
 
-  /** a Revise keeps a Drop of the very same check: the record's entries, matched on the line's words and the check's own fields; a check this draft did not build is not dropped @param {{lineWords: string, occurrence: number, check: Record<string, any>}[]} rec */
+  /** a Revise keeps a Drop of the very same check: the record's entries, matched on the line and the check's own fields (never its id: code names every check); a check this draft did not build is not dropped @param {{line: number, check: Record<string, any>}[]} rec */
   carrySheetDropped(rec) {
-    const keys = this.lineWordKeys();
     for (const d of Array.isArray(rec) ? rec : []) {
-      if (!d || typeof d.lineWords !== 'string' || !Number.isInteger(d.occurrence) || !isRec(d.check)) continue;
-      const n = [...keys].find(([, k]) => k.lineWords === d.lineWords && k.occurrence === d.occurrence)?.[0];
-      const row = n === undefined ? undefined : this.rows.find((r) => r.kind === 'sheet' && r.by === 'agent' && r.line === n && isDeepStrictEqual(sheetCheckBody(r.check), d.check));
-      if (row) { row.choice = 'drop'; row.keptFromLast = true; }
+      if (!d || !Number.isInteger(d.line) || !isRec(d.check)) continue;
+      const row = this.rows.find((r) => r.kind === 'sheet' && r.by === 'agent' && r.line === d.line && isDeepStrictEqual(sheetCheckBody(r.check), sheetCheckBody(d.check)));
+      if (row) row.choice = 'drop';
     }
     this.reconcile();
   }
