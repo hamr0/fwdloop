@@ -54,7 +54,7 @@ export const COUNT_CHECKS = Object.freeze({
 });
 
 /** every field a part may carry, whatever its class */
-const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample']);
+const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample', 'asSeen']);
 
 /** @typedef {{code: string, path: string, detail: string}} ShapeRed */
 
@@ -97,6 +97,7 @@ export function rubricStepShapeReds(p, at) {
       && part.rules.every((/** @type {unknown} */ x) => Number.isInteger(x) && /** @type {number} */ (x) >= 1))) {
       red('invalid-value', `${w}.rules`, 'the numbers of the line\'s ~ rules this part carries out (distinct integers, 1 or more)');
     }
+    if (Object.hasOwn(part, 'asSeen') && part.class !== 'fact') red('invalid-value', `${w}.asSeen`, 'only a fact part carries the as-seen example');
     if (part.class === 'fact') { factShapeReds(part, w, (c, path, d) => red(c, path, d)); return; }
     if (part.class === 'guard') {
       if (!nameList(part.domains)) red('invalid-value', `${w}.domains`, 'a non-empty array of web domains the rule is about');

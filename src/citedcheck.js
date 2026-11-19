@@ -29,7 +29,8 @@ const CHECKPOINT = 'cited';
 export const CITED_ID = 'facts';
 
 /** every field a fact part may carry, and every field a fact may carry */
-const PART_FIELDS = Object.freeze(['source', 'facts', 'count']);
+// borrowed-from: bareloop src/facts.js@v0.60.0 (`asSeen`, F337: optional, written only by code at signing; absent on every older job)
+const PART_FIELDS = Object.freeze(['source', 'facts', 'count', 'asSeen']);
 // borrowed-from: bareloop src/facts.js@v0.56.0 (3383cce) (M16 am3 (3): the fields lang, decimal, place, aiProposal; FACT_LANGS, FACT_DECIMALS, moneyForms, factPartOf, factShapeReds, writtenSpans below; factDecides, factClaims, factSentence taken up to it)
 const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anchor', 'until', 'rule', 'aiProposal', 'lang', 'decimal', 'place']);
 const NAME_RE = /^[A-Za-z][A-Za-z _-]{0,63}$/;
@@ -88,6 +89,7 @@ export function factPartReds(part) {
   const reds = [];
   if (!isRec(part) || typeof part.source !== 'string' || part.source.trim() === '') return ['a fact part needs the role of the input its quotes come from'];
   if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) return [`a fact part needs 1 to ${MAX_FACTS} facts${Array.isArray(part.facts) && part.facts.length > MAX_FACTS ? ` (it has ${part.facts.length}; a place counts one fact for each phrase it needs, so a line with many places or many rules is too much for one check)` : ''}`];
+  if (Object.hasOwn(part, 'asSeen') && !asSeenOk(part.asSeen)) reds.push('a fact part\'s asSeen is {input, lines: [..], labels: [..]}');
   for (const k of Object.keys(part)) if (!PART_FIELDS.includes(k)) reds.push(`a fact part has no field "${k}" - its fields are ${PART_FIELDS.join(', ')}`);
   const seen = new Set();
   part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
@@ -217,6 +219,12 @@ export const FACT_LANGS = Object.freeze({ en: 'English', de: 'German', fr: 'Fren
 /** the decimal marks a number or money fact may sign (bareguard 0.27 `decimal`); absent = "." */
 export const FACT_DECIMALS = Object.freeze(['.', ',']);
 
+/** @param {unknown} a @returns {boolean} the shape of `asSeen`: {input, lines: [string..], labels: [string..]}, nothing else */
+const asSeenOk = (a) => {
+  const strs = (/** @type {unknown} */ v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
+  return isRec(a) && typeof a.input === 'string' && a.input.trim() !== '' && strs(a.lines) && strs(a.labels) && Object.keys(a).every((k) => ['input', 'lines', 'labels'].includes(k));
+};
+
 /** every field a part of class `fact` may carry (the shared ones are checked by rubricStepShapeReds) */
 export const FACT_PART_FIELDS = PART_FIELDS;
 
@@ -241,11 +249,13 @@ export function factPartOf(params) {
  */
 export function factShapeReds(part, w, red) {
   for (const k of Object.keys(part)) {
-    if (!['text', 'class', 'covers', 'rules', 'source', 'facts', 'count'].includes(k)) {
+    if (!['text', 'class', 'covers', 'rules', 'source', 'facts', 'count', 'asSeen'].includes(k)) {
       red('invalid-value', `${w}.${k}`, `"${k}" is not a field of a fact part — fields: text, class, covers, rules, ${FACT_PART_FIELDS.join(', ')}`);
     }
   }
   if (!(nonEmpty(part.source) && part.source.length <= 128)) red('invalid-value', `${w}.source`, 'the label of the input the quotes come from');
+  // F337: the planner's "as seen" example, only ever written by code at signing (src/pagedry.js asSeenOf); optional, absent on every older spec
+  if (Object.hasOwn(part, 'asSeen') && !asSeenOk(part.asSeen)) red('invalid-value', `${w}.asSeen`, 'the as-seen example: {input, lines: [..], labels: [..]}');
   if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) {
     red('invalid-value', `${w}.facts`, `a list of 1 to ${MAX_FACTS} facts {name, shape, ...}`);
   } else {

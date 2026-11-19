@@ -1,6 +1,6 @@
 // M16 item 2 (docs/wiki/the-module-ladder.md, "M16"): "the AI sends only edits to that list; code proves each one and builds every check. The AI never writes a check."
 // The declaration of a draft with the list on keeps the AI's steps, reads, primitives and asks, and takes the CHECKS of every line the block was given from the block's built parts:
-//   a fact part        -> close.cited = {source, facts, count}, class green; the source is added to the step's reads by code
+//   a fact part        -> close.cited = {source, facts, count, asSeen}, class green; the source is added to the step's reads by code
 //   a countable part   -> a picked check (M10 am22 (1)-(3)): close.shape.picked on a softgreen step, close.picked on a fact (or sheet) step with the line in pickedLines
 //   the numbers tie    -> close.numbersFrom (M16 am3 (2), R7)
 //   no part            -> hitl; the rows' Not-checked reasons are the list's own (no `unjudgeable` record, M17 am4)
@@ -93,7 +93,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const close = { ...(sheet ? { sheet } : {}), ...(Array.isArray(old.columns) ? { columns: old.columns } : {}) };
     if (fact) {
       close.class = 'green';
-      close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}) };
+      close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}), ...(isRec(fact.asSeen) ? { asSeen: fact.asSeen } : {}) };
     } else close.class = sheet ? 'green' : picks.length ? 'softgreen' : 'hitl';
     if (picks.length) {
       const checks = picks.map(pickedOf);

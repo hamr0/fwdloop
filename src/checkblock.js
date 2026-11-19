@@ -1,7 +1,7 @@
 // borrowed-from: bareloop src/checkblock.js@v0.57.0 (c18df406)
 // borrowed-from: bareloop src/checkblock.js@v0.60.0 (M19 S3: caught up from the earlier port; sheet rows, repo rows, droppable, choiceEntries and lineWordKeys as the tag has them)
 // Where a signed fwd rule stays instead of the tag's line, the line says `fwd keeps` (hamr 2026-11-19: "checks move inside with the same flow we have, don't make unneccessary drift"): the `cant-check` question
-// (M10 am16 (3)), the own-words answer to any question (M10 am16), no `$prose` row and no floor row on the card (the card draws neither today), no F337 `asSeen`, no `corrected` flag, and fwd's own sheet Not-checked words.
+// (M10 am16 (3)), the own-words answer to any question (M10 am16), no `$prose` row and no floor row on the card (the card draws neither today), no `corrected` flag, and fwd's own sheet Not-checked words.
 // fwd never sets `repo` (it has no repo job), so the repo rows below are inert here and stay as the tag has them.
 // first ported from: bareloop src/checkblock.js@v0.56.0 (3383cce) + f148028e (M16 am2: an agreed answer's follower row takes its parent's check after the parts are numbered, 4 lines in build())
 // Ported, not copied whole (M16 am3 (1)): the imports point at fwd's files (src/blockpick.js is bareloop's checkpick.js under another name), and the three patterns built from text
@@ -19,7 +19,7 @@ import { countExact, countPhrase } from './pagebits.js';
 import { checkFactWords, keptSetOf } from './factwords.js';
 import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords, sameRuleWords } from './blockpick.js';
 import { dropRows, dropSentence } from './pagedropwords.js';
-import { phraseInNoResult } from './pagedry.js';
+import { phraseInNoResult, asSeenOf } from './pagedry.js';
 import { boundInWords, rubricStepShapeReds, stageKeyOf, guardKeyOf, FENCE_KEY, defaultCitedText, defaultNoteText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
 import { validReading } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
@@ -577,8 +577,11 @@ export class CheckBlock {
     }
     if (sheetRows.length > 0) this.buildSheetPartOf(l, sheetRows, lineParts, lineRows);
     if (facts.length) {
+      // borrowed-from: bareloop src/checkblock.js@v0.60.0 (F337: the planner's example when a label sits off the result's first line; from the drafting copy, only here at signing)
+      const asSeen = asSeenOf(this.textOf(factRows[0]?.src), facts, factRows[0]?.src ?? '');
       const part = {
         text: facts.map((f) => f.name).join('; '), class: 'fact', source: factRows[0]?.src, facts,
+        ...(asSeen ? { asSeen } : {}),
         ...(rulesCarried.length ? { rules: rulesCarried } : {}),
         ...(countRow ? { count: { ...(Number.isInteger(countRow.min) ? { min: countRow.min } : {}), ...(Number.isInteger(countRow.max) ? { max: countRow.max } : {}) } } : {}),
       };
