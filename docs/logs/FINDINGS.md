@@ -9088,3 +9088,9 @@ Bar, copied word for word from .claude/scratch/v061/draft.md section 6:
 **P4 — the contested rule ($0).** Over every saved `page-look.json` under `.drafts`: count facts whose `from` names the same line and rule as a `cannot` entry. Bar: the copied `applyPageRules` gives the same kept facts as today on every page look with no such pair; on each pair, the rule is no longer counted as checked by that fact.
 
 Method: copy the page-look files into .claude/scratch/v061/p4/; poc/m19-p4/replay.mjs runs fwd's real `applyPageRules` (src/pagerules.js) and a copy patched with bareloop v0.61.0's `contested` / `tieOfFact` change (copied from the tag, kept under poc/m19-p4/, not src/). Output to .claude/scratch/v061/p4/out.txt.
+
+## F224 PRE-REGISTRATION (2026-11-19, $0, no AI, no key; M19 P1: the S1 copy runs on fwd; written before the harness, NOT yet run)
+
+**P1 — the copy runs on fwd ($0).** In a scratch copy (never the tree), with bareguard 0.37.0 installed: copy S1's files with the literal-regex rewrite and run bareloop's `tests/shape-build.test.js`, `tests/shape-words.test.js`, `tests/shape-rows.test.js` against fwd's imports. Bar: every test passes with no test edited; fwd's `lineRules` gives the same rule list as bareloop's for each test job; `test/signed-text.test.js` (the `new RegExp` ban) and `test/f48-guard-fs-imports.test.js` stay green.
+
+Method: scratch copy `.claude/scratch/v061/p1/fwd` (tracked files of HEAD, untracked), `bareguard@0.37.0` in the copy only; files copied from the tag v0.61.0 (fc56e1f3) only; every import remap and any extra file copied beyond S1 is listed in the result. A bar that cannot be judged as written is INCONCLUSIVE.
