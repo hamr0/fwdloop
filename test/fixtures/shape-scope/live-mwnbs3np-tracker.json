@@ -1,0 +1,17 @@
+{
+ "source": "live run mwnbs3np, job research-2 (session smwnbnovryo65): the page-map and shape-map raw answers verbatim, the tracker input (anonymised POC data), the job lines; the 4-results count row came from that draft's ledger-suggest (key L1.count.4-4)",
+ "jobLines": [
+  {
+   "n": 1,
+   "text": "List every research item in the tracker, one entry each",
+   "rules": [
+    "each item has a title",
+    "status is one of in progress, closed, finished",
+    "summary is under 200 characters"
+   ]
+  }
+ ],
+ "tracker": "RESEARCH TRACKER - Platform team, Q4\n\n1. Evaluate queue libraries for the notification service\n   Owner: Priya. Status: in progress. Started 3 Nov.\n   Notes: Compared BullMQ and a Postgres-backed queue. Postgres option wins on operational simplicity; BullMQ wins on throughput. Waiting on load numbers from staging before we pick one.\n\n2. Why did checkout latency spike in October?\n   Owner: Tomas. Status: finished. Closed 28 Oct.\n   Notes: Root cause was an unindexed join introduced in the coupon rewrite. Index added, p95 back to 310 ms. Write-up is in the wiki.\n\n3. Can we drop support for the legacy mobile API?\n   Owner: Lena. Status: closed. Closed 9 Nov, decision: not yet.\n   Notes: 11 percent of active devices still call v1. Revisit after the March forced-update release.\n\n4. Accessibility audit of the onboarding flow\n   Owner: Priya. Status: in progress. Started 10 Nov.\n   Notes: Screen reader pass done on web. Android and iOS still to do. Three blocking issues found so far, all in the address form.\n",
+ "pageMapRaw": "{\"facts\":[{\"name\":\"status words\",\"from\":\"line 1 rule 2\",\"shape\":\"phrase\",\"words\":[\"in progress\",\"closed\",\"finished\"],\"why\":\"Each entry's Status field must carry one of these three exact status words.\"},{\"name\":\"entry titles\",\"from\":\"line 1 rule 1\",\"shape\":\"phrase\",\"words\":[\"Evaluate queue libraries for the notification service\",\"Why did checkout latency spike in October?\",\"Can we drop support for the legacy mobile API?\",\"Accessibility audit of the onboarding flow\"],\"why\":\"Each entry is headed by its title line, so every listed item carries one of these titles.\"}],\"cannot\":[{\"from\":\"line 1 rule 3\",\"why\":\"The page sets no length limit on Notes text, so under-200-character summaries cannot be checked from its words.\"}]}",
+ "shapeMapRaw": "{\"shapes\":[{\"line\":1,\"fields\":[{\"name\":\"title\",\"kind\":\"text\",\"required\":true,\"bounds\":{\"minChars\":1},\"fromRule\":1},{\"name\":\"status\",\"kind\":\"oneOf\",\"required\":true,\"bounds\":{\"values\":[\"in progress\",\"closed\",\"finished\"]},\"fromRule\":2},{\"name\":\"summary\",\"kind\":\"text\",\"required\":true,\"bounds\":{\"maxChars\":199},\"fromRule\":3}],\"extraFields\":[],\"itemCountFrom\":[]}]}"
+}

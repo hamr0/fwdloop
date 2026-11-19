@@ -1,0 +1,116 @@
+{
+ "airbnb": {
+  "session": "smvh566bnsgno",
+  "jobText": "List 3 stays in Porto\n~ under €200 total",
+  "rawShape": [
+   {
+    "line": 1,
+    "fields": [
+     {
+      "name": "stay",
+      "kind": "text",
+      "required": true,
+      "bounds": {},
+      "fromRule": 1
+     }
+    ],
+    "extraFields": [
+     {
+      "name": "price",
+      "kind": "money",
+      "required": false,
+      "bounds": {
+       "currency": "EUR"
+      },
+      "fromRule": null
+     },
+     {
+      "name": "location",
+      "kind": "text",
+      "required": false,
+      "bounds": {},
+      "fromRule": null
+     }
+    ],
+    "itemCountFrom": []
+   }
+  ]
+ },
+ "dell": {
+  "session": "smvqz6h1bnc5k",
+  "jobText": "List every laptop on the page with its name and price.\n~ price is under 1500 euros",
+  "rawShape": [
+   {
+    "line": 1,
+    "fields": [
+     {
+      "name": "name",
+      "kind": "text",
+      "required": true,
+      "bounds": {},
+      "fromRule": null
+     },
+     {
+      "name": "price",
+      "kind": "money",
+      "required": true,
+      "bounds": {
+       "currency": "EUR",
+       "lt": 1500
+      },
+      "fromRule": 1
+     }
+    ],
+    "extraFields": [],
+    "itemCountFrom": []
+   }
+  ]
+ },
+ "nonstop": {
+  "session": "smwezme3y35id",
+  "jobText": "List 3 flights from Boston to Chicago\n~ under $450\n~ not a red-eye\n~ no nonstop",
+  "rawShape": [
+   {
+    "line": 1,
+    "fields": [
+     {
+      "name": "flight",
+      "kind": "text",
+      "required": true,
+      "bounds": {},
+      "fromRule": null
+     },
+     {
+      "name": "price",
+      "kind": "money",
+      "required": true,
+      "bounds": {
+       "currency": "USD",
+       "max": 450
+      },
+      "fromRule": 1
+     },
+     {
+      "name": "red-eye",
+      "kind": "boolean",
+      "required": true,
+      "bounds": {
+       "equals": false
+      },
+      "fromRule": 2
+     },
+     {
+      "name": "nonstop",
+      "kind": "boolean",
+      "required": true,
+      "bounds": {
+       "equals": false
+      },
+      "fromRule": 3
+     }
+    ]
+   }
+  ],
+  "note": "raw.json keeps only the first 500 characters of the answer: the fields are complete, the extraFields are cut and left out here"
+ }
+}
