@@ -9016,3 +9016,16 @@ Source: `.claude/scratch/v061/draft.md` section 6 "P0", frozen. Copied word for 
 - Bar, frozen before the count: **GO** if B holds at least 3 distinct rules from at least 2 distinct jobs; **NO-GO** (shape brings fwd no gain; stop, report to hamr) if B is 0; between: report to hamr, no build. Also report A, B and each B rule's text. The bar can fail: B = 0 is a real outcome.
 
 Harness: `poc/m19-p0/count.mjs`. Read-only on `~/.config/fwdloop`; prints rule and job names only. Judged on the letter; a source with a different shape than assumed is reported, not fitted.
+
+### F223 RESULT (2026-11-19, $0, run once: `node poc/m19-p0/count.mjs`, output in `.claude/scratch/v061/p0/out.txt`, untracked)
+
+**Verdict on the letter: NO-GO.** A = 1, B = 0 (B = 0 is the pre-registered NO-GO line).
+
+- Sources found: 28 signed flows with a checkList (of 79 entries), 46 of 228 draft folders with a checkList, 1 repo fixture (`m15-walk-w1/run-1/job`). The other 9 fixture `declaration.json` files and 182 draft folders carry no checkList (pre-M16 shape).
+- Rule rows in state Not checked before filters: 6. Excluded: 4 Tickets filter/watch (flowType tickets), 0 Ask lines, 0 sheet lines. After dedupe by (job line, rule): A = 1: `walk-f201-friendly`, line "list 3 flights from Boston to Chicago", rule "be friendly". It holds no limit word, so B = 0.
+- B list: empty.
+
+What the data did not look like the bar assumed:
+1. The checkList exists only on newer jobs. Only 74 of 302 declarations carry one, so "final state Not checked" is readable from few jobs; the bulk of saved drafts is pre-M16.
+2. `not-checked.json` (214 files, 569 entries, 381 distinct) is not a list of `~` rules. It holds the drafter's free-text gaps ("tone of the summary prose") and refusal sentences ("line 2: ... you didn't take the offered column"). I did not count these in A (not `~` rules, no job-line/rule key). Reported only, not part of the bar: 31 distinct entries hold a limit word and no negation (for example "under 80 words", "exactly 3 bullets", "price under $150"). Those are mostly rules that already have a count/word/price check today or were refused; unchecked whether any was left unchecked by the final list. A reader who wants that question answered needs a rescan of those old drafts through today's list builder, which this POC did not do.
+3. Tickets flows hold their filter/watch rules as `rule` rows in state not-checked; I excluded all rule rows of a tickets flow (4), by flowType, not by text.
