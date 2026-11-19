@@ -185,13 +185,13 @@ export function applyPageRules(text, mapping, jobLines) {
   /** @type {Dropped[]} */
   const dropped = [];
   const all = Array.isArray(mapping?.facts) ? mapping.facts.filter(isRec) : [];
-  /** @type {Map<MapFact, {line: number, rule?: number}>} */
   // borrowed-from: bareloop src/pagerules.js@v0.61.0 (fc56e1f3) (the contested set and tieOfFact, copied unchanged)
   const contested = new Set((Array.isArray(mapping?.cannot) ? mapping.cannot : []).filter(isRec).map((c) => tieOf(c.from, jobLines)).filter((t) => t.rule !== undefined).map((t) => `${t.line}:${t.rule}`));
   const tieOfFact = (/** @type {MapFact} */ f) => {
     const t = tieOf(f.from, jobLines);
     return t.rule !== undefined && contested.has(`${t.line}:${t.rule}`) ? { line: t.line } : t;
   };
+  /** @type {Map<MapFact, {line: number, rule?: number}>} */
   const ties = new Map(all.map((f) => [f, tieOfFact(f)]));
   const drop = (/** @type {MapFact} */ f, /** @type {string|undefined} */ word, /** @type {string} */ reason, /** @type {string|undefined} */ other = undefined) => {
     const t = /** @type {{line: number, rule?: number}} */ (ties.get(f));
