@@ -33,6 +33,8 @@ import { freezePage } from './runner.js';
 import { removeFrozenPages } from './flow.js';
 import { lookAtPage, pageInfoLines } from './pagelook.js';
 import { lookAtSheet, sheetPrompt } from './sheetlook.js';
+import { lookAtShape, SHAPE_SYSTEM, SHAPE_CALL_LABEL } from './shapelook.js';
+import { buildShapes } from './shapebuild.js';
 import { leftRuleLine, dropRows, dropLine } from './pagedropwords.js';
 import {
   offerRules, rowsFromAnswer, retentionOf, SUGGEST_SYSTEM, SUGGEST_TOOL, SUGGEST_SCHEMA, suggestUserText, codeScope,
@@ -602,9 +604,9 @@ export async function draft({
   const { seenLines, toOriginal } = hideCounts(jobLines, !sheetPath ? new Set(lineNums.filter((n) => !askOrSend.has(n))) : new Set());
   const pageInfo = [];
   /** one map call (a page's or a sheet's): its hold, its metering and its book are the drafting round's own (the `kind` names it in the round log) */
-  const makeCallModel = (kind) => async (content, attempt) => {
+  const makeCallModel = (kind, system = MAP_SYSTEM) => async (content, attempt) => {
     const spentSoFar = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
-    if (spentSoFar + ceilingCostUsd(rates, content.length + MAP_SYSTEM.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent' }; }
+    if (spentSoFar + ceilingCostUsd(rates, content.length + system.length) > budgetUsd) { mapCut = 'budget'; return { error: 'the draft budget is spent', budget: true }; }
     const roundEvents = [];
     const mapLoop = new Loop({ provider, rates, onLlmResult: async (ev) => { roundEvents.push(ev); meterings.push(ev); } });
     calls += 1;
@@ -612,7 +614,7 @@ export async function draft({
     let res;
     let threw = null;
     try {
-      res = await mapLoop.run([{ role: 'system', content: MAP_SYSTEM }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
+      res = await mapLoop.run([{ role: 'system', content: system }, { role: 'user', content }], [], { maxTokens: DRAFT_MAX_TOKENS, thinkingMode: attempt === 1 ? draftThinking : 'on' });
     } catch (err) {
       threw = err;
       if (roundEvents.length === 0) unmetered += 1;
@@ -621,9 +623,10 @@ export async function draft({
     const entry = { round: log.length + 1, kind };
     if (res?.thinkingApplied !== undefined) entry.thinkingApplied = res.thinkingApplied;
     if (res?.thinkingStatus !== undefined) entry.thinkingStatus = res.thinkingStatus;
-    if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message }; }
+    if (threw) { entry.outcome = `provider-red: ${threw.message}`; log.push(entry); mapCut = 'provider-red'; return { error: threw.message, threw }; }
     const cutOff = res?.stopReason === 'max_tokens';
     entry.outcome = cutOff ? 'truncated' : 'answered';
+    if (kind === SHAPE_CALL_LABEL && typeof res?.text === 'string' && res.text !== '') entry.rawText = res.text;
     log.push(entry);
     if (res?.error && !cutOff) return { error: String(res.error) };
     return { text: res?.text ?? '', cutOff };
@@ -803,6 +806,25 @@ export async function draft({
   }
   // the record this draft hands on: what it kept plus what the person just answered (numbered on this card)
   onPickRecord?.({ picks: [...carried.kept.map((k) => k.entry), ...entriesFromAnswers(lines, allShape, checkPicks, leftRules)], kept: keptView });
+  // borrowed-from: bareloop src/authorjob.js@v0.61.0 (fc56e1f3) (:788-813, the shape look after the page look, the sheet look, the asks and the person's answers)
+  // SHAPE JOBS: the shape look is asked ONLY about the `~` rules still Not checked once every truth check, the answers and the asks are settled (`shapeCandidates`, code decides). No candidate = no call, and the draft is byte-identical.
+  // The AI only suggests; code builds or refuses each field (src/shapebuild.js). A look that fails, is unreadable or is capped never stops the draft: its spend stays booked, one draft-log line says so, and it goes on without a shape.
+  if (block && blockPlan?.ok) {
+    const left = block.shapeCandidates();
+    if (left.length > 0) {
+      const lineNums = [...new Set(left.map((x) => x.line))].sort((a, b) => a - b);
+      const got = await lookAtShape({
+        texts: block.texts, jobLines: blockPlan.jobLines, lineNums, left: lineNums.map((n) => ({ line: n, rules: left.filter((x) => x.line === n).map((x) => x.rule) })), ceilingUsd: arbiter.capUsd,
+        callModel: makeCallModel(SHAPE_CALL_LABEL, SHAPE_SYSTEM),
+      });
+      if (!got.ok) log.push({ round: log.length + 1, kind: 'shape-skipped', reason: got.reason, line: `the shape look did not complete: ${got.reason}; going on without a shape` });
+      else if (got.shapes.length > 0) {
+        block.setShape(buildShapes({ lines: blockPlan.jobLines.filter((l) => lineRules(l).length > 0 && !block.isSheetLine(l.n)), labels: block.labels, suggestions: got.shapes }));
+        block.carryShapeDropped(carriedShapeDropped);
+      }
+      block.reconcile();
+    }
+  }
   // M16 S2 + S4: the AI's two helpers send edits to the list, then the row-edit turn; code judges every edit alone (src/checkblock.js). The declaration path below runs as before (S5 assembles from the rows).
   // a line with nothing to check (no `~` rule of the person's, no input text for a `!` row to be built from) has no list to edit: no turn is paid for it (M16 item 2, "every job line with checks")
   // M10b piece 3: the drafting copy's table of each CSV input (`sheetTables`, above) - the header the AI may pick from in its suggestions, the table bareguard's build and sign-time tests run over
