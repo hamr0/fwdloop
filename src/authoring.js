@@ -344,7 +344,7 @@ export function writePlanFiles(dir, files, opts = {}) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
@@ -428,10 +428,11 @@ export async function draftToDir({
   /** @type {any[]} */
   let columnRecord = []; // the agreed columns of this plan (fresh and carried), kept in the same record (M17 ruling 2)
   let sheetDropped = []; // the sheet checks this plan has dropped (a Revise's carried ones, applied by draft()), kept in the same record
+  let shapeDropped = []; // the shape fields this plan has dropped, kept beside them in the same record (no new file)
   /** @type {any} */
   let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(columnAnswers === undefined ? {} : { columnAnswers }), ...(carriedColumns === undefined ? {} : { carriedColumns }), onColumns: (rec) => { columnRecord = rec; }, ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(columnAnswers === undefined ? {} : { columnAnswers }), ...(carriedColumns === undefined ? {} : { carriedColumns }), onColumns: (rec) => { columnRecord = rec; }, ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, ...(carriedShapeDropped === undefined ? {} : { carriedShapeDropped }), onShapeDropped: (rec) => { shapeDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
     flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }), actionMode,
   });
   if (result.stop === 'pre-flight') {
@@ -466,7 +467,7 @@ export async function draftToDir({
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
-  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj({ ...pickRecord, ...(rowChoices === null ? {} : { rowChoices }), ...(sheetDropped.length ? { sheetDropped } : {}), ...(columnRecord.length ? { columns: columnRecord } : {}) }), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
+  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj({ ...pickRecord, ...(rowChoices === null ? {} : { rowChoices }), ...(sheetDropped.length ? { sheetDropped } : {}), ...(shapeDropped.length ? { shapeDropped } : {}), ...(columnRecord.length ? { columns: columnRecord } : {}) }), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [], ...(result.notCheckedBy && Object.keys(result.notCheckedBy).length ? { by: result.notCheckedBy } : {}) }), secrets); // M16 item 5: the tag of each line that tells a row
   if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({

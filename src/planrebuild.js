@@ -111,6 +111,7 @@ export function rebuildBlock({ planDir, asks }) {
   if (choices) block.carryChoices(choices);
   // the sheet checks the draft built, in the draft's own order (after the AI's edits), and the Drops the plan was made with
   if (sheetBuilt !== null) { block.setSheet(sheetBuilt); block.carrySheetDropped(Array.isArray(record.sheetDropped) ? record.sheetDropped : []); }
+  if (Array.isArray(record.shapeDropped) && record.shapeDropped.length) block.carryShapeDropped(record.shapeDropped);
   block.reconcile();
   return { ok: true, block, declaration, lines, lineSet, parsed, texts, look, record, log, proseText: prose.text };
 }
@@ -176,6 +177,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const done = sheetKeyWhy !== null ? { ok: /** @type {const} */ (false), why: sheetKeyWhy } : b.block.rowChoice(key, op);
   if (!done.ok) return { ok: false, say: `${done.why[0].toUpperCase()}${done.why.slice(1)}${/[.!?]$/.test(done.why) ? '' : '.'} Nothing was changed.`, refused: 'bad-row' };
   const droppedNow = b.block.sheetDroppedRecord();
+  const shapeDroppedNow = b.block.shapeDroppedRecord();
   const after = assembleAgain(b);
   if (!after.ok) return { ok: false, say: after.say, refused: 'rebuild' };
   const target = readJson(planDir, 'target.json');
@@ -196,7 +198,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
-  const { sheetDropped: _sd, ...record } = isRec(b.record) ? b.record : {};
+  const { sheetDropped: _sd, shapeDropped: _shd, ...record } = isRec(b.record) ? b.record : {};
   const logRow = { round: (Array.isArray(b.log?.log) ? b.log.log.length : 0) + 1, kind: 'row-edit-human', op, key, outcome: 'answered', at: new Date().toISOString() };
   // the files the new plan keeps as they were (read through the gateway), then the ones it changes; `spec.hash` last, so a folder with one is whole
   /** @type {Record<string, string>} */
@@ -221,7 +223,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'declaration.json': declarationText,
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
-      [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}) }),
+      [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}), ...(shapeDroppedNow.length ? { shapeDropped: shapeDroppedNow } : {}) }),
       'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })() }),
       'spec.hash': `${h.hash}\n`,
     },
