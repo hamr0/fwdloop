@@ -8992,3 +8992,16 @@ Not usable: `m10-walk-csv-4/runs/run-1` (no sent `.md`). The Tickets MCP grid ha
 - (a) flag == marker on every page that snapshots.
 - (e) No browser PIDs or /tmp/barebrowse-* dirs of mine left after.
 - L0 is not judged (its F222b FAIL was a page-size design error).
+
+### F222c RESULT (tag r3)
+`timeout 300 node poc/f222-bb-flag/run222.mjs` and `run222b.mjs`, both unchanged, barebrowse 0.31.0, one run each. Raw: `.claude/scratch/bb030/r3/`. **VERDICT: (N), (R), (L), (a), (e) PASS.**
+
+| item | verdict | evidence |
+|---|---|---|
+| (N) | PASS | wikipedia: `botBlocked` false, marker absent, fwd ok, 323991 chars |
+| (R) | PASS | nowsecure.nl: `botBlocked` true, marker present (1165 chars), fwd error "https://nowsecure.nl/ asked for a human check (a bot challenge), so the page could not be read" |
+| (L) | PASS | local 127.0.0.1:8791: `botBlocked` true, marker present, fwd error "... asked for a human check (a bot challenge), so the page could not be read" |
+| (a) flag == marker | PASS | N, B2, I, R, L, L0 all snapshotted, flag == marker on 6/6 (B1 walmart never snapshotted: net::ERR_NETWORK_CHANGED) |
+| (e) cleanup | PASS | one new firefox PID after the run has parent 4336 (the MCP's forkserver, same as F222), not mine; no /tmp/barebrowse-* dirs; port 8791 closed |
+
+L0 not judged (as pre-registered; flag false, 130 chars, fwd's size floor refused it, same as 0.30.0). Reported only: B1 failed with a network error, B2 ok 57933 chars, I ok 179478 chars. `test/m10-page-input.test.js` + `test/m10-page-freeze.test.js`: 19 pass, 0 fail.
