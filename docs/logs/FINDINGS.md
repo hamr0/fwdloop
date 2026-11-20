@@ -9370,3 +9370,12 @@ Method (set before the run; the saved draft that stopped at the asks has NO `dec
 Pass = (a), (b) and (c) on the letter. Fail on any part stays FAIL. If (a) fails, stop and report.
 
 Harness: `poc/m19-am3/run.mjs`. Result is written under this heading after the run.
+
+### F234 RESULT (2026-11-20, $0, no AI, no key; run through `node poc/m19-am3/run.mjs`, output `.claude/scratch/v061/am3/RESULT.txt`, untracked; read-only `cp -a` copies of `~/.config/fwdloop/flows/.drafts` and of the walk's `.drafts`; before = a git worktree of 6d58aff7, after = the change)
+
+PASS on the letter, all three bars.
+- (a) PASS. Research-tracker 3-rule draft (`d-00mwp03sp5-7d14/draft`): before, the block's open list held 3 `cant-check` questions and `shapeCandidates()` named 0; after, the open list is empty and `shapeCandidates()` names all 3 (2.1, 2.2, 2.3).
+- (b) PASS. Without the change the same run names 0 candidates and 3 can't-check questions (the harness was run once before the change, and the bar failed as written: "FAIL" for (a)).
+- (c) PASS. Over the saved plan folders (a draft is one or more folders: `draft`, `draft-1`, ...): home drafts 368 folders (38 skipped, inputs gone or prose unreadable, 0 threw), open list CHANGED in 157 folders = 69 of 140 drafts; walk drafts 12 folders (3 skipped), CHANGED 9 = 5 of 5 drafts. Questions that went, by kind: `cant-check` only (249 + 23); no `reading` or `check` ask changed or was added in any folder (0 of 0). The first-pass block is the drafter's own `setUpBlock` with `asks: true` and no AI, so a reading that needs the page look is not in this count (it is unchanged by construction, the change touches only the two `cant-check` lines).
+- Not decided by this run: `rebuildBlock` on the 143 saved plans that carry a `declaration.json` rebuilt the same list before and after (0 changed), as expected: they replay the person's saved Drop it as `left`. The stopped draft has no `declaration.json` (it stopped at the asks), which is why the bar was read through `setUpBlock`; stated before the run.
+- Reading: the live failure was the two `fwd keeps` lines (`src/checkblock.js` `matchRule`, `matchCountRule`). After the copy of the tag's lines the research-tracker job reaches the shape look on its first draft (test/m19-am3.test.js (2): the plan's line 3 ends with `itemShape` fields for rules 1-3, with the shape look called once).
