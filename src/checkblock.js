@@ -611,8 +611,7 @@ export class CheckBlock {
       const money = this.lookFacts.filter((/** @type {any} */ f) => f.line === r.line && f.shape === 'money' && (!r.source || !f.source || f.source === r.source));
       if (phraseInNoResult(text, money, provedWords[0])) { r.can = { ok: false, why: dropSentence({ line: r.line, fact: r.name ?? provedWords[0], other: provedWords[0], reason: 'phrase-no-result' }) }; return; }
     }
-    // M19 am5: a phrase row signs ALL its proved words (any one passes); `word` stays the first for the readers that name one
-    r.can = { ok: true, how: 'bang', word: provedWords[0], words: provedWords };
+    r.can = { ok: true, how: 'bang', word: provedWords[0] };
   }
 
   // 4. code makes every check from the rows; a row it cannot build keeps its place with its plain reason. Returns the close's stages, parts and the row map.
@@ -797,7 +796,7 @@ export class CheckBlock {
         : base.shape === 'phrase' ? [mk(base.name, phraseSigned(base.words.filter((/** @type {string} */ x) => proved(this.textOf(src), x)), w))]
         : [kindFields(base, w, { ...(r.can.reading ? { rule: r.can.reading } : {}), ...(r.can.aiProposal ? { aiProposal: true } : {}) })];
     } else if (r.can.how === 'place') fs = placeFacts(r.name ?? 'phrase', r.can.strips, mk);
-    else if (r.shape === 'phrase' || r.kind === 'phrase') fs = [mk(r.name ?? `phrase ${r.words[0]}`, phraseSigned(r.can.words ?? [], r.can.word))];
+    else if (r.shape === 'phrase' || r.kind === 'phrase') fs = [mk(r.name ?? `phrase ${r.words[0]}`, phraseSigned((r.words ?? []).filter((/** @type {string} */ x) => proved(this.textOf(src), x)), r.can.word))];
     else fs = [kindFields(r, r.can.word, {})];
     const fresh = [];
     const names = fs.map((f) => f.name);

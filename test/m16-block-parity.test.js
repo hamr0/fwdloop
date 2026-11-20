@@ -46,7 +46,8 @@ function run(Block, j) {
   b.fromJob(stepLines(j.prose, j.decl));
   const lk = j.look?.look ?? { facts: [], dropped: [] };
   // fwd's signed R2c (M10 am7 item 2; M17 am4 B3) is the one deliberate difference from the vendor: a grown place's phrases are held by the row and the part. The parity runs on the look without them; the R2c test below holds the rest.
-  b.addLook(lk.facts.map((/** @type {any} */ f) => { const { phrases: _p, ...rest } = f; return rest; }), lk.dropped);
+  b.addLook(lk.facts.map((/** @type {any} */ f) => { const { phrases: _p, ...rest } = f; return rest.shape === 'phrase' && rest.words?.length > 1 ? { ...rest, words: [rest.words[0]] } : rest; }), lk.dropped);
+  // M19 am5 is the second deliberate difference: a plain phrase fact with several words keeps all of them (any one passes); the vendor keeps the first. The parity runs on the first word; test/m19-am5-phrase-anyof.test.js holds the rest.
   const before = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open) };
   b.drive({ answer: (q) => (q.offers.agree ? { choice: 'agree' } : null) });
   const after = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open), signed: plain(b.signedRows()) };
