@@ -33,7 +33,7 @@ function fnSource(name) {
   while (j < HTML.length && HTML[j] !== `${indent}}`) j++;
   return HTML.slice(i, j + 1).join('\n');
 }
-const NAMES = ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planCheckRowHtml', 'planFoldHtml', 'planViewHtml', 'sheetBlockLines', 'planOfState', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml', 'resultNotChecked'];
+const NAMES = ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planCheckRowHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'sheetBlockLines', 'planOfState', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml', 'resultNotChecked'];
 const used = NAMES.filter((n) => fnSource(n) !== null);
 const ctx = vm.createContext({ console, RESULT_NONE: 'none' });
 vm.runInContext(used.map(fnSource).join('\n'), ctx);
