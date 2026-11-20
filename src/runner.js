@@ -1969,6 +1969,19 @@ async function foldFromStep({
         });
       }
       let content = contentResult.value;
+      // M15 am4: a job with no signed Ask shows and binds the WHOLE body (every work line, in line order) at the stop, so what is accepted is what is written. It is built before the stop, from the saved outputs.
+      const noAsk = askLines.size === 0 && wholeIdx < 0;
+      let noAskBody = /** @type {{ ok: true, body: string } | null} */ (null);
+      if (noAsk) {
+        const built = sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines, checkList }), readResult: (id) => readArtifactResult(runDir, id) });
+        if (!built.ok) {
+          return haltRun({
+            flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: built.red,
+          });
+        }
+        noAskBody = built;
+        content = { text: built.body };
+      }
       const decided = decideAction({ acceptedSha: lastAcceptedSha(steps, i, acceptedAskEmitsThisRun), outgoing: content });
       let shaToSend = decided.outgoingSha;
       if (!decided.go) {
@@ -2027,7 +2040,7 @@ async function foldFromStep({
         }
       }
       // M15 am3 item 6: what is written is the accepted body (the whole-job text built at the last Ask) under the title and the Passed line the send adds; the hash check stays on `content`
-      const sendBody = sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines, checkList }) });
+      const sendBody = noAskBody ?? sendBodyOf({ content, wholeIdx, steps, sendIndex: i, askLines, context: reportContextOf({ runDir, steps, jobLines, checkList }) });
       if (!sendBody.ok) {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: 'red', red: sendBody.red,
@@ -2773,6 +2786,18 @@ export async function resumeRun({
     let priorArtifact = readArtifact(runDir, priorId);
     // M13 am9: the Ask that shows the whole job rebuilds `{text}` from the saved outputs, as the first pass did
     const wholeIdx = wholeJobAskIndex({ steps, askLines, sendLines });
+    if (isStop && askLines.size === 0 && wholeIdx < 0) {
+      // M15 am4: the stop of a job with no Ask shows the whole body, rebuilt as the first pass built it (the answer's hash is of this text)
+      const built = sendBodyOf({ content: priorArtifact, wholeIdx, steps, sendIndex: state.stepIndex, askLines, context: reportContextOf({ runDir, steps, jobLines: read.lines, checkList: declaration.checkList }), readResult: (id) => readArtifactResult(runDir, id) });
+      if (!built.ok) {
+        return haltRun({
+          flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts,
+          outcome: 'red', red: built.red,
+          resumeAt: { stepIndex: state.stepIndex, flowRoot: root, flowName: name, inputsManifest: state.inputsManifest, unjudged: state.evidenceUnjudged ?? [], redone: typeof state.redone === 'number' ? state.redone : 0 },
+        });
+      }
+      priorArtifact = { text: built.body };
+    }
     const rebuildWhole = () => wholeJobText({ steps, askLines, lastAskIndex: wholeIdx, readResult: (id) => readArtifactResult(runDir, id), context: reportContextOf({ runDir, steps, jobLines: read.lines, checkList: declaration.checkList }) });
     if (state.stepIndex === wholeIdx) {
       const whole = rebuildWhole();

@@ -65,8 +65,9 @@ test('Must-fail 2: the written body is the body Accept bound (same sha256), byte
   const res = await resumeRun(args(r, 'am4-2'));
   assert.equal(res.outcome, 'complete', res.red);
   const written = readFileSync(path.join(SEND_DIR, shipped()[0]), 'utf8');
-  assert.ok(written.endsWith(shown.text), 'the file body is the shown text');
-  assert.equal(sha256Hex(serializeArtifact({ text: written.slice(written.indexOf('\n## ') + 1) })), sha256Hex(serializeArtifact(shown)));
+  const body = written.slice(written.indexOf('\n\n') + 2, -1); // the file is the title and the Passed line, a blank line, the body, one newline (reportFileText)
+  assert.equal(body, shown.text, 'the written body is the shown body');
+  assert.equal(sha256Hex(serializeArtifact({ text: body })), sha256Hex(serializeArtifact(shown)), 'and its sha256 is the one Accept bound');
   clean();
 });
 

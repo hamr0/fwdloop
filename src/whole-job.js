@@ -90,10 +90,10 @@ export function reportContextOf({ runDir, steps, jobLines, checkList }) {
 /**
  * @param {{ steps: { fromLine: number, goal: string, emits?: string, close?: any }[], askLines: Map<number, any>, lastAskIndex: number,
  *   readResult: (id: string) => ({ ok: true, value: any } | { ok: false, missing: true } | { ok: false, missing: false, red: string }),
- *   context: ReturnType<typeof reportContextOf> }} p
+ *   context: ReturnType<typeof reportContextOf>, redPrefix?: string }} p `redPrefix` is `ask: ` (an Ask job's words, unchanged); M15 am4 gives a job with no Ask `send: `
  * @returns {{ ok: true, value: { text: string } } | { ok: false, red: string }}
  */
-export function wholeJobText({ steps, askLines, lastAskIndex, readResult, context }) {
+export function wholeJobText({ steps, askLines, lastAskIndex, readResult, context, redPrefix = 'ask: ' }) {
   if (!context.ok) return { ok: false, red: context.red };
   /** @type {Parameters<typeof renderReportBody>[0]} */
   const lines = [];
@@ -108,8 +108,8 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
       return {
         ok: false,
         red: r.missing
-          ? `ask: the saved output "${s.emits}" of step "${s.goal}" is missing — refusing to show the whole job`
-          : `ask: the saved output "${s.emits}" of step "${s.goal}" — ${r.red}`,
+          ? `${redPrefix}the saved output "${s.emits}" of step "${s.goal}" is missing — refusing to show the whole job`
+          : `${redPrefix}the saved output "${s.emits}" of step "${s.goal}" — ${r.red}`,
       };
     }
     const jl = context.jobLines.find((/** @type {any} */ l) => l && l.n === s.fromLine);
@@ -125,10 +125,13 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
 /**
  * M15 am3 item 6: the body the send writes. A plan whose last Ask shows the whole job (`wholeIdx` >= 0) was accepted AS that text: the body is `{text}` exactly, never rebuilt. A plan signed before
  * M13 am9 (or a job with no Ask) sends the one step right before the send: its section is written from the accepted artifact, the line being that step's own (or, past an Ask, the step the Ask read).
- * @param {{ content: any, wholeIdx: number, steps: any[], sendIndex: number, askLines: Map<number, any>, context: ReturnType<typeof reportContextOf> }} p
+ * M15 am4: a job with no signed Ask (`askLines.size === 0`, no whole-job Ask) writes every work line before the send, in line order: the whole-job text over the steps before the send, the step right before it
+ * read from `content` (what the person accepted), the earlier ones from the run's saved outputs (`readResult`). A missing or unreadable earlier output refuses by name, in `send: ` words (never `ask: `).
+ * @param {{ content: any, wholeIdx: number, steps: any[], sendIndex: number, askLines: Map<number, any>, context: ReturnType<typeof reportContextOf>,
+ *   readResult?: (id: string) => ({ ok: true, value: any } | { ok: false, missing: true } | { ok: false, missing: false, red: string }) }} p
  * @returns {{ ok: true, body: string } | { ok: false, red: string }}
  */
-export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, context }) {
+export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, context, readResult }) {
   if (wholeIdx >= 0) {
     return typeof content?.text === 'string' && Object.keys(content).length === 1
       ? { ok: true, body: content.text }
@@ -136,6 +139,14 @@ export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, cont
   }
   if (!context.ok) return { ok: false, red: context.red };
   const before = steps[sendIndex - 1];
+  if (askLines.size === 0) {
+    if (!readResult) return { ok: false, red: 'send: no reader for the run\'s saved outputs was given — refusing to write a report' };
+    const whole = wholeJobText({
+      steps, askLines, lastAskIndex: sendIndex, context, redPrefix: 'send: ',
+      readResult: (id) => (before && id === before.emits ? { ok: true, value: content } : readResult(id)),
+    });
+    return whole.ok ? { ok: true, body: whole.value.text } : whole;
+  }
   const made = before && askLines.has(before.fromLine) ? steps.find((x) => x.emits === (before.reads ?? [])[0]) ?? before : before;
   const jl = context.jobLines.find((/** @type {any} */ l) => l && l.n === made?.fromLine);
   return {
