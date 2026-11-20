@@ -4255,8 +4255,19 @@
       if(!notes || !notes.length) return "";
       return '<div data-testid="audit-checks-readnotes" style="margin:6px 0"><div><b>How the page was read</b></div>' + notes.map(function(t){ return '<div class="audit-check-row" data-testid="audit-read-note" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(t) + "</div>"; }).join("") + "</div>";
     };
-    // the signed look's groups (M19 S6): CHECKED (the checks of the lines, then the two every step has), NOT CHECKED; the Line blocks and the "Every line" block are S7
-    body.innerHTML = '<div class="jp">' + grp("CHECKED", (ac.checks || []).concat(ac.always || []), "audit-checks-checks") + grp("NOT CHECKED", ac.notChecked || [], "audit-checks-notchecked", "you judge these at Accept") + readSec(ac.readNotes) + "</div>";
+    // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) auditChecksEl: one block per job line (signed look): `Line N  text`, its CHECKED rows, its NOT CHECKED rows; the rows no line owns (the two every step has, a Not checked note naming no line) join the block of a one-line job, else have a block of their own
+    var lineBlocks = ac.lines || [];
+    var blocks = lineBlocks.map(function(l, i, all){
+      var own = all.length === 1;
+      return '<div class="jl" data-testid="audit-line"><span class="lbl">Line ' + escapeXml(String(l.n)) + "</span> " + escapeXml(l.text) +
+        grp("CHECKED", (l.checks || []).concat(own ? (ac.always || []) : []), "audit-checks-checks") + grp("NOT CHECKED", (l.notChecked || []).concat(own ? (ac.jobNotChecked || []) : []), "audit-checks-notchecked", "you judge these at Accept") + "</div>";
+    });
+    if(lineBlocks.length !== 1){
+      var rest = grp("CHECKED", ac.always || [], "audit-checks-always") + grp("NOT CHECKED", ac.jobNotChecked || [], "audit-checks-notchecked", "you judge these at Accept");
+      if(rest) blocks.push('<div class="jl" data-testid="audit-job-level"><span class="lbl">Every line</span>' + rest + "</div>");
+    }
+    // a run read without its per-line data (an older record, a row owned by a line the job text lacks) keeps the flat groups, no row lost
+    body.innerHTML = '<div class="jp">' + (lineBlocks.length ? blocks.join("") : grp("CHECKED", (ac.checks || []).concat(ac.always || []), "audit-checks-checks") + grp("NOT CHECKED", ac.notChecked || [], "audit-checks-notchecked", "you judge these at Accept")) + readSec(ac.readNotes) + "</div>";
     function paint(open){ body.hidden = !open; wrap.classList.toggle("closed", !open); btn.setAttribute("aria-expanded", open ? "true" : "false"); }
     function toggle(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); }
     btn.addEventListener("click", toggle);
