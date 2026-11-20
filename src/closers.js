@@ -392,6 +392,8 @@ async function closeOne(step, artifact, ctx) {
     const base = await closeCited(step.close.cited, artifact, ctx.source);
     return step.close.itemShape ? withItemShape(base, await closeItemShape(step, artifact)) : base;
   }
+  // M19 S5, O1: a list of items and no quote reads `results` only (class green: option (ii); class softgreen: option (i)); which class code signs for it is `SHAPE_ONLY_CLASS`, src/blockassemble.js
+  if ((cls === 'green' || cls === 'softgreen') && step?.close?.itemShape && !step.close.cited && !Array.isArray(step.close.sheet)) return await closeItemShape(step, artifact);
   if (cls === 'green' && Array.isArray(step?.close?.sheet)) return await closeSheet(step.close.sheet, artifact, ctx.sheet);
   if (cls === 'green') return { verdict: 'crash', red: 'closeByClass: a green step with no close.sheet or close.cited is the retired cell cite' };
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});
