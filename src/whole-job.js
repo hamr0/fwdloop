@@ -60,6 +60,9 @@ export function proseCheckedOf(step, checkList) {
   return shape.wordsPerSection !== undefined || (Array.isArray(shape.picked) && shape.picked.length > 0) || (Array.isArray(c.picked) && c.picked.length > 0);
 }
 
+/** the signed shape part of a step (its close's `itemShape`, M19 S5), or null: the report writes the shape section for a line that holds one (M19 amendment C) @param {any} step */
+const shapeOfStep = (step) => (step?.close?.itemShape && typeof step.close.itemShape === 'object' && Array.isArray(step.close.itemShape.fields) ? step.close.itemShape : null);
+
 /**
  * What the report needs besides the steps: the signed lines' own words (the `~` rules), the run's frozen sheets and which sheet checks passed. Read once from the run folder.
  * @param {{ runDir: string, steps: any[], jobLines: any[]|null|undefined, checkList?: any[]|null }} p
@@ -113,6 +116,7 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
     lines.push({
       n: s.fromLine, kind: 'work', text: s.goal, rules: lineRulesOf(jl), artifact: r.value,
       checks: Array.isArray(s.close?.sheet) ? s.close.sheet : [], okIds: context.okIdsOf(s.fromLine), proseChecked: proseCheckedOf(s, context.checkList),
+      shape: shapeOfStep(s),
     });
   }
   return { ok: true, value: { text: renderReportBody(lines, context.tables) } };
@@ -139,6 +143,7 @@ export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, cont
     body: renderReportBody([{
       n: made?.fromLine, kind: 'work', text: made?.goal, rules: lineRulesOf(jl), artifact: content,
       checks: Array.isArray(made?.close?.sheet) ? made.close.sheet : [], okIds: context.okIdsOf(made?.fromLine), proseChecked: proseCheckedOf(made, context.checkList),
+      shape: shapeOfStep(made),
     }], context.tables),
   };
 }
