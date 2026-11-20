@@ -778,16 +778,16 @@ export async function draft({
   // a Revise keeps the last draft's Drop/Add choices (the suggestions exist now); code still judges every one when the list is reconciled
   if (block && Array.isArray(carriedChoices)) { block.carryChoices(carriedChoices); onChoices(block.choicesRecord()); block.reconcile(); }
   /** the questions of the block, merged below with the sheet's and the look's own, under one cap (M16 S3) */
-  const blockAsks = block && offerQuestions ? questionsOfBlock(block, allShape) : [];
+  const blockAsks = block && offerQuestions ? questionsOfBlock(block) : [];
   if (block) pageExtras.checkRows = ledgerRecord(/** @type {any} */ (block.rows.filter((r) => !block.isSheetLine(r.line))));
   // M10 piece 3 (item 4, am1, am2): CODE decides the early asks from the look, after the one map call and BEFORE any drafting round. A signed ask line's own
   // guardrail is a human stop, not a page check, so it is not asked. More than MAX_LOOK_ASKS is a job to rewrite: nothing is asked, nothing more is spent.
   // The redraft after the answers (offerQuestions false) never asks. A sheet's offers are reading asks: they come first with the page's, in line order.
   if ((sheetAsks.length || blockAsks.length || actionAsk !== null) && offerQuestions) {
     // M17 am4 (A1): a question comes from the list (questionsOfBlock) or is the sheet's column offer (M17 am1 1(a)); no question is asked outside the list
-    const lookAsks = [...[...sheetAsks, ...blockAsks.filter((a) => a.ask === 'reading')].sort((a, b) => a.line - b.line), ...blockAsks.filter((a) => a.ask === 'cant-check')];
+    const lookAsks = [...[...sheetAsks, ...blockAsks.filter((a) => a.ask === 'reading')].sort((a, b) => a.line - b.line)];
     // am16 (3): a shape guardrail's ask follows, in line order. (5): a proposal is not an ask under am1; only a `can't check` ask counts toward the cap (the 4th stops drafting at $0).
-    const blockShape = blockAsks.filter((a) => a.ask === 'no-check' || a.ask === 'check');
+    const blockShape = blockAsks.filter((a) => a.ask === 'check');
     const asks = [...lookAsks, ...blockShape, ...(actionAsk === null ? [] : [actionAsk])];
     if (asks.length > 0) {
       const m = sumMeterings(meterings);

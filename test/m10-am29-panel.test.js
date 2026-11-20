@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
-import { panelQuestionText, readingQuestion, cantCheckQuestion } from '../src/pageask.js';
+import { panelQuestionText, readingQuestion } from '../src/pageask.js';
 import { checkAsks } from '../src/checkpick.js';
 import { columnQuestion } from '../src/sheetfind.js';
 
@@ -36,7 +36,8 @@ const READ_Q = { source: 'look', line: 4 };
 test('panelQuestionText cuts exactly the known tails of each ask kind and nothing else; the stored text is never changed', () => {
   const reading = readingQuestion(4, 'under $400', 'price under 450 US dollars');
   assert.equal(panelQuestionText({ ...READ_Q, question: reading }), 'Your line 4 says "under $400". I read it as: price under 450 US dollars. Agree?');
-  const cant = cantCheckQuestion(4, 'pays well');
+  // an OLD saved draft's can't-check question text (the code no longer writes one; M19 am3)
+  const cant = 'Your line 4 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer replaces that ~ rule on line 4).';
   assert.equal(panelQuestionText({ ...READ_Q, question: cant }), 'Your line 4 says "pays well". I can\'t check this on the page. Drop it?');
   const [prop, none] = checkAsks([{ line: 4, rule: 1, text: 'exactly 3 bullets', check: { rule: 'listItems', value: 3 }, why: null }, { line: 4, rule: 2, text: 'feels right', check: null, why: null }]);
   assert.match(prop.question, /Answer "agree" to use it/);

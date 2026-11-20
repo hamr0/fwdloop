@@ -49,7 +49,7 @@ test('(S3) the answers ride the redraft: the person\'s Agree (the panel\'s answe
   A.reconcile();
   A.applyDelta({ pre: true, edits: [{ op: 'pick', line: 3, rules: [1], check: CHECK }] });
   A.reconcile();
-  const asks = questionsOfBlock(A, [{ line: 3, rule: 1 }]);
+  const asks = questionsOfBlock(A);
   assert.deepEqual(asks.map((a) => a.ask), ['check']);
   assert.deepEqual(applyChoices(A, [{ key: asks[0].key, choice: 'agree' }]), []);
   // the panel's path: the redraft's prose holds the REPLACED rule (one rule in, one rule out), and the pick comes back as {line, rule, check}
