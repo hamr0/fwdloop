@@ -36,9 +36,9 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   // borrowed-from: bareloop src/pagedropwords.js@c550dc8 (the phrase dry read's sentence)
   'phrase-no-result': (d) => `"${d.other}" is on the page but in none of its results, so it is not checked.`,
   'person-left': () => 'You chose to leave it Not checked.',
-  // M10 am16 (items 4, 5): a shape guardrail with no check picked is Not checked, and you judge it at the Ask
-  'no-pick': () => 'No check was picked for it, so you judge it at the Ask.',
-  'own-words': () => 'Your own words are on the line; the machine has no check for them, so you judge it at the Ask.',
+  // M10 am16 (items 4, 5): a shape guardrail with no check picked is Not checked, and you judge it at Accept
+  'no-pick': () => 'No check was picked for it, so you judge it at Accept.',
+  'own-words': () => 'Your own words are on the line; the machine has no check for them, so you judge it at Accept.',
   // M10 piece 5 (item 7, am8 item 1): the signed Not-checked reasons for a job word that is not a column. `fact` = the job's word.
   'no-column': (d) => `there is no column '${d.fact}'`,
   'no-fit': (d) => `no column fits '${d.fact}'`,

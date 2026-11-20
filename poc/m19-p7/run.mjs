@@ -14,6 +14,7 @@ import { auditChecksOf } from '../../src/auditchecks.js';
 import { checkedLines, notCheckedView } from '../../src/checked.js';
 import { cardLinesOf } from '../../src/checklistsign.js';
 import { EVERY_STEP_TEXTS } from '../../src/try-checks.js';
+import { ncRowsOf } from '../../src/checklook.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '../..');
@@ -52,7 +53,7 @@ function surfaces(dir) {
   const by = isRec(nc?.by) ? nc.by : {};
   const out = {};
   const t = (f) => { try { return f(); } catch (e) { return { threw: String(e?.message ?? e).slice(0, 160) }; } };
-  out.readout = t(() => buildReadout({ declaration, arbiter: parsed.arbiter, lines: parsed.lines, name: 'job', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: '/r' }).split('\n'));
+  out.readout = t(() => buildReadout({ declaration, arbiter: parsed.arbiter, lines: parsed.lines, name: 'job', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: '/r', notChecked: items, notCheckedBy: by }).split('\n'));
   const ac = t(() => auditChecksOf(declaration, [], { items, by }, { lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) }));
   out.audit = ac && !ac.threw ? { ...ac, html: Object.fromEntries(['checks', 'notChecked', 'always'].map((k) => [k, (ac[k] ?? []).map((r) => (page('auditCheckRowHtml') ? page('auditCheckRowHtml')(r) : null)).map((h) => (h === null ? null : strip(h)))])) } : ac;
   // the card: only a plan whose draft kept a checkCard (as the panel's planChecks reads it), through the page's planOfState and planViewHtml
@@ -63,7 +64,7 @@ function surfaces(dir) {
       const view = notCheckedView(nc?.notChecked, declaration);
       const state = {
         phase: 'green', checked: checkedLines(declaration, { askLines, lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) }),
-        notChecked: { ...view, ...(isRec(nc?.by) ? { by: nc.by } : {}) },
+        notChecked: { ...view, ...(isRec(nc?.by) ? { by: nc.by } : {}), rows: ncRowsOf(view.items, isRec(nc?.by) ? nc.by : {}) },
         list: { lines: [...cardLinesOf(declaration)], rows: log.checkCard.rows, suggested: log.checkCard.suggested },
         planLines: parsed.lines.map((l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })), always: [...EVERY_STEP_TEXTS],
       };
@@ -84,7 +85,7 @@ export function snapshot(root) {
 
 // ---- the bars ----
 /** the section 3.7 words, taken out of a row before words are compared */
-const WORDS37 = [/^(?:›\s*)?check\s*·\s*/, /^(?:›\s*)?not checked\s*·\s*/, /\s*·\s*(?:machine check|judge)$/, /^\[(?:you|agent|default)\]\s*/, /^[~!$]\s*\[(?:you|agent|default)\]\s*/, /\s*[~!$]?\s*\[(?:you|agent|default)\]$/];
+const WORDS37 = [/^(?:truth|shape|file)\s+/, /^(?:›\s*)?check\s*·\s*/, /^(?:›\s*)?not checked\s*·\s*/, /\s*·\s*(?:machine check|judge)$/, /^\[(?:you|agent|default)\]\s*/, /^[~!$]\s*\[(?:you|agent|default)\]\s*/, /\s*[~!$]?\s*\[(?:you|agent|default)\]$/];
 const clean = (s) => { let x = String(s).replace(/\s+/g, ' ').trim(); for (let k = 0; k < 3; k++) for (const r of WORDS37) x = x.replace(r, '').trim(); return x; };
 
 export function judge(before, after) {
@@ -112,8 +113,9 @@ export function judge(before, after) {
     }
     if (isRec(b.audit) && isRec(a.audit)) {
       for (const sect of ['checks', 'notChecked', 'always']) {
-        const rb = (b.audit[sect] ?? []).map((r) => [clean(r.text), r.by, r.result]);
-        const ra = (a.audit[sect] ?? []).map((r) => [clean(r.text), r.by, r.result]);
+        const full = (r) => clean(r.why ? `${r.text} \u2014 ${r.why}` : r.text);
+        const rb = (b.audit[sect] ?? []).map((r) => [full(r), r.by, r.result]);
+        const ra = (a.audit[sect] ?? []).map((r) => [full(r), r.by, r.result]);
         res.rows.audit += rb.length;
         if (JSON.stringify(rb) !== JSON.stringify(ra)) res.fails.push(`${k}: audit ${sect} rows differ: ${rb.length} -> ${ra.length}`);
         for (const r of a.audit[sect] ?? []) if (Array.isArray(a.audit.html?.[sect]) && a.audit.html[sect].length && !a.audit.html[sect].some((h) => h !== null && h.includes(String(r.text).replace(/\s+/g, ' ').trim()))) res.fails.push(`${k}: audit row html lacks its text: ${r.text.slice(0, 50)}`);
@@ -134,7 +136,9 @@ export function judge(before, after) {
       const cb = cells(b.card), ca = cells(a.card);
       res.rows.card += cb.length;
       if (JSON.stringify(cb.map((x) => [x[0], clean(x[1]), x[2]])) !== JSON.stringify(ca.map((x) => [x[0], clean(x[1]), x[2]]))) res.fails.push(`${k}: card cells differ: ${cb.length} -> ${ca.length}`);
-      for (const c of ca) if (c[0] !== 'action' && c[1] && !String(a.card.html).includes(String(c[1]).replace(/\s+/g, ' ').trim())) res.fails.push(`${k}: card html lacks ${c[0]}: ${String(c[1]).slice(0, 50)}`);
+      for (const c of ca) if (c[0] !== 'action' && c[0] !== 'notChecked' && c[1] && !String(a.card.html).includes(String(c[1]).replace(/\s+/g, ' ').trim())) res.fails.push(`${k}: card html lacks ${c[0]}: ${String(c[1]).slice(0, 50)}`);
+      for (const r of a.card.plan.ncRows ?? []) if (!String(a.card.html).includes(r.text.replace(/\s+/g, ' ').trim()) || (r.why && !String(a.card.html).includes(r.why.slice(0, 40)))) res.fails.push(`${k}: card html lacks Not checked row: ${r.text.slice(0, 50)}`);
+      if ((a.card.plan.ncRows ?? []).length !== (b.card.plan.notChecked ?? []).length) res.fails.push(`${k}: Not checked rows ${(b.card.plan.notChecked ?? []).length} -> ${(a.card.plan.ncRows ?? []).length}`);
       if (b.card.hasAction && !(a.card.actionHtml && /writes everything before it/.test(a.card.actionHtml))) res.fails.push(`${k}: action row lost`);
       for (const r of b.card.plan.readNotes ?? []) if (!String(a.card.html).includes(r)) res.fails.push(`${k}: How the page was read row lost: ${r.slice(0, 50)}`);
     }
