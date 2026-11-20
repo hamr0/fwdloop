@@ -17,6 +17,7 @@ import { checkRowsOfPlan, expectedParts } from './reader2.mjs';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const roots = [path.join(os.homedir(), '.config/fwdloop/flows/.drafts'), path.join(REPO, '.claude/scratch/m19-walk-YBSm/flows/.drafts')];
 const MODE = process.argv.includes('--candidate') ? 'candidate' : 'today';
+const LVAR = process.argv.includes('--l-variant'); // labelled variant AFTER the run: the pre-registered synthetic key collided with a real row
 const EX = Number(process.env.EX || 3);
 const J = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const isRec = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -35,7 +36,7 @@ const isShapeRow = (r, partId) => /:shape:/.test(partId ?? '') || r.kind === 'sh
 // the order rank of a built row by the part it names (am7 item 4), written here, not read from the reader
 const rankOf = (partId, key) => (/\.sheet\./.test(key) ? 0 : /:fact:/.test(partId ?? '') ? 1 : /:count$/.test(partId ?? '') ? 2 : /:shape:/.test(partId ?? '') ? 3 : /:pick:/.test(partId ?? '') ? 4 : /:numbers$/.test(partId ?? '') ? 5 : /\$floor$/.test(key) ? 6 : null);
 
-const T = { drafts: 0, thrown: 0, rows: 0 };
+const T = { drafts: 0, thrown: 0, rows: 0, keptRows: 0 };
 const B = { b: { n: 0, ok: 0, ex: [] }, c: { parts: 0, none: 0, many: 0, orphan: 0 }, d: { rows: 0, differ: 0, nosigned: 0 }, e: { items: 0, differ: 0, candOnly: 0, ex: [] }, ord: { lines: 0, bad: 0, ex: [] }, h: { parts: 0, bad: 0, ex: [] },
   i: { rows: 0, bad: 0, ex: [] }, j: { rows: 0, bad: 0, ex: [] }, k: { rows: 0, bad: 0, ex: [] }, l: { rows: 0, bad: 0 }, m: { rows: 0, bad: 0 } };
 const err = [];
@@ -109,6 +110,7 @@ for (const dir of dirs) {
   for (const r of rows) {
     const part = r.part ?? '';
     if (/:shape:/.test(part)) { B.i.rows++; const e = et.get(part); if (!e || r.text !== e.text || (r.by === 'you') !== e.tagYou) { B.i.bad++; if (B.i.ex.length < EX) B.i.ex.push(`${dir.slice(-30)} ${r.key}: [${r.by}] ${r.text} | want ${e?.text}`); } }
+    if (/:pick:/.test(part) && r.text.includes(KEPT_WORDS)) T.keptRows++;
     if (/:pick:/.test(part)) { B.j.rows++; const e = et.get(part); if (!e || r.text !== e.text || /\(you agreed/.test(r.text) || r.text.endsWith('.')) { B.j.bad++; if (B.j.ex.length < EX) B.j.ex.push(`${dir.slice(-30)} ${r.key}: ${r.text} | want ${e?.text}`); } }
     if (/:numbers$/.test(part)) { B.k.rows++; const e = et.get(part); if (!e || r.text !== e.text || r.by !== 'default') { B.k.bad++; if (B.k.ex.length < EX) B.k.ex.push(`${dir.slice(-30)} ${r.key}: [${r.by}] ${r.text} | want ${e?.text}`); } }
     if (/\.ticket\./.test(r.key)) { B.m.rows++; if (!signed.has(r.key)) B.m.bad++; }
@@ -139,10 +141,10 @@ for (const dir of dirs.filter((d) => SHAPE_DRAFTS.test(d))) {
 let L = null;
 if (MODE === 'candidate') {
   const src = dirs.find((d) => /d-00mwpctg7p-29f9/.test(d)); const decl = JSON.parse(fs.readFileSync(`${src}/declaration.json`, 'utf8'));
-  decl.checkList.push({ line: 2, key: 'L2.phrase.chicago ord', from: 'look', by: 'agent', kind: 'phrase', state: 'not-checked', reason: 'x' });
+  decl.checkList.push({ line: 2, key: LVAR ? 'L2.phrase.new york' : 'L2.phrase.chicago ord', from: 'look', by: 'agent', kind: 'phrase', state: 'not-checked', reason: 'x' });
   const jl = parseSignedText(fs.readFileSync(`${src}/prose.txt`, 'utf8')).lines;
-  const find = (ledger) => checkRowsOfPlan({ declaration: decl, lines: jl, ledger }).find((r) => r.key === 'L2.phrase.chicago ord')?.text;
-  L = { withLedger: find([{ key: 'L2.phrase.chicago ord', words: ['Chicago ORD'] }]), without: find([]) };
+  const find = (ledger) => checkRowsOfPlan({ declaration: decl, lines: jl, ledger }).find((r) => r.key === (LVAR ? 'L2.phrase.new york' : 'L2.phrase.chicago ord'))?.text;
+  L = { withLedger: find([{ key: LVAR ? 'L2.phrase.new york' : 'L2.phrase.chicago ord', words: [LVAR ? 'New York' : 'Chicago ORD'] }]), without: find([]) };
 }
 const verdict = (ok) => (ok ? 'PASS' : 'FAIL');
 say(`F240 mode=${MODE}  drafts=${T.drafts}; rows under test=${T.rows}`);
@@ -158,6 +160,7 @@ say(`(h) parts with several signed rows=${B.h.parts}; not one row from the first
 say(`(i) shape rows=${B.i.rows}; not shapeRowsOf's words/tag=${B.i.bad}  -> ${verdict(B.i.bad === 0 && B.i.rows > 0)}`); for (const x of B.i.ex) say(`   ${x}`);
 say(`(j) pick rows=${B.j.rows}; violations=${B.j.bad}  -> ${verdict(B.j.bad === 0 && B.j.rows > 0)}`); for (const x of B.j.ex) say(`   ${x}`);
 say(`(k) numbers rows=${B.k.rows}; violations=${B.k.bad}  -> ${verdict(B.k.bad === 0 && B.k.rows > 0)}`); for (const x of B.k.ex) say(`   ${x}`);
-say(L ? `(l) real Not checked fact/phrase rows=${B.l.rows}; differ from the saved words=${B.l.bad}; SYNTHETIC with ledger: ${L.withLedger}; without: ${L.without}  -> ${verdict(B.l.bad === 0 && L.withLedger === 'phrase "Chicago ORD"' && L.without === 'phrase "chicago ord"')}` : '(l) not measurable on today\'s card (no reader, no ledger)  -> n/a');
+say(L ? `(l) real Not checked fact/phrase rows=${B.l.rows}; differ from the saved words=${B.l.bad}; SYNTHETIC with ledger: ${L.withLedger}; without: ${L.without}  -> ${verdict(B.l.bad === 0 && L.withLedger === (LVAR ? 'phrase "New York"' : 'phrase "Chicago ORD"') && L.without === (LVAR ? 'phrase "new york"' : 'phrase "chicago ord"'))}` : '(l) not measurable on today\'s card (no reader, no ledger)  -> n/a');
+say(`(info) pick rows carrying ' · ${KEPT_WORDS}'=${T.keptRows}`);
 say(`(m) Tickets rows=${B.m.rows}; with no signed ticket row=${B.m.bad}  -> ${verdict(B.m.bad === 0)}`);
-fs.writeFileSync(path.join(REPO, `.claude/scratch/card-model/RESULT2-${MODE}.txt`), `${lines.join('\n')}\n`);
+fs.writeFileSync(path.join(REPO, `.claude/scratch/card-model/RESULT2-${MODE}${LVAR ? '-lvariant' : ''}.txt`), `${lines.join('\n')}\n`);
