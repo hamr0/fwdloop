@@ -9272,3 +9272,19 @@ Fails if: any spend or call count above is not 0 or unchanged, the list after Ad
 How the harness reaches a shape plan (not a change to the code under test): a first panel draft asks about every rule it cannot check, and such a rule is never a shape candidate (`shapeCandidates`: `!r.can?.ask`); the draft after the answers never asks. The harness uses the real `bin/fwdloop` with `--no-questions` added to `draft` (`poc/m19-p8/noq/fwdloop`), one Revise to make `draft-1`, and writes `redraft-1.json` the way the answers' redraft writes it, so `rowEdit` reads the plan as drafted without asks. The provider is shut after the draft by a test-only switch of the fake (`FWDLOOP_TEST_DRAFT_DENY`: once that file exists any call throws); `FWDLOOP_TEST_DRAFT_CALLS` counts every call.
 Fail-first (the harness can fail): the shape replay switched off alone in `src/planrebuild.js` gives 11 FAIL (the Drop is refused `changed`, scenarios 1 to 5 and the Revise); the card's `restorable` emptied alone gives 1 FAIL (scenario 2). Both restored with `git checkout`.
 Unchecked here: a first draft whose shape rule is reached with asks on (a `truthRefused` rule); the route reads such a plan as drafted with asks, which is right for it, but no scenario here walks it.
+
+## F232 PRE-REGISTRATION (2026-11-20, $0, no AI, no key; M19 P3: rules first stays byte-identical; written before the harness `poc/m19-p3/run.mjs`, NOT yet run)
+
+Source: `.claude/scratch/v061/draft.md` section 6 "P3", frozen. Copied word for word:
+
+**P3 — rules first stays byte-identical ($0).** Rebuild the list of every good signed fwd job with the S1-S4 code present: with no shape answer (no candidates, or the look absent), the signed list and the close are identical to today for every job; with P2's answers, only lines holding a candidate change. Bar: 0 jobs change that have no candidate.
+
+How it is read (set before the run; the bar above is the signed-off text, this is the method):
+- "Today" = the last commit before M19's S1 (`1b8a8ff6`, "deps: bareguard 0.37.0"; S1's first commit `1e76b0cb` is its child), checked out as a git worktree under `.claude/scratch/` (node_modules linked), removed afterwards. "With S1-S4 code present" = HEAD of `bb030-bot-flag`.
+- Jobs = every folder with a `prose.txt` and a `declaration.json` found by walking a `cp -a` copy of `~/.config/fwdloop/flows` (the same finder as `test/m19-block-snapshot.mjs`: `flowDirs`; a run's job copy is one too; `.drafts` included as that finder does). The real folder is never written.
+- For each job, the same readers a screen uses (`signedReaders` of `test/m19-block-snapshot.mjs`: the signed list on the card, the checked lines, the Audit's list, the sheet card, the Not-checked view, the gate's reds, every step's `close`, the declaration's `checkList`) are computed once by the baseline's `src/` and once by HEAD's `src/`, and the two JSON outputs are compared byte for byte. The `signedReaders` logic is copied into the harness so the baseline runs it (the test file is not in the baseline tree).
+- Half 1 (run now): no shape answer exists for any job. Bar read on the letter: every job identical. Any difference is a FAIL on the letter even if explained; the cause is then reported (found by `git bisect`-style rerun at the commits between), not hidden. Also reported: how many jobs hold a shape candidate by `CheckBlock.shapeCandidates()` where rebuildable (information, not the bar).
+- Half 2 (with P2's answers): the harness takes a P2 answers file path (`--answers`). It stays "waits for P2" until P2 has run; then only lines holding a candidate may change and 0 jobs without a candidate may change.
+- A job a reader throws on at both commits with the same message counts as identical; one that throws at one commit only is a change.
+
+Harness: `poc/m19-p3/run.mjs`. Result is written under this heading when run.
