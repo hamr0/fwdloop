@@ -18,7 +18,7 @@ const base = path.join(W, 'base');
 sh('git', ['-C', REPO, 'worktree', 'add', '--detach', base, arg('base', '6d58aff7')]);
 fs.symlinkSync(path.join(REPO, 'node_modules'), path.join(base, 'node_modules'));
 const lines = []; const say = (s) => { lines.push(s); console.log(s); };
-const RT = 'd-00mwp03sp5-7d14/draft/prose.txt';
+const RT = 'd-00mwp03sp5-7d14/draft';
 try {
   const run = (repo, tag) => { for (const set of ['home', 'walk']) sh('node', [path.join(REPO, 'poc', 'm19-am3', 'snap.mjs'), repo, path.join(W, `${set}-drafts`), path.join(W, `${tag}-${set}.json`)], { cwd: W }); };
   run(base, 'before'); run(REPO, 'after');

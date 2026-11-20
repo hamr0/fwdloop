@@ -1,8 +1,7 @@
 // borrowed-from: bareloop src/checkblock.js@v0.57.0 (c18df406)
 // borrowed-from: bareloop src/checkblock.js@v0.60.0 (M19 S3: caught up from the earlier port; sheet rows, repo rows, droppable, choiceEntries and lineWordKeys as the tag has them)
 // borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 S3: the shape rows, setShape and the shape Drops; where a hunk is not taken the line says `fwd keeps`)
-// Where a signed fwd rule stays instead of the tag's line, the line says `fwd keeps` (hamr 2026-11-19: "checks move inside with the same flow we have, don't make unneccessary drift"): the `cant-check` question
-// (M10 am16 (3)), the own-words answer to any question (M10 am16), no `$prose` row and no floor row on the card (the card draws neither today), no `corrected` flag, and fwd's own sheet Not-checked words.
+// Where a signed fwd rule stays instead of the tag's line, the line says `fwd keeps` (hamr 2026-11-19: "checks move inside with the same flow we have, don't make unneccessary drift"): the own-words answer to any question (M10 am16), no `$prose` row and no floor row on the card (the card draws neither today), no `corrected` flag, and fwd's own sheet Not-checked words.
 // fwd never sets `repo` (it has no repo job), so the repo rows below are inert here and stay as the tag has them.
 // first ported from: bareloop src/checkblock.js@v0.56.0 (3383cce) + f148028e (M16 am2: an agreed answer's follower row takes its parent's check after the parts are numbered, 4 lines in build())
 // Ported, not copied whole (M16 am3 (1)): the imports point at fwd's files (src/blockpick.js is bareloop's checkpick.js under another name), and the three patterns built from text
@@ -543,8 +542,8 @@ export class CheckBlock {
     if (r.links?.length && !links.length) { r.can = { ok: false, why: REASON.lookNoWords }; return; }
     if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: r.aiReason ?? r.lookWhy ?? REASON.nothingOnPage }; return; }
     if (r.links?.length) { r.can = { ok: false, why: r.aiReason ?? `the look tied a fact to this rule but gave no limit, and ${ownWhy ? `in your words ${ownWhy}` : 'your own words give none code can read'}, so you judge it at Accept.` }; return; }
-    // fwd keeps: the tag (hamr 2026-11-15, option A) does not ask; fwd asks `cant-check` while someone can be asked (M10 am16 (3))
-    r.can = this.asks ? { ok: false, ask: 'cant-check', why: r.lookWhy ?? REASON.cantCheck } : { ok: false, why: r.lookWhy ?? REASON.noRule };
+    // borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 am3: a rule no check can prove is Not checked at once, never asked; the shape look can take it)
+    r.can = { ok: false, why: r.lookWhy ?? REASON.noRule };
   }
 
   /**
@@ -575,8 +574,8 @@ export class CheckBlock {
     const proposal = r.pickProposal ?? countCheck(r.text);
     if (!this.asks) r.can = { ok: false, why: REASON.noRule };
     else if (proposal) r.can = { ok: false, ask: 'check', proposal, why: REASON.waitingPick };
-    // fwd keeps: the tag (hamr 2026-11-15, option A) does not ask `cant-check`; fwd does, unless the person's own words already stand (M10 am16 (3))
-    else r.can = r.origin === 'typed' ? { ok: false, why: REASON.noRule } : { ok: false, ask: 'cant-check', why: REASON.cantCheck };
+    // borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 am3: no count proposal is Not checked at once, never asked)
+    else r.can = { ok: false, why: REASON.noRule };
   }
 
   /** a `!` fact or phrase row: its words must be on the page; a version or a date is true only today, so only a place rule's fit may carry it */
