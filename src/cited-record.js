@@ -9,7 +9,7 @@
 // Throws away: bareguard's evidence beyond the marks of the claim's own spans; nothing: a red line keeps its judged rows (am9); only a stopped check has none.
 import { writeLineSection, readLineSection } from './line-checks.js';
 import { moneyAs } from './pageask.js';
-import { factSentence, countSentence, CITED_ID } from './citedcheck.js';
+import { factSentence, countSentence, quotedWords, CITED_ID } from './citedcheck.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -84,7 +84,7 @@ export function citedLineOf({
         quote,
         ...(proof ? { proof } : {}),
         cells: part.facts.map((/** @type {any} */ f, /** @type {number} */ j) => {
-          if (f.shape === 'phrase') return String(f.phrase);
+          if (f.shape === 'phrase') return Array.isArray(f.anyOf) ? `one of the words ${quotedWords(f.anyOf)}` : String(f.phrase);
           const v = cellText(values[f.name]);
           if (f.shape === 'money') return (proof ? moneyAsRead(ev, j) : null) ?? (/^\d[\d.,]*$/.test(v.trim()) ? moneyAs(f, v.trim(), true) : v);
           return v;

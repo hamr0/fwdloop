@@ -112,10 +112,22 @@ export function renderCard(rows) {
     else if (r.kind === 'cited') body = `${CARD_T.cited} "${r.source ?? CARD_T.theInput}"`;
     else if (r.kind === 'note') body = defaultNoteText(r.line);
     else if (r.kind === 'numbers') body = `${CARD_T.numbers} ${(r.after ?? []).join(', ')}`;
+    // M19 am5 item 3: a built several-word phrase fact (its signed `anyOf`) reads in the signed words
+    else if (r.oneOf?.length) body = `fact "${r.name ?? r.words?.[0] ?? ''}" with one of the words ${r.oneOf.map((/** @type {string} */ w) => `"${w}"`).join(', ')}`;
     else body = `${r.kind} "${r.name ?? r.words?.[0] ?? ''}"${(r.grown ?? r.words)?.length ? ` ${CARD_T.withWords} ${(r.grown ?? r.words).map((/** @type {string} */ w) => `"${w}"`).join(', ')}` : ''}`;
     return { key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null, text: `${r.by === 'you' ? '~' : r.by === 'agent' ? '!' : '$'} ${body}` };
   });
 }
+
+/**
+ * M19 am5: the fields a phrase fact is signed with: several different proved words sign as ONE any-of fact (`anyOf`, a quote holds any one, on word edges); one word signs `phrase`, exactly as before.
+ * @param {string[]} words the proved words @param {string} first the word used when there is one or none
+ * @returns {{shape: 'phrase', phrase: string} | {shape: 'phrase', anyOf: string[]}}
+ */
+const phraseSigned = (words, first) => {
+  const alts = [...new Set(words)];
+  return alts.length > 1 ? { shape: 'phrase', anyOf: alts } : { shape: 'phrase', phrase: alts[0] ?? first };
+};
 
 /**
  * The facts a place fit builds (hamr 2026-11-11, plain split names): one value keeps the fact's own name; a version AND a date become TWO facts, "<name> version" and "<name> date", each with its
@@ -599,7 +611,8 @@ export class CheckBlock {
       const money = this.lookFacts.filter((/** @type {any} */ f) => f.line === r.line && f.shape === 'money' && (!r.source || !f.source || f.source === r.source));
       if (phraseInNoResult(text, money, provedWords[0])) { r.can = { ok: false, why: dropSentence({ line: r.line, fact: r.name ?? provedWords[0], other: provedWords[0], reason: 'phrase-no-result' }) }; return; }
     }
-    r.can = { ok: true, how: 'bang', word: provedWords[0] };
+    // M19 am5: a phrase row signs ALL its proved words (any one passes); `word` stays the first for the readers that name one
+    r.can = { ok: true, how: 'bang', word: provedWords[0], words: provedWords };
   }
 
   // 4. code makes every check from the rows; a row it cannot build keeps its place with its plain reason. Returns the close's stages, parts and the row map.
@@ -670,6 +683,7 @@ export class CheckBlock {
       if (r.kind === 'floor') continue;
       r.part = null;
       r.grown = undefined;
+      r.oneOf = undefined;
       if (!r.can?.ok) { r.state = 'not-checked'; r.reason = r.can?.why ?? 'not checked'; continue; }
       if (r.held) { r.state = 'suggested'; r.reason = r.choice === 'drop' ? REASON.dropped : REASON.suggested; continue; }
       if (r.can.how === 'sheet') { sheetRows.push(r); continue; }
@@ -715,6 +729,9 @@ export class CheckBlock {
         for (const { r } of factRows) {
           const words = (r.factNames ?? []).flatMap((/** @type {string} */ n) => (grownOf(facts.find((f) => f.name === n)) ?? []).map((x) => String(x.phrase)));
           r.grown = words.length ? words : undefined;
+          // M19 am5: the row of a several-word phrase fact shows the words the part signs (the card, the plan and the readout say what the plan checks)
+          const anyOfs = facts.filter((f) => (r.factNames ?? []).includes(f.name) && Array.isArray(f.anyOf)).flatMap((f) => f.anyOf);
+          r.oneOf = anyOfs.length ? anyOfs : undefined;
         }
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
     } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
@@ -777,10 +794,10 @@ export class CheckBlock {
     if (r.kind === 'rule') {
       const w = base.words.find((/** @type {string} */ x) => proved(this.textOf(src), x)) ?? base.words[0];
       fs = r.can.strips ? placeFacts(base.name, r.can.strips, mk)
-        : base.shape === 'phrase' ? [mk(base.name, { shape: 'phrase', phrase: w })]
+        : base.shape === 'phrase' ? [mk(base.name, phraseSigned(base.words.filter((/** @type {string} */ x) => proved(this.textOf(src), x)), w))]
         : [kindFields(base, w, { ...(r.can.reading ? { rule: r.can.reading } : {}), ...(r.can.aiProposal ? { aiProposal: true } : {}) })];
     } else if (r.can.how === 'place') fs = placeFacts(r.name ?? 'phrase', r.can.strips, mk);
-    else if (r.shape === 'phrase' || r.kind === 'phrase') fs = [mk(r.name ?? `phrase ${r.words[0]}`, { shape: 'phrase', phrase: r.can.word })];
+    else if (r.shape === 'phrase' || r.kind === 'phrase') fs = [mk(r.name ?? `phrase ${r.words[0]}`, phraseSigned(r.can.words ?? [], r.can.word))];
     else fs = [kindFields(r, r.can.word, {})];
     const fresh = [];
     const names = fs.map((f) => f.name);

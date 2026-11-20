@@ -130,7 +130,8 @@ export async function dryReadPhrases(text, facts) {
   const reads = {};
   for (const k of facts) {
     if (k.shape !== 'phrase' || quotes.length === 0 || !k.words.length) { kept.push(k); continue; }
-    const part = { source: SOURCE, facts: factsOfLook({ name: CLAIM, shape: 'phrase', words: [k.words[0]] }) };
+    // M19 am5: a plain phrase fact is read on all its words (any one); a place keeps its one
+    const part = { source: SOURCE, facts: factsOfLook({ name: CLAIM, shape: 'phrase', words: Array.isArray(/** @type {any} */ (k).phrases) ? [k.words[0]] : k.words }) };
     let n = 0;
     for (const quote of quotes) {
       const g = await checkCited({ part, text, results: [{ quote, values: {} }] });

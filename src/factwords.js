@@ -91,14 +91,17 @@ export function checkFactWords({ part, text, line, scan = scanLabels(text), kept
     }
     if (f.until !== undefined) dropRed('closing label', f.until);
     if (f.until !== undefined && countExact(text, f.until) < 1) red('rubric-fact-word-missing', `${who}: ${JSON.stringify(f.until)} is not in the input "${src}". Copy the closing words from the input, or leave them out.`);
-    if (f.shape === 'phrase' && typeof f.phrase === 'string') {
-      const seen = countPhrase(text, f.phrase);
-      if (seen < 1) red('rubric-fact-word-missing', `${who}: ${JSON.stringify(f.phrase)} is not in the input "${src}". Copy the words the input really uses, or remove the check.`);
+    // M19 am5: a several-word phrase fact (anyOf) holds when the page says ANY of its words; the count of results is the words' counts together
+    const phraseOf = f.shape === 'phrase' ? (Array.isArray(f.anyOf) ? f.anyOf : typeof f.phrase === 'string' ? [f.phrase] : null) : null;
+    if (phraseOf) {
+      const shown = Array.isArray(f.anyOf) ? phraseOf.map((/** @type {string} */ x) => JSON.stringify(x)).join(', ') : JSON.stringify(f.phrase);
+      const seen = phraseOf.reduce((/** @type {number} */ n, /** @type {string} */ x) => n + countPhrase(text, x), 0);
+      if (seen < 1) red('rubric-fact-word-missing', `${who}: ${shown} is not in the input "${src}". Copy the words the input really uses, or remove the check.`);
       else if (Number.isInteger(part.count?.min) && seen < part.count.min) {
         // M4: the words each result's quote must say must repeat as often as results were asked for; page-header words (counted
         // once or twice) are in no result, so no one-result quote can say them
         const n = part.count.min;
-        red('rubric-fact-phrase-rare', `${who}: the words ${JSON.stringify(f.phrase)} are in the input "${src}" only ${seen} time${seen === 1 ? '' : 's'}, but this line asks for ${n} results - each result's own quote must say them. Pick words every result says, or drop this check.`);
+        red('rubric-fact-phrase-rare', `${who}: the words ${shown} are in the input "${src}" only ${seen} time${seen === 1 ? '' : 's'}, but this line asks for ${n} results - each result's own quote must say them. Pick words every result says, or drop this check.`);
       }
     }
     // a unit (one string, or every one of a list) must be found as whole words; a currency sign (each of a list) must be found as written
