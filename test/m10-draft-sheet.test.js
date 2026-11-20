@@ -91,6 +91,15 @@ test('more than 3 column asks: nothing is asked, the rewrite list names each, an
   assert.match(r.reds[0], / Spent so far: \$0\.\d{4}\.$/);
 }));
 
+// moved here from test/m10-draft-asks.test.js (M19 am3: the cap's stop now comes from the asks that stay, a column reading)
+test('an unpriced sheet call reads "Spent so far: unknown" (never $0) on the more-than-3 stop', () => withSheet(async (csv) => {
+  const noUsage = { ...textReply(JSON.stringify({ facts: [W('Price', 'line 1 rule 1'), W('Cost', 'line 1 rule 2'), W('Fee', 'line 1 rule 3'), W('Total', 'line 1 rule 4')] })) };
+  delete noUsage.usage;
+  const r = await run(fakeProvider([noUsage, textReply()]), csv, { guard: 'a; b; c; d' });
+  assert.equal(r.stop, 'look-asks-too-many');
+  assert.match(r.reds[0], /Spent so far: (unknown|at least \$0\.\d+)\.$/);
+}));
+
 test('a job whose lines carry no guardrail to check makes no sheet call: a CSV job without a rule is unchanged', () => withSheet(async (csv) => {
   const p = fakeProvider([textReply()]);
   const noRule = prose(csv).replace('   guardrail: under 5000\n', '');
