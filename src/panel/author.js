@@ -27,6 +27,7 @@
 // One at a time with no lock table: `start` is fully synchronous (check live -> create the folder -> spawn ->
 // write pid.json, no await between), so two requests that arrive together run one after the other and the second
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
+import { ncRowsOf } from '../checklook.js';
 import { randomBytes } from 'node:crypto';
 import {
   mkdirSync, realpathSync, rmSync, writeFileSync,
@@ -364,7 +365,7 @@ export function createAuthor(opts) {
     const act = readJson(dir, `${rel}/log.json`)?.action;
     const action = isObj(act) && Number.isInteger(act.line) && act.dropped !== true ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}) } : null;
     return {
-      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
+      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}), rows: ncRowsOf(view.items, isObj(ncFile?.by) ? ncFile.by : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
   }
 

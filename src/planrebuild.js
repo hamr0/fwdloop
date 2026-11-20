@@ -186,11 +186,6 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   if (!targetText.ok || !inputFactsText.ok || !isRec(target)) return { ok: false, say: 'This plan could not be read. Nothing was changed.', refused: 'rebuild' };
   const dj = (/** @type {unknown} */ o) => `${JSON.stringify(o, null, 2)}\n`;
   const declarationText = dj(after.declaration);
-  const readoutText = buildReadout({
-    declaration: after.declaration, arbiter: b.parsed.arbiter, lines: b.lines, name: target.name, modelId: b.log?.modelId, costUsd: b.log?.costUsd ?? null, rounds: b.log?.rounds ?? 0, spendComplete: b.log?.spendComplete !== false, root: target.root,
-  });
-  const h = specHash({ proseText: b.proseText, declarationText, inputFactsText: inputFactsText.text, readoutText, targetText: targetText.text });
-  if (!h.ok) return { ok: false, say: 'The changed plan could not be hashed. Nothing was changed.', refused: 'rebuild' };
   // the "Not checked" list: what the old plan listed, less what the old list made, plus what the changed list makes (the AI's own list stays)
   const oldNc = readJson(planDir, NOT_CHECKED_FILE)?.notChecked;
   const oldList = Array.isArray(oldNc) ? oldNc.filter((x) => typeof x === 'string') : [];
@@ -198,6 +193,12 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
+  const readoutText = buildReadout({
+    declaration: after.declaration, arbiter: b.parsed.arbiter, lines: b.lines, name: target.name, modelId: b.log?.modelId, costUsd: b.log?.costUsd ?? null, rounds: b.log?.rounds ?? 0, spendComplete: b.log?.spendComplete !== false, root: target.root,
+    notChecked, notCheckedBy: by, suggested: cardOfBlock(b.block).suggested,
+  });
+  const h = specHash({ proseText: b.proseText, declarationText, inputFactsText: inputFactsText.text, readoutText, targetText: targetText.text });
+  if (!h.ok) return { ok: false, say: 'The changed plan could not be hashed. Nothing was changed.', refused: 'rebuild' };
   const { sheetDropped: _sd, shapeDropped: _shd, ...record } = isRec(b.record) ? b.record : {};
   const logRow = { round: (Array.isArray(b.log?.log) ? b.log.log.length : 0) + 1, kind: 'row-edit-human', op, key, outcome: 'answered', at: new Date().toISOString() };
   // the files the new plan keeps as they were (read through the gateway), then the ones it changes; `spec.hash` last, so a folder with one is whole

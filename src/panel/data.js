@@ -19,6 +19,7 @@
 // same things at the route level, but this module refuses on its own too
 // (negative scenario v: nothing outside `--root` is ever read).
 
+import { ncRowsOf } from '../checklook.js';
 import {
   existsSync, realpathSync,
 } from 'node:fs';
@@ -2114,7 +2115,7 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
-    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st).map((r) => ({ text: r.text, by: r.by })) : null;
+    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st).map((r) => ({ text: r.text, by: r.by, kind: 'truth' })) : null;
     return {
       step: i + 1,
       line: Number.isInteger(st.fromLine) ? st.fromLine : null,
@@ -2139,7 +2140,7 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const recorded = !!nc && Array.isArray(nc.items);
   const view = recorded ? notCheckedView(nc.items, declaration) : { items: [], readNotes: [] };
   return {
-    steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded, ...(onList.size > 0 && nc?.by && typeof nc.by === 'object' ? { by: nc.by } : {}) },
+    steps, notChecked: { label: notCheckedLabelOf(declaration), items: view.items, readNotes: view.readNotes, recorded, ...(onList.size > 0 && nc?.by && typeof nc.by === 'object' ? { by: nc.by } : {}), ...(onList.size > 0 ? { rows: ncRowsOf(view.items, nc?.by && typeof nc.by === 'object' ? nc.by : {}) } : {}) },
     ...(onList.size > 0 ? { always: [...EVERY_STEP_TEXTS] } : {}),
   };
 }

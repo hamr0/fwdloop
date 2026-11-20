@@ -6,6 +6,7 @@ import { listLinesOf } from './checklistsign.js';
 import { listPartRows, notCheckedView } from './checked.js';
 import { EVERY_STEP, EVERY_STEP_TEXTS } from './try-checks.js';
 import { sheetRowsOf } from './sheetrows.js';
+import { splitNotChecked } from './checklook.js';
 
 /** the words of a row no result was recorded for: never "passed" */
 export const AUDIT_NO_RESULT = 'no result recorded';
@@ -14,7 +15,7 @@ export const AUDIT_NO_RESULT = 'no result recorded';
  * @param {any} declaration the signed plan @param {any[]} diary the run's `checks` rows (src/diary.js readChecks) @param {{items?: string[], by?: Record<string, string>}|null} notChecked the sign row's Not-checked block
  * @param {{lines?: any[], csvRoles?: string[]}} [sheet] the signed job lines and CSV roles: a plan whose list has sheet rows (M16 am4) shows them here, tagged by where each comes from (hamr 2026-11-14)
  * @returns {{checks: AuditCheckRow[], notChecked: AuditCheckRow[], readNotes: string[], always: AuditCheckRow[]}|null} null for a plan with no list (it keeps its own Audit rows)
- * @typedef {{text: string, by: 'you'|'agent'|'default'|null, result: 'passed'|'failed'|'none'|'not-checked'}} AuditCheckRow
+ * @typedef {{text: string, by: 'you'|'agent'|'default'|null, result: 'passed'|'failed'|'none'|'not-checked', kind?: 'truth'|'shape'|'file', why?: string}} AuditCheckRow
  */
 export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines = [], csvRoles = [] } = {}) {
   const lines = listLinesOf(declaration);
@@ -29,7 +30,7 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
     const rec = lastTry(st);
     for (const r of listPartRows(declaration, st)) {
       const got = rec?.checks?.find((/** @type {any} */ c) => c.part === r.part);
-      checks.push({ text: `line ${st.fromLine} · ${r.text}`, by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed' });
+      checks.push({ text: `line ${st.fromLine} · ${r.text}`, kind: 'truth', by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed' });
     }
   }
   // a sheet row: its check's words and the `by` of its row; what the run recorded is read by the row's `part`, as for any list row
@@ -37,19 +38,19 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
     const st = (Array.isArray(declaration?.steps) ? declaration.steps : []).find((/** @type {any} */ x) => x?.fromLine === r.line && Array.isArray(x?.close?.sheet));
     const rec = st ? lastTry(st) : undefined;
     const got = rec?.checks?.find((/** @type {any} */ c) => c.part === sheetRows?.signed[i].part.part && c.by !== undefined);
-    checks.push({ text: `line ${r.line} \u00b7 ${r.text}`, by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed' });
+    checks.push({ text: `line ${r.line} \u00b7 ${r.text}`, kind: 'truth', by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed' });
   }
   const by = notChecked?.by ?? {};
   // M17 am4 (C3): the Audit splits a reading note from Not checked as the card and the Job tab do (src/checked.js notCheckedView)
   const view = notCheckedView(notChecked?.items ?? [], declaration);
   /** @type {AuditCheckRow[]} */
-  const notRows = view.items.map((t) => ({ text: t, by: by[t] === 'you' || by[t] === 'agent' || by[t] === 'default' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
+  const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: by[t] === 'you' || by[t] === 'agent' || by[t] === 'default' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
   // the two checks every step has (src/try-checks.js #1 and #2): passed when every step that ran them passed, failed when one did not
   const every = (/** @type {string} */ text) => {
     const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (d.checks ?? []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));
     return seen.length === 0 ? 'none' : seen.every((/** @type {any} */ c) => c.ok) ? 'passed' : 'failed';
   };
   /** @type {AuditCheckRow[]} */
-  const always = EVERY_STEP_TEXTS.map((text) => ({ text, by: /** @type {'default'} */ ('default'), result: every(text) }));
+  const always = EVERY_STEP_TEXTS.map((text) => ({ text, kind: 'file', by: /** @type {'default'} */ ('default'), result: every(text) }));
   return { checks, notChecked: notRows, readNotes: view.readNotes, always };
 }
