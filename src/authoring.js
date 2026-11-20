@@ -45,7 +45,7 @@ import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
 import { mcpPickHere } from './mcp-pick.js';
-import { hitlWords } from './checked.js';
+import { hitlWords, notCheckedView } from './checked.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
@@ -245,7 +245,8 @@ export function buildReadout({
   const lastAskIdx = declaration.steps.reduce((m, st, i) => (askLineNos.includes(st.fromLine) ? i : m), -1);
   const checkText = (st, i) => (st.close?.class === 'hitl' && !askLineNos.includes(st.fromLine) ? hitlWords(askLineNos.length > 0, lastAskIdx !== -1 && i > lastAskIdx) : st.close?.class);
   // M19 S6 (section 3.7): the rows of a list line and the Not checked items are told in the signed look's groups; the rows no one line owns are one `EVERY LINE` block (a one-line job's join its line)
-  const ncRows = ncRowsOf(notChecked, notCheckedBy);
+  // M19 am4: the Not checked rows are the card's (src/checked.js notCheckedView, the one split): a note about a written form the page did not use is "How the page was read", not a Not checked row
+  const ncRows = ncRowsOf(notCheckedView(notChecked, declaration).items, notCheckedBy);
   const many = lines.length > 1;
   const alwaysRows = onList.size > 0 ? EVERY_STEP_TEXTS.map((text) => ({ text, by: 'default', kind: 'file' })) : [];
   const owned = new Set(declaration.steps.map((st) => st.fromLine));

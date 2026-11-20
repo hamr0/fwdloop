@@ -57,3 +57,13 @@ test('a plan with no card keeps the readout it had (no checkCard, or a declarati
   assert.equal(read(), read({ checkCard: null }));
   assert.ok(!block(read(), 2).join("\n").includes("each item has a title"));
 });
+
+// the readout's NOT CHECKED rows are the card's: code's note about a written form the page did not use is "How the page was read" (src/checked.js notCheckedView), not a Not checked row
+test('a page read note is not a NOT CHECKED row; a real Not checked rule still is', () => {
+  const note = 'line 2: "under $450" — "US dollars" was listed twice, as a unit and as a currency; it is used once, as the first way to write the price.';
+  const real = 'line 2: "each item has a title" — no check was picked for it';
+  const t = read({ checkCard: card(), suggested: [], notChecked: [note, real], notCheckedBy: { [note]: 'default', [real]: 'you' } });
+  assert.ok(!t.includes('listed twice'), 'break: the readout does not split the read note out as the card does');
+  assert.match(t, /NOT CHECKED · 1 ·/);
+  assert.ok(t.includes('each item has a title'));
+});
