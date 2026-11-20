@@ -98,7 +98,7 @@ test('the card offers a Drop on a [you] shape row and an [agent] one, never on t
   assert.equal(drop('L1.~1'), true);
   assert.equal(drop('L1.~3'), true);
   assert.equal(drop('L1.$floor'), false, 'a code floor row has no Drop');
-  assert.deepEqual(card.restorable, []);
+  assert.equal(card.restorable, undefined, 'a card with no dropped rule has no restorable key (the saved card of every other job is what it was)');
   b.rowChoice('L1.~2', 'drop');
   assert.deepEqual(cardOfBlock(b).restorable, [{ key: 'L1.~2', line: 1, text: 'matching words is a list of at most 5 words' }]);
   assert.equal(cardOfBlock(b).rows.find((r) => r.key === 'L1.~2')?.state, 'not-checked');
@@ -159,7 +159,7 @@ test('a block with no shape is what it was: only a `!` row has a Drop, a `~` rul
   const card = cardOfBlock(b);
   assert.ok(card.rows.some((r) => r.by === 'you' && r.state === 'built'), 'fixture: a built [you] rule row');
   assert.deepEqual(card.rows.filter((r) => r.drop).map((r) => r.key), ['L1.fact.release heading'], 'only the `!` fact row has a Drop');
-  assert.deepEqual(card.restorable, []);
+  assert.equal(card.restorable, undefined);
   assert.deepEqual(b.rowChoice('L1.~1', 'drop'), { ok: false, why: 'that check comes from a rule you wrote; edit the job to change it' });
   assert.deepEqual(b.rowChoice('L1.fact.release heading', 'drop'), { ok: true });
 });

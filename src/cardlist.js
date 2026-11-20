@@ -7,7 +7,7 @@ import { kindOfCheck } from './checklook.js';
 
 /**
  * @param {import('./checkblock.js').CheckBlock} block
- * @returns {{rows: {key: string, line: number, by: string, state: string, text: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[], restorable: {key: string, line: number, text: string}[]}}
+ * @returns {{rows: {key: string, line: number, by: string, state: string, text: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[], restorable?: {key: string, line: number, text: string}[]}}
  */
 export function cardOfBlock(block) {
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (checkRow: a shape row has a Drop unless it is code's own) (M19 S9, section 3.7): every shape row has a Drop but code's own `$` one, the person's own `~` rule that took a field too (`droppable`, as the tag's page draws it: Drop unless `c.by` is "default"); a non-shape row is offered as before
@@ -25,7 +25,7 @@ export function cardOfBlock(block) {
       })),
     ].sort((a, b) => a.line - b.line),
     suggested: block.suggestedView(),
-    // borrowed-from: bareloop src/panel/jobplan.js@v0.61.0 (`restorable`: the `[you]` rules the person dropped, Not checked "You dropped it."; the card gives each an Add back button) (M19 S9)
-    restorable: block.droppedRulesView(),
+    // borrowed-from: bareloop src/panel/jobplan.js@v0.61.0 (`restorable`: the `[you]` rules the person dropped, Not checked "You dropped it."; the card gives each an Add back button) (M19 S9); only when a rule is dropped, so the saved card of every other job is byte for byte what it was
+    ...(block.droppedRulesView().length ? { restorable: block.droppedRulesView() } : {}),
   };
 }
