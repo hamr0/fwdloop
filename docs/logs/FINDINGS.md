@@ -9301,3 +9301,32 @@ Baseline `1b8a8ff6`; 463 job folders (a cp -a copy of `~/.config/fwdloop/flows`,
 
 **Verdict on the letter: FAIL at HEAD, PASS at the S1-S4 tip.** The 132 are caused by S6/S7 (the Audit's rows now carry `kind` and the per-line blocks, commits `c033c74b` and `80caf9af`), which are signed display changes (section 3.7 words) and are P7's bar (F229), not S1-S4 and not a shape answer. Nothing in the signed list or any step's `close` changed at any tip. I did not widen the bar to turn HEAD green: HEAD stays FAIL on the pre-registered reading, and the S1-S4 reading (the bar's own wording) passes.
 Half 2 (with P2's answers): waits for P2.
+
+## F233 PRE-REGISTRATION (2026-11-20, PAID, about 5 cents, deepseek-flash; M19 P2: the shape look on fwd's real candidates; written before the harness `poc/m19-p2/run.mjs` and before any paid call, NOT yet run)
+
+Source: `.claude/scratch/v061/draft.md` section 6 "P2", frozen. Copied word for word:
+
+**P2 — the shape look on fwd's real candidates (paid, about 5 cents, deepseek-flash, prompt byte-identical to the tag).** Through fwd's real drafting call path (provider slot, thinking per call). Inputs: P0's candidate jobs with their frozen inputs. Bar: at least one candidate rule gets a built field with a real bound (`hasRealBound`); 0 invented bounds survive code; 0 negating rules shaped; 0 rules a truth check already took are offered or changed. n is small: UNDERPOWERED, a PASS shows it can work, not its rate.
+
+**Candidates (exactly P0's B list, F223b RESULT, quoted by draft folder under `~/.config/fwdloop/flows/.drafts/` and rule; 13 rows, 12 distinct job lines):**
+1. `d-00muw963t5-9a4c/draft`, `d-00muwfs2if-af64/draft`, `d-00muwz83wl-6ac7/draft`, `d-00mv548zrh-d6c7/draft`: "3 sections, all under 600 words" (resume job)
+2. `d-00mv1g41wz-2c73/draft`: "3 sections, about 180 words each, under 600 words"
+3. `d-00mv548zrh-d6c7/draft-1`: "3 sections, all under 600 words" (line "Three sections: Work History, ...")
+4. `d-00mv54iebr-5ec3/draft`: "3 sections: Work History, Professional Skills, Soft Skills, all under 600 words"
+5. `d-00mv2588dx-22eb/draft`: "under 100 words" (3 interviewer questions)
+6. `d-00mvia7zwl-691f/draft`: "Price over 500" (expense list)
+7. `d-00mvzr2yug-851a/draft`: "exactly 3 bullets" (3 jobs for this week)
+8. `d-00mw0d9wgi-a755/draft`: "under 80 words" (closing note)
+9. `d-00mw1yp3qj-ad93/draft-3`: "~ at most 60 words" (closing note)
+10. `d-00mwgdao99-8d69/draft`: "under $150" (3 flights Madrid to Rome)
+
+Method (set before the run; the bar above is the signed-off text):
+- One look per draft folder in the list (13 looks at most; a folder whose rebuilt block holds no `shapeCandidates()` rule is recorded as "no candidate today", no call). The block is the drafter's own: the folder is COPIED to scratch and `rebuildBlock` (src/planrebuild.js, as F223b did, with the same checkList shim for a pre-M16 draft) builds it from the draft's saved prose, inputs and replies; `block.shapeCandidates()` names the rules left; the frozen inputs are the draft's own `pages/` copies and the files its prose names (a changed or gone input is recorded, no call, never guessed).
+- Call path: copied from `src/drafter.js` `makeCallModel` (the `new Loop({ provider, rates, onLlmResult })` round, `maxTokens` 16000 = `DRAFT_MAX_TOKENS`, `thinkingMode` 'off' on attempt 1 and 'on' on a retry as the drafter's default `draftThinking` 'off' sets it, the hold against the cap, a cut-off or thrown round booked) around the real `lookAtShape` of `src/shapelook.js`, the real `buildShapes` of `src/shapebuild.js` and the block's own `setShape` / `reconcile`. Provider slot `DEEPSEEK_API_KEY`, model `deepseek-flash` via `makeProvider(slot, { model, env, ...LIVE_PROVIDER_OPTIONS })` (300 s timeout, 240 s deadline). Every round metered by `onLlmResult`; an unpriced model is refused at $0; a round with no metering is priced at the hold, never $0.
+- Prompt: before any call the harness asserts `src/shapelook.js` holds `test/fixtures/m19-shapelook-tag.json`'s `core` unchanged and `SHAPE_SYSTEM` equals the tag's sentence; a mismatch stops at $0.
+- Cap: STOP before $0.25 (each look is held against the remaining cap; a look that cannot fit is not made). An empty `DEEPSEEK_API_KEY` is refused at $0 before any file is written.
+- Scoring (all by code, from the built block): (a) a candidate rule's field built with `hasRealBound` true; (b) invented bound = a bound that survives code on a built `[you]` field and whose number (or one more than it, for an upper bound) or value is not written in the field's own rule, checked by a plain digit/word match independent of `boundGrounded`; (c) negating = a rule `NEGATING_RE` matches for which `block.takesShape(row)` is not null; (d) truth-check-taken = a rule that is NOT a candidate (a truth check or an answer already took it): it must not be named in the prompt's `Only these ~ rules` list, and its row in the block must be identical before and after `setShape`.
+- Pass = all four parts on the letter. Fail on any part stays FAIL. UNDERPOWERED: a PASS shows it can work, not its rate. Raw answers are kept with every verdict line; the answers file (`.claude/scratch/v061/p2/answers.json`) also feeds P3 half 2.
+- The orchestrator runs the paid run; the builder proves the harness at $0 with a fake provider only.
+
+Harness: `poc/m19-p2/run.mjs`. Result is written under this heading after the paid run.
