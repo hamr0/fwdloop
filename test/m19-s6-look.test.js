@@ -12,7 +12,7 @@ import { buildReadout } from '../src/authoring.js';
 import { REASON } from '../src/checkblock.js';
 import { NO_GUARDRAIL_WORDS, ASK_LINE_REASON } from '../src/blockassemble.js';
 import { NO_VALUE_WHY } from '../src/ticketrows.js';
-import { dropLine, dropRows } from '../src/pagedropwords.js';
+import { dropLine, dropRows, dropSentence } from '../src/pagedropwords.js';
 import { lineRules } from '../src/pagebits.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -151,6 +151,7 @@ test('A Must-fail 1: a list reason says "at Accept", never "at the Ask", for a r
     assert.ok(!/at the Ask/.test(w), w);
   }
   assert.equal(REASON.noPick, 'No check was picked for it, so you judge it at Accept.');
+  for (const reason of ['no-pick', 'own-words']) assert.match(dropSentence({ line: 0, fact: '', reason }), /so you judge it at Accept\.$/, `break: the ${reason} sentence says at the Ask and this reds`);
   assert.equal(typeof dropLine, 'function');
   assert.equal(typeof lineRules, 'function');
 });
