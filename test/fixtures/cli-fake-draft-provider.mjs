@@ -16,6 +16,7 @@
 // FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
 // FWDLOOP_TEST_DRAFT_SUGGEST=<json> -> the M10 am16 suggestion call answers that ({"checks":[{line,guardrail,rule,...}]}; default: no check for any guardrail).
 // FWDLOOP_TEST_DRAFT_MAP=<json> -> the page-map call answers that map (default: every ~ rule tied to its own word of the default page, so nothing is asked).
+// FWDLOOP_TEST_DRAFT_SHAPE=<raw text> -> the shape look (M19 S2; one call, no tool) answers that text (default: {"shapes":[]}, no shape).
 // FWDLOOP_TEST_DRAFT_SHEET=<json> -> the sheet-word call (M10 piece 5; a CSV job with a ~ rule) answers that (default: no word, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_PAGE=<file> -> the fetched page's text (default: a small Boston-Chicago results page).
 // FWDLOOP_TEST_DRAFT_TICKET=1 -> the plan reads the `jd` input as a ticket list (M13 piece 4: the card's Flow type is Tickets, jd is a GitHub issues list; the job's mcp block is set by code from the MCP's newest OK check).

@@ -26,6 +26,9 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { ticketSourcesOf } from './ticket-draft.js';
 import { docRolesOf } from './drafter.js';
+import { buildShapes } from './shapebuild.js';
+import { parseShapeAnswer, SHAPE_CALL_LABEL } from './shapelook.js';
+import { lineRules } from './pagebits.js';
 import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE } from './authoring.js';
 
 /** what a person is told when the saved inputs no longer give the saved list: nothing is written */
@@ -96,9 +99,21 @@ export function rebuildBlock({ planDir, asks }) {
   });
   // the AI's replies, in the order the draft took them (log.json keeps each reply as sent)
   const askRules = allShape.filter((r) => !isKept(r));
+  let shapeSet = false;
   for (const e of Array.isArray(log?.log) ? log.log : []) {
     // the note question's answers ride its entry, a failed turn's too (a `failed` answer is a Not checked row, so it must replay)
     if (isRec(e) && e.kind === NOTE_KIND) { block.setNotes(notesOfEntry(e)); continue; }
+    // M19 S9: the shape look's answer, as the draft saved it (log.json keeps the raw text of the one call it made). It is read again through the same parser and the same builder, so the block holds its shape rows
+    // without a call; the first answer that reads is the one the draft used (an unreadable first answer was asked once more). A plan with shape rows and no such entry does not rebuild (the list differs below)
+    if (isRec(e) && e.kind === SHAPE_CALL_LABEL) {
+      const got = e.outcome === 'answered' && typeof e.rawText === 'string' && !shapeSet ? parseShapeAnswer(e.rawText) : { ok: false };
+      if (got.ok && got.shapes.length > 0) {
+        shapeSet = true;
+        block.setShape(buildShapes({ lines: plan.jobLines.filter((l) => lineRules(l).length > 0 && !block.isSheetLine(l.n)), labels: block.labels, suggestions: got.shapes }));
+        block.reconcile();
+      }
+      continue;
+    }
     if (!isRec(e) || e.outcome !== 'answered' || !isRec(e.args)) continue;
     if (e.kind === 'check-suggest') block.applyDelta({ label: 'pre:check-suggest', pre: true, edits: pickEdits(rowsFromAnswer(askRules, e.args), blockLineNums) });
     else if (e.kind === 'ledger-suggest') block.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: ledgerEdits(e.args.extra) });

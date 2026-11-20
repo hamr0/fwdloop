@@ -1,0 +1,7 @@
+// M19 P8 (F231) harness piece: the panel's draft child is the REAL bin/fwdloop, started with `--no-questions` added to a `draft` command. A first draft in the panel asks about every rule it cannot check (those rules are never shape candidates);
+// the redraft after the answers is the one that never asks (src/panel/author.js), and it is the draft the shape look runs in. This wrapper reaches that same drafting path in one step. It changes nothing else.
+import { fileURLToPath } from 'node:url';
+const real = fileURLToPath(new URL('../../../bin/fwdloop', import.meta.url));
+if (process.argv[2] === 'draft' && !process.argv.includes('--no-questions')) process.argv.push('--no-questions');
+process.argv[1] = real;
+await import(real);
