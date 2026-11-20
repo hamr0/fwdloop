@@ -323,9 +323,10 @@ export function shapeLineBrief(n, shape, alsoText = false) {
 }
 
 /**
- * The plain sentence of a bareguard `itemShape` gap of one line's answer (the tag's `plainStepGap` branch for it; fwd's step has no file, so the file is `the answer`, src/closers.js). Only an itemShape gap is worded here.
- * @param {number} step the job line @param {any} g a bareguard gap @returns {string}
+ * The plain sentence of a bareguard gap of one line's answer, as the tag's `plainStepGap` takes it (step, why, gap, params). fwd's step has no file, so an itemShape gap's file is `the answer` (src/closers.js); only an itemShape gap
+ * is worded here (fwd's other gaps keep their own words in src/closers.js and src/citedcheck.js).
+ * @param {number} step the job line @param {string} _why @param {any} g a bareguard gap @param {any} [_params] @returns {string}
  */
-export function plainStepGap(step, g) {
+export function plainStepGap(step, _why, g, _params = null) {
   return plainShapeGap({ at: `line ${step}`, file: 'the answer' }, g);
 }

@@ -1,0 +1,2471 @@
+{
+ "job1.m1.declaration.json#0": {
+  "user": "{\"goal\":\"Read the AR aging sheet as addressable cells so every figure downstream can be cited back to a cell.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job1.m1.declaration.json#1": {
+  "user": "{\"goal\":\"Read the chat message and work out which customer in the aging sheet it is about; if more than one customer matches, ask the human instead of picking one.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job1.m1.declaration.json#2": {
+  "user": "{\"goal\":\"For the matched customer, pull their open invoices, total owed, earliest due date, and count of invoices overdue as of the business date, each figure tied to the cell or formula it came from.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"total_owed\":{\"value\":950}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "total_owed": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "number"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "total_owed",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "job1.m1.declaration.json#3": {
+  "user": "{\"goal\":\"Write a short reply to the customer containing one line per open invoice.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "text",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "job1.m1.declaration.json#4": {
+  "user": "{\"goal\":\"Show the drafted reply to the human and wait for their acceptance before anything leaves.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job1.m1.declaration.json#5": {
+  "user": "{\"goal\":\"Send the accepted reply to the customer.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.declaration.json#0": {
+  "user": "{\"goal\":\"Read the resume .docx and expose its full text as an artifact.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.declaration.json#1": {
+  "user": "{\"goal\":\"Read the job description markdown file and expose its full text as an artifact.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.declaration.json#2": {
+  "user": "{\"goal\":\"Draft the summary resume comparing the resume against the JD, in three sections (work-history blurb, professional skills, soft skills), each ~200 words and the whole under 600 words.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "text",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "job2.declaration.json#3": {
+  "user": "{\"goal\":\"Show the drafted summary resume to the human and pause until they accept it; nothing is written out before that acceptance.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.declaration.json#4": {
+  "user": "{\"goal\":\"Write the human-accepted summary resume out to a file.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.m1.declaration.json#0": {
+  "user": "{\"goal\":\"Read the resume .docx and expose its full text as an artifact.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.m1.declaration.json#1": {
+  "user": "{\"goal\":\"Read the job description markdown file and expose its full text as an artifact.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.m1.declaration.json#2": {
+  "user": "{\"goal\":\"Draft the summary resume comparing the resume against the JD, in three sections (work-history blurb, professional skills, soft skills), each ~200 words and the whole under 600 words.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "text",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "job2.m1.declaration.json#3": {
+  "user": "{\"goal\":\"Show the drafted summary resume to the human and pause until they accept it; nothing is written out before that acceptance.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "job2.m1.declaration.json#4": {
+  "user": "{\"goal\":\"Write the human-accepted summary resume out to a file.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/declaration.json#0": {
+  "user": "{\"goal\":\"Read the flights page,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/declaration.json#1": {
+  "user": "{\"goal\":\"list 3 flights from Madrid to Rome,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"quoting\":{\"answer\":\"Answer with \\\"results\\\": one entry per thing you found, each {\\\"quote\\\": <the words of that one result, copied word for word from the input \\\"flights\\\">, \\\"values\\\": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused. A money value is only the digits of the amount (\\\"30\\\", not \\\"30 US dollars\\\" and not \\\"$30\\\").\",\"eachResultHolds\":[\"origin - no value to write; the quote you copy must say \\\"Leaves Adolfo Suárez Madrid-Barajas Airport\\\"\",\"price - an amount in US dollars or $, right after \\\"From\\\"\",\"stops - no value to write; the quote you copy must say \\\"Nonstop\\\"\"],\"howMany\":\"Give exactly 3 results.\"}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "results": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "quote": {
+          "type": "string"
+         },
+         "values": {
+          "type": "object"
+         }
+        },
+        "required": [
+         "quote",
+         "values"
+        ]
+       }
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "results",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/declaration.json#3": {
+  "user": "{\"goal\":\"and once I accept, write it out.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/runs/run-1/job/declaration.json#0": {
+  "user": "{\"goal\":\"Read the flights page,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/runs/run-1/job/declaration.json#1": {
+  "user": "{\"goal\":\"list 3 flights from Madrid to Rome,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"quoting\":{\"answer\":\"Answer with \\\"results\\\": one entry per thing you found, each {\\\"quote\\\": <the words of that one result, copied word for word from the input \\\"flights\\\">, \\\"values\\\": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused. A money value is only the digits of the amount (\\\"30\\\", not \\\"30 US dollars\\\" and not \\\"$30\\\").\",\"eachResultHolds\":[\"origin - no value to write; the quote you copy must say \\\"Leaves Adolfo Suárez Madrid-Barajas Airport\\\"\",\"price - an amount in US dollars or $, right after \\\"From\\\"\",\"stops - no value to write; the quote you copy must say \\\"Nonstop\\\"\"],\"howMany\":\"Give exactly 3 results.\"}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "results": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "quote": {
+          "type": "string"
+         },
+         "values": {
+          "type": "object"
+         }
+        },
+        "required": [
+         "quote",
+         "values"
+        ]
+       }
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "results",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/runs/run-1/job/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/runs/run-1/job/declaration.json#3": {
+  "user": "{\"goal\":\"and once I accept, write it out.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/signed/declaration.json#0": {
+  "user": "{\"goal\":\"Read the flights page,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/signed/declaration.json#1": {
+  "user": "{\"goal\":\"list 3 flights from Madrid to Rome,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"quoting\":{\"answer\":\"Answer with \\\"results\\\": one entry per thing you found, each {\\\"quote\\\": <the words of that one result, copied word for word from the input \\\"flights\\\">, \\\"values\\\": {<fact name>: <the value, written exactly as the quote writes it>}}. A quote that is not in the input word for word is refused. A money value is only the digits of the amount (\\\"30\\\", not \\\"30 US dollars\\\" and not \\\"$30\\\").\",\"eachResultHolds\":[\"origin - no value to write; the quote you copy must say \\\"Leaves Adolfo Suárez Madrid-Barajas Airport\\\"\",\"price - an amount in US dollars or $, right after \\\"From\\\"\",\"stops - no value to write; the quote you copy must say \\\"Nonstop\\\"\"],\"howMany\":\"Give exactly 3 results.\"}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "results": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "quote": {
+          "type": "string"
+         },
+         "values": {
+          "type": "object"
+         }
+        },
+        "required": [
+         "quote",
+         "values"
+        ]
+       }
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "results",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/signed/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10-ask-cited-run/flow/signed/declaration.json#3": {
+  "user": "{\"goal\":\"and once I accept, write it out.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/declaration.json#0": {
+  "user": "{\"goal\":\"Read the aging report\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/declaration.json#1": {
+  "user": "{\"goal\":\"For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"invoiceCount\":{\"value\":3},\"daysPastDue\":{\"days\":{\"2\":30,\"3\":11,\"4\":0}}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "invoiceCount": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "daysPastDue": {
+       "type": "object",
+       "properties": {
+        "days": {
+         "type": "object",
+         "propertyNames": {
+          "pattern": "^[1-9][0-9]*$"
+         },
+         "additionalProperties": {
+          "type": "integer"
+         }
+        }
+       },
+       "required": [
+        "days"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "invoiceCount",
+      "daysPastDue",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/runs/run-1/job/declaration.json#0": {
+  "user": "{\"goal\":\"Read the aging report\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/runs/run-1/job/declaration.json#1": {
+  "user": "{\"goal\":\"For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"invoiceCount\":{\"value\":3},\"daysPastDue\":{\"days\":{\"2\":30,\"3\":11,\"4\":0}}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "invoiceCount": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "daysPastDue": {
+       "type": "object",
+       "properties": {
+        "days": {
+         "type": "object",
+         "propertyNames": {
+          "pattern": "^[1-9][0-9]*$"
+         },
+         "additionalProperties": {
+          "type": "integer"
+         }
+        }
+       },
+       "required": [
+        "days"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "invoiceCount",
+      "daysPastDue",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/runs/run-1/job/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/runs/run-1/job/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/signed/declaration.json#0": {
+  "user": "{\"goal\":\"Read the aging report\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/signed/declaration.json#1": {
+  "user": "{\"goal\":\"For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"invoiceCount\":{\"value\":3},\"daysPastDue\":{\"days\":{\"2\":30,\"3\":11,\"4\":0}}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "invoiceCount": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "daysPastDue": {
+       "type": "object",
+       "properties": {
+        "days": {
+         "type": "object",
+         "propertyNames": {
+          "pattern": "^[1-9][0-9]*$"
+         },
+         "additionalProperties": {
+          "type": "integer"
+         }
+        }
+       },
+       "required": [
+        "days"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "invoiceCount",
+      "daysPastDue",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/signed/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-am4-run/flow/signed/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-recheck/flow/declaration.json#0": {
+  "user": "{\"goal\":\"Read the aging report\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-recheck/flow/declaration.json#1": {
+  "user": "{\"goal\":\"For each invoice, work out the days past due as of 2026-10-11 and put it in its bucket: Current, 1-30, 31-60, 61-90, 90+\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"daysPastDue\":{\"days\":{\"2\":30,\"3\":11,\"4\":0}},\"bucketByRow\":{\"bands\":{\"2\":\"1-30\",\"3\":\"1-30\",\"4\":\"Current\"}}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "daysPastDue": {
+       "type": "object",
+       "properties": {
+        "days": {
+         "type": "object",
+         "propertyNames": {
+          "pattern": "^[1-9][0-9]*$"
+         },
+         "additionalProperties": {
+          "type": "integer"
+         }
+        }
+       },
+       "required": [
+        "days"
+       ],
+       "additionalProperties": false
+      },
+      "bucketByRow": {
+       "type": "object",
+       "properties": {
+        "bands": {
+         "type": "object",
+         "propertyNames": {
+          "pattern": "^[1-9][0-9]*$"
+         },
+         "additionalProperties": {
+          "type": "string"
+         }
+        }
+       },
+       "required": [
+        "bands"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "daysPastDue",
+      "bucketByRow",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m10b-recheck/flow/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m10b-recheck/flow/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/declaration.json#0": {
+  "user": "{\"goal\":\"Write the note\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/declaration.json#1": {
+  "user": "{\"goal\":\"look at the note\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/declaration.json#2": {
+  "user": "{\"goal\":\"and again\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/signed/declaration.json#0": {
+  "user": "{\"goal\":\"Write the note\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/signed/declaration.json#1": {
+  "user": "{\"goal\":\"look at the note\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/signed/declaration.json#2": {
+  "user": "{\"goal\":\"and again\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m13-am11-old-job/signed/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m15-walk-w1/run-1/job/declaration.json#0": {
+  "user": "{\"goal\":\"Read the expenses sheet\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m15-walk-w1/run-1/job/declaration.json#1": {
+  "user": "{\"goal\":\"List every expense over 500, with how many there are and their total\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"l2r1\":{\"rows\":[2,3]},\"l2a1\":{\"value\":2},\"l2a2\":{\"value\":900}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "l2r1": {
+       "type": "object",
+       "properties": {
+        "rows": {
+         "type": "array",
+         "items": {
+          "type": "integer",
+          "minimum": 2
+         }
+        }
+       },
+       "required": [
+        "rows"
+       ],
+       "additionalProperties": false
+      },
+      "l2a1": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "l2a2": {
+       "type": "object",
+       "properties": {
+        "value": {
+         "type": "number"
+        }
+       },
+       "required": [
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "l2r1",
+      "l2a1",
+      "l2a2",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m15-walk-w1/run-1/job/declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m15-walk-w1/run-1/job/declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m16-block/csv/signed-declaration.json#0": {
+  "user": "{\"goal\":\"Read the expenses sheet,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m16-block/csv/signed-declaration.json#1": {
+  "user": "{\"goal\":\"list every expense over 500,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null,\"answering\":{\"answer\":\"Answer with one field for each name in \\\"fields\\\", in the shape shown for it. Give the values themselves, worked out from the input - never a cell reference and never a formula. The values shown only illustrate the shape; use the real ones from the input and the job line.\",\"fields\":{\"expenses\":{\"rows\":[2,3]}}}}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "expenses": {
+       "type": "object",
+       "properties": {
+        "rows": {
+         "type": "array",
+         "items": {
+          "type": "integer",
+          "minimum": 2
+         }
+        }
+       },
+       "required": [
+        "rows"
+       ],
+       "additionalProperties": false
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "expenses",
+      "done"
+     ],
+     "additionalProperties": false
+    }
+   }
+  ]
+ },
+ "m16-block/csv/signed-declaration.json#2": {
+  "user": "{\"goal\":\"check it with me,\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m16-block/csv/signed-declaration.json#3": {
+  "user": "{\"goal\":\"and once I accept, write it out.\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m4d-am8.aging.declaration.json#0": {
+  "user": "{\"goal\":\"Read the aging report\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m4d-am8.aging.declaration.json#1": {
+  "threw": "a green step answers in quotes (close.cited) or in claim boxes (close.sheet); the cell cite retired in M10b piece 5"
+ },
+ "m4d-am8.aging.declaration.json#2": {
+  "user": "{\"goal\":\"check it with me\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ },
+ "m4d-am8.aging.declaration.json#3": {
+  "user": "{\"goal\":\"Write it out\",\"reads\":{\"page\":{\"kind\":\"text\",\"text\":\"the saved page\"}},\"gap\":null}",
+  "system": "You are executing one step of a signed, human-authored automation. Call emit_artifact exactly once with this step's result. Ground every value in the reads you were handed or the tools you were granted — never invent a figure.",
+  "tools": [
+   {
+    "name": "emit_artifact",
+    "description": "Emit this step's one artifact.",
+    "parameters": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "cells": {
+       "type": "object"
+      },
+      "done": {
+       "type": "boolean",
+       "description": "true only if this step's goal was actually accomplished with real data; false if anything blocked it"
+      },
+      "blocker": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "when done is false, one sentence naming what blocked you (a file you could not read, a tool that refused, data that was missing); null when done is true"
+      }
+     },
+     "required": [
+      "done"
+     ],
+     "additionalProperties": true
+    }
+   }
+  ]
+ }
+}

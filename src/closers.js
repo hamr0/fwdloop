@@ -109,8 +109,10 @@ export async function closeItemShape(step, artifact) {
       return { verdict: 'crash', red: `itemShape close crashed: the ${fault.id} check stopped (${fault.kind}${fault.detail ? `: ${fault.detail}` : ''})` };
     }
     if (res.verdict === 'red') {
-      const reds = res.gaps.map((/** @type {any} */ g) => plainStepGap(step.fromLine, g)).flatMap((/** @type {string} */ t) => t.split('\n'));
-      return { verdict: 'red', red: reds.join('\n'), reds, shapeGaps: res.gaps };
+      // an answer with no `results` at all reads to bareguard as an empty artifact (`happened`): it is the tag's whole-field gap `missing`
+      const gaps = res.gaps.map((/** @type {any} */ g) => (g.check === 'happened' ? { ...g, check: 'itemShape', kind: 'missing', field: SHAPE_FIELD } : g));
+      const reds = gaps.map((/** @type {any} */ g) => plainStepGap(step.fromLine, 'empty', g)).flatMap((/** @type {string} */ t) => t.split('\n'));
+      return { verdict: 'red', red: reds.join('\n'), reds, shapeGaps: gaps };
     }
     return { verdict: 'green', red: null };
   } catch (err) {
