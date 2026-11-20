@@ -4284,3 +4284,12 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 
 ## Bump
 > **M19 item 5 (bump).** fwdloop raises bareguard from `^0.36.0` (package.json:54) to `^0.37.0`, the first release with `itemShape` (ruling #83). Checked 2026-11-19: `npm view bareguard@0.37.0 version` = `0.37.0`, published 2026-11-18T21:17:49Z, `engines.node` `>=22` (fwd's engines already `>=22`, package.json:35). Its CHANGELOG `## [0.37.0]` (tarball in `.claude/scratch/v061/pkg/`): adds `itemShape` with kinds `text`, `number`, `oneOf`, `money`, `date`, `time`, `url`, `object`, `list`, `boolean`; name rules in `rubricVocabulary` (`reservedNames`, `nameForbiddenChars`, `nameMaxLength`); bareguard: "Every existing `rubricSha` is unchanged (a test pins two specs against the shas computed before this rule)." **Done when:** a $0 rescan of every good signed fwd job on 0.37.0 gives the same reds and greens as on 0.36.0. **Must fail when:** a saved job's red or green changes with the bump alone.
+
+**M19 amendment 1 — SIGNED by hamr 2026-11-20 ("sign m19 am1"), the text exactly as shown (.claude/scratch/m19-s5/m19-am1-sign.md, sha256 dbf48012097d…):**
+
+**M19 amendment 1 — O1: a shape-only line is green, with no cited.**
+1. A shape-only line (a list of items, no quotes) signs class `green` with `itemShape` and no `cited`. The constant `SHAPE_ONLY_CLASS` in src/blockassemble.js is `'green'`.
+2. The person's own rules on that line (word counts, sections, must-carry words) are still checked on its text, beside the list check.
+3. M4d am8 (a green step must read cells) does not apply to a line whose green check is only `itemShape`: that line cites nothing, so it needs no cells. Every other green line keeps am8 unchanged.
+**Must fail when:** a shape-only line signs Not checked or softgreen; a 10-word text passes a person's 5-word rule on a shape-only line; a green line with neither `cited` nor `itemShape` that reads no cells is accepted.
+**Done when:** a test that fails first for each Must-fail line; the full suite green. **Cap:** $0.
