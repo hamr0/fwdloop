@@ -190,7 +190,7 @@ for (const root of ROOTS) {
           let art; let text;
           try { art = JSON.parse(readFileSync(ap, 'utf8')); text = readFileSync(ip, 'utf8'); } catch { d2Skipped += 1; continue; }
           if (!Array.isArray(art.results)) { d2Skipped += 1; continue; }
-          const cand = (edges) => ({ ...part, facts: part.facts.map((f) => (f.shape === 'phrase' ? { name: f.name, shape: 'phrase', anyOf: [f.phrase] } : f)), edges });
+          const cand = (edges) => ({ ...part, facts: part.facts.map((f) => (f.shape === 'phrase' ? { name: f.name, shape: 'phrase', anyOf: [f.phrase] } : f)) });
           // only the phrase facts are swapped; a part with other facts is run whole through the real checker for today and, for the candidate, with those facts as signed
           const hasOther = part.facts.some((f) => f.shape !== 'phrase');
           const t = await checkCited({ part, text, results: art.results });
