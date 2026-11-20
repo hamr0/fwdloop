@@ -9393,3 +9393,13 @@ Method (set before the run): over every plan folder (`draft`, `draft-N`) that ho
 Pass = (a)-(e) on the letter. Fail on any part stays FAIL; bars are not refitted.
 
 Harness: `poc/readout-model/run.mjs`. Result is written under this heading after the run.
+
+### F235 RESULT (2026-11-20, $0, no AI, no key; `node poc/readout-model/run.mjs --base d9559d2d`, output `.claude/scratch/readout-model/RESULT.txt`, untracked; read-only `cp -a` copies of the home and walk `.drafts`; before = a git worktree of d9559d2d (the pre-registration and harness, no change in `src`), after = the change)
+Run once on the old code first (harness commit): (a) FAIL (66 line-groups differ), (b) FAIL (0 shape rows), (c)(d)(e) pass. After the change, on the letter: PASS.
+- Plans read 154 (83 skipped: no declaration or unreadable files); 51 with a card list, 103 without; 0 threw.
+- (a) PASS: 0 of the line-groups differ from the card's rows (193 expected rows over the 51 plans; tag, kind, words and order).
+- (b) PASS: research-tracker `d-00mwp4ftwv-b5f0/draft` line 2 has 3 `shape` rows after, 0 before.
+- (c) PASS: 0 drafts whose am4 item 3 lines differ. Differences outside item 3, over the 51 card-list plans, by kind (line counts): group rows removed 93 / added 146 (the hand-built `fact ·`, `you picked:` and numbers words replaced by the card's words, the card's field, floor and sheet rows added), `sheet check:` lines removed 25 (now group rows), group heads added 31 / removed 12 (a line with only a floor row now has a CHECKED head; a head whose rows moved).
+- (d) PASS: 0 of the 103 no-card-list plans differ (byte-identical).
+- (e) PASS: 0 threw.
+- Tests: test/m19-am4-readout.test.js (4; 3 red on the old code, the 4th is a guard that holds on both). Targeted batches (211 files): all green but `test/m19-block-same.test.js` "the csv snapshot" (the sheet drafts' stored readouts now carry the card's rows: sheet check lines gone, floor row and CHECKED groups added, a dropped suggestion reads "(you dropped it)"); not regenerated, left for hamr. `test/m4e-am15.test.js` (b) followed the card's words for the picked check.
