@@ -3,6 +3,7 @@
 // and the default cited text. The rest of the rubric step (building, grading and reading a step file) is not wanted here.
 import { lineRules } from './pagebits.js';
 import { factShapeReds } from './citedcheck.js';
+import { shapeShapeReds } from './shaperows.js';
 
 // borrowed-from: bareloop src/rubricstep.js@v0.60.0 (the one spelling of the keys of a repo job's stage row, of a job-level guard row and of the write-fence row; fwd has no repo job, so only the block's repo rows read them)
 export const stageKeyOf = (/** @type {string} */ name) => `S.${name}`;
@@ -22,7 +23,7 @@ export const FENCE_KEY = 'J.$fence';
 // (src/authoring.js `checkRubricParts`) so no signed stage ever carries one.
 
 /** the closed set of classes a part is sorted into; `none` = "I could not sort this one" (a red, in plain words, never a guess) */
-export const PART_CLASSES = Object.freeze(['countable', 'fact', 'judged', 'guard', 'none']);
+export const PART_CLASSES = Object.freeze(['countable', 'fact', 'shape', 'judged', 'guard', 'none']);
 
 /**
  * The counted/quoted checks a `countable` part may name, with the fields each needs — read off bareguard's own rule table
@@ -54,7 +55,7 @@ export const COUNT_CHECKS = Object.freeze({
 });
 
 /** every field a part may carry, whatever its class */
-const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample', 'asSeen']);
+const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample', 'asSeen', 'fields', 'minItems', 'maxItems']);
 
 /** @typedef {{code: string, path: string, detail: string}} ShapeRed */
 
@@ -98,6 +99,8 @@ export function rubricStepShapeReds(p, at) {
       red('invalid-value', `${w}.rules`, 'the numbers of the line\'s ~ rules this part carries out (distinct integers, 1 or more)');
     }
     if (Object.hasOwn(part, 'asSeen') && part.class !== 'fact') red('invalid-value', `${w}.asSeen`, 'only a fact part carries the as-seen example');
+    for (const k of ['fields', 'minItems', 'maxItems']) if (Object.hasOwn(part, k) && part.class !== 'shape') red('invalid-value', `${w}.${k}`, 'only a shape part carries the fields and the item count of a list of items');
+    if (part.class === 'shape') { shapeShapeReds(part, w, (c, path, d) => red(c, path, d), p.parts.find((/** @type {any} */ x) => isRec(x) && x.class === 'fact') ?? null); return; }
     if (part.class === 'fact') { factShapeReds(part, w, (c, path, d) => red(c, path, d)); return; }
     if (part.class === 'guard') {
       if (!nameList(part.domains)) red('invalid-value', `${w}.domains`, 'a non-empty array of web domains the rule is about');
@@ -119,6 +122,10 @@ export function rubricStepShapeReds(p, at) {
       }
     }
   });
+  // shape jobs: a line is a shape line, a sheet line or a facts line, never two of them, and a shape part holds its place beside the line's fact part (facts+shape: one `results` list) and its picks
+  const shapeParts = p.parts.filter((/** @type {any} */ x) => isRec(x) && x.class === 'shape');
+  if (shapeParts.length > 1) red('invalid-value', `${at}.parts`, 'one shape part per step: the fields of a list of items all go in one');
+  if (p.parts.some((/** @type {any} */ x) => isRec(x) && x.class === 'sheet') && shapeParts.length > 0) red('invalid-value', `${at}.parts`, 'a sheet line holds sheet checks: a shape part is not allowed beside them');
   return reds;
 }
 

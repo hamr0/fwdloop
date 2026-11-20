@@ -1,6 +1,6 @@
 // M19 S3 (shape rows in the one check block): setShape on a fixture gives [you] / [agent] / [default] rows, a Drop is kept for a Revise (`shapeDropped` in the picks record, no new file), a block with no shape is what it was.
 // The tests of bareloop v0.61.0 (tests/shape-rows.test.js, tests/shape-combined.test.js) are not taken here: they need pieces of S5 and S6 that are not built (the shape part in rubricStepShapeReds, buildStepSpec, lineBriefs, gradeStep, cardOfClose and the `$prose` row).
-// So this file asserts the rows and the Drop record only, never the built shape part: until S5 the part is refused by the step validator and the rows read Not checked in that red's words.
+// So this file asserts the rows and the Drop record only, never the built shape part (S5 built it: the step validator takes the shape part).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -61,9 +61,8 @@ test('a block with no shape set is what it was: no shape row, no shape line, no 
 
 test('Drop and Add on an [agent] field and Drop of a rule\'s own field cost no AI; the record keeps them by the line\'s words, and a Revise (a new block on the same job) carries them', () => {
   const b = shaped(mk());
-  // an [agent] field is on the card only once its line's shape part is built (S5's validator); until then `rowChoice` refuses its Drop in the block's own words, so the Drop is set the way a Revise sets it
-  assert.deepEqual(b.rowChoice('L1.shape.airline', 'drop'), { ok: false, why: 'only a check that is on the card can be dropped' });
-  b.carryShapeDropped([{ lineWords: 'write one summary per page for the airline', occurrence: 0, name: 'airline' }]);
+  // S5: the line's shape part is built (the step validator takes it), so an [agent] field is on the card and its Drop is taken
+  assert.deepEqual(b.rowChoice('L1.shape.airline', 'drop'), { ok: true });
   assert.equal(row(b, 'L1.shape.airline')?.state, 'suggested');
   assert.deepEqual(b.rowChoice('L1.~1', 'drop'), { ok: true });
   assert.equal(row(b, 'L1.~1')?.reason, REASON.dropped);
