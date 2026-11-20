@@ -9255,3 +9255,20 @@ Scenarios, each its own check; expectations are computed by the harness from the
 5. Refusals, the tag's words: Add back of a row that is not dropped answers `that check is already on the card`; a second Drop of a dropped row answers `that check is already dropped`; nothing is written by either (no new plan folder).
 6. Rebuild without a saved shape answer: a plan whose `log.json` has no `shape-map` entry with its raw text is refused by the row edit, with a plain sentence, and nothing is written; no provider call.
 Fails if: any spend or call count above is not 0 or unchanged, the list after Add back differs by one byte from the list before the Drop, a Revise after a Drop loses it, a refusal word differs, or a refused edit writes a file. Unchecked at pre-registration: that the rebuild can reproduce a shape plan's list from the saved raw answer at all (today `rebuildBlock` does not set the shape part); a refusal of every shape plan is a FAIL of scenarios 1 and 3, not a pass.
+
+### F231 RESULT (2026-11-20, $0, no AI, no key; run through `node --test poc/m19-p8/run.mjs`, output `.claude/scratch/v061/p8/out.txt`, untracked; real panel, real `fwdloop draft` child with the test fake provider, real `POST /api/author/:id/row-edit`)
+
+**PASS on every bar: 18 checks, 0 FAIL.** Built before the run: S9 (the replay of the shape look's saved answer in `src/planrebuild.js`, the Drop offer on shape rows and the Add back button on the card).
+
+| # | bar | result |
+|---|---|---|
+| 1 | Drop: 200, a new plan; its spend row costUsd 0, calls 0, rounds 0; the draft folder's spend unchanged; the provider's call log (every kind of call) the same length; `pid.json` unchanged | PASS |
+| 2 | the rule is Not checked with `You dropped it.`; the card lists it as restorable (key `L3.~2`); the record holds a `shapeDropped` entry with rule 2 | PASS |
+| 3 | Add back: the same facts as 1; the plan's `checkList` and every step's `close` equal those of the plan before the Drop, byte for byte; the record holds no `shapeDropped` | PASS |
+| 4 | a Revise after a Drop keeps it (record entry, `You dropped it.`); a Revise after Drop then Add back does not drop it | PASS |
+| 5 | `Add back` of a row not dropped answers `That check is already on the card. Nothing was changed.`; a second Drop answers `That check is already dropped. Nothing was changed.`; neither wrote a file | PASS |
+| 6 | a plan whose `log.json` has no `shape-map` entry is refused (409, plain sentence, `Nothing was changed.`), nothing written, no provider call | PASS |
+
+How the harness reaches a shape plan (not a change to the code under test): a first panel draft asks about every rule it cannot check, and such a rule is never a shape candidate (`shapeCandidates`: `!r.can?.ask`); the draft after the answers never asks. The harness uses the real `bin/fwdloop` with `--no-questions` added to `draft` (`poc/m19-p8/noq/fwdloop`), one Revise to make `draft-1`, and writes `redraft-1.json` the way the answers' redraft writes it, so `rowEdit` reads the plan as drafted without asks. The provider is shut after the draft by a test-only switch of the fake (`FWDLOOP_TEST_DRAFT_DENY`: once that file exists any call throws); `FWDLOOP_TEST_DRAFT_CALLS` counts every call.
+Fail-first (the harness can fail): the shape replay switched off alone in `src/planrebuild.js` gives 11 FAIL (the Drop is refused `changed`, scenarios 1 to 5 and the Revise); the card's `restorable` emptied alone gives 1 FAIL (scenario 2). Both restored with `git checkout`.
+Unchecked here: a first draft whose shape rule is reached with asks on (a `truthRefused` rule); the route reads such a plan as drafted with asks, which is right for it, but no scenario here walks it.
