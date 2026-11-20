@@ -41,7 +41,7 @@ export function notCheckedWords(reason, row = undefined) {
   if (row?.cantAsked === true && (reason === REASON.noRule || reason === REASON.nothingOnPage)) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
   if (reason === REASON.left) return dropSentence({ line: 0, fact: '', reason: 'person-left' });
   if (reason === REASON.nothingOnPage) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
-  if (reason === REASON.noRule || reason === REASON.noPick || reason === REASON.cantCheck) return dropSentence({ line: 0, fact: '', reason: 'no-pick' });
+  if (reason === REASON.noRule || reason === REASON.noPick) return dropSentence({ line: 0, fact: '', reason: 'no-pick' });
   return String(reason ?? 'not checked');
 }
 

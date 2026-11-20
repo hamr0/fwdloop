@@ -83,8 +83,6 @@ const wordSet = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}
 export const REASON = Object.freeze({
   left: 'You chose to leave it Not checked, so you judge it at Accept.',
   nothingOnPage: 'Your own words are on the line; the machine has no check for them, so you judge it at Accept.',
-  // fwd keeps: the `cant-check` question's words (M10 am16 (3)); the tag (hamr 2026-11-15, option A) no longer asks it
-  cantCheck: "I can't check this on the page; waiting for your answer",
   noRule: 'No rule can check this, so you judge it at Accept.',
   waitingPick: 'waiting for your answer on the proposed check',
   waitingReading: 'waiting for your answer on the reading',
