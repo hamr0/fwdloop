@@ -6,6 +6,7 @@ const [repo, drafts, out] = process.argv.slice(2);
 const imp = (f) => import(pathToFileURL(path.join(repo, 'src', f)).href);
 const { buildReadout } = await imp('authoring.js');
 const { parseSignedText } = await imp('signed-text.js');
+const { notCheckedView } = await imp('checked.js');
 const { cardLinesOf } = await imp('checklistsign.js');
 const rj = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const res = [];
@@ -24,10 +25,10 @@ for (const d of fs.readdirSync(drafts).sort()) {
     if (!parsed.ok) { res.push({ id, skipped: 'prose' }); continue; }
     const nc = rj(`${f}/not-checked.json`);
     const card = log.checkCard ?? null;
-    const row = { id, cardList: Boolean(card) && cardLinesOf(declaration).size > 0, cardLines: [...cardLinesOf(declaration)], jobLines: parsed.lines.map((l) => l.n), card, nc: { items: Array.isArray(nc?.notChecked) ? nc.notChecked : [], by: nc?.by ?? {} } };
+    const row = { id, cardList: Boolean(card) && cardLinesOf(declaration).size > 0, cardLines: [...cardLinesOf(declaration)], jobLines: parsed.lines.map((l) => l.n), card, nc: { items: notCheckedView(nc?.notChecked, declaration).items, by: nc?.by ?? {} } };
     try {
       row.readout = buildReadout({ declaration, arbiter: parsed.arbiter, lines: parsed.lines, name: target.name, modelId: log.modelId, costUsd: log.costUsd ?? null, rounds: log.rounds ?? 0, spendComplete: log.spendComplete !== false, root: target.root,
-        notChecked: row.nc.items, notCheckedBy: row.nc.by, suggested: card?.suggested ?? [], ...(card ? { checkCard: card } : {}) });
+        notChecked: Array.isArray(nc?.notChecked) ? nc.notChecked : [], notCheckedBy: row.nc.by, suggested: card?.suggested ?? [], ...(card ? { checkCard: card } : {}) });
     } catch (e) { row.threw = String(e?.message ?? e).slice(0, 200); }
     res.push(row);
   }
