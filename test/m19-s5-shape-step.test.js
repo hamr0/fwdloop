@@ -172,17 +172,45 @@ test('assembly: a facts+shape line keeps its class (green, cited plus itemShape,
   }
 });
 
-test('assembly, O1 unruled: a list line with no quote signs no list check (hitl, its rows Not checked with the no-rule reason); a ruled class signs close.itemShape on it', () => {
-  const none = assemble(blockWith(false));
+test('assembly, M19 am1 item 1 (O1): a shape-only line signs class green with itemShape and no cited, never softgreen and never Not checked; the unruled switch (null) still signs none', () => {
+  const out = assemble(blockWith(false));
+  const close = out.declaration.steps[0].close;
+  assert.equal(close.class, 'green');
+  assert.equal(Object.hasOwn(close, 'cited'), false);
+  assert.deepEqual(close.itemShape.fields.map((/** @type {any} */ x) => x.name), ['blurb']);
+  assert.equal(out.declaration.guardrailClasses['1'], 'green');
+  assert.deepEqual(checkListReds(out.declaration), []);
+  const shapeRow = out.declaration.checkList.find((/** @type {any} */ r) => r.kind === 'rule' && r.state === 'built');
+  assert.ok(shapeRow, 'the list-of-items row is signed built, not Not checked');
+  assert.equal(out.notChecked.some((/** @type {string} */ l) => /the items of line 1|blurb/.test(l)), false);
+  const none = assemble(blockWith(false), null);
   assert.deepEqual(none.declaration.steps[0].close, { class: 'hitl' });
   assert.deepEqual(none.declaration.checkList.filter((/** @type {any} */ r) => r.kind === 'rule').map((/** @type {any} */ r) => [r.state, r.reason]), [['not-checked', 'No rule can check this, so you judge it at Accept.'], ['not-checked', 'No rule can check this, so you judge it at Accept.']]);
-  for (const cls of ['softgreen', 'green']) {
-    const out = assemble(blockWith(false), cls);
-    assert.equal(out.declaration.steps[0].close.class, cls);
-    assert.deepEqual(out.declaration.steps[0].close.itemShape.fields.map((/** @type {any} */ x) => x.name), ['blurb']);
-    assert.equal(out.declaration.guardrailClasses['1'], cls);
-    assert.deepEqual(checkListReds(out.declaration), []);
-  }
+});
+
+test('M19 am1 item 2 (Must-fail 2): on an assembled shape-only line a person\'s 5-word pick still reds a 10-word text, and the items are still read', async () => {
+  const LN = [{ n: 1, text: 'Write one summary per page', rules: ['the blurb is under 60 words', 'at most 5 words'] }];
+  const b = new CheckBlock({ texts: { page: TEXT }, labels: ['page'], asks: false, split: true });
+  b.fromJob(LN);
+  b.carry({ picks: [{ line: 1, rule: 2, check: { rule: 'maxWords', value: 5 } }], left: [] });
+  b.setGuards(['changed-from-seed'], ['output/']);
+  b.reconcile();
+  b.setShape(buildShapes({ lines: LN, labels: ['page'], suggestions: [{ line: 1, fields: [f({ name: 'blurb', kind: 'text', bounds: { maxWords: 59 }, fromRule: 1 })], extraFields: [], itemCountFrom: [] }], nameRules: NR }));
+  const out = assembleFromBlock({ declaration: decl(), block: b, lines: [{ n: 1, guardrail: 'the blurb is under 60 words; at most 5 words' }], lineSet: new Set([1]) });
+  const step = out.declaration.steps[0];
+  assert.equal(step.close.class, 'green');
+  assert.equal(Object.hasOwn(step.close, 'cited'), false);
+  assert.deepEqual(step.close.picked, [{ rule: 'maxWords', value: 5 }]);
+  assert.deepEqual(checkListReds(out.declaration), []);
+  const ctx = { reads: {}, businessDate: '2026-11-20' };
+  const ten = 'one two three four five six seven eight nine ten';
+  const bad = await closeByClass(step, { text: ten, results: [{ blurb: 'fine' }], done: true, blocker: null }, ctx);
+  assert.equal(bad.verdict, 'red');
+  assert.match(String(bad.red), /words/i);
+  const good = await closeByClass(step, { text: 'one two three', results: [{ blurb: 'fine' }], done: true, blocker: null }, ctx);
+  assert.equal(good.verdict, 'green');
+  const badItem = await closeByClass(step, { text: 'one two three', results: [{ blurb: 7 }], done: true, blocker: null }, ctx);
+  assert.equal(badItem.verdict, 'red', 'the items are still read beside the pick');
 });
 
 const prose = 'guardrail: each item has a tag';
@@ -207,4 +235,11 @@ test('the declaration door: itemShape is a close key of its own; a bad shape, a 
   assert.match(reds(check({ class: 'softgreen', itemShape, shape: { maxWords: 5 } })).join('|'), /cannot also carry a text check/);
   assert.match(reds(check({ class: 'hitl', itemShape })).join('|'), /itemShape/);
   assert.match(reds(check({ class: 'softgreen', shape: { fields: TAG.fields } })).join('|'), /close\.shape/, 'a list of items written into close.shape is refused');
+});
+
+test('M19 am1 item 3 (Must-fail 3): a green line with neither cited nor itemShape that reads no cells is still refused by am8\'s words; with itemShape it is not', () => {
+  const r = check({ class: 'green' });
+  assert.equal(r.ok, false);
+  assert.match(reds(r).join('|'), /Line 1's check needs cells, but it reads only/);
+  assert.deepEqual(reds(check({ class: 'green', itemShape })), []);
 });

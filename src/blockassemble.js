@@ -12,11 +12,11 @@
 export const ASK_LINE_REASON = 'you judge it at the Ask';
 
 /**
- * M19 S5, open O1 (hamr to rule after P5): the close class of a line that is a list of items and nothing else (no quote). `null` = none is ruled, so such a line signs no list-of-items check and its rows are Not checked
- * (REASON.noRule). `'softgreen'` = option (i), the softgreen closer reads `results`; `'green'` = option (ii), green with no `cited`. A facts+shape line keeps its class (green, `cited` plus `itemShape`, amendment E) whatever this says.
- * @type {'softgreen'|'green'|null}
+ * M19 amendment 1 (signed 2026-11-20): a line that is a list of items and nothing else (no quote) signs class `green` with `itemShape` and no `cited`; the person's own rules on its text still ride beside it. `null` (tests only) signs no
+ * list-of-items check and the rows are Not checked (REASON.noRule). A facts+shape line keeps its class (green, `cited` plus `itemShape`, amendment E) whatever this says.
+ * @type {'green'|null}
  */
-export const SHAPE_ONLY_CLASS = null;
+export const SHAPE_ONLY_CLASS = 'green';
 
 /** what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail) */
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
@@ -52,7 +52,7 @@ export function pickedOf(part) {
 }
 
 /**
- * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>, sheetRoles?: string[], shapeOnlyClass?: 'softgreen'|'green'|null}} o
+ * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>, sheetRoles?: string[], shapeOnlyClass?: 'green'|null}} o
  *   `lineSet` = the lines of the list (the block's step lines that are not sheet lines); `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2);
  *   `sheetRoles` = the CSV inputs: the block's sheet part of a sheet line is the `close.sheet` of the line's first green step that reads one (M19 S3: the checks the block holds, drops and all)
  * @returns {{declaration: Record<string, any>, notChecked: string[], notCheckedBy: Record<string, 'you'|'agent'|'default'>, built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
@@ -89,8 +89,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const fact = signable ? parts.find((p) => p.class === 'fact') : undefined;
     // M19 S5: the shape part rides the fact part (facts+shape, class green); a line with no fact part takes it only when a class is ruled for it (`shapeOnlyClass`)
     const picks = signable ? parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts') : [];
-    // (option (i), a softgreen line, reads `results` and cannot also read the picks' `text`: such a line keeps no shape check)
-    const shape = signable ? parts.find((p) => p.class === 'shape' && (fact !== undefined || (shapeOnlyClass === 'green') || (shapeOnlyClass === 'softgreen' && picks.length === 0))) : undefined;
+    const shape = signable ? parts.find((p) => p.class === 'shape' && (fact !== undefined || shapeOnlyClass === 'green')) : undefined;
     const tie = parts.find((p) => p.class === 'countable' && p.check === 'numbersFromFacts');
     const old = isRec(st.close) ? st.close : {};
     const sheet = Array.isArray(old.sheet) ? old.sheet : null;
@@ -106,7 +105,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     if (fact) {
       close.class = 'green';
       close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}), ...(isRec(fact.asSeen) ? { asSeen: fact.asSeen } : {}) };
-    } else close.class = sheet ? 'green' : shape ? /** @type {'softgreen'|'green'} */ (shapeOnlyClass) : picks.length ? 'softgreen' : 'hitl';
+    } else close.class = sheet ? 'green' : shape ? /** @type {'green'} */ (shapeOnlyClass) : picks.length ? 'softgreen' : 'hitl';
     // the list-of-items check is its own close key, never `close.shape` (amendment E): the signed fields and the item count of the part
     if (shape) close.itemShape = { fields: shape.fields, ...(Number.isInteger(shape.minItems) ? { minItems: shape.minItems } : {}), ...(Number.isInteger(shape.maxItems) ? { maxItems: shape.maxItems } : {}) };
     if (picks.length) {
