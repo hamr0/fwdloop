@@ -174,7 +174,7 @@ export const AS_SEEN_MAX_CHARS = 3000;
 
 /**
  * AS SEEN (F337): the planner's example of one result's shape. When a signed fact's label sits on a different line than the result's first line
- * (Google Flights: the price line, then `Departure time:` on the next), the worker must copy those lines whole; the planner is the one who can
+ * (a hosted flights site: the price line, then `Departure time:` on the next), the worker must copy those lines whole; the planner is the one who can
  * tell it, so the signed record keeps the exact input lines from the drafting copy. Result and label lines are found by the SAME finders the dry
  * reads use (`moneyResultLines`, `timeCandidateLines`), one line at a time, so there is no second reader of "what holds this label". The first
  * result is the first line holding the first labelled fact (money or time); its block runs to the next such line. Every other labelled fact must

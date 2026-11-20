@@ -11,8 +11,8 @@
 //
 // This is a FALLBACK, not the primary answer. The primary answer (F139,
 // measured 2026-09-08) is picking a worker model with adequate rate
-// headroom: gpt-4.1 = 30,000 TPM (429s deterministically on our workload,
-// 2 of 2 runs), gpt-4.1-mini = 200,000 TPM, gpt-5-mini/gpt-5 = 500,000 TPM.
+// headroom: a 30,000 TPM model (429s deterministically on our workload,
+// 2 of 2 runs), a 200,000 TPM model and a 500,000 TPM model do not.
 // One bounded retry only softens the failure mode when that primary answer
 // was not followed (or headroom was still exceeded); it does not replace it.
 
@@ -66,7 +66,7 @@ export function isRateLimited(err) {
  * bare-agent does not expose the vendor's `retry-after` /
  * `x-ratelimit-reset-*` response headers on the thrown error (BA-26) — the
  * delay exists only in the vendor's English message text, so this parses
- * that text. Verified real shape (OpenAI, run `8ev2sdkn`, 2026-09-08):
+ * that text. Verified real shape (a hosted provider, run `8ev2sdkn`, 2026-09-08):
  * "Please try again in 11.996s." This also supports "try again in 1.5
  * seconds", "try again in 20ms", "retry after 30s", and "retry after 30
  * seconds" — case-insensitive.

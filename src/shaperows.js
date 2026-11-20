@@ -158,7 +158,7 @@ export const SHAPE_FIELD = 'results';
  */
 export function shapeItemCheck(part, id, factPart = null) {
   const own = Object.fromEntries((Array.isArray(part.fields) ? part.fields : []).filter(isRec).map((f) => [String(f.name), f.spec]));
-  // FACTS + SHAPE (the rules-first spec, verified on real data in .claude/scratch/shape-combined/round2): the one list is also read by `cited`, and the itemShape is CLOSED, so it lists the keys the fact result carries:
+  // FACTS + SHAPE (the rules-first spec, verified on real data in the shape-combined round 2 scratch run): the one list is also read by `cited`, and the itemShape is CLOSED, so it lists the keys the fact result carries:
   // `quote` (text, required) and `values` (an object, one OPTIONAL field per signed fact: a number read from text for a money or number fact, text for every other shape). No `claim` key: `cited` reads claims
   // that `flattenStep` builds from the signed fact names. The item COUNT stays with the fact part's own count checks (one fault, one report); the shape part's count is used only when the fact part has none.
   const facts = isRec(factPart) && Array.isArray(factPart.facts) ? factPart.facts.filter(isRec) : null;
