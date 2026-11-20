@@ -97,7 +97,11 @@ else {
     const cb = b.cand.body ?? '';
     const hit = titles.filter((t) => cb.includes(t));
     say(`(a) candidate body: ${bytes(cb)} bytes, ${sections(cb)} sections, titles found ${hit.length} of ${titles.length}`);
-    say(`(a) ${titles.length === 4 && hit.length === 4 && (b.today.body ?? '') === '' ? 'PASS' : 'FAIL'}`);
+    // the titles must be in step 2's own section (step 1, the raw read, also quotes them)
+    const sec2 = cb.split(/^## /m).find((x) => x.startsWith('2.')) ?? '';
+    const in2 = titles.filter((t) => sec2.includes(t));
+    say(`(a) step 2's own section present: ${sec2 !== ''}; titles in it ${in2.length} of ${titles.length}`);
+    say(`(a) ${titles.length === 4 && in2.length === 4 && (b.today.body ?? '') === '' ? 'PASS' : 'FAIL'}`);
   }
 }
 
