@@ -157,7 +157,7 @@ export function factDecides(part) {
  * a phrase fact contributes its own signed words. A result that is not an object, or has no string quote, still becomes a claim (an empty one) so
  * bareguard reds it by name rather than the result vanishing.
  * `asWritten` (bareloop v0.56.0): per result, per fact index, the value as the page writes it, for the claim's words of a date or amount a page form signs.
- * @param {any} part @param {unknown} results @param {Record<number, string>[]} [asWritten] @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
+ * @param {any} part @param {unknown} results @param {(Record<number, string>|undefined)[]} [asWritten] @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
  */
 export function factClaims(part, results, asWritten = []) {
   const list = Array.isArray(results) ? results : [];
