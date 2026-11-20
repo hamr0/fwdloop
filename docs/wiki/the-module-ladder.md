@@ -4301,3 +4301,7 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 2. On the card, Job tab and readout, a row in the NOT CHECKED group drops its `not checked · ` prefix (the group title says it). The Audit keeps the prefix.
 **Must fail when:** the legend differs from the tag's words; a card, Job tab or readout NOT CHECKED row starts with `not checked · `; an Audit Not checked row loses it.
 **Done when:** a test that fails first for each Must-fail line. **Cap:** $0.
+
+**M19 amendment 3 — SIGNED by hamr 2026-11-20 ("sign m19 am3."), the text exactly as shown (.claude/scratch/m19-s5/m19-am3-sign.md, sha256 6143e4aaa199…):**
+
+**M19 amendment 3 — copy loop: no can't-check ask.** A `~` rule code cannot check, with no tied fact and no count proposal, is Not checked with no question (bareloop v0.61.0 `src/checkblock.js` `matchRule` / `matchCountRule`), so the shape look can take it. This replaces M10 am16 (3)'s `cant-check` ask. The reading ask and the count-check ask stay. **Must fail when:** a draft asks "I can't check this" about a `~` rule; the research-tracker job drafts with no shape rows.
