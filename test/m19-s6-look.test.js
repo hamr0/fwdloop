@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -159,4 +160,38 @@ test('A Must-fail 1: a list reason says "at Accept", never "at the Ask", for a r
 test('A Must-fail 2: a rule on a signed Ask line keeps its reason, at the Ask', () => {
   assert.equal(ASK_LINE_REASON, 'you judge it at the Ask');
   assert.match(ASK_ITEM, /you judge it at the Ask$/);
+});
+
+// ---- amendment 2 (M19 am2): two S6 screen words beside section 3.7 --------------------------------------------------------------------------------------------------
+test('am2 Must-fail 1: the card and Job tab legend equals the tag\'s words (bareloop v0.61.0 src/panel/index.html), never the old `every › check`', () => {
+  const tag = execFileSync('git', ['-C', path.join(HERE, '../../bareloop'), 'show', 'v0.61.0:src/panel/index.html'], { encoding: 'utf8' });
+  const m = /<div class="jp-legend">([^<]*)<\/div>/.exec(tag);
+  assert.ok(m, 'the tag has a legend');
+  const legend = m[1];
+  assert.equal(legend, 'Done when every check below passes');
+  const ours = HTML.join('\n');
+  assert.equal(ours.split(legend).length - 1, 1, 'the one plan view (card and Job tab) carries the tag\'s legend');
+  assert.ok(!/Done when every ›/.test(ours), 'the old legend is gone');
+  const h = page().planViewHtml({ lines: [{ n: 1, text: 'one', rules: [], checks: [{ name: 'a', by: 'you', kind: 'truth', key: 'L1.~1' }] }], suggested: [], ncRows: [], readNotes: [], alwaysOn: [] }, page().planControlHTML);
+  assert.ok(text(h).includes(legend), 'the rendered card shows the legend');
+});
+
+test('am2 Must-fail 2: no card, Job tab or readout NOT CHECKED row starts with `not checked · `', () => {
+  const items = ['not checked · "tone" — You chose to leave it Not checked.', `not checked · "exactly 3 bullets" — ${ASK_LINE_REASON}`, 'line 2: not checked · "x" — r'];
+  for (const r of ncRowsOf(items)) assert.ok(!/^not checked · /.test(r.text), `row text "${r.text}"`);
+  const h = page().planViewHtml({ lines: [{ n: 1, text: 'one', rules: [], checks: [] }], suggested: [], ncRows: ncRowsOf(items), readNotes: [], alwaysOn: [] });
+  assert.ok(!/not checked ·/.test(text(h)), 'the card has no prefix');
+  const decl = { flowType: 'plain', inputFacts: {}, steps: [{ fromLine: 1, emits: 'a1', goal: 'one', primitives: [], reads: [], close: { class: 'hitl' } }] };
+  const nc = ['not checked · "tone" — why'];
+  const out = buildReadout({ declaration: decl, arbiter: { sources: [], asks: [], sends: [], capUsd: 1 }, lines: [{ n: 1, text: 'a' }], name: 'x', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: '/r', notChecked: nc, notCheckedBy: { [nc[0]]: 'you' } });
+  assert.match(out, /NOT CHECKED · 1/);
+  assert.match(out, /tone — why/);
+  assert.ok(!/not checked ·\s+"?tone|not checked · "tone/.test(out.replace(/NOT CHECKED · \d+/g, '')), 'the readout row has no prefix');
+});
+
+test('am2 Must-fail 3: an Audit Not checked row keeps its `not checked · ` prefix', () => {
+  const items = ['not checked · "tone" — You chose to leave it Not checked.'];
+  const a = auditChecksOf(listDecl(), [], { items, by: { [items[0]]: 'you' } });
+  assert.ok(a && a.notChecked.length === 1);
+  assert.match(a.notChecked[0].text, /^not checked · /, 'the Audit row keeps the prefix');
 });
