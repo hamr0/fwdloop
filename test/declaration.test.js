@@ -207,6 +207,10 @@ const FIELD_META = {
   picked: {
     level: 'close', required: false, needle: 'picked', retype: () => 42, invalid: () => [],
   },
+  // M19 S5: the signed list-of-items check of a line (a shape part {fields, minItems, maxItems})
+  itemShape: {
+    level: 'close', required: false, needle: 'itemShape', retype: () => 42, invalid: () => ({ cap: 1 }),
+  },
   class: {
     level: 'close', required: false, needle: 'class', retype: () => 42, invalid: () => 'nonsense',
   },
@@ -325,6 +329,7 @@ const OPTIONAL_FIELDS = Object.freeze([
   { field: 'unjudgeable', level: 'top' },
   { field: 'numbersFrom', level: 'close' },
   { field: 'picked', level: 'close' },
+  { field: 'itemShape', level: 'close' },
   { field: 'class', level: 'close' },
   { field: 'shape', level: 'close' },
   { field: 'cited', level: 'close' },
