@@ -4305,3 +4305,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **M19 amendment 3 — SIGNED by hamr 2026-11-20 ("sign m19 am3."), the text exactly as shown (.claude/scratch/m19-s5/m19-am3-sign.md, sha256 6143e4aaa199…):**
 
 **M19 amendment 3 — copy loop: no can't-check ask.** A `~` rule code cannot check, with no tied fact and no count proposal, is Not checked with no question (bareloop v0.61.0 `src/checkblock.js` `matchRule` / `matchCountRule`), so the shape look can take it. This replaces M10 am16 (3)'s `cant-check` ask. The reading ask and the count-check ask stay. **Must fail when:** a draft asks "I can't check this" about a `~` rule; the research-tracker job drafts with no shape rows.
+
+**M19 amendment 4 — SIGNED by hamr 2026-11-20 ("sign m19 am4."), the text exactly as shown (.claude/scratch/m19-s5/m19-am4-sign.md, sha256 bc780fa34e60…):**
+
+**M19 amendment 4 — copy loop: the readout's check rows are the card's rows.**
+1. In the draft readout, each line's CHECKED, NOT CHECKED and SUGGESTED rows are that line's plan-card rows: the same rows, words, tags and order the card draws (bareloop v0.61.0 `buildReadout` reads `planFromSpec`, the card's model). A row the card shows is never missing from the readout, a list line's field rows included (`"each item has a title"`).
+2. This replaces the readout's own hand-built row words on a line with a card list (`fact · <name> — …`, `fact · results — …`, `you picked: …`, `sheet check: …`, the numbers row): the card's words win (`"under $450"`, `result count 3-3`). A readout line that repeats a check the group rows already show goes. A plan with no card list (drafted before M16) keeps today's readout.
+3. Every other readout line stays as it is: the step line (grants, reads, emits, check), the column lock, the sections line, EVERY LINE, ASKS, SEND TARGET, JOB LINES, INPUTS, flow type, mcp, ticket filter and watch, Your answers.
+4. The readout is part of the plan's hash, so this changes new drafts and rebuilt plans only. A signed job keeps its stored readout and hash.
+**Must fail when:** a card row is missing from its line's readout block; a readout row's words, tag or order differ from the card's; a readout line from item 3 is lost or changed; a signed job's stored readout or hash changes.
+**Done when:** a pre-registered $0 POC over every saved draft shows, per line, readout rows = card rows; research-tracker gains its 3 list rows; tests that fail first; the full suite green. **Cap:** $0.
