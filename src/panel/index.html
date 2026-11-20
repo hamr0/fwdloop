@@ -612,6 +612,22 @@
   /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
   /* M13 piece 6: the job's Result grid (mock docs/product/m13-setup-mock.html Part 3). The table, cells, q-fold and step-sub are the Audit grid's own; these are the bucket fold rows, the stats line and the run column. */
   #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
+  /* borrowed-from: bareloop src/panel/index.html@v0.61.0 (.sf-*). a shape line with many fields: one folded row per item (signed mock A2); a failed item is open and tinted; nothing scrolls sideways */
+  .sf-item{border-bottom:1px dotted var(--border-strong);}
+  .sf-item>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:36px;font-size:12px;padding:0 4px;}
+  .sf-item>summary::-webkit-details-marker{display:none;}
+  .sf-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sf-ct{flex:0 0 auto;white-space:nowrap;}
+  .sf-ar{flex:0 0 auto;color:var(--accent);font-weight:700;}
+  .sf-ar::before{content:"\25B8";}
+  .sf-item[open]>summary .sf-ar::before{content:"\25BE";}
+  .sf-item.bad>summary{background:var(--red-bg);}
+  .sf-fl{padding:4px 8px 8px 22px;font-size:12px;}
+  .sf-fl>div{display:flex;gap:8px;padding:2px 0;border-bottom:1px dotted var(--border);}
+  .sf-fl .k{flex:0 0 84px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;}
+  .sf-fl .g{flex:0 0 14px;}
+  .sf-fl .v{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+  .sf-fl .why{color:var(--red);}
   table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
   table.grid.tg td.c{min-width:84px;}
   table.grid.tg th{color:var(--accent);font-weight:700;}
@@ -2858,8 +2874,30 @@
           '/download?i=' + d.i + '&view=1" target="_blank" rel="noopener noreferrer">' + escapeXml(d.name) + '</a>' + renamed + '</div>');
     }).join("");
   }
+  // ---- SHAPE JOBS (M19 S8; borrowed-from: bareloop src/panel/index.html@v0.61.0 shapeFoldHtml, shapeResultCard): a shape line's answer is a FOLD (every shape line, any field count): one row per item, opening to its fields, the stats line and the Not checked line. The server decides every mark and word (`line.shape`, src/shaperesult.js); the page only draws. An item's name is plain text.
+  // one row per item `N \u00B7 name  \u2713 k of n  \u25B8`, a native <details> opening to one line per field; a failed item starts open (signed mock A2)
+  function shapeFoldHtml(m){
+    var n = m.columns.length;
+    return '<div class="sf-list" data-testid="shape-fold">' + m.rows.map(function(r){
+      var bad = r.cells.filter(function(c){ return c.mark === "r"; }).length;
+      return '<details class="sf-item' + (bad ? ' bad' : '') + '" data-testid="shape-item"' + (bad ? ' open' : '') + '><summary><span class="sf-nm" data-testid="shape-name" title="' + escapeXml(r.name) + '">' + escapeXml(r.name) + '</span><span class="sf-ct" data-testid="shape-count">' + gridMarkOf(bad ? "r" : "g") + ' ' + (n - bad) + ' of ' + n + '</span><span class="sf-ar"></span></summary><div class="sf-fl">' +
+        r.cells.map(function(c, j){ return '<div data-testid="shape-field" data-result="' + (c.mark === "r" ? "failed" : "passed") + '"><span class="k">' + escapeXml(m.columns[j].name) + '</span><span class="g">' + gridMarkOf(c.mark) + '</span><span class="v">' + escapeXml(c.text || "") + (c.why ? ' <span class="why">\u00B7 ' + escapeXml(c.why) + '</span>' : '') + '</span></div>'; }).join("") + '</div></details>';
+    }).join("") + '</div>';
+  }
+  function shapeResultCard(line, detail, many){
+    var m = line.shape;
+    var h = '<div class="job-card" data-testid="result-shape"><h4>Result' + (many ? " \u00B7 line " + escapeXml(String(line.n)) : "") + '</h4>';
+    if(!m){
+      h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    } else {
+      h += '<p class="tg-stats" data-testid="shape-stats"><b>' + escapeXml(String(detail.flow || "")) + '</b> \u00B7 ' + escapeXml(String(detail.runId || "")) + ' \u00B7 <b>' + m.total + '</b> items \u00B7 <b>' + m.passed + '</b> passed \u00B7 <b>' + m.failed + '</b> failed</p>';
+      h += shapeFoldHtml(m);
+    }
+    return h + resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
+  }
   // `own` = the Result tab read 2+ pages, so this line's box shows its own page
   function resultLineCard(line, own, note){
+    if(line.kind === "shape") return shapeResultCard(line, resultDetail || {}, !!(resultData && (resultData.lines || []).length > 1));
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
       (own ? resultPageLink(line.page, note, "result-page-line") : "") +
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
