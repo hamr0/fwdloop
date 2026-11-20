@@ -79,9 +79,12 @@ test('own words (M17 am1 ruling: bareloop\'s reason for a countable own-words ru
   assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 bullets'], 'drop it adds no line');
 });
 
-test('nothing kept: "I can\'t check this. Your own words, or Not checked?"', async () => {
-  // M10 am27 (3): a single count with nothing kept is built by code; the "I can't check this" path is a rule that names no count
-  const { s } = await asked('{"checks":[]}', JOB.replace('~ exactly 3 bullets', '~ keep it short and kind'));
-  assert.equal(s.phase, 'questions-open');
-  assert.match(s.questions[0].question, /^Line 3, guardrail "keep it short and kind": I can't check this\. Your own words, or Not checked\?/);
+test('M19 am3: nothing kept for a rule that names no count: NO question (no "I can\'t check this"), the draft goes on and the rule is Not checked', async () => {
+  // M10 am27 (3): a single count with nothing kept is built by code; a rule that names no count is Not checked at once (bareloop v0.61.0)
+  const { w, id, s } = await asked('{"checks":[]}', JOB.replace('~ exactly 3 bullets', '~ keep it short and kind'));
+  assert.notEqual(s.phase, 'questions-open', JSON.stringify(s));
+  assert.equal(s.phase, 'green', JSON.stringify(s.reds ?? s));
+  assert.ok(s.notChecked.items.some((x) => x.includes('"keep it short and kind"')), JSON.stringify(s.notChecked));
+  assert.ok(!JSON.stringify(s.questions ?? []).includes("I can't check"));
+  void w; void id;
 });
