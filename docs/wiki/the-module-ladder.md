@@ -4346,3 +4346,17 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 6. This replaces M19 am4 item 2's "the card's words win": the card's words are now the plan's words, so the readout (am4 item 1) reads the same. Signed jobs are unchanged (the Job tab and the Audit already read the signed plan). A saved draft with a signed list rebuilds its card from the plan; one without keeps its saved card.
 **Must fail when:** a card or readout row's words or tag differ from the signed part it names; a signed check has no card row; a sign goes through when the card shown differs from the plan; a `~` rule a check took shows the rule's text instead of the check; a fwd row from item 5 is lost or changed.
 **Done when:** a pre-registered $0 POC over every saved draft with a signed list shows card rows = the reader's rows (F238's 10 differing rows now show the signed words; 0 differ); tests that fail first; the full suite green. **Cap:** $0.
+
+**M19 amendment 7 — SIGNED by hamr 2026-11-20 ("sign m19 am7."), the text exactly as shown (.claude/scratch/m19-s5/m19-am7-sign.md, sha256 85a79475b97e…):**
+
+**M19 amendment 7 — the card words of am6, as loop (F239's open points).** Each item copies bareloop v0.61.0 as its `loop` session quoted it on 2026-11-20.
+1. A list line's field rows read in `shapeRowsOf`'s words, `<field> · <sentence>` (`title · not empty`), on the card, the readout and the Job tab; a field from a `~` rule is tagged `[you]`. This settles am6 items 2 and 5 for shape rows: the check's words are `shapeRowsOf`'s.
+2. A picked check reads on the card as its plain words (`at most 80 words`), with ` · kept from last draft` when a Revise carried it; no `(you agreed: …)` tail and no period.
+3. The numbers tie reads `every number in the text is in a quote checked on line <n>` (`on line 1, 2` for several), tagged `[default]`, no period.
+4. A line's rows follow the signed parts' order: sheet; facts, then the result count; shape; picks; then the defaults (cited, numbers); the floor row last.
+5. Two `~` rules that one check took make one row, tagged and keyed from the first `[you]` row; the second rule's text shows under JOB LINES, not as a row of its own.
+6. A Not checked fact or phrase row takes its name from the draft's own words (keeping the page's case), and only falls back to its key.
+7. A Tickets filter or watch row shows only where the signed list holds that row.
+8. The Job tab shows a list line's field rows (item 1) and counts its parts with `itemShape` included; its other words stay as they are.
+**Must fail when:** a field row shows the rule's text instead of `shapeRowsOf`'s words; a pick shows `(you agreed: …)` or a period; the numbers row's words differ from item 3; a line's rows are out of item 4's order; a second rule taken by one check gets its own row; a Not checked name loses the page's case while the draft holds it; a Tickets row shows with no signed row; the Job tab skips or mis-numbers a list line's part.
+**Done when:** a new pre-registered $0 POC (F239 stays FAIL as written) passes F239's bars (b)-(f) with this amendment's words on the letter; tests that fail first; the full suite green. **Cap:** $0.
