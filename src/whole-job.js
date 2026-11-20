@@ -43,7 +43,7 @@ export function wholeJobAskIndex({ steps, askLines, sendLines }) {
 }
 
 /** the `~` rules of a signed job line, one string each: the parsed line carries them joined by "; " in `guardrail` (several `~` lines under one step are one guardrail), as the Result tab reads it @param {any} jl @returns {string[]} */
-const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
+export const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
 
 /**
  * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? Only when code really checked the step's own text (a green close with a words-per-section
