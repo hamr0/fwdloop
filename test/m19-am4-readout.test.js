@@ -67,3 +67,10 @@ test('a page read note is not a NOT CHECKED row; a real Not checked rule still i
   assert.match(t, /NOT CHECKED · 1 ·/);
   assert.ok(t.includes('each item has a title'));
 });
+
+test('a plan with no card list keeps a read note in its readout as before (signed am4 item 2)', () => {
+  const note = 'line 2: "under $450" \u2014 "US dollars" was listed twice, as a unit and as a currency; it is used once, as the first way to write the price.';
+  const t = read({ declaration: decl({ checkList: undefined }), notChecked: [note], notCheckedBy: { [note]: 'default' } });
+  assert.ok(t.includes('listed twice'), 'break: the split runs for a plan with no card list');
+  assert.match(t, /NOT CHECKED \u00B7 1 \u00B7/);
+});

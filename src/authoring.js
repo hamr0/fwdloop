@@ -246,7 +246,8 @@ export function buildReadout({
   const checkText = (st, i) => (st.close?.class === 'hitl' && !askLineNos.includes(st.fromLine) ? hitlWords(askLineNos.length > 0, lastAskIdx !== -1 && i > lastAskIdx) : st.close?.class);
   // M19 S6 (section 3.7): the rows of a list line and the Not checked items are told in the signed look's groups; the rows no one line owns are one `EVERY LINE` block (a one-line job's join its line)
   // M19 am4: the Not checked rows are the card's (src/checked.js notCheckedView, the one split): a note about a written form the page did not use is "How the page was read", not a Not checked row
-  const ncRows = ncRowsOf(notCheckedView(notChecked, declaration).items, notCheckedBy);
+  // a plan with no card list (drafted before M16) keeps today's readout (signed am4 item 2): the split is for a plan the card draws a list on
+  const ncRows = ncRowsOf(onCard.size > 0 ? notCheckedView(notChecked, declaration).items : notChecked, notCheckedBy);
   const many = lines.length > 1;
   const alwaysRows = onList.size > 0 ? EVERY_STEP_TEXTS.map((text) => ({ text, by: 'default', kind: 'file' })) : [];
   const owned = new Set(declaration.steps.map((st) => st.fromLine));
