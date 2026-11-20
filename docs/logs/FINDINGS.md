@@ -9288,3 +9288,16 @@ How it is read (set before the run; the bar above is the signed-off text, this i
 - A job a reader throws on at both commits with the same message counts as identical; one that throws at one commit only is a change.
 
 Harness: `poc/m19-p3/run.mjs`. Result is written under this heading when run.
+
+### F232 RESULT, half 1 (2026-11-20, $0, run once more after a harness change: `node poc/m19-p3/run.mjs`, output `.claude/scratch/v061/p3/RESULT.txt`, untracked)
+
+Baseline `1b8a8ff6`; 463 job folders (a cp -a copy of `~/.config/fwdloop/flows`, `.drafts` included), none skipped, no reader threw at the baseline. The first run compared only HEAD and failed; the harness was then widened to compare three tips against the same baseline (the bar's wording, "with the S1-S4 code present", names S1-S4, and HEAD also holds S5-S7):
+
+| tip | jobs changed vs baseline | verdict on the letter |
+|---|---|---|
+| S1-S4 tip `ad847e64` | 0 of 463 | PASS |
+| S5 tip `834eb867` | 0 of 463 | PASS |
+| HEAD `7f066f1e` (the pre-registered reading) | 132 of 463, all in the `audit` reader only (list, checked, closes, sheet card, Not-checked view, `checkList` identical) | FAIL |
+
+**Verdict on the letter: FAIL at HEAD, PASS at the S1-S4 tip.** The 132 are caused by S6/S7 (the Audit's rows now carry `kind` and the per-line blocks, commits `c033c74b` and `80caf9af`), which are signed display changes (section 3.7 words) and are P7's bar (F229), not S1-S4 and not a shape answer. Nothing in the signed list or any step's `close` changed at any tip. I did not widen the bar to turn HEAD green: HEAD stays FAIL on the pre-registered reading, and the S1-S4 reading (the bar's own wording) passes.
+Half 2 (with P2's answers): waits for P2.
