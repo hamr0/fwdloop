@@ -490,9 +490,17 @@ export async function checkCited({ part, text, results }) {
   try { rubric = createRubric(buildCitedSpec(part, sha256)); } catch (e) {
     return { verdict: 'stopped', gapLines: [], fault: `the check could not be built: ${/** @type {Error} */ (e).message}`, ...none };
   }
-  const claims = factClaims(part, results);
+  let claims = factClaims(part, results);
   // `count` is set HERE from the list itself: the step never writes a number the check trusts
-  const r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+  let r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+  // borrowed-from: bareloop src/rubricstep.js@v0.61.0
+  if (Array.isArray(part.facts) && part.facts.some((/** @type {any} */ f) => isRec(f) && (f.lang !== undefined || f.decimal !== undefined))) {
+    const written = writtenSpans(part, r.full.evidence);
+    if (written.some(Boolean)) {
+      claims = factClaims(part, results, written);
+      r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+    }
+  }
   if (r.verdict === 'stopped') return { verdict: 'stopped', gapLines: [], fault: r.fault ? `${r.fault.kind}: ${r.fault.detail}` : 'the check stopped', ...none, claims };
   const evidence = Array.isArray(r.full?.evidence) ? r.full.evidence : [];
   if (r.verdict === 'green') return { verdict: 'green', gapLines: [], fault: null, sha256, claims, evidence };

@@ -1,0 +1,38 @@
+{
+ "step": 1,
+ "part": {
+  "text": "List every laptop on the page with its name and price",
+  "class": "fact",
+  "source": "page",
+  "count": {
+   "min": 1
+  },
+  "rules": [
+   1
+  ],
+  "covers": [
+   1,
+   2
+  ],
+  "facts": [
+   {
+    "name": "price",
+    "shape": "money",
+    "currency": "\u20ac",
+    "unit": "\u20ac",
+    "decimal": ",",
+    "rule": {
+     "op": "lt",
+     "value": 1500
+    }
+   },
+   {
+    "name": "name",
+    "shape": "text"
+   }
+  ]
+ },
+ "source": "page",
+ "session": "smvqz6h1bnc5k",
+ "inputSha": "211d1cfc470ff5abdcfd0d67b3431561bd0bcb82a1c35951050ae0bde50dabda"
+}
