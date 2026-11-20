@@ -76,15 +76,11 @@ test('the Drop it button on a reading ask: the rule stays in the job, no rule is
   assert.deepEqual([row.choice, row.rule], ['drop', null]);
 });
 
-test('Drop it on a cant-check ask leaves the rule Not checked; agree there is refused (nothing proposed)', async () => {
+test('M19 am3: a rule code cannot check ("pays well") is not asked: only the reading is asked, and it is Not checked after the reading is answered', async () => {
   const { w, id, s } = await askWorld([...READ_RULES, 'pays well']);
-  assert.equal(s.total, 2);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 200);
-  const bad = await w.post(`/api/author/${id}/answer`, { k: 2, choice: 'agree' });
-  assert.equal(bad.status, 400);
-  assert.equal(bad.json().refused, 'bad-choice');
-  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false, 'nothing was saved');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, choice: 'drop' })).status, 202);
+  assert.equal(s.total, 1);
+  assert.deepEqual(s.questions.map((q) => q.ask), ['reading']);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   const g = await greenAfter(w, id);
   assert.ok(g.notChecked.items.some((x) => x.includes('"pays well"')), JSON.stringify(g.notChecked));
   assert.deepEqual(guardrails(w, id), ['under $150', PROPOSAL, 'nonstop', 'pays well']);
@@ -146,12 +142,12 @@ test('the setup record\'s human row carries the typed choice (a row from an old 
   assert.deepEqual(rows(w.dir(id)).map((r) => [r.answer, r.choice]), [['agree', 'agree']]);
 });
 
-test('the state the panel polls: a look question carries its ask, whether code proposes, and the text without the CLI answer words; the stored question is whole', async () => {
+test('the state the panel polls: a look question carries its ask, whether code proposes (a reading; M19 am3: no can-not-check ask), and the text without the CLI answer words; the stored question is whole', async () => {
   const { w, id, s } = await askWorld([...READ_RULES, 'pays well']);
-  const [a, b] = s.questions;
-  assert.deepEqual([a.ask, a.proposes, b.ask, b.proposes], ['reading', true, 'cant-check', false]);
+  assert.equal(s.questions.length, 1, 'M19 am3: no can\'t-check ask for "pays well"');
+  const [a] = s.questions;
+  assert.deepEqual([a.ask, a.proposes], ['reading', true]);
   assert.equal(a.shown, `Your line 1 says "not a red-eye". I read it as: ${PROPOSAL}. Agree?`);
-  assert.equal(b.shown, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it?');
   assert.match(a.question, /Answer "agree", or type your own reading/, 'the polled question is the stored one, whole');
   assert.match(readQuestions(path.join(w.dir(id), 'draft')).questions[0].question, /Answer "agree"/);
 });
