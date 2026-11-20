@@ -208,7 +208,7 @@ function readoutGroups({ checks, nc, suggested }) {
 
 /** Plain-text readout of what the human is about to sign. Pure. */
 export function buildReadout({
-  declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root, notChecked = [], notCheckedBy = {}, suggested = [],
+  declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root, notChecked = /** @type {string[]} */ ([]), notCheckedBy = /** @type {Record<string, string>} */ ({}), suggested = /** @type {{line: number, text: string}[]} */ ([]),
 }) {
   const out = [];
   out.push(`${READOUT_HEADER_PREFIX}"${name}"`, '');
