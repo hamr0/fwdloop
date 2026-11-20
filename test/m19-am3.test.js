@@ -29,9 +29,9 @@ test('(1) a rule code cannot check, asked or not: with asks on there is no open 
 // red when matchCountRule's last branch sets `ask: 'cant-check'` again (a count-scope rule with no proposal and no obvious check)
 test('(1b) a countable rule with no count proposal is Not checked with no question either', () => {
   const b = new CheckBlock({ texts: { f: 'x' }, labels: ['f'], asks: true, countScope: () => true });
-  b.fromJob([{ n: 1, text: 'Summarise it', rules: ['about as long as a tweet'] }]); b.reconcile();
+  b.fromJob([{ n: 1, text: 'Summarise it', rules: ['two or three bullets', 'a few bullets'] }]); b.reconcile();
   assert.deepEqual(b.open.filter((q) => q.ask === 'cant-check'), []);
-  assert.equal(b.rows.find((r) => r.kind === 'rule')?.can?.ask, undefined);
+  assert.deepEqual(b.rows.filter((r) => r.kind === 'rule').map((r) => [r.can?.ask, r.can?.why]), [[undefined, REASON.noRule], [undefined, REASON.noRule]]);
 });
 
 // the asks that stay (am3 "The reading ask and the count-check ask stay"): red if the change took either away
