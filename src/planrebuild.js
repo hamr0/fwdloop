@@ -208,9 +208,11 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
+  // M19 am4: the plan card the new plan saves is the one its readout reads (one model)
+  const card = (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })();
   const readoutText = buildReadout({
     declaration: after.declaration, arbiter: b.parsed.arbiter, lines: b.lines, name: target.name, modelId: b.log?.modelId, costUsd: b.log?.costUsd ?? null, rounds: b.log?.rounds ?? 0, spendComplete: b.log?.spendComplete !== false, root: target.root,
-    notChecked, notCheckedBy: by, suggested: cardOfBlock(b.block).suggested,
+    notChecked, notCheckedBy: by, suggested: card.suggested, checkCard: card,
   });
   const h = specHash({ proseText: b.proseText, declarationText, inputFactsText: inputFactsText.text, readoutText, targetText: targetText.text });
   if (!h.ok) return { ok: false, say: 'The changed plan could not be hashed. Nothing was changed.', refused: 'rebuild' };
@@ -240,7 +242,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
       [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}), ...(shapeDroppedNow.length ? { shapeDropped: shapeDroppedNow } : {}) }),
-      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })() }),
+      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: card }),
       'spec.hash': `${h.hash}\n`,
     },
   };
