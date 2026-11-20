@@ -4315,3 +4315,22 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 4. The readout is part of the plan's hash, so this changes new drafts and rebuilt plans only. A signed job keeps its stored readout and hash.
 **Must fail when:** a card row is missing from its line's readout block; a readout row's words, tag or order differ from the card's; a readout line from item 3 is lost or changed; a signed job's stored readout or hash changes.
 **Done when:** a pre-registered $0 POC over every saved draft shows, per line, readout rows = card rows; research-tracker gains its 3 list rows; tests that fail first; the full suite green. **Cap:** $0.
+
+**M19 amendment 5 — SIGNED by hamr 2026-11-20 ("sign m19 am5 and sign m15 am4."), the text exactly as shown (.claude/scratch/m19-s5/m19-am5-sign.md, sha256 15f44f63d9b5…):**
+
+**M19 amendment 5 — a page phrase fact with several words checks any one of them.**
+1. When the page look gives a plain phrase fact several words (`"United", "JetBlue", "Delta", "American", "Frontier"`), the signed fact keeps all of them, and a quote passes when it holds any one of them on word edges (bareguard's presence check, the matcher of `carriesAny`, ruling #69). Today only the first word is kept (`src/pagelook.js:88`, copied from bareloop v0.61.0 `src/inputlook.js:173`).
+2. A fact with one word checks exactly as today. A place fact (R2c, "Leaves Boston …") stays all-of: every phrase must be in the quote.
+3. Words: the card and readout row reads `fact "<name>" with one of the words "United", "JetBlue", "Delta", "American", "Frontier"`; the step is told `the quote you copy must say one of: "United", "JetBlue", "Delta", "American", "Frontier"`; a quote with none of them is red `the quote says none of "United", "JetBlue", "Delta", "American", "Frontier"`.
+4. Signed jobs keep their signed facts; this changes new drafts only. fwd tells the `loop` session, which may copy it.
+**Must fail when:** a several-word phrase fact signs one word; a quote holding only a later word ("JetBlue", "1 stop") is red; a quote holding none of the words is green; a one-word fact's verdict differs from today's on any saved run; a place fact passes with one of its phrases missing.
+**Done when:** F236's bars hold on the built code (re-run, not the harness copy); tests that fail first; the full suite green. **Cap:** $0.
+
+**M15 amendment 4 — SIGNED by hamr 2026-11-20 ("sign m19 am5 and sign m15 am4."), the text exactly as shown (.claude/scratch/m19-s5/m15-am4-sign.md, sha256 520373456d72…):**
+
+**M15 amendment 4 — a job with no Ask writes every line, as bareloop.**
+1. On a job with no signed Ask, the report body is the whole-job text built from every work line before the write, in line order, each line's own section (a list line's table included), as an Ask job's body is today (M13 am9 (1), M19 C), and as bareloop v0.61.0 `renderRunMd`. This replaces, for a job with no Ask only, M15 am3 item 6's body of the one step right before the send.
+2. The stop before the write (M13 am10 item 3, `You have not seen this yet.`, **Accept** / **Not now**) shows that whole body, and Accept binds its sha256, so what you accept is what is written, as for an Ask job.
+3. A job with an Ask is unchanged: its report is byte-identical to today's. A line whose saved output cannot be read stops the write with a red naming the step, never an empty body; the red does not start with `ask: `.
+**Must fail when:** a no-Ask job's report leaves out a work line's section; the written body differs from the body Accept bound; any job with an Ask writes a different report than today; a no-Ask job writes an empty body when a line's output is missing or unreadable.
+**Done when:** F237's bars hold on the built code (re-run, not the harness copy); tests that fail first; the full suite green. **Cap:** $0.
