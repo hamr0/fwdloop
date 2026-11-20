@@ -769,6 +769,22 @@
   /* the confirm card's Drop / Add: wraps with its row, a comfortable touch target, no horizontal scroll at phone width */
   .jp .jp-btn{margin:2px 0 2px 8px;padding:4px 12px;min-height:32px;font-size:inherit;}
   .jp .fold{overflow-wrap:anywhere;}
+  /* borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) .ck-* (the signed check-list look, M19 S6) */
+  .jp .ck-g{margin:6px 0 6px 16px;text-indent:0;}
+  .jp .ck-h{font-weight:700;font-size:12px;color:var(--text-dim);margin:6px 0 2px;}
+  .jp .ck-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;padding-left:12px;text-indent:0;overflow-wrap:anywhere;}
+  .jp .ck-row .tagcol{display:inline-block;min-width:82px;}
+  .jp .ck-row .kind{display:inline-block;min-width:48px;color:var(--text-faint);}
+  .jp .ck-row .ck-t{flex:1 1 220px;min-width:0;}
+  .jp .ck-row .ck-right{margin-left:auto;white-space:nowrap;}
+  .jp .ck-row .ck-under{flex-basis:100%;padding-left:138px;}
+  .jp .ck-why{display:inline;}
+  .jp .ck-why>summary::before{content:none;margin:0;}
+  .jp .ck-why>summary{font-weight:400;}
+  .jp .jl>.lbl{font-weight:700;margin-right:6px;}
+  .jp .ck-why summary{display:inline;cursor:pointer;color:var(--text-dim);list-style:none;margin-left:6px;}
+  .jp .ck-why summary::-webkit-details-marker{display:none;}
+  .jp .ck-why[open]{display:block;}
   .jp-sug .lbl{display:block;margin-top:6px;font-weight:700;}
   .jp details.fold{padding-left:0;margin:6px 0;}
   .jp details>summary{cursor:pointer;list-style:none;font-weight:700;}
