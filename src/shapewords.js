@@ -1,4 +1,5 @@
 // borrowed-from: bareloop src/shapewords.js@v0.61.0 (fc56e1f3)
+// One wording differs from v0.61.0, by hamr's ask on 2026-11-20: the `(it is ...)` words of a `not-a-list` gap say `plain text`, `a number` and so on (MEASURED_WORDS), where v0.61.0 prints bareguard's raw `type:string`.
 // SHAPE JOBS (itemShape), docs/product/ITEM33-BUILD.md "Addendum 2026-11-18: shape jobs", clause 7 "Words": the plain sentence of a bareguard `itemShape` gap, so a red says what to fix and never a raw code.
 // bareguard's item reds read `#<i>:<path>:<reason>` (0-based item, dotted path, `name[j]` for a list entry; reasons `missing`, `wrong-type`, `not-one-of`, `bad-number|money|date|time|url`, `wrong-value`, `under`, `over`,
 // `too-short|too-long:chars|words:<n><|><bound>`, `unknown-field:<key>`, and a list's `not-a-list`, `unreadable`, `count-under|count-over:<n><|><bound>`, `too-many:<n>><cap>`, `duplicate`); an item with no field part is
@@ -8,6 +9,15 @@
 
 /** the kinds of value a reader names in a red, in a person's words */
 const READS = Object.freeze({ 'bad-number': 'a number', 'bad-money': 'a money amount', 'bad-date': 'a date', 'bad-time': 'a time', 'bad-url': 'a web address' });
+
+/** the words of a `not-a-list` gap's measured value (bareguard's `type:<kind>`); any other measured value is printed as it came */
+export const MEASURED_WORDS = Object.freeze({ 'type:string': 'plain text', 'type:number': 'a number', 'type:boolean': 'true or false', 'type:object': 'an object', 'type:null': 'empty' });
+
+/** the measured value of a `not-a-list` gap in a person's words, or `something else` when none came @param {unknown} measured @returns {string} */
+export function measuredWords(measured) {
+  if (measured === undefined || measured === null) return 'something else';
+  return Object.hasOwn(MEASURED_WORDS, String(measured)) ? MEASURED_WORDS[/** @type {keyof typeof MEASURED_WORDS} */ (String(measured))] : String(measured);
+}
 
 /** one path as words: `tags[2]` is `tags, entry 3` (entries count from 1 for a person) @param {string} path @returns {string} */
 const pathWords = (path) => path.replace(/\[(\d+)\]/g, (_m, j) => `, entry ${Number(j) + 1}`);
@@ -83,7 +93,7 @@ export function plainShapeGap({ at, file, field = 'results' }, g) {
   switch (g.kind) {
     case 'missing': return `${at}: ${file} has no ${f} list — give a list of items, one object per item`;
     case 'unreadable': return `${at}: ${f} in ${file} could not be read`;
-    case 'not-a-list': return `${at}: ${f} in ${file} is not a list (it is ${g.measured ?? 'something else'}) — give a list of items`;
+    case 'not-a-list': return `${at}: ${f} in ${file} is not a list (it is ${measuredWords(g.measured)}) — give a list of items`;
     case 'too-many': return `${at}: ${f} lists too many items to check (${g.measured} against a limit of ${g.limit})`;
     case 'count-under': return `${at}: ${f} lists ${g.measured} item(s), at least ${g.limit} are required`;
     case 'count-over': return `${at}: ${f} lists ${g.measured} item(s), at most ${g.limit} are allowed`;

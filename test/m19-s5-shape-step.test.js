@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { closeByClass } from '../src/closers.js';
+import { measuredWords, MEASURED_WORDS, plainShapeGap } from '../src/shapewords.js';
 import { buildShapePart, shapeItemCheck } from '../src/shaperows.js';
 import { shapeBriefOf, shapeLineBrief } from '../src/rubricstep.js';
 import { buildEmitArtifactSchema, makeLiveModelStep } from '../src/model-step.js';
@@ -84,7 +85,7 @@ test('the whole-field gaps, in fwd\'s words (the answer, not a file): no results
   const step = { fromLine: 2, close: { class: 'green', itemShape: { fields: TAG.fields, minItems: 2, maxItems: 3 } } };
   const run = (/** @type {any} */ a) => closeByClass(step, a, { reads: {}, businessDate: 'x' });
   assert.equal((await run({ done: true })).red, 'line 2: the answer has no "results" list — give a list of items, one object per item');
-  assert.equal((await run({ results: 'x' })).red, 'line 2: "results" in the answer is not a list (it is type:string) — give a list of items');
+  assert.equal((await run({ results: 'x' })).red, 'line 2: "results" in the answer is not a list (it is plain text) — give a list of items');
   assert.equal((await run({ results: [{ tag: 'a' }] })).red, 'line 2: "results" lists 1 item(s), at least 2 are required');
   assert.equal((await run({ results: [{ tag: 'a' }, { tag: 'a' }, { tag: 'a' }, { tag: 'a' }] })).red, 'line 2: "results" lists 4 item(s), at most 3 are allowed');
   assert.equal((await run('not an object')).verdict, 'unparseable');
@@ -242,4 +243,18 @@ test('M19 am1 item 3 (Must-fail 3): a green line with neither cited nor itemShap
   assert.equal(r.ok, false);
   assert.match(reds(r).join('|'), /Line 1's check needs cells, but it reads only/);
   assert.deepEqual(reds(check({ class: 'green', itemShape })), []);
+});
+
+test('hamr 2026-11-20: the measured value of a not-a-list gap is said in plain words, one test per mapping; any other value prints as before; none says something else', () => {
+  const words = (/** @type {any} */ measured) => plainShapeGap({ at: 'line 1', file: 'the answer' }, { kind: 'not-a-list', measured });
+  const sentence = (/** @type {string} */ w) => `line 1: "results" in the answer is not a list (it is ${w}) — give a list of items`;
+  assert.equal(words('type:string'), sentence('plain text'));
+  assert.equal(words('type:number'), sentence('a number'));
+  assert.equal(words('type:boolean'), sentence('true or false'));
+  assert.equal(words('type:object'), sentence('an object'));
+  assert.equal(words('type:null'), sentence('empty'));
+  assert.equal(words('type:weird'), sentence('type:weird'));
+  assert.equal(words(undefined), sentence('something else'));
+  assert.equal(measuredWords(undefined), 'something else');
+  assert.deepEqual(Object.keys(MEASURED_WORDS).sort(), ['type:boolean', 'type:null', 'type:number', 'type:object', 'type:string']);
 });
