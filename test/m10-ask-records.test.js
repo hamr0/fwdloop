@@ -2,7 +2,7 @@
 // drafting step) and the signed job (the new ~ line). Through the panel's real door and the real draft child; $0. Forced reds are named in the commit.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signDraft } from '../src/authoring.js';
@@ -43,35 +43,46 @@ async function signedWithAnswers(answers) {
   return { w, id, signed };
 }
 
+// M19 am3: "pays well" (a rule code cannot check) is no longer asked, so the one question is the page reading; the Drop it row is the same reading answered Drop it, in a second test
 test('all three places: draft log row, Audit rows under the drafting step, and the signed job', async () => {
-  const { w, id, signed } = await signedWithAnswers(['agree', 'Drop it.']);
+  const { w, id, signed } = await signedWithAnswers(['agree']);
   // 1. the draft log: one row per question and answer, proposal and rule as their own fields
-  const rows = [1, 2].map((k) => JSON.parse(readFileSync(path.join(w.dir(id), 'draft', `answer-${k}.json`), 'utf8')));
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false, 'M19 am3: "pays well" was never asked');
+  const rows = [1].map((k) => JSON.parse(readFileSync(path.join(w.dir(id), 'draft', `answer-${k}.json`), 'utf8')));
   assert.deepEqual(rows.map((r) => [r.source, r.line, r.answer, r.proposal, r.rule]), [
-    ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59'],
-    ['look', 1, 'drop it', null, null]]);
+    ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59']]);
   assert.ok(rows.every((r) => typeof r.at === 'string' && r.question.startsWith('Your line 1 says')));
   // 2. the Audit: the setup record carries the rows, the Draft block shows them as you were asked / you said
   const setup = readSetup(signed.flowDir);
   const human = setup.rows.filter((r) => r.kind === 'human');
-  assert.equal(human.length, 2);
+  assert.equal(human.length, 1);
   assert.deepEqual(human.map((r) => [r.source, r.line, r.answer, r.proposal, r.rule, r.ask]), [
-    ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59', 'reading'],
-    ['look', 1, 'drop it', null, null, 'cant-check']]);
+    ['look', 1, 'agree', 'departure time between 05:00 and 23:59', 'departure time between 05:00 and 23:59', 'reading']]);
   assert.equal(human[0].question, rows[0].question);
   const kinds = setup.rows.map((r) => r.kind);
   assert.ok(kinds.indexOf('human') > kinds.indexOf('draft') && kinds.lastIndexOf('human') < kinds.indexOf('redraft'), `under the drafting step: ${kinds.join(',')}`);
   const block = getDraftBlock(signed.flowDir, signed.flowDir);
   // M17 am8: a button-picked answer reads what was decided (`agreed — <rule>`, `dropped — Not checked`), never the question; the stored question stays whole
   const shown = block.rows.filter((r) => /^(agreed|dropped) \u2014 /.test(r.action));
-  assert.equal(shown.length, 2);
+  assert.equal(shown.length, 1);
   assert.ok(rows[0].question.includes('Answer "agree"'));
   assert.equal(shown[0].action, 'agreed \u2014 departure time between 05:00 and 23:59');
-  assert.equal(shown[1].action, 'dropped \u2014 Not checked');
   assert.ok(shown.every((r) => r.step === 'drafting' && r.action !== 'human'));
-  // 3. the signed job: the agreed reading REPLACES its rule in place (the dropped rule is left as it is)
+  // 3. the signed job: the agreed reading REPLACES its rule in place (the rule code cannot check is left as it is)
   const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');
   assert.match(prose, /guardrail: under \$150; departure time between 05:00 and 23:59; nonstop; pays well\n/);
+});
+
+test('all three places, Drop it on the reading: the row says dropped, and the signed job keeps the rule as written', async () => {
+  const { w, id, signed } = await signedWithAnswers(['Drop it.']);
+  const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
+  assert.deepEqual([row.source, row.line, row.answer, row.proposal, row.rule], ['look', 1, 'drop it', 'departure time between 05:00 and 23:59', null]);
+  const human = readSetup(signed.flowDir).rows.filter((r) => r.kind === 'human');
+  assert.deepEqual(human.map((r) => [r.answer, r.rule, r.ask, r.choice]), [['drop it', null, 'reading', 'drop']]);
+  const shown = getDraftBlock(signed.flowDir, signed.flowDir).rows.filter((r) => /^(agreed|dropped) \u2014 /.test(r.action));
+  assert.deepEqual(shown.map((r) => r.action), ['dropped \u2014 Not checked']);
+  const prose = readFileSync(path.join(signed.flowDir, 'prose.txt'), 'utf8');
+  assert.match(prose, /guardrail: under \$150; not a red-eye; nonstop; pays well\n/);
 });
 
 test('a flow with no look question has no human row (the Audit of every older flow is unchanged)', async () => {
