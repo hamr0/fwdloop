@@ -4220,6 +4220,7 @@
       var kind = c.kind || (c.shape ? "shape" : "truth");
       return ckRowHtml({ by: c.by, kind: kind, text: c.name, right: ctl && c.drop && c.key ? ctl("drop", c.key) : "", title: c.cls || "", attrs: c.shape ? ' data-shape="1"' : "" });
     };
+    // borrowed-from: bareloop src/panel/index.html@v0.61.0 (ncRow: a dropped rule's Not checked row has an Add back button)
     var ncRow = function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused", right: ctl && r.addBack ? ctl("add", r.addBack, "Add back") : "" }); };
     var suggRow = function(x){ return ckRowHtml({ by: "agent", kind: /\.shape\./.test(x.key) ? "shape" : "truth", text: x.text + (x.dropped ? " (you dropped it)" : ""), right: ctl ? ctl("add", x.key) : "", testid: "plan-suggest-row" }); };
     var nc = plan.ncRows || [];
@@ -6098,7 +6099,7 @@
         list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true, kind: r.kind}); });
         plan.lines.push(l);
       });
-      // a rule the person dropped (confirm card only): its Not checked row carries the key the Add back button posts (bareloop src/panel/jobplan.js planFromConfirm)
+      // borrowed-from: bareloop src/panel/jobplan.js@v0.61.0 (planFromConfirm: a rule the person dropped, confirm card only: its Not checked row carries the key the Add back button posts)
       (list.restorable || []).forEach(function(x){
         var n = plan.ncRows.find(function(r){ return r.addBack === undefined && r.text === x.text && (r.line === x.line || r.line === 0); });
         if(n) n.addBack = x.key;
