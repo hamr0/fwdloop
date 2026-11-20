@@ -29,7 +29,7 @@ const fnSource = (/** @type {string} */ name) => {
 };
 const page = () => {
   const ctx = vm.createContext({});
-  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
+  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
   return /** @type {any} */ (ctx);
 };
 const text = (/** @type {string} */ h) => h.replace(/<[^>]*>/g, ' ').replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();

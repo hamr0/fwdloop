@@ -112,7 +112,7 @@ function renderJob(job) {
     return e;
   };
   const document = { getElementById: (id) => (els[id] ??= mk('div')), createElement: (t) => mk(t) };
-  const src = ['duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = ['duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'planLegend', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   new Function('document', `${src}\nreturn { renderJob };`)(document).renderJob(job);
   return els;
 }

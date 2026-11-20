@@ -4171,10 +4171,13 @@
       items.map(function(x){ return "<li>" + escapeXml(x) + byTagOf(byOf(x)) + "</li>"; }).join("") + "</ul></details>";
   }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) renderJobPlan (the groups of the signed look); fwd's own rows (a line's lead sentence, a sheet line's block, "How the page was read") keep their words inside it
+  function planLegend(){
+    return "Done when every check below passes";
+  }
   function planViewHtml(plan, ctl){
     var lines = plan.lines || [];
     var hasCheck = (plan.alwaysOn || []).length > 0 || lines.some(function(l){ return (l.checks || []).length; });
-    var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">Done when every check below passes</div>' : "");
+    var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">' + planLegend() + "</div>" : "");
     var checkRow = function(c){
       var kind = c.kind || (c.shape ? "shape" : "truth");
       return ckRowHtml({ by: c.by, kind: kind, text: c.name, right: ctl && c.drop && c.key ? ctl("drop", c.key) : "", title: c.cls || "", attrs: c.shape ? ' data-shape="1"' : "" });
@@ -4586,6 +4589,9 @@
     jobEl.innerHTML = "";
     // M4e amendment 37: one wrapper per signed line: the human's words, its `~` rows, then its step(s) folded under it (the plan, never in the same row).
     var placed = {};
+    // am2 item 1: the Job tab's legend, first in the box, only when the plan has a check (bareloop v0.61.0 renderJobPlan's hasCheck); the same string as the card's
+    var jobPlan = job.plan || {};
+    if((jobPlan.always || []).length > 0 || (jobPlan.steps || []).some(function(st){ return (st.listRows || []).length; })) jobEl.appendChild(textDiv("jp-legend", planLegend()));
     if(!job.prose || !job.prose.length){
       jobEl.appendChild(textDiv("hint", "no signed prose lines"));
     } else {

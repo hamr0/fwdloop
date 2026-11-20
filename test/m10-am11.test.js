@@ -119,7 +119,7 @@ const jobFn = (name) => cutFn(PAGE, name, '  ');
 
 test('Job tab: each check sentence of a step is its own row; How the page was read is its own fold after Not checked, none = no fold', () => {
   const document = fakeDom();
-  const src = ['plainWait', 'textDiv', 'sheetBlockLines', 'stepSummaryText', 'jobStepFold', 'paintJobPlan'].map(jobFn).join('\n');
+  const src = ['plainWait', 'textDiv', 'sheetBlockLines', 'stepSummaryText', 'jobStepFold', 'planLegend', 'paintJobPlan'].map(jobFn).join('\n');
   const { paintJobPlan } = new Function('document', `${src}\nreturn { paintJobPlan };`)(document);
   const step = { step: 1, line: 1, reads: [], makes: 'a', mayDo: [], check: ['A one.', 'B two.'], checkClass: 'green', ask: false, waitMs: null };
   const plan = (readNotes) => ({ steps: [step], notChecked: { label: NOT_CHECKED_LABEL, recorded: true, items: ['tone'], readNotes } });

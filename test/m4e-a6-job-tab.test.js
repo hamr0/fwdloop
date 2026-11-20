@@ -32,9 +32,9 @@ function fakeDom() {
 }
 const rows = (el) => el.children.map((c) => `${c.className}|${c.textContent}`);
 
-function render(job) {
+function render(job, extra = []) {
   const document = fakeDom();
-  const src = ['duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = [...extra, 'duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'planLegend', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   const run = new Function('document', `${src}\nreturn { renderJob, plainWait };`)(document);
   run.renderJob(job);
   return { document, plainWait: run.plainWait };
@@ -112,4 +112,15 @@ test('hamr 2026-10-24: the Job tab field is "Inputs" and each row shows the full
     'ro-value|resume → /home/x/docs/Amr Hassan - Resume.docx',
     'ro-value|jd → https://example.com/jobs/42?ref=a',
   ]);
+});
+
+// M19 am2 Must-fail 1 (Job tab half): the legend is the first line of the Job box, once, only when the plan has a check
+test('am2 Must-fail 1: the Job tab shows `Done when every check below passes` first, once, only when the plan has a check', () => {
+  const withCheck = { ...JOB, plan: { ...PLAN, steps: PLAN.steps.map((s, i) => (i === 1 ? { ...s, listRows: [{ by: 'you', kind: 'truth', text: 'x' }] } : s)), always: ['a file'] } };
+  const els = render(withCheck, ['escapeXml', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml']).document.els['details-prose'].children;
+  const legends = els.filter((c) => c.className === 'jp-legend');
+  assert.equal(legends.length, 1);
+  assert.equal(legends[0].textContent, 'Done when every check below passes');
+  assert.equal(els[0], legends[0], 'first in the box, above the numbered lines');
+  assert.equal(render(JOB).document.els['details-prose'].children.filter((c) => c.className === 'jp-legend').length, 0, 'no check, no legend');
 });
