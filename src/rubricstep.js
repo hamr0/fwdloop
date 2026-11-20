@@ -3,7 +3,8 @@
 // and the default cited text. The rest of the rubric step (building, grading and reading a step file) is not wanted here.
 import { lineRules } from './pagebits.js';
 import { factShapeReds } from './citedcheck.js';
-import { shapeShapeReds } from './shaperows.js';
+import { shapeShapeReds, shapeFieldSentence, shapeExampleItem } from './shaperows.js';
+import { plainShapeGap } from './shapewords.js';
 
 // borrowed-from: bareloop src/rubricstep.js@v0.60.0 (the one spelling of the keys of a repo job's stage row, of a job-level guard row and of the write-fence row; fwd has no repo job, so only the block's repo rows read them)
 export const stageKeyOf = (/** @type {string} */ name) => `S.${name}`;
@@ -282,4 +283,49 @@ export function listMatchesClose(closeDecl) {
   if (bad.length) parts.push(`a row points at a check the close does not run: ${bad.map((/** @type {any} */ r) => r.key).join('; ')}`);
   if (bare.length) parts.push(`a check in the close has no row: line ${bare.map(({ n, i }) => `${n} part ${i + 1}`).join('; ')}`);
   return { ok: false, error: `The list of checks does not match the signed close (${parts.join(' | ')}). Nothing was signed — draft again.` };
+}
+
+// borrowed-from: bareloop src/rubricstep.js@v0.61.0 (fc56e1f3) (shapeBriefOf and the LIST-line brief of lineBriefs: the lines are the tag's, written by code from the signed shape; the first line of a shape-only or text+list line is fwd's adapted
+// line, docs/wiki/the-module-ladder.md M19 section 3.6, because fwd's step answers through emit_artifact with done and blocker, not a step file)
+/**
+ * FACTS + SHAPE: the extra lines of a fact line's brief when its close also carries an itemShape part (code-written, never model-written): each result also carries the shape fields, in plain words, with ONE example result
+ * built by code (the quote and values placeholders, then a legal value for each shape field). Nothing is added for a line with no shape part.
+ * @param {any} shape the line's shape part ({fields, minItems?, maxItems?}) @param {any} fp the fact part @returns {string[]}
+ */
+export function shapeBriefOf(shape, fp) {
+  if (!isRec(shape) || !Array.isArray(shape.fields)) return [];
+  const fields = shape.fields.filter(isRec);
+  const values = Object.fromEntries(fp.facts.map((/** @type {any} */ f) => [f.name, '<as the quote writes it>']));
+  return [
+    '  Each result ALSO carries these fields (named exactly as written; a field marked optional may be left out when it does not apply):',
+    ...fields.map((/** @type {any} */ f) => `    - ${f.name}: ${shapeFieldSentence(f.spec)}${f.spec.required === true ? '' : ' (optional)'}`),
+    `  One example result: ${JSON.stringify({ quote: '<words copied from the page>', values, ...shapeExampleItem(/** @type {any} */ (fields)) })}`,
+  ];
+}
+
+/**
+ * A SHAPE line's brief (no fact part): the answer is a list of items, each field in plain words (the signed bounds, in the person's own form) and ONE worked example item, all written by code from the signed shape.
+ * `alsoText` = the line also carries the person's picks (its answer has `text` too).
+ * @param {number} n the job line @param {any} shape the line's shape part @param {boolean} [alsoText] @returns {string}
+ */
+export function shapeLineBrief(n, shape, alsoText = false) {
+  const fields = shape.fields.filter(isRec);
+  const count = Number.isInteger(shape.minItems) && shape.minItems === shape.maxItems ? `exactly ${shape.minItems} item${shape.minItems === 1 ? '' : 's'}` : 'one item for every one you find';
+  return [
+    alsoText
+      ? `Job line ${n} is a TEXT line AND a LIST line. Call emit_artifact exactly once with this step's result: {"text": "...", "results": [{...}, {...}]}: "text" as for any text line, and "results" is the list of items. One object per item: ${count}.`
+      : `Job line ${n} is a LIST line. Call emit_artifact exactly once with this step's result: {"results": [{...}, {...}]} — no "text", no "cites". One object per item: ${count}.`,
+    '  Every item has these fields, named exactly as written (a field marked optional may be left out when it does not apply):',
+    ...fields.map((/** @type {any} */ f) => `    - ${f.name}: ${shapeFieldSentence(f.spec)}${f.spec.required === true ? '' : ' (optional)'}`),
+    `  One example item: ${JSON.stringify(shapeExampleItem(fields))}`,
+    '  Write each value as plain text or a plain number or yes/no (true or false) as the field says, never as a sentence about the value.',
+  ].join('\n');
+}
+
+/**
+ * The plain sentence of a bareguard `itemShape` gap of one line's answer (the tag's `plainStepGap` branch for it; fwd's step has no file, so the file is `the answer`, src/closers.js). Only an itemShape gap is worded here.
+ * @param {number} step the job line @param {any} g a bareguard gap @returns {string}
+ */
+export function plainStepGap(step, g) {
+  return plainShapeGap({ at: `line ${step}`, file: 'the answer' }, g);
 }
