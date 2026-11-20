@@ -4293,3 +4293,11 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 3. M4d am8 (a green step must read cells) does not apply to a line whose green check is only `itemShape`: that line cites nothing, so it needs no cells. Every other green line keeps am8 unchanged.
 **Must fail when:** a shape-only line signs Not checked or softgreen; a 10-word text passes a person's 5-word rule on a shape-only line; a green line with neither `cited` nor `itemShape` that reads no cells is accepted.
 **Done when:** a test that fails first for each Must-fail line; the full suite green. **Cap:** $0.
+
+**M19 amendment 2 — SIGNED by hamr 2026-11-20 ("sign m19 am2."), the text exactly as shown (.claude/scratch/m19-s5/m19-am2-sign.md, sha256 3a088674a390…):**
+
+**M19 amendment 2 — two S6 screen words beside section 3.7.**
+1. The card and Job tab legend reads `Done when every check below passes` (bareloop v0.61.0 `src/panel/index.html`), replacing `Done when every › check passes`.
+2. On the card, Job tab and readout, a row in the NOT CHECKED group drops its `not checked · ` prefix (the group title says it). The Audit keeps the prefix.
+**Must fail when:** the legend differs from the tag's words; a card, Job tab or readout NOT CHECKED row starts with `not checked · `; an Audit Not checked row loses it.
+**Done when:** a test that fails first for each Must-fail line. **Cap:** $0.
