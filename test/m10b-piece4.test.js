@@ -178,7 +178,7 @@ test('the block for the expenses job, and a REAL uncovered guardrail shown as No
   const d = expDecl(); d.steps[1].close.sheet[2].covers = []; // the sum check no longer claims the second guardrail
   const [u] = sheetLineBlocks({ declaration: d, lines: expJob.lines, csvRoles: ['expenses'] });
   assert.deepEqual(u.notChecked, ['the sum is exact']);
-  assert.deepEqual(uncoveredRules(d, expJob.lines, ['expenses']), ['line 2: "the sum is exact" — No check was picked for it, so you judge it at the Ask.'], 'the drafter\'s saved list is the same block');
+  assert.deepEqual(uncoveredRules(d, expJob.lines, ['expenses']), ['line 2: "the sum is exact" — No check was picked for it, so you judge it at Accept.'], 'the drafter\'s saved list is the same block');
   const none = expDecl(EXP_CHECKS().map(({ covers: _c, ...rest }) => rest)); // an old draft: nothing is claimed, everything is Not checked
   assert.deepEqual(sheetLineBlocks({ declaration: none, lines: expJob.lines })[0].notChecked, ['only amounts over 500', 'the sum is exact']);
 });

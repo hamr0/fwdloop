@@ -116,7 +116,7 @@ test('am2 must-fail through the real draft: the saved plan holds code-named chec
   assert.deepEqual(sheet.map((c) => c.id), ['l2r2', 'l2a1']);
   assert.equal(r.log.find((e) => e.sheetRefused).sheetRefused[0].helper, 'vocabulary');
   // the card shows each rule once: rule 2 is a [you] row; M17 am7: the table check is an [agent] row, so rule 1 is Not checked, once, with the no-pick words
-  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at Accept.']);
 });
 
 test('am3 must-fail through the real draft: a second buildable check on a rule is on the list as an [agent] row, on, with Drop', async () => {

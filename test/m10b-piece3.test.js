@@ -51,7 +51,7 @@ const decl = (sheet) => ({
   refused: [],
 });
 // M17 am7: a table check never holds a `~` rule, so rule 1 (its only check is the noDuplicates table check) is Not checked with the no-pick words
-const R1_NOPICK = 'line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.';
+const R1_NOPICK = 'line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at Accept.';
 const reply = (text) => ({ ...textReply(text), usage: { inputTokens: 1000, outputTokens: 200 } });
 const NO_WORDS = reply(JSON.stringify({ facts: [] })); // the one sheet-word call: the job names no column word
 const run = (sheet, guard, extra = {}) => {
@@ -184,20 +184,20 @@ test('covers that names a rule the line does not have covers none (M17 am2): the
   assert.equal(r.ok, true, r.reds.join('\n'));
   const nodup = r.declaration.steps[1].close.sheet.find((x) => x.op === 'noDuplicates');
   assert.deepEqual([nodup.id, nodup.covers], ['l2a2', []]);
-  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at Accept.']);
 });
 
 test('a guardrail rule no check covers shows under Not checked (F76 aging draft 1: noDuplicates dropped); a step with no close.sheet is refused', async () => {
   const dropped = CHECKS().slice(1); // the noDuplicates check is gone
   const { r } = await run(dropped);
   assert.equal(r.ok, true, r.reds.join('\n'));
-  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at Accept.']);
   // M17 am5 / P5: a green step the AI gave no sheet check is no red the AI cannot fix (it writes no close.sheet): the step is hitl and each of its rules is Not checked, with the list's own reason
   const none = await run(undefined);
   assert.equal(none.r.ok, true, none.r.reds.join('\n'));
   assert.equal(none.r.declaration.steps[1].close.class, 'hitl');
   assert.equal(none.r.declaration.guardrailClasses['2'], 'hitl');
-  assert.deepEqual([...none.r.notChecked].sort(), ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.', 'line 2: "flag amounts over 500" \u2014 No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual([...none.r.notChecked].sort(), ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at Accept.', 'line 2: "flag amounts over 500" \u2014 No check was picked for it, so you judge it at Accept.']);
 });
 
 test('the column choice an agreed ask wrote is not a rule to cover, and the header the drafter may pick from is the whole sheet', async () => {
