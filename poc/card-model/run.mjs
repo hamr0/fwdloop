@@ -13,6 +13,8 @@ import { checkRowsOfPlan, expectedParts } from './reader.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const roots = [path.join(os.homedir(), '.config/fwdloop/flows/.drafts'), path.join(REPO, '.claude/scratch/m19-walk-YBSm/flows/.drafts')];
+const DIAG = process.argv.includes('--diag-tickets');
+const EX = Number(process.env.EX || 3);
 const MODE = process.argv.includes('--candidate') ? 'candidate' : 'today';
 const SHAPE = process.argv.includes('--shape') ? process.argv[process.argv.indexOf('--shape') + 1] : 'shapeRowsOf';
 const J = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
@@ -51,7 +53,7 @@ for (const dir of dirs) {
   const today = card.rows;
   let cand;
   if (MODE === 'candidate') {
-    try { cand = checkRowsOfPlan({ declaration: decl, lines: jl, csvRoles: csv, shapeWords: SHAPE }); } catch (x) { T.thrown++; err.push(`${dir.slice(-45)}: ${x.message}`); continue; }
+    try { cand = checkRowsOfPlan({ declaration: decl, lines: jl, csvRoles: csv, shapeWords: SHAPE, ticketsSignedOnly: DIAG }); } catch (x) { T.thrown++; err.push(`${dir.slice(-45)}: ${x.message}`); continue; }
   } else {
     cand = null;
   }
@@ -81,10 +83,10 @@ for (const dir of dirs) {
   for (const r of today) {
     const m = mine.get(r.key);
     const k = kindOf(r);
-    if (!m) { const t = bump(k, 'todayOnly'); if (t.ex.length < 2) t.ex.push(`today-only ${dir.slice(-40)} ${r.key}: ${r.text}`); continue; }
-    if (fmt(m) === fmt(r)) bump(k, 'same'); else { const t = bump(k, 'words'); if (t.ex.length < 3) t.ex.push(`${dir.slice(-40)} ${r.key}\n      today : [${r.by}] ${r.text}\n      signed: [${m.by}] ${m.text}`); }
+    if (!m) { const t = bump(k, 'todayOnly'); if (t.ex.length < EX) t.ex.push(`today-only ${dir.slice(-40)} ${r.key}: ${r.text}`); continue; }
+    if (fmt(m) === fmt(r)) bump(k, 'same'); else { const t = bump(k, 'words'); if (t.ex.length < EX) t.ex.push(`${dir.slice(-40)} ${r.key}\n      today : [${r.by}] ${r.text}\n      signed: [${m.by}] ${m.text}`); }
   }
-  for (const r of rows) if (!theirs.has(r.key)) { const t = bump(kindOf(r), 'candOnly'); if (t.ex.length < 2) t.ex.push(`cand-only ${dir.slice(-40)} ${r.key}: [${r.by}] ${r.text}`); }
+  for (const r of rows) if (!theirs.has(r.key)) { const t = bump(kindOf(r), 'candOnly'); if (t.ex.length < EX) t.ex.push(`cand-only ${dir.slice(-40)} ${r.key}: [${r.by}] ${r.text}`); }
   // order, information only: the keys of each line in order
   orderInfo.drafts++;
   const ord = (xs) => xs.filter((x) => theirs.has(x.key) && mine.has(x.key)).sort((a, b) => a.line - b.line).map((x) => x.key).join('|');
@@ -115,7 +117,7 @@ for (const dir of dirs) {
     }
   }
 }
-say(`F239 mode=${MODE}${MODE === 'candidate' ? ` shape=${SHAPE}` : ''}  drafts with a signed list and a saved card=${T.drafts} (no card, skipped=${T.skipped}; prose unparsed=${T.noParse}); today's card rows=${T.rowsToday}; rows under test=${T.rowsCand}`);
+say(`F239 mode=${MODE}${MODE === 'candidate' ? ` shape=${SHAPE}${DIAG ? ' DIAGNOSTIC tickets only from a signed row' : ''}` : ''}  drafts with a signed list and a saved card=${T.drafts} (no card, skipped=${T.skipped}; prose unparsed=${T.noParse}); today's card rows=${T.rowsToday}; rows under test=${T.rowsCand}`);
 say('');
 say('(a) per kind, today vs candidate, matched by key');
 for (const [k, v] of Object.entries(diff).sort()) say(`  ${k.padEnd(12)} same=${v.same} words-differ=${v.words} today-only=${v.todayOnly} cand-only=${v.candOnly}`);
@@ -132,4 +134,4 @@ for (const x of e.ex) say(`   ${x}`);
 say(`(f) drafts thrown=${T.thrown}  -> ${T.thrown === 0 ? 'PASS' : 'FAIL'}`);
 for (const x of err) say(`   ${x}`);
 fs.mkdirSync(path.join(REPO, '.claude/scratch/card-model'), { recursive: true });
-fs.writeFileSync(path.join(REPO, `.claude/scratch/card-model/RESULT-${MODE}${MODE === 'candidate' && SHAPE !== 'shapeRowsOf' ? `-${SHAPE}` : ''}.txt`), `${lines.join('\n')}\n`);
+fs.writeFileSync(path.join(REPO, `.claude/scratch/card-model/RESULT-${MODE}${MODE === 'candidate' && SHAPE !== 'shapeRowsOf' ? `-${SHAPE}` : ''}${DIAG ? '-diag' : ''}.txt`), `${lines.join('\n')}\n`);

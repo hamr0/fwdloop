@@ -18,10 +18,10 @@ export const FLOOR_WORDS = "the file exists and its text is not empty (code's ow
 export const FLOOR_LIST_WORDS = "the file exists (code's own floor); this line lists items, so it has no text check";
 
 /**
- * @param {{declaration: any, lines: {n: number, text?: string, guardrail?: string}[], csvRoles?: string[], shapeWords?: 'shapeRowsOf'|'ruleText'}} o
+ * @param {{declaration: any, lines: {n: number, text?: string, guardrail?: string}[], csvRoles?: string[], shapeWords?: 'shapeRowsOf'|'ruleText', ticketsSignedOnly?: boolean}} o
  * @returns {{line: number, key: string, by: string, state: string, kind: string, text: string, reason: string|null, part: string}[]}
  */
-export function checkRowsOfPlan({ declaration, lines, csvRoles = [], shapeWords = 'shapeRowsOf' }) {
+export function checkRowsOfPlan({ declaration, lines, csvRoles = [], shapeWords = 'shapeRowsOf', ticketsSignedOnly = false }) {
   const list = Array.isArray(declaration?.checkList) ? declaration.checkList.filter(isRec) : [];
   const steps = Array.isArray(declaration?.steps) ? declaration.steps.filter(isRec) : [];
   const out = [];
@@ -77,7 +77,7 @@ export function checkRowsOfPlan({ declaration, lines, csvRoles = [], shapeWords 
   const sheet = sheetRowsOf({ declaration: { ...declaration, checkList: undefined }, lines, csvRoles });
   for (const r of sheet.card) out.push({ line: r.line, key: r.key, by: r.by, state: r.state, kind: 'truth', text: r.text, reason: r.reason, part: `${r.key}` });
   const tk = ticketRowsOf({ declaration, lines });
-  for (const r of tk.card) out.push({ line: r.line, key: r.key, by: r.by, state: r.state, kind: 'truth', text: r.text, reason: r.reason, part: `${r.key}` });
+  for (const r of tk.card) if (!ticketsSignedOnly || list.some((x) => x.key === r.key)) out.push({ line: r.line, key: r.key, by: r.by, state: r.state, kind: 'truth', text: r.text, reason: r.reason, part: `${r.key}` });
   // the signed rows with no part: the floor, and Not checked (a rule reads its job line, a fact its key)
   for (const r of list) {
     if (r.kind === 'floor') {
