@@ -4334,3 +4334,15 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 3. A job with an Ask is unchanged: its report is byte-identical to today's. A line whose saved output cannot be read stops the write with a red naming the step, never an empty body; the red does not start with `ask: `.
 **Must fail when:** a no-Ask job's report leaves out a work line's section; the written body differs from the body Accept bound; any job with an Ask writes a different report than today; a no-Ask job writes an empty body when a line's output is missing or unreadable.
 **Done when:** F237's bars hold on the built code (re-run, not the harness copy); tests that fail first; the full suite green. **Cap:** $0.
+
+**M19 amendment 6 — SIGNED by hamr 2026-11-20 ("sign m19 am6"), the text exactly as shown (.claude/scratch/m19-s5/m19-am6-sign.md, sha256 a535a70c9297…):**
+
+**M19 amendment 6 — copy loop: the card reads the signed plan, never row copies.**
+1. Every check row on the draft card and in the readout takes its words and tag from the signed plan, through one reader (bareloop v0.61.0 `checksOfClose`, src/rubricstep.js): the words are the signed part's own sentence (fwd's `factSentence` / part sentence, with M19 am5 item 3's words for an any-of fact); the tag is the signed list row's `by`. A row never stores the words it shows. A grown place shows its signed phrase (`Leaves Boston Logan International Airport`).
+2. A `~` rule that a check took shows the check's words tagged `[you]` (bareloop: the rule gives only the tag and key). The rule's own text shows only where nothing checks it (NOT CHECKED).
+3. At sign, the checks shown must equal the checks the signed plan runs, line by line (bareloop `planMatchesClose`); a difference refuses the sign at $0, naming the line.
+4. The check list's rows stay for the draft-time work only: Drop, Add back, SUGGESTED, the restorable rows, and building the signed list. Their word copies (`grown`, `oneOf`, the card's own fact words) are removed once nothing reads them.
+5. fwd's own rows keep their own drawing: an Ask line's rows, the action row, the Tickets filter and watch rows, sheet rows (`sheetRowsOf`) and shape rows (`shapeRowsOf`), "How the page was read". bareloop's repo and fence rows are not copied.
+6. This replaces M19 am4 item 2's "the card's words win": the card's words are now the plan's words, so the readout (am4 item 1) reads the same. Signed jobs are unchanged (the Job tab and the Audit already read the signed plan). A saved draft with a signed list rebuilds its card from the plan; one without keeps its saved card.
+**Must fail when:** a card or readout row's words or tag differ from the signed part it names; a signed check has no card row; a sign goes through when the card shown differs from the plan; a `~` rule a check took shows the rule's text instead of the check; a fwd row from item 5 is lost or changed.
+**Done when:** a pre-registered $0 POC over every saved draft with a signed list shows card rows = the reader's rows (F238's 10 differing rows now show the signed words; 0 differ); tests that fail first; the full suite green. **Cap:** $0.
