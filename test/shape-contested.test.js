@@ -1,4 +1,4 @@
-// borrowed-from: bareloop tests/shape-contested.test.js@v0.61.0 (fc56e1f3) -- body unedited except the last three lines of the first test (the built shape part in closeView: it waits for S5, the shape part in the close, not built yet); imports point at fwd's files
+// borrowed-from: bareloop tests/shape-contested.test.js@v0.61.0 (fc56e1f3) -- body unedited; imports point at fwd's files
 // Contested rule (hamr 2026-11-19, live run mwndngl5, session smwndm6b9w6ee): the look tied a "Notes:" fact to "line 1 rule 3" AND listed that same rule under "cannot". Real page-map and shape-map answers and the
 // tracker text are copied under tests/fixtures/shape-contested/ ($0, no provider). The contested rule must stay a shape candidate and take the real shape field (maxChars); rules 1 and 2 are unchanged.
 import { test } from 'node:test';
@@ -37,6 +37,9 @@ test('the real look names rule 3 in a fact AND in "cannot": rule 3 is a shape ca
   b.reconcile();
   const r3 = b.rows.find((r) => r.key === 'L1.~3');
   assert.equal(r3?.can?.how, 'shape');
+  const part = b.closeView().stages.flatMap((/** @type {any} */ s) => s.params.parts).find((/** @type {any} */ p) => p.class === 'shape');
+  const summary = part.fields.find((/** @type {any} */ x) => x.name === 'summary');
+  assert.ok(summary && summary.spec.maxChars === 199, 'the summary field carries maxChars 199 (under 200)');
 });
 
 test('rules 1 and 2 are unchanged: rule 2 keeps its status-words truth check (not a candidate), rule 1 stays a candidate', () => {
