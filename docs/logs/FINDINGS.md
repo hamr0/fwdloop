@@ -9225,3 +9225,19 @@ Scenarios, each its own check, expectations computed by the harness itself from 
 5. The bound hash: the body `wholeJobText` builds is the body `sendBodyOf` returns for `{text}` byte for byte, and one changed table value gives a different sha256.
 6. Recorded only, no bar: the `values` object field of the dell and flights items as a field (kind `object`): what its cell shows.
 Fails if: any cell differs, a value is dropped, changed or reordered, a `✓` is outside a shape table, a `✗` appears, another line's section changes, or the hash does not follow the table. Unchecked at pre-registration: that `shapeResultModel` runs on fwd's `buildShapePart` fields at all; a crash is a FAIL.
+
+### F230 RESULT (2026-11-20, $0, no AI; run through `node poc/m19-p6/run.mjs`, output `.claude/scratch/v061/p6/out.txt`, untracked; answers read from the tag v0.61.0 with `git show`)
+
+All bars PASS (dell-1: 6 items, 30 cells; flights-3: 5 items, 25 cells), on `src/shaperesult.js` copied whole from the tag and the report's shape branch (`src/report.js`, copied from `src/resultmd.js`@v0.61.0, fed by `src/whole-job.js`).
+
+| Scenario (pre-registered) | Verdict |
+|---|---|
+| 1 every cell is the answer's value, clipped as bareloop, then only the bound's bracket words | PASS, 0 cells differ (both answers) |
+| 2 one row per item in the answer's order, columns in the part's order, all marks `g` | PASS (both) |
+| 3 the markdown table: one row per item, `✓` plus the cell's text, no `✗`; 3b a value with `\|` and a line break stays in its cell | PASS (both; 3b: `✓ one \| two three (15 chars)`) |
+| 4 the report (C1) through `wholeJobText`: 4a the section's words, 4b every `✓` line is a table row and no `✗`, 4c the text line's and the facts line's sections byte-identical to the report with no shape line | PASS |
+| 5 `sendBodyOf` returns the accepted text byte for byte; one changed table value changes the sha256 | PASS |
+| 6 recorded only: an object field's cell | the cell text is `""` for `values` (`{"price":"1058.47","name":"XPS 13-Laptop"}`): bareloop's `cellText` draws nothing for a field of kind `object`. Not a bar; reported to hamr: a job whose shape field is an object shows an empty cell in the table and the fold |
+
+Fail-first (the harness can fail): clip 40 -> 30 in `src/shaperesult.js` alone gives scenarios 1 and 5 FAIL; the report's shape branch switched off alone gives 4a, 4b, 5 FAIL; both restored with `git checkout`.
+Harness notes: the three fields `n`, `tags`, `ok` were added by the harness as pre-registered; the expectation is written in the harness, not read from `shaperesult.js`. Not covered by P6: the Result tab's page (S8's panel part, built after this result).
