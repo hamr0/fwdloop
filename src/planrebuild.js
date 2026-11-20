@@ -106,8 +106,8 @@ export function rebuildBlock({ planDir, asks }) {
     // M19 S9: the shape look's answer, as the draft saved it (log.json keeps the raw text of the one call it made). It is read again through the same parser and the same builder, so the block holds its shape rows
     // without a call; the first answer that reads is the one the draft used (an unreadable first answer was asked once more). A plan with shape rows and no such entry does not rebuild (the list differs below)
     if (isRec(e) && e.kind === SHAPE_CALL_LABEL) {
-      const got = e.outcome === 'answered' && typeof e.rawText === 'string' && !shapeSet ? parseShapeAnswer(e.rawText) : { ok: false };
-      if (got.ok && got.shapes.length > 0) {
+      const got = e.outcome === 'answered' && typeof e.rawText === 'string' && !shapeSet ? parseShapeAnswer(e.rawText) : null;
+      if (got !== null && got.ok && got.shapes.length > 0) {
         shapeSet = true;
         block.setShape(buildShapes({ lines: plan.jobLines.filter((l) => lineRules(l).length > 0 && !block.isSheetLine(l.n)), labels: block.labels, suggestions: got.shapes }));
         block.reconcile();
