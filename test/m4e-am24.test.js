@@ -381,7 +381,7 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
   const w2 = await world();
   const id2 = (await w2.post('/api/author/draft', w2.card())).json().draftId;
   const g2 = await settleOn(w2, id2, ['green', 'red', 'stopped']);
-  assert.deepEqual(g2.notChecked, { label: 'Not checked', items: ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask'], by: { ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask']: 'you' }, readNotes: [] });
+  assert.deepEqual(g2.notChecked, { label: 'Not checked', items: ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask'], by: { ['not checked \u00b7 "nothing goes out before I accept" \u2014 you judge it at the Ask']: 'you' }, readNotes: [], rows: [{ line: 0, text: 'nothing goes out before I accept', why: 'you judge it at the Ask', by: 'you' }] }); // M19 S6: the split rows of the look
 });
 
 // ---- Piece 4: the panel page (source-level like test/m4e-revise-page.test.js; the real browser walk is separate) -----------------------------

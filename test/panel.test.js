@@ -2042,7 +2042,8 @@ describe('index.html — page source', () => {
   });
 
   test('no bareloop sample strings or bareloop-only words outside comments/header', () => {
-    const stripped = stripComments(source);
+    // M19 amendment D, section 3.7: the group title's tail `you judge these at Accept` is a signed screen word; the word `judge` stays banned everywhere else
+    const stripped = stripComments(source).replaceAll('you judge these at Accept', '');
     const banned = [/bareloop/i, /\bscout\b/i, /fix loop/i, /\bjudge\b/i, /\breplay\b/i, /\bspine\b/i, /\bsidecar\b/i];
     for (const re of banned) {
       assert.doesNotMatch(stripped, re, `banned word ${re} found outside a comment`);

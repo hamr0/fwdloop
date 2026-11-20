@@ -42,7 +42,8 @@ test('M17 am4 (C3): a reading note is not a Not checked row in the Audit; it is 
   const not = 'not checked \u00b7 "tone" \u2014 You chose to leave it Not checked.';
   const a = auditChecksOf(decl(), [], { items: [read, not], by: { [not]: 'you' } });
   assert.ok(a);
-  assert.deepEqual(a.notChecked.map((r) => r.text), [not], 'break: map notChecked.items raw (not through notCheckedView) and this reds');
+  // M19 S6: a Not checked row is split into its words and its reason (`why`, drawn behind "why")
+  assert.deepEqual(a.notChecked.map((r) => (r.why ? `${r.text} \u2014 ${r.why}` : r.text)), [not], 'break: map notChecked.items raw (not through notCheckedView) and this reds');
   assert.deepEqual(a.readNotes, [read]);
 });
 

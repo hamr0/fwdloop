@@ -141,7 +141,7 @@ for (const width of [1280, 390, 320]) {
     const { w } = await pickedByAi();
     await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
     assert.ok(await chrome.waitFor(`!!${ROW}`, 20000), 'the action row is drawn');
-    assert.equal(await rowText(chrome), '› line 5 writes everything before it [agent]');
+    assert.equal(await rowText(chrome), '› line 5 writes everything before it ! [agent]');
     assert.equal(await chrome.ev(`!!${ROW}.querySelector("button")`), false, 'no button on the action row');
     assert.equal(await chrome.ev('!!document.querySelector("[data-testid=plan-action-drop]")'), false);
     await noSpill(chrome);
