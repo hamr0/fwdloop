@@ -358,7 +358,7 @@ export function createAuthor(opts) {
     const view = notCheckedView(ncFile?.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
     const card = cardLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`)?.checkCard : undefined;
-    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
+    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested, restorable: Array.isArray(card.restorable) ? card.restorable : [] } : null;
     // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
     // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent]` (no Drop, am11c)

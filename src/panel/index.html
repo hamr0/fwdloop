@@ -4220,7 +4220,7 @@
       var kind = c.kind || (c.shape ? "shape" : "truth");
       return ckRowHtml({ by: c.by, kind: kind, text: c.name, right: ctl && c.drop && c.key ? ctl("drop", c.key) : "", title: c.cls || "", attrs: c.shape ? ' data-shape="1"' : "" });
     };
-    var ncRow = function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused" }); };
+    var ncRow = function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused", right: ctl && r.addBack ? ctl("add", r.addBack, "Add back") : "" }); };
     var suggRow = function(x){ return ckRowHtml({ by: "agent", kind: /\.shape\./.test(x.key) ? "shape" : "truth", text: x.text + (x.dropped ? " (you dropped it)" : ""), right: ctl ? ctl("add", x.key) : "", testid: "plan-suggest-row" }); };
     var nc = plan.ncRows || [];
     // the rows no one line owns (the two checks every step has, a Not checked note naming no line): in the block of a one-line job, in a block of their own when there are several lines
@@ -6087,7 +6087,7 @@
     // pure: the plan view's model for a plan with a list: each job line with its `~` rules, its lead sentence (src/checked.js), the built rows of the list, a sheet line's block; then the suggestions and the three folds
     function planOfState(state, list){
       var nc = state.notChecked || {};
-      var plan = {lines: [], suggested: list.suggested || [], notChecked: nc.items || [], notCheckedBy: nc.by && typeof nc.by === "object" ? nc.by : {}, readNotes: nc.readNotes || [], alwaysOn: state.always || [], ncRows: nc.rows || []};
+      var plan = {lines: [], suggested: list.suggested || [], notChecked: nc.items || [], notCheckedBy: nc.by && typeof nc.by === "object" ? nc.by : {}, readNotes: nc.readNotes || [], alwaysOn: state.always || [], ncRows: (nc.rows || []).map(function(r){ return Object.assign({}, r); })};
       (state.planLines || []).forEach(function(pl){
         var l = {n: pl.n, text: pl.text, rules: pl.rules || [], leads: [], checks: [], extra: []};
         state.checked.forEach(function(c){
@@ -6097,6 +6097,11 @@
         });
         list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true, kind: r.kind}); });
         plan.lines.push(l);
+      });
+      // a rule the person dropped (confirm card only): its Not checked row carries the key the Add back button posts (bareloop src/panel/jobplan.js planFromConfirm)
+      (list.restorable || []).forEach(function(x){
+        var n = plan.ncRows.find(function(r){ return r.addBack === undefined && r.text === x.text && (r.line === x.line || r.line === 0); });
+        if(n) n.addBack = x.key;
       });
       return plan;
     }
@@ -6976,8 +6981,8 @@
       return escapeXml(l.text) + byTagOf(l.by);
     }
     // the Drop / Add button of the plan view (bareloop's control; the click is handled once on the extras box)
-    function planControlHTML(op, key){
-      return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (op === "add" ? "Add" : "Drop") + "</button>";
+    function planControlHTML(op, key, label){
+      return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (label || (op === "add" ? "Add" : "Drop")) + "</button>";
     }
     // M13 am11c: the action row, two cases, never a Drop (to change it, Revise). You picked it (Agree or typed): [you]. The AI's pick, or an old log with no `by`: [agent].
     function actionRowHtml(a){

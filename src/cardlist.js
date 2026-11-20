@@ -7,10 +7,11 @@ import { kindOfCheck } from './checklook.js';
 
 /**
  * @param {import('./checkblock.js').CheckBlock} block
- * @returns {{rows: {key: string, line: number, by: string, state: string, text: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[]}}
+ * @returns {{rows: {key: string, line: number, by: string, state: string, text: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[], restorable: {key: string, line: number, text: string}[]}}
  */
 export function cardOfBlock(block) {
-  const dropOffered = new Set(block.rows.filter((r) => r.state === 'built' && block.isBang(r)).map((r) => r.key));
+  // M19 S9 (section 3.7): every shape row has a Drop but code's own `$` one, the person's own `~` rule that took a field too (`droppable`: bareloop src/panel/index.html checkRow, `c.by !== "default"`); a non-shape row is offered as before
+  const dropOffered = new Set(block.rows.filter((r) => r.state === 'built' && (block.isBang(r) || ((r.kind === 'shape' || r.kind === 'rule') && block.droppable(r)))).map((r) => r.key));
   return {
     // M19 S3: the rows of a sheet line are drawn by src/sheetrows.js (`withSheetCard`), from the close the block's sheet part made; a dropped sheet check is the block's own suggested row
     // M19 S6 (section 3.3, 3.7): each row carries its kind word (`kindOfCheck`: a field of a list of items is `shape`, a line's output-file floor is `file`); the floor row of each line is drawn, `[default]` `file`, in fwd's words
@@ -24,5 +25,7 @@ export function cardOfBlock(block) {
       })),
     ].sort((a, b) => a.line - b.line),
     suggested: block.suggestedView(),
+    // M19 S9: the `[you]` rules the person dropped (Not checked, "You dropped it."); the card gives each an Add back button (bareloop src/panel/jobplan.js `restorable`)
+    restorable: block.droppedRulesView(),
   };
 }
