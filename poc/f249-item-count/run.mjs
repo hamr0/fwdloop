@@ -1,5 +1,5 @@
 // F249 ($0, no AI, no key, no panel, no node --test). Pre-registered in docs/logs/FINDINGS.md before this file. NOT the product.
-// usage: node poc/f249-item-count/make-candidate.mjs [--off]; node poc/f249-item-count/run.mjs --today | --off | --candidate
+// usage: node poc/f249-item-count/make-candidate.mjs [--off]; node poc/f249-item-count/run.mjs --today | --off | --candidate | --built (the real src/, writes RESULT-built.json)
 //   --today     today's src (A, and the data E compares against)
 //   --off       the candidate copy with the new branch switched off (F: the must-fail arm)
 //   --candidate the patched COPY of src (B, C, D, E, F). Reads RESULT-today.json and RESULT-off.json from .claude/scratch/f249.
@@ -11,9 +11,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const MODE = process.argv.includes('--candidate') ? 'candidate' : process.argv.includes('--off') ? 'off' : 'today';
+// --built: the SAME scenarios and bars as --candidate, run against the real src/ as built (M19 am11); evaluated as candidate, written to RESULT-built.json
+const BUILT = process.argv.includes('--built');
+const MODE = BUILT || process.argv.includes('--candidate') ? 'candidate' : process.argv.includes('--off') ? 'off' : 'today';
 const OUT = path.join(REPO, '.claude/scratch/f249'); fs.mkdirSync(OUT, { recursive: true });
-const srcRoot = MODE === 'today' ? path.join(REPO, 'src') : path.join(OUT, MODE === 'off' ? 'cand-off' : 'cand', 'src');
+const srcRoot = BUILT ? path.join(REPO, 'src') : MODE === 'today' ? path.join(REPO, 'src') : path.join(OUT, MODE === 'off' ? 'cand-off' : 'cand', 'src');
 const imp = (f) => import(pathToFileURL(path.join(srcRoot, f)).href);
 const L = (f) => import(pathToFileURL(path.join(MODE === 'candidate' ? path.join(OUT, 'loop-cand') : path.join(HERE, '..', 'f246-loop-shape-run', 'loop', 'src'), f)).href);
 const J = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
@@ -271,5 +273,5 @@ if (c.good4prose) {
   out.notes.harnessSanity = { good4prose_c1: g, items5_c1: g5, items3_c1: g3, good4list_c1: c.good4list?.c1?.verdict, items5list_c1: c.items5list?.c1?.verdict, items3list_c1: c.items3list?.c1?.verdict };
 }
 console.log('sanity', S(out.notes.harnessSanity));
-fs.writeFileSync(path.join(OUT, `RESULT-${MODE}.json`), JSON.stringify(out, null, 1));
-console.log(`wrote .claude/scratch/f249/RESULT-${MODE}.json (E: ${Object.keys(Edata).length} plans, ${Eskipped.length} skipped)`);
+fs.writeFileSync(path.join(OUT, BUILT ? 'RESULT-built.json' : `RESULT-${MODE}.json`), JSON.stringify(out, null, 1));
+console.log(`wrote .claude/scratch/f249/${BUILT ? 'RESULT-built.json' : `RESULT-${MODE}.json`} (E: ${Object.keys(Edata).length} plans, ${Eskipped.length} skipped)`);
