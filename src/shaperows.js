@@ -23,6 +23,19 @@ export function shapeDefaultWords(count = null) {
   return null;
 }
 
+/**
+ * M19 am11: the words of the rule row that holds a signed item count (the `[default]` row's words, `the answer lists exactly N items`, for an exact count; `at least N items` / `at most N items` beside it). Pure.
+ * @param {{minItems?: number, maxItems?: number}} part @returns {string|null}
+ */
+export function shapeCountWords(part) {
+  const lo = Number.isInteger(part.minItems) ? /** @type {number} */ (part.minItems) : null;
+  const hi = Number.isInteger(part.maxItems) ? /** @type {number} */ (part.maxItems) : null;
+  const s = (/** @type {number} */ n) => `${n} item${n === 1 ? '' : 's'}`;
+  if (lo !== null && lo === hi) return shapeDefaultWords({ min: lo, max: lo });
+  const w = [...(lo !== null ? [`at least ${s(lo)}`] : []), ...(hi !== null ? [`at most ${s(hi)}`] : [])];
+  return w.length ? `the answer lists ${w.join(' and ')}` : null;
+}
+
 /** why the truth of a shape line's items is not checked: the person judges it at Accept (the Not checked row of every shape line) */
 export const SHAPE_TRUTH_PARTS = Object.freeze(['whether each one is true', 'you judge it at Accept']);
 export const SHAPE_TRUTH_WORDS = SHAPE_TRUTH_PARTS.join(' \u2014 ');
@@ -84,15 +97,18 @@ export function shapeFieldSentence(spec, said = '') {
 
 /**
  * The signed part of ONE shape line, from the fields that stand (the `[you]` rule fields and the `[agent]` fields the person has not dropped or left Suggested).
- * @param {{text: string, fields: {name: string, spec: Record<string, any>, rule?: number|null, by?: 'you'|'agent'}[], itemCount?: {n: number}|null}} o
+ * @param {{text: string, fields: {name: string, spec: Record<string, any>, rule?: number|null, by?: 'you'|'agent'}[], itemCount?: {n?: number, min?: number, max?: number}|null, countRules?: number[]}} o `countRules` = the `~` rules whose words are the item count
  * @returns {Record<string, any>}
  */
-export function buildShapePart({ text, fields, itemCount = null }) {
-  const rules = [...new Set(fields.filter((f) => Number.isInteger(f.rule)).map((f) => /** @type {number} */ (f.rule)))].sort((a, b) => a - b);
+export function buildShapePart({ text, fields, itemCount = null, countRules = [] }) {
+  const rules = [...new Set([...fields.filter((f) => Number.isInteger(f.rule)).map((f) => /** @type {number} */ (f.rule)), ...countRules])].sort((a, b) => a - b);
+  // M19 am11: the count is `{n}` (code's per-input count: exactly n) or `{min?, max?}` (a `~` rule's own count: at least / at most)
+  const lo = itemCount === null ? null : Number.isInteger(itemCount.n) ? itemCount.n : Number.isInteger(itemCount.min) ? itemCount.min : null;
+  const hi = itemCount === null ? null : Number.isInteger(itemCount.n) ? itemCount.n : Number.isInteger(itemCount.max) ? itemCount.max : null;
   return {
     class: 'shape', text,
     fields: fields.map((f) => ({ name: f.name, spec: f.spec, ...(Number.isInteger(f.rule) ? { rule: f.rule } : {}), ...(f.by === 'agent' ? { row: 'agent' } : {}) })),
-    ...(itemCount ? { minItems: itemCount.n, maxItems: itemCount.n } : {}),
+    ...(lo !== null ? { minItems: lo } : {}), ...(hi !== null ? { maxItems: hi } : {}),
     ...(rules.length ? { rules } : {}),
   };
 }

@@ -1,6 +1,8 @@
 // M19 am10 (docs/wiki/the-module-ladder.md): a list line with item fields keeps the checks the person picked, as M10 am22 keeps them on a fact line. $0, no AI. The plan is the practice walk's saved
 // red draft (test/fixtures/m19-am10, copied from the walk's draft-1; research notes only, no PII), rebuilt through the real path (src/planrebuild.js `rebuildBlock`, then the assembly and the gate as `assembleAgain` calls them).
 // Each must-fail case was seen red on the code before the change (F243).
+// M19 am11 item 1 replaces am10 for a rule that COUNTS LIST ITEMS only (it is the item fields' own count now, test/m19-am11-p1-itemcount.test.js); every other pick on the line stays as am10 says. So the pick here is a word count,
+// "at most 100 words" (the fixture's rule 4 reworded; the walk's "exactly 4 list items" no longer is a pick).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,6 +21,7 @@ import { closeRecords } from '../src/try-checks.js';
 
 const FX = new URL('./fixtures/m19-am10/', import.meta.url).pathname;
 const clone = (/** @type {any} */ o) => JSON.parse(JSON.stringify(o));
+const PICK = 'at most 100 words';
 const SENTENCE = /close\.picked is for a step that checks facts \(quotes or a sheet\) only; this step's check is "(hitl|softgreen)"/;
 
 function setUp() {
@@ -26,7 +29,7 @@ function setUp() {
   const planDir = path.join(root, 'plan');
   mkdirSync(planDir);
   for (const f of ['log.json', 'picks-record.json', 'not-checked.json', 'declaration.json']) copyFileSync(path.join(FX, f), path.join(planDir, f));
-  for (const f of ['prose.txt', 'target.json']) writeFileSync(path.join(planDir, f), readFileSync(path.join(FX, f), 'utf8').replaceAll('__ROOT__', root));
+  for (const f of ['prose.txt', 'target.json']) writeFileSync(path.join(planDir, f), readFileSync(path.join(FX, f), 'utf8').replaceAll('__ROOT__', root).replace('exactly 4 list items', PICK));
   copyFileSync(path.join(FX, 'research-notes.md'), path.join(root, 'research-notes.md'));
   const b = rebuildBlock({ planDir, asks: true });
   assert.equal(b.ok, true, b.ok ? '' : b.say);
@@ -44,7 +47,7 @@ function setUp() {
 
 test('am10 items 1, 3: the walk plan keeps its agreed pick on the item line and passes its own gate', () => {
   const { built, validate, step } = setUp();
-  assert.deepEqual(step.close.picked, [{ rule: 'listItems', value: 4 }]);
+  assert.deepEqual(step.close.picked, [{ rule: 'maxWords', value: 100 }]);
   assert.ok(step.close.itemShape && !step.close.cited);
   assert.deepEqual(built.declaration.pickedLines, [2]);
   const v = validate(built.declaration);
@@ -59,14 +62,14 @@ test('am10 item 3: a count the drafter wrote itself on an item line is refused (
   assert.match(a[0] ?? '', /line 2 is not one of the lines you picked checks for \(pickedLines\)/);
   assert.match(b[0] ?? '', /line 2 is not one of the lines you picked checks for \(pickedLines\)/);
   assert.ok(redsOf((d, s) => { delete s.close.picked; delete d.pickedLines; s.close.shape = { maxWords: 80 }; }).length > 0);
-  assert.ok(redsOf((d, s) => { delete s.close.picked; delete d.pickedLines; s.close.shape = { picked: [{ rule: 'listItems', value: 4 }] }; }).length > 0);
+  assert.ok(redsOf((d, s) => { delete s.close.picked; delete d.pickedLines; s.close.shape = { picked: [{ rule: 'maxWords', value: 100 }] }; }).length > 0);
 });
 
 test('am10: a pick on a hitl or softgreen step is still refused with the same sentence (a line with neither check is unchanged)', () => {
   const { built, validate } = setUp();
   for (const cls of ['hitl', 'softgreen']) {
     const d = clone(built.declaration);
-    d.steps.find((/** @type {any} */ s) => s.fromLine === 2).close = { class: cls, picked: [{ rule: 'listItems', value: 4 }] };
+    d.steps.find((/** @type {any} */ s) => s.fromLine === 2).close = { class: cls, picked: [{ rule: 'maxWords', value: 100 }] };
     if (cls === 'hitl') delete d.guardrailClasses['2']; else d.guardrailClasses['2'] = 'softgreen';
     const v = validate(d);
     assert.equal(v.ok, false);
@@ -80,13 +83,14 @@ test('am10 items 1, 2: the step is green only if the item fields and the pick bo
   const it = (/** @type {string} */ t, s = 'closed') => ({ title: t, status: s, summary: 'ok' });
   const four = [it('A'), it('B'), it('C'), it('D')];
   const bullets = (/** @type {number} */ n) => Array.from({ length: n }, (_, i) => `- item ${i + 1}`).join('\n');
+  const words = (/** @type {number} */ n) => Array.from({ length: n }, () => 'w').join(' ');
   const v = async (/** @type {any} */ a) => (await closeByClass(step, { done: true, blocker: null, ...a }, ctx)).verdict;
-  assert.equal(await v({ results: four, text: bullets(4) }), 'green');
-  assert.equal(await v({ results: four, text: bullets(3) }), 'red');
-  assert.equal(await v({ results: [...four.slice(0, 3), it('D', 'weird')], text: bullets(4) }), 'red');
+  assert.equal(await v({ results: four, text: words(100) }), 'green');
+  assert.equal(await v({ results: four, text: words(101) }), 'red');
+  assert.equal(await v({ results: [...four.slice(0, 3), it('D', 'weird')], text: words(10) }), 'red');
   assert.equal(await v({ results: four }), 'red');
   assert.equal(await v({ results: four, text: '' }), 'red');
-  assert.equal(await v({ text: bullets(4) }), 'red');
+  assert.equal(await v({ text: words(10) }), 'red');
 });
 
 test('am10 (M10 am22 item 4): the Audit check row of the pick on an item line carries the pick\'s own list part and tag', async () => {
@@ -95,7 +99,7 @@ test('am10 (M10 am22 item 4): the Audit check row of the pick on an item line ca
   const art = { results: [it('A'), it('B'), it('C'), it('D', 'weird')], text: '- a\n- b\n- c', done: true, blocker: null };
   const closed = await closeByClass(step, art, { reads: {}, businessDate: '2026-11-21' });
   const rows = closeRecords(step, art, closed, built.declaration.checkList);
-  const pickRow = rows.find((/** @type {any} */ r) => r.text === 'exactly 4 list items');
+  const pickRow = rows.find((/** @type {any} */ r) => r.text === 'at most 100 words');
   const listRow = built.declaration.checkList.find((/** @type {any} */ r) => r.key === 'L2.~4');
   assert.ok(pickRow && listRow);
   assert.equal(pickRow.by, 'you');

@@ -76,6 +76,19 @@ const numberIn = (text, n) => {
 };
 const wordSet = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}]+/gu) ?? []);
 
+/**
+ * M19 am11 item 1: the item count a `~` rule's own words ARE ("exactly 4 list items" -> 4 to 4, "at least 3" -> at least 3, "at most 5" -> at most 5), or null. "at most 0" is no item count (bareguard's `maxItems` is at least 1): it stays a pick over the text.
+ * @param {string} text @returns {{min?: number, max?: number}|null}
+ */
+function itemCountOf(text) {
+  const c = /** @type {any} */ (countCheck(text));
+  if (!c) return null;
+  if (c.rule === 'listItems') return { min: c.value, max: c.value };
+  if (c.rule === 'minListItems') return { min: c.value };
+  if (c.rule === 'maxListItems' && c.value >= 1) return { max: c.value };
+  return null;
+}
+
 /** the plain reasons code gives, in one place (the card, the Job tab and the Audit read them from the row) */
 export const REASON = Object.freeze({
   left: 'You chose to leave it Not checked, so you judge it at Accept.',
@@ -91,6 +104,7 @@ export const REASON = Object.freeze({
   lookNoWords: "the page does not hold the words of the look's fact for this rule",
   afterLast: 'no more tries: Start over (rows are never changed by the AI after the last try)',
   noPick: 'No check was picked for it, so you judge it at Accept.',
+  itemCountByRule: 'your rule on this line sets the item count',
   negated: 'it says what is not needed, so there is nothing to check',
   dropped: 'You dropped it.',
   suggested: 'Suggested: not in your job, so it is not checked unless you add it.',
@@ -418,6 +432,7 @@ export class CheckBlock {
       else if (r.kind === 'count') this.matchCount(r);
       else if (r.kind === 'sheet') r.can = { ok: true, how: 'sheet' };
     }
+    this.takeItemCounts();
     // N-1 (hamr 2026-11-13): code splits the `!` rows. Words (or the count number) in the job line or its ~ rules = JOB-DERIVED (built, Drop). Not in the job = SUGGESTED: held out of the close, offered
     // only when code has already proved it can build it (build() trials it), and switched on by the person's Add. The person's Drop removes a row for good. Never the AI.
     for (const r of this.split ? this.rows : []) {
@@ -465,6 +480,21 @@ export class CheckBlock {
     // a money, time, number or date fact the person asked for BY NAME ("the release heading") is in the job too: the look's page words rarely echo the job's own words. A phrase or place is job-derived
     // only when its own words are in the person's text: a name the AI gave it is no proof (hamr 2026-11-15, live run mwi76vh8: "friendly" for "Select flight")
     return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && r.shape !== 'phrase' && r.shape !== 'place' && typeof r.name === 'string' && inText(said, r.name));
+  }
+
+  /**
+   * M19 am11 item 1: on a line with item fields (a shape line), a `~` rule that counts list items is the shape part's own item count, not a count pick over `text`. Run after every rule is matched, so the order of the rules does not matter.
+   * The ONE writer of such a row's `can` and of its `from` (it is the person's rule again, not a pick). A text line, a sheet line and a repo line are unchanged. A Drop of the rule is kept (`shapeDrops.rules`).
+   */
+  takeItemCounts() {
+    if (this.repo !== null) return;
+    for (const r of this.rows) {
+      if (r.kind !== 'rule' || r.left || r.can?.how === 'shape' || this.isSheetLine(r.line) || NEGATING_RE.test(String(r.text)) || !this.isShapeLine(r.line)) continue;
+      const count = itemCountOf(String(r.text));
+      if (count === null) continue;
+      r.can = this.shapeDrops.rules.has(`${r.line}:${r.rule}`) ? { ok: false, why: REASON.dropped } : { ok: true, how: 'shape', count };
+      if (r.can.ok) r.from = 'rule';
+    }
   }
 
   /** a `!` count row is built unless a `~` rule on its line already names the number */
@@ -746,7 +776,17 @@ export class CheckBlock {
     const b = this.shapeBuilt?.built[l.n];
     const fields = (b?.fields ?? []).filter((f) => shapeRows.some((r) => (f.by === 'you' && r.kind === 'rule' && r.rule === f.rule) || (f.by === 'agent' && r.key === shapeRowKey(l.n, f.name))));
     if (!b || !fields.some((f) => f.by === 'you')) { for (const r of shapeRows) { r.state = 'dropped'; r.reason = null; } return; }
-    const part = buildShapePart({ text: `the items of line ${l.n}`, fields: fields.map((f) => ({ name: f.name, spec: fieldSpec(f), rule: f.rule, by: f.by })), itemCount: b.itemCount });
+    // M19 am11 items 1, 2: the `~` rules that count items set the line's count (all of them: the largest at-least and the smallest at-most hold); then code's own per-input count is Not checked, with its reason
+    const countRows = shapeRows.filter((r) => r.kind === 'rule' && r.can?.count);
+    const ruleCount = countRows.length === 0 ? null : {
+      ...(countRows.some((r) => Number.isInteger(r.can.count.min)) ? { min: Math.max(...countRows.map((r) => r.can.count.min).filter(Number.isInteger)) } : {}),
+      ...(countRows.some((r) => Number.isInteger(r.can.count.max)) ? { max: Math.min(...countRows.map((r) => r.can.count.max).filter(Number.isInteger)) } : {}),
+    };
+    if (ruleCount !== null) {
+      for (const r of shapeRows.filter((x) => x.kind === 'shape' && x.by === 'default')) { r.state = 'not-checked'; r.reason = REASON.itemCountByRule; }
+      shapeRows = shapeRows.filter((r) => !(r.kind === 'shape' && r.by === 'default'));
+    }
+    const part = buildShapePart({ text: `the items of line ${l.n}`, fields: fields.map((f) => ({ name: f.name, spec: fieldSpec(f), rule: f.rule, by: f.by })), itemCount: ruleCount ?? b.itemCount, countRules: countRows.map((r) => Number(r.rule)) });
     const reds = rubricStepShapeReds({ step: l.n, parts: [...lineParts.filter((p) => p.class === 'fact'), part] }, 'trial');
     if (reds.length) { for (const r of shapeRows) { r.state = 'not-checked'; r.reason = `code could not build the line's shape part: ${reds[0]?.detail}`; } return; }
     lineParts.push(part);

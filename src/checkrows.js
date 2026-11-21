@@ -8,7 +8,7 @@ import { plainWords } from './checkwords.js';
 import { closePartsOf, cardLinesOf } from './checklistsign.js';
 import { sheetRowsOf } from './sheetrows.js';
 import { ticketRowsOf } from './ticketrows.js';
-import { shapeRowsOf } from './shaperows.js';
+import { shapeRowsOf, shapeCountWords } from './shaperows.js';
 import { kindOfCheck } from './checklook.js';
 import { rulesOfLine } from './sheetblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
@@ -109,6 +109,12 @@ export function stepRowsOf({ declaration, st, lines, kept = [], idx = 0 }) {
       const signed = list.find((r) => r.key === x.key);
       if (x.by === 'default' && !signed) continue;
       out.push({ line, key: x.key, by: signed?.by ?? x.by, state: 'built', kind: kindOfCheck({ key: x.key, shape: true }), text: x.text, reason: null, idx, part: `L${line}:shape:${/** @type {any} */ (x).name ?? '$'}` });
+    }
+    // M19 am11 item 1: a `~` rule whose words are the part's item count is its own [you] row on the shape part (the rule points at the part, no field is its rule)
+    const fieldRules = new Set(close.itemShape.fields.filter(isRec).map((/** @type {any} */ f) => f.rule));
+    const countWords = shapeCountWords(close.itemShape);
+    for (const r of builtOn(line).filter((x) => x.kind === 'rule' && x.by === 'you' && isRec(x.part) && x.part.part === idx && !fieldRules.has(x.rule) && !out.some((o) => o.key === x.key))) {
+      if (countWords !== null) out.push({ line, key: r.key, by: 'you', state: 'built', kind: kindOfCheck({ key: r.key, shape: true }), text: countWords, reason: null, idx, part: `L${line}:shape:$` });
     }
     idx += 1;
   }

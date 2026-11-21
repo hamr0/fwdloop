@@ -310,7 +310,10 @@ export function shapeBriefOf(shape, fp) {
  */
 export function shapeLineBrief(n, shape, alsoText = false) {
   const fields = shape.fields.filter(isRec);
-  const count = Number.isInteger(shape.minItems) && shape.minItems === shape.maxItems ? `exactly ${shape.minItems} item${shape.minItems === 1 ? '' : 's'}` : 'one item for every one you find';
+  // M19 am11 item 3: the count as it is signed (`exactly N items`, `at least N items`, `at most N items`)
+  const lo = Number.isInteger(shape.minItems) ? shape.minItems : null; const hi = Number.isInteger(shape.maxItems) ? shape.maxItems : null;
+  const s = (/** @type {number} */ k) => `${k} item${k === 1 ? '' : 's'}`;
+  const count = lo !== null && lo === hi ? `exactly ${s(lo)}` : lo !== null || hi !== null ? [...(lo !== null ? [`at least ${s(lo)}`] : []), ...(hi !== null ? [`at most ${s(hi)}`] : [])].join(' and ') : 'one item for every one you find';
   return [
     alsoText
       ? `Job line ${n} is a TEXT line AND a LIST line. Call emit_artifact exactly once with this step's result: {"text": "...", "results": [{...}, {...}]}: "text" as for any text line, and "results" is the list of items. One object per item: ${count}.`
