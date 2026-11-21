@@ -70,7 +70,7 @@ test('am8 item 3: Not checked rows are a list of their own, in the signed list\'
   decl.checkList.push({ line: 2, key: 'L2.fact.zeta', from: 'look', by: 'agent', kind: 'fact', state: 'not-checked', reason: 'r1' }, { line: 2, key: 'L2.fact.alpha', from: 'look', by: 'agent', kind: 'fact', state: 'not-checked', reason: 'r2' });
   const c = cardOfPlan({ ...p, declaration: decl });
   assert.equal(c.rows.some((r) => r.state === 'not-checked'), false);
-  assert.deepEqual(c.notChecked.map((r) => r.key), ['L2.fact.zeta', 'L2.fact.alpha']);
+  assert.deepEqual(c.notChecked.map((r) => r.key), ['L2.fact.destination airport', 'L2.fact.zeta', 'L2.fact.alpha']);
 });
 
 test('am8 item 2, am9 items 1 and 2: a rule row reads line, quoted rule text and reason; a prose or stage row only its line and reason', () => {
@@ -96,7 +96,7 @@ test('am8 item 2 and am9 item 4: any other Not checked row reads `<kind> "<ledge
   const decl = JSON.parse(JSON.stringify(p.declaration));
   decl.checkList.push({ line: 2, key: 'L2.phrase.new york', from: 'look', by: 'agent', kind: 'phrase', state: 'not-checked', reason: 'r' });
   const withLedger = cardOfPlan({ ...p, declaration: decl, log: [{ kind: 'ledger', phase: 'final', key: 'L2.phrase.new york', rowKind: 'phrase', words: ['New York'], state: 'not-checked' }] });
-  assert.equal(withLedger.notChecked[0].text, 'phrase "New York"');
+  assert.equal(withLedger.notChecked.find((r) => r.key === 'L2.phrase.new york')?.text, 'phrase "New York"');
   assert.equal(cardOfPlan({ ...p, declaration: decl }).notChecked.find((r) => r.key === 'L2.phrase.new york')?.text, 'phrase "new york"');
 });
 
@@ -128,9 +128,9 @@ test('am8 item 1 and am9 item 5: one ledger row per Not checked row; a rule\'s w
   const decl = JSON.parse(JSON.stringify(p.declaration));
   decl.checkList.push({ line: 2, key: 'L2.~1x', from: 'rule', by: 'you', kind: 'rule', rule: 1, state: 'not-checked', reason: 'why' }, { line: 2, key: 'L2.fact.d', from: 'look', by: 'agent', kind: 'fact', state: 'not-checked', reason: 'r' });
   const rows = ledgerRowsOf(decl, p.lines, { 'L2.fact.d': ['D'] });
-  assert.equal(rows.length, 2);
-  assert.deepEqual(rows[0], { kind: 'ledger', phase: 'final', key: 'L2.~1x', rowKind: 'rule', words: [rule], state: 'not-checked' });
-  assert.deepEqual(rows[1].words, ['D']);
+  assert.equal(rows.length, 3); // the saved plan's own Not checked fact row is the first
+  assert.deepEqual(rows.find((r) => r.key === 'L2.~1x'), { kind: 'ledger', phase: 'final', key: 'L2.~1x', rowKind: 'rule', words: [rule], state: 'not-checked' });
+  assert.deepEqual(rows.find((r) => r.key === 'L2.fact.d')?.words, ['D']);
   const m = readLedger([{ kind: 'ledger', key: 'k', words: ['A'] }, { kind: 'ledger', key: 'z', words: ['Z'] }, { kind: 'ledger', key: 'k', words: ['B'] }, { kind: 'other', key: 'z', words: ['no'] }]);
   assert.equal(m.get('k').words[0], 'B');
   assert.equal(m.get('z').words[0], 'Z');
