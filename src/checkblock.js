@@ -17,7 +17,7 @@
 import { globToPrefix } from './globprefix.js';
 import { countExact, countPhrase } from './pagebits.js';
 import { checkFactWords, keptSetOf } from './factwords.js';
-import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords, sameRuleWords } from './blockpick.js';
+import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords } from './blockpick.js';
 import { dropRows, dropSentence } from './pagedropwords.js';
 import { phraseInNoResult, asSeenOf } from './pagedry.js';
 import { boundInWords, rubricStepShapeReds, stageKeyOf, guardKeyOf, FENCE_KEY, defaultCitedText, defaultNoteText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
@@ -41,9 +41,6 @@ import { fieldSpec } from './shapebuild.js';
  */
 
 /** what `setSheet` is given: code's build of a job's sheet checks, per sheet line @typedef {Awaited<ReturnType<typeof import('./sheetbuild.js').buildSheetChecks>>} SheetBuilt */
-
-/** the card's fixed words, one spelling (the renderer reads them; a test reads them too) */
-export const CARD_T = Object.freeze({ count: 'result count', cited: 'every claim is backed by a quote copied from', theInput: 'the input', numbers: 'every number in the text is in a checked quote of line', withWords: 'with the words' });
 
 /** the four row edits an AI reply may hold */
 export const EDIT_OPS = Object.freeze(['add', 'reading', 'pick', 'not-checkable', 'fence']);
@@ -102,21 +99,10 @@ export const REASON = Object.freeze({
   columnRule: "this rule only names a column; the agent's checks on this line use it",
 });
 
-/** the card lines: rows in, lines out. ONE pure function of the rows; nothing else may feed it. @param {Row[]} rows */
+/** the card's rows: which rows show, and their key, line, tag, state and reason. NO words: the words of a row are the plan reader's (src/checkrows.js `planCard`), one writer (M19 am6 item 4). @param {Row[]} rows */
 export function renderCard(rows) {
   // fwd keeps: the card draws no floor row (and there is no prose row) today
-  return rows.filter((r) => r.kind !== 'floor' && r.state !== 'suggested' && r.state !== 'dropped' && !r.hidden).map((r) => {
-    let body;
-    if (r.kind === 'rule') body = `"${r.text}"${r.pick && !sameRuleWords(r.text, plainWords(r.pick)) ? ` -> ${plainWords(r.pick)}` : ''}`;
-    else if (r.kind === 'count') body = `${CARD_T.count} ${r.min ?? ''}-${r.max ?? ''}`;
-    else if (r.kind === 'cited') body = `${CARD_T.cited} "${r.source ?? CARD_T.theInput}"`;
-    else if (r.kind === 'note') body = defaultNoteText(r.line);
-    else if (r.kind === 'numbers') body = `${CARD_T.numbers} ${(r.after ?? []).join(', ')}`;
-    // M19 am5 item 3: a built several-word phrase fact (its signed `anyOf`) reads in the signed words
-    else if (r.oneOf?.length) body = `fact "${r.name ?? r.words?.[0] ?? ''}" with one of the words ${r.oneOf.map((/** @type {string} */ w) => `"${w}"`).join(', ')}`;
-    else body = `${r.kind} "${r.name ?? r.words?.[0] ?? ''}"${(r.grown ?? r.words)?.length ? ` ${CARD_T.withWords} ${(r.grown ?? r.words).map((/** @type {string} */ w) => `"${w}"`).join(', ')}` : ''}`;
-    return { key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null, text: `${r.by === 'you' ? '~' : r.by === 'agent' ? '!' : '$'} ${body}` };
-  });
+  return rows.filter((r) => r.kind !== 'floor' && r.state !== 'suggested' && r.state !== 'dropped' && !r.hidden).map((r) => ({ key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null }));
 }
 
 /**
@@ -681,8 +667,6 @@ export class CheckBlock {
     for (const r of this.rowsOn(l.n)) {
       if (r.kind === 'floor') continue;
       r.part = null;
-      r.grown = undefined;
-      r.oneOf = undefined;
       if (!r.can?.ok) { r.state = 'not-checked'; r.reason = r.can?.why ?? 'not checked'; continue; }
       if (r.held) { r.state = 'suggested'; r.reason = r.choice === 'drop' ? REASON.dropped : REASON.suggested; continue; }
       if (r.can.how === 'sheet') { sheetRows.push(r); continue; }
@@ -718,20 +702,13 @@ export class CheckBlock {
       const reds = rubricStepShapeReds({ step: l.n, parts: [part] }, 'trial');
       if (reds.length) for (const x of [...factRows.map((f) => f.r), ...(countRow ? [countRow] : [])]) { x.state = 'not-checked'; x.reason = `code could not build the line's fact part: ${reds[0]?.detail}`; x.part = null; }
       else {
-        // M17 am4 (B3): the ONE writer of a place's grown phrases (fwd's signed R2c, M10 am7 item 2): the part holds EVERY phrase as a fact of its own, and the row holds the same words (`grown`),
-        // so the card (renderCard), the plan and the Job tab say what the plan checks. A place the look did not grow keeps the one word.
+        // M17 am4 (B3): the ONE writer of a place's grown phrases (fwd's signed R2c, M10 am7 item 2): the part holds EVERY phrase as a fact of its own; the plan and the Job tab say what the plan checks
+        // (M19 am6 item 4: the row copies of the words, `grown` and `oneOf`, are gone). A place the look did not grow keeps the one word.
         const src = factRows[0]?.src;
         const grownOf = (/** @type {any} */ f) => {
           const k = f && f.shape === 'phrase' ? /** @type {any[]} */ (this.lookFacts).find((x) => x.line === l.n && Array.isArray(x.phrases) && String(x.name) === f.name && (x.source === undefined || x.source === src)) : undefined;
           return k ? factsOfLook(k) : null;
         };
-        for (const { r } of factRows) {
-          const words = (r.factNames ?? []).flatMap((/** @type {string} */ n) => (grownOf(facts.find((f) => f.name === n)) ?? []).map((x) => String(x.phrase)));
-          r.grown = words.length ? words : undefined;
-          // M19 am5: the row of a several-word phrase fact shows the words the part signs (the card, the plan and the readout say what the plan checks)
-          const anyOfs = facts.filter((f) => (r.factNames ?? []).includes(f.name) && Array.isArray(f.anyOf)).flatMap((f) => f.anyOf);
-          r.oneOf = anyOfs.length ? anyOfs : undefined;
-        }
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
     } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     // facts+shape: the shape part follows the fact part (the same `results` list); its fields are the rules no truth check could take
@@ -830,7 +807,7 @@ export class CheckBlock {
     else if (cited) { cited.state = 'not-checked'; cited.reason = REASON.manyInputs; }
     const earlier = [...factLines].filter((n) => n < l.n);
     if (!earlier.length) return;
-    const nr = numbers ?? this.addRow({ key: `L${l.n}.$numbers`, line: l.n, kind: 'numbers', by: 'default', from: 'default', after: earlier });
+    const nr = numbers ?? this.addRow({ key: `L${l.n}.$numbers`, line: l.n, kind: 'numbers', by: 'default', from: 'default' });
     lineParts.push({ text: 'every number in the text is in a checked quote', class: 'countable', check: 'numbersFromFacts', from: earlier });
     lineRows.push([nr.key]); nr.state = 'built'; nr.reason = null; nr.part = null;
   }
@@ -1245,8 +1222,6 @@ export class CheckBlock {
     }
     return this;
   }
-
-  card() { return renderCard(this.rows); }
 
   /**
    * The rows as the close shape the card readers (`checksOfClose`, `refusedOf`, `cardOfClose`) already read: the block's stages, the picks code records and the signed list. The confirm card

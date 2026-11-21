@@ -1,5 +1,5 @@
 // M16 P4c: a Not-checked note for a row that has no rule text (a `$` numbers row left with no fact line before it, after an Add then a Drop of a fact) says what the card's own row says,
-// never the row's key (`L5.$numbers`). The words come from renderCard (src/checkblock.js CARD_T); M19 am9 item 3: a numbers row left Not checked reads `every number matches a quote`.
+// never the row's key (`L5.$numbers`). The words come from the plan reader (src/checkrows.js); M19 am9 item 3: a numbers row left Not checked reads `every number matches a quote`.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { newJobBlock } from '../src/blocklines.js';

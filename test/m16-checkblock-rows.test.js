@@ -82,7 +82,7 @@ test('A1 $ rows: a text line with one input gets a $ cited row (by default, buil
   const c2 = by(b, 'L2.$cited');
   assert.deepEqual([c2?.by, c2?.from, c2?.state, c2?.source], ['default', 'default', 'built', 'Changelog']);
   const n2 = by(b, 'L2.$numbers');
-  assert.deepEqual([n2?.kind, n2?.after, n2?.state], ['numbers', [1], 'built']);
+  assert.deepEqual([n2?.kind, n2?.state], ['numbers', 'built']); // M19 am6 item 4: the row no longer holds the `after` copy; the line numbers are the part's `from`
   assert.equal(by(b, 'L1.$floor')?.kind, 'floor');
   assert.equal(by(b, 'L1.$floor')?.state, 'built');
   assert.equal(new Set(b.rows.map((r) => r.key)).size, b.rows.length);

@@ -8,7 +8,7 @@ import { planCard } from './checkrows.js';
 
 /**
  * @param {import('./checkblock.js').CheckBlock} block
- * @returns {{rows: {key: string, line: number, by: string, state: string, text: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[], restorable?: {key: string, line: number, text: string}[]}}
+ * @returns {{rows: {key: string, line: number, by: string, state: string, reason: string|null, drop: boolean, kind: 'truth'|'shape'|'file'}[], suggested: {key: string, line: number, text: string, dropped?: boolean}[], restorable?: {key: string, line: number, text: string}[]}}
  */
 export function cardOfBlock(block) {
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (checkRow: a shape row has a Drop unless it is code's own) (M19 S9, section 3.7): every shape row has a Drop but code's own `$` one, the person's own `~` rule that took a field too (`droppable`, as the tag's page draws it: Drop unless `c.by` is "default"); a non-shape row is offered as before
@@ -19,10 +19,10 @@ export function cardOfBlock(block) {
     rows: [
       ...renderCard(block.rows.filter((r) => !block.isSheetLine(r.line))).map((r) => {
         const own = block.rows.find((x) => x.key === r.key);
-        return { key: r.key, line: r.line, by: r.by, state: r.state, text: r.text.replace(/^[~!$] /, ''), reason: r.reason ?? null, drop: dropOffered.has(r.key), kind: kindOfCheck({ key: r.key, ...(own?.kind === 'shape' || own?.can?.how === 'shape' ? { shape: /** @type {true} */ (true) } : {}) }) };
+        return { key: r.key, line: r.line, by: r.by, state: r.state, reason: r.reason ?? null, drop: dropOffered.has(r.key), kind: kindOfCheck({ key: r.key, ...(own?.kind === 'shape' || own?.can?.how === 'shape' ? { shape: /** @type {true} */ (true) } : {}) }) };
       }),
       ...block.rows.filter((r) => r.kind === 'floor' && r.state === 'built' && !block.isSheetLine(r.line)).map((r) => ({
-        key: r.key, line: r.line, by: r.by, state: r.state, text: r.listLine === true ? "the file exists (code's own floor); this line lists items, so it has no text check" : String(r.text), reason: null, drop: false, kind: kindOfCheck({ key: r.key }),
+        key: r.key, line: r.line, by: r.by, state: r.state, reason: null, drop: false, kind: kindOfCheck({ key: r.key }),
       })),
     ].sort((a, b) => a.line - b.line),
     suggested: block.suggestedView(),

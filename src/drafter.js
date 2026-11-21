@@ -362,7 +362,7 @@ function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArra
  * @returns {Promise<{ok:boolean, declaration:object|null, reds:string[], rounds:number, calls:number, spendComplete:boolean,
  *   costUsd:number|null, modelReturned:string|null, modelId?:string, price?:object|null, tokens?:object|null, structureRetries:number, revisions:number, stop:string|null, log:object[],
  *   questions?:{line:number, question:string}[], proseText?:string, action?:{line:number, by?:'agent'|'you', dropped?:true}|null, droppedQuestions?:object[], notChecked?:string[], thinking?:{asked:string, status:string|null, say:string|null}, inputs?:{role:string, detail:string}[],
- *   checkCard?:ReturnType<typeof cardOfBlock>, sheetBuilt?:Awaited<ReturnType<typeof buildSheetChecks>>, notCheckedBy?:Record<string,'you'|'agent'|'default'>, look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
+ *   checkCard?:ReturnType<typeof cardOfPlanBlock>, sheetBuilt?:Awaited<ReturnType<typeof buildSheetChecks>>, notCheckedBy?:Record<string,'you'|'agent'|'default'>, look?:{facts:any[], dropped:any[]}, pageLooks?:{role:string, address:string, sha256:string, bytes:number, frozen:string, attempts:number, mapping:any}[], sheetLooks?:any[]}>}
  * `learnHints` (M8 item 5a): the earlier runs' notes block (src/learnstore.js hintsForRun), appended to the drafter's system prompt; null = nothing.
  * `look` / `pageLooks` (M10 item 3) are there when the job signs a web page: the kept facts (with their `reading`, the input a later ask reads), every drop, and per page its address, sha256 and the AI's map. Each drop is also a line in `notChecked`.
  */
