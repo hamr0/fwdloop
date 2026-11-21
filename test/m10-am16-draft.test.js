@@ -97,7 +97,7 @@ test('(4) the plan carries only the picked checks: the drafter\'s own shape is g
   assert.deepEqual(by(5), { class: 'hitl' }, 'line 5 has no pick: no check, whatever the drafter sent');
   assert.equal(r.declaration.guardrailClasses['5'], 'hitl');
   assert.equal(r.declaration.unjudgeable, undefined, 'M17 am4 (C8): the reason is the list\'s Not checked line, not a hidden record');
-  assert.ok(r.notChecked.includes('line 5: "under 80 words" — No rule can check this, so you judge it at Accept.'), r.notChecked.join('|'));
+  assert.ok(r.notChecked.includes('line 5: "under 80 words" — No check was picked for it, so you judge it at Accept.'), r.notChecked.join('|'));
   assert.equal(p.calls.length, 1, 'the redraft makes no suggestion call');
 });
 
@@ -116,7 +116,7 @@ test('(4) a rule the person left, and their own words, are Not checked with thei
   assert.deepEqual(r.declaration.steps.find((s) => s.fromLine === 3).close.shape.picked, [{ rule: 'listItems', value: 3 }]);
   assert.ok(!r.notChecked.some((x) => x.includes('exactly 3 list items')), 'the agree line is covered');
   assert.ok(!r.notChecked.some((x) => x.includes('under 80 words')), 'the replaced rule is gone, not listed beside its replacement');
-  assert.ok(r.notChecked.some((x) => x.includes('"keep it short and kind"') && x.includes('Your own words are on the line')));
+  assert.ok(r.notChecked.some((x) => x.includes('"keep it short and kind"') && x.includes('No check was picked for it, so you judge it at Accept.')));
   const left = await draft({ proseText: prose(t), provider: fakeProvider([toolReply(plan())]), rates: RATES, modelId: MODEL, offerQuestions: false, leftRules: [{ line: 5, rule: 1 }] });
   assert.ok(left.notChecked.includes('line 5: "under 80 words" — You chose to leave it Not checked, so you judge it at Accept.'));
 });

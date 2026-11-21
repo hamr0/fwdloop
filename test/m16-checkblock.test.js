@@ -312,7 +312,7 @@ test('drop on a question leaves the rule Not checked and adds no row; typed word
   const c = new CheckBlock({ texts: { f: 'x y z' }, labels: ['f'] });
   c.fromJob([{ n: 1, text: 'Say it', rules: ['be nice'] }]); c.reconcile();
   assert.deepEqual(c.open, []);
-  assert.equal(c.rows.find((r) => r.kind === 'rule')?.reason, REASON.noRule);
+  assert.equal(c.rows.find((r) => r.kind === 'rule')?.reason, REASON.noPick);
   const d = flight();
   d.applyAnswer(d.open[0].key, 'rule', 'mention x'); d.reconcile();
   assert.deepEqual(d.rows.filter((r) => r.kind === 'rule').map((r) => [r.rule, r.origin, r.text]), [[1, 'typed', 'mention x']]);
@@ -340,7 +340,7 @@ test('a count rule code does not scope in is Not checked with the plain words, n
   const b = new CheckBlock({ texts: { f: 'x' }, labels: ['f'], countScope: () => false });
   b.fromJob([{ n: 1, text: 'Summarise it', rules: ['exactly 3 bullets'] }]); b.reconcile();
   assert.equal(b.open.length, 0);
-  assert.equal(b.rows.find((r) => r.kind === 'rule')?.reason, REASON.noRule);
+  assert.equal(b.rows.find((r) => r.kind === 'rule')?.reason, REASON.noPick);
 });
 
 test('ruling 4: a whole fact the look dropped shows Not checked with its plain sentence (a tied rule gets it as its reason, a loose fact is a `!` row); person-left is the block\'s own', () => {

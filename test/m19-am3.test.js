@@ -21,7 +21,7 @@ test('(1) a rule code cannot check, asked or not: with asks on there is no open 
     assert.deepEqual(b.open, [], `asks ${asks}: nothing is asked`);
     const rules = b.rows.filter((r) => r.kind === 'rule');
     assert.equal(rules.length, 2);
-    assert.ok(rules.every((r) => r.can?.ok === false && r.can.ask === undefined && r.can.why === REASON.noRule), JSON.stringify(rules.map((r) => r.can)));
+    assert.ok(rules.every((r) => r.can?.ok === false && r.can.ask === undefined && r.can.why === REASON.noPick), JSON.stringify(rules.map((r) => r.can)));
     assert.deepEqual(b.shapeCandidates().map((c) => c.rule), [1, 2], 'and so the shape look may take both');
   }
 });
@@ -31,7 +31,7 @@ test('(1b) a countable rule with no count proposal is Not checked with no questi
   const b = new CheckBlock({ texts: { f: 'x' }, labels: ['f'], asks: true, countScope: () => true });
   b.fromJob([{ n: 1, text: 'Summarise it', rules: ['two or three bullets', 'a few bullets'] }]); b.reconcile();
   assert.deepEqual(b.open.filter((q) => q.ask === 'cant-check'), []);
-  assert.deepEqual(b.rows.filter((r) => r.kind === 'rule').map((r) => [r.can?.ask, r.can?.why]), [[undefined, REASON.noRule], [undefined, REASON.noRule]]);
+  assert.deepEqual(b.rows.filter((r) => r.kind === 'rule').map((r) => [r.can?.ask, r.can?.why]), [[undefined, REASON.noPick], [undefined, REASON.noPick]]);
 });
 
 // the asks that stay (am3 "The reading ask and the count-check ask stay"): red if the change took either away

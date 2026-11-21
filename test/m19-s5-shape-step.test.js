@@ -186,7 +186,7 @@ test('assembly, M19 am1 item 1 (O1): a shape-only line signs class green with it
   assert.equal(out.notChecked.some((/** @type {string} */ l) => /the items of line 1|blurb/.test(l)), false);
   const none = assemble(blockWith(false), null);
   assert.deepEqual(none.declaration.steps[0].close, { class: 'hitl' });
-  assert.deepEqual(none.declaration.checkList.filter((/** @type {any} */ r) => r.kind === 'rule').map((/** @type {any} */ r) => [r.state, r.reason]), [['not-checked', 'No rule can check this, so you judge it at Accept.'], ['not-checked', 'No rule can check this, so you judge it at Accept.']]);
+  assert.deepEqual(none.declaration.checkList.filter((/** @type {any} */ r) => r.kind === 'rule').map((/** @type {any} */ r) => [r.state, r.reason]), [['not-checked', 'No check was picked for it, so you judge it at Accept.'], ['not-checked', 'No check was picked for it, so you judge it at Accept.']]);
 });
 
 test('M19 am1 item 2 (Must-fail 2): on an assembled shape-only line a person\'s 5-word pick still reds a 10-word text, and the items are still read', async () => {
