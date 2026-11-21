@@ -12,7 +12,8 @@ import { readInputFacts } from './input-facts.js';
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft.js';
 import { assembleFromBlock } from './blockassemble.js';
-import { cardOfBlock } from './cardlist.js';
+import { cardOfBlock, cardOfPlanBlock } from './cardlist.js';
+import { ledgerRowsOf } from './checkrows.js';
 import { editsOf } from './rowedit.js';
 import { NOTE_KIND } from './noteask.js';
 import { offerRules, rowsFromAnswer, codeScope } from './checkpick.js';
@@ -209,7 +210,9 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
   // M19 am4: the plan card the new plan saves is the one its readout reads (one model)
-  const card = (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c; })();
+  // M19 am8 item 1, am9 item 5: the new plan's ledger rows, one per Not checked row, in its own log; the card is read from the new plan (am6)
+  const ledger = ledgerRowsOf(after.declaration, b.lines, Object.fromEntries(b.block.rows.filter((/** @type {any} */ r) => r.kind !== 'rule').map((/** @type {any} */ r) => [r.key, r.name ? [r.name] : r.words ?? []])));
+  const card = (() => { const c = withSheetCard(cardOfBlock(b.block), after.sheet); return cardOfPlanBlock(b.block, after.tickets.card.length ? withSheetCard(c, { card: after.tickets.card }) : c, { declaration: after.declaration, lines: b.lines, csvRoles: csvRolesOf(b.parsed.arbiter), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), ...ledger] }); })();
   const readoutText = buildReadout({
     declaration: after.declaration, arbiter: b.parsed.arbiter, lines: b.lines, name: target.name, modelId: b.log?.modelId, costUsd: b.log?.costUsd ?? null, rounds: b.log?.rounds ?? 0, spendComplete: b.log?.spendComplete !== false, root: target.root,
     notChecked, notCheckedBy: by, suggested: card.suggested, checkCard: card,
@@ -242,7 +245,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       'readout.txt': readoutText,
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
       [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}), ...(shapeDroppedNow.length ? { shapeDropped: shapeDroppedNow } : {}) }),
-      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow], checkCard: card }),
+      'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow, ...ledger], checkCard: card }),
       'spec.hash': `${h.hash}\n`,
     },
   };

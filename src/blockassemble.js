@@ -144,7 +144,8 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   const notChecked = checkList.filter((r) => isListedNotChecked(checkList, r)).map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
-    const line = notCheckedItem(r, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true); // M10 am17 (6): `kept` words
+    // the reason is fwd's signed table (M10 am16 (5), `notCheckedWords`); M10 am17 (6): `kept` words
+    const line = notCheckedItem({ ...r, reason: notCheckedWords(r.reason, own) }, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true);
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);

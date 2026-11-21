@@ -165,7 +165,7 @@ export function cardOfPlan({ declaration, lines, csvRoles = [], kept = [], log =
   const rank = (/** @type {any} */ r) => (/\.sheet\./.test(r.key) ? 0 : /\.ticket\./.test(r.key) ? 0.5 : /:fact:/.test(r.part) ? 1 : /:count$/.test(r.part) ? 2 : /:shape:/.test(r.part) ? 3 : /:pick:/.test(r.part) ? 4 : /:numbers$/.test(r.part) ? 5 : /\$floor$/.test(r.key) ? 6 : 4.5);
   const rows = out.map((r, i) => ({ ...r, rank: rank(r), i })).sort((a, b) => a.line - b.line || a.rank - b.rank || a.i - b.i).map(({ rank: _r, i: _i, ...r }) => r);
   // am8 item 3: the Not checked rows are a list of their own, in the signed list's order
-  const notChecked = listed.map((r) => ({ line: /** @type {number} */ (r.line), key: String(r.key), by: String(r.by), state: /** @type {const} */ ('not-checked'), kind: 'truth', reason: r.reason ?? null, part: `nc:${r.key}`, text: notCheckedName(r, ruleTextOf(lines, r), led.get(r.key)?.words), item: notCheckedItem(r, ruleTextOf(lines, r), led.get(r.key)?.words, r.kind === 'rule' && kept.some((k) => k.line === r.line && k.rule === r.rule)) }));
+  const notChecked = listed.map((r) => ({ line: /** @type {number} */ (r.line), key: String(r.key), by: String(r.by), state: /** @type {const} */ ('not-checked'), kind: 'truth', reason: r.reason ?? null, part: `nc:${r.key}`, text: notCheckedName(r, ruleTextOf(lines, r), led.get(r.key)?.words) }));
   return { rows, notChecked };
 }
 
@@ -190,5 +190,7 @@ export function planMatchesCard(plan, card) {
 export function planCard(card, plan) {
   const { rows, notChecked } = cardOfPlan(plan);
   const dropOf = new Map((Array.isArray(card?.rows) ? card.rows : []).filter(isRec).map((/** @type {any} */ r) => [r.key, r.drop === true]));
-  return { ...card, rows: rows.map((r) => ({ ...r, drop: dropOf.has(r.key) ? dropOf.get(r.key) : r.drop === true })), notChecked };
+  // the saved card keeps only what the page draws: a row's key, line, tag, state, words, reason, Drop flag and kind (its part is the reader's own)
+  const rowOf = (/** @type {any} */ r) => ({ key: r.key, line: r.line, by: r.by, state: r.state, text: r.text, reason: r.reason ?? null, drop: dropOf.has(r.key) ? dropOf.get(r.key) : r.drop === true, kind: r.kind });
+  return { ...card, rows: rows.map(rowOf), notChecked: notChecked.map(({ part: _p, ...r }) => r) };
 }

@@ -115,7 +115,7 @@ test('Add on a line with no guardrail of the person\'s: the row is signed Not ch
   assert.equal(after.phase, 'green', JSON.stringify(after));
   const decl = JSON.parse(read(w, id, `${after.plan}/declaration.json`));
   assert.ok(decl.checkList.some((r) => r.state === 'not-checked' && /^This line has no guardrail of yours/.test(r.reason)), 'break: build the row on a line with no guardrail and the sign proof refuses the plan');
-  assert.ok(after.notChecked.items.some((x) => x.includes('This line has no guardrail of yours')), JSON.stringify(after.notChecked));
+  assert.ok(after.notChecked.items.includes('line 3: phrase "Rust engineer"'), JSON.stringify(after.notChecked)); // M19 am9 item 4: a row that is not a rule reads `<kind> "<words>"`; its reason is the signed row's
   assert.equal(decl.steps.find((s) => s.fromLine === 3).close.class, 'hitl');
   const signed = signDraft({ dir: path.join(w.dir(id), after.plan), approve: after.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));

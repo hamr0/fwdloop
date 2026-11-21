@@ -44,6 +44,8 @@ import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
+import { planMatchesCard } from './checkrows.js';
+import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
 import { hitlWords, notCheckedView } from './checked.js';
 
@@ -634,6 +636,19 @@ export function signDraft({
     arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
+  // M19 am6 item 3 (bareloop `planMatchesClose`): the card a draft saved must equal the checks the signed plan runs, line by line; a difference refuses the sign at $0, naming the line.
+  // Only a card saved with its own Not checked list (this build) is compared; an older saved card is drawn from the plan and not held to it.
+  const cardReds = (() => {
+    if (!Array.isArray(declaration.checkList)) return [];
+    const lg = read('log.json');
+    const rec = read(RECORD_FILE);
+    /** @type {any} */ let log = null; /** @type {any} */ let record = null;
+    try { log = lg.ok ? JSON.parse(lg.text) : null; record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
+    if (!log?.checkCard || !Array.isArray(log.checkCard.notChecked)) return [];
+    const kept = Array.isArray(record?.kept) ? record.kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [];
+    return planMatchesCard({ declaration, lines: signed.lines, csvRoles: csvRolesOf(signed.arbiter), kept, log: log.log }, log.checkCard);
+  })();
+  if (cardReds.length) return { ok: false, reds: cardReds };
 
   const reds = [];
   for (const s of signed.arbiter.sources) {

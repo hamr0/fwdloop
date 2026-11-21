@@ -48,7 +48,7 @@ test('agree: the plan carries exactly the picked check; the `~` line is in the c
   assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 list items'], 'the Agree REPLACED the asked rule (M17 am1)');
   const row = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-1.json'), 'utf8'));
   assert.deepEqual([row.source, row.ask, row.line, row.proposal, row.rule], ['look', 'check', 3, 'exactly 3 list items', 'exactly 3 list items']);
-  assert.ok(g.checked[2].sentences.includes('exactly 3 list items. [you]'), JSON.stringify(g.checked[2]));
+  assert.ok(g.checked[2].sentences.includes('exactly 3 list items [you]'), JSON.stringify(g.checked[2]));
   const signed = signDraft({ dir: path.join(w.dir(id), 'draft-1'), approve: g.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
   // 3. the signed job: the agreed words are the rule (replaced in place)
@@ -74,7 +74,7 @@ test('own words (M17 am1 ruling: bareloop\'s reason for a countable own-words ru
   assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, choice: 'drop' })).status, 202);
   const g2 = await greenAfter(drop.w, drop.id);
   assert.equal(g2.phase, 'green', JSON.stringify(g2.reds ?? g2));
-  assert.ok(g2.notChecked.items.includes('not checked · "exactly 3 bullets" — You chose to leave it Not checked.'), JSON.stringify(g2.notChecked));
+  assert.ok(g2.notChecked.items.includes('line 3: "exactly 3 bullets" — You chose to leave it Not checked.'), JSON.stringify(g2.notChecked));
   const card = JSON.parse(readFileSync(path.join(drop.w.dir(drop.id), 'card-1.json'), 'utf8'));
   assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 bullets'], 'drop it adds no line');
 });

@@ -62,7 +62,7 @@ test('(a) a multi-line job: one block per job line, then an "Every line" block w
   const ac = auditChecksOf(decl(), diary(), nc(), { lines: LINES });
   assert.ok(ac);
   assert.deepEqual(ac.lines.map((l) => [l.n, l.text, l.checks.length, l.notChecked.length]), [[1, 'Write the intro', 0, 0], [2, 'Write the body', 2, 1]], 'break: do not split the rows by their line and this reds');
-  assert.deepEqual(ac.lines[1].checks.map((r) => r.text), ['at most 80 words.', 'exactly 3 list items.'], 'the words carry no `line N · ` prefix');
+  assert.deepEqual(ac.lines[1].checks.map((r) => r.text), ['at most 80 words', 'exactly 3 list items'], 'the words carry no `line N · ` prefix');
   assert.deepEqual(ac.jobNotChecked.map((r) => r.text), ['overall']);
   const h = drawn(ac);
   assert.equal(count(h, 'data-testid="audit-line"'), 2, 'break: draw one block for the whole job and this reds');

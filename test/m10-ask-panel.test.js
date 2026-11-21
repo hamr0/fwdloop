@@ -106,7 +106,7 @@ test('M19 am3: a rule code cannot check ("pays well") is not asked; the rule sta
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, ['under $150', 'departure time between 05:00 and 23:59', 'nonstop', 'pays well'], 'the agreed reading replaced its rule; nothing was added');
-  assert.ok(g.notChecked.items.some((x) => x.startsWith('not checked \u00b7 "pays well" \u2014 ')), JSON.stringify(g.notChecked));
+  assert.ok(g.notChecked.items.some((x) => x.startsWith('line 1: "pays well" \u2014 ')), JSON.stringify(g.notChecked));
   assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false, 'no second question was ever asked');
 });
 
