@@ -101,3 +101,15 @@ test('am10 (M10 am22 item 4): the Audit check row of the pick on an item line ca
   assert.equal(pickRow.by, 'you');
   assert.equal(pickRow.part, listRow.part.part, 'the row is the pick\'s own part, not the shape part before it');
 });
+
+test('am10: the numbers-tie row of an item line sits after the item-fields part and the pick (part 2), tagged default', async () => {
+  const { built, step } = setUp();
+  const it = (/** @type {string} */ t) => ({ title: t, status: 'closed', summary: 'ok' });
+  const art = { results: [it('A'), it('B'), it('C'), it('D')], text: '- a\n- b\n- c\n- d', done: true, blocker: null };
+  const closed = { ...(await closeByClass(step, art, { reads: {}, businessDate: '2026-11-21' })), numbersCheck: { text: 'numbers tie', ok: true, result: null } };
+  const rows = closeRecords(step, art, closed, built.declaration.checkList);
+  const tieRow = rows.find((/** @type {any} */ r) => r.text === 'numbers tie');
+  assert.ok(tieRow);
+  assert.equal(tieRow.part, 2, 'part 0 = item fields, 1 = the pick, 2 = the tie');
+  assert.equal(tieRow.by, 'default');
+});
