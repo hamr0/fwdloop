@@ -66,6 +66,57 @@ export function notCheckedName(r, ruleText, words) {
 }
 
 /**
+ * The rows of ONE step's close, in the close's part order (facts, the result count, the field rows of a list of items, each picked check, the numbers tie), each with `idx`, the index of the part the signed list's rows point at (src/checklistsign.js).
+ * The ONE place the words of these rows are written: the card, the readout, the Job tab and the Audit's Checks fold all read them from here.
+ * @param {{declaration: any, st: any, lines: any[], kept?: {line: number, check: any}[], idx?: number}} o `idx` = the first part's index (the parts the earlier steps of the line have)
+ * @returns {{rows: any[], next: number}}
+ */
+export function stepRowsOf({ declaration, st, lines, kept = [], idx = 0 }) {
+  const list = isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList.filter(isRec) : [];
+  const builtOn = (/** @type {number} */ line) => list.filter((r) => r.line === line && r.state === 'built' && r.kind !== 'floor');
+  const owner = (/** @type {any[]} */ rows) => rows.find((r) => r.by === 'you') ?? rows[0] ?? null; // am7 item 5: the first [you] row
+  /** @type {any[]} */
+  const out = [];
+  const line = st.fromLine;
+  const close = isRec(st.close) ? st.close : {};
+  if (isRec(close.cited)) {
+    const c = close.cited;
+    for (const f of Array.isArray(c.facts) ? c.facts : []) {
+      const own = owner(builtOn(line).filter((r) => Array.isArray(r.facts) && r.facts.includes(f.name)));
+      out.push({ line, key: own?.key ?? `L${line}.fact.${f.name}`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: factSentence(f, c.source), reason: null, idx, part: `L${line}:fact:${f.name}` });
+    }
+    const cs = countSentence(c);
+    if (cs) {
+      const own = builtOn(line).find((r) => r.kind === 'count');
+      out.push({ line, key: own?.key ?? `L${line}.count`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: cs, reason: null, idx, part: `L${line}:count` });
+    }
+    idx += 1;
+  }
+  if (isRec(close.itemShape)) {
+    const shim = { stages: [{ kind: 'rubric-step', params: { step: line, parts: [{ ...close.itemShape, class: 'shape' }] } }] };
+    for (const x of shapeRowsOf(shim, lines.map((l) => ({ n: l.n, text: l.text, rules: rulesOfLine(l) })))) {
+      const signed = list.find((r) => r.key === x.key);
+      if (x.by === 'default' && !signed) continue;
+      out.push({ line, key: x.key, by: signed?.by ?? x.by, state: 'built', kind: kindOfCheck({ key: x.key, shape: true }), text: x.text, reason: null, idx, part: `L${line}:shape:${/** @type {any} */ (x).name ?? '$'}` });
+    }
+    idx += 1;
+  }
+  const picked = Array.isArray(close.picked) ? close.picked : isRec(close.shape) && Array.isArray(close.shape.picked) ? close.shape.picked : [];
+  for (const c of picked) {
+    const own = owner(builtOn(line).filter((r) => isRec(r.part) && r.part.part === idx));
+    const isKept = kept.some((k) => k.line === line && isRec(k.check) && plainWords(k.check) === plainWords(c));
+    out.push({ line, key: own?.key ?? `L${line}.pick.${idx}`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: `${plainWords(c)}${isKept ? ` · ${KEPT_WORDS}` : ''}`, reason: null, idx, part: `L${line}:pick:${idx}` });
+    idx += 1;
+  }
+  if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) {
+    const own = owner(builtOn(line).filter((r) => r.kind === 'numbers' || (isRec(r.part) && r.part.part === idx)));
+    out.push({ line, key: own?.key ?? `L${line}.$numbers`, by: own?.by ?? 'default', state: 'built', kind: 'truth', text: numbersWords(close.numbersFrom), reason: null, idx, part: `L${line}:numbers` });
+    idx += 1;
+  }
+  return { rows: out, next: idx };
+}
+
+/**
  * The card's rows and its Not checked list, read from the signed plan.
  * @param {{declaration: any, lines: {n: number, text?: string, guardrail?: string}[], csvRoles?: string[], kept?: {line: number, check: any}[], log?: unknown}} o `log` = the draft's own `log.json` `log` list (the ledger rows are read from it)
  * @returns {{rows: {line: number, key: string, by: string, state: string, kind: string, text: string, reason: string|null, drop?: boolean, part: string}[], notChecked: {line: number, key: string, by: string, state: 'not-checked', kind: string, text: string, reason: string|null, part: string}[]}}
@@ -78,50 +129,14 @@ export function cardOfPlan({ declaration, lines, csvRoles = [], kept = [], log =
   const listedKeys = new Set(listed.map((r) => r.key));
   /** @type {any[]} */
   const out = [];
-  const builtOn = (/** @type {number} */ line) => list.filter((r) => r.line === line && r.state === 'built' && r.kind !== 'floor');
-  const owner = (/** @type {any[]} */ rows) => rows.find((r) => r.by === 'you') ?? rows[0] ?? null; // am7 item 5: the first [you] row
   const cardLines = cardLinesOf(declaration);
   const offsets = new Map();
   for (const st of steps) {
     const line = st.fromLine;
     if (!Number.isInteger(line) || !cardLines.has(line)) continue;
-    const close = isRec(st.close) ? st.close : {};
-    let idx = offsets.get(line) ?? 0;
-    if (isRec(close.cited)) {
-      const c = close.cited;
-      for (const f of Array.isArray(c.facts) ? c.facts : []) {
-        const own = owner(builtOn(line).filter((r) => Array.isArray(r.facts) && r.facts.includes(f.name)));
-        out.push({ line, key: own?.key ?? `L${line}.fact.${f.name}`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: factSentence(f, c.source), reason: null, part: `L${line}:fact:${f.name}` });
-      }
-      const cs = countSentence(c);
-      if (cs) {
-        const own = builtOn(line).find((r) => r.kind === 'count');
-        out.push({ line, key: own?.key ?? `L${line}.count`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: cs, reason: null, part: `L${line}:count` });
-      }
-      idx += 1;
-    }
-    if (isRec(close.itemShape)) {
-      const shim = { stages: [{ kind: 'rubric-step', params: { step: line, parts: [{ ...close.itemShape, class: 'shape' }] } }] };
-      for (const x of shapeRowsOf(shim, lines.map((l) => ({ n: l.n, text: l.text, rules: rulesOfLine(l) })))) {
-        const signed = list.find((r) => r.key === x.key);
-        if (x.by === 'default' && !signed) continue;
-        out.push({ line, key: x.key, by: signed?.by ?? x.by, state: 'built', kind: kindOfCheck({ key: x.key, shape: true }), text: x.text, reason: null, part: `L${line}:shape:${/** @type {any} */ (x).name ?? '$'}` });
-      }
-      idx += 1;
-    }
-    const picked = Array.isArray(close.picked) ? close.picked : isRec(close.shape) && Array.isArray(close.shape.picked) ? close.shape.picked : [];
-    for (const c of picked) {
-      const own = owner(builtOn(line).filter((r) => isRec(r.part) && r.part.part === idx));
-      const isKept = kept.some((k) => k.line === line && isRec(k.check) && plainWords(k.check) === plainWords(c));
-      out.push({ line, key: own?.key ?? `L${line}.pick.${idx}`, by: own?.by ?? 'agent', state: 'built', kind: 'truth', text: `${plainWords(c)}${isKept ? ` · ${KEPT_WORDS}` : ''}`, reason: null, part: `L${line}:pick:${idx}` });
-      idx += 1;
-    }
-    if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) {
-      const own = owner(builtOn(line).filter((r) => r.kind === 'numbers' || (isRec(r.part) && r.part.part === idx)));
-      out.push({ line, key: own?.key ?? `L${line}.$numbers`, by: own?.by ?? 'default', state: 'built', kind: 'truth', text: numbersWords(close.numbersFrom), reason: null, part: `L${line}:numbers` });
-      idx += 1;
-    }
-    offsets.set(line, idx);
+    const r = stepRowsOf({ declaration, st, lines, kept, idx: offsets.get(line) ?? 0 });
+    out.push(...r.rows);
+    offsets.set(line, r.next);
   }
   // fwd's own rows keep their own drawing (am6 item 5): sheet rows (`sheetRowsOf`), Tickets rows (`ticketRowsOf`, only where the signed list holds the row, am7 item 7)
   const sheet = sheetRowsOf({ declaration: { ...declaration, checkList: undefined }, lines, csvRoles });
