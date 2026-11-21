@@ -30,8 +30,8 @@ const FACT_KINDS = new Set(['fact', 'phrase', 'count']);
  */
 export const isListedNotChecked = (list, r) => isRec(r) && r.state === 'not-checked' && r.kind !== 'floor' && r.kind !== 'ticket' && !(r.kind === 'cited' && list.some((x) => isRec(x) && x.line === r.line && FACT_KINDS.has(x.kind)));
 
-/** @param {any[]} lines @param {any} r a signed `rule` row */
-const ruleTextOf = (lines, r) => (Number.isInteger(r.rule) ? rulesOfLine(lines.find((l) => l.n === r.line))[r.rule - 1] : undefined);
+/** the person's rule text a signed `rule` row holds (its line's `~` rule at the row's number), else undefined @param {any[]} lines @param {any} r a signed `rule` row */
+export const ruleTextOf = (lines, r) => (Number.isInteger(r.rule) ? rulesOfLine(lines.find((l) => l.n === r.line))[r.rule - 1] : undefined);
 
 /**
  * am8 item 1 and am9 item 5: the draft's ledger rows, one per Not checked list row, for the draft's own `log.json` `log` list (no new file). A `~` rule's words are its own text.
@@ -66,9 +66,20 @@ export function notCheckedName(r, ruleText, words) {
 }
 
 /**
+ * The Not checked ITEM a plan saves for a list row (the string the readout, the Job tab, the Audit and the card's Not checked group read, src/checklook.js `ncRowsOf`): the row's name, with the code-written prefix `line <n>: ` for a row whose name
+ * does not name its line (the prefix is how the surfaces place a row under its job line; `ncRowsOf` strips it), and M10 am17 (6)'s words when a Revise carried the row. ONE writer: src/blockassemble.js and the reader both call it.
+ * @param {any} r the signed row @param {string|undefined} ruleText @param {string[]|undefined} words @param {boolean} [keptFromLast]
+ */
+export function notCheckedItem(r, ruleText, words, keptFromLast = false) {
+  const name = notCheckedName(r, ruleText, words);
+  const own = r.kind === 'rule' || r.kind === 'prose' || r.kind === 'stage' ? name : `line ${r.line}: ${name}`;
+  return keptFromLast ? `${own} (${KEPT_WORDS})` : own;
+}
+
+/**
  * The rows of ONE step's close, in the close's part order (facts, the result count, the field rows of a list of items, each picked check, the numbers tie), each with `idx`, the index of the part the signed list's rows point at (src/checklistsign.js).
  * The ONE place the words of these rows are written: the card, the readout, the Job tab and the Audit's Checks fold all read them from here.
- * @param {{declaration: any, st: any, lines: any[], kept?: {line: number, check: any}[], idx?: number}} o `idx` = the first part's index (the parts the earlier steps of the line have)
+ * @param {{declaration: any, st: any, lines: any[], kept?: {line: number, check?: any, rule?: number}[], idx?: number}} o `idx` = the first part's index (the parts the earlier steps of the line have)
  * @returns {{rows: any[], next: number}}
  */
 export function stepRowsOf({ declaration, st, lines, kept = [], idx = 0 }) {
@@ -118,7 +129,7 @@ export function stepRowsOf({ declaration, st, lines, kept = [], idx = 0 }) {
 
 /**
  * The card's rows and its Not checked list, read from the signed plan.
- * @param {{declaration: any, lines: {n: number, text?: string, guardrail?: string}[], csvRoles?: string[], kept?: {line: number, check: any}[], log?: unknown}} o `log` = the draft's own `log.json` `log` list (the ledger rows are read from it)
+ * @param {{declaration: any, lines: {n: number, text?: string, guardrail?: string}[], csvRoles?: string[], kept?: {line: number, check?: any, rule?: number}[], log?: unknown}} o `log` = the draft's own `log.json` `log` list (the ledger rows are read from it)
  * @returns {{rows: {line: number, key: string, by: string, state: string, kind: string, text: string, reason: string|null, drop?: boolean, part: string}[], notChecked: {line: number, key: string, by: string, state: 'not-checked', kind: string, text: string, reason: string|null, part: string}[]}}
  */
 export function cardOfPlan({ declaration, lines, csvRoles = [], kept = [], log = [] }) {
@@ -154,7 +165,7 @@ export function cardOfPlan({ declaration, lines, csvRoles = [], kept = [], log =
   const rank = (/** @type {any} */ r) => (/\.sheet\./.test(r.key) ? 0 : /\.ticket\./.test(r.key) ? 0.5 : /:fact:/.test(r.part) ? 1 : /:count$/.test(r.part) ? 2 : /:shape:/.test(r.part) ? 3 : /:pick:/.test(r.part) ? 4 : /:numbers$/.test(r.part) ? 5 : /\$floor$/.test(r.key) ? 6 : 4.5);
   const rows = out.map((r, i) => ({ ...r, rank: rank(r), i })).sort((a, b) => a.line - b.line || a.rank - b.rank || a.i - b.i).map(({ rank: _r, i: _i, ...r }) => r);
   // am8 item 3: the Not checked rows are a list of their own, in the signed list's order
-  const notChecked = listed.map((r) => ({ line: /** @type {number} */ (r.line), key: String(r.key), by: String(r.by), state: /** @type {const} */ ('not-checked'), kind: 'truth', reason: r.reason ?? null, part: `nc:${r.key}`, text: notCheckedName(r, ruleTextOf(lines, r), led.get(r.key)?.words) }));
+  const notChecked = listed.map((r) => ({ line: /** @type {number} */ (r.line), key: String(r.key), by: String(r.by), state: /** @type {const} */ ('not-checked'), kind: 'truth', reason: r.reason ?? null, part: `nc:${r.key}`, text: notCheckedName(r, ruleTextOf(lines, r), led.get(r.key)?.words), item: notCheckedItem(r, ruleTextOf(lines, r), led.get(r.key)?.words, r.kind === 'rule' && kept.some((k) => k.line === r.line && k.rule === r.rule)) }));
   return { rows, notChecked };
 }
 

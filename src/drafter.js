@@ -43,7 +43,8 @@ import {
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits, repairedEditsReadable, editRecord, renderRejectBlock, buildFaultWords, isBuildFault } from './blockdraft.js';
 import { assembleFromBlock, closeUnbuiltSheetSteps } from './blockassemble.js';
-import { cardOfBlock } from './cardlist.js';
+import { cardOfBlock, cardOfPlanBlock } from './cardlist.js';
+import { ledgerRowsOf } from './checkrows.js';
 import { questionsOfBlock } from './blockasks.js';
 import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
@@ -1138,9 +1139,11 @@ export async function draft({
     if (verdict.ok) {
       entry.outcome = 'valid';
       log.push(entry);
+      // M19 am8 item 1, am9 item 5: the draft's ledger rows, one per Not checked row, in its own log (no new file); a row's words are the build's name for it
+      if (block) log.push(...ledgerRowsOf(declaration, lines, Object.fromEntries(block.rows.filter((r) => r.kind !== 'rule').map((r) => [r.key, r.name ? [r.name] : r.words ?? []]))));
       const m = sumMeterings(meterings);
       return withAction({
-        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras, ...(block ? { checkCard: (() => { const c = sheetOnList ? withSheetCard(cardOfBlock(block), sheetOnList) : cardOfBlock(block); return ticketOnList?.card.length ? withSheetCard(c, { card: ticketOnList.card }) : c; })() } : {}),
+        ok: true, declaration, reds: [], rounds: m.rounds, calls, spendComplete: unmetered === 0 && m.costUsd !== null, costUsd: m.costUsd, modelReturned: m.model, modelId, price: priceRecord(prices, rates), tokens: m.tokens, structureRetries, revisions, stop: null, log, thinking: thinkingOf(), inputs: facts.list, ...extras, ...pageExtras, ...(block ? { checkCard: (() => { const c = sheetOnList ? withSheetCard(cardOfBlock(block), sheetOnList) : cardOfBlock(block); return cardOfPlanBlock(block, ticketOnList?.card.length ? withSheetCard(c, { card: ticketOnList.card }) : c, { declaration, lines, csvRoles: csvRolesOf(arbiter), log }); })() } : {}),
       });
     }
     lastReds = [...verdict.reds];

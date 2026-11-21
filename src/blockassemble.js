@@ -25,6 +25,7 @@ import { REASON, renderCard } from './checkblock.js';
 import { dropSentence } from './pagedropwords.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
+import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -139,14 +140,11 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   });
   /** @type {Record<string, 'you'|'agent'|'default'>} the tag of each Not-checked line, by the row it tells (M16 item 5: one tag per row) */
   const notCheckedBy = {};
-  const notChecked = checkList.filter((r) => r.state === 'not-checked' && r.kind !== 'floor').map((r) => {
+  // M19 am8 item 2, am9 items 1 to 4: the items are the reader's (src/checkrows.js `notCheckedItem`, the one writer): a `~` rule `line <n>: "<rule text>" \u2014 <reason>`, any other row its name (`<kind> "<words>"`)
+  const notChecked = checkList.filter((r) => isListedNotChecked(checkList, r)).map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
-    const row = own;
-    // any other row is told in the words the card draws it with (renderCard; never the row's key)
-    // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
-    const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)
-    const line = r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${rowWords(own ?? r)} - ${notCheckedWords(r.reason, row)}${kept}`;
+    const line = notCheckedItem(r, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true); // M10 am17 (6): `kept` words
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);

@@ -4,6 +4,7 @@
 // What this throws away: the rows' proofs (`can`, `pick`, parts). Only the words, the tag, the reason and whether a Drop is offered survive.
 import { renderCard } from './checkblock.js';
 import { kindOfCheck } from './checklook.js';
+import { planCard } from './checkrows.js';
 
 /**
  * @param {import('./checkblock.js').CheckBlock} block
@@ -28,4 +29,14 @@ export function cardOfBlock(block) {
     // borrowed-from: bareloop src/panel/jobplan.js@v0.61.0 (`restorable`: the `[you]` rules the person dropped, Not checked "You dropped it."; the card gives each an Add back button) (M19 S9); only when a rule is dropped, so the saved card of every other job is byte for byte what it was
     ...(block.droppedRulesView().length ? { restorable: block.droppedRulesView() } : {}),
   };
+}
+
+/**
+ * M19 am6 to am9: the card a draft saves and the panel draws. The block's own card gives the suggestions, the restorable rows and the Drop flags; the rows come from the signed plan through the one reader (src/checkrows.js `planCard`),
+ * with the Not checked rows as a list of their own. `kept` = the picks and rules a Revise carried (the block's `keptFromLast` rows).
+ * @param {import('./checkblock.js').CheckBlock} block @param {any} withSheetAndTickets the block's card with the sheet and Tickets rows (src/sheetrows.js `withSheetCard`) @param {{declaration: any, lines: any[], csvRoles?: string[], log?: unknown}} plan
+ */
+export function cardOfPlanBlock(block, withSheetAndTickets, plan) {
+  const kept = block.rows.filter((r) => r.keptFromLast === true && Number.isInteger(r.line) && Number.isInteger(r.rule)).map((r) => ({ line: r.line, rule: r.rule, ...(r.pick ? { check: r.pick } : {}) }));
+  return planCard(withSheetAndTickets, { ...plan, kept });
 }
