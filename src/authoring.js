@@ -27,7 +27,6 @@ import { plainWords, labelled } from './checkwords.js';
 import { listLinesOf, cardLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
 import { LOOK, ncRowsOf } from './checklook.js';
 import { EVERY_STEP_TEXTS } from './try-checks.js';
-import { CARD_T } from './checkblock.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -44,7 +43,7 @@ import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
-import { planMatchesCard } from './checkrows.js';
+import { planMatchesCard, numbersWords } from './checkrows.js';
 import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
 import { hitlWords, notCheckedView } from './checked.js';
@@ -281,7 +280,7 @@ export function buildReadout({
     // M16 R7: the numbers tie of a list line (the `$` row)
     if (!cardLine && listed && Array.isArray(st.close?.numbersFrom) && st.close.numbersFrom.length > 0) {
       const before = (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + (Array.isArray(st.close.picked) ? st.close.picked.length : Array.isArray(st.close.shape?.picked) ? st.close.shape.picked.length : 0);
-      rows.push({ text: `${CARD_T.numbers} ${st.close.numbersFrom.join(', ')}`, by: partByOf(declaration, st.fromLine, before) ?? 'default' });
+      rows.push({ text: numbersWords(st.close.numbersFrom), by: partByOf(declaration, st.fromLine, before) ?? 'default' });
     }
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
