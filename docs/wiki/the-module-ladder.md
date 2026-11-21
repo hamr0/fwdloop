@@ -4360,3 +4360,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 8. The Job tab shows a list line's field rows (item 1) and counts its parts with `itemShape` included; its other words stay as they are.
 **Must fail when:** a field row shows the rule's text instead of `shapeRowsOf`'s words; a pick shows `(you agreed: …)` or a period; the numbers row's words differ from item 3; a line's rows are out of item 4's order; a second rule taken by one check gets its own row; a Not checked name loses the page's case while the draft holds it; a Tickets row shows with no signed row; the Job tab skips or mis-numbers a list line's part.
 **Done when:** a new pre-registered $0 POC (F239 stays FAIL as written) passes F239's bars (b)-(f) with this amendment's words on the letter; tests that fail first; the full suite green. **Cap:** $0.
+
+**M19 amendment 8 — SIGNED by hamr 2026-11-21 ("sign m19 am8."), the text exactly as shown (.claude/scratch/m19-s5/m19-am8-sign.md, sha256 dd371385009e…):**
+
+**M19 amendment 8 — F240's open points, as loop.** Each item copies bareloop v0.61.0 as its `loop` session quoted it on 2026-11-20.
+1. The draft saves a ledger of its list rows' names: `{kind:'ledger', phase:'final', key, rowKind, words, state}` rows in the draft's own `log.json` `log` list (no new file); the last row per key wins (bareloop `readDraftLedger`, src/draftspend.js:326).
+2. A Not checked row's name: a `~` rule row uses the person's rule text; a prose or stage row says `line <n>: <reason>`; any other row uses its ledger words, else its key's tail (bareloop `ruleNotCheckedItems` and `listRowName`, src/rubricstep.js:1005-1020). This is how am7 item 6 reads "the draft's own words".
+3. Not checked rows are not in a line's checked rows: they make their own list on the card, in the signed list's order, then old refused entries the list has no row for (bareloop `cardOfClose`, src/rubricstep.js:1259).
+4. A Tickets filter or watch row sits where its signed part sits in am7 item 4's order; the floor row stays last.
+**Must fail when:** a draft with a Not checked row saves no ledger row for it; a Not checked name differs from item 2; a Not checked row shows inside a line's checked rows; a Tickets row is out of its signed part's place, or after the floor.
+**Done when:** a new pre-registered $0 POC (F240 stays FAIL as written) passes F240's bars with am6, am7 and this amendment on the letter, (l) on a key no built row holds; tests that fail first; the full suite green. **Cap:** $0.
