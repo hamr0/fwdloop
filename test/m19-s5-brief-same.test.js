@@ -17,7 +17,7 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 function stepsOfFixtures() {
   /** @type {{id: string, step: any}[]} */ const out = [];
   // test/fixtures/m19-card holds saved plans from after S5 (one has an itemShape step); this guard's byte-for-byte claim is about the fixtures from before S5
-  for (const f of walk(ROOT).filter((x) => x.endsWith('.json') && !x.includes('m19-block-snapshot') && !x.includes('m19-s5-brief') && !x.includes('m19-card'))) {
+  for (const f of walk(ROOT).filter((x) => x.endsWith('.json') && !x.includes('m19-block-snapshot') && !x.includes('m19-s5-brief') && !x.includes('m19-card') && !x.includes('m19-am10'))) {
     let j; try { j = JSON.parse(readFileSync(f, 'utf8')); } catch { continue; }
     if (!isRec(j) || !Array.isArray(j.steps)) continue;
     j.steps.forEach((/** @type {any} */ st, /** @type {number} */ i) => { if (isRec(st) && isRec(st.close)) out.push({ id: `${path.relative(ROOT, f)}#${i}`, step: st }); });
