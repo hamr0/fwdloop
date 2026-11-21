@@ -9606,3 +9606,21 @@ Nothing is built for them; no saved draft holds one, so none can be measured. (3
 - **(A8) a line with neither is unchanged.** SYNTHETIC cases: `close.picked` on a hitl step, on a softgreen step, on an itemShape step whose class is hitl; an itemShape line with no pick; a softgreen line with `close.shape.picked`. PASS = the validator's outcome and reds byte-identical today vs candidate; the three `close.picked` cases still red with today's sentence.
 **Rests on what.** Real saved data: (P0), (A1), (A2) and the base plan of (A3) to (A5). Synthetic: every answer in (A3) and (A4), every variant in (A5), all of (A6), (A7), (A8).
 **Verdict rule.** All bars PASS on the letter = PASS; today's run is expected to FAIL (A1) only; any other failing bar stays FAIL on the letter, never refitted. Cap $0.
+
+### F243 RESULT (2026-11-21, $0, no AI, no key, no panel, no node --test; `node poc/am10-shape-pick/run.mjs --today`, then `make-candidate.mjs` and `--candidate`, then `--today` again so (A7) and (A8) compare; output `.claude/scratch/am10-shape-pick/RESULT-*.json`, untracked; the walk's draft folder was read only)
+| bar | today | candidate |
+|---|---|---|
+| P0 rebuild reproduces the saved line 2 | PASS | PASS |
+| A1 the plan with the agreed pick validates | **FAIL** (the walk's sentence, `close.picked is for a step that checks facts ... "green"`) | PASS |
+| A2 the pick is kept | PASS | PASS |
+| A3 green only if every part passes (4 synthetic answers) | PASS | PASS |
+| A4 missing text or results is red (5 synthetic) | PASS | PASS |
+| A5 drafter-written count refused (4 synthetic variants) | PASS (variants (a) (b) red for the WRONG reason: "checks facts only") | PASS (variants (a) (b) red for the right reason: "not one of the lines you picked checks for (pickedLines)"; (c) (d) red as before) |
+| A6 facts + item fields + pick (1 validate + 5 closes, synthetic) | PASS (already allowed today) | PASS |
+| A7 a fact line's picks unchanged (synthetic) | PASS (outcomes byte-identical to candidate) | PASS |
+| A8 a line with neither unchanged (synthetic) | PASS (byte-identical) | PASS |
+| A8b hitl / softgreen / itemShape-hitl + `close.picked` still red with the "checks facts" sentence | PASS | PASS |
+**Verdict.** The one pre-registered bar expected to fail today (A1) fails today and passes on the candidate; every other bar passes on both. By the pre-registered rule: PASS.
+**The candidate** is one condition in `checkPickedKey` (`src/declaration.js`): `close.picked` is also allowed on a green step whose close has `itemShape` (no quote). Nothing else was patched. The assembler (`src/blockassemble.js:96-99`), the closer (`src/closers.js` `closeByClass`, `closeFactAndPicks`, `closeItemShape`), the run-time schema and brief (`src/model-step.js` `buildEmitArtifactSchema` items + `withText`, `shapeLineBrief(..., alsoText)`, `src/runner.js` `stepMeta.withText`) already handle the combination: (A2) (A3) (A4) pass on today's code.
+**Rests on.** Real saved data: P0, A1, A2 and the base plan of A3 to A5 (the walk's `draft-1` plan rebuilt by `rebuildBlock`, `assembleFromBlock`, `validateDeclaration`; `assembleAgain` is not exported, its three calls are repeated). Synthetic: every answer in A3 and A4 (the walk saved none), every variant in A5, all of A6 (bareloop's flights-3 fixture, plus a hand-built facts+items plan with its rows renumbered), A7, A8.
+**Not measured, left open.** (1) Whether the run-time step is TOLD its picks on an item-field line: `src/model-step.js:408` puts `yourTextHas: toldPicks(picked)` only inside `quoting`, which needs `cited`; an item-only step gets `answering: shapeLineBrief(...)` with the text instruction but no pick words (on a fact line the pick is told, M10 am22). am10 does not say. (2) The Audit's check rows for a pick on an item-only line: `src/try-checks.js` `closeRecords` indexes the pick's list part as `(hasCited ? 1 : 0) + i`, which ignores the shape part; not run. (3) What the Result tab and the send step write for an item line that also has `text`. (4) The drafter's own `close.picked` / `pickedLines` drop (`src/drafter.js:1042-1046`) was read, not run. (5) The parked gap (nothing ties the bullet count in `text` to the number of `results`) stays parked.
