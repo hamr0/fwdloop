@@ -35,7 +35,7 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   const whyOf = (/** @type {any} */ got) => (got !== undefined && !got.ok && typeof got.result === 'string' && got.result !== '' ? { why: got.result } : {});
   for (const st of steps) {
     const rec = lastTry(st);
-    for (const r of listPartRows(declaration, st)) {
+    for (const r of listPartRows(declaration, st, { lines: Array.isArray(jobLines) ? jobLines : [] })) {
       const got = rec?.checks?.find((/** @type {any} */ c) => c.part === r.part);
       const row = /** @type {AuditCheckRow} */ ({ text: r.text, kind: 'truth', by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed', ...whyOf(got) });
       checks.push({ ...row, text: `line ${st.fromLine} · ${r.text}` });

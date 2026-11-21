@@ -2115,7 +2115,7 @@ function buildJobPlan(declaration, asks, flowDir, flowHash = null, jobLines = /*
   const declSteps = Array.isArray(declaration?.steps) ? declaration.steps : [];
   const steps = declSteps.map((st, i) => {
     const ak = asks.find((x) => x.line === st.fromLine);
-    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st).map((r) => ({ text: r.text, by: r.by, kind: 'truth' })) : null;
+    const listRows = onList.has(st.fromLine) ? listPartRows(declaration, st, { lines: Array.isArray(jobLines) ? jobLines : [] }).map((r) => ({ text: r.text, by: r.by, kind: 'truth' })) : null;
     return {
       step: i + 1,
       line: Number.isInteger(st.fromLine) ? st.fromLine : null,

@@ -160,7 +160,7 @@ export function cardOfPlan({ declaration, lines, csvRoles = [], kept = [], log =
 
 /**
  * M19 am6 item 3 (bareloop `planMatchesClose`): the checks a card shows must equal the checks the signed plan runs, line by line. Returns the reds, each naming the line; empty = they match. Pure.
- * @param {{declaration: any, lines: any[], csvRoles?: string[], kept?: any[], log?: unknown}} plan @param {{rows?: {line: number, key: string, by: string, text: string}[]}|null|undefined} card the card as shown
+ * @param {{declaration: any, lines: any[], csvRoles?: string[], kept?: any[], log?: unknown}} plan @param {any} card the card as shown
  * @returns {string[]}
  */
 export function planMatchesCard(plan, card) {
