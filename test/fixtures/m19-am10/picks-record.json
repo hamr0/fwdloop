@@ -1,0 +1,16 @@
+{
+  "picks": [
+    {
+      "lineWords": "list every research item.",
+      "occurrence": 0,
+      "ruleText": "exactly 4 list items",
+      "check": {
+        "rule": "listItems",
+        "value": 4
+      },
+      "own": false,
+      "left": false
+    }
+  ],
+  "kept": []
+}
