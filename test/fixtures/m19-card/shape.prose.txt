@@ -1,0 +1,10 @@
+1. Read the research notes.
+2. List every research item.
+   guardrail: each item has a title; each item has a status: in progress, closed or finished; each item has a summary under 200 characters
+3. Check it with me.
+4. Write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.3 per run
+guardrail: send at line 4 to file:/tmp/out
+guardrail: source notes = file:/tmp/out

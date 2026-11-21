@@ -1,0 +1,253 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "garden_lines",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write 3 lines about my garden from the notes"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "garden_lines"
+      ],
+      "emits": "garden_lines_check",
+      "fromLine": 2,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "week_jobs",
+      "fromLine": 3,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "picked": [
+            {
+              "rule": "listItems",
+              "value": 3
+            }
+          ]
+        }
+      },
+      "goal": "List 3 jobs for this week from the notes"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "week_jobs"
+      ],
+      "emits": "week_jobs_check",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "neighbour_note",
+      "fromLine": 5,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "picked": [
+            {
+              "rule": "maxWords",
+              "value": 80
+            }
+          ]
+        }
+      },
+      "goal": "Write a short closing note to my neighbour"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "neighbour_note"
+      ],
+      "emits": "neighbour_note_check",
+      "fromLine": 6,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check it with me"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "garden_lines",
+        "week_jobs",
+        "neighbour_note"
+      ],
+      "emits": "assembled_draft",
+      "fromLine": 7,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "assembled_draft",
+        "garden_lines",
+        "week_jobs",
+        "neighbour_note"
+      ],
+      "emits": "assembled_draft_check",
+      "fromLine": 8,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check the result with me"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "assembled_draft_check"
+      ],
+      "emits": "garden_output_file",
+      "fromLine": 9,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "write it out"
+    }
+  ],
+  "guardrailClasses": {
+    "3": "softgreen",
+    "5": "softgreen"
+  },
+  "unjudgeable": {},
+  "refused": [],
+  "inputFacts": {
+    "notes": [
+      "Garden notes"
+    ]
+  },
+  "flowType": "plain",
+  "checkList": [
+    {
+      "line": 1,
+      "key": "L1.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 3,
+      "key": "L3.~1",
+      "from": "pick",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 1,
+      "part": {
+        "line": 3,
+        "part": 0
+      }
+    },
+    {
+      "line": 3,
+      "key": "L3.~2",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 2,
+      "part": {
+        "line": 3,
+        "part": 0
+      }
+    },
+    {
+      "line": 3,
+      "key": "L3.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 5,
+      "key": "L5.~1",
+      "from": "pick",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 1,
+      "part": {
+        "line": 5,
+        "part": 0
+      }
+    },
+    {
+      "line": 5,
+      "key": "L5.~2",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 2,
+      "part": {
+        "line": 5,
+        "part": 0
+      }
+    },
+    {
+      "line": 5,
+      "key": "L5.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 7,
+      "key": "L7.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 1,
+      "key": "L1.count.3-3",
+      "from": "agent",
+      "by": "agent",
+      "kind": "count",
+      "state": "dropped",
+      "reason": "a result count needs a fact to count; this line has none"
+    },
+    {
+      "line": 3,
+      "key": "L3.count.3-3",
+      "from": "agent",
+      "by": "agent",
+      "kind": "count",
+      "state": "dropped",
+      "reason": "a ~ rule already says it: line 3 rule 1 names the number"
+    }
+  ]
+}

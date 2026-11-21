@@ -1,0 +1,146 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "issues"
+      ],
+      "emits": "ticket_text",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "mcpTools": [
+        "issue_read"
+      ],
+      "goal": "Read the ticket"
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "ticket_text"
+      ],
+      "emits": "triage_note",
+      "fromLine": 2,
+      "close": {
+        "class": "softgreen",
+        "shape": {
+          "picked": [
+            {
+              "rule": "maxWords",
+              "value": 3
+            }
+          ]
+        }
+      },
+      "goal": "Write a one-paragraph triage note: a summary of the ticket and a suggested next step"
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "triage_note",
+        "ticket_text"
+      ],
+      "emits": "note_check",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "check the note with me"
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "note_check"
+      ],
+      "emits": "triage_note_out",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "write it out"
+    }
+  ],
+  "guardrailClasses": {
+    "2": "softgreen"
+  },
+  "refused": [],
+  "inputFacts": {},
+  "flowType": "tickets",
+  "mcp": {
+    "server": "github",
+    "tools": [
+      "get_label",
+      "issue_read",
+      "list_issue_fields",
+      "list_issue_types",
+      "list_issues",
+      "search_issues"
+    ]
+  },
+  "ticketFilter": {
+    "priority": [
+      "P1"
+    ]
+  },
+  "ticketWatch": [
+    "state"
+  ],
+  "checkList": [
+    {
+      "line": 1,
+      "key": "L1.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.~3",
+      "from": "pick",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 3,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.ticket.ticketFilter.1",
+      "from": "rule",
+      "by": "you",
+      "kind": "ticket",
+      "state": "built",
+      "rule": 1,
+      "field": "ticketFilter"
+    },
+    {
+      "line": 2,
+      "key": "L2.ticket.ticketWatch.2",
+      "from": "rule",
+      "by": "you",
+      "kind": "ticket",
+      "state": "built",
+      "rule": 2,
+      "field": "ticketWatch"
+    }
+  ]
+}

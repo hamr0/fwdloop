@@ -1,0 +1,182 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "research_notes",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the research notes."
+    },
+    {
+      "primitives": [
+        "stash"
+      ],
+      "reads": [
+        "research_notes"
+      ],
+      "emits": "research_items",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "itemShape": {
+          "fields": [
+            {
+              "name": "title",
+              "spec": {
+                "kind": "text",
+                "required": true,
+                "minChars": 1
+              },
+              "rule": 1
+            },
+            {
+              "name": "status",
+              "spec": {
+                "kind": "oneOf",
+                "required": true,
+                "values": [
+                  "in progress",
+                  "closed",
+                  "finished"
+                ],
+                "ignoreCase": false
+              },
+              "rule": 2
+            },
+            {
+              "name": "summary",
+              "spec": {
+                "kind": "text",
+                "required": true,
+                "maxChars": 199
+              },
+              "rule": 3
+            }
+          ]
+        }
+      },
+      "goal": "List every research item."
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "research_items"
+      ],
+      "emits": "items_reviewed",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Check it with me."
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "items_reviewed"
+      ],
+      "emits": "research_items_file",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "refused": [],
+  "inputFacts": {
+    "notes": [
+      "Research notes",
+      "Battery recycling study",
+      "Warehouse robotics survey",
+      "Tariff impact review",
+      "Solar permit timelines"
+    ]
+  },
+  "flowType": "plain",
+  "checkList": [
+    {
+      "line": 1,
+      "key": "L1.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.~1",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 1,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.~2",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 2,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.~3",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 3,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 3,
+      "key": "L3.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.count.4-4",
+      "from": "agent",
+      "by": "agent",
+      "kind": "count",
+      "state": "dropped",
+      "reason": "a result count needs a fact to count; this line has none"
+    }
+  ]
+}
