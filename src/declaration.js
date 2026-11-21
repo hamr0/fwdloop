@@ -575,12 +575,13 @@ function checkPickedLines(declaration, reds) {
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
    * assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
+ * M19 am10: a green step with item fields (`close.itemShape`) and no quote keeps its picks the same way (the step is checked on its `results` and on each pick over `text`).
  * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
  * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */
 function checkPickedKey(step, label, effectiveClass, reds, declaration) {
   const at = `declaration: ${label}.close.picked`;
-  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet))) {
+  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet) || isPlainObject(step.close.itemShape))) {
     reds.push(`${at} is for a step that checks facts (quotes or a sheet) only; this step's check is "${step.close.class ?? effectiveClass}"`);
     return;
   }

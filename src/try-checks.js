@@ -55,13 +55,15 @@ export function closeRecords(step, artifact, closed, checkList = undefined) {
   const hasCited = step?.close?.class === 'green' && !!step?.close?.cited;
   const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback, part: idx } : {});
   const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined, checkList).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
+  // the list's part order is the close's: the fact part, the item-fields part (M19 am10), then each pick, then the tie
+  const lead = (hasCited ? 1 : 0) + (step?.close?.itemShape ? 1 : 0);
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
   const picks = Array.isArray(/** @type {any} */ (closed).pickChecks) ? /** @type {any} */ (closed).pickChecks : [];
-  const pickRows = picks.map((/** @type {any} */ c, /** @type {number} */ i) => ({ n: rows.length + 3 + i, text: listed ? c.text : labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + i, 'you') }));
+  const pickRows = picks.map((/** @type {any} */ c, /** @type {number} */ i) => ({ n: rows.length + 3 + i, text: listed ? c.text : labelled(c.text, 'picked'), ok: c.ok, result: c.result, source: lineSource(step), ...by(lead + i, 'you') }));
   // M16 R7: the numbers tie of a text line is one more row
   const tie = /** @type {any} */ (closed).numbersCheck;
   const picked = Array.isArray(step?.close?.picked) ? step.close.picked.length : Array.isArray(step?.close?.shape?.picked) ? step.close.shape.picked.length : 0;
-  return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step), ...by((hasCited ? 1 : 0) + picked, 'default') }] : [])];
+  return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step), ...by(lead + picked, 'default') }] : [])];
 }
 
 /** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label @param {any[]} [checkList] the signed list: a sheet row on it gives its check's `by` */
