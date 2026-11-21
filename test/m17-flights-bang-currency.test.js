@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CheckBlock } from '../src/checkblock.js';
+import { CheckBlock, renderCard } from '../src/checkblock.js';
 import { dryReadPhrases, phraseInNoResult } from '../src/pagedry.js';
 
 const TEXT = readFileSync(new URL('./fixtures/m16-block/flights-eur/flights-madrid-rome-eur.txt', import.meta.url), 'utf8');
@@ -63,7 +63,7 @@ test('A Drop then Add: a ledger-suggested "Rome" re-Added from Suggested stays N
   const row = b.rows.find((r) => r.key === 'L2.phrase.rome');
   assert.equal(row?.state, 'not-checked');
   assert.equal(row?.reason, sentence);
-  assert.equal(b.card().some((c) => c.key === 'L2.phrase.rome' && c.state === 'built'), false);
+  assert.equal(renderCard(b.rows).some((c) => c.key === 'L2.phrase.rome' && c.state === 'built'), false);
   const signed = b.signedRows().filter((r) => r.key === 'L2.phrase.rome');
   assert.equal(signed.some((r) => r.state === 'built'), false);
   assert.equal(close.parts.flatMap((/** @type {any} */ p) => p.facts ?? []).some((/** @type {any} */ f) => f.phrase === 'Rome'), false);
