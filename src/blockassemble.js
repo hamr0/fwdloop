@@ -21,15 +21,12 @@ export const SHAPE_ONLY_CLASS = 'green';
 /** what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail) */
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at Accept.';
 
-import { REASON, renderCard } from './checkblock.js';
+import { REASON } from './checkblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-/** the words the card draws a row with, without its `~` / `!` / `$` mark (the one renderer, src/checkblock.js renderCard) @param {Record<string, any>} row */
-const rowWords = (row) => String(renderCard([{ ...row, hidden: false, state: row.state === 'suggested' || row.state === 'dropped' ? 'not-checked' : row.state }])[0]?.text ?? '').slice(2);
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {
