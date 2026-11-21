@@ -104,8 +104,14 @@ try {
   const runDir = path.join(tmp, 'run'); fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true });
   fs.copyFileSync(path.join(RUN2, 'artifacts/research_notes_content.json'), path.join(runDir, 'artifacts/research_notes_content.json'));
   const { readArtifactsMapChecked, buildExecutorContext, findForbiddenInContext } = await S('runner.js');
-  const rm = readArtifactsMapChecked(runDir, step2.reads);
+  // the rebuilt plan carries no reads (r1 handed the step none); the reads are the walk's signed step 2, as F248 took them
+  const walkStep2 = JSON.parse(fs.readFileSync(path.join(WALK, 'declaration.json'), 'utf8')).steps.find((s) => s.fromLine === 2);
+  const READS = walkStep2?.reads ?? [];
+  const rm = readArtifactsMapChecked(runDir, READS);
   if (!rm.ok) throw new Error(`reads: ${rm.red}`);
+  const readsEmpty = READS.length === 0 || Object.keys(rm.map).length === 0 || Object.values(rm.map).every((v) => v === null || v === undefined || v === '' || (typeof v === 'object' && Object.keys(v).length === 0));
+  console.log('reads handed to the step:', JSON.stringify({ names: READS, keys: Object.keys(rm.map), bytes: JSON.stringify(rm.map).length }));
+  if (readsEmpty) { console.error('refused: the step would get no reads (line 1 output missing); the paid run must hand line 1\'s real output'); process.exit(7); }
 
   // ---- model, price: refused at $0 when unpriced
   const { resolveUsableModel, makeProvider, readPriceConfig } = await S('provider.js');
@@ -137,6 +143,8 @@ try {
   const fake = { generate: async (messages) => { seen.push(JSON.parse(JSON.stringify(messages))); return { text: null, toolCalls: [{ id: 't1', name: 'emit_artifact', arguments: { results: [], done: true } }], usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'tool_calls', model: MODEL }; } };
   await makeLiveModelStep({ spendPath: path.join(tmp, 'cap.jsonl'), provider: fake, rates, modelId: MODEL })(ctx, {}, stepMeta);
   const user = JSON.parse(seen[0][1].content);
+  if (!user.reads || Object.keys(user.reads).length === 0) { console.error('refused: the prompt the worker sees has empty reads'); process.exit(7); }
+  console.log('prompt reads keys:', Object.keys(user.reads).join(','));
   const brief = user.answering ?? null;
   const countLine = typeof brief === 'string' ? brief.split('\n').find((x) => /exactly 4 item/.test(x)) : null;
   console.log('goal:', JSON.stringify(step2.goal));
