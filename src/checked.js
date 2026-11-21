@@ -63,8 +63,6 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
     } else if (cls === 'green' && Array.isArray(st.close.sheet)) {
       // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
       out.push('The machine recomputes each of these from the saved sheet and compares it with what the step gave:', ...(sheet ? [] : sheetCheckRows(st.close.sheet).map((r) => labelled(r, 'agent'))));
-    } else if (cls === 'green' && st.close.itemShape && typeof st.close.itemShape === 'object') {
-      // M19 S5 (F245): a list line states no lead sentence; its checks are the rows below (listPartRows)
     } else if (cls === 'green') {
       out.push('Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.');
     } else if (cls === 'softgreen') {
