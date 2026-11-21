@@ -119,7 +119,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const idx = isRec(r.part) && m ? m.get(r.part.part) : undefined;
     if (r.state === 'built' && r.kind !== 'floor' && (idx === null || idx === undefined)) {
       const { part: _p, ...rest } = r;
-      return { ...rest, state: 'not-checked', reason: notSignable.has(r.line) ? NO_GUARDRAIL_WORDS : noShapeClass.has(r.line) ? REASON.noRule : String(r.reason ?? 'not checked') };
+      return { ...rest, state: 'not-checked', reason: notSignable.has(r.line) ? NO_GUARDRAIL_WORDS : noShapeClass.has(r.line) ? (r.kind === 'rule' ? REASON.noPick : REASON.noRule) : String(r.reason ?? 'not checked') };
     }
     return isRec(r.part) && typeof idx === 'number' ? { ...r, part: { line: r.part.line, part: idx } } : r;
   });

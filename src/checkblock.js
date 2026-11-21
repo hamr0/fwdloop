@@ -550,10 +550,10 @@ export class CheckBlock {
     }
     if (otherCurrency) { r.can = { ok: false, why: `the amount in your rule is in another currency than the page's prices, so it is not checked.` }; return; }
     if (r.links?.length && !links.length) { r.can = { ok: false, why: REASON.lookNoWords }; return; }
-    if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: r.aiReason ?? r.lookWhy ?? REASON.nothingOnPage }; return; }
+    if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: r.aiReason ?? r.lookWhy ?? REASON.noPick }; return; }
     if (r.links?.length) { r.can = { ok: false, why: r.aiReason ?? `the look tied a fact to this rule but gave no limit, and ${ownWhy ? `in your words ${ownWhy}` : 'your own words give none code can read'}, so you judge it at Accept.` }; return; }
     // borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 am3: a rule no check can prove is Not checked at once, never asked; the shape look can take it)
-    r.can = { ok: false, why: r.lookWhy ?? REASON.noRule };
+    r.can = { ok: false, why: r.lookWhy ?? REASON.noPick };
   }
 
   /**
@@ -573,7 +573,7 @@ export class CheckBlock {
 
   /** a `~` rule that counts words, bullets, lines or sections: a settled pick builds it; else code proposes the check and asks */
   matchCountRule(/** @type {Row} */ r) {
-    if (!r.pick && (r.cantAsked || !this.countScope(r.text))) { r.can = { ok: false, why: r.aiReason ?? REASON.noRule }; return; }
+    if (!r.pick && (r.cantAsked || !this.countScope(r.text))) { r.can = { ok: false, why: r.aiReason ?? REASON.noPick }; return; }
     if (r.pick) { r.can = { ok: true, how: 'pick' }; return; }
     // no obvious asks (hamr 2026-11-14): a rule whose words ARE the check ("exactly 3 list items") is settled as it stands, so a replaced rule never re-asks on a re-draft or a Reuse
     const obvious = obviousCheck(r.text);
@@ -582,10 +582,10 @@ export class CheckBlock {
       if (res.kept) { r.pick = res.check; r.from = 'pick'; r.can = { ok: true, how: 'pick' }; return; }
     }
     const proposal = r.pickProposal ?? countCheck(r.text);
-    if (!this.asks) r.can = { ok: false, why: REASON.noRule };
+    if (!this.asks) r.can = { ok: false, why: REASON.noPick };
     else if (proposal) r.can = { ok: false, ask: 'check', proposal, why: REASON.waitingPick };
     // borrowed-from: bareloop src/checkblock.js@v0.61.0 (fc56e1f3) (M19 am3: no count proposal is Not checked at once, never asked)
-    else r.can = { ok: false, why: REASON.noRule };
+    else r.can = { ok: false, why: REASON.noPick };
   }
 
   /** a `!` fact or phrase row: its words must be on the page; a version or a date is true only today, so only a place rule's fit may carry it */
@@ -986,8 +986,8 @@ export class CheckBlock {
   matchRepoRule(r) {
     // the AI points, code proves (never kept without a pointer; own words that replaced the rule are proved again against the same pointer)
     if (typeof r.pointed === 'string' && this.provesFence(r.text, r.pointed)) { r.can = { ok: true, how: 'fence', path: r.pointed }; return; }
-    if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: REASON.nothingOnPage }; return; }
-    r.can = { ok: false, why: REASON.noRule };
+    if (r.origin === 'typed' || r.cantAsked) { r.can = { ok: false, why: REASON.noPick }; return; }
+    r.can = { ok: false, why: REASON.noPick };
   }
 
   /** a repo job's rows: a rule is built with the path the fence keeps for it or Not checked with its reason; a work stage is built, or dropped when the person dropped it and it is not the last thing on its line */
