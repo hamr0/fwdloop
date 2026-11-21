@@ -106,7 +106,7 @@ test('a rule the person left ("drop it") is Not checked with the signed words, t
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.ok(!r.look.facts.some((f) => f.line === 1 && f.forRule === 2));
   assert.ok(r.look.dropped.some((d) => d.line === 1 && d.rule === 2 && d.reason === 'person-left'));
-  assert.ok(r.notChecked.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
+  assert.ok(r.notChecked.includes('line 1: "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
   assert.ok(p.calls.find((c) => c.tools[0] === 'emit_declaration').messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
 });
 
@@ -115,11 +115,11 @@ test('a left rule that does not exist on the job is ignored, not invented', asyn
   assert.ok(!r.look.dropped.some((d) => d.reason === 'person-left'));
 });
 
-test('am2 item 3: the plan card row for a left rule reads exactly `not checked · "<rule>" — You chose to leave it Not checked.`, and no other row uses that prefix', async () => {
+test('am2 item 3: the plan card row for a left rule reads exactly `line <n>: "<rule>" — You chose to leave it Not checked.` (M19 am9 item 1), and no other row uses the old `not checked · ` prefix but the Ask line', async () => {
   const r = await run(fakeProvider([mapReply(raw(3)), toolReply(planOf())]), { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
   assert.equal(r.ok, true, r.reds.join('\n'));
   const left = r.notChecked.filter((x) => x.endsWith('You chose to leave it Not checked.'));
-  assert.deepEqual(left, ['not checked · "not a red-eye" — You chose to leave it Not checked.']);
+  assert.deepEqual(left, ['line 1: "not a red-eye" — You chose to leave it Not checked.']);
   // M17 am5 (D3): the job's Ask line carries a ~ rule, which the list shows as Not checked with the signed reason; every other `not checked · ` row is that one
   assert.deepEqual(r.notChecked.filter((x) => x.startsWith('not checked · ') && !x.endsWith('You chose to leave it Not checked.')), ['not checked · "nothing goes out before I accept" \u2014 you judge it at the Ask']);
 });

@@ -37,10 +37,11 @@ test('am27: answers show on the answer-redraft plan; after a Revise the box is g
   // M19 am3: a Revise asks nothing about a ~ rule code cannot check; it is Not checked (the answers, now ~ lines, included)
   assert.equal(b.phase, 'green', JSON.stringify(b));
   assert.deepEqual(b.questions ?? [], [], 'no questions');
-  const rows = b.list.rows;
-  const notChecked = (key) => (Array.isArray(rows) ? rows.find((r) => r.key === key) : rows[key]);
-  assert.equal(notChecked('L1.~1')?.state, 'not-checked', JSON.stringify(rows));
-  assert.equal(notChecked('L2.~1')?.state, 'not-checked', JSON.stringify(rows));
+  // M19 am8 item 3: the Not checked rows are a list of their own on the card, never among a line's rows
+  const notChecked = (key) => b.list.notChecked.find((r) => r.key === key);
+  assert.equal(notChecked('L1.~1')?.state, 'not-checked', JSON.stringify(b.list));
+  assert.equal(notChecked('L2.~1')?.state, 'not-checked', JSON.stringify(b.list));
+  assert.ok(!b.list.rows.some((r) => r.state === 'not-checked'), 'a Not checked row is not among a line\'s rows');
   assert.equal(b.revises.at(-1).kind, 'revise');
   assert.ok(!b.answers?.length, 'no separate box'); // (b)
   const newest = JSON.parse(readFileSync(path.join(w.dir(id), `card-${b.revises.at(-1).n}.json`), 'utf8')).job;
