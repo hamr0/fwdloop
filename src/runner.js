@@ -933,6 +933,7 @@ function makeAuditRow({
  * @param {number} [opts.triesDone] - tries a Stop already closed on this step (they count against its limit)
  * @param {string|null} [opts.runDir] - M4d am29 item 2: the run's folder, where each try saves its checks
  * @param {any[]} [opts.checkList] - M16 item 5: the plan's signed list; a list line's checks carry the row's `by`
+ * @param {any[]} [opts.jobLines] - M19 am11 item 4: the signed job lines; the words of a list line's rows read the person's rule
  * @param {Record<string, any>} [opts.mcpGranted] - M13 item 5: this step's signed MCP tools, already bound to its bridge (`runStepRalph` builds them); handed to the model with the verbs
  * @returns {Promise<{ok:true, artifact:any, attempts:number, hitl?:boolean} | {ok:false, outcome:string, red:string, stop?:{where:string, book:Record<string, any>, step?:string|null}}>}
  */
@@ -959,6 +960,8 @@ async function runStepTries({
   mcpGranted = {},
   // M16 item 5: the signed list (declaration.checkList), so a check of a list line is tagged by its row in the Audit
   checkList = undefined,
+  // M19 am11 item 4: the signed job lines (the words of a list line's rows)
+  jobLines = undefined,
 }) {
   /** @type {string|null} */
   let gap = initialGap ?? null;
@@ -1210,7 +1213,7 @@ async function runStepTries({
         n: step.fromLine, part: closed.cited.part, results: closed.cited.results, check: closed.cited.check,
       }));
     }
-    tryChecks.push(...closeRecords(step, artifact, closed, checkList));
+    tryChecks.push(...closeRecords(step, artifact, closed, checkList, jobLines));
     saveTry();
 
     if (closed.verdict === 'green' || closed.verdict === 'hitl') {
@@ -1663,6 +1666,8 @@ async function runAskSlot({
   rebuildPrior = /** @type {null | (() => ({ok:true,value:any}|{ok:false,red:string}))} */ (null),
   // M16 item 5: the signed list, handed on to a redo's tries
   checkList = /** @type {any[]|undefined} */ (undefined),
+  // M19 am11 item 4: the signed job lines, handed on to a redo's tries with the list
+  jobLines = /** @type {any[]|undefined} */ (undefined),
 }) {
   let redone = initialRedone;
   let currentPrior = priorArtifact;
@@ -1839,7 +1844,7 @@ async function runAskSlot({
       }
       // eslint-disable-next-line no-await-in-loop
       const redoResult = await runStepRalph({
-        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+        step: priorStep, primitivesMap: primitives, readsMap: priorReadsResult.map, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, jobLines, initialGap: reason, attemptOffset: lastTryNumber(runDir, priorStep.emits ?? priorStep.goal ?? null), thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
         readStop: () => stopPending(runDir), stepNo: priorStepNo, prevStepId: priorPrevStepId,
       });
       if (!redoResult.ok) {
@@ -1993,6 +1998,7 @@ async function foldFromStep({
           const stop = await runAskSlot({
             mcpServer,
             checkList,
+            jobLines,
             step,
             stepIndex: i,
             askSlot: { question: decided.question, ttlMs: stopWaitMs(steps, i, askLines, sendSlot.waitMs), kind: ACTION_STOP_KIND },
@@ -2110,6 +2116,7 @@ async function foldFromStep({
       const askResult = await runAskSlot({
         mcpServer,
         checkList,
+        jobLines,
         step,
         stepIndex: i,
         askSlot,
@@ -2183,7 +2190,7 @@ async function foldFromStep({
     // redo's `initialGap` above.
     // eslint-disable-next-line no-await-in-loop
     const stepResult = await runStepRalph({
-      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
+      step, primitivesMap: primitives, readsMap, businessDate, modelStep, spent, capUsd, ceilingUsd: effectiveCeilingUsd, recordAudit, mcpServer, checkList, jobLines, initialGap: i === i0 ? firstStepGap : null, thinkingBox: readJobThinking(flowDir, runDir), learnHints: stepHintsReader({ flowName, source: inputsManifest?.[0]?.source ?? null, now }), now, runDir,
       readStop: () => stopPending(runDir), stepNo: i + 1, prevStepId: i > 0 ? (steps[i - 1].emits ?? steps[i - 1].goal ?? null) : null, attemptOffset: i === i0 ? resumeTries.numbered : 0, triesDone: i === i0 ? resumeTries.done : 0,
     });
     if (!stepResult.ok) {
@@ -2816,6 +2823,7 @@ export async function resumeRun({
     const askResult = await runAskSlot({
       mcpServer: declaration.mcp?.server ?? null,
       checkList: declaration.checkList,
+      jobLines: read.lines,
       step,
       stepIndex: state.stepIndex,
       askSlot,

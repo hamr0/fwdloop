@@ -36,9 +36,16 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   for (const st of steps) {
     const rec = lastTry(st);
     for (const r of listPartRows(declaration, st, { lines: Array.isArray(jobLines) ? jobLines : [] })) {
-      const got = rec?.checks?.find((/** @type {any} */ c) => c.part === r.part);
+      // M19 am11 item 4: a list line's own rows are recorded by their key (each item field, the count rule); any other row, and a record made before, is read by its part
+      const got = rec?.checks?.find((/** @type {any} */ c) => c.key === r.key) ?? rec?.checks?.find((/** @type {any} */ c) => c.key === undefined && c.part === r.part);
       const row = /** @type {AuditCheckRow} */ ({ text: r.text, kind: 'truth', by: r.by, result: got === undefined ? 'none' : got.ok ? 'passed' : 'failed', ...whyOf(got) });
       checks.push({ ...row, text: `line ${st.fromLine} · ${r.text}` });
+      owned.push({ line: st.fromLine, row });
+    }
+    // a red no row owns (a whole-list red): told on its own, never left as passed rows
+    for (const c of (rec?.checks ?? []).filter((/** @type {any} */ x) => x.unclaimed === true && !x.ok)) {
+      const row = /** @type {AuditCheckRow} */ ({ text: c.text, kind: 'truth', by: null, result: 'failed' });
+      checks.push({ ...row, text: `line ${st.fromLine} · ${c.text}` });
       owned.push({ line: st.fromLine, row });
     }
   }

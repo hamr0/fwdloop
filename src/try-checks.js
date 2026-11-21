@@ -6,6 +6,10 @@ import { serializeArtifact } from './ask.js';
 import { labelled } from './checkwords.js';
 import { sheetRowKey } from './sheetrows.js';
 import { listLinesOf, partByOf } from './checklistsign.js';
+import { rowResultsOf } from './rowresults.js';
+import { stepRowsOf } from './checkrows.js';
+import { itemCountOf } from './shaperows.js';
+import { rulesOfLine } from './sheetblock.js';
 
 export const EVERY_STEP = 'every step';
 /** the words of the two checks every step has (#1 and #2 below): the Audit's "Always checked" rows, the plan card's and the Job tab's "Always checked" fold */
@@ -47,14 +51,15 @@ export function outputRecord(step, artifact) {
  * #3 and up: the close's own checks. A softgreen close carries each of its checks; a green close is one check over all its cited fields; a close that
  * judged nothing (`unparseable`, `crash`) is one check that could not run, with that third outcome as its result.
  * @param {any} step @param {any} artifact @param {{verdict: string, red?: string|null, checks?: Array<{text:string, ok:boolean, result:string|null}>}} closed @param {any[]} [checkList] the signed list (M16): a line on it tags its checks
+ * @param {any[]} [jobLines] the signed job lines (M19 am11: the words of a list line's field rows read the person's rule)
  */
-export function closeRecords(step, artifact, closed, checkList = undefined) {
+export function closeRecords(step, artifact, closed, checkList = undefined, jobLines = undefined) {
   // M16 item 5: a check of a list line carries `by`, the row's own (`you` / `agent` / `default`); the Audit draws the tag from it. Any other line keeps the words it has.
   const decl = Array.isArray(checkList) ? { checkList } : undefined;
   const listed = decl !== undefined && listLinesOf(decl).has(step?.fromLine);
   const hasCited = step?.close?.class === 'green' && !!step?.close?.cited;
   const by = (/** @type {number} */ idx, /** @type {'you'|'agent'|'default'} */ fallback) => (listed ? { by: partByOf(decl, step.fromLine, idx) ?? fallback, part: idx } : {});
-  const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined, checkList).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
+  const rows = factRecords(step, artifact, closed, listed ? (/** @type {number} */ idx) => partByOf(decl, step.fromLine, idx) : undefined, checkList, jobLines).map((r) => (listed && hasCited && r.n === 3 ? { ...r, text: String(r.text).replace(/ \[agent\]$/, ''), ...by(0, 'agent') } : r));
   // the list's part order is the close's: the fact part, the item-fields part (M19 am10), then each pick, then the tie
   const lead = (hasCited ? 1 : 0) + (step?.close?.itemShape ? 1 : 0);
   // M10 am22 (1): the picks on a fact line are rows after the fact rows, each judged on the answer's text
@@ -66,8 +71,8 @@ export function closeRecords(step, artifact, closed, checkList = undefined) {
   return [...rows, ...pickRows, ...(tie ? [{ n: rows.length + pickRows.length + 3, text: tie.text, ok: tie.ok, result: tie.result, source: lineSource(step), ...by(lead + picked, 'default') }] : [])];
 }
 
-/** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label @param {any[]} [checkList] the signed list: a sheet row on it gives its check's `by` */
-function factRecords(step, artifact, closed, partBy = undefined, checkList = undefined) {
+/** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label @param {any[]} [checkList] the signed list: a sheet row on it gives its check's `by` @param {any[]} [jobLines] */
+function factRecords(step, artifact, closed, partBy = undefined, checkList = undefined, jobLines = undefined) {
   const source = lineSource(step);
   if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
     return [{
@@ -89,6 +94,7 @@ function factRecords(step, artifact, closed, partBy = undefined, checkList = und
       n: 3, text: labelled('every result is quoted from the saved copy and passes its rules', 'agent'), ok: Array.isArray(/** @type {any} */ (closed).pickChecks) && closed.cited?.check ? closed.cited.check.verdict === 'green' : closed.verdict === 'green', result: `${n} result${n === 1 ? '' : 's'}`, source,
     }];
   }
+  if (step?.close?.class === 'green' && step?.close?.itemShape && !step.close.cited && partBy !== undefined) return itemShapeRecords(step, closed, checkList, jobLines, source);
   if (step?.close?.class === 'green') {
     const n = Object.keys(artifact?.fields ?? {}).length;
     return [{
@@ -102,4 +108,29 @@ function factRecords(step, artifact, closed, partBy = undefined, checkList = und
     if (partBy !== undefined) return { n: 3 + i, text: c.text, ok: c.ok, result: c.result, source, ...(pk ? { by: partBy(Number(pk[1]) - 1) ?? 'agent', part: Number(pk[1]) - 1 } : {}) };
     return { n: 3 + i, text: id === 'keys' ? c.text : labelled(c.text, pk ? 'picked' : 'agent'), ok: c.ok, result: c.result, source };
   });
+}
+
+/**
+ * M19 am11 item 4: a list line that quotes nothing: one record per row of its shape part (each item field, the rule that sets the item count), each with the result of its OWN row (src/rowresults.js `rowResultsOf`, from bareguard's own gaps),
+ * its row's `key`, `by` and `part`. A red no row owns is a record of its own, in the closer's words. Never "every cited field matches its source".
+ * @param {any} step @param {any} closed @param {any[]|undefined} checkList @param {any[]|undefined} jobLines @param {string} source
+ */
+function itemShapeRecords(step, closed, checkList, jobLines, source) {
+  const line = step.fromLine;
+  const list = Array.isArray(checkList) ? checkList : [];
+  const rows = stepRowsOf({ declaration: { checkList: list, steps: [step] }, st: step, lines: Array.isArray(jobLines) ? jobLines : [] }).rows.filter((/** @type {any} */ r) => r.idx === 0 && /:shape:/.test(String(r.part)));
+  const ofLine = list.filter((/** @type {any} */ r) => r?.line === line);
+  const rules = ofLine.filter((/** @type {any} */ r) => r.kind === 'rule' && r.state === 'built' && r.part?.part === 0).map((/** @type {any} */ r) => r.rule);
+  const said = rulesOfLine((Array.isArray(jobLines) ? jobLines : []).find((/** @type {any} */ l) => l?.n === line));
+  const ruleCounts = Object.fromEntries(rules.map((/** @type {number} */ k) => [k, itemCountOf(String(said[k - 1] ?? ''))]).filter(([, c]) => c !== null));
+  const graded = { verdict: closed.verdict, rawGaps: Array.isArray(closed.shapeGaps) ? closed.shapeGaps : [], ruleCounts };
+  const res = rowResultsOf(ofLine, { step: line, parts: [{ ...step.close.itemShape, class: 'shape', rules }] }, graded);
+  const got = new Map(res.rows.map((/** @type {any} */ r) => [r.key, r]));
+  /** @type {any[]} */
+  const out = rows.map((/** @type {any} */ r, /** @type {number} */ i) => {
+    const g = got.get(r.key);
+    return { n: 3 + i, text: r.text, ok: g?.result === 'passed', result: g === undefined ? 'no result' : g.result === 'passed' ? null : g.result === 'failed' ? g.why : g.result, source, by: r.by, part: r.idx, key: r.key };
+  });
+  for (const u of res.unclaimed) out.push({ n: 3 + out.length, text: u, ok: false, result: null, source, unclaimed: true });
+  return out;
 }

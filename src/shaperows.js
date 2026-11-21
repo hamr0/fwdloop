@@ -9,6 +9,7 @@
 import { createRubric, rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
 import { nameWhy, shapeNameRules, SHAPE_KINDS } from './shapemenu.js';
+import { countCheck } from './blockpick.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -20,6 +21,19 @@ export const shapeDefaultKey = (line) => `L${line}.$shape`;
 /** the words of the `[default]` row of a shape line, drawn only when the person's words gave an item count (hamr 2026-11-18: the card's `$` row is the Not checked line): `exactly 2 items` @param {{min?: number, max?: number}|null} [count] @returns {string|null} */
 export function shapeDefaultWords(count = null) {
   if (count && Number.isInteger(count.min) && count.min === count.max) return `the answer lists exactly ${count.min} item${count.min === 1 ? '' : 's'}`;
+  return null;
+}
+
+/**
+ * M19 am11 item 1: the item count a `~` rule's own words ARE ("exactly 4 list items" -> 4 to 4, "at least 3" -> at least 3, "at most 5" -> at most 5), or null. "at most 0" is no item count (bareguard's `maxItems` is at least 1): it stays a pick over the text.
+ * @param {string} text @returns {{min?: number, max?: number}|null}
+ */
+export function itemCountOf(text) {
+  const c = /** @type {any} */ (countCheck(text));
+  if (!c) return null;
+  if (c.rule === 'listItems') return { min: c.value, max: c.value };
+  if (c.rule === 'minListItems') return { min: c.value };
+  if (c.rule === 'maxListItems' && c.value >= 1) return { max: c.value };
   return null;
 }
 

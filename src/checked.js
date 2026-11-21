@@ -110,8 +110,8 @@ export function notCheckedView(items, declaration) {
  * M19 am7 items 1 to 3 and 8: the words are the card's, from the one reader (src/checkrows.js `stepRowsOf`); `part` is the index the signed list's rows point at (src/checklistsign.js), with a list line's shape part counted.
  * ONE reader for the plan card's sentences, the Job tab and the Audit's Checks fold. Pure.
  * @param {any} declaration @param {any} st the step @param {{lines?: any[], kept?: {line: number, check: any}[]}} [o] `lines` = the signed job lines (a field row's words read the person's rule), `kept` = the picks a Revise carried
- * @returns {{text: string, by: 'you'|'agent'|'default', part: number}[]}
+ * @returns {{text: string, by: 'you'|'agent'|'default', part: number, key: string}[]}
  */
 export function listPartRows(declaration, st, { lines = [], kept = [] } = {}) {
-  return stepRowsOf({ declaration, st: st ?? {}, lines, kept }).rows.map((r) => ({ text: r.text, by: r.by, part: r.idx }));
+  return stepRowsOf({ declaration, st: st ?? {}, lines, kept }).rows.map((r) => ({ text: r.text, by: r.by, part: r.idx, key: r.key }));
 }

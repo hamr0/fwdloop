@@ -31,7 +31,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { sheetCheckName, sheetPlainText, coversWords } from './sheetblock.js';
 import { sheetCheckBody, sheetRowKey } from './sheetrows.js';
-import { shapeRowKey, shapeDefaultKey, shapeFieldText, buildShapePart } from './shaperows.js';
+import { shapeRowKey, shapeDefaultKey, shapeFieldText, buildShapePart, itemCountOf } from './shaperows.js';
 import { fieldSpec } from './shapebuild.js';
 
 /**
@@ -75,19 +75,6 @@ const numberIn = (text, n) => {
   return false;
 };
 const wordSet = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}]+/gu) ?? []);
-
-/**
- * M19 am11 item 1: the item count a `~` rule's own words ARE ("exactly 4 list items" -> 4 to 4, "at least 3" -> at least 3, "at most 5" -> at most 5), or null. "at most 0" is no item count (bareguard's `maxItems` is at least 1): it stays a pick over the text.
- * @param {string} text @returns {{min?: number, max?: number}|null}
- */
-function itemCountOf(text) {
-  const c = /** @type {any} */ (countCheck(text));
-  if (!c) return null;
-  if (c.rule === 'listItems') return { min: c.value, max: c.value };
-  if (c.rule === 'minListItems') return { min: c.value };
-  if (c.rule === 'maxListItems' && c.value >= 1) return { max: c.value };
-  return null;
-}
 
 /** the plain reasons code gives, in one place (the card, the Job tab and the Audit read them from the row) */
 export const REASON = Object.freeze({

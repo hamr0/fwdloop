@@ -71,6 +71,8 @@ test('am11 item 4: a whole-list red (no `results`) is told on its own, never as 
   assert.equal(r.closed.verdict, 'red');
   assert.ok(r.failing.length >= 1, 'a failing record names it');
   assert.equal(r.recs.some((/** @type {any} */ x) => /every cited field matches its source/.test(x.text)), false);
+  const ac = auditChecksOf(p.decl, [{ step: p.step.emits, try: 1, checks: r.recs }], null, { lines: p.lines });
+  assert.ok(ac?.lines.find((/** @type {any} */ l) => l.n === 2).checks.some((/** @type {any} */ x) => x.result === 'failed'), 'the Audit does not show only passed rows for a red list');
 });
 
 test('am11 item 4 (Must-fail 4): two count rules (at least 3, at most 5): a count red lands on the rule whose bound it is, and on no other', async () => {
