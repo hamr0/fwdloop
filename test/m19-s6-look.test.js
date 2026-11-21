@@ -152,7 +152,6 @@ test('A Must-fail 1: a list reason says "at Accept", never "at the Ask", for a r
     assert.ok(!/at the Ask/.test(w), w);
   }
   assert.equal(REASON.noPick, 'No check was picked for it, so you judge it at Accept.');
-  for (const reason of ['no-pick', 'own-words']) assert.match(dropSentence({ line: 0, fact: '', reason }), /so you judge it at Accept\.$/, `break: the ${reason} sentence says at the Ask and this reds`);
   assert.equal(typeof dropLine, 'function');
   assert.equal(typeof lineRules, 'function');
 });

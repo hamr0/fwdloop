@@ -22,7 +22,6 @@ export const SHAPE_ONLY_CLASS = 'green';
 export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at Accept.';
 
 import { REASON, renderCard } from './checkblock.js';
-import { dropSentence } from './pagedropwords.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
@@ -31,20 +30,6 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 
 /** the words the card draws a row with, without its `~` / `!` / `$` mark (the one renderer, src/checkblock.js renderCard) @param {Record<string, any>} row */
 const rowWords = (row) => String(renderCard([{ ...row, hidden: false, state: row.state === 'suggested' || row.state === 'dropped' ? 'not-checked' : row.state }])[0]?.text ?? '').slice(2);
-
-/**
- * The words a Not-checked row says. A rule the person left, wrote in their own words, or left with no pick keeps fwd's signed table (M10 am16 (5): src/pagedropwords.js), the words the plan card and the
- * Audit already had; any other reason is the block's own (what code could not build and why).
- * @param {string|null|undefined} reason @param {{cantAsked?: boolean}} [row]
- */
-export function notCheckedWords(reason, row = undefined) {
-  // a rule the person answered with their own words says so, whatever bareguard-free reason the block holds for it (a countable one reads "no rule can check this")
-  if (row?.cantAsked === true && (reason === REASON.noRule || reason === REASON.nothingOnPage)) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
-  if (reason === REASON.left) return dropSentence({ line: 0, fact: '', reason: 'person-left' });
-  if (reason === REASON.nothingOnPage) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
-  if (reason === REASON.noRule || reason === REASON.noPick) return dropSentence({ line: 0, fact: '', reason: 'no-pick' });
-  return String(reason ?? 'not checked');
-}
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {
@@ -144,8 +129,8 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   const notChecked = checkList.filter((r) => isListedNotChecked(checkList, r)).map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
-    // the reason is fwd's signed table (M10 am16 (5), `notCheckedWords`); M10 am17 (6): `kept` words
-    const line = notCheckedItem({ ...r, reason: notCheckedWords(r.reason, own) }, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true);
+    // the reason is the signed row's own `reason` (src/checkblock.js REASON, the one table); M10 am17 (6): `kept` words
+    const line = notCheckedItem(r, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true);
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);

@@ -74,7 +74,7 @@ test('own words (M17 am1 ruling: bareloop\'s reason for a countable own-words ru
   assert.equal((await drop.w.post(`/api/author/${drop.id}/answer`, { k: 1, choice: 'drop' })).status, 202);
   const g2 = await greenAfter(drop.w, drop.id);
   assert.equal(g2.phase, 'green', JSON.stringify(g2.reds ?? g2));
-  assert.ok(g2.notChecked.items.includes('line 3: "exactly 3 bullets" — You chose to leave it Not checked.'), JSON.stringify(g2.notChecked));
+  assert.ok(g2.notChecked.items.includes('line 3: "exactly 3 bullets" — You chose to leave it Not checked, so you judge it at Accept.'), JSON.stringify(g2.notChecked));
   const card = JSON.parse(readFileSync(path.join(drop.w.dir(drop.id), 'card-1.json'), 'utf8'));
   assert.deepEqual(parseJobBox(card.job).steps[2].guardrails, ['exactly 3 bullets'], 'drop it adds no line');
 });

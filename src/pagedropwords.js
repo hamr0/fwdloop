@@ -8,6 +8,7 @@
 
 // borrowed-from: bareloop src/pagedropwords.js@v0.56.0 (3383cce) (the four reasons the block's drops carry, and the sign-twice sentence by `d.other`; FACT_LANGS lives with the facts in src/citedcheck.js)
 import { FACT_LANGS } from './citedcheck.js';
+import { REASON } from './checkblock.js';
 
 /** the two ways a sign listed twice can be used once (v0.56.0 spells the sentence from `d.other`; no other -> "currency", the sentence fwd has always written) */
 const SIGN_TWICE_AS = ['currency', 'unit'];
@@ -35,10 +36,7 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
   'decimal-not-on-page': () => 'the page shows no amount written with a comma before the decimals, so it is not checked.',
   // borrowed-from: bareloop src/pagedropwords.js@c550dc8 (the phrase dry read's sentence)
   'phrase-no-result': (d) => `"${d.other}" is on the page but in none of its results, so it is not checked.`,
-  'person-left': () => 'You chose to leave it Not checked.',
-  // M10 am16 (items 4, 5): a shape guardrail with no check picked is Not checked, and you judge it at Accept
-  'no-pick': () => 'No check was picked for it, so you judge it at Accept.',
-  'own-words': () => 'Your own words are on the line; the machine has no check for them, so you judge it at Accept.',
+  'person-left': () => REASON.left,
   // M10 piece 5 (item 7, am8 item 1): the signed Not-checked reasons for a job word that is not a column. `fact` = the job's word.
   'no-column': (d) => `there is no column '${d.fact}'`,
   'no-fit': (d) => `no column fits '${d.fact}'`,
@@ -53,16 +51,10 @@ const WORDS = /** @type {Record<string, (d: Dropped) => string>} */ ({
 
 /**
  * M10 am2 item 3: the plan card row for a `~` rule the person chose to leave Not checked ("drop it"), word for word:
- * `not checked · "<rule>" — You chose to leave it Not checked.` (the rule as the person wrote it; the sentence is the one table's).
+ * `not checked · "<rule>" — You chose to leave it Not checked.` (the rule as the person wrote it; the sentence is REASON.left, the one table's: src/checkblock.js).
  * @param {string} rule @returns {string}
  */
 export const leftRuleLine = (rule) => `not checked · "${rule}" — ${WORDS['person-left'](/** @type {Dropped} */ ({}))}`;
-
-/**
- * M10 am16 (item 5): the plan card row for a shape guardrail that has no picked check, in the same form as {@link leftRuleLine}: `not checked · "<rule>" — <reason>`.
- * @param {string} rule @param {'no-pick'|'own-words'} reason @returns {string}
- */
-export const pickNoteLine = (rule, reason) => `not checked · "${rule}" — ${WORDS[reason](/** @type {Dropped} */ ({}))}`;
 
 /** @param {Dropped} d @returns {string} the plain sentence for one drop */
 export function dropSentence(d) {
