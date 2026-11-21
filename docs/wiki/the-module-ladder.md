@@ -4370,3 +4370,14 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 4. A Tickets filter or watch row sits where its signed part sits in am7 item 4's order; the floor row stays last.
 **Must fail when:** a draft with a Not checked row saves no ledger row for it; a Not checked name differs from item 2; a Not checked row shows inside a line's checked rows; a Tickets row is out of its signed part's place, or after the floor.
 **Done when:** a new pre-registered $0 POC (F240 stays FAIL as written) passes F240's bars with am6, am7 and this amendment on the letter, (l) on a key no built row holds; tests that fail first; the full suite green. **Cap:** $0.
+
+**M19 amendment 9 — SIGNED by hamr 2026-11-21 ("sign m19 am9."), the text exactly as shown (.claude/scratch/m19-s5/m19-am9-sign.md, sha256 6c4a62ac6f00…):**
+
+**M19 amendment 9 — the Not checked words of am8, as loop.** Each item copies bareloop v0.61.0 as its `loop` session quoted it on 2026-11-21; it sharpens am8 item 2.
+1. A `~` rule's Not checked row reads `line <n>: "<the person's rule text>" — <reason>`; with no rule text found, `line <n>: rule <n> — <reason>` (bareloop `ruleNotCheckedItems`, src/rubricstep.js:1020).
+2. A prose or stage row reads `line <n>: <reason>`.
+3. A `cited`, `numbers` or `note` row reads its fixed words: `every claim quotes its input`, `every number matches a quote`, `the note` (bareloop `DEFAULT_ROW_WORDS`, src/rubricstep.js:993).
+4. Every other list row in state not-checked, a sheet row too, is in the Not checked list as `<kind> "<ledger words>"`, else its key's tail; the floor and a fact line's default cited never are (bareloop `refusedOf`, src/rubricstep.js:~1040).
+5. A ledger row for a `~` rule saves the rule's own text as its words (bareloop `ledgerRecord`, src/checklist.js:55).
+**Must fail when:** a `~` rule's name loses its quotes, line or reason; a prose row shows more than its line and reason; a cited, numbers or note row's words differ from item 3; a not-checked sheet row is missing from the Not checked list, or the floor is in it; a rule's ledger row has words other than its rule text.
+**Done when:** a new pre-registered $0 POC (F241 stays as written) passes F241's bars with am9's words on the letter; tests that fail first; the full suite green. **Cap:** $0.
