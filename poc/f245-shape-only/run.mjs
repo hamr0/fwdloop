@@ -1,13 +1,13 @@
 // F245 ($0, no AI, no key, no panel). usage: node poc/f245-shape-only/run.mjs [--today | --candidate]
-// --today      src as it is. --candidate  the patched COPY .claude/scratch/f245/cand/src (poc/f245-shape-only/make-candidate.mjs).
+// --today      src as it is before the fix. --candidate  the patched COPY .claude/scratch/f245/cand/src (make-candidate.mjs). --built  the real src after the fix, bars as the candidate's.
 // The signed flow is COPIED to a mkdtemp folder (the original is never written); a modelStep that throws proves no provider call is possible.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const MODE = process.argv.includes('--candidate') ? 'candidate' : 'today';
-const SRC = MODE === 'candidate' ? path.join(REPO, '.claude/scratch/f245/cand/src') : path.join(REPO, 'src');
+const MODE = process.argv.includes('--built') ? 'candidate' : process.argv.includes('--candidate') ? 'candidate' : 'today';
+const SRC = process.argv.includes('--built') ? path.join(REPO, 'src') : MODE === 'candidate' ? path.join(REPO, '.claude/scratch/f245/cand/src') : path.join(REPO, 'src');
 const imp = (f) => import(pathToFileURL(path.join(SRC, f)).href);
 const { readFlow } = await imp('flow.js');
 const { loadCatalogue } = await imp('catalogue.js');
@@ -84,4 +84,4 @@ try {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 fs.mkdirSync(path.join(REPO, '.claude/scratch/f245'), { recursive: true });
-fs.writeFileSync(path.join(REPO, `.claude/scratch/f245/RESULT-${MODE}.json`), JSON.stringify(out, null, 1));
+fs.writeFileSync(path.join(REPO, `.claude/scratch/f245/RESULT-${process.argv.includes('--built') ? 'built' : MODE}.json`), JSON.stringify(out, null, 1));
