@@ -288,6 +288,8 @@ export function rootSnapshot(root) {
 export function fixtureSnapshots() {
   /** @type {Record<string, any>} */
   const out = rootSnapshot(FIX);
+  // m19-am10 was made after the S3 port, so it has no pre-port snapshot entry; test/m19-am10-itempick.test.js guards it
+  delete out['m19-am10'];
   out['m16-block/csv (prose + signed-declaration)'] = scrub(signedReaders({ prose: rd('m16-block/csv/prose.txt'), declaration: JSON.parse(rd('m16-block/csv/signed-declaration.json')), notChecked: null }), []);
   return out;
 }
