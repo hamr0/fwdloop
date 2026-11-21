@@ -42,7 +42,7 @@ test('Start over on an unchanged job after both revises asks nothing and keeps t
   const s = await settled(w, id2);
   assert.equal(s.phase, 'green', JSON.stringify(s.questions ?? s.reds ?? s));
   assert.deepEqual(pickedOn3(w, id2, 'draft'), { class: 'softgreen', shape: { picked: [{ rule: 'listItems', value: 3 }] } });
-  assert.ok(s.checked[2].sentences.includes('exactly 3 list items. (kept from last draft) [you]'), JSON.stringify(s.checked[2]));
+  assert.ok(s.checked[2].sentences.includes('exactly 3 list items · kept from last draft [you]'), JSON.stringify(s.checked[2]));
 });
 
 test('Start over with one changed guardrail asks that one only', async () => {
