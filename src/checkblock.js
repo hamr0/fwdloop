@@ -76,6 +76,9 @@ const numberIn = (text, n) => {
 };
 const wordSet = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}]+/gu) ?? []);
 
+// fwd (F251): what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail); one writer, here (blockassemble.js re-exports it)
+export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at Accept.';
+
 /** the plain reasons code gives, in one place (the card, the Job tab and the Audit read them from the row) */
 export const REASON = Object.freeze({
   left: 'You chose to leave it Not checked, so you judge it at Accept.',
@@ -642,7 +645,7 @@ export class CheckBlock {
     }
     // a suggestion code has not built stays off the card (Audit only, F-b); a held one is trialled: shown under Suggested only when code has proved it builds (hamr 2026-11-13)
     for (const r of this.rows.filter((x) => x.held && x.kind !== 'sheet' && x.kind !== 'shape')) this.trialOffer(r);
-    if (this.split) for (const r of this.rows) r.hidden = this.isBang(r) && r.state === 'not-checked' && !r.lookWhy;
+    if (this.split) for (const r of this.rows) r.hidden = this.isBang(r) && r.state === 'not-checked' && !r.lookWhy && r.reason !== NO_GUARDRAIL_WORDS;
     this.closeCache = { stages, parts, map };
     return this.closeCache;
   }
@@ -656,7 +659,7 @@ export class CheckBlock {
     r.held = false;
     /** @type {any[]} */ const parts = [];
     /** @type {string[][]} */ const rows = [];
-    this.buildLine(l, parts, rows, new Set());
+    this.buildLine(l, parts, rows, new Set(), true);
     const ok = r.state === 'built';
     const reason = r.reason;
     const i = rows.findIndex((k) => k.includes(r.key));
@@ -669,8 +672,12 @@ export class CheckBlock {
     else { r.offer = null; r.held = false; r.state = 'not-checked'; r.reason = String(reason ?? 'not checked'); }
   }
 
+  // fwd (F251): `offer` = the Suggested trial (trialOffer): it asks whether code can build the row, not whether the line can sign it, so the no-guardrail gate below is skipped
   /** one line's parts: a pick part per count rule, ONE fact part carrying every fact row of the line (and its result count), then the `$` defaults */
-  buildLine(/** @type {{n: number, text: string}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows, /** @type {Set<number>} */ factLines) {
+  buildLine(/** @type {{n: number, text: string}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows, /** @type {Set<number>} */ factLines, /** @type {boolean} */ offer = false) {
+    // fwd (F251): a line with no ~ guardrail of the person's own holds no signable check; one decider, here
+    const unguarded = this.ruleRows(l.n).length === 0 && !this.isSheetLine(l.n);
+    let foundFact = false;
     /** @type {any[]} */ const facts = [];
     /** @type {{r: Row, src: string}[]} */ const factRows = [];
     /** @type {Row|null} */ let countRow = null;
@@ -726,11 +733,16 @@ export class CheckBlock {
           const k = f && f.shape === 'phrase' ? /** @type {any[]} */ (this.lookFacts).find((x) => x.line === l.n && Array.isArray(x.phrases) && String(x.name) === f.name && (x.source === undefined || x.source === src)) : undefined;
           return k ? factsOfLook(k) : null;
         };
-        lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); factLines.add(l.n); if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
+        lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); foundFact = true; if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
     } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     // facts+shape: the shape part follows the fact part (the same `results` list); its fields are the rules no truth check could take
     if (shapeRows.length > 0) this.buildShapePartOf(l, shapeRows, lineParts, lineRows);
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
+    // fwd (F251): the one decider. A line with no ~ guardrail keeps no fact, pick or shape part: its built rows are Not checked in the words the Accept reads, and it is never a fact line (so no numbers tie points at it)
+    if (unguarded && !offer) {
+      for (const k of lineRows.flat()) { const row = this.rows.find((x) => x.key === k); if (row) { row.state = 'not-checked'; row.reason = NO_GUARDRAIL_WORDS; row.part = null; } }
+      lineParts.length = 0; lineRows.length = 0;
+    } else if (foundFact) factLines.add(l.n);
     this.buildDefaults(l, lineParts, lineRows, factLines);
   }
 
