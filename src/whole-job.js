@@ -1,5 +1,5 @@
 // M13 am9 / M15 am3: the file holds the whole job. ONE writer of the whole-job text (`wholeJobText`), ONE finder of the Ask that shows it (`wholeJobAskIndex`).
-// The last Ask before the added `write it out` shows every step's result in job order, built by code from each step's saved output (never picked by the AI). Since M15 am3 that text is the BODY of the
+// The last Ask before the action shows every step's result in job order, built by code from each step's saved output (never picked by the AI). Since M15 am3 that text is the BODY of the
 // run's one markdown report (`renderReportBody`, src/report.js: `## <n>. <line>`, the ~ rules, what code checked, the AI's answer under its heading; an Ask before it is one line
 // `Line <n>: you accepted this at the Ask.`); the last Ask itself and the send line are not sections. The accepted artifact is `{text}`; the send adds the title and the Passed line and writes it.
 // Throws away: what `renderReportBody` throws away. Third outcomes: a work step with no readable saved output refuses, naming the step; a frozen sheet the report needs that cannot be read refuses, naming it.

@@ -7,12 +7,11 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { sheetCheckSentence } from './sheetchecks.js';
-import { sheetTotalLines, ROW_MATH_OPS } from './sheetclaims.js';
+import { sheetTotalLines, ROW_MATH_OPS, isRec } from './sheetclaims.js';
 import { lineRules } from './pagebits.js';
 import { shapeResultModel, shapeMarkdown } from './shaperesult.js';
 
 const SCALAR = ['string', 'number', 'boolean'];
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** the words under a not-checked answer and a checked one (M15 am3 item 2) */
 export const NOT_CHECKED_HEADING = '### The AI\'s answer (not checked — you judge it at Accept)';

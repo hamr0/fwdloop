@@ -7,7 +7,7 @@ import { CheckBlock } from '../src/checkblock.js';
 const arbiter = { capUsd: 0.3, sources: [], asks: [], sends: [] };
 const lines = [{ n: 1, text: 'Find the heading.' }, { n: 2, text: 'Write a note about it.' }];
 
-test('the readout of a plan with no saved card tells the numbers row in the signed am7 words (break: CARD_T.numbers is read there)', () => {
+test('the readout of a plan with no saved card tells the numbers row in the signed am7 words (break: numbersWords in src/checkrows.js is read there)', () => {
   const declaration = {
     inputFacts: {}, refused: [],
     steps: [

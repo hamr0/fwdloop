@@ -183,7 +183,7 @@ export function readDelivered(rec) {
 }
 
 /**
- * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<flow>-<runId>-<emits>.md`
+ * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<job>-YYYY-MM-DD[-n].md` (`sentName`, M15 am3; older runs: `<flow>-<runId>-<emits>.md`)
  * in the signed folder with the sha256 the send recorded for it (M15), or, for a send older than M15, `.json` with the sha256 the human's accept recorded for the ask that
  * send reads (`readAcceptedHashesByEmits`, the same record the send itself checked). No accepted hash = recorded as null, which reads as "changed", never as ok.
  * @returns {{path: string, dir: string|null, name: string, note: string|null, sha256: string|null}[]}

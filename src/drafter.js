@@ -1035,7 +1035,7 @@ export async function draft({
     if (Array.isArray(declaration.steps)) {
       declaration.steps = declaration.steps.map((st) => (isPlainObject(st) ? { ...st, goal: goalForLine(st.fromLine, lines) } : st));
     }
-    // M13 am9 item 4: the last Ask before the added `write it out` reads every step; code sets it, whatever the model sent
+    // M13 am9 item 4: the last Ask before the action reads every step; code sets it, whatever the model sent
     if (Array.isArray(declaration.steps)) declaration.steps = readEveryStep(declaration.steps, arbiter);
     // M10 am16 (4): the drafter writes no check. Whatever `close.shape` it sent (the schema offers none) is dropped here; a check reaches the plan only from the list's built rows (assembleFromBlock).
     delete declaration.unjudgeable; // M17 am4 (C8): the hidden can't-judge record is gone; a line's Not checked reasons are the list's rows
