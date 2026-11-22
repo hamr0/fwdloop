@@ -1,0 +1,8 @@
+{
+ "source": "bareloop src/panel/index.html@v0.61.0 (fc56e1f3)",
+ "tag": "v0.61.0",
+ "commit": "fc56e1f3",
+ "file": "src/panel/index.html",
+ "regex": "<div class=\"jp-legend\">([^<]*)</div>",
+ "legend": "Done when every check below passes"
+}

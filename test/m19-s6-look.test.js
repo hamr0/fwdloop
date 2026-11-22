@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
@@ -163,10 +162,11 @@ test('A Must-fail 2: a rule on a signed Ask line keeps its reason, at the Ask', 
 
 // ---- amendment 2 (M19 am2): two S6 screen words beside section 3.7 --------------------------------------------------------------------------------------------------
 test('am2 Must-fail 1: the card and Job tab legend equals the tag\'s words (bareloop v0.61.0 src/panel/index.html), never the old `every › check`', () => {
-  const tag = execFileSync('git', ['-C', path.join(HERE, '../../bareloop'), 'show', 'v0.61.0:src/panel/index.html'], { encoding: 'utf8' });
-  const m = /<div class="jp-legend">([^<]*)<\/div>/.exec(tag);
-  assert.ok(m, 'the tag has a legend');
-  const legend = m[1];
+  // the tag's legend, frozen from bareloop src/panel/index.html@v0.61.0 (fc56e1f3); no bareloop checkout is read (CI has none)
+  const fx = JSON.parse(readFileSync(path.join(HERE, 'fixtures/m19-legend-tag.json'), 'utf8'));
+  assert.equal(fx.tag, 'v0.61.0');
+  assert.ok(fx.legend, 'the tag has a legend');
+  const legend = fx.legend;
   assert.equal(legend, 'Done when every check below passes');
   const ours = HTML.join('\n');
   assert.equal(ours.split(legend).length - 1, 1, 'the one plan view (card and Job tab) carries the tag\'s legend');
