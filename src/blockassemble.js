@@ -21,7 +21,7 @@ export const SHAPE_ONLY_CLASS = 'green';
 // fwd (F251): the no-guardrail words are the check block's (src/checkblock.js), the one writer; re-exported for the readers that import them from here
 export { NO_GUARDRAIL_WORDS } from './checkblock.js';
 
-import { REASON, NO_GUARDRAIL_WORDS } from './checkblock.js';
+import { REASON } from './checkblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
@@ -48,7 +48,6 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   /** @type {Set<number>} */ const built = new Set();
   /** @type {Map<number, Map<number, number|null>>} old part index -> new close-part index (null = the part is not in the close), per line */
   const remap = new Map();
-  /** @type {Set<number>} */ const notSignable = new Set();
   /** M19 S5 (O1): the lines whose shape part has no class to ride (a list of items and no quote, none ruled): their rows are signed Not checked @type {Set<number>} */ const noShapeClass = new Set();
   /** @type {Set<number>} */ const pickedLines = new Set(Array.isArray(declaration.pickedLines) ? declaration.pickedLines : []);
   const guardrailClasses = isRec(declaration.guardrailClasses) ? { ...declaration.guardrailClasses } : {};
@@ -68,11 +67,11 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     }
     if (!isRec(st) || !Number.isInteger(n) || !lineSet.has(n)) return st;
     const parts = partsOf(n);
-    const signable = guarded(n);
-    const fact = signable ? parts.find((p) => p.class === 'fact') : undefined;
+    // fwd (F251): the check block is the one decider that a line with no ~ guardrail holds no check (src/checkblock.js buildLine), so every part it holds is kept here
+    const fact = parts.find((p) => p.class === 'fact');
     // M19 S5: the shape part rides the fact part (facts+shape, class green); a line with no fact part takes it only when a class is ruled for it (`shapeOnlyClass`)
-    const picks = signable ? parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts') : [];
-    const shape = signable ? parts.find((p) => p.class === 'shape' && (fact !== undefined || shapeOnlyClass === 'green')) : undefined;
+    const picks = parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts');
+    const shape = parts.find((p) => p.class === 'shape' && (fact !== undefined || shapeOnlyClass === 'green'));
     const tie = parts.find((p) => p.class === 'countable' && p.check === 'numbersFromFacts');
     const old = isRec(st.close) ? st.close : {};
     const sheet = Array.isArray(old.sheet) ? old.sheet : null;
@@ -81,8 +80,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const map = remap.get(n) ?? new Map();
     for (const p of parts) map.set(p.oldIndex, keptOrder.includes(p) ? keptOrder.indexOf(p) : null);
     remap.set(n, map);
-    if (!signable && parts.some((p) => p !== tie)) notSignable.add(n);
-    if (signable && !shape && parts.some((p) => p.class === 'shape')) noShapeClass.add(n);
+    if (!shape && parts.some((p) => p.class === 'shape')) noShapeClass.add(n);
     /** @type {Record<string, any>} */
     const close = { ...(sheet ? { sheet } : {}), ...(Array.isArray(old.columns) ? { columns: old.columns } : {}) };
     if (fact) {
@@ -116,7 +114,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     const idx = isRec(r.part) && m ? m.get(r.part.part) : undefined;
     if (r.state === 'built' && r.kind !== 'floor' && (idx === null || idx === undefined)) {
       const { part: _p, ...rest } = r;
-      return { ...rest, state: 'not-checked', reason: notSignable.has(r.line) ? NO_GUARDRAIL_WORDS : noShapeClass.has(r.line) ? (r.kind === 'rule' ? REASON.noPick : REASON.noRule) : String(r.reason ?? 'not checked') };
+      return { ...rest, state: 'not-checked', reason: noShapeClass.has(r.line) ? (r.kind === 'rule' ? REASON.noPick : REASON.noRule) : String(r.reason ?? 'not checked') };
     }
     return isRec(r.part) && typeof idx === 'number' ? { ...r, part: { line: r.part.line, part: idx } } : r;
   });
