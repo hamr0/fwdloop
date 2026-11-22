@@ -22,21 +22,24 @@ export async function startPageServer(routes) {
  * @param {{idle?: 'ok'|'reject'|'hang'}} [o]
  * @returns {{connect: (opts: Record<string, any>) => Promise<any>, calls: {connect: Array<Record<string, any>>, goto: string[], snapshot: number, closed: number}}}
  */
-export function fakeConnect({ idle = 'ok' } = {}) {
+export function fakeConnect({ idle = 'ok', botBlocked } = {}) {
   const calls = { connect: [], goto: [], snapshot: 0, closed: 0 };
   return {
     calls,
     async connect(opts) {
       calls.connect.push(opts);
       let body = '';
+      let snapped = false;
       return {
+        // barebrowse 0.30.0: the typed flag, set by the snapshot (F222)
+        get botBlocked() { return snapped ? botBlocked : undefined; },
         async goto(url) { calls.goto.push(url); const res = await fetch(url); body = await res.text(); return { url, status: res.status }; },
         waitForNetworkIdle(o = {}) {
           if (idle === 'ok') return Promise.resolve();
           if (idle === 'hang') return new Promise(() => {});
           return new Promise((_, rej) => setTimeout(() => rej(new Error(`waitForNetworkIdle timed out after ${o.timeout}ms`)), o.timeout ?? 10));
         },
-        async snapshot() { calls.snapshot += 1; return body; },
+        async snapshot() { calls.snapshot += 1; snapped = true; return body; },
         async close() { calls.closed += 1; },
       };
     },

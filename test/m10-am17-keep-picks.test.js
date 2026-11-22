@@ -79,17 +79,16 @@ test('am17 (3) a deleted guardrail takes its pick with it: no ask, no check, not
   assert.equal(x.rec.picks.length, 1);
 });
 
-test('am17 (4) a kept pick never counts toward am1\'s 3: three kept "I can\'t check this" picks plus one new one still asks', async (t) => {
-  const job = ['Write the first part', '~ tone is warm; reads kindly; no jargon', 'Ask 1h: check it', 'Write it out'];
+test('am17 (4) M19 am3: kept own-words picks stay kept, and a new rule code cannot check ("sounds human") is NOT asked (no "I can\'t check this"), with or without the record', async (t) => {
   const own = ['tone is warm', 'reads kindly', 'no jargon'].map((ruleText) => ({ lineWords: 'write the first part', occurrence: 0, ruleText, check: null, own: true, left: false }));
   const four = ['Write the first part', '~ tone is warm; reads kindly; no jargon; sounds human', 'Ask 1h: check it', 'Write it out'];
   const x = await revise(t, four, own);
-  assert.equal(x.r.stop, 'look-asks', JSON.stringify(x.r.reds));
-  assert.deepEqual(x.asked, [[1, 'sounds human']]);
-  // and without the record the same card is the 4-ask stop of am1
+  assert.notEqual(x.r.stop, 'look-asks', JSON.stringify(x.r.reds));
+  assert.deepEqual(x.asked, []);
+  // and without the record the same card is no longer the 4-ask stop of am1: nothing here is an ask
   const none = await revise(t, four, []);
-  assert.equal(none.r.stop, 'look-asks-too-many');
-  void job;
+  assert.notEqual(none.r.stop, 'look-asks-too-many');
+  assert.deepEqual(none.asked, []);
 });
 
 test('am17 (5) the model never sees a pick: no message or tool schema of any call carries the carried words', async (t) => {

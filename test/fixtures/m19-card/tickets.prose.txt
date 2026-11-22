@@ -1,0 +1,10 @@
+1. Read the ticket
+2. Write a one-paragraph triage note: a summary of the ticket and a suggested next step
+   guardrail: priority P1 only; run a ticket again when its state changes; at most 3 words
+3. ask 1h: check the note with me
+4. write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 4 to file:/tmp/out
+guardrail: source issues = page:https://github.com/hamr0/hol-guard/issues

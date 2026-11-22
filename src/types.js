@@ -255,6 +255,7 @@
  * @property {Array<{id:string, text:string, ok:boolean, result:string|null}>} [checks] a softgreen close: every check it ran (M4d am29 item 2)
  * @property {{text: string, ok: boolean, result: string|null}} [numbersCheck] the numbers tie of a text line (M16 R7): beside the class's own verdict
  * @property {{part: any, check: any, results?: unknown}} [cited] a cited green close (M10 piece 4): the fact part and the check's own answer, for the run's cited-check record
+ * @property {any[]} [shapeGaps] a line with an itemShape close (M19 S5): bareguard's own gaps of the items check (names, counts and bounds, never a value)
  * @property {{inputs: Array<{name:string, sha256:string}>, claims: unknown, checks: Array<{id:string, text:string, ok:boolean, result:string|null}>}} [sheetRecord] a sheet close (M10b piece 2): what the run's sheet-check record keeps
  */
 

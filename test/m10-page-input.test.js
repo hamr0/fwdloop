@@ -61,14 +61,14 @@ test('a browser that never answers is cut by our own deadline', async () => {
 
 test('a site that blocks us is recorded as it is, read once, never worked around', async () => {
   const srv = await startPageServer({
-    '/bot': { body: `${pageText()}\n[BOT CHALLENGE DETECTED]\n` },
+    '/bot': { body: pageText() },
     '/denied': { status: 403, body: 'Access denied' },
   });
   try {
-    const fc = fakeConnect();
+    const fc = fakeConnect({ botBlocked: true });
     const r = await fetchPageText(`${srv.base}/bot`, { connect: fc.connect, ...FAST });
     assert.equal(r.ok, false);
-    assert.match(!r.ok ? r.error : '', /bot challenge/);
+    assert.equal(!r.ok ? r.error : '', `${srv.base}/bot asked for a human check (a bot challenge), so the page could not be read`);
     assert.equal(fc.calls.connect.length, 1, 'one try, no retry');
     assert.equal(fc.calls.goto.length, 1);
     const fd = fakeConnect();
@@ -78,16 +78,15 @@ test('a site that blocks us is recorded as it is, read once, never worked around
   } finally { await srv.close(); }
 });
 
-// F212: barebrowse 0.26.0 writes the marker with trailing words (node_modules/barebrowse/src/index.js:630), not the bare `[BOT CHALLENGE DETECTED]`
-test('the marker barebrowse really writes ("[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]") is refused as a bot challenge', async () => {
+// F222: barebrowse 0.30.0 sets page.botBlocked when it writes its marker; callers read the flag, not the text
+test('the marker text without the botBlocked flag is not refused as a bot challenge (F222)', async () => {
   const real = '[BOT CHALLENGE DETECTED — page content may be incomplete or blocked]';
   const srv = await startPageServer({ '/bot': { body: `${real}\n${pageText()}\n` } });
   try {
-    const fc = fakeConnect();
-    const r = await fetchPageText(`${srv.base}/bot`, { connect: fc.connect, ...FAST });
-    assert.equal(r.ok, false);
-    assert.match(!r.ok ? r.error : '', /bot challenge/);
-    assert.equal(fc.calls.connect.length, 1, 'one try, no retry');
+    for (const flag of [false, undefined, 'true', 1]) {
+      const r = await fetchPageText(`${srv.base}/bot`, { connect: fakeConnect({ botBlocked: flag }).connect, ...FAST });
+      assert.equal(r.ok, true, `botBlocked ${String(flag)}: ${!r.ok ? r.error : ''}`);
+    }
   } finally { await srv.close(); }
 });
 
@@ -100,15 +99,17 @@ test('an address with a password, a secret shape, or not http is refused before 
   assert.equal(fc.calls.connect.length, 0);
 });
 
-test('barebrowse older than 0.26.0 is refused (it would drop incognito and the private-network guard in silence, or give goto no status)', () => {
+test('barebrowse older than 0.30.0 is refused (it would drop incognito and the private-network guard in silence, give goto no status, or never set page.botBlocked)', () => {
   assert.equal(barebrowseNewEnough('0.5.9'), false);
   assert.equal(barebrowseNewEnough('0.20.9'), false);
   assert.equal(barebrowseNewEnough('0.21.0'), false);
   assert.equal(barebrowseNewEnough('0.24.0'), false);
   assert.equal(barebrowseNewEnough('0.24.1'), false);
   assert.equal(barebrowseNewEnough('0.25.9'), false);
-  assert.equal(barebrowseNewEnough('0.26.0'), true);
-  assert.equal(barebrowseNewEnough('0.26.1'), true);
+  assert.equal(barebrowseNewEnough('0.26.0'), false);
+  assert.equal(barebrowseNewEnough('0.29.9'), false);
+  assert.equal(barebrowseNewEnough('0.30.0'), true);
+  assert.equal(barebrowseNewEnough('0.30.1'), true);
   assert.equal(barebrowseNewEnough('1.0.0'), true);
 });
 

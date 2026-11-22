@@ -39,6 +39,7 @@
 import { WATCHABLE } from './ticket-shape.js';
 import { buildSoftgreenRubric, isCellsPath } from './closers.js';
 import { factPartReds } from './citedcheck.js';
+import { shapeShapeReds } from './shaperows.js';
 import { numberRuleReds, countReds, citedWordReds } from './citedwords.js';
 import { SHEET_RULES, MAX_SHEET_CHECKS, sheetCheckColumns, sheetCheckReds, sheetCheckWordReds, sheetNoClaimReds, sheetCoversReds } from './sheetchecks.js';
 import { lineRules } from './pagebits.js';
@@ -85,6 +86,7 @@ export const DECLARATION_FIELDS = Object.freeze([
   'sheet',
   'picked',
   'numbersFrom',
+  'itemShape',
 ]);
 
 const VALID_CLASSES = Object.freeze(['green', 'softgreen', 'hitl']);
@@ -97,7 +99,7 @@ const ARBITER_KEYS = Object.freeze(['cap', 'ask', 'ttl', 'send', 'source', 'trig
 
 const TOP_LEVEL_ALLOWED = Object.freeze(['steps', 'guardrailClasses', 'unjudgeable', 'refused', 'inputFacts', 'mcp', 'flowType', 'ticketFilter', 'ticketWatch', 'pickedLines', 'checkList']);
 const STEP_ALLOWED = Object.freeze(['goal', 'primitives', 'reads', 'emits', 'fromLine', 'close', 'picks', 'mcpTools']);
-const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked', 'numbersFrom']);
+const CLOSE_ALLOWED = Object.freeze(['class', 'shape', 'cited', 'columns', 'sheet', 'picked', 'numbersFrom', 'itemShape']);
 
 /** M13 piece 4 (signed item 4): the job's flow type, set by code from the job card, signed with the job. */
 export const FLOW_TYPES = Object.freeze(['plain', 'mcp', 'tickets']);
@@ -573,12 +575,13 @@ function checkPickedLines(declaration, reds) {
 /**
  * M10 am22: `close.picked` is the checks the person picked for a fact line, kept beside its fact check and run on the answer's `text`. Code sets it (src/checkpick.js
    * assembleFromBlock); here it must be a green step's, a list of bareguard text rules that builds into a check.
+ * M19 am10: a green step with item fields (`close.itemShape`) and no quote keeps its picks the same way (the step is checked on its `results` and on each pick over `text`).
  * It is allowed ONLY on a line the signed plan records in `pickedLines` (written by code from the person's picks); a count on any other fact line is refused.
  * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds @param {Record<string, any>} declaration
  */
 function checkPickedKey(step, label, effectiveClass, reds, declaration) {
   const at = `declaration: ${label}.close.picked`;
-  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet))) {
+  if (step.close.class !== 'green' || effectiveClass !== 'green' || !(isPlainObject(step.close.cited) || Array.isArray(step.close.sheet) || isPlainObject(step.close.itemShape))) {
     reds.push(`${at} is for a step that checks facts (quotes or a sheet) only; this step's check is "${step.close.class ?? effectiveClass}"`);
     return;
   }
@@ -588,6 +591,24 @@ function checkPickedKey(step, label, effectiveClass, reds, declaration) {
   }
   if (!SHAPE_TYPE_CHECKS.picked.check(step.close.picked)) { reds.push(`${at} must be ${SHAPE_TYPE_CHECKS.picked.expected}`); return; }
   try { buildSoftgreenRubric({ picked: step.close.picked }); } catch (err) { reds.push(`${at} cannot be built into a check - ${String(err.message).replace(/^invalid rubric: /, '')}`); }
+}
+
+/**
+ * M19 S5: `close.itemShape` is the signed list-of-items check of a line (a shape part `{fields, minItems?, maxItems?}`, src/shaperows.js), one bareguard `itemShape` check over the answer's `results`; never `close.shape`, which stays the text
+ * shape of M10 (amendment E). Code sets it (src/blockassemble.js). Beside `close.cited` (a green step) it is a facts+shape line; its fields are named legally and once, its kinds are on the menu and bareguard itself builds the check.
+ * @param {any} step @param {string} label @param {string} effectiveClass @param {string[]} reds
+ */
+function checkItemShapeKey(step, label, effectiveClass, reds) {
+  const at = `declaration: ${label}.close.itemShape`;
+  const part = step.close.itemShape;
+  if (!isPlainObject(part)) { reds.push(`${at} must be an object {fields, minItems, maxItems}`); return; }
+  for (const k of Object.keys(part)) if (!['fields', 'minItems', 'maxItems'].includes(k)) reds.push(`${at}: "${k}" is not a field of a list-of-items check (fields, minItems, maxItems)`);
+  if (step.close.class !== effectiveClass) reds.push(`${at}: this step's check is "${step.close.class ?? effectiveClass}", which is not the class its line earns`);
+  if (step.close.class === 'hitl') reds.push(`${at} is for a step whose answer is checked; this step's check is "hitl"`);
+  const fact = isPlainObject(step.close.cited) ? step.close.cited : null;
+  if (fact === null && step.close.class === 'softgreen' && step.close.shape !== undefined) reds.push(`${at}: a list-of-items line whose check reads its reply cannot also carry a text check (close.shape); its answer has no text`);
+  if (fact === null && Array.isArray(step.close.sheet)) reds.push(`${at}: a line is a list-of-items line or a sheet line, not both`);
+  shapeShapeReds(part, at, (_c, path, d) => reds.push(`${path}: ${d}`), fact);
 }
 
 /**
@@ -1049,6 +1070,7 @@ export function validateDeclaration(declaration, context = {}) {
         }
         if (step.close.numbersFrom !== undefined) checkNumbersFromKey(step, label, steps, reds);
         if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
+        if (step.close.itemShape !== undefined) checkItemShapeKey(step, label, effectiveClass, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);
       }
@@ -1063,7 +1085,7 @@ export function validateDeclaration(declaration, context = {}) {
     // M4d amendment 8: a step whose check is green (every figure cites a source cell) must read an input with cells; a text
     // output of an earlier step has no cells to cite.
     // M10 am7: a green step that cites quotes (`close.cited`) reads a web page, which has no cells; its source is checked above.
-    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && !reads.some((r) => cellsRoles.includes(r)) && !isPlainObject(step.close?.cited)) {
+    if (fitJobLine === true && effectiveClass === 'green' && reads !== null && !reads.some((r) => cellsRoles.includes(r)) && !isPlainObject(step.close?.cited) && !isPlainObject(step.close?.itemShape)) {
       const n = fromLine;
       const reading = reads.length === 0 ? 'it reads nothing' : `it reads only ${reads.join(', ')}`;
       const want = cellsRoles.length === 0 ? 'a spreadsheet input, and this job signs none' : cellsRoles.join(' or ');
@@ -1073,7 +1095,7 @@ export function validateDeclaration(declaration, context = {}) {
     // M10b piece 5 (item 8): the old cell cite retires for CSV. A green step that reads a spreadsheet answers in bareguard's claim boxes (`close.sheet`);
     // one with neither `close.sheet` nor `close.cited` would be the old cite close, which a new plan no longer offers. Signed flows keep running (fitJobLine only).
     if (fitJobLine === true && effectiveClass === 'green' && reads !== null && reads.some((r) => cellsRoles.includes(r))
-      && !isPlainObject(step.close?.cited) && !Array.isArray(step.close?.sheet)) {
+      && !isPlainObject(step.close?.cited) && !isPlainObject(step.close?.itemShape) && !Array.isArray(step.close?.sheet)) {
       reds.push(`declaration: Line ${fromLine}'s check cannot cite cells any more. Line ${fromLine} must carry close.sheet: bareguard's checks of ${reads.filter((r) => cellsRoles.includes(r)).join(' or ')}.`);
     }
 

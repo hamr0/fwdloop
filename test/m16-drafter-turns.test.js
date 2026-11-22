@@ -30,7 +30,8 @@ test('(S2) the ledger-suggest call: its extra checks are `add` edits of the bloc
   assert.deepEqual(p.calls[0].options.toolChoice, { name: 'suggest_extra_checks' });
   assert.equal(p.calls[0].options.thinkingMode, 'off');
   assert.ok(r.checkRows.some((/** @type {any} */ x) => x.key === 'L1.phrase.raised bed by the fence' && x.by === 'agent' && x.from === 'agent'), r.checkRows.map((/** @type {any} */ x) => x.key).join('|'));
-  assert.deepEqual(kinds(r).slice(0, 2), ['ledger-suggest', 'row-edit']);
+  // M19 S2: this fixture gives no picks, so the two count rules are still Not checked: the shape look is asked (the router's stub answers "no shape") and is a round of its own between the ledger call and the row-edit turn
+  assert.deepEqual(kinds(r).slice(0, 3), ['ledger-suggest', 'shape-map', 'row-edit']);
   assert.ok(r.costUsd > 0 && r.spendComplete === true && r.rounds === r.calls, 'every round metered');
 });
 
@@ -48,7 +49,7 @@ test('(S3) the answers ride the redraft: the person\'s Agree (the panel\'s answe
   A.reconcile();
   A.applyDelta({ pre: true, edits: [{ op: 'pick', line: 3, rules: [1], check: CHECK }] });
   A.reconcile();
-  const asks = questionsOfBlock(A, [{ line: 3, rule: 1 }]);
+  const asks = questionsOfBlock(A);
   assert.deepEqual(asks.map((a) => a.ask), ['check']);
   assert.deepEqual(applyChoices(A, [{ key: asks[0].key, choice: 'agree' }]), []);
   // the panel's path: the redraft's prose holds the REPLACED rule (one rule in, one rule out), and the pick comes back as {line, rule, check}

@@ -40,7 +40,7 @@ test('(S1) hideCounts: the lines the block takes show their count rules to the p
   assert.equal(shown.toOriginal({ line: 1, forRule: 2 }).forRule, 2, 'a shown line keeps its own rule numbers');
 });
 
-test('(S3) the asks are capped: four rules code cannot check stop at $0 with the rewrite list; three are asked', async (t) => {
+test('(S3) M19 am3: rules code cannot check are not asked and never trip the cap (four or three); the cap stays for the asks that remain', async (t) => {
   const job = (rules) => ['Write the first part', `~ ${rules}`, 'Ask: check it', 'Write it out'].join('\n');
   const four = ['tone is warm', 'reads kindly', 'no jargon', 'sounds human'].join('; ');
   const proseOf = (job4) => {
@@ -50,26 +50,25 @@ test('(S3) the asks are capped: four rules code cannot check stop at $0 with the
     return `1. ${job4[0]}\n   guardrail: ${job4[1]}\n2. ask 1h: ${job4[2]}\n3. write it out\n\nArbiter guardrails (belong to no line; human-signed, tighten-only):\nguardrail: cap $0.5 per run\nguardrail: send at line 3 to file:${path.join(home, 'out')}\n`;
   };
   const p4 = router({ suggest_checks: callOf('suggest_checks', { checks: [] }) });
-  const r4 = await run(p4, proseOf(['Write the first part', four, 'check it']));
-  assert.equal(r4.stop, 'look-asks-too-many');
-  assert.match(r4.reds[0], /^Your job has 4 rules I can't check or had to guess\./);
-  assert.deepEqual(r4.questions, []);
-  const p3 = router({ suggest_checks: callOf('suggest_checks', { checks: [] }) });
-  const r3 = await run(p3, proseOf(['Write the first part', 'tone is warm; reads kindly; no jargon', 'check it']));
-  assert.equal(r3.stop, 'look-asks');
-  assert.deepEqual(r3.questions.map((/** @type {any} */ q) => q.ask), ['no-check', 'no-check', 'no-check']);
-  assert.match(r3.questions[0].question, /^Line 1, guardrail "tone is warm": I can't check this\. Your own words, or Not checked\?/);
+  const r4 = await run(router({ suggest_checks: callOf('suggest_checks', { checks: [] }) }), proseOf(['Write the first part', four, 'check it']));
+  assert.notEqual(r4.stop, 'look-asks-too-many');
+  assert.notEqual(r4.stop, 'look-asks');
+  assert.deepEqual(r4.questions ?? [], []);
+  const r3 = await run(router({ suggest_checks: callOf('suggest_checks', { checks: [] }) }), proseOf(['Write the first part', 'tone is warm; reads kindly; no jargon', 'check it']));
+  assert.notEqual(r3.stop, 'look-asks');
+  assert.deepEqual(r3.questions ?? [], []);
+  assert.ok(!JSON.stringify(r3.questions ?? []).includes("I can't check"), 'M19 am3: no can\'t-check question about a ~ rule');
 });
 
-test('(S2) the suggest reply is the block\'s pre-edit where code has no check of its own: a rule code cannot read alone is asked as the AI\'s proposal, and without the pre-edit as "I can\'t check this"', async (t) => {
+test('(S2) the suggest reply is the block\'s pre-edit where code has no check of its own: a rule code cannot read alone is asked as the AI\'s proposal, and without the pre-edit it is Not checked with no question (M19 am3)', async (t) => {
   const prose = walkProse(t, (s) => s.replace('guardrail: exactly 3 bullets', 'guardrail: exactly 3 bullets and under 40 words'));
   const p = router({ suggest_checks: callOf('suggest_checks', { checks: [{ line: 3, guardrail: 1, rule: 'listItems', value: 3 }] }) });
   const r = await run(p, prose);
   const q = r.questions.find((/** @type {any} */ x) => x.line === 3);
   assert.deepEqual([q.ask, q.proposal, q.check], ['check', 'exactly 3 list items', { rule: 'listItems', value: 3 }]);
-  // the AI proposes nothing for it: the block has no check to offer and the ask is the can't-check one
+  // the AI proposes nothing for it: the block has no check to offer, so M19 am3: no question at all (Not checked, the shape look may take it)
   const none = await run(router({ suggest_checks: callOf('suggest_checks', { checks: [] }) }), prose);
-  assert.equal(none.questions.find((/** @type {any} */ x) => x.line === 3).ask, 'no-check');
+  assert.equal((none.questions ?? []).find((/** @type {any} */ x) => x.line === 3), undefined);
 });
 
 test('(R3) the order is check-suggest, then ledger-suggest, then the asks; a draft the asks stop still paid and metered the ledger call', async (t) => {

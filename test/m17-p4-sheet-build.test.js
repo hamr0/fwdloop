@@ -116,7 +116,7 @@ test('am2 must-fail through the real draft: the saved plan holds code-named chec
   assert.deepEqual(sheet.map((c) => c.id), ['l2r2', 'l2a1']);
   assert.equal(r.log.find((e) => e.sheetRefused).sheetRefused[0].helper, 'vocabulary');
   // the card shows each rule once: rule 2 is a [you] row; M17 am7: the table check is an [agent] row, so rule 1 is Not checked, once, with the no-pick words
-  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual(r.notChecked, ['line 2: "every invoice appears exactly once" \u2014 No check was picked for it, so you judge it at Accept.']);
 });
 
 test('am3 must-fail through the real draft: a second buildable check on a rule is on the list as an [agent] row, on, with Drop', async () => {
@@ -194,9 +194,10 @@ test('ruling 2 through the draft: the AI is told the agreed column, its suggesti
 
 test('ruling 2: when the AI suggested no check for the agreed word, no row is added', async () => {
   const { buildSheetChecks } = await import('../src/sheetbuild.js');
-  const d = decl(undefined);
-  const out = await buildSheetChecks({ declaration: d, lines: [{ n: 2, text: 'List every invoice over 500 by its price' }], tables: TABLES });
-  assert.equal(out.declaration.steps[1].close.sheet, undefined);
+  // M19 S3: buildSheetChecks is bareloop's (suggestions and sheet lines in, the checks per line out); the declaration is made from the block's rows, so "no row" is no check on the line
+  const out = await buildSheetChecks({ lines: [{ n: 2, text: 'List every invoice over 500 by its price' }], tables: TABLES, suggestions: [] });
+  assert.deepEqual(out.checks, []);
+  assert.deepEqual(out.built[2].agentRows, []);
 });
 
 test('am2 item 2 must-fail: a declaration that carries close.sheet is red, naming the field, and is revised; code builds nothing from it', async () => {

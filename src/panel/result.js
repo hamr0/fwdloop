@@ -25,6 +25,10 @@ import { readChecks } from '../diary.js';
 import { sheetLineBlocks, csvRolesOf } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import { tagged } from '../checkwords.js';
+import { shapeResultModel } from '../shaperesult.js';
+import { shapeItemOfPlain } from '../shapewords.js';
+import { SHAPE_TRUTH_WORDS } from '../shaperows.js';
+import { lineRulesOf } from '../whole-job.js';
 
 /** the two sentences for a saved file that is no longer what the run wrote (code-owned, one spelling) */
 export const RESULT_FILE_GONE = 'the saved file is gone';
@@ -179,7 +183,7 @@ export function readDelivered(rec) {
 }
 
 /**
- * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<flow>-<runId>-<emits>.md`
+ * The files this run's signed sends wrote: for each signed send whose send step ended green in the audit, the file `<job>-YYYY-MM-DD[-n].md` (`sentName`, M15 am3; older runs: `<flow>-<runId>-<emits>.md`)
  * in the signed folder with the sha256 the send recorded for it (M15), or, for a send older than M15, `.json` with the sha256 the human's accept recorded for the ask that
  * send reads (`readAcceptedHashesByEmits`, the same record the send itself checked). No accepted hash = recorded as null, which reads as "changed", never as ok.
  * @returns {{path: string, dir: string|null, name: string, note: string|null, sha256: string|null}[]}
@@ -236,6 +240,26 @@ function gapOf(text) {
 }
 
 /**
+ * borrowed-from: bareloop src/panel/server.js@v0.61.0 (`shapeRedsFromRecords`, the gap-line half), adjusted to fwdloop's books: a run records the close's plain gap lines on its audit and log.json attempt rows (never bareguard's per-row record),
+ * and a red run's judged answer is the model output of that attempt in log.json. A shape line's answer for the Result tab: the delivered artifact (the step closed green: no item is red) or, for a red run, the step's last red attempt
+ * with the item reds read back from its plain gap lines through `shapeItemOfPlain`. Third outcome: nothing readable is `null` (the page says "no saved result to show").
+ * @param {{runDir: string, step: any, line: number, logJson: any}} a @returns {{results: any[], reds: string[]}|null}
+ */
+export function shapeAnswerOf({ runDir, step, line, logJson }) {
+  const a = readArtifactResult(runDir, step.emits);
+  if (a.ok && a.value && typeof a.value === 'object' && Array.isArray(a.value.results)) return { results: a.value.results, reds: [] };
+  const last = (Array.isArray(logJson?.attempts) ? logJson.attempts : []).filter((t) => t && t.step === step.emits && t.verdict === 'red').at(-1);
+  const out = last?.modelOutput;
+  if (!out || typeof out !== 'object' || !Array.isArray(out.results)) return null;
+  const reds = String(last.gap ?? '').split('\n').flatMap((l) => {
+    const m = /^line (\d+): (item \d+.*)$/s.exec(l);
+    const red = m && Number(m[1]) === line ? shapeItemOfPlain(m[2]) : null;
+    return red ? [red] : [];
+  });
+  return { results: out.results, reds: [...new Set(reds)] };
+}
+
+/**
  * The Result tab's JSON for one run (`GET /api/runs/:flow/:runId/result`).
  * @param {{flow: string, runId: string, runDir: string, root: string, flowRead: any, arbiter: any, historyRow: any, auditRows: any[], logJson: any, notChecked: string[], readNotes?: string[], setupRows?: any[], door?: {askId: string, draftNo: number}|null}} a
  */
@@ -267,6 +291,15 @@ export function buildResult({
         return a.ok && isStr(a.value?.text) && a.value.text !== '' ? a.value.text : null;
       }).filter((x) => x !== null);
       if (written.length > 0) out.answer = written.join('\n\n');
+    }
+    // M19 S8 (the signed mock A2): a line whose close holds a list-of-items check (`close.itemShape`) shows its answer as a fold of items; the model is src/shaperesult.js's (bareloop v0.61.0), the marks and words the server's
+    const shapeStep = (declaration?.steps ?? []).find((st) => st.fromLine === l.n && st.close && typeof st.close.itemShape === 'object' && st.close.itemShape !== null && Array.isArray(st.close.itemShape.fields));
+    if (shapeStep) {
+      out.kind = 'shape';
+      const got = shapeAnswerOf({ runDir, step: shapeStep, line: l.n, logJson });
+      out.shape = got === null ? null : shapeResultModel({ part: shapeStep.close.itemShape, results: got.results, reds: got.reds, rules: lineRulesOf(l) });
+      if (!out.notChecked.includes(SHAPE_TRUTH_WORDS)) out.notChecked = [...out.notChecked, SHAPE_TRUTH_WORDS];
+      return out;
     }
     if (c) {
       out.source = c.source;

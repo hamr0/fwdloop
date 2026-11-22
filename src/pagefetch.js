@@ -87,11 +87,11 @@ export function pageContentChars(text) {
 
 /**
  * @typedef {{goto: (url: string, timeout?: number) => Promise<{url: string, status: number}>, waitForNetworkIdle: (o?: {idle?: number, timeout?: number}) => Promise<void>,
- *   snapshot: (o?: {mode?: string}) => Promise<string>, close: () => Promise<void>}} FetchPage the part of barebrowse's page handle the fetch uses
+ *   snapshot: (o?: {mode?: string}) => Promise<string>, close: () => Promise<void>, botBlocked?: boolean}} FetchPage the part of barebrowse's page handle the fetch uses
  */
 
-/** the oldest barebrowse we accept: 0.21.0 honours CONNECT_OPTIONS (incognito, blockPrivateNetwork; an older one would drop both guards without a word); 0.24.1 tethers Chromium to its launcher, so a killed run or an Abandoned draft leaves no browser behind; 0.26.0 makes goto() resolve to {url, status}, the HTTP status an error page is refused on (M10 am13) */
-export const MIN_BAREBROWSE = [0, 26, 0];
+/** the oldest barebrowse we accept: 0.21.0 honours CONNECT_OPTIONS (incognito, blockPrivateNetwork; an older one would drop both guards without a word); 0.24.1 tethers Chromium to its launcher, so a killed run or an Abandoned draft leaves no browser behind; 0.26.0 makes goto() resolve to {url, status}, the HTTP status an error page is refused on (M10 am13); 0.30.0 sets page.botBlocked, the flag a bot challenge is refused on (F222) */
+export const MIN_BAREBROWSE = [0, 30, 0];
 
 /** @param {string} v @returns {boolean} true when `v` (x.y.z) is at least MIN_BAREBROWSE */
 export function barebrowseNewEnough(v) {
@@ -108,7 +108,7 @@ async function loadConnect() {
   try {
     const mod = /** @type {any} */ (await import('barebrowse'));
     const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.resolve('barebrowse'))), '..', 'package.json'), 'utf8'));
-    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.26.0 or newer, which keeps the browser private, off the local network, closed when the run ends, and says whether the page loaded` };
+    if (!barebrowseNewEnough(pkg.version)) return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse ${pkg.version}) is too old: a web page needs 0.30.0 or newer, which keeps the browser private, off the local network, closed when the run ends, and says whether the page loaded` };
     return { ok: /** @type {const} */ (true), connect: /** @type {(opts: Record<string, any>) => Promise<FetchPage>} */ (mod.connect) };
   } catch (e) { return { ok: /** @type {const} */ (false), error: `the page reader (barebrowse) could not be loaded: ${/** @type {Error} */ (e).message}` }; }
 }
@@ -137,6 +137,8 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
   let timer;
   /** @type {Promise<FetchPage>|undefined} */
   let opening;
+  /** @type {FetchPage|undefined} */
+  let shot;
   try {
     opening = open({ ...CONNECT_OPTIONS });
     const page = opening;
@@ -150,13 +152,16 @@ export async function fetchPageText(url, { connect, timeoutMs = PAGE_FETCH_TIMEO
         if (st < 200 || st > 299) return { refused: `${u.href} came back as an error page (HTTP ${st}), so there is nothing to read` };
         // bounded: a page that never goes quiet (polling, streaming) is read as it stands (bareloop); the size and chrome floors below then decide
         try { await p.waitForNetworkIdle({ idle: idleMs, timeout: idleTimeoutMs }); } catch { /* read what is there */ }
-        return p.snapshot({ ...SNAPSHOT_OPTIONS });
+        const t = await p.snapshot({ ...SNAPSHOT_OPTIONS });
+        shot = p;
+        return t;
       })(),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer inside ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs); }),
     ]);
     if (text && typeof text === 'object' && 'refused' in text) return { ok: false, error: String(text.refused) };
     if (typeof text !== 'string') return { ok: false, error: `${u.href} did not come back as text` };
-    if (/\[BOT CHALLENGE DETECTED[\] ]/.test(text)) return { ok: false, error: `${u.href} asked for a human check (a bot challenge), so the page could not be read` };
+    // F222: barebrowse 0.30.0 sets page.botBlocked exactly when it writes its marker; only a strict true counts
+    if (/** @type {FetchPage|undefined} */ (shot)?.botBlocked === true) return { ok: false, error: `${u.href} asked for a human check (a bot challenge), so the page could not be read` };
     const size = text.trim().length;
     if (size < MIN_PAGE_CHARS) return { ok: false, error: `${u.href} came back with ${size === 0 ? 'no text' : `only ${size} characters of text`} (less than ${MIN_PAGE_CHARS}) - the page did not load, or holds nothing to read` };
     if (pageContentChars(text) < MIN_CONTENT_CHARS) return { ok: false, error: `${u.href} came back with only the site's own header and menus - the page did not load its content, so there is nothing to read` };

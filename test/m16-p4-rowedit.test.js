@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { signDraft } from '../src/authoring.js';
+import { NO_GUARDRAIL_WORDS } from '../src/checkblock.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { draftingSpent } from '../src/draftspend.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
@@ -102,7 +103,7 @@ test('an input that changed since the draft: the list is not rebuilt on guesswor
   assert.deepEqual(readdirSync(w.dir(id)).sort(), names);
 });
 
-test('Add on a line with no guardrail of the person\'s: the row is signed Not checked with the signed words (the class of a line comes from its guardrail), the plan still signs', async () => {
+test('Add on a line with no guardrail of the person\'s: the Add is refused with the no-guardrail words, nothing is written, and the plan that was green signs as it was (F251, hamr 2026-11-22 ruling "1": the check block is the one decider; it was Add accepted then signed Not checked)', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_LEDGER: LEDGER } });
   writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
   const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
@@ -110,14 +111,14 @@ test('Add on a line with no guardrail of the person\'s: the row is signed Not ch
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   assert.equal(g.list.suggested.length, 1);
-  assert.equal((await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key })).status, 200);
-  const after = await settle(w, id, ['green', 'red', 'stopped']);
-  assert.equal(after.phase, 'green', JSON.stringify(after));
-  const decl = JSON.parse(read(w, id, `${after.plan}/declaration.json`));
-  assert.ok(decl.checkList.some((r) => r.state === 'not-checked' && /^This line has no guardrail of yours/.test(r.reason)), 'break: build the row on a line with no guardrail and the sign proof refuses the plan');
-  assert.ok(after.notChecked.items.some((x) => x.includes('This line has no guardrail of yours')), JSON.stringify(after.notChecked));
+  const names = readdirSync(w.dir(id)).sort();
+  const r = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key });
+  assert.equal(r.status, 409, r.text);
+  assert.ok(String(r.json().say ?? r.text).includes(NO_GUARDRAIL_WORDS), r.text);
+  assert.deepEqual(readdirSync(w.dir(id)).sort(), names);
+  const decl = JSON.parse(read(w, id, `${g.plan}/declaration.json`));
   assert.equal(decl.steps.find((s) => s.fromLine === 3).close.class, 'hitl');
-  const signed = signDraft({ dir: path.join(w.dir(id), after.plan), approve: after.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
+  const signed = signDraft({ dir: path.join(w.dir(id), g.plan), approve: g.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
 });
 

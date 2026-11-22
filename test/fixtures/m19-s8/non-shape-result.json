@@ -1,0 +1,75 @@
+{
+ "flow": "job",
+ "runId": "run-1",
+ "lines": [
+  {
+   "notChecked": [],
+   "n": 1,
+   "text": "Write a note",
+   "rules": [],
+   "kind": "text",
+   "passed": false,
+   "file": null,
+   "checks": [],
+   "sheet": null,
+   "answer": "a short note"
+  },
+  {
+   "notChecked": [
+    "whether it is right"
+   ],
+   "n": 2,
+   "text": "Quote the price",
+   "rules": [
+    "under 10"
+   ],
+   "kind": "facts",
+   "passed": true,
+   "file": null,
+   "checks": [],
+   "sheet": null,
+   "source": "page",
+   "page": null,
+   "facts": [
+    {
+     "name": "price",
+     "kind": "value",
+     "sentence": "the price is a number"
+    }
+   ],
+   "rows": [
+    {
+     "n": 1,
+     "quote": "it costs 9",
+     "cells": [
+      "9"
+     ]
+    }
+   ]
+  },
+  {
+   "notChecked": [],
+   "n": 3,
+   "text": "Say goodbye",
+   "rules": [
+    "short; kind"
+   ],
+   "kind": "text",
+   "passed": false,
+   "file": null,
+   "checks": [],
+   "sheet": null,
+   "answer": "last words"
+  }
+ ],
+ "pages": [],
+ "pageNote": null,
+ "notCheckedLabel": "Not checked (the AI's own reading)",
+ "notChecked": [
+  "one rule"
+ ],
+ "readNotes": [],
+ "delivered": [],
+ "gap": null,
+ "door": null
+}

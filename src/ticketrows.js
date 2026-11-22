@@ -10,7 +10,7 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
 /** @type {readonly ('ticketFilter'|'ticketWatch')[]} */
 export const TICKET_FIELDS = Object.freeze(['ticketFilter', 'ticketWatch']);
 /** the Not-checked reason of a ticket rule no legal value was suggested for (the block's own noPick sentence is used by the caller's words) */
-export const NO_VALUE_WHY = 'No check was picked for it, so you judge it at the Ask.';
+export const NO_VALUE_WHY = 'No check was picked for it, so you judge it at Accept.';
 
 /**
  * Which signed field a Tickets rule is the check of: `ticketWatch` (a state or labels change), `ticketFilter` (a priority P0 to P3 or a label), or null (a content rule or a count).

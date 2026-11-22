@@ -1,5 +1,5 @@
 // M13 am9 / M15 am3: the file holds the whole job. ONE writer of the whole-job text (`wholeJobText`), ONE finder of the Ask that shows it (`wholeJobAskIndex`).
-// The last Ask before the added `write it out` shows every step's result in job order, built by code from each step's saved output (never picked by the AI). Since M15 am3 that text is the BODY of the
+// The last Ask before the action shows every step's result in job order, built by code from each step's saved output (never picked by the AI). Since M15 am3 that text is the BODY of the
 // run's one markdown report (`renderReportBody`, src/report.js: `## <n>. <line>`, the ~ rules, what code checked, the AI's answer under its heading; an Ask before it is one line
 // `Line <n>: you accepted this at the Ask.`); the last Ask itself and the send line are not sections. The accepted artifact is `{text}`; the send adds the title and the Passed line and writes it.
 // Throws away: what `renderReportBody` throws away. Third outcomes: a work step with no readable saved output refuses, naming the step; a frozen sheet the report needs that cannot be read refuses, naming it.
@@ -43,7 +43,7 @@ export function wholeJobAskIndex({ steps, askLines, sendLines }) {
 }
 
 /** the `~` rules of a signed job line, one string each: the parsed line carries them joined by "; " in `guardrail` (several `~` lines under one step are one guardrail), as the Result tab reads it @param {any} jl @returns {string[]} */
-const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
+export const lineRulesOf = (jl) => (jl && typeof jl.guardrail === 'string' && jl.guardrail !== '' ? jl.guardrail.split('; ').filter(Boolean) : lineRules(jl));
 
 /**
  * Is the prose of this step checked by code (M15 am3 item 2: `### The answer` instead of the not-checked heading)? Only when code really checked the step's own text (a green close with a words-per-section
@@ -59,6 +59,9 @@ export function proseCheckedOf(step, checkList) {
   const shape = c.shape && typeof c.shape === 'object' ? c.shape : {};
   return shape.wordsPerSection !== undefined || (Array.isArray(shape.picked) && shape.picked.length > 0) || (Array.isArray(c.picked) && c.picked.length > 0);
 }
+
+/** the signed shape part of a step (its close's `itemShape`, M19 S5), or null: the report writes the shape section for a line that holds one (M19 amendment C) @param {any} step */
+const shapeOfStep = (step) => (step?.close?.itemShape && typeof step.close.itemShape === 'object' && Array.isArray(step.close.itemShape.fields) ? step.close.itemShape : null);
 
 /**
  * What the report needs besides the steps: the signed lines' own words (the `~` rules), the run's frozen sheets and which sheet checks passed. Read once from the run folder.
@@ -87,10 +90,10 @@ export function reportContextOf({ runDir, steps, jobLines, checkList }) {
 /**
  * @param {{ steps: { fromLine: number, goal: string, emits?: string, close?: any }[], askLines: Map<number, any>, lastAskIndex: number,
  *   readResult: (id: string) => ({ ok: true, value: any } | { ok: false, missing: true } | { ok: false, missing: false, red: string }),
- *   context: ReturnType<typeof reportContextOf> }} p
+ *   context: ReturnType<typeof reportContextOf>, redPrefix?: string }} p `redPrefix` is `ask: ` (an Ask job's words, unchanged); M15 am4 gives a job with no Ask `send: `
  * @returns {{ ok: true, value: { text: string } } | { ok: false, red: string }}
  */
-export function wholeJobText({ steps, askLines, lastAskIndex, readResult, context }) {
+export function wholeJobText({ steps, askLines, lastAskIndex, readResult, context, redPrefix = 'ask: ' }) {
   if (!context.ok) return { ok: false, red: context.red };
   /** @type {Parameters<typeof renderReportBody>[0]} */
   const lines = [];
@@ -105,14 +108,15 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
       return {
         ok: false,
         red: r.missing
-          ? `ask: the saved output "${s.emits}" of step "${s.goal}" is missing — refusing to show the whole job`
-          : `ask: the saved output "${s.emits}" of step "${s.goal}" — ${r.red}`,
+          ? `${redPrefix}the saved output "${s.emits}" of step "${s.goal}" is missing — refusing to show the whole job`
+          : `${redPrefix}the saved output "${s.emits}" of step "${s.goal}" — ${r.red}`,
       };
     }
     const jl = context.jobLines.find((/** @type {any} */ l) => l && l.n === s.fromLine);
     lines.push({
       n: s.fromLine, kind: 'work', text: s.goal, rules: lineRulesOf(jl), artifact: r.value,
       checks: Array.isArray(s.close?.sheet) ? s.close.sheet : [], okIds: context.okIdsOf(s.fromLine), proseChecked: proseCheckedOf(s, context.checkList),
+      shape: shapeOfStep(s),
     });
   }
   return { ok: true, value: { text: renderReportBody(lines, context.tables) } };
@@ -121,10 +125,13 @@ export function wholeJobText({ steps, askLines, lastAskIndex, readResult, contex
 /**
  * M15 am3 item 6: the body the send writes. A plan whose last Ask shows the whole job (`wholeIdx` >= 0) was accepted AS that text: the body is `{text}` exactly, never rebuilt. A plan signed before
  * M13 am9 (or a job with no Ask) sends the one step right before the send: its section is written from the accepted artifact, the line being that step's own (or, past an Ask, the step the Ask read).
- * @param {{ content: any, wholeIdx: number, steps: any[], sendIndex: number, askLines: Map<number, any>, context: ReturnType<typeof reportContextOf> }} p
+ * M15 am4: a job with no signed Ask (`askLines.size === 0`, no whole-job Ask) writes every work line before the send, in line order: the whole-job text over the steps before the send, the step right before it
+ * read from `content` (what the person accepted), the earlier ones from the run's saved outputs (`readResult`). A missing or unreadable earlier output refuses by name, in `send: ` words (never `ask: `).
+ * @param {{ content: any, wholeIdx: number, steps: any[], sendIndex: number, askLines: Map<number, any>, context: ReturnType<typeof reportContextOf>,
+ *   readResult?: (id: string) => ({ ok: true, value: any } | { ok: false, missing: true } | { ok: false, missing: false, red: string }) }} p
  * @returns {{ ok: true, body: string } | { ok: false, red: string }}
  */
-export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, context }) {
+export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, context, readResult }) {
   if (wholeIdx >= 0) {
     return typeof content?.text === 'string' && Object.keys(content).length === 1
       ? { ok: true, body: content.text }
@@ -132,6 +139,14 @@ export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, cont
   }
   if (!context.ok) return { ok: false, red: context.red };
   const before = steps[sendIndex - 1];
+  if (askLines.size === 0) {
+    if (!readResult) return { ok: false, red: 'send: no reader for the run\'s saved outputs was given — refusing to write a report' };
+    const whole = wholeJobText({
+      steps, askLines, lastAskIndex: sendIndex, context, redPrefix: 'send: ',
+      readResult: (id) => (before && id === before.emits ? { ok: true, value: content } : readResult(id)),
+    });
+    return whole.ok ? { ok: true, body: whole.value.text } : whole;
+  }
   const made = before && askLines.has(before.fromLine) ? steps.find((x) => x.emits === (before.reads ?? [])[0]) ?? before : before;
   const jl = context.jobLines.find((/** @type {any} */ l) => l && l.n === made?.fromLine);
   return {
@@ -139,6 +154,7 @@ export function sendBodyOf({ content, wholeIdx, steps, sendIndex, askLines, cont
     body: renderReportBody([{
       n: made?.fromLine, kind: 'work', text: made?.goal, rules: lineRulesOf(jl), artifact: content,
       checks: Array.isArray(made?.close?.sheet) ? made.close.sheet : [], okIds: context.okIdsOf(made?.fromLine), proseChecked: proseCheckedOf(made, context.checkList),
+      shape: shapeOfStep(made),
     }], context.tables),
   };
 }

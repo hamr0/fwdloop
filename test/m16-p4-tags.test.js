@@ -54,8 +54,9 @@ test('(item 1) the readout of a list plan tags each check by its row; an old pla
   const parsed = { arbiter: { sources: [], asks: [], sends: [], capUsd: 1 }, lines: [{ n: 1, text: 'a' }, { n: 2, text: 'b' }], name: 'x' };
   const text = (/** @type {any} */ d) => buildReadout({ declaration: { ...d, inputFacts: {}, flowType: 'plain' }, arbiter: parsed.arbiter, lines: parsed.lines, name: 'x', modelId: 'm', costUsd: 0, rounds: 1, spendComplete: true, root: '/r' });
   const list = text(listDecl());
-  assert.match(list, /\n {5}at most 80 words \[you\]\n/);
-  assert.match(list, /\n {5}exactly 3 list items \[agent\]\n/);
+  // M19 S6 (section 3.7): a list line's rows are told in the CHECKED group as `[tag]  kind  words`
+  assert.match(list, /\n {5}CHECKED · \d+\n {7}\[you\] {6}truth {2}at most 80 words\n/);
+  assert.match(list, /\n {7}\[agent\] {4}truth {2}exactly 3 list items\n/);
   assert.doesNotMatch(list, /you picked/);
   assert.match(text(stripped()), /you picked: at most 80 words \[you picked\]/);
 });

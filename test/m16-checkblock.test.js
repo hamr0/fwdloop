@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CheckBlock, renderCard, REASON, CARD_T } from '../src/checkblock.js';
+import { CheckBlock, renderCard, REASON } from '../src/checkblock.js';
 import { listMatchesClose } from '../src/rubricstep.js';
 import { MAX_BANG } from '../src/checklist.js';
 
@@ -308,11 +308,14 @@ test('drop on a question leaves the rule Not checked and adds no row; typed word
   b.applyAnswer(b.open[0].key, 'drop'); b.reconcile();
   assert.equal(b.rows.filter((r) => r.kind === 'rule').length, 1);
   assert.equal(b.rows.find((r) => r.kind === 'rule')?.reason, REASON.left);
+  // M19 am3 (bareloop v0.61.0): a rule code cannot check is Not checked with no question, so there is nothing to drop or retype; typed words REPLACE the rule of a question that stays (the page reading)
   const c = new CheckBlock({ texts: { f: 'x y z' }, labels: ['f'] });
   c.fromJob([{ n: 1, text: 'Say it', rules: ['be nice'] }]); c.reconcile();
-  assert.equal(c.open[0].ask, 'cant-check');
-  c.applyAnswer(c.open[0].key, 'rule', 'mention x'); c.reconcile();
-  assert.deepEqual(c.rows.filter((r) => r.kind === 'rule').map((r) => [r.rule, r.origin, r.text]), [[1, 'typed', 'mention x']]);
+  assert.deepEqual(c.open, []);
+  assert.equal(c.rows.find((r) => r.kind === 'rule')?.reason, REASON.noPick);
+  const d = flight();
+  d.applyAnswer(d.open[0].key, 'rule', 'mention x'); d.reconcile();
+  assert.deepEqual(d.rows.filter((r) => r.kind === 'rule').map((r) => [r.rule, r.origin, r.text]), [[1, 'typed', 'mention x']]);
 });
 
 test('an agreed count pick: pick part carries the rule and its added line; carry() keeps a last draft pick on the rule with those words and a left rule left', () => {
@@ -337,7 +340,7 @@ test('a count rule code does not scope in is Not checked with the plain words, n
   const b = new CheckBlock({ texts: { f: 'x' }, labels: ['f'], countScope: () => false });
   b.fromJob([{ n: 1, text: 'Summarise it', rules: ['exactly 3 bullets'] }]); b.reconcile();
   assert.equal(b.open.length, 0);
-  assert.equal(b.rows.find((r) => r.kind === 'rule')?.reason, REASON.noRule);
+  assert.equal(b.rows.find((r) => r.kind === 'rule')?.reason, REASON.noPick);
 });
 
 test('ruling 4: a whole fact the look dropped shows Not checked with its plain sentence (a tied rule gets it as its reason, a loose fact is a `!` row); person-left is the block\'s own', () => {
@@ -345,14 +348,14 @@ test('ruling 4: a whole fact the look dropped shows Not checked with its plain s
   b.fromJob([{ n: 1, text: 'Find it', rules: ['cheap enough'] }]);
   b.addLook([], [{ line: 1, rule: 1, fact: 'price', reason: 'no-label' }, { line: 1, fact: 'seats', reason: 'no-label' }, { line: 1, rule: 1, fact: 'price', reason: 'person-left' }]);
   b.reconcile();
-  b.applyAnswer(b.open[0].key, 'drop'); b.reconcile();
+  assert.deepEqual(b.open, [], 'M19 am3: nothing is asked');
   const loose = b.rows.find((r) => r.kind === 'fact');
   assert.equal(loose?.state, 'not-checked');
   assert.match(String(loose?.reason), /No word on this page reads "seats" safely/);
   const c = new CheckBlock({ texts: { f: 'x' }, labels: ['f'] });
   c.fromJob([{ n: 1, text: 'Find it', rules: ['cheap enough'] }]);
   c.addLook([], [{ line: 1, rule: 1, fact: 'price', reason: 'no-label' }]);
-  c.reconcile(); c.applyAnswer(c.open[0].key, 'rule', 'mention x'); c.reconcile();
+  c.reconcile();
   assert.match(String(c.rows.find((r) => r.rule === 1)?.reason), /No word on this page reads "price" safely/);
 });
 

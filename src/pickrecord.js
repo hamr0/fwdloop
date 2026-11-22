@@ -118,6 +118,20 @@ export function readRowChoices(file) {
   } catch { return null; }
 }
 
+// borrowed-from: bareloop src/pickrecord.js@v0.61.0 (fc56e1f3) (readShapeDropped; read through readFileInside like readSheetDropped; writeRecordPart not taken: fwd's writers are src/authoring.js and src/planrebuild.js)
+/**
+ * Shape jobs (clause 4): the shape fields a person dropped from a plan, carried like the sheet's (the block's `shapeDroppedRecord`: `{lineWords, occurrence, name}` or `{lineWords, occurrence, rule}`), so a Revise keeps a Drop of the very same field. A missing or unreadable record is no record.
+ * @param {string} file @returns {{lineWords: string, occurrence: number, name?: string, rule?: number}[]|null}
+ */
+export function readShapeDropped(file) {
+  try {
+    const g = readFileInside(path.dirname(file), path.basename(file));
+    if (!g.ok) return null;
+    const j = JSON.parse(g.text);
+    return Array.isArray(j?.shapeDropped) ? j.shapeDropped.filter((/** @type {any} */ d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))) : null;
+  } catch { return null; }
+}
+
 /**
  * The sheet checks the person dropped from a plan (hamr 2026-11-14: a Revise keeps a sheet Drop), carried like the page-row choices: the record's `sheetDropped` entries, each `{key, line, index, check, text}`;
  * the next draft drops a new check with the same id again. Read through readFileInside; a missing or unreadable record is no record.

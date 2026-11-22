@@ -1,5 +1,5 @@
 // M17 am7 (docs/wiki/the-module-ladder.md "M17 am7"): a check that reads only the input sheet (a `table` check) never sits on a `~` rule's row, and a `~` rule no check holds
-// reads "No check was picked for it, so you judge it at the Ask." (never "no sheet check covers it"). Fake providers, the synthetic sheet test/fixtures/m10b-sheets/aging.csv, $0.
+// reads "No check was picked for it, so you judge it at Accept." (never "no sheet check covers it"). Fake providers, the synthetic sheet test/fixtures/m10b-sheets/aging.csv, $0.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ const AGING_CSV = path.join(HERE, 'fixtures', 'm10b-sheets', 'aging.csv');
 const TABLES = { aging: sheetTable(parseCsv(readFileSync(AGING_CSV, 'utf8'))) };
 const GUARD = 'every invoice appears exactly once, all 8 of them; flag amounts over 500';
 const LINE = { n: 2, text: 'Put each invoice in its overdue bucket as of 2026-10-11', guardrail: GUARD };
-const NO_PICK = 'No check was picked for it, so you judge it at the Ask.';
+const NO_PICK = 'No check was picked for it, so you judge it at Accept.';
 const R1 = 'line 2: "every invoice appears exactly once, all 8 of them"';
 const ROWCOUNT = { rule: 'table', table: 'aging', op: 'rowCount', n: 8, covers: [1] };
 const OVER = { rule: 'cells', table: 'aging', claim: 'over', op: 'rows', where: [{ column: 'Amount', cmp: 'gt', value: 500 }], covers: [2] };

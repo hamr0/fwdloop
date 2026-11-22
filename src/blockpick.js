@@ -173,3 +173,13 @@ export function partOfPick(check, text, rules) {
   return { text, class: 'countable', check: rule, ...fields, rules };
 }
 
+
+// borrowed-from: bareloop src/checkpick.js@v0.61.0 (fc56e1f3)
+/** the numbers a text says as "under / fewer than / less than / below N" (the one reader of that wording: a list-items rule and a shape field's bound both use it) @param {string} text @returns {number[]} */
+export function underNumbers(text) {
+  return [...String(text).matchAll(/(?<!\b(?:no|not)\s)\b(?:(?:fewer|less)\s+than|under|below)\s+(\d+)\b/gi)].map((m) => Number(m[1]));
+}
+/** the numbers a text says as "at most / up to / no more than / not more than N" @param {string} text @returns {number[]} */
+export function atMostNumbers(text) {
+  return [...String(text).matchAll(/\b(?:at\s+most|up\s+to|no\s+more\s+than|not\s+more\s+than)\s+(\d+)\b/gi)].map((m) => Number(m[1]));
+}

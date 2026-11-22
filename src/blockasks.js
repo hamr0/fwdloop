@@ -1,20 +1,19 @@
 // borrowed-from: bareloop src/blockasks.js@v0.57.0 (c18df406)
 // borrowed-from: bareloop src/blockasks.js@v0.56.0 (3383cce)
 // The questions of the check block, as the answer gate reads them (`answerQuestions`, src/questionbox.js): ONE spelling of the question words, written by code from a row that
-// code could not settle (reading | cant-check | check). The block's `open` list is the source; the person's CHOICE (agree | drop | rule) goes back through `block.applyAnswer`.
-import { readingQuestion, cantCheckQuestion } from './pageask.js';
-import { plainWords, HOW_TO_ANSWER, CANT_CHECK_WORDS } from './checkpick.js';
+// code could not settle (reading | check). The block's `open` list is the source; the person's CHOICE (agree | drop | rule) goes back through `block.applyAnswer`.
+import { readingQuestion } from './pageask.js';
+import { plainWords, HOW_TO_ANSWER } from './checkpick.js';
 
-/** @typedef {{key: string, rowKey: string, line: number, rule: number, source: 'look', ask: 'reading'|'cant-check'|'no-check'|'check', ruleText: string, question: string, counted: boolean, reading?: string, check?: Record<string, any>}} BlockAsk */
+/** @typedef {{key: string, rowKey: string, line: number, rule: number, source: 'look', ask: 'reading'|'check', ruleText: string, question: string, counted: boolean, reading?: string, check?: Record<string, any>}} BlockAsk */
 
 /**
- * The questions the block has open, in the order the person meets them: the look's readings, then the look's can't-checks, then the pick path's asks (a proposal or a can't-check about a rule the pick path owns) in rule order (a proposal is not counted toward the 3-ask cap).
- * A can't-check about a rule the PICK path owns (`scoped`: src/checkpick.js scopedRules, every `~` rule of a file job) is the pick path's own ask, `no-check`, in fwd's words (a "Line N, guardrail ...: I can't check this" ask
- * whose answer the panel records as a pick, so Revise carries it: am17/am18/am21); any other can't-check is the look's own ask about a page.
- * @param {import('./checkblock.js').CheckBlock} block @param {{line: number, rule: number}[]} [scoped] @returns {BlockAsk[]}
+ * The questions the block has open, in the order the person meets them: the look's readings, then the pick path's proposals (a proposal is not counted toward the 3-ask cap).
+ * M19 am3: a rule no check can settle is no longer asked, so `block.open` holds only `reading` and `check` asks; any other kind is a bug and throws.
+ * @param {import('./checkblock.js').CheckBlock} block @returns {BlockAsk[]}
  */
-export function questionsOfBlock(block, scoped = []) {
-  const rank = { reading: 0, 'cant-check': 1, 'no-check': 2, check: 2 };
+export function questionsOfBlock(block) {
+  const rank = { reading: 0, check: 1 };
   return block.open.map((/** @type {any} */ q) => {
     const row = block.rows.find((r) => r.key === q.rowKey);
     const rule = Number(row?.rule);
@@ -24,8 +23,7 @@ export function questionsOfBlock(block, scoped = []) {
       const words = plainWords(q.proposal);
       return { ...base, ask: /** @type {'check'} */ ('check'), counted: false, reading: words, check: q.proposal, question: `Line ${q.line}, guardrail "${q.ruleText}": I propose ${words}. ${HOW_TO_ANSWER(q.line, true)}` };
     }
-    if (scoped.some((x) => x.line === q.line && x.rule === rule)) return { ...base, ask: /** @type {'no-check'} */ ('no-check'), counted: true, question: `Line ${q.line}, guardrail "${q.ruleText}": ${CANT_CHECK_WORDS} ${HOW_TO_ANSWER(q.line, false)}` };
-    return { ...base, ask: /** @type {'cant-check'} */ ('cant-check'), counted: true, question: cantCheckQuestion(q.line, String(q.ruleText)) };
+    throw new Error(`questionsOfBlock: unexpected ask kind "${q.ask}" on row ${q.rowKey}`);
   }).sort((a, b) => rank[a.ask] - rank[b.ask]);
 }
 

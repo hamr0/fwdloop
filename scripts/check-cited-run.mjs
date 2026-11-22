@@ -77,6 +77,14 @@ for (const line of record.lines) {
     if (quote === '' || !page.includes(quote)) { bad(n, `${at}: the quote is not on the saved page word for word`); return; }
     for (const fact of want.facts) {
       const who = `${at}, fact "${fact.name}"`;
+      if (fact.shape === 'phrase' && Array.isArray(fact.anyOf)) {
+        // M19 am5: several words, the quote holds any one of them on word edges (the character before and after is not a letter, mark or digit), case-insensitive
+        const q = quote.toLowerCase();
+        const edge = (c) => c !== undefined && /^[\p{L}\p{M}\p{Nd}]$/u.test(c);
+        const holds = (w) => { const p = flat(w).toLowerCase(); for (let i = q.indexOf(p); i >= 0; i = q.indexOf(p, i + 1)) if (!edge(q[i - 1]) && !edge(q[i + p.length])) return true; return false; };
+        if (!fact.anyOf.some(holds)) bad(n, `${who}: the quote says none of ${fact.anyOf.map((w) => `"${w}"`).join(', ')}`);
+        continue;
+      }
       if (fact.shape === 'phrase') {
         if (!quote.toLowerCase().includes(flat(fact.phrase).toLowerCase())) bad(n, `${who}: the quote does not say "${fact.phrase}"`);
         continue;

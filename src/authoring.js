@@ -23,9 +23,10 @@ import { draft } from './drafter.js';
 import { parseSignedText, unsignedAskTtls } from './signed-text.js';
 import { validateDeclaration, flowTypeOf } from './declaration.js';
 import { factRows, factSentence, countSentence } from './citedcheck.js';
-import { plainWords, labelled, tagged } from './checkwords.js';
-import { listLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
-import { CARD_T } from './checkblock.js';
+import { plainWords, labelled } from './checkwords.js';
+import { listLinesOf, cardLinesOf, partByOf, factByOf, countByOf } from './checklistsign.js';
+import { LOOK, ncRowsOf } from './checklook.js';
+import { EVERY_STEP_TEXTS } from './try-checks.js';
 import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
@@ -42,8 +43,10 @@ import { redactSecrets } from './redact.js';
 import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
+import { planMatchesCard, numbersWords } from './checkrows.js';
+import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
-import { hitlWords } from './checked.js';
+import { hitlWords, notCheckedView } from './checked.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
@@ -193,9 +196,21 @@ export function readoutHeadIndexes(text) {
   return idx;
 }
 
+// borrowed-from: bareloop src/authorreadout.js@v0.61.0 (fc56e1f3) readoutGroups (the signed look's groups as readout rows, section 3.7): tag column first, kind word second; an empty group is not told
+/** @param {{checks: {text: string, by?: string|null, kind?: string}[], nc: {text: string, why?: string, by?: string}[], suggested: {text: string, key?: string, dropped?: boolean}[]}} g @returns {string[]} */
+function readoutGroups({ checks, nc, suggested }) {
+  const row = (by, kind, text) => `       ${`[${by ?? 'default'}]`.padEnd(9)}  ${kind.padEnd(5)}  ${text}`;
+  const out = [];
+  if (checks.length) out.push(`     ${LOOK.checked} \u00B7 ${checks.length}`, ...checks.map((c) => row(c.by, c.kind ?? 'truth', c.text)));
+  if (nc.length) out.push(`     ${LOOK.notChecked} \u00B7 ${nc.length} \u00B7 ${LOOK.notCheckedTail}`, ...nc.map((n) => row(n.by, '', `${n.text}${n.why ? ` \u2014 ${n.why}` : ''}`)));
+  if (suggested.length) out.push(`     ${LOOK.suggested}`, ...suggested.map((x) => row('agent', /\.shape\./.test(x.key ?? '') ? 'shape' : 'truth', `${x.text}${x.dropped ? ' (you dropped it)' : ''}`)));
+  return out;
+}
+
 /** Plain-text readout of what the human is about to sign. Pure. */
 export function buildReadout({
-  declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root,
+  declaration, arbiter, lines, name, modelId, costUsd, rounds, spendComplete, root, notChecked = /** @type {string[]} */ ([]), notCheckedBy = /** @type {Record<string, string>} */ ({}), suggested = /** @type {{line: number, text: string, key?: string, dropped?: boolean}[]} */ ([]),
+  checkCard = /** @type {{rows: {line: number, by: string, state: string, text: string, kind?: string}[]}|null} */ (null),
 }) {
   const out = [];
   out.push(`${READOUT_HEADER_PREFIX}"${name}"`, '');
@@ -224,11 +239,23 @@ export function buildReadout({
   out.push('', READOUT_HEADS.steps);
   const sheetBlocks = sheetLineBlocks({ declaration, lines });
   const onList = listLinesOf(declaration);
+  // borrowed-from: bareloop src/authorreadout.js@v0.61.0 (fc56e1f3) buildReadout (the check rows of a line are the card's rows, one model): M19 am4. A line the card draws a list on takes its CHECKED rows from the saved card (`checkCard`, the page's planOfState rule: the line's built rows in the card's order); a plan with no card keeps the readout's own rows
+  const onCard = checkCard !== null && Array.isArray(checkCard.rows) ? cardLinesOf(declaration) : new Set();
   // display only: a hitl step that is not an Ask line prints the card's words (src/checked.js hitlWords); an Ask line (pure stop) keeps `hitl`
   const askLineNos = (arbiter.asks ?? []).map((a) => a.line);
   const lastAskIdx = declaration.steps.reduce((m, st, i) => (askLineNos.includes(st.fromLine) ? i : m), -1);
   const checkText = (st, i) => (st.close?.class === 'hitl' && !askLineNos.includes(st.fromLine) ? hitlWords(askLineNos.length > 0, lastAskIdx !== -1 && i > lastAskIdx) : st.close?.class);
+  // M19 S6 (section 3.7): the rows of a list line and the Not checked items are told in the signed look's groups; the rows no one line owns are one `EVERY LINE` block (a one-line job's join its line)
+  // M19 am4: the Not checked rows are the card's (src/checked.js notCheckedView, the one split): a note about a written form the page did not use is "How the page was read", not a Not checked row
+  // a plan with no card list (drafted before M16) keeps today's readout (signed am4 item 2): the split is for a plan the card draws a list on
+  const ncRows = ncRowsOf(onCard.size > 0 ? notCheckedView(notChecked, declaration).items : notChecked, notCheckedBy);
+  const many = lines.length > 1;
+  const alwaysRows = onList.size > 0 ? EVERY_STEP_TEXTS.map((text) => ({ text, by: 'default', kind: 'file' })) : [];
+  const owned = new Set(declaration.steps.map((st) => st.fromLine));
+  const told = new Set();
   declaration.steps.forEach((st, i) => {
+    /** @type {{text: string, by: string, kind?: string}[]} */
+    const rows = [];
     out.push(`  ${i + 1}. (line ${st.fromLine}) ${st.goal}`);
     out.push(`     grants: ${st.primitives?.length ? st.primitives.join(', ') : 'none (pure stop)'}`
       + ` | reads: ${st.reads?.length ? st.reads.join(', ') : '-'} | emits: ${st.emits} | check: ${checkText(st, i)}`);
@@ -236,23 +263,24 @@ export function buildReadout({
     // M10 am7 item 1: the facts a cited step checks its quotes against, signed with the readout (typed fields, never model prose)
     // M16: a list line's checks carry the tag of the row that built each (`[you]`, `[agent]`, `[default]`); any other line keeps today's words
     const listed = onList.has(st.fromLine);
-    if (listed && st.close?.cited && typeof st.close.cited === 'object') {
+    const cardLine = onCard.has(st.fromLine);
+    if (cardLine) { /* M19 am4: the card's rows stand in for the hand-built ones (below) */ } else if (listed && st.close?.cited && typeof st.close.cited === 'object') {
       const c = st.close.cited;
-      for (const f of Array.isArray(c.facts) ? c.facts : []) out.push(`     ${tagged(factSentence(f, c.source), factByOf(declaration, st.fromLine, f.name) ?? 'agent')}`);
-      if (countSentence(c)) out.push(`     ${tagged(/** @type {string} */ (countSentence(c)), countByOf(declaration, st.fromLine) ?? 'agent')}`);
+      for (const f of Array.isArray(c.facts) ? c.facts : []) rows.push({ text: factSentence(f, c.source), by: factByOf(declaration, st.fromLine, f.name) ?? 'agent' });
+      if (countSentence(c)) rows.push({ text: /** @type {string} */ (countSentence(c)), by: countByOf(declaration, st.fromLine) ?? 'agent' });
     } else if (st.close?.cited && typeof st.close.cited === 'object') for (const row of factRows(st.close.cited)) out.push(`     ${labelled(row, 'agent')}`);
     // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
-    if (Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
+    if (!cardLine && Array.isArray(st.close?.sheet)) for (const row of sheetBlocks.find((b) => b.line === st.fromLine)?.checked ?? []) out.push(`     sheet check: ${row.text}`);
     // M10 am8 item 2: the column lock, signed with the readout (typed fields)
     if (Array.isArray(st.close?.columns)) for (const c of st.close.columns) if (typeof c?.column === 'string' && typeof c?.source === 'string') out.push(`     cells only from column '${c.column}' of ${c.source}`);
     // M10 am16: the checks the person picked, signed with the readout, each in the one set of plain words (typed fields, never model prose)
-    if (Array.isArray(st.close?.shape?.picked)) st.close.shape.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
+    if (!cardLine && Array.isArray(st.close?.shape?.picked)) st.close.shape.picked.forEach((c, j) => (listed ? rows.push({ text: plainWords(c), by: partByOf(declaration, st.fromLine, j) ?? 'agent' }) : out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`)));
     // M10 am22 (1): the checks the person picked for a fact line are signed with the readout too, in the same words
-    if (st.close?.class === 'green' && Array.isArray(st.close.picked)) st.close.picked.forEach((c, j) => out.push(listed ? `     ${tagged(plainWords(c), partByOf(declaration, st.fromLine, (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + j) ?? 'agent')}` : `     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`));
+    if (!cardLine && st.close?.class === 'green' && Array.isArray(st.close.picked)) st.close.picked.forEach((c, j) => (listed ? rows.push({ text: plainWords(c), by: partByOf(declaration, st.fromLine, (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + j) ?? 'agent' }) : out.push(`     ${labelled(`you picked: ${plainWords(c)}`, 'picked')}`)));
     // M16 R7: the numbers tie of a list line (the `$` row)
-    if (listed && Array.isArray(st.close?.numbersFrom) && st.close.numbersFrom.length > 0) {
+    if (!cardLine && listed && Array.isArray(st.close?.numbersFrom) && st.close.numbersFrom.length > 0) {
       const before = (st.close.cited && typeof st.close.cited === 'object' ? 1 : 0) + (Array.isArray(st.close.picked) ? st.close.picked.length : Array.isArray(st.close.shape?.picked) ? st.close.shape.picked.length : 0);
-      out.push(`     ${tagged(`${CARD_T.numbers} ${st.close.numbersFrom.join(', ')}`, partByOf(declaration, st.fromLine, before) ?? 'default')}`);
+      rows.push({ text: numbersWords(st.close.numbersFrom), by: partByOf(declaration, st.fromLine, before) ?? 'default' });
     }
     // M4e amendment 14 item 5: the check's sections in its order (+ word limit); fixed text from typed fields, never model prose.
     const shape = st.close?.shape;
@@ -261,7 +289,20 @@ export function buildReadout({
       const lim = Number.isInteger(shape.maxWords) ? ` · under ${shape.maxWords} words` : '';
       out.push(`     ${labelled(`sections: ${shape.sections.join(' · ')}${per}${lim}`, 'agent')}`);
     }
+    const first = !told.has(st.fromLine);
+    told.add(st.fromLine);
+    const joins = !many && first;
+    if (cardLine && first) rows.push(...(checkCard?.rows ?? []).filter((r) => r.line === st.fromLine && r.state === 'built').map((r) => ({ text: r.text, by: r.by, kind: r.kind || 'truth' })));
+    out.push(...readoutGroups({
+      checks: [...rows, ...(joins ? alwaysRows : [])],
+      nc: first ? ncRows.filter((n) => n.line === st.fromLine || (joins && !owned.has(n.line))) : [],
+      suggested: first ? suggested.filter((x) => x.line === st.fromLine || (joins && !owned.has(x.line))) : [],
+    }));
   });
+  if (many) {
+    const rest = readoutGroups({ checks: alwaysRows, nc: ncRows.filter((n) => !owned.has(n.line)), suggested: [] });
+    if (rest.length) out.push(`  ${LOOK.everyLine.toUpperCase()}`, ...rest);
+  }
   out.push('', READOUT_HEADS.asks);
   for (const a of arbiter.asks) out.push(`  line ${a.line}: "${a.question}" (ttl ${fmtTtl(a.ttlMs)})`);
   if (arbiter.asks.length === 0) out.push('  none');
@@ -344,7 +385,7 @@ export function writePlanFiles(dir, files, opts = {}) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
@@ -428,10 +469,11 @@ export async function draftToDir({
   /** @type {any[]} */
   let columnRecord = []; // the agreed columns of this plan (fresh and carried), kept in the same record (M17 ruling 2)
   let sheetDropped = []; // the sheet checks this plan has dropped (a Revise's carried ones, applied by draft()), kept in the same record
+  let shapeDropped = []; // the shape fields this plan has dropped, kept beside them in the same record (no new file)
   /** @type {any} */
   let pickRecord = null; // M10 am17: handed by draft() as it learns it; the last one handed is this draft's (written below, the one writer)
   const result = await draft({
-    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(columnAnswers === undefined ? {} : { columnAnswers }), ...(carriedColumns === undefined ? {} : { carriedColumns }), onColumns: (rec) => { columnRecord = rec; }, ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
+    proseText: prose.text, slot, model, provider, rates, modelId, env, onBook, priorSpend, offerQuestions: !noQuestions, draftThinking, draftDir: path.join(dir, PAGES_DIR), fetchPage, learnHints, ...(leftRules === undefined ? {} : { leftRules }), ...(columnAnswers === undefined ? {} : { columnAnswers }), ...(carriedColumns === undefined ? {} : { carriedColumns }), onColumns: (rec) => { columnRecord = rec; }, ...(checkPicks === undefined ? {} : { checkPicks }), ...(carriedPicks === undefined ? {} : { carriedPicks }), ...(carriedChoices === undefined ? {} : { carriedChoices, onChoices: (rec) => { rowChoices = rec; } }), ...(carriedSheetDropped === undefined ? {} : { carriedSheetDropped }), onSheetDropped: (rec) => { sheetDropped = rec; }, ...(carriedShapeDropped === undefined ? {} : { carriedShapeDropped }), onShapeDropped: (rec) => { shapeDropped = rec; }, onPickRecord: (r) => { pickRecord = r; },
     flowType, mcp, ...(mcpServers === undefined ? {} : { mcpServers }), actionMode,
   });
   if (result.stop === 'pre-flight') {
@@ -466,7 +508,7 @@ export async function draftToDir({
   // Amendments 24/25: the questions and the drafter's own "not checked" reading are written BEFORE log.json/spec.hash (the panel reads those
   // two as "the draft finished"), as their own files: never in the readout, so never in the hash.
   if (result.questions?.length) files[QUESTIONS_FILE] = scrub(dj({ questions: result.questions }), secrets);
-  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj({ ...pickRecord, ...(rowChoices === null ? {} : { rowChoices }), ...(sheetDropped.length ? { sheetDropped } : {}), ...(columnRecord.length ? { columns: columnRecord } : {}) }), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
+  if (pickRecord !== null) files[RECORD_FILE] = scrub(dj({ ...pickRecord, ...(rowChoices === null ? {} : { rowChoices }), ...(sheetDropped.length ? { sheetDropped } : {}), ...(shapeDropped.length ? { shapeDropped } : {}), ...(columnRecord.length ? { columns: columnRecord } : {}) }), secrets); // M10 am17: the picks carried to the next plan (this drafting folder only, never a run folder)
   files[NOT_CHECKED_FILE] = scrub(dj({ notChecked: result.notChecked ?? [], ...(result.notCheckedBy && Object.keys(result.notCheckedBy).length ? { by: result.notCheckedBy } : {}) }), secrets); // M16 item 5: the tag of each line that tells a row
   if (result.pageLooks || result.sheetLooks) files[PAGE_LOOK_FILE] = scrub(dj({ pages: result.pageLooks ?? [], ...(result.sheetLooks ? { sheets: result.sheetLooks } : {}), look: result.look ?? { facts: [], dropped: [] } }), secrets);
   files['log.json'] = scrub(dj({
@@ -475,6 +517,8 @@ export async function draftToDir({
     revisions: result.revisions, thinking: result.thinking, inputs: result.inputs, log: result.log,
     // M16 P4: what the plan card shows of the list (rows with tags and reasons, the suggestions), drawn by the page; Drop and Add rebuild it
     ...(result.checkCard ? { checkCard: result.checkCard } : {}),
+    // M19 S3: what code built from the AI's sheet suggestions (the block's `setSheet` input): Drop and Add rebuild the block from it at $0, never by asking again
+    ...(result.sheetBuilt ? { sheetBuilt: result.sheetBuilt } : {}),
     // M13 am11: the job's action (the last line the AI named, or the person agreed or typed), or null: the plan card's row `› line <n> writes everything before it`
     action: result.action ?? null,
   }), secrets);
@@ -484,6 +528,7 @@ export async function draftToDir({
     const inputFactsText = scrub(dj(result.declaration.inputFacts), secrets);
     const readoutText = scrub(buildReadout({
       declaration: result.declaration, arbiter: parsed.arbiter, lines: parsed.lines, name, modelId: result.modelId, costUsd: result.costUsd, rounds: result.rounds, spendComplete: result.spendComplete, root,
+      notChecked: result.notChecked ?? [], notCheckedBy: result.notCheckedBy ?? {}, suggested: result.checkCard?.suggested ?? [], checkCard: result.checkCard ?? null,
     }), secrets);
     files['declaration.json'] = declarationText;
     files['input-facts.json'] = inputFactsText;
@@ -590,6 +635,19 @@ export function signDraft({
     arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
+  // M19 am6 item 3 (bareloop `planMatchesClose`): the card a draft saved must equal the checks the signed plan runs, line by line; a difference refuses the sign at $0, naming the line.
+  // Only a card saved with its own Not checked list (this build) is compared; an older saved card is drawn from the plan and not held to it.
+  const cardReds = (() => {
+    if (!Array.isArray(declaration.checkList)) return [];
+    const lg = read('log.json');
+    const rec = read(RECORD_FILE);
+    /** @type {any} */ let log = null; /** @type {any} */ let record = null;
+    try { log = lg.ok ? JSON.parse(lg.text) : null; record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
+    if (!log?.checkCard || !Array.isArray(log.checkCard.notChecked)) return [];
+    const kept = Array.isArray(record?.kept) ? record.kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [];
+    return planMatchesCard({ declaration, lines: signed.lines, csvRoles: csvRolesOf(signed.arbiter), kept, log: log.log }, log.checkCard);
+  })();
+  if (cardReds.length) return { ok: false, reds: cardReds };
 
   const reds = [];
   for (const s of signed.arbiter.sources) {

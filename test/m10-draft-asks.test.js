@@ -62,35 +62,27 @@ test('the ask line\'s own guardrail ("nothing goes out before I accept") is a st
   assert.ok(!r.questions.some((q) => q.line === 2));
 });
 
-// must fail (signed): more than 3 asks before drafting; it must stop at $0 more instead
-test('more than 3 asks: nothing is asked, drafting stops with the rewrite list, then Spent so far; no drafting round was paid', async () => {
+// M19 am3 (hamr 2026-11-20): a `~` rule code cannot check is Not checked with no question (bareloop v0.61.0), so "I can't check this" is never asked and never counted toward the 3.
+// The cap on asks still holds for the asks that stay (a column reading: test/m10-draft-sheet.test.js, "more than 3 column asks").
+// must fail (M19 am3): a draft asks "I can't check this" about a `~` rule
+test('M19 am3: rules code cannot check ("pays well", "looks nice", "feels right") are not asked and never trip the cap; only the page reading is asked', async () => {
   const p = fakeProvider([mapReply(raw(3)), textReply()]);
   const r = await run(p, { proseText: prose('under $150; not a red-eye; nonstop; pays well; looks nice; feels right') });
-  assert.equal(p.calls.length, 1);
-  assert.equal(r.stop, 'look-asks-too-many');
-  assert.deepEqual(r.questions, []);
-  assert.equal(r.ok, false);
-  const m = /^(Your job has (\d+) rules .*)( Spent so far: (.+)\.)$/s.exec(r.reds[0]);
-  assert.ok(m, r.reds[0]);
-  assert.equal(m[2], '4');
-  assert.match(m[1], /line 1 "not a red-eye" → departure time between 05:00 and 23:59; line 1 "pays well" → I can't check this on the page; line 1 "looks nice" → I can't check this on the page; line 1 "feels right" → I can't check this on the page\.$/);
-  assert.match(m[4], /^\$0\.\d{4}$/);
-  assert.equal(r.reds.length, 1);
-  assert.ok(tooManyAsksText([1, 2, 3, 4].map((i) => ({ line: 1, ruleText: `r${i}` }))).startsWith('Your job has 4 rules'));
-});
-
-test('exactly 3 asks are asked (the cap is 3, not 2)', async () => {
-  const r = await run(fakeProvider([mapReply(raw(3)), textReply()]), { proseText: prose('under $150; not a red-eye; nonstop; pays well; looks nice') });
+  assert.equal(p.calls.length, 1, 'only the map call was paid');
   assert.equal(r.stop, 'look-asks');
-  assert.deepEqual(r.questions.map((q) => q.ask), ['reading', 'cant-check', 'cant-check']);
+  assert.deepEqual(r.questions.map((q) => [q.ask, q.ruleText]), [['reading', 'not a red-eye']]);
+  assert.deepEqual(r.reds, []);
+  assert.ok(!JSON.stringify(r.questions).includes("I can't check"), 'no can\'t-check question about a ~ rule');
+  assert.ok(tooManyAsksText([1, 2, 3, 4].map((i) => ({ line: 1, ruleText: `r${i}` }))).startsWith('Your job has 4 rules'), 'the cap words stay for the asks that remain');
 });
 
-test('an unpriced map call reads "Spent so far: unknown" (never $0)', async () => {
-  const noUsage = { ...textReply(raw(3)) };
-  delete noUsage.usage;
-  const r = await run(fakeProvider([noUsage, textReply()]), { proseText: prose('under $150; not a red-eye; nonstop; pays well; looks nice; feels right') });
-  assert.equal(r.stop, 'look-asks-too-many');
-  assert.match(r.reds[0], /Spent so far: (unknown|at least \$0\.\d+)\.$/);
+test('M19 am3: the redraft of the same card (the reading answered) reaches drafting with the unreadable rules Not checked, no question', async () => {
+  const p = fakeProvider([mapReply(raw(3)), toolReply(planOf())]);
+  const r = await run(p, { proseText: prose('under $150; not a red-eye; nonstop; pays well; looks nice'), offerQuestions: false });
+  assert.deepEqual(r.questions, []);
+  assert.notEqual(r.stop, 'look-asks');
+  assert.ok(r.notChecked.some((l) => l.includes('"pays well"')), r.notChecked.join('\n'));
+  assert.ok(r.notChecked.some((l) => l.includes('"looks nice"')), r.notChecked.join('\n'));
 });
 
 test('the redraft after the answers (offerQuestions false) never asks', async () => {
@@ -114,8 +106,8 @@ test('a rule the person left ("drop it") is Not checked with the signed words, t
   assert.equal(r.ok, true, r.reds.join('\n'));
   assert.ok(!r.look.facts.some((f) => f.line === 1 && f.forRule === 2));
   assert.ok(r.look.dropped.some((d) => d.line === 1 && d.rule === 2 && d.reason === 'person-left'));
-  assert.ok(r.notChecked.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), r.notChecked.join('\n'));
-  assert.ok(p.calls.find((c) => c.tools[0] === 'emit_declaration').messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked.'), 'the drafter is told');
+  assert.ok(r.notChecked.includes('line 1: "not a red-eye" — You chose to leave it Not checked, so you judge it at Accept.'), r.notChecked.join('\n'));
+  assert.ok(p.calls.find((c) => c.tools[0] === 'emit_declaration').messages[0].content.includes('not checked · "not a red-eye" — You chose to leave it Not checked, so you judge it at Accept.'), 'the drafter is told');
 });
 
 test('a left rule that does not exist on the job is ignored, not invented', async () => {
@@ -123,11 +115,11 @@ test('a left rule that does not exist on the job is ignored, not invented', asyn
   assert.ok(!r.look.dropped.some((d) => d.reason === 'person-left'));
 });
 
-test('am2 item 3: the plan card row for a left rule reads exactly `not checked · "<rule>" — You chose to leave it Not checked.`, and no other row uses that prefix', async () => {
+test('am2 item 3: the plan card row for a left rule reads exactly `line <n>: "<rule>" — You chose to leave it Not checked.` (M19 am9 item 1), and no other row uses the old `not checked · ` prefix but the Ask line', async () => {
   const r = await run(fakeProvider([mapReply(raw(3)), toolReply(planOf())]), { offerQuestions: false, leftRules: [{ line: 1, rule: 2 }] });
   assert.equal(r.ok, true, r.reds.join('\n'));
-  const left = r.notChecked.filter((x) => x.endsWith('You chose to leave it Not checked.'));
-  assert.deepEqual(left, ['not checked · "not a red-eye" — You chose to leave it Not checked.']);
+  const left = r.notChecked.filter((x) => x.endsWith('You chose to leave it Not checked, so you judge it at Accept.'));
+  assert.deepEqual(left, ['line 1: "not a red-eye" — You chose to leave it Not checked, so you judge it at Accept.']);
   // M17 am5 (D3): the job's Ask line carries a ~ rule, which the list shows as Not checked with the signed reason; every other `not checked · ` row is that one
-  assert.deepEqual(r.notChecked.filter((x) => x.startsWith('not checked · ') && !x.endsWith('You chose to leave it Not checked.')), ['not checked · "nothing goes out before I accept" \u2014 you judge it at the Ask']);
+  assert.deepEqual(r.notChecked.filter((x) => x.startsWith('not checked · ') && !x.endsWith('You chose to leave it Not checked, so you judge it at Accept.')), ['not checked · "nothing goes out before I accept" \u2014 you judge it at the Ask']);
 });

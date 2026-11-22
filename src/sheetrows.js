@@ -1,17 +1,19 @@
 // M16 am4 (docs/wiki/the-module-ladder.md, "M16 amendment 4" (2)): a sheet line's checks (`close.sheet`) are rows on the plan's list, beside every other check.
-// The AI writes the sheet checks (M10b); code only READS them as rows: this file is the ONE writer of a sheet row, of its tag and of its card text, and of the Drop and Add of one.
+// The AI writes the sheet checks (M10b); code only READS them as rows: this file is the ONE writer of a sheet row, of its tag and of its card text.
 //   tag     a check whose `covers` names one of the person's `~` rules is `[you]`; a check that covers none (the AI added it) is `[agent]`. (A `[default]` sheet check does not exist: no code adds one.)
-//   Drop    only an `[agent]` row; the check leaves `close.sheet` and is kept in the picks record (`sheetDropped`) so Add can put it back. A `[you]` row has no Drop.
-//   Add     puts a dropped check back at the place it had.
+//   Drop    only an `[agent]` row, and only the check block drops it (src/checkblock.js `rowChoice`, M19 S3): the check leaves `close.sheet` and the block's `sheetDroppedRecord` keeps it in the picks record (`sheetDropped`). A `[you]` row has no Drop.
+//   Add     the block puts a dropped check back.
 // Words are fwd's existing sheet-check words (src/sheetblock.js `sheetPlainText`); nothing here words a check. What this throws away: the check's fields (id, claim, range ...); a row keeps its line, tag, part and key.
 import { sheetLineBlocks, sheetPlainText } from './sheetblock.js';
 import { closePartsOf } from './checklistsign.js';
-import { isDeepStrictEqual } from 'node:util';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** the key of a sheet row: the block's `L<line>.<tail>` shape, tail `sheet.<check id>` @param {number} line @param {string} id */
 export const sheetRowKey = (line, id) => `L${line}.sheet.${id}`;
+// borrowed-from: bareloop src/sheetrows.js@v0.60.0 (`sheetCheckBody`; the tag's own header says bareloop copied the rest of that file from fwd)
+/** the fields that say what a check IS: all but the names code gives it (id, claim), the rules it covers and its row tag. Two drafts name checks differently, so "the very same check" is read on these @param {any} c @returns {Record<string, any>} */
+export function sheetCheckBody(c) { const { id: _i, claim: _c, covers: _v, row: _r, ...rest } = c; return rest; }
 /** @param {unknown} key @returns {boolean} the key is a sheet row's */
 export const isSheetKey = (key) => typeof key === 'string' && key.startsWith('L') && key.includes('.sheet.');
 
@@ -48,67 +50,11 @@ export function sheetRowsOf({ declaration, lines, csvRoles }) {
 }
 
 /**
- * The plan's card with the sheet rows on it: the sheet rows after the block's rows, a dropped sheet check among the suggestions (Add), as the block's dropped suggestions are.
- * @param {{rows: any[], suggested: any[]}} card the block's card (src/cardlist.js) @param {{card: any[]}} sheet `sheetRowsOf` @param {{key: string, line: number, text: string}[]} [dropped]
+ * The plan's card with the sheet rows on it: the sheet rows after the block's rows. A dropped sheet check is among the block's own suggestions (Add), like any dropped `!` row (src/cardlist.js).
+ * @param {{rows: any[], suggested: any[]}} card the block's card (src/cardlist.js) @param {{card: any[]}} sheet `sheetRowsOf`
  */
-export function withSheetCard(card, sheet, dropped = []) {
-  return { ...card, rows: [...card.rows, ...sheet.card], suggested: [...card.suggested, ...dropped.map((d) => ({ key: d.key, line: d.line, text: d.text, dropped: true }))] };
-}
-
-/** the dropped sheet checks the picks record keeps: `{key, line, index, check, text}` @returns {any[]} */
-export const droppedSheetOf = (/** @type {any} */ record) => (isRec(record) && Array.isArray(record.sheetDropped) ? record.sheetDropped.filter((d) => isRec(d) && typeof d.key === 'string' && isRec(d.check) && Number.isInteger(d.line)) : []);
-
-/** the fields that say what a check is: all but the names code gives it (id, claim) and the rules it covers */
-const checkBody = (/** @type {any} */ c) => { const { id: _i, claim: _c, covers: _v, ...rest } = c; return rest; };
-
-/**
- * M17 am3: the key of the check of the line that IS a dropped one (same typed fields; code names every check, so an id says nothing across drafts), or null. A Revise keeps a Drop only for the very same check.
- * @param {any} declaration @param {{line: number, check: any}} d a record of `droppedSheetOf` @returns {string|null}
- */
-export function keyOfSameCheck(declaration, d) {
-  for (const st of isRec(declaration) && Array.isArray(declaration.steps) ? declaration.steps : []) {
-    if (!isRec(st) || st.fromLine !== d.line || !isRec(st.close) || !Array.isArray(st.close.sheet)) continue;
-    const hit = st.close.sheet.find((/** @type {any} */ c) => isRec(c) && isDeepStrictEqual(checkBody(c), checkBody(d.check)));
-    if (hit) return sheetRowKey(d.line, String(hit.id));
-  }
-  return null;
-}
-
-/**
- * The person's Drop or Add on a sheet row, applied to the declaration (a copy). Same words as the block's own refusals (src/checkblock.js `rowChoice`).
- * @param {{declaration: any, lines: any[], csvRoles: string[], op: 'drop'|'add', key: string, dropped: any[]}} o
- * @returns {{ok: true, declaration: any, dropped: any[]}|{ok: false, why: string}}
- */
-export function sheetChoice({ declaration, lines, csvRoles, op, key, dropped }) {
-  if (op === 'drop') {
-    const row = sheetRowsOf({ declaration, lines, csvRoles }).card.find((r) => r.key === key);
-    if (!row) return { ok: false, why: 'there is no such check on the list' };
-    if (row.by === 'you') return { ok: false, why: 'that check comes from a rule you wrote; edit the job to change it' };
-    let gone = null;
-    const steps = declaration.steps.map((/** @type {any} */ st) => {
-      if (gone !== null || !isRec(st) || st.fromLine !== row.line || !isRec(st.close) || !Array.isArray(st.close.sheet)) return st;
-      const index = st.close.sheet.findIndex((/** @type {any} */ c) => isRec(c) && sheetRowKey(row.line, String(c.id)) === key);
-      if (index === -1) return st;
-      gone = { key, line: row.line, index, check: st.close.sheet[index], text: row.text };
-      const sheet = st.close.sheet.filter((/** @type {unknown} */ _c, /** @type {number} */ k) => k !== index);
-      const { sheet: _s, ...close } = st.close;
-      return { ...st, close: sheet.length > 0 ? { ...close, sheet } : close };
-    });
-    if (gone === null) return { ok: false, why: 'there is no such check on the list' };
-    return { ok: true, declaration: { ...declaration, steps }, dropped: [...dropped.filter((d) => d.key !== key), gone] };
-  }
-  const was = dropped.find((d) => d.key === key);
-  if (!was) return { ok: false, why: 'only a suggested check can be added' };
-  let put = false;
-  const steps = declaration.steps.map((/** @type {any} */ st) => {
-    if (put || !isRec(st) || st.fromLine !== was.line || !isRec(st.close) || st.close.class !== 'green') return st;
-    put = true;
-    const sheet = Array.isArray(st.close.sheet) ? [...st.close.sheet] : [];
-    sheet.splice(Math.min(was.index, sheet.length), 0, was.check);
-    return { ...st, close: { ...st.close, sheet } };
-  });
-  if (!put) return { ok: false, why: 'only a suggested check can be added' };
-  return { ok: true, declaration: { ...declaration, steps }, dropped: dropped.filter((d) => d.key !== key) };
+export function withSheetCard(card, sheet) {
+  return { ...card, rows: [...card.rows, ...sheet.card] };
 }
 
 /**

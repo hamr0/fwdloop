@@ -1,6 +1,6 @@
 // M16 (docs/wiki/the-module-ladder.md, "M16" item 2, "a check that reaches the plan is not on the list"): the sign-time and run-start proof that the checks of a plan's list lines are the list's.
 // Equivalent of bareloop src/rubricstep.js@v0.56.0 (3383cce) `listMatchesClose`, read over fwdloop's close fields instead of a rubric-step stage: the checks of one line, in the order the check block
-// builds them, are [close.cited (the fact part)], then each entry of close.picked / close.shape.picked, then close.numbersFrom (the numbers tie). A signed row points at one of them by `part: {line, part: <index>}`.
+// builds them, are [close.cited (the fact part)], [close.itemShape (the shape part, M19 S5)], then each entry of close.picked / close.shape.picked, then close.numbersFrom (the numbers tie). A signed row points at one of them by `part: {line, part: <index>}`.
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -13,6 +13,7 @@ export function closePartsOf(step, withSheet = false) {
   /** @type {{what: string}[]} */
   const parts = [];
   if (isRec(close.cited)) parts.push({ what: 'the quote check (close.cited)' });
+  if (isRec(close.itemShape)) parts.push({ what: 'the list-of-items check (close.itemShape)' });
   const picked = Array.isArray(close.picked) ? close.picked : isRec(close.shape) && Array.isArray(close.shape.picked) ? close.shape.picked : [];
   picked.forEach((/** @type {unknown} */ _c, /** @type {number} */ i) => parts.push({ what: `the picked check ${i + 1} (close.picked)` }));
   if (Array.isArray(close.numbersFrom) && close.numbersFrom.length > 0) parts.push({ what: 'the numbers tie (close.numbersFrom)' });

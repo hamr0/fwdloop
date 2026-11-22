@@ -74,7 +74,8 @@ test('an add whose input label is not one of the job inputs is refused ALONE and
 });
 
 test('A1 $ rows: a text line with one input gets a $ cited row (by default, built); a text line after a fact line also gets the numbers tie; the floor is shown, never a real check', () => {
-  const textJob = [{ n: 1, text: 'Find the release heading', rules: [] }, { n: 2, text: 'Summarise it', rules: [] }];
+  // F251: line 1 has a ~ rule of the person's, so its fact is a signable check (a line with none holds no check)
+  const textJob = [{ n: 1, text: 'Find the release heading', rule: 'must name the heading', rules: ['must name the heading'] }, { n: 2, text: 'Summarise it', rules: [] }];
   const b = made({ jobLines: textJob, look: { facts: [look.facts[0]] } });
   const c1 = by(b, 'L1.$cited');
   assert.equal(c1?.state, 'not-checked', 'a fact line has no text to quote');
@@ -82,7 +83,7 @@ test('A1 $ rows: a text line with one input gets a $ cited row (by default, buil
   const c2 = by(b, 'L2.$cited');
   assert.deepEqual([c2?.by, c2?.from, c2?.state, c2?.source], ['default', 'default', 'built', 'Changelog']);
   const n2 = by(b, 'L2.$numbers');
-  assert.deepEqual([n2?.kind, n2?.after, n2?.state], ['numbers', [1], 'built']);
+  assert.deepEqual([n2?.kind, n2?.state], ['numbers', 'built']); // M19 am6 item 4: the row no longer holds the `after` copy; the line numbers are the part's `from`
   assert.equal(by(b, 'L1.$floor')?.kind, 'floor');
   assert.equal(by(b, 'L1.$floor')?.state, 'built');
   assert.equal(new Set(b.rows.map((r) => r.key)).size, b.rows.length);
@@ -104,10 +105,10 @@ test('A7 the default cited part is ONE code-made part on a text stage and none o
   const cited = c.parts.filter((p) => p.check === 'cited');
   assert.equal(cited.length, 1);
   assert.equal(cited[0].source, 'Changelog');
-  const f = made({ look: { facts: [look.facts[0]] }, jobLines: [{ n: 1, text: 'Find it', rules: [] }] });
+  const f = made({ look: { facts: [look.facts[0]] }, jobLines: [{ n: 1, text: 'Find it', rule: 'must name the heading', rules: ['must name the heading'] }] });
   assert.equal(f.build().parts.some((p) => p.check === 'cited'), false);
   // a fact row that cannot be built turns the line into a text line after all: it gets the default
-  const g = made({ look: { facts: [look.facts[1]] }, jobLines: [{ n: 1, text: 'Find it', rules: [] }] });
+  const g = made({ look: { facts: [look.facts[1]] }, jobLines: [{ n: 1, text: 'Find it', rule: 'must name the heading', rules: ['must name the heading'] }] });
   assert.deepEqual(g.build().parts.map((p) => p.check), ['cited']);
 });
 
@@ -167,7 +168,8 @@ test('A9 every row ends built or Not checked with a plain reason (no row is drop
 const PAGE = 'Flights\nLeaves Boston at 9 AM. Price: $389 US dollars\nLeaves Boston at 10 AM. Price: $431 US dollars\nLeaves Boston at 11 AM. Price: $512 US dollars\n12 results returned.\n';
 function wordBlock(/** @type {any[]} */ edits, /** @type {any} */ look = { facts: [] }) {
   const b = new CheckBlock({ texts: { flights: PAGE }, labels: ['flights'], asks: false });
-  b.fromJob([{ n: 1, text: 'List 3 flights', rules: [] }]);
+  // F251: the line has a ~ rule of the person's, so the adds below are signable checks
+  b.fromJob([{ n: 1, text: 'List 3 flights', rule: 'must name the flights', rules: ['must name the flights'] }]);
   b.addLook(look.facts, look.dropped);
   b.applyDelta({ edits });
   b.reconcile();
@@ -204,12 +206,12 @@ test('a label the look dropped or never kept is not used by an add: Not checked 
 });
 
 test('a missing source is filled by code when the job has exactly ONE input, and refused (never guessed) when it has two (ported from r10-sourcefill: fill/merge guards)', () => {
-  const one = made({ look: { facts: [] }, jobLines: [{ n: 1, text: 'Say it', rules: [] }] });
+  const one = made({ look: { facts: [] }, jobLines: [{ n: 1, text: 'Say it', rule: 'must name the heading', rules: ['must name the heading'] }] });
   const r1 = one.applyDelta({ edits: [{ op: 'add', kind: 'phrase', line: 1, name: 'heading', words: ['### Fixed'] }] });
   one.reconcile();
   assert.equal(r1.edits[0].accepted, true);
   assert.equal(one.closeCache.parts.find((p) => p.class === 'fact')?.source, 'Changelog');
-  const two = made({ look: { facts: [] }, jobLines: [{ n: 1, text: 'Say it', rules: [] }], texts: { Changelog: TEXT, Readme: 'readme' } });
+  const two = made({ look: { facts: [] }, jobLines: [{ n: 1, text: 'Say it', rule: 'must name the heading', rules: ['must name the heading'] }], texts: { Changelog: TEXT, Readme: 'readme' } });
   const r2 = two.applyDelta({ edits: [{ op: 'add', kind: 'phrase', line: 1, name: 'heading', words: ['### Fixed'] }] });
   assert.equal(r2.edits[0].accepted, false);
   assert.match(r2.edits[0].refusedBecause, /names no input; the job has 2: "Changelog", "Readme"/);

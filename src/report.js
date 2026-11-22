@@ -7,11 +7,11 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { sheetCheckSentence } from './sheetchecks.js';
-import { sheetTotalLines, ROW_MATH_OPS } from './sheetclaims.js';
+import { sheetTotalLines, ROW_MATH_OPS, isRec } from './sheetclaims.js';
 import { lineRules } from './pagebits.js';
+import { shapeResultModel, shapeMarkdown } from './shaperesult.js';
 
 const SCALAR = ['string', 'number', 'boolean'];
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** the words under a not-checked answer and a checked one (M15 am3 item 2) */
 export const NOT_CHECKED_HEADING = '### The AI\'s answer (not checked — you judge it at Accept)';
@@ -159,7 +159,7 @@ function stepSection({ artifact, checks, okIds, tables }) {
 /**
  * The body: every line before the send, in job order. A work line is `## <n>. <text>`, a `Rule:` per ~ rule, `### Checked by code` (bullets) and the AI's text under its heading; an Ask line is one line
  * in its place; a work line with nothing to write has no section. Pure.
- * @param {{n: number, kind: 'ask'|'work', text?: string, rules?: string[], artifact?: unknown, checks?: any[], okIds?: Set<string>|null, proseChecked?: boolean}[]} lines
+ * @param {{n: number, kind: 'ask'|'work', text?: string, rules?: string[], artifact?: unknown, checks?: any[], okIds?: Set<string>|null, proseChecked?: boolean, shape?: any}[]} lines
  * @param {Record<string, any>} tables the frozen sheets by input name
  * @returns {string}
  */
@@ -168,6 +168,17 @@ export function renderReportBody(lines, tables) {
   const sections = [];
   for (const l of lines) {
     if (l.kind === 'ask') { sections.push(askLineWords(l.n)); continue; }
+    // borrowed-from: bareloop src/resultmd.js@v0.61.0 (the shape branch of renderRunMd)
+    // a shape line (picked by the line's signed `itemShape`, never by the key `results`, which a facts line also uses): the shape section (M19 amendment C, C1): its heading, the Rule lines, the shape-checks line, the table, the Not checked line.
+    // A report is written for a green run only, so no item is red here. The one place a check mark may appear in a report is this table.
+    if (isRec(l.shape)) {
+      const results = isRec(l.artifact) ? /** @type {Record<string, any>} */ (l.artifact).results : null;
+      if (!Array.isArray(results) || results.length === 0) continue;
+      const rules = lineRules({ rules: l.rules });
+      const head = [`## ${l.n}. ${l.text}`, ...rules.map((r) => `Rule: ${r}`)].join('\n');
+      sections.push([head, shapeMarkdown(shapeResultModel({ part: l.shape, results, rules }))].join('\n\n'));
+      continue;
+    }
     const sec = stepSection({ artifact: l.artifact, checks: l.checks ?? [], okIds: l.okIds ?? null, tables });
     if (sec === null) continue;
     const parts = [[`## ${l.n}. ${l.text}`, ...lineRules({ rules: l.rules }).map((r) => `Rule: ${r}`)].join('\n')];

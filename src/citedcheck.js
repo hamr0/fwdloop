@@ -29,9 +29,16 @@ const CHECKPOINT = 'cited';
 export const CITED_ID = 'facts';
 
 /** every field a fact part may carry, and every field a fact may carry */
-const PART_FIELDS = Object.freeze(['source', 'facts', 'count']);
+// borrowed-from: bareloop src/facts.js@v0.60.0 (`asSeen`, F337: optional, written only by code at signing; absent on every older job)
+const PART_FIELDS = Object.freeze(['source', 'facts', 'count', 'asSeen']);
 // borrowed-from: bareloop src/facts.js@v0.56.0 (3383cce) (M16 am3 (3): the fields lang, decimal, place, aiProposal; FACT_LANGS, FACT_DECIMALS, moneyForms, factPartOf, factShapeReds, writtenSpans below; factDecides, factClaims, factSentence taken up to it)
-const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anchor', 'until', 'rule', 'aiProposal', 'lang', 'decimal', 'place']);
+// M19 am5: `anyOf` is the page phrase fact with SEVERAL words (a quote passes on any one of them, on word edges); a fact with one word keeps `phrase`, exactly as before. `phrases` is the place fact's (all-of) and is not a fact field.
+// (diverges from bareloop v0.61.0, whose lookFactOf keeps only the first word)
+const FACT_FIELDS = Object.freeze(['name', 'shape', 'unit', 'currency', 'phrase', 'anyOf', 'anchor', 'until', 'rule', 'aiProposal', 'lang', 'decimal', 'place']);
+/** @param {any} f a phrase fact @returns {string[]} the words it checks: its alternatives, or its one phrase */
+export const phraseWordsOf = (f) => (Array.isArray(f.anyOf) ? f.anyOf.map(String) : [String(f.phrase)]);
+/** @param {string[]} words @returns {string} `"United", "JetBlue"`: the words as the signed texts list them */
+export const quotedWords = (words) => words.map((w) => `"${w}"`).join(', ');
 const NAME_RE = /^[A-Za-z][A-Za-z _-]{0,63}$/;
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -63,6 +70,9 @@ function unitsOnce(units) {
  */
 export function factsOfLook(k) {
   if (k.shape === 'phrase' || k.shape === 'place') {
+    // M19 am5: a plain phrase fact (no `phrases`) with several look words signs ALL of them as one fact (any one, on word edges); one word signs `phrase` as before
+    const alts = Array.isArray(k.phrases) ? [] : [...new Set(/** @type {unknown[]} */ (Array.isArray(k.words) ? k.words : []).map(String))];
+    if (alts.length > 1) return [{ name: String(k.name), shape: 'phrase', anyOf: alts }];
     const phrases = Array.isArray(k.phrases) ? k.phrases : [k.phrase ?? k.words?.[0] ?? ''];
     return phrases.map((/** @type {unknown} */ p, /** @type {number} */ i) => ({ name: phrases.length > 1 ? `${k.name} ${String.fromCharCode(97 + i)}` : String(k.name), shape: 'phrase', phrase: String(p) }));
   }
@@ -88,6 +98,7 @@ export function factPartReds(part) {
   const reds = [];
   if (!isRec(part) || typeof part.source !== 'string' || part.source.trim() === '') return ['a fact part needs the role of the input its quotes come from'];
   if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) return [`a fact part needs 1 to ${MAX_FACTS} facts${Array.isArray(part.facts) && part.facts.length > MAX_FACTS ? ` (it has ${part.facts.length}; a place counts one fact for each phrase it needs, so a line with many places or many rules is too much for one check)` : ''}`];
+  if (Object.hasOwn(part, 'asSeen') && !asSeenOk(part.asSeen)) reds.push('a fact part\'s asSeen is {input, lines: [..], labels: [..]}');
   for (const k of Object.keys(part)) if (!PART_FIELDS.includes(k)) reds.push(`a fact part has no field "${k}" - its fields are ${PART_FIELDS.join(', ')}`);
   const seen = new Set();
   part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
@@ -99,11 +110,15 @@ export function factPartReds(part) {
     if (seen.has(f.name)) reds.push(`${w}: the name "${f.name}" is used twice`);
     seen.add(f.name);
     if (!FACT_SHAPES.includes(f.shape)) { reds.push(`${w} "${f.name}": the shape is not one of ${FACT_SHAPES.join(', ')}`); return; }
-    if (f.shape === 'phrase' && (typeof f.phrase !== 'string' || f.phrase === '')) reds.push(`${w} "${f.name}": a phrase fact needs its words`);
+    if (f.shape === 'phrase' && f.anyOf !== undefined) {
+      if (f.phrase !== undefined || f.place !== undefined || !Array.isArray(f.anyOf) || f.anyOf.length < 2 || f.anyOf.some((/** @type {unknown} */ x) => typeof x !== 'string' || x.trim() === '') || new Set(f.anyOf.map((/** @type {string} */ x) => x.toLowerCase())).size !== f.anyOf.length) reds.push(`${w} "${f.name}": anyOf is two or more different words, and a fact carries either anyOf or phrase (no place rule with anyOf)`);
+      // word edges (bareguard's any-of presence decide) need each word to start and end with a letter or digit; refuse it here, never sign a check that stops at the run
+      else for (const x of f.anyOf) if (!/^[\p{L}\p{Nd}]/u.test(x) || !/[\p{L}\p{Nd}]$/u.test(x)) reds.push(`${w} "${f.name}": the word ${JSON.stringify(x)} must start and end with a letter or digit`);
+    } else if (f.shape === 'phrase' && (typeof f.phrase !== 'string' || f.phrase === '')) reds.push(`${w} "${f.name}": a phrase fact needs its words`);
     if (f.shape === 'money' && asList(f.unit).length + asList(f.currency).length === 0) reds.push(`${w} "${f.name}": money needs a unit or a currency`);
     if (f.shape !== 'money' && (f.unit !== undefined || f.currency !== undefined)) reds.push(`${w} "${f.name}": only money has a unit or a currency`);
     if (f.shape === 'phrase') for (const k of ['anchor', 'until', 'rule']) if (f[k] !== undefined) reds.push(`${w} "${f.name}": a phrase is fixed words the quote must contain; it has no ${k}`);
-    if (f.shape !== 'phrase' && f.phrase !== undefined) reds.push(`${w} "${f.name}": only a phrase fact carries phrase`);
+    if (f.shape !== 'phrase' && (f.phrase !== undefined || f.anyOf !== undefined)) reds.push(`${w} "${f.name}": only a phrase fact carries phrase`);
     // the four fields of bareloop v0.56.0 (M16 am3 (3)); each is checked only when present, so a fact without them is judged exactly as before
     if (f.lang !== undefined && (f.shape !== 'date' || typeof f.lang !== 'string' || !Object.hasOwn(FACT_LANGS, f.lang))) reds.push(`${w} "${f.name}": lang is for a date fact, one of ${Object.keys(FACT_LANGS).join(', ')}`);
     if (f.decimal !== undefined && ((f.shape !== 'number' && f.shape !== 'money') || !FACT_DECIMALS.includes(f.decimal))) reds.push(`${w} "${f.name}": decimal is for a number or money fact, "." or ","`);
@@ -134,7 +149,8 @@ export function factPartReds(part) {
  */
 export function factDecides(part) {
   return part.facts.map((/** @type {any} */ f) => {
-    if (f.shape === 'phrase') return { phrases: [f.phrase] };
+    // M19 am5: several words = any one of them, on word edges (bareguard 0.37.0 presence decide, ruling #79 / #69); one word = the all-of substring decide it always was
+    if (f.shape === 'phrase') return Array.isArray(f.anyOf) ? { phrases: f.anyOf, any: true, edges: true } : { phrases: [f.phrase] };
     /** @type {Record<string, any>} */
     const d = { valueKind: f.shape };
     if (f.shape === 'money') { if (f.unit !== undefined) d.unit = f.unit; if (f.currency !== undefined) d.currency = f.currency; }
@@ -155,7 +171,7 @@ export function factDecides(part) {
  * a phrase fact contributes its own signed words. A result that is not an object, or has no string quote, still becomes a claim (an empty one) so
  * bareguard reds it by name rather than the result vanishing.
  * `asWritten` (bareloop v0.56.0): per result, per fact index, the value as the page writes it, for the claim's words of a date or amount a page form signs.
- * @param {any} part @param {unknown} results @param {Record<number, string>[]} [asWritten] @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
+ * @param {any} part @param {unknown} results @param {(Record<number, string>|undefined)[]} [asWritten] @returns {{claim: string, quote: string, values?: Record<string, string>}[]}
  */
 export function factClaims(part, results, asWritten = []) {
   const list = Array.isArray(results) ? results : [];
@@ -166,7 +182,8 @@ export function factClaims(part, results, asWritten = []) {
     /** @type {string[]} */
     const said = [];
     part.facts.forEach((/** @type {any} */ f, /** @type {number} */ j) => {
-      if (f.shape === 'phrase') { said.push(`${f.name}: ${f.phrase}`); return; }
+      // M19 am5: an anyOf fact's claim carries only its name: the quote may say any one word, and a word with a digit ("1 stop") the quote lacks must not make the claim's number unsupported
+      if (f.shape === 'phrase') { said.push(Array.isArray(f.anyOf) ? String(f.name) : `${f.name}: ${f.phrase}`); return; }
       const v = given && Object.hasOwn(given, f.name) ? given[f.name] : undefined;
       // a JSON number is the value as written ("389"): converted, never repaired; anything else is left for bareguard to red
       const s = typeof v === 'number' && Number.isFinite(v) ? String(v) : v;
@@ -195,6 +212,8 @@ export function buildCitedSpec(part, sha256) {
  */
 export function factSentence(f, source) {
   // PLACE RULES (v0.56.0): a check that reads WHERE the newest value sits, not what it is; the phrase shown is the signed drafting example
+  // M19 am5 item 3: the row of a several-word phrase fact, in the signed words
+  if (f.shape === 'phrase' && Array.isArray(f.anyOf)) return `fact "${f.name}" with one of the words ${quotedWords(f.anyOf)}`;
   if (f.shape === 'phrase' && isRec(f.place)) return `${f.place.kind === 'headingDateAfter' ? 'date' : 'version'} in the newest "${f.place.prefix}" heading (last read ${f.phrase})`;
   /** @type {string[]} */
   const bits = [];
@@ -216,6 +235,12 @@ export const FACT_LANGS = Object.freeze({ en: 'English', de: 'German', fr: 'Fren
 
 /** the decimal marks a number or money fact may sign (bareguard 0.27 `decimal`); absent = "." */
 export const FACT_DECIMALS = Object.freeze(['.', ',']);
+
+/** @param {unknown} a @returns {boolean} the shape of `asSeen`: {input, lines: [string..], labels: [string..]}, nothing else */
+const asSeenOk = (/** @type {any} */ a) => {
+  const strs = (/** @type {unknown} */ v) => Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string');
+  return isRec(a) && typeof a.input === 'string' && a.input.trim() !== '' && strs(a.lines) && strs(a.labels) && Object.keys(a).every((k) => ['input', 'lines', 'labels'].includes(k));
+};
 
 /** every field a part of class `fact` may carry (the shared ones are checked by rubricStepShapeReds) */
 export const FACT_PART_FIELDS = PART_FIELDS;
@@ -241,11 +266,13 @@ export function factPartOf(params) {
  */
 export function factShapeReds(part, w, red) {
   for (const k of Object.keys(part)) {
-    if (!['text', 'class', 'covers', 'rules', 'source', 'facts', 'count'].includes(k)) {
+    if (!['text', 'class', 'covers', 'rules', 'source', 'facts', 'count', 'asSeen'].includes(k)) {
       red('invalid-value', `${w}.${k}`, `"${k}" is not a field of a fact part — fields: text, class, covers, rules, ${FACT_PART_FIELDS.join(', ')}`);
     }
   }
   if (!(nonEmpty(part.source) && part.source.length <= 128)) red('invalid-value', `${w}.source`, 'the label of the input the quotes come from');
+  // F337: the planner's "as seen" example, only ever written by code at signing (src/pagedry.js asSeenOf); optional, absent on every older spec
+  if (Object.hasOwn(part, 'asSeen') && !asSeenOk(part.asSeen)) red('invalid-value', `${w}.asSeen`, 'the as-seen example: {input, lines: [..], labels: [..]}');
   if (!Array.isArray(part.facts) || part.facts.length === 0 || part.facts.length > MAX_FACTS) {
     red('invalid-value', `${w}.facts`, `a list of 1 to ${MAX_FACTS} facts {name, shape, ...}`);
   } else {
@@ -297,9 +324,11 @@ export function factShapeReds(part, w, red) {
         else if (!FACT_DECIMALS.includes(f.decimal)) red('invalid-value', `${fw}.decimal`, 'one of "." | ","');
       }
       if (f.shape === 'phrase') {
-        if (!nonEmpty(f.phrase)) red('invalid-value', `${fw}.phrase`, 'the fixed words the quote must contain, copied from the input');
+        if (has('anyOf')) {
+          if (has('phrase') || has('place') || !Array.isArray(f.anyOf) || f.anyOf.length < 2 || f.anyOf.some((/** @type {unknown} */ x) => !nonEmpty(x)) || new Set(f.anyOf.map((/** @type {string} */ x) => x.toLowerCase())).size !== f.anyOf.length || f.anyOf.some((/** @type {string} */ x) => !/^[\p{L}\p{Nd}]/u.test(x) || !/[\p{L}\p{Nd}]$/u.test(x))) red('invalid-value', `${fw}.anyOf`, 'two or more different words, each starting and ending with a letter or digit, any one of which the quote must contain; a fact carries anyOf or phrase, not both');
+        } else if (!nonEmpty(f.phrase)) red('invalid-value', `${fw}.phrase`, 'the fixed words the quote must contain, copied from the input');
         for (const k of ['anchor', 'until', 'rule']) if (has(k)) red('invalid-value', `${fw}.${k}`, 'a phrase is fixed words the quote must contain; it has no anchor, until or rule');
-      } else if (has('phrase')) red('invalid-value', `${fw}.phrase`, 'only a phrase fact carries phrase');
+      } else if (has('phrase') || has('anyOf')) red('invalid-value', `${fw}.${has('phrase') ? 'phrase' : 'anyOf'}`, 'only a phrase fact carries phrase');
       if (has('place')) {
         const bad = f.shape === 'phrase' ? placeRuleProblem(f.place) : 'only a phrase fact carries a place rule';
         if (bad !== null) red('invalid-value', `${fw}.place`, bad);
@@ -367,6 +396,8 @@ export function countSentence(part) {
  * @param {any} f @returns {string}
  */
 export function factBrief(f) {
+  // M19 am5 item 3: the step is told the alternatives in the signed words
+  if (f.shape === 'phrase' && Array.isArray(f.anyOf)) return `${f.name} - no value to write; the quote you copy must say one of: ${quotedWords(f.anyOf)}`;
   if (f.shape === 'phrase') return `${f.name} - no value to write; the quote you copy must say "${f.phrase}"`;
   /** @type {string[]} */
   const bits = [f.shape === 'money' ? `an amount in ${[...asList(f.unit), ...asList(f.currency)].join(' or ')}` : f.shape === 'text' ? 'words' : `a ${f.shape}`];
@@ -441,6 +472,8 @@ export function plainFactItem(item, part) {
     case 'anchor-ambiguous': return say(`the label "${f ? f.anchor : ''}" is in the quote more than once`);
     case 'until-missing': return say(`"${f ? f.until : ''}" does not follow the label "${f ? f.anchor : ''}" in the quote`);
     case 'phrase-missing': return say(`the quote does not say "${detail}"`);
+    // M19 am5 item 3: bareguard's any-of presence decide reports `none-found` when no word is in the quote; the red names the signed words
+    case 'none-found': return say(f && Array.isArray(f.anyOf) ? `the quote says none of ${quotedWords(f.anyOf)}` : 'the quote says none of the words');
     case 'claim-value-missing': return say('no value was given in "values"');
     case 'claim-value-malformed': return say(`the value is not written as a value of this kind${f && f.shape === 'money' ? ' - write only the digits of the amount (for example 30), no unit or sign' : ''}`);
     case 'claim-value-absent': return say('the value is not in the quote as a whole word');
@@ -480,9 +513,17 @@ export async function checkCited({ part, text, results }) {
   try { rubric = createRubric(buildCitedSpec(part, sha256)); } catch (e) {
     return { verdict: 'stopped', gapLines: [], fault: `the check could not be built: ${/** @type {Error} */ (e).message}`, ...none };
   }
-  const claims = factClaims(part, results);
+  let claims = factClaims(part, results);
   // `count` is set HERE from the list itself: the step never writes a number the check trusts
-  const r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+  let r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+  // borrowed-from: bareloop src/rubricstep.js@v0.61.0
+  if (Array.isArray(part.facts) && part.facts.some((/** @type {any} */ f) => isRec(f) && (f.lang !== undefined || f.decimal !== undefined))) {
+    const written = writtenSpans(part, r.full.evidence);
+    if (written.some(Boolean)) {
+      claims = factClaims(part, results, written);
+      r = await checkStep(rubric, CHECKPOINT, { count: claims.length, claims }, { inputs: { [part.source]: text } });
+    }
+  }
   if (r.verdict === 'stopped') return { verdict: 'stopped', gapLines: [], fault: r.fault ? `${r.fault.kind}: ${r.fault.detail}` : 'the check stopped', ...none, claims };
   const evidence = Array.isArray(r.full?.evidence) ? r.full.evidence : [];
   if (r.verdict === 'green') return { verdict: 'green', gapLines: [], fault: null, sha256, claims, evidence };

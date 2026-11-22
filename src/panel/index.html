@@ -612,6 +612,22 @@
   /* M12 piece 3: the ticket list in the Result tab (mockup docs/product/m12-ticket-results-mock.html, variant E). Its boxes are the panel's own: .audit-group, .filterbar, .chips, .btn.small. */
   /* M13 piece 6: the job's Result grid (mock docs/product/m13-setup-mock.html Part 3). The table, cells, q-fold and step-sub are the Audit grid's own; these are the bucket fold rows, the stats line and the run column. */
   #result-body .tg-stats{font-size:13px;margin:0 0 8px;overflow-wrap:anywhere;}
+  /* borrowed-from: bareloop src/panel/index.html@v0.61.0 (.sf-*). a shape line with many fields: one folded row per item (signed mock A2); a failed item is open and tinted; nothing scrolls sideways */
+  .sf-item{border-bottom:1px dotted var(--border-strong);}
+  .sf-item>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:36px;font-size:12px;padding:0 4px;}
+  .sf-item>summary::-webkit-details-marker{display:none;}
+  .sf-nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sf-ct{flex:0 0 auto;white-space:nowrap;}
+  .sf-ar{flex:0 0 auto;color:var(--accent);font-weight:700;}
+  .sf-ar::before{content:"\25B8";}
+  .sf-item[open]>summary .sf-ar::before{content:"\25BE";}
+  .sf-item.bad>summary{background:var(--red-bg);}
+  .sf-fl{padding:4px 8px 8px 22px;font-size:12px;}
+  .sf-fl>div{display:flex;gap:8px;padding:2px 0;border-bottom:1px dotted var(--border);}
+  .sf-fl .k{flex:0 0 84px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;}
+  .sf-fl .g{flex:0 0 14px;}
+  .sf-fl .v{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+  .sf-fl .why{color:var(--red);}
   table.grid.tg td.r,table.grid.tg th.r{position:sticky;left:0;background:var(--panel2);z-index:1;min-width:84px;white-space:nowrap;}
   table.grid.tg td.c{min-width:84px;}
   table.grid.tg th{color:var(--accent);font-weight:700;}
@@ -769,6 +785,22 @@
   /* the confirm card's Drop / Add: wraps with its row, a comfortable touch target, no horizontal scroll at phone width */
   .jp .jp-btn{margin:2px 0 2px 8px;padding:4px 12px;min-height:32px;font-size:inherit;}
   .jp .fold{overflow-wrap:anywhere;}
+  /* borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) .ck-* (the signed check-list look, M19 S6) */
+  .jp .ck-g{margin:6px 0 6px 16px;text-indent:0;}
+  .jp .ck-h{font-weight:700;font-size:12px;color:var(--text-dim);margin:6px 0 2px;}
+  .jp .ck-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;padding-left:12px;text-indent:0;overflow-wrap:anywhere;}
+  .jp .ck-row .tagcol{display:inline-block;min-width:82px;}
+  .jp .ck-row .kind{display:inline-block;min-width:48px;color:var(--text-faint);}
+  .jp .ck-row .ck-t{flex:1 1 220px;min-width:0;}
+  .jp .ck-row .ck-right{margin-left:auto;white-space:nowrap;}
+  .jp .ck-row .ck-under{flex-basis:100%;padding-left:138px;}
+  .jp .ck-why{display:inline;}
+  .jp .ck-why>summary::before{content:none;margin:0;}
+  .jp .ck-why>summary{font-weight:400;}
+  .jp .jl>.lbl{font-weight:700;margin-right:6px;}
+  .jp .ck-why summary{display:inline;cursor:pointer;color:var(--text-dim);list-style:none;margin-left:6px;}
+  .jp .ck-why summary::-webkit-details-marker{display:none;}
+  .jp .ck-why[open]{display:block;}
   .jp-sug .lbl{display:block;margin-top:6px;font-weight:700;}
   .jp details.fold{padding-left:0;margin:6px 0;}
   .jp details>summary{cursor:pointer;list-style:none;font-weight:700;}
@@ -2842,8 +2874,30 @@
           '/download?i=' + d.i + '&view=1" target="_blank" rel="noopener noreferrer">' + escapeXml(d.name) + '</a>' + renamed + '</div>');
     }).join("");
   }
+  // ---- SHAPE JOBS (M19 S8; borrowed-from: bareloop src/panel/index.html@v0.61.0 shapeFoldHtml, shapeResultCard): a shape line's answer is a FOLD (every shape line, any field count): one row per item, opening to its fields, the stats line and the Not checked line. The server decides every mark and word (`line.shape`, src/shaperesult.js); the page only draws. An item's name is plain text.
+  // one row per item `N \u00B7 name  \u2713 k of n  \u25B8`, a native <details> opening to one line per field; a failed item starts open (signed mock A2)
+  function shapeFoldHtml(m){
+    var n = m.columns.length;
+    return '<div class="sf-list" data-testid="shape-fold">' + m.rows.map(function(r){
+      var bad = r.cells.filter(function(c){ return c.mark === "r"; }).length;
+      return '<details class="sf-item' + (bad ? ' bad' : '') + '" data-testid="shape-item"' + (bad ? ' open' : '') + '><summary><span class="sf-nm" data-testid="shape-name" title="' + escapeXml(r.name) + '">' + escapeXml(r.name) + '</span><span class="sf-ct" data-testid="shape-count">' + gridMarkOf(bad ? "r" : "g") + ' ' + (n - bad) + ' of ' + n + '</span><span class="sf-ar"></span></summary><div class="sf-fl">' +
+        r.cells.map(function(c, j){ return '<div data-testid="shape-field" data-result="' + (c.mark === "r" ? "failed" : "passed") + '"><span class="k">' + escapeXml(m.columns[j].name) + '</span><span class="g">' + gridMarkOf(c.mark) + '</span><span class="v">' + escapeXml(c.text || "") + (c.why ? ' <span class="why">\u00B7 ' + escapeXml(c.why) + '</span>' : '') + '</span></div>'; }).join("") + '</div></details>';
+    }).join("") + '</div>';
+  }
+  function shapeResultCard(line, detail, many){
+    var m = line.shape;
+    var h = '<div class="job-card" data-testid="result-shape"><h4>Result' + (many ? " \u00B7 line " + escapeXml(String(line.n)) : "") + '</h4>';
+    if(!m){
+      h += '<div class="hint" data-testid="result-nofile">' + RESULT_NONE + '</div>';
+    } else {
+      h += '<p class="tg-stats" data-testid="shape-stats"><b>' + escapeXml(String(detail.flow || "")) + '</b> \u00B7 ' + escapeXml(String(detail.runId || "")) + ' \u00B7 <b>' + m.total + '</b> items \u00B7 <b>' + m.passed + '</b> passed \u00B7 <b>' + m.failed + '</b> failed</p>';
+      h += shapeFoldHtml(m);
+    }
+    return h + resultNotChecked("Not checked", line.notChecked, "result-line-notchecked") + '</div>';
+  }
   // `own` = the Result tab read 2+ pages, so this line's box shows its own page
   function resultLineCard(line, own, note){
+    if(line.kind === "shape") return shapeResultCard(line, resultDetail || {}, !!(resultData && (resultData.lines || []).length > 1));
     return '<div class="job-card" data-testid="result-line"><h4>Line ' + escapeXml(String(line.n)) + '</h4>' + resultLineBox(line) +
       (own ? resultPageLink(line.page, note, "result-page-line") : "") +
       (line.kind === "facts" ? resultFactsLine(line) : resultTextLine(line)) + (line.sheet ? resultSheetBlock(line.sheet) : resultChecksList(line)) +
@@ -4134,43 +4188,73 @@
   // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape), appended inside #audit-groups
   // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
   function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
-  function byTagOf(by){ return tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + tagWordOf(by) + '</span>'; }
+  // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) byTagOf (the sign before the tag, section 3.7: `~ [you]`, `! [agent]`, `$ [default]`)
+  function byTagOf(by, form){ return (tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + (by === "you" ? "~ " : by === "agent" ? "! " : "$ ") + tagWordOf(by) + '</span>') + (form === "shape" ? ' <span class="by" data-testid="plan-form" data-form="shape">[shape]</span>' : ""); }
+  // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) ckTagHtml, ckRowHtml, ckGroupHtml (the signed check-list look): a row is `[tag] kind words ... right`, the tag first in a fixed column,
+  // the kind word second (`truth`, `shape`, `file`), the Drop / Add or the result at the right; a long reason sits behind "why", a failed row's red reason indented under it.
+  function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + (by ? "[" + escapeXml(by) + "]" : "") + "</span>"; }
+  function ckRowHtml(o){
+    var why = o.why ? ' <details class="ck-why" data-testid="ck-why"><summary>\u25B8 why</summary><div class="hint">' + escapeXml(o.why) + "</div></details>" : "";
+    return '<div class="ck-row" data-testid="' + (o.testid || "plan-check") + '"' + (o.attrs || "") + (o.title ? ' title="' + escapeXml(o.title) + '"' : "") + ">" + ckTagHtml(o.by) + '<span class="kind" data-testid="ck-kind">' + (o.kind ? escapeXml(o.kind) : "") + '</span><span class="ck-t">' + escapeXml(o.text) + why + "</span>" + (o.right ? '<span class="ck-right">' + o.right + "</span>" : "") + (o.under || "") + "</div>";
+  }
+  function ckGroupHtml(title, rows, testid, tail){
+    return rows.length ? '<div class="ck-g" data-testid="' + testid + '"><div class="ck-h">' + escapeXml(title) + " \u00B7 " + rows.length + (tail ? " \u00B7 " + escapeXml(tail) : "") + "</div>" + rows.join("") + "</div>" : "";
+  }
   // M16 P4c: the plan view of bareloop's card and Job tab, one drawing for both. `plan` = {lines: [{n, text, rules, leads, checks, extra}], suggested, notChecked, notCheckedBy, readNotes, alwaysOn}; the server wrote every string.
   // `ctl` (the card only) draws the Drop / Add button of a row. fwdloop's own rows keep their place in bareloop's structure: a line's lead sentence (src/checked.js) and a sheet line's block draw as a row under their line.
   // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :4157-4196 (planViewHtml: the line, its `~` rows, `\u203A check` rows, Suggested, the Not checked / How the page was read / Always checked folds)
-  function planCheckRowHtml(name, cls, by, ctlHtml){
-    return '<div class="fold" data-testid="plan-check"><span class="mk">\u203A</span> check \u00B7 ' + escapeXml(name) + (cls ? " \u00B7 " + escapeXml(cls) : "") + byTagOf(by) + (ctlHtml || "") + "</div>";
-  }
   function planFoldHtml(title, items, testid, byOf){
     if(!items || !items.length) return "";
     return '<details class="fold" data-testid="' + testid + '"><summary>' + escapeXml(title) + " \u00B7 " + items.length + "</summary><ul>" +
       items.map(function(x){ return "<li>" + escapeXml(x) + byTagOf(byOf(x)) + "</li>"; }).join("") + "</ul></details>";
   }
+  // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) renderJobPlan (the groups of the signed look); fwd's own rows (a line's lead sentence, a sheet line's block, "How the page was read") keep their words inside it
+  function planLegend(){
+    return "Done when every check below passes";
+  }
   function planViewHtml(plan, ctl){
-    var hasCheck = (plan.lines || []).some(function(l){ return (l.checks || []).length; });
-    var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">Done when every <b>\u203A</b> check passes</div>' : "");
-    (plan.lines || []).forEach(function(l){
+    var lines = plan.lines || [];
+    var hasCheck = (plan.alwaysOn || []).length > 0 || lines.some(function(l){ return (l.checks || []).length; });
+    var h = '<div class="jp" data-testid="job-plan">' + (hasCheck ? '<div class="jp-legend">' + planLegend() + "</div>" : "");
+    var checkRow = function(c){
+      var kind = c.kind || (c.shape ? "shape" : "truth");
+      return ckRowHtml({ by: c.by, kind: kind, text: c.name, right: ctl && c.drop && c.key ? ctl("drop", c.key) : "", title: c.cls || "", attrs: c.shape ? ' data-shape="1"' : "" });
+    };
+    // borrowed-from: bareloop src/panel/index.html@v0.61.0 (ncRow: a dropped rule's Not checked row has an Add back button)
+    var ncRow = function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused", right: ctl && r.addBack ? ctl("add", r.addBack, "Add back") : "" }); };
+    var suggRow = function(x){ return ckRowHtml({ by: "agent", kind: /\.shape\./.test(x.key) ? "shape" : "truth", text: x.text + (x.dropped ? " (you dropped it)" : ""), right: ctl ? ctl("add", x.key) : "", testid: "plan-suggest-row" }); };
+    var nc = plan.ncRows || [];
+    // the rows no one line owns (the two checks every step has, a Not checked note naming no line): in the block of a one-line job, in a block of their own when there are several lines
+    var jobChecks = (plan.alwaysOn || []).map(function(g){ return ckRowHtml({ by: "default", kind: "file", text: g, testid: "plan-always" }); });
+    var jobNc = nc.filter(function(r){ return !r.line || !lines.some(function(l){ return l.n === r.line; }); });
+    var sugg = plan.suggested || [];
+    var oneLine = lines.length === 1;
+    var groups = function(l, own){
+      var checked = (l ? l.checks.map(checkRow) : []).concat(own ? jobChecks : []);
+      var notc = (l ? nc.filter(function(r){ return r.line === l.n; }) : []).concat(own ? jobNc : []).map(ncRow);
+      var sg = sugg.filter(function(x){ return l ? (x.line === l.n || (own && !lines.some(function(y){ return y.n === x.line; }))) : !lines.some(function(y){ return y.n === x.line; }); }).map(suggRow);
+      return ckGroupHtml("CHECKED", checked, "plan-checked") + ckGroupHtml("NOT CHECKED", notc, "plan-notchecked", "you judge these at Accept") + (sg.length ? '<div class="ck-g jp-sug" data-testid="plan-suggested"><div class="ck-h">SUGGESTED \u00B7 add if you want it</div>' + sg.join("") + "</div>" : "");
+    };
+    lines.forEach(function(l){
       h += '<div class="jl" data-testid="plan-line"><span class="num">' + escapeXml(String(l.n)) + "</span>" + escapeXml(l.text);
       (l.rules || []).forEach(function(r){ h += '<div class="sub">~ ' + escapeXml(r) + "</div>"; });
-      // fwdloop's own words under the line, plain grey after its `~` rows and before its checks: the line's lead sentence (src/checked.js) and a sheet line's block (hamr 2026-11-14)
+      // fwdloop's own words under the line, plain grey after its `~` rows and before its groups: the line's lead sentence (src/checked.js) and a sheet line's block (hamr 2026-11-14)
       (l.leads || []).concat(l.extra || []).forEach(function(t){ h += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
-      (l.checks || []).forEach(function(c){ h += planCheckRowHtml(c.name, c.cls, c.by, ctl && c.drop && c.key ? ctl("drop", c.key) : ""); });
-      h += "</div>";
+      h += groups(l, oneLine) + "</div>";
     });
-    if((plan.suggested || []).length){
-      h += '<div class="jl jp-sug" data-testid="plan-suggested"><span class="num"></span><span class="lbl">Suggested \u00B7 not in your job, not checked unless you add it</span>' + plan.suggested.map(function(x){
-        return '<div class="fold" data-testid="plan-suggest-row"><span class="mk">\u203A</span> line ' + escapeXml(String(x.line)) + " \u00B7 " + escapeXml(x.text) + byTagOf("agent") + (x.dropped ? " (you dropped it)" : "") + (ctl ? ctl("add", x.key) : "") + "</div>";
-      }).join("") + "</div>";
+    if(!oneLine){
+      var rest = groups(null, true);
+      if(rest) h += '<div class="jl" data-testid="plan-job-level"><span class="num"></span><span class="lbl">Every line</span>' + rest + "</div>";
     }
-    var ncBy = plan.notCheckedBy || {};
-    h += planFoldHtml("Not checked", plan.notChecked, "plan-notchecked", function(x){ return ncBy[x]; });
     h += planFoldHtml("How the page was read", plan.readNotes, "plan-readnotes", function(){ return ""; });
-    h += planFoldHtml("Always checked", plan.alwaysOn, "plan-alwayson", function(){ return "default"; });
     return h + "</div>";
   }
+  // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) auditCheckRowHtml: `[tag] kind words ... result`, the result word at the right, a failed row's red reason indented under it; a Not checked row has no result word, only its "why"
   function auditCheckRowHtml(r){
     var res = r.result === "passed" ? ["green", "passed"] : r.result === "failed" ? ["red", "failed"] : r.result === "not-checked" ? ["grey", "not checked"] : ["grey", "no result recorded"];
-    return '<div class="audit-check-row" data-testid="audit-check-row" data-result="' + escapeXml(r.result) + '" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(r.text) + byTagOf(r.by) + " " + stateDotHTML(res[0], res[1], "audit-check-state") + "</div>";
+    var nc = r.result === "not-checked";
+    return ckRowHtml({ by: r.by, kind: nc ? "" : r.kind, text: r.text, why: nc ? r.why : "", testid: "audit-check-row", attrs: ' data-result="' + escapeXml(r.result) + '"', right: nc ? "" : stateDotHTML(res[0], res[1], "audit-check-state"),
+      under: r.result === "failed" && r.why ? '<div class="hint ck-under" data-testid="audit-check-why">' + escapeXml(r.why) + "</div>" : "" });
   }
   // the fold's one state sign: any row failed = [\u2717]; else any row with no recorded result = [\u00B7]; else [\u2713] ("not checked" rows never move it)
   function auditChecksSignClass(rows){
@@ -4205,15 +4289,24 @@
     body.className = "audit-fold-body";
     body.hidden = true;
     body.setAttribute("data-testid", "audit-checks-body");
-    var sec = function(title, rows, tid){
-      if(!rows || !rows.length) return "";
-      return '<div data-testid="' + tid + '" style="margin:6px 0"><div><b>' + escapeXml(title) + "</b></div>" + rows.map(auditCheckRowHtml).join("") + "</div>";
-    };
+    var grp = function(title, rows, tid, tail){ return ckGroupHtml(title, rows.map(auditCheckRowHtml), tid, tail); };
     var readSec = function(notes){
       if(!notes || !notes.length) return "";
       return '<div data-testid="audit-checks-readnotes" style="margin:6px 0"><div><b>How the page was read</b></div>' + notes.map(function(t){ return '<div class="audit-check-row" data-testid="audit-read-note" style="overflow-wrap:anywhere;margin:2px 0">' + escapeXml(t) + "</div>"; }).join("") + "</div>";
     };
-    body.innerHTML = '<div class="jp">' + sec("Checks", ac.checks, "audit-checks-checks") + sec("Not checked", ac.notChecked, "audit-checks-notchecked") + readSec(ac.readNotes) + sec("Always checked", ac.always, "audit-checks-always") + "</div>";
+    // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) auditChecksEl: one block per job line (signed look): `Line N  text`, its CHECKED rows, its NOT CHECKED rows; the rows no line owns (the two every step has, a Not checked note naming no line) join the block of a one-line job, else have a block of their own
+    var lineBlocks = ac.lines || [];
+    var blocks = lineBlocks.map(function(l, i, all){
+      var own = all.length === 1;
+      return '<div class="jl" data-testid="audit-line"><span class="lbl">Line ' + escapeXml(String(l.n)) + "</span> " + escapeXml(l.text) +
+        grp("CHECKED", (l.checks || []).concat(own ? (ac.always || []) : []), "audit-checks-checks") + grp("NOT CHECKED", (l.notChecked || []).concat(own ? (ac.jobNotChecked || []) : []), "audit-checks-notchecked", "you judge these at Accept") + "</div>";
+    });
+    if(lineBlocks.length !== 1){
+      var rest = grp("CHECKED", ac.always || [], "audit-checks-always") + grp("NOT CHECKED", ac.jobNotChecked || [], "audit-checks-notchecked", "you judge these at Accept");
+      if(rest) blocks.push('<div class="jl" data-testid="audit-job-level"><span class="lbl">Every line</span>' + rest + "</div>");
+    }
+    // a run read without its per-line data (an older record, a row owned by a line the job text lacks) keeps the flat groups, no row lost
+    body.innerHTML = '<div class="jp">' + (lineBlocks.length ? blocks.join("") : grp("CHECKED", (ac.checks || []).concat(ac.always || []), "audit-checks-checks") + grp("NOT CHECKED", ac.notChecked || [], "audit-checks-notchecked", "you judge these at Accept")) + readSec(ac.readNotes) + "</div>";
     function paint(open){ body.hidden = !open; wrap.classList.toggle("closed", !open); btn.setAttribute("aria-expanded", open ? "true" : "false"); }
     function toggle(){ var open = body.hidden; auditExpanded["\u0000checks"] = open; paint(open); }
     btn.addEventListener("click", toggle);
@@ -4493,12 +4586,16 @@
     tail.innerHTML = "";
     (plan.steps || []).filter(function(st){ return !placed[st.step]; }).forEach(function(st){ tail.appendChild(jobStepFold(st, job)); });
     var nc = plan.notChecked || {};
-    // M16 P4c: a plan with a list draws bareloop's three folds (Not checked, How the page was read, Always checked), each line tagged
+    // M19 S6: a plan with a list draws the signed look's rows no line owns in an "Every line" block (a one-line job's sit in its Line 1 block, above), then "How the page was read"
     if(plan.always && nc.recorded){
       var jpFolds = document.createElement("div");
       jpFolds.className = "jp";
-      var ncBy = nc.by || {};
-      jpFolds.innerHTML = planFoldHtml("Not checked", nc.items, "plan-notchecked", function(x){ return ncBy[x]; }) + planFoldHtml("How the page was read", nc.readNotes, "plan-readnotes", function(){ return ""; }) + planFoldHtml("Always checked", plan.always, "plan-alwayson", function(){ return "default"; });
+      var many = (job.prose || []).length !== 1;
+      var lineNos = (job.prose || []).map(function(x){ return x.line; });
+      var restNc = (nc.rows || []).filter(function(r){ return (many && !r.line) || (r.line && lineNos.indexOf(r.line) < 0); }).map(function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused" }); });
+      var restChecked = many ? (plan.always || []).map(function(g){ return ckRowHtml({ by: "default", kind: "file", text: g, testid: "plan-always" }); }) : [];
+      var rest = ckGroupHtml("CHECKED", restChecked, "plan-checked") + ckGroupHtml("NOT CHECKED", restNc, "plan-notchecked", "you judge these at Accept");
+      jpFolds.innerHTML = (rest ? '<div class="jl" data-testid="plan-job-level"><span class="lbl">Every line</span>' + rest + "</div>" : "") + planFoldHtml("How the page was read", nc.readNotes, "plan-readnotes", function(){ return ""; });
       tail.appendChild(jpFolds);
       return;
     }
@@ -4542,6 +4639,9 @@
     jobEl.innerHTML = "";
     // M4e amendment 37: one wrapper per signed line: the human's words, its `~` rows, then its step(s) folded under it (the plan, never in the same row).
     var placed = {};
+    // am2 item 1: the Job tab's legend, first in the box, only when the plan has a check (bareloop v0.61.0 renderJobPlan's hasCheck); the same string as the card's
+    var jobPlan = job.plan || {};
+    if((jobPlan.always || []).length > 0 || (jobPlan.steps || []).some(function(st){ return (st.listRows || []).length; })) jobEl.appendChild(textDiv("jp-legend", planLegend()));
     if(!job.prose || !job.prose.length){
       jobEl.appendChild(textDiv("hint", "no signed prose lines"));
     } else {
@@ -4560,11 +4660,16 @@
         });
         // M16 P4c: the checks of a list line sit under the job line as `\u203A check` rows with their tags (bareloop's Job tab); the step fold keeps the rest
         // the line's lead sentence and a sheet block draw as plain grey lines first (hamr 2026-11-14), then the rows
-        var listRowsHtml = "";
+        var listRowsHtml = "", listChecked = [];
         ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
           if(job.plan.always && !st.ask) (st.check || []).concat(sheetBlockLines(st.sheet, true)).forEach(function(t){ listRowsHtml += '<div class="sub" data-testid="plan-lead">' + escapeXml(t) + "</div>"; });
-          (st.listRows || []).forEach(function(r){ listRowsHtml += planCheckRowHtml(r.text, "", r.by, ""); });
+          (st.listRows || []).forEach(function(r){ listChecked.push(ckRowHtml({ by: r.by, kind: r.kind || "truth", text: r.text })); });
         });
+        var ncAll = (job.plan && job.plan.notChecked && job.plan.notChecked.rows) || [];
+        var oneJobLine = job.prose.length === 1;
+        var ownNc = ncAll.filter(function(r){ return r.line === l.line || (oneJobLine && !r.line); }).map(function(r){ return ckRowHtml({ by: r.by, text: r.text, why: r.why, testid: "plan-refused" }); });
+        var ownChecked = listChecked.concat(oneJobLine && job.plan && job.plan.always ? job.plan.always.map(function(g){ return ckRowHtml({ by: "default", kind: "file", text: g, testid: "plan-always" }); }) : []);
+        if(listChecked.length || ownNc.length || (oneJobLine && job.plan && job.plan.always)) listRowsHtml += ckGroupHtml("CHECKED", ownChecked, "plan-checked") + ckGroupHtml("NOT CHECKED", ownNc, "plan-notchecked", "you judge these at Accept");
         if(listRowsHtml){ var jpRows = document.createElement("div"); jpRows.className = "jp"; jpRows.innerHTML = listRowsHtml; cell.appendChild(jpRows); }
         ((job.plan && job.plan.steps) || []).filter(function(st){ return st.line === l.line; }).forEach(function(st){
           placed[st.step] = true;
@@ -5983,16 +6088,21 @@
     // pure: the plan view's model for a plan with a list: each job line with its `~` rules, its lead sentence (src/checked.js), the built rows of the list, a sheet line's block; then the suggestions and the three folds
     function planOfState(state, list){
       var nc = state.notChecked || {};
-      var plan = {lines: [], suggested: list.suggested || [], notChecked: nc.items || [], notCheckedBy: nc.by && typeof nc.by === "object" ? nc.by : {}, readNotes: nc.readNotes || [], alwaysOn: state.always || []};
+      var plan = {lines: [], suggested: list.suggested || [], notChecked: nc.items || [], notCheckedBy: nc.by && typeof nc.by === "object" ? nc.by : {}, readNotes: nc.readNotes || [], alwaysOn: state.always || [], ncRows: (nc.rows || []).map(function(r){ return Object.assign({}, r); })};
       (state.planLines || []).forEach(function(pl){
         var l = {n: pl.n, text: pl.text, rules: pl.rules || [], leads: [], checks: [], extra: []};
         state.checked.forEach(function(c){
           if(c.line !== pl.n) return;
-          if(c.sentences.length) l.leads.push(c.sentences[0]);
+          if(typeof c.lead === "string") l.leads.push(c.lead);
           sheetBlockLines(c.sheet, true).forEach(function(t){ l.extra.push(t); });
         });
-        list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true}); });
+        list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true, kind: r.kind}); });
         plan.lines.push(l);
+      });
+      // borrowed-from: bareloop src/panel/jobplan.js@v0.61.0 (planFromConfirm: a rule the person dropped, confirm card only: its Not checked row carries the key the Add back button posts)
+      (list.restorable || []).forEach(function(x){
+        var n = plan.ncRows.find(function(r){ return r.addBack === undefined && r.text === x.text && (r.line === x.line || r.line === 0); });
+        if(n) n.addBack = x.key;
       });
       return plan;
     }
@@ -6872,8 +6982,8 @@
       return escapeXml(l.text) + byTagOf(l.by);
     }
     // the Drop / Add button of the plan view (bareloop's control; the click is handled once on the extras box)
-    function planControlHTML(op, key){
-      return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (op === "add" ? "Add" : "Drop") + "</button>";
+    function planControlHTML(op, key, label){
+      return ' <button type="button" class="btn jp-btn" data-testid="plan-' + op + '" data-rowop="' + op + '" data-rowkey="' + escapeXml(key) + '">' + (label || (op === "add" ? "Add" : "Drop")) + "</button>";
     }
     // M13 am11c: the action row, two cases, never a Drop (to change it, Revise). You picked it (Agree or typed): [you]. The AI's pick, or an old log with no `by`: [agent].
     function actionRowHtml(a){

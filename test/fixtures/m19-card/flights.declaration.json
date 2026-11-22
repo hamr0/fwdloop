@@ -1,0 +1,263 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read",
+        "grep"
+      ],
+      "reads": [
+        "flights"
+      ],
+      "emits": "flights_page_text",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the flights page."
+    },
+    {
+      "primitives": [
+        "grep",
+        "get",
+        "read"
+      ],
+      "reads": [
+        "flights_page_text",
+        "flights"
+      ],
+      "emits": "flight_options",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "cited": {
+          "source": "flights",
+          "facts": [
+            {
+              "name": "price",
+              "shape": "money",
+              "anchor": "From",
+              "unit": [
+                "US dollars"
+              ],
+              "currency": [
+                "$"
+              ],
+              "rule": {
+                "op": "lt",
+                "value": 450
+              }
+            },
+            {
+              "name": "airline",
+              "shape": "phrase",
+              "anyOf": [
+                "United",
+                "JetBlue",
+                "Delta",
+                "American",
+                "Frontier"
+              ]
+            },
+            {
+              "name": "stops",
+              "shape": "phrase",
+              "anyOf": [
+                "Nonstop",
+                "1 stop"
+              ]
+            },
+            {
+              "name": "origin airport",
+              "shape": "phrase",
+              "phrase": "Leaves Boston Logan International Airport"
+            },
+            {
+              "name": "Chicago ORD",
+              "shape": "phrase",
+              "phrase": "Chicago"
+            }
+          ],
+          "count": {
+            "min": 3,
+            "max": 3
+          }
+        }
+      },
+      "goal": "List 3 flights from Boston to Chicago."
+    },
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [
+        "flight_options"
+      ],
+      "emits": "flight_check",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl",
+        "numbersFrom": [
+          2
+        ]
+      },
+      "goal": "Check it with me."
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "flight_check"
+      ],
+      "emits": "flights_out",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "refused": [],
+  "inputFacts": {},
+  "flowType": "plain",
+  "checkList": [
+    {
+      "line": 1,
+      "key": "L1.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.~1",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 1,
+      "part": {
+        "line": 2,
+        "part": 0
+      },
+      "facts": [
+        "price"
+      ]
+    },
+    {
+      "line": 2,
+      "key": "L2.~2",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 2,
+      "part": {
+        "line": 2,
+        "part": 0
+      },
+      "facts": [
+        "airline"
+      ]
+    },
+    {
+      "line": 2,
+      "key": "L2.~3",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 3,
+      "part": {
+        "line": 2,
+        "part": 0
+      },
+      "facts": [
+        "stops"
+      ]
+    },
+    {
+      "line": 2,
+      "key": "L2.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 3,
+      "key": "L3.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.fact.destination airport",
+      "from": "look",
+      "by": "agent",
+      "kind": "fact",
+      "state": "not-checked",
+      "reason": "\"ORD\" is on the page but in none of its results, so it is not checked."
+    },
+    {
+      "line": 2,
+      "key": "L2.fact.origin airport",
+      "from": "look",
+      "by": "agent",
+      "kind": "fact",
+      "state": "built",
+      "part": {
+        "line": 2,
+        "part": 0
+      },
+      "facts": [
+        "origin airport"
+      ]
+    },
+    {
+      "line": 3,
+      "key": "L3.$numbers",
+      "from": "default",
+      "by": "default",
+      "kind": "numbers",
+      "state": "built",
+      "part": {
+        "line": 3,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.count.3-3",
+      "from": "agent",
+      "by": "agent",
+      "kind": "count",
+      "state": "built",
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.phrase.chicago ord",
+      "from": "agent",
+      "by": "agent",
+      "kind": "phrase",
+      "state": "built",
+      "part": {
+        "line": 2,
+        "part": 0
+      },
+      "facts": [
+        "Chicago ORD"
+      ]
+    }
+  ]
+}

@@ -27,6 +27,8 @@
 // One at a time with no lock table: `start` is fully synchronous (check live -> create the folder -> spawn ->
 // write pid.json, no await between), so two requests that arrive together run one after the other and the second
 // sees the first's live child and is refused. A dead child never blocks (its pid is read, never assumed).
+import { ncRowsOf } from '../checklook.js';
+import { planCard } from '../checkrows.js';
 import { randomBytes } from 'node:crypto';
 import {
   mkdirSync, realpathSync, rmSync, writeFileSync,
@@ -356,15 +358,19 @@ export function createAuthor(opts) {
     const ncFile = readJson(dir, `${rel}/${NOT_CHECKED_FILE}`);
     const view = notCheckedView(ncFile?.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
-    const card = cardLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`)?.checkCard : undefined;
-    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, suggested: card.suggested } : null;
+    // M19 am6: a saved draft with a signed list draws its card rows read from the plan (a card saved with the old words is rebuilt); the suggestions, the restorable rows and the Drop flags are the saved card's
+    const savedLog = cardLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`) : undefined;
+    const card = savedLog?.checkCard && parsed?.ok === true && Array.isArray(savedLog.checkCard.rows)
+      ? planCard(savedLog.checkCard, { declaration: decl, lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter), kept: Array.isArray(kept) ? kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [], log: savedLog.log })
+      : savedLog?.checkCard;
+    const list = card && Array.isArray(card.rows) && Array.isArray(card.suggested) ? { lines: [...cardLinesOf(decl)].sort((a, b) => a - b), rows: card.rows, notChecked: Array.isArray(card.notChecked) ? card.notChecked : [], suggested: card.suggested, restorable: Array.isArray(card.restorable) ? card.restorable : [] } : null;
     // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
     // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent]` (no Drop, am11c)
     const act = readJson(dir, `${rel}/log.json`)?.action;
     const action = isObj(act) && Number.isInteger(act.line) && act.dropped !== true ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}) } : null;
     return {
-      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
+      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}), rows: ncRowsOf(view.items, isObj(ncFile?.by) ? ncFile.by : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
   }
 

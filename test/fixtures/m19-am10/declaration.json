@@ -1,0 +1,202 @@
+{
+  "steps": [
+    {
+      "primitives": [
+        "read"
+      ],
+      "reads": [],
+      "emits": "notes_contents",
+      "fromLine": 1,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Read the research notes."
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "notes_contents"
+      ],
+      "emits": "research_items",
+      "fromLine": 2,
+      "close": {
+        "class": "green",
+        "itemShape": {
+          "fields": [
+            {
+              "name": "title",
+              "spec": {
+                "kind": "text",
+                "required": true,
+                "minChars": 1
+              },
+              "rule": 1
+            },
+            {
+              "name": "status",
+              "spec": {
+                "kind": "oneOf",
+                "required": true,
+                "values": [
+                  "in progress",
+                  "closed",
+                  "finished"
+                ],
+                "ignoreCase": true
+              },
+              "rule": 2
+            },
+            {
+              "name": "summary",
+              "spec": {
+                "kind": "text",
+                "required": true,
+                "maxChars": 199
+              },
+              "rule": 3
+            }
+          ]
+        },
+        "picked": [
+          {
+            "rule": "listItems",
+            "value": 4
+          }
+        ]
+      },
+      "goal": "List every research item."
+    },
+    {
+      "primitives": [],
+      "reads": [
+        "research_items",
+        "notes_contents"
+      ],
+      "emits": "review_gate",
+      "fromLine": 3,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Check it with me."
+    },
+    {
+      "primitives": [
+        "write"
+      ],
+      "reads": [
+        "review_gate"
+      ],
+      "emits": "research_items_out",
+      "fromLine": 4,
+      "close": {
+        "class": "hitl"
+      },
+      "goal": "Write it out."
+    }
+  ],
+  "guardrailClasses": {
+    "2": "green"
+  },
+  "refused": [],
+  "inputFacts": {
+    "notes": [
+      "Research notes",
+      "Battery recycling study",
+      "Warehouse robotics survey",
+      "Tariff impact review",
+      "Solar permit timelines"
+    ]
+  },
+  "flowType": "plain",
+  "checkList": [
+    {
+      "line": 1,
+      "key": "L1.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.~1",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 1,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.~2",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 2,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.~3",
+      "from": "rule",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 3,
+      "part": {
+        "line": 2,
+        "part": 0
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.~4",
+      "from": "pick",
+      "by": "you",
+      "kind": "rule",
+      "state": "built",
+      "rule": 4,
+      "part": {
+        "line": 2,
+        "part": 1
+      }
+    },
+    {
+      "line": 2,
+      "key": "L2.$floor",
+      "from": "default",
+      "by": "default",
+      "kind": "floor",
+      "state": "built"
+    },
+    {
+      "line": 2,
+      "key": "L2.count.4-4",
+      "from": "agent",
+      "by": "agent",
+      "kind": "count",
+      "state": "dropped",
+      "reason": "a ~ rule already says it: line 2 rule 4 names the number"
+    },
+    {
+      "line": 2,
+      "key": "L2.phrase.research notes",
+      "from": "agent",
+      "by": "agent",
+      "kind": "phrase",
+      "state": "dropped",
+      "reason": "Suggested: not in your job, so it is not checked unless you add it."
+    }
+  ],
+  "pickedLines": [
+    2
+  ]
+}

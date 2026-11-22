@@ -1,0 +1,10 @@
+1. Read the flights page.
+2. List 3 flights from Boston to Chicago.
+   guardrail: under $450; each item has an airline; each item has stops: nonstop or 1 stop
+3. Check it with me.
+4. Write it out.
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.3 per run
+guardrail: send at line 4 to file:/tmp/out
+guardrail: source flights = page:https://www.google.com/travel/flights?q=Flights+from+BOS+to+ORD+on+2026-12-04+one+way&hl=en&curr=USD

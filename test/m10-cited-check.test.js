@@ -140,7 +140,7 @@ test('a quote in a doc: the same check over a markdown document, a number rule a
 test('the sentences the Result tab shows are written by code from the signed fields', () => {
   const part = flightsPart();
   assert.equal(factSentence(part.facts.find((f) => f.name === 'price'), 'flights'), 'fact · price — money in US dollars, under 150 US dollars, after "From", quoted from "flights"');
-  assert.equal(factSentence(part.facts.find((f) => f.name === 'nonstop'), 'flights'), 'fact · nonstop — phrase, must say "Nonstop", quoted from "flights"');
+  assert.equal(factSentence(part.facts.find((f) => f.name === 'nonstop'), 'flights'), 'fact "nonstop" with one of the words "Nonstop", "Nonstop flight"'); // M19 am5: the look kept both words; both are signed
   assert.equal(countSentence(part), 'fact · results — exactly 3 results, each quoted from "flights"');
   assert.equal(countSentence({ ...part, count: undefined }), null);
 });

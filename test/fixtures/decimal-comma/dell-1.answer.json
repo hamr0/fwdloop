@@ -1,0 +1,46 @@
+{
+  "results": [
+    {
+      "quote": "                  - StaticText \"AB\" [ref=2303]\n                  - StaticText \"1.058,47 €\" [ref=2605]\n                  - button \"Informationen zum Startpreis\" [ref=2606]\n                - link \"Modelle anzeigen XPS 13-Laptop\" [ref=2310]\n                  - StaticText \"Modelle anzeigen\" [ref=2608]\n                  - StaticText \"XPS 13-Laptop\" [ref=2610]",
+      "values": {
+        "price": "1058.47",
+        "name": "XPS 13-Laptop"
+      }
+    },
+    {
+      "quote": "                  - StaticText \"AB\" [ref=2325]\n                  - StaticText \"1.449,00 €\" [ref=2640]\n                  - button \"Informationen zum Startpreis\" [ref=2641]\n                - link \"Modelle anzeigen Neu: XPS Googlebook-Laptop\" [ref=2332]\n                  - StaticText \"Modelle anzeigen\" [ref=2643]\n                  - StaticText \"Neu: XPS Googlebook-Laptop\" [ref=2645]",
+      "values": {
+        "price": "1449.00",
+        "name": "Neu: XPS Googlebook-Laptop"
+      }
+    },
+    {
+      "quote": "                      - heading \"Dell 15-Laptop\" [level=3] [ref=3911]\n                      - StaticText \"Angebots-ID dc15250_fixed_011\" [ref=4165]\n                      - link \"4.2 out of 5 stars. 51 reviews\" [ref=4166]\n                      - _promote [ref=3915]\n                        - StaticText \"Preis\" [ref=4168]\n                        - StaticText \"1.001,98 €\" [ref=4169]",
+      "values": {
+        "price": "1001.98",
+        "name": "Dell 15-Laptop"
+      }
+    },
+    {
+      "quote": "                  - StaticText \"1.194,76 €\" [ref=2919]\n                  - button \"Informationen zum Startpreis\" [ref=2920]\n                - link \"Modelle anzeigen Dell 14-Laptop\" [ref=2443]\n                  - StaticText \"Modelle anzeigen\" [ref=2922]\n                  - StaticText \"Dell 14-Laptop\" [ref=2924]",
+      "values": {
+        "price": "1194.76",
+        "name": "Dell 14-Laptop"
+      }
+    },
+    {
+      "quote": "                  - StaticText \"823,48 €\" [ref=2992]\n                  - button \"Informationen zum Startpreis\" [ref=2993]\n                - link \"Modelle anzeigen Dell 15-Laptop\" [ref=2484]\n                  - StaticText \"Modelle anzeigen\" [ref=2995]\n                  - StaticText \"Dell 15-Laptop\" [ref=2997]",
+      "values": {
+        "price": "823.48",
+        "name": "Dell 15-Laptop"
+      }
+    },
+    {
+      "quote": "                  - StaticText \"1.231,65 €\" [ref=3070]\n                  - button \"Informationen zum Startpreis\" [ref=3071]\n                - link \"Modelle anzeigen Dell 14 Plus-2-in-1-Laptop\" [ref=2526]\n                  - StaticText \"Modelle anzeigen\" [ref=3073]\n                  - StaticText \"Dell 14 Plus-2-in-1-Laptop\" [ref=3075]",
+      "values": {
+        "price": "1231.65",
+        "name": "Dell 14 Plus-2-in-1-Laptop"
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+ "step": 1,
+ "part": {
+  "text": "price; origin airport; destination airport",
+  "class": "fact",
+  "source": "flights",
+  "facts": [
+   {
+    "name": "price",
+    "shape": "money",
+    "anchor": "From",
+    "unit": [
+     "US dollars"
+    ],
+    "currency": [
+     "$"
+    ],
+    "decimal": ".",
+    "rule": {
+     "op": "lt",
+     "value": 450
+    }
+   },
+   {
+    "name": "origin airport",
+    "shape": "phrase",
+    "phrase": "Boston Logan International Airport"
+   },
+   {
+    "name": "destination airport",
+    "shape": "phrase",
+    "phrase": "Chicago O'Hare International Airport"
+   }
+  ],
+  "rules": [
+   1
+  ],
+  "count": {
+   "min": 3
+  }
+ },
+ "source": "flights",
+ "session": "smwiw3dcfjmeu",
+ "inputSha": "6803b227a707b42d3112e6ef01bf3cd6987cce18e37b63faa8873e966e211dbe"
+}

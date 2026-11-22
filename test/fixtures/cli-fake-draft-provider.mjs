@@ -16,12 +16,14 @@
 // FWDLOOP_TEST_DRAFT_RETRY=<n> -> the first n provider calls return a validator-red plan, the next is valid (M4d am10: a draft with retries).
 // FWDLOOP_TEST_DRAFT_SUGGEST=<json> -> the M10 am16 suggestion call answers that ({"checks":[{line,guardrail,rule,...}]}; default: no check for any guardrail).
 // FWDLOOP_TEST_DRAFT_MAP=<json> -> the page-map call answers that map (default: every ~ rule tied to its own word of the default page, so nothing is asked).
+// FWDLOOP_TEST_DRAFT_CALLS=<file> / FWDLOOP_TEST_DRAFT_DENY=<file> -> see the generate wrapper below (M19 P8).
+// FWDLOOP_TEST_DRAFT_SHAPE=<raw text> -> the shape look (M19 S2; one call, no tool) answers that text (default: {"shapes":[]}, no shape).
 // FWDLOOP_TEST_DRAFT_SHEET=<json> -> the sheet-word call (M10 piece 5; a CSV job with a ~ rule) answers that (default: no word, so nothing is asked).
 // FWDLOOP_TEST_DRAFT_PAGE=<file> -> the fetched page's text (default: a small Boston-Chicago results page).
 // FWDLOOP_TEST_DRAFT_TICKET=1 -> the plan reads the `jd` input as a ticket list (M13 piece 4: the card's Flow type is Tickets, jd is a GitHub issues list; the job's mcp block is set by code from the MCP's newest OK check).
 // FWDLOOP_TEST_DRAFT_MCP=1 -> the first step calls the MCP tool `issue_read` live (a generic MCP job; the step's mcpTools must be in the checked tool list).
 // FWDLOOP_TEST_DRAFT_MODE=bad -> the model always grants an unwired verb (a red draft).
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { RATES, MODEL, validArgs, fakeProvider, toolReply, textReply } from '../drafter-fixture.mjs';
 import { pageText } from './m10-page-server.mjs';
 import { MAP_SYSTEM } from '../../src/pagemap.js';
@@ -105,6 +107,9 @@ export default function make() {
   const gen = provider.generate.bind(provider);
   let retriesDone = 0;
   provider.generate = async (messages, ...rest) => {
+    // M19 P8: FWDLOOP_TEST_DRAFT_CALLS=<file> -> one line per call of ANY kind; FWDLOOP_TEST_DRAFT_DENY=<file> -> once that file exists a call throws (a Drop or an Add back must make none)
+    if (process.env.FWDLOOP_TEST_DRAFT_CALLS) appendFileSync(process.env.FWDLOOP_TEST_DRAFT_CALLS, 'call\n');
+    if (process.env.FWDLOOP_TEST_DRAFT_DENY && existsSync(process.env.FWDLOOP_TEST_DRAFT_DENY)) throw new Error('the fake provider was called after the draft finished');
     if (['suggest_extra_checks', 'submit_edits'].includes(rest[0]?.[0]?.name)) return gen(messages, ...rest); // M16 (a): the list's own turns are answered empty by fakeProvider, whatever the mode
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM && String(messages.find((m) => m.role === 'user')?.content).includes(SHEET_MARK)) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_SHEET ?? '{"facts":[]}'), usage: { inputTokens: 1000, outputTokens: 20 } }; // the sheet-word call
     if (messages.find((m) => m.role === 'system')?.content === MAP_SYSTEM) return { ...textReply(process.env.FWDLOOP_TEST_DRAFT_MAP ?? tiedMap(messages.find((m) => m.role === 'user')?.content)), usage: { inputTokens: 1000, outputTokens: 20 } }; // the page-map call, not a drafting round (FWDLOOP_TEST_DRAFT_MAP=<json> replaces the empty map)

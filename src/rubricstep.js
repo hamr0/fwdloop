@@ -3,6 +3,13 @@
 // and the default cited text. The rest of the rubric step (building, grading and reading a step file) is not wanted here.
 import { lineRules } from './pagebits.js';
 import { factShapeReds } from './citedcheck.js';
+import { shapeShapeReds, shapeFieldSentence, shapeExampleItem } from './shaperows.js';
+import { plainShapeGap } from './shapewords.js';
+
+// borrowed-from: bareloop src/rubricstep.js@v0.60.0 (the one spelling of the keys of a repo job's stage row, of a job-level guard row and of the write-fence row; fwd has no repo job, so only the block's repo rows read them)
+export const stageKeyOf = (/** @type {string} */ name) => `S.${name}`;
+export const guardKeyOf = (/** @type {string} */ name) => `J.$guard.${name}`;
+export const FENCE_KEY = 'J.$fence';
 
 // ── the `rubric-step` stage: its parameters, and the rubric they build ───────────────────────────────────────────────
 //
@@ -17,7 +24,7 @@ import { factShapeReds } from './citedcheck.js';
 // (src/authoring.js `checkRubricParts`) so no signed stage ever carries one.
 
 /** the closed set of classes a part is sorted into; `none` = "I could not sort this one" (a red, in plain words, never a guess) */
-export const PART_CLASSES = Object.freeze(['countable', 'fact', 'judged', 'guard', 'none']);
+export const PART_CLASSES = Object.freeze(['countable', 'fact', 'shape', 'judged', 'guard', 'none']);
 
 /**
  * The counted/quoted checks a `countable` part may name, with the fields each needs — read off bareguard's own rule table
@@ -49,7 +56,7 @@ export const COUNT_CHECKS = Object.freeze({
 });
 
 /** every field a part may carry, whatever its class */
-const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample']);
+const PART_FIELDS = Object.freeze(['text', 'class', 'check', 'value', 'names', 'wordsPerSection', 'source', 'domains', 'phrases', 'size', 'covers', 'rules', 'from', 'record', 'facts', 'count', 'tested', 'sample', 'asSeen', 'fields', 'minItems', 'maxItems']);
 
 /** @typedef {{code: string, path: string, detail: string}} ShapeRed */
 
@@ -92,6 +99,9 @@ export function rubricStepShapeReds(p, at) {
       && part.rules.every((/** @type {unknown} */ x) => Number.isInteger(x) && /** @type {number} */ (x) >= 1))) {
       red('invalid-value', `${w}.rules`, 'the numbers of the line\'s ~ rules this part carries out (distinct integers, 1 or more)');
     }
+    if (Object.hasOwn(part, 'asSeen') && part.class !== 'fact') red('invalid-value', `${w}.asSeen`, 'only a fact part carries the as-seen example');
+    for (const k of ['fields', 'minItems', 'maxItems']) if (Object.hasOwn(part, k) && part.class !== 'shape') red('invalid-value', `${w}.${k}`, 'only a shape part carries the fields and the item count of a list of items');
+    if (part.class === 'shape') { shapeShapeReds(part, w, (c, path, d) => red(c, path, d), p.parts.find((/** @type {any} */ x) => isRec(x) && x.class === 'fact') ?? null); return; }
     if (part.class === 'fact') { factShapeReds(part, w, (c, path, d) => red(c, path, d)); return; }
     if (part.class === 'guard') {
       if (!nameList(part.domains)) red('invalid-value', `${w}.domains`, 'a non-empty array of web domains the rule is about');
@@ -113,6 +123,10 @@ export function rubricStepShapeReds(p, at) {
       }
     }
   });
+  // shape jobs: a line is a shape line, a sheet line or a facts line, never two of them, and a shape part holds its place beside the line's fact part (facts+shape: one `results` list) and its picks
+  const shapeParts = p.parts.filter((/** @type {any} */ x) => isRec(x) && x.class === 'shape');
+  if (shapeParts.length > 1) red('invalid-value', `${at}.parts`, 'one shape part per step: the fields of a list of items all go in one');
+  if (p.parts.some((/** @type {any} */ x) => isRec(x) && x.class === 'sheet') && shapeParts.length > 0) red('invalid-value', `${at}.parts`, 'a sheet line holds sheet checks: a shape part is not allowed beside them');
   return reds;
 }
 
@@ -269,4 +283,53 @@ export function listMatchesClose(closeDecl) {
   if (bad.length) parts.push(`a row points at a check the close does not run: ${bad.map((/** @type {any} */ r) => r.key).join('; ')}`);
   if (bare.length) parts.push(`a check in the close has no row: line ${bare.map(({ n, i }) => `${n} part ${i + 1}`).join('; ')}`);
   return { ok: false, error: `The list of checks does not match the signed close (${parts.join(' | ')}). Nothing was signed — draft again.` };
+}
+
+// borrowed-from: bareloop src/rubricstep.js@v0.61.0 (fc56e1f3) (shapeBriefOf and the LIST-line brief of lineBriefs: the lines are the tag's, written by code from the signed shape; the first line of a shape-only or text+list line is fwd's adapted
+// line, docs/wiki/the-module-ladder.md M19 section 3.6, because fwd's step answers through emit_artifact with done and blocker, not a step file)
+/**
+ * FACTS + SHAPE: the extra lines of a fact line's brief when its close also carries an itemShape part (code-written, never model-written): each result also carries the shape fields, in plain words, with ONE example result
+ * built by code (the quote and values placeholders, then a legal value for each shape field). Nothing is added for a line with no shape part.
+ * @param {any} shape the line's shape part ({fields, minItems?, maxItems?}) @param {any} fp the fact part @returns {string[]}
+ */
+export function shapeBriefOf(shape, fp) {
+  if (!isRec(shape) || !Array.isArray(shape.fields)) return [];
+  const fields = shape.fields.filter(isRec);
+  const values = Object.fromEntries(fp.facts.map((/** @type {any} */ f) => [f.name, '<as the quote writes it>']));
+  return [
+    '  Each result ALSO carries these fields (named exactly as written; a field marked optional may be left out when it does not apply):',
+    ...fields.map((/** @type {any} */ f) => `    - ${f.name}: ${shapeFieldSentence(f.spec)}${f.spec.required === true ? '' : ' (optional)'}`),
+    `  One example result: ${JSON.stringify({ quote: '<words copied from the page>', values, ...shapeExampleItem(/** @type {any} */ (fields)) })}`,
+  ];
+}
+
+/**
+ * A SHAPE line's brief (no fact part): the answer is a list of items, each field in plain words (the signed bounds, in the person's own form) and ONE worked example item, all written by code from the signed shape.
+ * `alsoText` = the line also carries the person's picks (its answer has `text` too).
+ * @param {number} n the job line @param {any} shape the line's shape part @param {boolean} [alsoText] @returns {string}
+ */
+export function shapeLineBrief(n, shape, alsoText = false) {
+  const fields = shape.fields.filter(isRec);
+  // M19 am11 item 3: the count as it is signed (`exactly N items`, `at least N items`, `at most N items`)
+  const lo = Number.isInteger(shape.minItems) ? shape.minItems : null; const hi = Number.isInteger(shape.maxItems) ? shape.maxItems : null;
+  const s = (/** @type {number} */ k) => `${k} item${k === 1 ? '' : 's'}`;
+  const count = lo !== null && lo === hi ? `exactly ${s(lo)}` : lo !== null || hi !== null ? [...(lo !== null ? [`at least ${s(lo)}`] : []), ...(hi !== null ? [`at most ${s(hi)}`] : [])].join(' and ') : 'one item for every one you find';
+  return [
+    alsoText
+      ? `Job line ${n} is a TEXT line AND a LIST line. Call emit_artifact exactly once with this step's result: {"text": "...", "results": [{...}, {...}]}: "text" as for any text line, and "results" is the list of items. One object per item: ${count}.`
+      : `Job line ${n} is a LIST line. Call emit_artifact exactly once with this step's result: {"results": [{...}, {...}]} — no "text", no "cites". One object per item: ${count}.`,
+    '  Every item has these fields, named exactly as written (a field marked optional may be left out when it does not apply):',
+    ...fields.map((/** @type {any} */ f) => `    - ${f.name}: ${shapeFieldSentence(f.spec)}${f.spec.required === true ? '' : ' (optional)'}`),
+    `  One example item: ${JSON.stringify(shapeExampleItem(fields))}`,
+    '  Write each value as plain text or a plain number or yes/no (true or false) as the field says, never as a sentence about the value.',
+  ].join('\n');
+}
+
+/**
+ * The plain sentence of a bareguard gap of one line's answer, as the tag's `plainStepGap` takes it (step, why, gap, params). fwd's step has no file, so an itemShape gap's file is `the answer` (src/closers.js); only an itemShape gap
+ * is worded here (fwd's other gaps keep their own words in src/closers.js and src/citedcheck.js).
+ * @param {number} step the job line @param {string} _why @param {any} g a bareguard gap @param {any} [_params] @returns {string}
+ */
+export function plainStepGap(step, _why, g, _params = null) {
+  return plainShapeGap({ at: `line ${step}`, file: 'the answer' }, g);
 }

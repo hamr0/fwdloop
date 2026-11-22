@@ -47,6 +47,8 @@ import { createRubric, checkStep, numbersInQuote } from 'bareguard';
 import { plainWords } from './checkwords.js';
 import { checkCited } from './citedcheck.js';
 import { closeSheet } from './sheetrun.js';
+import { shapeItemCheck, SHAPE_FIELD } from './shaperows.js';
+import { plainStepGap } from './rubricstep.js';
 
 /** @typedef {import('./types.js').CloseVerdict} CloseVerdict */
 
@@ -85,6 +87,46 @@ export async function closeCited(part, artifact, source) {
   } catch (err) {
     return /** @type {CloseVerdict} */ ({ verdict: 'crash', red: `cited close crashed: ${err.message}` });
   }
+}
+
+/**
+ * M19 S5: the list-of-items check of a line's close (`close.itemShape`, the signed shape part {fields, minItems?, maxItems?}; never `close.shape`, which stays the text shape of M10): ONE bareguard `itemShape` check over the
+ * answer's `results`. On a facts+shape line (`close.cited` beside it) the check is closed and also lists `quote` and `values`, and the item count stays with the fact part (src/shaperows.js `shapeItemCheck`), so a count fault is
+ * told once. A red names the item and the field in the tag's words (src/shapewords.js). Third outcomes, never green: an answer that is not an object (`unparseable`), a shape bareguard cannot build or a check that stopped (`crash`).
+ * `shapeGaps` carries bareguard's own gaps (names, counts and bounds, never a value) for the views that mark an item or a field.
+ * @param {any} step @param {unknown} artifact @returns {Promise<CloseVerdict>}
+ */
+export async function closeItemShape(step, artifact) {
+  try {
+    if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return /** @type {CloseVerdict} */ ({ verdict: 'unparseable', red: 'itemShape artifact must be an object shaped {results: [...]}' });
+    }
+    const fact = step?.close?.class === 'green' && step.close.cited ? step.close.cited : null;
+    const rubric = createRubric({ schema: 1, goal: 'shape', inputs: [], checkpoints: { close: { gating: true, checks: [shapeItemCheck(step.close.itemShape, 'shape', fact)] } } });
+    const res = await checkStep(rubric, 'close', Object.hasOwn(artifact, SHAPE_FIELD) ? { [SHAPE_FIELD]: /** @type {any} */ (artifact)[SHAPE_FIELD] } : {});
+    if (res.verdict === 'stopped') {
+      const fault = /** @type {NonNullable<typeof res.fault>} */ (res.fault);
+      return { verdict: 'crash', red: `itemShape close crashed: the ${fault.id} check stopped (${fault.kind}${fault.detail ? `: ${fault.detail}` : ''})` };
+    }
+    if (res.verdict === 'red') {
+      // an answer with no `results` at all reads to bareguard as an empty artifact (`happened`): it is the tag's whole-field gap `missing`
+      const gaps = res.gaps.map((/** @type {any} */ g) => (g.check === 'happened' ? { ...g, check: 'itemShape', kind: 'missing', field: SHAPE_FIELD } : g));
+      const reds = gaps.map((/** @type {any} */ g) => plainStepGap(step.fromLine, 'empty', g)).flatMap((/** @type {string} */ t) => t.split('\n'));
+      return { verdict: 'red', red: reds.join('\n'), reds, shapeGaps: gaps };
+    }
+    return { verdict: 'green', red: null };
+  } catch (err) {
+    return { verdict: 'crash', red: `itemShape close crashed: ${err.message}` };
+  }
+}
+
+/** the items check beside the facts line's own verdict: red if either is red (both told, the fact half first); a third outcome of either is never turned into green, the fact half's winning when it has one @param {any} base @param {any} sh @returns {CloseVerdict} */
+function withItemShape(base, sh) {
+  if (base.verdict === 'crash' || base.verdict === 'unparseable') return base;
+  if (sh.verdict === 'crash' || sh.verdict === 'unparseable') return { ...sh, ...(base.cited ? { cited: base.cited } : {}) };
+  if (sh.verdict === 'green') return base;
+  const reds = [...(base.verdict === 'red' ? String(base.red).split('\n') : []), ...sh.reds];
+  return { ...base, verdict: 'red', red: reds.join('\n'), reds, shapeGaps: sh.shapeGaps };
 }
 
 /**
@@ -271,7 +313,7 @@ export async function closeSoftgreen(artifact, shape) {
 /**
  * The one dispatcher — `close by declared class` (M2 scope item 4).
  *
- * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, columns?: {source: string, column: string}[], sheet?: any[], numbersFrom?: number[] } }} step
+ * @param {{ close?: { class?: string, shape?: Record<string, any>, picked?: any[], cited?: any, itemShape?: any, columns?: {source: string, column: string}[], sheet?: any[], numbersFrom?: number[] } }} step
  * @param {unknown} artifact
  * @param {{ reads: Record<string, any>, businessDate: string, source?: {ok: true, text: string, sha256: string}|{ok: false, red: string}|null, sheet?: any, numbers?: {quotes: Record<string, string[]>, missing: number[]} }} ctx
  *   `source` (M10 piece 4) = the run's own frozen copy a cited step reads, from `readRunSource`; only a step whose close carries `cited` reads it
@@ -348,7 +390,12 @@ async function closeFactAndPicks(step, artifact, ctx) {
 /** @param {any} step @param {unknown} artifact @param {{ reads: Record<string, any>, businessDate: string, source?: any, sheet?: any }} ctx @returns {Promise<CloseVerdict>} */
 async function closeOne(step, artifact, ctx) {
   const cls = step?.close?.class;
-  if (cls === 'green' && step?.close?.cited) return await closeCited(step.close.cited, artifact, ctx.source);
+  if (cls === 'green' && step?.close?.cited) {
+    const base = await closeCited(step.close.cited, artifact, ctx.source);
+    return step.close.itemShape ? withItemShape(base, await closeItemShape(step, artifact)) : base;
+  }
+  // M19 S5, O1: a list of items and no quote reads `results` only (class green: option (ii); class softgreen: option (i)); which class code signs for it is `SHAPE_ONLY_CLASS`, src/blockassemble.js
+  if ((cls === 'green' || cls === 'softgreen') && step?.close?.itemShape && !step.close.cited && !Array.isArray(step.close.sheet)) return await closeItemShape(step, artifact);
   if (cls === 'green' && Array.isArray(step?.close?.sheet)) return await closeSheet(step.close.sheet, artifact, ctx.sheet);
   if (cls === 'green') return { verdict: 'crash', red: 'closeByClass: a green step with no close.sheet or close.cited is the retired cell cite' };
   if (cls === 'softgreen') return await closeSoftgreen(artifact, step?.close?.shape ?? {});

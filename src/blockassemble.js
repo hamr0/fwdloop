@@ -1,6 +1,6 @@
 // M16 item 2 (docs/wiki/the-module-ladder.md, "M16"): "the AI sends only edits to that list; code proves each one and builds every check. The AI never writes a check."
 // The declaration of a draft with the list on keeps the AI's steps, reads, primitives and asks, and takes the CHECKS of every line the block was given from the block's built parts:
-//   a fact part        -> close.cited = {source, facts, count}, class green; the source is added to the step's reads by code
+//   a fact part        -> close.cited = {source, facts, count, asSeen}, class green; the source is added to the step's reads by code
 //   a countable part   -> a picked check (M10 am22 (1)-(3)): close.shape.picked on a softgreen step, close.picked on a fact (or sheet) step with the line in pickedLines
 //   the numbers tie    -> close.numbersFrom (M16 am3 (2), R7)
 //   no part            -> hitl; the rows' Not-checked reasons are the list's own (no `unjudgeable` record, M17 am4)
@@ -11,32 +11,22 @@
 /** M17 am5 item 2 (D3): the reason a `~` rule on a signed Ask line is Not checked, the signed words */
 export const ASK_LINE_REASON = 'you judge it at the Ask';
 
-/** what a row says when its check cannot ride a line that has no guardrail of its own (the class of a line comes from its guardrail) */
-export const NO_GUARDRAIL_WORDS = 'This line has no guardrail of yours, so a check on it cannot be signed; you judge it at the Ask.';
+/**
+ * M19 amendment 1 (signed 2026-11-20): a line that is a list of items and nothing else (no quote) signs class `green` with `itemShape` and no `cited`; the person's own rules on its text still ride beside it. `null` (tests only) signs no
+ * list-of-items check and the rows are Not checked (REASON.noRule). A facts+shape line keeps its class (green, `cited` plus `itemShape`, amendment E) whatever this says.
+ * @type {'green'|null}
+ */
+export const SHAPE_ONLY_CLASS = 'green';
 
-import { REASON, renderCard } from './checkblock.js';
-import { dropSentence } from './pagedropwords.js';
+// fwd (F251): the no-guardrail words are the check block's (src/checkblock.js), the one writer; re-exported for the readers that import them from here
+export { NO_GUARDRAIL_WORDS } from './checkblock.js';
+
+import { REASON } from './checkblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
+import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-/** the words the card draws a row with, without its `~` / `!` / `$` mark (the one renderer, src/checkblock.js renderCard) @param {Record<string, any>} row */
-const rowWords = (row) => String(renderCard([{ ...row, hidden: false, state: row.state === 'suggested' || row.state === 'dropped' ? 'not-checked' : row.state }])[0]?.text ?? '').slice(2);
-
-/**
- * The words a Not-checked row says. A rule the person left, wrote in their own words, or left with no pick keeps fwd's signed table (M10 am16 (5): src/pagedropwords.js), the words the plan card and the
- * Audit already had; any other reason is the block's own (what code could not build and why).
- * @param {string|null|undefined} reason @param {{cantAsked?: boolean}} [row]
- */
-export function notCheckedWords(reason, row = undefined) {
-  // a rule the person answered with their own words says so, whatever bareguard-free reason the block holds for it (a countable one reads "no rule can check this")
-  if (row?.cantAsked === true && (reason === REASON.noRule || reason === REASON.nothingOnPage)) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
-  if (reason === REASON.left) return dropSentence({ line: 0, fact: '', reason: 'person-left' });
-  if (reason === REASON.nothingOnPage) return dropSentence({ line: 0, fact: '', reason: 'own-words' });
-  if (reason === REASON.noRule || reason === REASON.noPick || reason === REASON.cantCheck) return dropSentence({ line: 0, fact: '', reason: 'no-pick' });
-  return String(reason ?? 'not checked');
-}
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {
@@ -45,11 +35,12 @@ export function pickedOf(part) {
 }
 
 /**
- * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>}} o
- *   `lineSet` = the lines the block was given; `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2)
+ * @param {{declaration: Record<string, any>, block: import('./checkblock.js').CheckBlock, lines: {n: number, guardrail?: string|null}[], lineSet: Set<number>, askLines?: Set<number>, sheetRoles?: string[], shapeOnlyClass?: 'green'|null}} o
+ *   `lineSet` = the lines of the list (the block's step lines that are not sheet lines); `lines` = the signed lines (a guardrail decides the class); `askLines` = the signed Ask lines: each `~` rule on one is a Not-checked line here, never skipped (M17 am5 item 2);
+ *   `sheetRoles` = the CSV inputs: the block's sheet part of a sheet line is the `close.sheet` of the line's first green step that reads one (M19 S3: the checks the block holds, drops and all)
  * @returns {{declaration: Record<string, any>, notChecked: string[], notCheckedBy: Record<string, 'you'|'agent'|'default'>, built: Set<number>}} `built` = the lines that got a check from the block (a red naming one of them is a fault of the build)
  */
-export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set() }) {
+export function assembleFromBlock({ declaration, block, lines, lineSet, askLines = new Set(), sheetRoles = [], shapeOnlyClass = SHAPE_ONLY_CLASS }) {
   if (!isRec(declaration) || !Array.isArray(declaration.steps)) return { declaration, notChecked: [], notCheckedBy: {}, built: new Set() };
   const c = block.reconcile();
   const partsOf = (/** @type {number} */ n) => c.map.filter((m) => m.line === n).map((m) => ({ ...c.parts[m.part], oldIndex: c.map.filter((x) => x.line === n).findIndex((x) => x.part === m.part) }));
@@ -57,37 +48,53 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   /** @type {Set<number>} */ const built = new Set();
   /** @type {Map<number, Map<number, number|null>>} old part index -> new close-part index (null = the part is not in the close), per line */
   const remap = new Map();
-  /** @type {Set<number>} */ const notSignable = new Set();
+  /** M19 S5 (O1): the lines whose shape part has no class to ride (a list of items and no quote, none ruled): their rows are signed Not checked @type {Set<number>} */ const noShapeClass = new Set();
   /** @type {Set<number>} */ const pickedLines = new Set(Array.isArray(declaration.pickedLines) ? declaration.pickedLines : []);
   const guardrailClasses = isRec(declaration.guardrailClasses) ? { ...declaration.guardrailClasses } : {};
+  /** the sheet part the block built for a sheet line, or null (no check is left on it) @param {number} n */
+  const sheetPartOn = (n) => { const m = c.map.find((x) => x.line === n); const p = m ? c.parts[m.part] : null; return p && p.class === 'sheet' ? p : null; };
+  /** @type {Set<number>} the sheet lines that already gave their checks to a step: the first green step that reads a sheet takes them */
+  const given = new Set();
   const steps = declaration.steps.map((/** @type {any} */ st) => {
     const n = st?.fromLine;
+    // M19 S3: a sheet line's checks are the block's (rows, drops), written into `close.sheet` of the line's first green step that reads a sheet; every other step of the line keeps the AI's own close
+    if (isRec(st) && Number.isInteger(n) && block.isSheetLine(n) && !lineSet.has(n)) {
+      const part = sheetPartOn(n);
+      const { sheet: _ai, ...close } = isRec(st.close) ? st.close : /** @type {Record<string, any>} */ ({});
+      if (!part || !isRec(st.close) || st.close.class !== 'green' || !Array.isArray(st.reads) || !st.reads.some((/** @type {string} */ r) => sheetRoles.includes(r)) || given.has(n)) return isRec(st.close) ? { ...st, close } : st;
+      given.add(n);
+      return { ...st, close: { ...close, sheet: part.checks.map((/** @type {any} */ x) => ({ ...x })) } };
+    }
     if (!isRec(st) || !Number.isInteger(n) || !lineSet.has(n)) return st;
     const parts = partsOf(n);
-    const signable = guarded(n);
-    const fact = signable ? parts.find((p) => p.class === 'fact') : undefined;
-    const picks = signable ? parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts') : [];
+    // fwd (F251): the check block is the one decider that a line with no ~ guardrail holds no check (src/checkblock.js buildLine), so every part it holds is kept here
+    const fact = parts.find((p) => p.class === 'fact');
+    // M19 S5: the shape part rides the fact part (facts+shape, class green); a line with no fact part takes it only when a class is ruled for it (`shapeOnlyClass`)
+    const picks = parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts');
+    const shape = parts.find((p) => p.class === 'shape' && (fact !== undefined || shapeOnlyClass === 'green'));
     const tie = parts.find((p) => p.class === 'countable' && p.check === 'numbersFromFacts');
     const old = isRec(st.close) ? st.close : {};
     const sheet = Array.isArray(old.sheet) ? old.sheet : null;
-    // the part order the close lists them in (src/checklistsign.js closePartsOf): the fact part, each pick, the tie
-    const keptOrder = [...(fact ? [fact] : []), ...picks, ...(tie ? [tie] : [])];
+    // the part order the close lists them in (src/checklistsign.js closePartsOf): the fact part, the shape part, each pick, the tie
+    const keptOrder = [...(fact ? [fact] : []), ...(shape ? [shape] : []), ...picks, ...(tie ? [tie] : [])];
     const map = remap.get(n) ?? new Map();
     for (const p of parts) map.set(p.oldIndex, keptOrder.includes(p) ? keptOrder.indexOf(p) : null);
     remap.set(n, map);
-    if (!signable && parts.some((p) => p !== tie)) notSignable.add(n);
+    if (!shape && parts.some((p) => p.class === 'shape')) noShapeClass.add(n);
     /** @type {Record<string, any>} */
     const close = { ...(sheet ? { sheet } : {}), ...(Array.isArray(old.columns) ? { columns: old.columns } : {}) };
     if (fact) {
       close.class = 'green';
-      close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}) };
-    } else close.class = sheet ? 'green' : picks.length ? 'softgreen' : 'hitl';
+      close.cited = { source: fact.source, facts: fact.facts, ...(isRec(fact.count) ? { count: fact.count } : {}), ...(isRec(fact.asSeen) ? { asSeen: fact.asSeen } : {}) };
+    } else close.class = sheet ? 'green' : shape ? /** @type {'green'} */ (shapeOnlyClass) : picks.length ? 'softgreen' : 'hitl';
+    // the list-of-items check is its own close key, never `close.shape` (amendment E): the signed fields and the item count of the part
+    if (shape) close.itemShape = { fields: shape.fields, ...(Number.isInteger(shape.minItems) ? { minItems: shape.minItems } : {}), ...(Number.isInteger(shape.maxItems) ? { maxItems: shape.maxItems } : {}) };
     if (picks.length) {
       const checks = picks.map(pickedOf);
       if (close.class === 'green') { close.picked = checks; pickedLines.add(n); } else close.shape = { picked: checks };
     }
     if (tie) close.numbersFrom = [...tie.from];
-    if (fact || picks.length || tie) built.add(n);
+    if (fact || shape || picks.length || tie) built.add(n);
     const reads = Array.isArray(st.reads) && fact && !st.reads.includes(fact.source) ? [...st.reads, fact.source] : st.reads;
     return { ...st, reads, close };
   });
@@ -101,25 +108,24 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   }
   const served = new Set(steps.filter((/** @type {any} */ st) => isRec(st)).map((/** @type {any} */ st) => st.fromLine));
   /** the signed list: the block's signed fields per row, the parts renumbered to the close's order, a row whose check cannot ride its line signed Not checked @type {any[]} */
-  const checkList = block.signedRows().map((/** @type {any} */ r) => {
+  // M19 S3: the rows of a sheet line are the block's own (state, Drop); the signed list and the Not-checked lines of a sheet line stay fwd's (src/sheetrows.js reads the close.sheet written above, src/sheetblock.js the reasons)
+  const checkList = block.signedRows().filter((/** @type {any} */ r) => !block.isSheetLine(r.line)).map((/** @type {any} */ r) => {
     const m = remap.get(r.line);
     const idx = isRec(r.part) && m ? m.get(r.part.part) : undefined;
     if (r.state === 'built' && r.kind !== 'floor' && (idx === null || idx === undefined)) {
       const { part: _p, ...rest } = r;
-      return { ...rest, state: 'not-checked', reason: notSignable.has(r.line) ? NO_GUARDRAIL_WORDS : String(r.reason ?? 'not checked') };
+      return { ...rest, state: 'not-checked', reason: noShapeClass.has(r.line) ? (r.kind === 'rule' ? REASON.noPick : REASON.noRule) : String(r.reason ?? 'not checked') };
     }
     return isRec(r.part) && typeof idx === 'number' ? { ...r, part: { line: r.part.line, part: idx } } : r;
   });
   /** @type {Record<string, 'you'|'agent'|'default'>} the tag of each Not-checked line, by the row it tells (M16 item 5: one tag per row) */
   const notCheckedBy = {};
-  const notChecked = checkList.filter((r) => r.state === 'not-checked' && r.kind !== 'floor').map((r) => {
+  // M19 am8 item 2, am9 items 1 to 4: the items are the reader's (src/checkrows.js `notCheckedItem`, the one writer): a `~` rule `line <n>: "<rule text>" \u2014 <reason>`, any other row its name (`<kind> "<words>"`)
+  const notChecked = checkList.filter((r) => isListedNotChecked(checkList, r)).map((r) => {
     const own = block.rows.find((x) => x.key === r.key);
     if (own?.hidden) return null;
-    const row = own;
-    // any other row is told in the words the card draws it with (renderCard; never the row's key)
-    // a `~` rule is told in the signed table's form, `not checked · "<rule>" — <reason>` (M10 am16 (5)); any other row names its line
-    const kept = row?.keptFromLast === true ? ` (${KEPT_WORDS})` : ''; // M10 am17 (6)
-    const line = r.kind === 'rule' && row?.text ? `not checked · "${row.text}" — ${notCheckedWords(r.reason, row)}${kept}` : `line ${r.line}: ${rowWords(own ?? r)} - ${notCheckedWords(r.reason, row)}${kept}`;
+    // the reason is the signed row's own `reason` (src/checkblock.js REASON, the one table); M10 am17 (6): `kept` words
+    const line = notCheckedItem(r, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true);
     if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);

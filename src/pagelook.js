@@ -85,7 +85,8 @@ export const notCheckedLines = (dropped, jobLines) => dropRows(dropped).map((row
 export function lookFactOf(k, source) {
   /** @type {any} */
   const out = { line: k.line, name: k.name, shape: k.shape, source, words: [...k.words] };
-  if (k.shape === 'phrase') out.phrase = k.words[0];
+  // M19 am5: a phrase fact with several words keeps ALL of them (`words`; signed by `factsOfLook` as one any-of fact); `phrase` is only the one-word fact's. Diverges from bareloop's lookFactOf, which keeps the first word.
+  if (k.shape === 'phrase' && k.words.length <= 1) out.phrase = k.words[0];
   if (Array.isArray(/** @type {any} */ (k).phrases)) out.phrases = [.../** @type {any} */ (k).phrases];
   else { out.labels = [...k.words]; if (k.words.length) out.label = k.words[0]; }
   if (k.unit) out.unit = [...k.unit];

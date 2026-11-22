@@ -33,10 +33,12 @@ export function isBuildFault(red, builtLines) {
 /**
  * The block of a draft (M16 item 2): the person's `~` rules and `$` defaults, then the look's facts, then the picks the person made (kept from the last draft, and just answered), reconciled once.
  * Fresh answers go through `carry` like the kept ones (the draft is a child process: the answer comes back as a pick or a left rule), and are not marked "kept".
- * @param {{leaveOut?: {line: number, rule: number}[], texts: Record<string, string>, jobLines: any[], look: {facts: any[], dropped: any[]}, kept: {picks: any[], left: any[], askRules: any[]}, fresh: {picks: any[], left: {line: number, rule: number}[]}, asks: boolean, countScope: (t: string) => boolean}} o
+ * @param {{leaveOut?: {line: number, rule: number}[], sheetLines?: number[], texts: Record<string, string>, jobLines: any[], look: {facts: any[], dropped: any[]}, kept: {picks: any[], left: any[], askRules: any[]}, fresh: {picks: any[], left: {line: number, rule: number}[]}, asks: boolean, countScope: (t: string) => boolean}} o
  */
-export function setUpBlock({ texts, jobLines, look, kept, fresh, asks, countScope, leaveOut = [] }) {
+export function setUpBlock({ texts, jobLines, look, kept, fresh, asks, countScope, leaveOut = [], sheetLines = [] }) {
   const block = newJobBlock({ texts, jobLines, asks, countScope });
+  // M19 S3: the lines that read a sheet are known before the first reconcile: their rules are the sheet's to decide (no pick, no question)
+  block.setSheetLines(sheetLines);
   // M16 item 4: a Tickets job's own guardrails (the signed ticketFilter / ticketWatch) are not rows of the list; the rule numbers of the other rules stay as written
   if (leaveOut.length) block.rows = block.rows.filter((r) => !(r.kind === 'rule' && leaveOut.some((x) => x.line === r.line && x.rule === r.rule)));
   // a rule the person left is the block's own `left` row (carry, below); the look's person-left drop would say it twice

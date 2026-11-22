@@ -1,15 +1,15 @@
 // M16 P4c: a Not-checked note for a row that has no rule text (a `$` numbers row left with no fact line before it, after an Add then a Drop of a fact) says what the card's own row says,
-// never the row's key (`L5.$numbers`). The words come from renderCard (src/checkblock.js CARD_T); no new wording.
+// never the row's key (`L5.$numbers`). The words come from the plan reader (src/checkrows.js); M19 am9 item 3: a numbers row left Not checked reads `every number matches a quote`.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { newJobBlock } from '../src/blocklines.js';
-import { renderCard, CARD_T } from '../src/checkblock.js';
 import { assembleFromBlock } from '../src/blockassemble.js';
 
 const NOTES = 'Tomatoes by the fence. Raised bed by the fence needs soil.';
 const jobLines = [
   { n: 1, text: 'Write 3 lines about my garden from the notes', rules: [] },
-  { n: 2, text: 'List 3 jobs for this week from the notes', rules: [] },
+  // F251: line 2 has a ~ rule of the person's, so the Add of a fact on it is a signable check
+  { n: 2, text: 'List 3 jobs for this week from the notes', rule: 'must name the jobs', rules: ['must name the jobs'] },
   { n: 3, text: 'Write a short closing note to my neighbour', rules: [] },
 ];
 const lines = jobLines.map((l) => ({ n: l.n, guardrail: '' }));
@@ -30,11 +30,10 @@ test('Add then Drop of a fact: the numbers row left behind is told in the card\'
   const out = assembleFromBlock({ declaration: decl, block, lines, lineSet: new Set([1, 2, 3]) });
   const numbers = block.rows.find((r) => r.kind === 'numbers');
   assert.equal(numbers?.state, 'not-checked', 'the stale row is what the walk saw (bareloop keeps it)');
-  const cardWords = renderCard([numbers]).at(0).text.slice(2);
-  assert.ok(cardWords.startsWith(CARD_T.numbers), cardWords);
+  const cardWords = 'every number matches a quote'; // M19 am9 item 3: a numbers row left Not checked reads its fixed words
   const note = out.notChecked.find((n) => /number/.test(n));
   assert.ok(note, JSON.stringify(out.notChecked));
-  assert.ok(note.includes(cardWords), `the note does not use the card's words: ${note}`);
+  assert.ok(note.includes(cardWords), `the note does not use the signed words: ${note}`);
   for (const n of out.notChecked) assert.ok(!/\bL\d+\./.test(n), `a raw row key reached a note: ${n}`);
   assert.ok(Object.hasOwn(out.notCheckedBy, note), 'its tag is kept under the same line');
 });

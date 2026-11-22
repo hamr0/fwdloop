@@ -58,24 +58,23 @@ test('(1) one forced suggestion call, metered, before any drafting round; the as
   assert.deepEqual(r.questions[0].check, { rule: 'listItems', value: 3 });
 });
 
-test('(2)(3) a suggestion code drops (a number the guardrail never names) is "I can\'t check this", a missing entry too; the drafter is never called', async (t) => {
-  // M10 am27 (3): a single count with nothing kept is built by code (test/m10-am27.test.js); the "I can't check this" path is a rule that names no count
-  const p = fakeProvider([suggestReply([{ line: 3, guardrail: 1, rule: 'maxWords', value: 80 }])]);
+test('(2)(3) a suggestion code drops (a number the guardrail never names) is NOT asked (M19 am3: no "I can\'t check this"); a missing entry too; the drafter is then called', async (t) => {
+  // M10 am27 (3): a single count with nothing kept is built by code (test/m10-am27.test.js); a rule that names no count is Not checked at once, with no question (bareloop v0.61.0)
+  const p = fakeProvider([suggestReply([{ line: 3, guardrail: 1, rule: 'maxWords', value: 80 }]), toolReply(plan())]);
   const r = await draft({ proseText: prose(t, JOB.replace('~ exactly 3 bullets', '~ keep it short and kind').replace('~ under 80 words', '~ tone is warm')), provider: p, rates: RATES, modelId: MODEL });
-  assert.equal(r.stop, 'look-asks');
-  assert.deepEqual(r.questions.map((q) => q.ask), ['no-check', 'no-check']);
-  assert.match(r.questions[0].question, /^Line 3, guardrail "keep it short and kind": I can't check this\. Your own words, or Not checked\?/);
-  assert.equal(p.calls.some((c) => c.tools[0] === 'emit_declaration'), false);
+  assert.notEqual(r.stop, 'look-asks');
+  assert.deepEqual(r.questions ?? [], []);
+  assert.ok(!JSON.stringify(r.questions ?? []).includes("I can't check"));
+  assert.equal(p.calls.some((c) => c.tools[0] === 'emit_declaration'), true, 'no question, so drafting went on');
 });
 
-test('(5) proposals are not counted toward am1\'s 3; the 4th "I can\'t check this" stops drafting at $0 with the rewrite list', async (t) => {
+test('(5) proposals are not counted toward am1\'s 3; M19 am3: four rules code cannot check are not asked and never stop drafting', async (t) => {
   const job4 = ['Write the first part', '~ tone is warm; reads kindly; no jargon; sounds human', 'Ask: check it', 'Write it out'].join('\n');
-  const p = fakeProvider([suggestReply([])]);
+  const p = fakeProvider([suggestReply([]), toolReply({ steps: [{ primitives: ['read'], reads: [], emits: 'part', fromLine: 1, close: { class: 'hitl' } }, { primitives: [], reads: ['part'], emits: 'ok', fromLine: 2, close: { class: 'hitl' } }, { primitives: ['write'], reads: ['part', 'ok'], emits: 'sent', fromLine: 3, close: { class: 'hitl' } }], guardrailClasses: {}, unjudgeable: {}, refused: [] })]);
   const r = await draft({ proseText: prose(t, job4), provider: p, rates: RATES, modelId: MODEL });
-  assert.equal(r.stop, 'look-asks-too-many');
-  assert.deepEqual(r.questions, []);
-  assert.match(r.reds[0], /^Your job has 4 rules I can't check or had to guess\. Please rewrite it/);
-  assert.match(r.reds[0], /Spent so far: \$/);
+  assert.notEqual(r.stop, 'look-asks-too-many');
+  assert.notEqual(r.stop, 'look-asks');
+  assert.deepEqual(r.questions ?? [], []);
   // four proposals asked, not stopped
   const job4b = ['Write the first part', '~ under 10 words; under 20 words; under 30 words; under 40 words', 'Ask: check it', 'Write it out'].join('\n');
   const q = await draft({
@@ -98,7 +97,7 @@ test('(4) the plan carries only the picked checks: the drafter\'s own shape is g
   assert.deepEqual(by(5), { class: 'hitl' }, 'line 5 has no pick: no check, whatever the drafter sent');
   assert.equal(r.declaration.guardrailClasses['5'], 'hitl');
   assert.equal(r.declaration.unjudgeable, undefined, 'M17 am4 (C8): the reason is the list\'s Not checked line, not a hidden record');
-  assert.ok(r.notChecked.includes('not checked · "under 80 words" — No check was picked for it, so you judge it at the Ask.'), r.notChecked.join('|'));
+  assert.ok(r.notChecked.includes('line 5: "under 80 words" — No check was picked for it, so you judge it at Accept.'), r.notChecked.join('|'));
   assert.equal(p.calls.length, 1, 'the redraft makes no suggestion call');
 });
 
@@ -117,9 +116,9 @@ test('(4) a rule the person left, and their own words, are Not checked with thei
   assert.deepEqual(r.declaration.steps.find((s) => s.fromLine === 3).close.shape.picked, [{ rule: 'listItems', value: 3 }]);
   assert.ok(!r.notChecked.some((x) => x.includes('exactly 3 list items')), 'the agree line is covered');
   assert.ok(!r.notChecked.some((x) => x.includes('under 80 words')), 'the replaced rule is gone, not listed beside its replacement');
-  assert.ok(r.notChecked.some((x) => x.includes('"keep it short and kind"') && x.includes('Your own words are on the line')));
+  assert.ok(r.notChecked.some((x) => x.includes('"keep it short and kind"') && x.includes('No check was picked for it, so you judge it at Accept.')));
   const left = await draft({ proseText: prose(t), provider: fakeProvider([toolReply(plan())]), rates: RATES, modelId: MODEL, offerQuestions: false, leftRules: [{ line: 5, rule: 1 }] });
-  assert.ok(left.notChecked.includes('not checked · "under 80 words" — You chose to leave it Not checked.'));
+  assert.ok(left.notChecked.includes('line 5: "under 80 words" — You chose to leave it Not checked, so you judge it at Accept.'));
 });
 
 test('(4) a drafter that sends a shape for a line code did not settle has it dropped too; the schema offers none', async (t) => {

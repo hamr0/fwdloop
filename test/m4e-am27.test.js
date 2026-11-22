@@ -34,9 +34,14 @@ test('am27: answers show on the answer-redraft plan; after a Revise the box is g
   assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job }))).status, 202);
   const b = await settleOn(w, id, ['green', 'red', 'stopped', 'questions-open']);
   await childGone(w, id);
-  // M10 am16: a Revise is a plain draft that makes a fresh suggestion call and asks again about each guardrail, the answers (now ~ lines) included
-  assert.equal(b.phase, 'questions-open', JSON.stringify(b));
-  assert.deepEqual(b.questions.map((q) => [q.line, q.source]), [[1, 'look'], [2, 'look']]);
+  // M19 am3: a Revise asks nothing about a ~ rule code cannot check; it is Not checked (the answers, now ~ lines, included)
+  assert.equal(b.phase, 'green', JSON.stringify(b));
+  assert.deepEqual(b.questions ?? [], [], 'no questions');
+  // M19 am8 item 3: the Not checked rows are a list of their own on the card, never among a line's rows
+  const notChecked = (key) => b.list.notChecked.find((r) => r.key === key);
+  assert.equal(notChecked('L1.~1')?.state, 'not-checked', JSON.stringify(b.list));
+  assert.equal(notChecked('L2.~1')?.state, 'not-checked', JSON.stringify(b.list));
+  assert.ok(!b.list.rows.some((r) => r.state === 'not-checked'), 'a Not checked row is not among a line\'s rows');
   assert.equal(b.revises.at(-1).kind, 'revise');
   assert.ok(!b.answers?.length, 'no separate box'); // (b)
   const newest = JSON.parse(readFileSync(path.join(w.dir(id), `card-${b.revises.at(-1).n}.json`), 'utf8')).job;

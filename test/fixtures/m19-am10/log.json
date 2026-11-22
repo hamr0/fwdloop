@@ -1,0 +1,231 @@
+{
+  "ok": false,
+  "stop": "plan-red",
+  "reds": [
+    "The plan code built from your checks did not pass its own gate (declaration: steps[1].close.picked is for a step that checks facts (quotes or a sheet) only; this step's check is \"green\"). That is a fault in the build, not in your job: nothing was spent on a close."
+  ],
+  "rounds": 6,
+  "calls": 6,
+  "costUsd": 0.005762999999999999,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 0,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [
+    {
+      "role": "notes",
+      "detail": "5 headings"
+    }
+  ],
+  "log": [
+    {
+      "round": 1,
+      "kind": "action-recognise",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "action": {
+          "line": 4
+        }
+      }
+    },
+    {
+      "round": 2,
+      "kind": "ledger-suggest",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "extra": [
+          {
+            "line": 2,
+            "kind": "count",
+            "min": 4,
+            "max": 4,
+            "source": "notes"
+          },
+          {
+            "line": 2,
+            "kind": "phrase",
+            "phrase": "Research notes",
+            "source": "notes"
+          }
+        ]
+      }
+    },
+    {
+      "round": 3,
+      "kind": "shape-map",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "rawText": "{\"shapes\":[{\"line\":2,\"fields\":[{\"name\":\"title\",\"kind\":\"text\",\"required\":true,\"bounds\":{\"minChars\":1},\"fromRule\":1},{\"name\":\"status\",\"kind\":\"oneOf\",\"required\":true,\"bounds\":{\"values\":[\"in progress\",\"closed\",\"finished\"],\"ignoreCase\":true},\"fromRule\":2},{\"name\":\"summary\",\"kind\":\"text\",\"required\":true,\"bounds\":{\"maxChars\":199},\"fromRule\":3}],\"extraFields\":[],\"itemCountFrom\":[]}]}"
+    },
+    {
+      "round": 4,
+      "kind": "row-edit",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "edits": [
+          {
+            "op": "add",
+            "kind": "count",
+            "line": 2,
+            "min": 4,
+            "max": 4
+          },
+          {
+            "op": "reading",
+            "line": 2,
+            "rules": [
+              3
+            ],
+            "fact": "summary",
+            "reading": {
+              "op": "lt",
+              "value": 200
+            }
+          }
+        ]
+      },
+      "edits": [
+        {
+          "op": "add",
+          "accepted": false,
+          "refusedBecause": "already on the list: this line has a result count"
+        },
+        {
+          "op": "reading",
+          "accepted": false,
+          "refusedBecause": "no look fact named \"summary\" on line 2"
+        }
+      ]
+    },
+    {
+      "round": 5,
+      "kind": "row-edit-revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "edits": []
+      },
+      "edits": []
+    },
+    {
+      "round": 6,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "retention": [
+        {
+          "line": 1,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        },
+        {
+          "line": 2,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": true,
+          "classAsked": "softgreen",
+          "classFinal": "green"
+        },
+        {
+          "line": 3,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        },
+        {
+          "line": 4,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        }
+      ],
+      "args": {
+        "steps": [
+          {
+            "primitives": [
+              "read"
+            ],
+            "reads": [],
+            "emits": "notes_contents",
+            "fromLine": 1,
+            "close": {
+              "class": "hitl"
+            }
+          },
+          {
+            "primitives": [],
+            "reads": [
+              "notes_contents"
+            ],
+            "emits": "research_items",
+            "fromLine": 2,
+            "close": {
+              "class": "softgreen"
+            }
+          },
+          {
+            "primitives": [],
+            "reads": [
+              "research_items"
+            ],
+            "emits": "review_gate",
+            "fromLine": 3,
+            "close": {
+              "class": "hitl"
+            }
+          },
+          {
+            "primitives": [
+              "write"
+            ],
+            "reads": [
+              "review_gate"
+            ],
+            "emits": "research_items_out",
+            "fromLine": 4,
+            "close": {
+              "class": "hitl"
+            }
+          }
+        ],
+        "guardrailClasses": {
+          "2": "softgreen"
+        },
+        "refused": []
+      },
+      "outcome": "plan-red",
+      "reds": [
+        "declaration: steps[1].close.picked is for a step that checks facts (quotes or a sheet) only; this step's check is \"green\""
+      ]
+    }
+  ],
+  "action": {
+    "line": 4,
+    "by": "agent"
+  }
+}

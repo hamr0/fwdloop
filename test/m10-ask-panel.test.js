@@ -97,26 +97,23 @@ test('own words are taken word for word and replace the asked rule', async () =>
   assert.equal(row.proposal, 'departure time between 05:00 and 23:59');
 });
 
-test('drop it (a can\'t-check ask): no ~ line is added or removed; the rule is Not checked with the signed words on the plan, and the row says so', async () => {
+test('M19 am3: a rule code cannot check ("pays well") is not asked; the rule stays as written and is Not checked with code\'s reason on the plan', async () => {
   const { w, id, s } = await askWorld([...READ_RULES, 'pays well']);
-  assert.equal(s.total, 2);
-  assert.equal(s.questions[1].question, 'Your line 1 says "pays well". I can\'t check this on the page. Drop it? Answer "drop it", or type how to check it (your answer replaces that ~ rule on line 1).');
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 200);
-  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 2, choice: 'drop' })).status, 202);
+  assert.equal(s.total, 1, JSON.stringify(s.questions));
+  assert.deepEqual(s.questions.map((q) => q.ask), ['reading']);
+  assert.equal((await w.post(`/api/author/${id}/answer`, { k: 1, choice: 'agree' })).status, 202);
   const g = await greenAfter(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   const card = JSON.parse(readFileSync(path.join(w.dir(id), 'card-1.json'), 'utf8'));
   assert.deepEqual(parseJobBox(card.job).steps[0].guardrails, ['under $150', 'departure time between 05:00 and 23:59', 'nonstop', 'pays well'], 'the agreed reading replaced its rule; nothing was added');
-  assert.ok(g.notChecked.items.includes('not checked · "pays well" — You chose to leave it Not checked.'), JSON.stringify(g.notChecked));
-  const row2 = JSON.parse(readFileSync(path.join(w.dir(id), 'draft', 'answer-2.json'), 'utf8'));
-  assert.deepEqual([row2.source, row2.ask, row2.proposal, row2.rule, row2.answer], ['look', 'cant-check', null, null, 'drop it']);
-  assert.equal(JSON.parse(readFileSync(path.join(w.dir(id), 'redraft-1.json'), 'utf8')).left[0].rule, 4);
+  assert.ok(g.notChecked.items.some((x) => x.startsWith('line 1: "pays well" \u2014 ')), JSON.stringify(g.notChecked));
+  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'answer-2.json')), false, 'no second question was ever asked');
 });
 
-// must fail (signed): more than 3 asks before drafting; it must stop instead
-test('more than 3 asks: nothing is asked, the draft is a stop with the rewrite list and Spent so far, no plan', async () => {
+// M19 am3: more than 3 rules code cannot check no longer stop the draft (they are not asks); the 3-ask cap stays for the asks that remain (test/m10-draft-sheet.test.js)
+test('M19 am3: four rules code cannot check are not asked and do not stop the draft: one question, the reading', async () => {
   const { w, id, s } = await askWorld([...READ_RULES, 'pays well', 'looks nice', 'feels right']);
-  assert.equal(s.phase, 'red', JSON.stringify(s));
-  assert.equal(existsSync(path.join(w.dir(id), 'draft', 'questions.json')), false);
-  assert.match(s.reds.join(' '), /^Your job has 4 rules I can't check or had to guess\. Please rewrite it so each one says what to look for\. My readings: line 1 "not a red-eye" → departure time between 05:00 and 23:59; .* Spent so far: \$0\.\d{4}\.$/);
+  assert.equal(s.phase, 'questions-open', JSON.stringify(s));
+  assert.equal(s.total, 1);
+  assert.deepEqual(s.questions.map((q) => q.ask), ['reading']);
 });

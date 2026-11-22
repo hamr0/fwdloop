@@ -106,8 +106,8 @@ test('no accept in this run: "You have not seen this yet."; the wait is the card
   const res = await resumeRun(args(r, 'p4-none'));
   assert.equal(res.outcome, 'complete', res.red);
   assert.equal(shipped().length, 1);
-  // M15 am3: a job with no Ask writes the report of the step right before the action (what the stop showed and the accept hashed)
-  assert.match(readFileSync(path.join(SEND_DIR, shipped()[0]), 'utf8'), /\n## 2\. Tidy the note\n\n### The AI's answer \(not checked — you judge it at Accept\)\nNOTE TIDY\n$/);
+  // M15 am4: a job with no Ask writes every work line (what the stop showed and the accept hashed): line 1 and line 2
+  assert.match(readFileSync(path.join(SEND_DIR, shipped()[0]), 'utf8'), /\n## 1\. Write the note\n\n### The AI's answer \(not checked — you judge it at Accept\)\nNOTE\n\n## 2\. Tidy the note\n\n### The AI's answer \(not checked — you judge it at Accept\)\nNOTE TIDY\n$/);
   clean();
 });
 

@@ -32,7 +32,7 @@ export function lastAcceptedSha(steps, i, acceptedAskEmitsThisRun) {
 }
 
 /**
- * am11a 1/2: the wait of the stop. The LAST Ask's own wait when the job has an Ask before the action; else the card's Ask wait kept in the run's signed values (`arbiter.actionWaitMs`), else 1h.
+ * am11a 1/2: the wait of the stop. The LAST Ask's own wait when the job has an Ask before the action; else the card's Ask wait kept in the run's signed values (`sendSlot.waitMs`, src/runvalues.js), else 1h.
  * @param {{ fromLine: number }[]} steps @param {number} i @param {Map<number, {ttlMs: number}>} askLines @param {number|undefined} actionWaitMs
  */
 export function stopWaitMs(steps, i, askLines, actionWaitMs) {

@@ -45,7 +45,7 @@ test('a green line is read back by the Result tab\'s reader: facts, one row per 
     assert.deepEqual(line.rows[0].cells.slice(0, 2), ['Leaves Amsterdam Airport Schiphol', 'arrives at Heathrow Airport']);
     assert.equal(line.rows[0].cells[2], `${results[0].values.price} US dollars`);
     assert.equal(line.rows[0].cells[3], results[0].values['departure time']);
-    assert.equal(line.rows[0].cells[4], 'Nonstop');
+    assert.equal(line.rows[0].cells[4], 'one of the words "Nonstop", "Nonstop flight"'); // M19 am5: the look kept both words
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

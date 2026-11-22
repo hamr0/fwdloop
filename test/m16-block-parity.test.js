@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseSignedText } from '../src/signed-text.js';
 import { csvRolesOf, sheetLineBlocks } from '../src/sheetblock.js';
-import { CheckBlock, renderCard } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
 import * as CL from '../src/checklist.js';
 import * as RS from '../src/rubricstep.js';
 import * as LS from '../src/labelscan.js';
@@ -41,15 +41,19 @@ const jobs = [
 ];
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
+// M19 am6 item 4 is the third deliberate difference: a row holds no copy of words (`after`, `grown`, `oneOf`); the vendor's rows do. The parity compares the rows without them.
+const noCopy = ({ after: _a, grown: _g, oneOf: _o, ...r }) => r;
+
 function run(Block, j) {
   const b = new Block({ texts: j.texts, labels: Object.keys(j.texts), asks: true, split: true });
   b.fromJob(stepLines(j.prose, j.decl));
   const lk = j.look?.look ?? { facts: [], dropped: [] };
   // fwd's signed R2c (M10 am7 item 2; M17 am4 B3) is the one deliberate difference from the vendor: a grown place's phrases are held by the row and the part. The parity runs on the look without them; the R2c test below holds the rest.
-  b.addLook(lk.facts.map((/** @type {any} */ f) => { const { phrases: _p, ...rest } = f; return rest; }), lk.dropped);
-  const before = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open) };
+  b.addLook(lk.facts.map((/** @type {any} */ f) => { const { phrases: _p, ...rest } = f; return rest.shape === 'phrase' && rest.words?.length > 1 ? { ...rest, words: [rest.words[0]] } : rest; }), lk.dropped);
+  // M19 am5 is the second deliberate difference: a plain phrase fact with several words keeps all of them (any one passes); the vendor keeps the first. The parity runs on the first word; test/m19-am5-phrase-anyof.test.js holds the rest.
+  const before = { close: plain(b.reconcile()), rows: plain(b.rows).map(noCopy), open: plain(b.open) };
   b.drive({ answer: (q) => (q.offers.agree ? { choice: 'agree' } : null) });
-  const after = { close: plain(b.reconcile()), rows: plain(b.rows), open: plain(b.open), signed: plain(b.signedRows()) };
+  const after = { close: plain(b.reconcile()), rows: plain(b.rows).map(noCopy), open: plain(b.open), signed: plain(b.signedRows()) };
   return { before, after };
 }
 
@@ -101,7 +105,7 @@ test('parity: the label scan (the date finder written as a literal) equals the v
 });
 
 // M17 am4 (B3): fwd's R2c at the block: the row and the part of a grown place hold the same phrases (one writer, buildLine), so the card, the plan and the Job tab say the same words
-test('B3: a place the look grew to phrases is held by the row (`grown`) and the part alike; the card line says the part\'s phrases (break: show r.words in renderCard and this reds)', () => {
+test('B3: a place the look grew to phrases is held by the part, every phrase (M19 am6 item 4: the row holds no copy of them)', () => {
   const j = jobs[1];
   const b = new CheckBlock({ texts: j.texts, labels: Object.keys(j.texts), asks: true, split: true });
   b.fromJob(stepLines(j.prose, j.decl));
@@ -111,8 +115,5 @@ test('B3: a place the look grew to phrases is held by the row (`grown`) and the 
   const place = j.look.look.facts.find((f) => Array.isArray(f.phrases) && f.phrases.length);
   assert.ok(place, 'the fixture has a grown place (so the test can fail)');
   for (const ph of place.phrases) assert.ok(partPhrases.includes(ph), `the part holds ${ph}`);
-  const card = renderCard(b.rows).map((r) => r.text).join('\n');
-  for (const ph of place.phrases) assert.ok(card.includes(`"${ph}"`), `the card says ${ph}: ${card}`);
-  const row = b.rows.find((r) => r.grown?.includes(place.phrases[0]));
-  assert.ok(row, 'the row holds the phrase');
+  assert.ok(b.rows.every((r) => r.grown === undefined && r.oneOf === undefined && r.after === undefined), 'no row holds a copy of the words');
 });

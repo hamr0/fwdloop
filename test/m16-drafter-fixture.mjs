@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { MODEL } from './drafter-fixture.mjs';
+import { SHAPE_SYSTEM } from '../src/shapelook.js';
 
 export const rd = (/** @type {string} */ f) => readFileSync(new URL(`./fixtures/m16-block/${f}`, import.meta.url), 'utf8');
 const usage = { inputTokens: 900, outputTokens: 100 };
@@ -24,6 +25,8 @@ export function router(handlers) {
     calls,
     names: () => calls.map((c) => c.name),
     async generate(/** @type {any[]} */ messages, /** @type {any[]} */ tools, /** @type {any} */ options) {
+      // M19 S2: with no `map` handler the shape look (no tool; asked when a `~` rule is still Not checked) is answered "no shape" and stays out of `calls` (tests of the look itself give a `map` handler)
+      if (tools.length === 0 && handlers.map === undefined && messages[0]?.content === SHAPE_SYSTEM) return { text: '{"shapes":[]}', toolCalls: [], usage, stopReason: 'stop', model: MODEL };
       const name = tools[0]?.name ?? 'map';
       calls.push({ name, messages: JSON.parse(JSON.stringify(messages)), options });
       const n = calls.filter((c) => c.name === name).length;

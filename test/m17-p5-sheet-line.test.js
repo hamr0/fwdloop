@@ -46,7 +46,7 @@ test('am4 (A3, B5): a count rule on a sheet line is asked no question and offere
   assert.equal(r.ok, true, JSON.stringify(r.reds));
   assert.deepEqual(r.questions ?? [], []);
   assert.equal(p.calls.some((c) => c.tools[0] === 'suggest_checks'), false, 'no pick-suggestion call for a line the list is not given');
-  assert.ok(r.notChecked.some((x) => x.includes('"at most 80 words"') && x.endsWith('No check was picked for it, so you judge it at the Ask.')), JSON.stringify(r.notChecked));
+  assert.ok(r.notChecked.some((x) => x.includes('"at most 80 words"') && x.endsWith('No check was picked for it, so you judge it at Accept.')), JSON.stringify(r.notChecked));
   assert.equal(r.declaration.steps[1].close.shape, undefined);
   assert.equal(r.declaration.steps[1].close.picked, undefined);
 });
@@ -57,7 +57,7 @@ test('P4 leftover: a green sheet step with no sheet check built is hitl, each ru
   assert.equal(r.log.some((e) => (e.reds ?? []).some((x) => x.includes('cannot cite cells any more'))), false, 'no red the AI cannot fix');
   assert.equal(r.declaration.steps[1].close.class, 'hitl');
   assert.equal(r.declaration.guardrailClasses['2'], 'hitl');
-  assert.deepEqual([...r.notChecked].sort(), ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at the Ask.', 'line 2: "flag amounts over 500" — No check was picked for it, so you judge it at the Ask.']);
+  assert.deepEqual([...r.notChecked].sort(), ['line 2: "every invoice appears exactly once" — No check was picked for it, so you judge it at Accept.', 'line 2: "flag amounts over 500" — No check was picked for it, so you judge it at Accept.']);
   assert.ok(r.log.every((e) => e.repaired === undefined), 'no repair drops a Not checked reason');
 });
 

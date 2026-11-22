@@ -5,11 +5,73 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.37.0] - 2026-11-22
+
+M19: shape jobs (a list of items, each with its own checked fields) and the one check-list look, copied from bareloop
+v0.61.0, with amendments 1 to 11, and barebrowse's robot-check flag. The POCs behind it (F222-F252) are in
+`docs/logs/FINDINGS.md`.
+
+### Added
+- Shape jobs. For a `~` rule that no other check takes and that is left Not checked, one AI look suggests the fields of
+  a list of items (`itemShape`: text, number, one of, money, date, time, url, list, boolean). The AI only suggests;
+  code builds or refuses each field, and a field covers a rule only with a real bound taken from that rule's own
+  words. A rule that no truth check takes is offered to the shape look; a rule that one does take is not, and a job
+  whose rules all have a check makes no shape call. A failed or unreadable look does not stop the draft; it goes on
+  with no shape and says so in the draft log.
+- A list line with fields signs one shape check, and the run checks every item against it. A line that is only a list
+  is `green` with no quotes to cite. A line can hold both quoted facts and a shape.
+- A list-item count rule on a line with item fields ("exactly 4 list items", "at least 3", "at most 10") is the
+  list's own item count (min and max items), on its own `[you]` row; the worker is told `exactly N items`,
+  `at least N items` or `at most N items`. If code also made a count from "per" or "each", that count is Not checked
+  with the reason `your rule on this line sets the item count`. A count pick on such a line is kept.
+- Each row of a list line has its own run result. An item-field red lands on that field's row, a count red on the row of
+  the rule that set the count, a whole-list red on the shape row. The Audit shows these rows, and never "every cited
+  field matches its source" on a line that quotes nothing.
+- The Result page draws a list line as a fold (row words, stats line, a failed item open with its reason), and the
+  report writes a section for it: heading, rules, shape-checks line, table and Not checked.
+- Drop and Add back on a shape row, at $0 with no AI call. A dropped `[you]` rule goes back to Not checked with Add
+  back; a shape plan rebuilds without a call from the look's saved answer.
+- The one check-list look on the draft card, the Job tab, the Audit and the draft readout: checks in groups, a tag on
+  each row (`[you]`, `[agent]`, `[default]`) with its kind and why, a legend `Done when every check below passes`, and a
+  NOT CHECKED group whose rows lose their `not checked · ` prefix (the Audit keeps it). The Audit draws one block per
+  job line and an Every line block.
+- A `~` rule no check holds is listed under Not checked with the signed reason of its row (`line <n>: "<rule>" - <reason>`), written by one function, so the card, readout, Job tab and Audit show the same words.
+- A page phrase fact with several words signs all of them, and a quote passes on any one of them, on word edges.
+- A quote check that fails on a page's own number form (a decimal comma) now also tries the form as the quote writes it
+  (from bareloop v0.61.0).
+- A job with no signed Ask now writes every work line in its report body, in line order; the stop before the write
+  shows and binds that body.
+
+### Changed
+- bareguard is `^0.37.0` (adds `itemShape`) and barebrowse is `^0.31.0`; the barebrowse floor is 0.30.0.
+- A page is refused as "asked for a human check" only when barebrowse sets `page.botBlocked`; the old marker-text
+  match is gone.
+- The draft no longer asks "I can't check this" about a `~` rule code cannot check. The rule is Not checked, and the
+  shape look can take it.
+- The draft card, readout, Job tab and Audit read the signed plan through one reader (`src/checkrows.js`), so a row's
+  words and tag are never stored copies. The readout's check rows are the card's rows. A card that differs from the
+  plan is refused at sign, naming the line. The numbers row of an unlisted readout now reads `every number in the text
+  is in a quote checked on line N`.
+- A list line's card, readout and Job tab show its rows with no lead sentence, and a list line no longer draws its first
+  check row twice.
+- A green line holding `itemShape` is no longer refused at start as the retired cell cite; a green line with no `cited`,
+  no sheet and no `itemShape` still is.
+- A line with no `~` guardrail of yours holds no signable check: Add on such a line is refused with "This line has no
+  guardrail of yours, so a check on it cannot be signed; you judge it at Accept."
+- The not-a-list gap says what the answer was in plain words (plain text, a number, true or false, an object, empty).
 
 ### Docs
 - F217 and F218 findings in `docs/logs/FINDINGS.md`: a trial of barebrowse's unreleased action-calls feature, run for
   the barebrowse team. Findings only; the test scripts were not kept.
+
+### Known limits
+- Shape is not offered on a sheet line, a Tickets MCP grid, an Ask line or the action row, and a nested object field is
+  not offered.
+- A facts+shape line's rows are not mapped to per-row results; a `softgreen` list line records no rows.
+- The card words for "at least" and "at most" are the default row's form extended, not signed text.
+
+### Development only (not in the package)
+- POCs F222-F252 are recorded in `docs/logs/FINDINGS.md`. The POC scripts under `poc/` are not part of the package.
 
 ## [0.36.0] - 2026-11-18
 

@@ -6,7 +6,7 @@
 import { rubricVocabulary, claimSchema } from 'bareguard';
 import { bareguardChecks } from './sheetchecks.js';
 
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+export const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /**
  * The claim box of every `cells` check in the list: `[{claim, example}]`, one per claim name, in order. `example` is the op's worked-example answer (the box's shape

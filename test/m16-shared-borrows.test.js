@@ -7,7 +7,7 @@ import path from 'node:path';
 import { OFFERED, plainWords } from '../src/checkwords.js';
 import { factPartReds, factSentence, factDecides, factClaims, FACT_LANGS } from '../src/citedcheck.js';
 import { dropSentence } from '../src/pagedropwords.js';
-import { cantCheckQuestion, readingQuestion } from '../src/pageask.js';
+import { readingQuestion } from '../src/pageask.js';
 import { readRowChoices } from '../src/pickrecord.js';
 import { lastPlaceRead, PLACE_EVENT } from '../src/placerule.js';
 import { CheckBlock } from '../src/checkblock.js';
@@ -56,8 +56,7 @@ test('pagedropwords: the v0.56.0 reasons are written, sign-twice without `other`
   assert.match(dropSentence({ reason: 'decimal-not-on-page', line: 1, fact: 'f' }), /comma before the decimals/);
 });
 
-test('pageask: the can\'t-check question is the one spelling; the reading question is exported', () => {
-  assert.match(cantCheckQuestion(2, 'not a red-eye'), /^Your line 2 says "not a red-eye"\. I can't check this on the page\. Drop it\? Answer "/);
+test('pageask: the reading question is exported', () => {
   assert.match(readingQuestion(2, 'under 150', 'less than $150'), /^Your line 2 says "under 150"\./);
 });
 
