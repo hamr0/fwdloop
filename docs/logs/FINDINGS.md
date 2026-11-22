@@ -9302,6 +9302,25 @@ Baseline `1b8a8ff6`; 463 job folders (a cp -a copy of `~/.config/fwdloop/flows`,
 **Verdict on the letter: FAIL at HEAD, PASS at the S1-S4 tip.** The 132 are caused by S6/S7 (the Audit's rows now carry `kind` and the per-line blocks, commits `c033c74b` and `80caf9af`), which are signed display changes (section 3.7 words) and are P7's bar (F229), not S1-S4 and not a shape answer. Nothing in the signed list or any step's `close` changed at any tip. I did not widen the bar to turn HEAD green: HEAD stays FAIL on the pre-registered reading, and the S1-S4 reading (the bar's own wording) passes.
 Half 2 (with P2's answers): waits for P2.
 
+### F232 RESULT, half 2 (2026-11-22, $0, no AI, no key; `HOME=<scratch dir holding a cp -a copy of ~/.config/fwdloop/flows> node poc/m19-p3/withanswers.mjs .claude/scratch/v061/p2/answers.json`, and `node poc/m19-p3/run.mjs --answers .claude/scratch/v061/p2/answers.json`; harness unchanged)
+
+Answers file: F233's `answers.json` (1 answered job, the only P2 candidate: draft `d-00mwgdao99-8d69/draft`, line 2 "under $150"). The harness reads `~/.config/fwdloop/flows/.drafts` through `os.homedir()` (read only, copies the folder to scratch), so HOME was pointed at a fresh `cp -a` copy and the real folder was never touched.
+
+Half 2 proper (`withanswers.mjs`, applies the saved suggestions through the real `buildShapes` + `block.setShape`):
+- `d-00mwgdao99-8d69/draft`: candidate lines [2]; rows changed 5, on a candidate line 5, elsewhere 0.
+- 1 answered job; 0 with a row changed off a candidate line or not rebuilt; rows changed on candidate lines 5.
+- **Verdict on the letter: PASS** (only lines holding a candidate changed; 0 jobs without a candidate changed, since a job without a candidate is not touched by the harness and has no answer). Information: n = 1, so UNDERPOWERED, same as F233.
+
+`run.mjs --answers` only re-runs half 1 (baseline `1b8a8ff6`) and prints that half 2 is `withanswers.mjs`; it ran on 494 job folders now (463 at half 1: 31 more drafts since), none skipped, no reader threw at the baseline. Reported as half 1 did, at the tips, with no shape answer applied (these are NOT the half 2 bar; recorded as information):
+
+| tip | jobs changed vs baseline | readers changed |
+|---|---|---|
+| S1-S4 tip `ad847e64` | 0 of 494 | none (PASS) |
+| S5 tip `834eb867` | 18 of 494 | `list` 18 (FAIL; was 0 of 463 at half 1) |
+| HEAD `0162e569` | 494 of 494 | `checked` 494, `audit` 163, `list` 18 (FAIL; was 132 of 463, audit only) |
+
+Not investigated (unchecked): the S5-tip 18 `list` changes are new since half 1 (0 of 463 then) and the job set grew by 31, so they are probably among the new drafts; the HEAD `checked` 494 is consistent with F252's explicit `lead` per step (commits `92135697`, `31bb7e68`, signed ruling 2026-11-22) being new since half 1. Neither was bisected; this half did not widen its bar. The half 1 verdicts stand as written.
+
 ## F233 PRE-REGISTRATION (2026-11-20, PAID, about 5 cents, deepseek-flash; M19 P2: the shape look on fwd's real candidates; written before the harness `poc/m19-p2/run.mjs` and before any paid call, NOT yet run)
 
 Source: `.claude/scratch/v061/draft.md` section 6 "P2", frozen. Copied word for word:
