@@ -36,7 +36,7 @@ Like a CNC machine, fwdloop builds the thing that does the work, then lets a gau
 
 **Guide rails, not just guardrails.** Guardrails stop the agent going off the road: a money cap per run, a monthly limit, a time limit on every Ask, and a send destination you signed that it can't move. Nothing leaves the machine without that signed destination and your accept in the same run. Guide rails keep it on the road: each new try hears what earlier tries in the run did; lessons from past runs go to the drafter and to retries; a rule it can't settle comes back as a question with buttons (Agree, Drop it, or your own words), not a guess.
 
-**Verification.** The check sits outside the agent's loop: code decides, built on bareguard. Anything code can't check is listed as Not checked, and you judge it at the Ask. A red step goes back with the real gap to be fixed, up to four tries a step; the same miss twice stops it.
+**Verification.** The check sits outside the agent's loop: code decides, built on bareguard. For a list of items (one per flight, resume or topic), code checks each item's fields against the limits your rules give, and how many items there are when you said. Anything code can't check is listed as Not checked, and you judge it at the Ask. A red step goes back with the real gap to be fixed, up to four tries a step; the same miss twice stops it.
 
 **Evidence.** Every try, its cost and its check result is recorded, and the books balance to the cent. You can read it all in the Audit tab, including exactly what each try was told. Page facts are quoted from a saved copy of the page.
 
