@@ -20,7 +20,7 @@ const opts = { askLines: parsed.arbiter.asks.map((/** @type {any} */ x) => x.lin
 
 const planLeads = (/** @type {any[]} */ checked, /** @type {number} */ n) => {
   const ctx = /** @type {any} */ (vm.createContext({}));
-  vm.runInContext(`${fnSrc(PAGE, 'sheetBlockLines', '    ')}\n${fnSrc(PAGE, 'planOfState', '    ')}`, ctx);
+  vm.runInContext(`${fnSrc(PAGE, 'sheetBlockLines', '  ')}\n${fnSrc(PAGE, 'planOfState', '    ')}`, ctx);
   const p = ctx.planOfState({ checked, planLines: [{ n, text: 'x', rules: [] }], notChecked: { items: [] }, always: [] }, { rows: [], suggested: [] });
   return JSON.parse(JSON.stringify(p.lines[0].leads));
 };

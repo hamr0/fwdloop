@@ -6093,7 +6093,7 @@
         var l = {n: pl.n, text: pl.text, rules: pl.rules || [], leads: [], checks: [], extra: []};
         state.checked.forEach(function(c){
           if(c.line !== pl.n) return;
-          if(c.sentences.length) l.leads.push(c.sentences[0]);
+          if(typeof c.lead === "string") l.leads.push(c.lead);
           sheetBlockLines(c.sheet, true).forEach(function(t){ l.extra.push(t); });
         });
         list.rows.filter(function(r){ return r.line === pl.n && r.state === "built"; }).forEach(function(r){ l.checks.push({name: r.text, cls: "", by: r.by, key: r.key, drop: r.drop === true, kind: r.kind}); });
