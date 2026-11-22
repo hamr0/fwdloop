@@ -19,6 +19,7 @@ const make = (/** @type {string[]} */ rules, /** @type {any[]} */ facts, /** @ty
   const allFacts = close.parts.flatMap((/** @type {any} */ p) => p.facts ?? []);
   return { b, rec, allFacts };
 };
+const OWN = ['must name the flights']; // F251: a line with no ~ rule of the person's holds no signable check, so a test of a built `!` row gives its line one
 const add = (/** @type {string} */ w) => ({ op: 'add', line: 2, kind: 'phrase', name: w, words: [w] });
 
 test('A: a `!` phrase on the page but in no result row is Not checked, with the look\'s own sentence', () => {
@@ -30,13 +31,13 @@ test('A: a `!` phrase on the page but in no result row is Not checked, with the 
 });
 
 test('A good case: a `!` phrase that IS in a result row still builds', () => {
-  const { b, allFacts } = make([], [price({ forRule: undefined, reading: undefined })], [add('Nonstop')]);
+  const { b, allFacts } = make(OWN, [price({ forRule: undefined, reading: undefined })], [add('Nonstop')]);
   assert.equal(b.rows.find((r) => r.key === 'L2.phrase.nonstop')?.state, 'built');
   assert.equal(allFacts.some((f) => f.phrase === 'Nonstop'), true);
 });
 
 test('A good case: with no money fact on the line the result rows are unknown, so nothing is guessed and Rome builds', () => {
-  const { b } = make([], [], [add('Rome')]);
+  const { b } = make(OWN, [], [add('Rome')]);
   assert.equal(b.rows.find((r) => r.key === 'L2.phrase.rome')?.state, 'built');
 });
 
@@ -73,7 +74,7 @@ test('A Drop then Add: a ledger-suggested "Rome" re-Added from Suggested stays N
 test('A source-carrying add on a line with NO money fact builds, though another line has one; on the money line it is still refused', () => {
   const run = (/** @type {number} */ line) => {
     const b = new CheckBlock({ texts: { flights: TEXT }, labels: ['flights'], asks: false });
-    b.fromJob([{ n: 1, text: 'Read the flights page', rules: [] }, { n: 2, text: 'list 3 flights from Madrid to Rome', rules: [] }]);
+    b.fromJob([{ n: 1, text: 'Read the flights page', rule: OWN[0], rules: OWN }, { n: 2, text: 'list 3 flights from Madrid to Rome', rule: OWN[0], rules: OWN }]);
     b.addLook([price({ forRule: undefined, reading: undefined })], []);
     b.reconcile();
     b.applyDelta({ label: 'pre:ledger-suggest', pre: true, edits: [{ op: 'add', line, kind: 'phrase', name: 'Rome', words: ['Rome'], source: 'flights' }] });
