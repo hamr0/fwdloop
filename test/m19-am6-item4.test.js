@@ -24,7 +24,8 @@ test('the readout of a plan with no saved card tells the numbers row in the sign
 test('no block row holds `grown`, `oneOf` or `after` after buildLine (break: buildLine writes the copies)', () => {
   const TEXT = '## [0.54.1] - 2026-11-04\n### Fixed\n- one\n- two\n';
   const b = new CheckBlock({ texts: { Changelog: TEXT }, labels: ['Changelog'], asks: true });
-  b.fromJob([{ n: 1, text: 'Find the heading', rules: [] }, { n: 2, text: 'Summarise it', rules: [] }]);
+  // F251: line 1 has a ~ rule of the person's, so its look facts are signable and the numbers tie on line 2 exists
+  b.fromJob([{ n: 1, text: 'Find the heading', rule: 'must name the heading', rules: ['must name the heading'] }, { n: 2, text: 'Summarise it', rules: [] }]);
   b.addLook([
     { line: 1, name: 'release heading', shape: 'phrase', source: 'Changelog', words: ['### Fixed'] },
     { line: 1, name: 'place', shape: 'phrase', source: 'Changelog', words: ['## [0.54.1]'], phrases: ['## [0.54.1]', '### Fixed'] },
