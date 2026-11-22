@@ -8,7 +8,8 @@ import { assembleFromBlock } from '../src/blockassemble.js';
 const NOTES = 'Tomatoes by the fence. Raised bed by the fence needs soil.';
 const jobLines = [
   { n: 1, text: 'Write 3 lines about my garden from the notes', rules: [] },
-  { n: 2, text: 'List 3 jobs for this week from the notes', rules: [] },
+  // F251: line 2 has a ~ rule of the person's, so the Add of a fact on it is a signable check
+  { n: 2, text: 'List 3 jobs for this week from the notes', rule: 'must name the jobs', rules: ['must name the jobs'] },
   { n: 3, text: 'Write a short closing note to my neighbour', rules: [] },
 ];
 const lines = jobLines.map((l) => ({ n: l.n, guardrail: '' }));
