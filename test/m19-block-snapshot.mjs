@@ -25,6 +25,8 @@ import { callOf, router } from './m16-drafter-fixture.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(HERE, 'fixtures');
+// the repo root from this file's own place: a checkout path is not part of what a screen shows, so it is scrubbed (a worktree or CI checkout has another one)
+const REPO = path.resolve(HERE, '..');
 const rd = (/** @type {string} */ p) => readFileSync(path.join(FIX, p), 'utf8');
 const plain = (/** @type {any} */ x) => JSON.parse(JSON.stringify(x ?? null));
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -34,6 +36,7 @@ export function scrub(v, tmps = []) {
   if (typeof v === 'string') {
     let s = v;
     for (const t of tmps) s = s.split(t).join('<TMP>');
+    s = s.split(REPO).join('<repo>');
     return s.replace(/fwdloop-[a-z0-9]+-[A-Za-z0-9]{6}/g, '<TMP>').replace(/\b[0-9a-f]{64}\b/g, '<SHA>');
   }
   if (Array.isArray(v)) return v.map((x) => scrub(x, tmps));
