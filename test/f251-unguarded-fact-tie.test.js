@@ -1,5 +1,5 @@
 // F251 (docs/logs/FINDINGS.md): a line with no `~` guardrail of the person's own holds no signable check, and ONE place decides it: the check block (src/checkblock.js). The red it came from: the AI's ledger look suggested a phrase fact on
-// the unguarded line 1; the block built its fact part and tied line 2's numbers to it, then the assemble step dropped the part, so `close.numbersFrom: [1]` named a line that checks no quote. The plan is test/fixtures/f251-unguarded-fact-tie
+// the unguarded line 1; the block built its fact part and tied line 2's numbers to it, then the assemble step dropped the part, so `close.numbersFrom: [1]` named a line that checks no quote. The plan is test/support/f251-unguarded-fact-tie
 // (the saved red draft, scrubbed), rebuilt through the real path. $0, no AI.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -15,7 +15,7 @@ import { WIRED_VERBS } from '../src/primitives.js';
 import { csvRolesOf } from '../src/sheetblock.js';
 import { docRolesOf } from '../src/drafter.js';
 
-const FX = new URL('./fixtures/f251-unguarded-fact-tie/', import.meta.url).pathname;
+const FX = new URL('./support/f251-unguarded-fact-tie/', import.meta.url).pathname;
 
 /** the saved red draft rebuilt through the real path; `withoutLine1Phrase` removes the ledger look's line-1 phrase from the saved answer (the draft that was green) */
 function setUp(withoutLine1Phrase = false) {
