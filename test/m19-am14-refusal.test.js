@@ -63,6 +63,7 @@ for (const width of [1280, 390, 320]) {
     assert.ok(m.sw <= m.cw, `no spill ${JSON.stringify(m)}`);
     assert.ok(m.left >= m.cardLeft - 0.5 && m.right <= m.cardRight + 0.5, `inside the card ${JSON.stringify(m)}`);
     assert.equal(m.page <= 0, true, 'no horizontal page scroll');
+    if (process.env.FWDLOOP_AM14_SHOTS) await chrome.ev('document.getElementById("chat-draft-refusal").scrollIntoView({block: "center"}); true');
     if (process.env.FWDLOOP_AM14_SHOTS) await chrome.screenshot(path.join(process.env.FWDLOOP_AM14_SHOTS, `am14-${width}.png`));
   });
 }
