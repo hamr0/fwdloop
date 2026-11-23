@@ -3,7 +3,7 @@
 import { parseSignedText } from './signed-text.js';
 import { rulesOfLine } from './sheetblock.js';
 
-export const MIN_RULE_REFUSAL = 'Add at least one rule (~) for this job — for example what must stay true, or what must not change.';
+export const MIN_RULE_REFUSAL = 'Add at least one rule (~) for this job — for example what the result must include, or what must stay true.';
 
 /**
  * @param {string} prose the job prose `fwdloop draft` reads
