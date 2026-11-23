@@ -25,8 +25,7 @@ import { REASON } from './checkblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {

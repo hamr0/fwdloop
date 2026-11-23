@@ -7,7 +7,8 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { sheetCheckSentence } from './sheetchecks.js';
-import { sheetTotalLines, ROW_MATH_OPS, isRec } from './sheetclaims.js';
+import { sheetTotalLines, ROW_MATH_OPS } from './sheetclaims.js';
+import { isRec } from './isrec.js';
 import { lineRules } from './pagebits.js';
 import { shapeResultModel, shapeMarkdown } from './shaperesult.js';
 

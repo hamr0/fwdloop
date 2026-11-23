@@ -10,9 +10,9 @@
 import { rubricVocabulary, checkSchema } from 'bareguard';
 import { SHEET_RULES, MAX_SHEET_CHECKS } from './sheetchecks.js';
 import { columnRuleWords } from './sheetlook.js';
+import { isRec } from './isrec.js';
 
 const V = /** @type {any} */ (rubricVocabulary);
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** The comparisons of a `where` condition, as bareguard's vocabulary lists them. */
 export const WHERE_CMPS = Object.freeze([...V.rules.cells.fields.where.cmps]);

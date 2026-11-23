@@ -4,8 +4,7 @@
 // its signed fields, its card words and its proof. A job with no ticket rows (a plan signed before M17) is not examined: its filter and watch run exactly as signed.
 // What this throws away: the filter's and watch's values (they stay in the declaration); a row keeps its line, rule number, tag, state and reason.
 import { checkTicketFilter, checkTicketWatch, isCountGuardrail } from './declaration.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /** @type {readonly ('ticketFilter'|'ticketWatch')[]} */
 export const TICKET_FIELDS = Object.freeze(['ticketFilter', 'ticketWatch']);

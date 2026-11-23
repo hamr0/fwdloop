@@ -11,13 +11,12 @@
 
 import { checkTables, tableSha, groundedLiterals, rubricVocabulary } from 'bareguard';
 import { wordsSaidOn, lineRules } from './pagebits.js';
+import { isRec } from './isrec.js';
 
 /** the bareguard rules a sheet check may use (`diff` is out of scope for M10b) */
 export const SHEET_RULES = Object.freeze(['cells', 'table']);
 /** most checks one step may carry */
 export const MAX_SHEET_CHECKS = 20;
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 const V = /** @type {any} */ (rubricVocabulary);
 

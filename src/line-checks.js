@@ -5,13 +5,12 @@
 import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { readFileInside } from './flow.js';
+import { isRec } from './isrec.js';
 
 /** the record's name in the run's own folder */
 export const LINE_CHECKS_FILE = 'line-checks.json';
 
 /** @typedef {'cited'|'sheet'} LineSection */
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** The whole file as parsed, or why not. @param {string} runDir @returns {{ok: true, rec: Record<string, any>}|{ok: false, missing: boolean, red: string}} */
 function readWhole(runDir) {
