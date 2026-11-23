@@ -1,7 +1,7 @@
 # fwdloop — the layer map (plain language)
 
 > What this page is: one short map of the flow, the layers, and what happens when things go wrong.
-> Rewritten 2026-10-08. Updated 2026-11-15 (the one check list, status to v0.34.0); shape borrowed from bareloop docs/product/LAYERS.md (origin/main, c57d199 + 1b8115c).
+> Rewritten 2026-10-08. Updated 2026-11-23 (the last step's write, one report, shape rows and the one look, status to v0.37.0); shape borrowed from bareloop docs/product/LAYERS.md (origin/main, c57d199 + 1b8115c).
 > The PRD is the contract; this is the map. Status diaries live in the PRD and `docs/logs/FINDINGS.md`, not here.
 > Jump to: **harness vs arbiter** (in "The shell") · **the one check list (~ ! $)** (after "The flow") · **how many rungs** (near the end).
 
@@ -23,7 +23,7 @@ The machine never decides your work is good. It makes sure that what you said wo
 YOU (panel Chat tab, or the CLI)
   │  describe the job: numbered lines, "how I'd know" (the ~ rules) beside each (or blank)
   ▼
-SCOUT looks at the real files, a saved web page or a sheet (read only) · DRAFTER writes steps, no tools,
+SCOUT looks at the real files, a saved web page or a sheet (read only; a page that asks for a human check is refused as such) · DRAFTER writes steps, no tools,
 each step names the one line of yours it serves
   │
   ▼
@@ -54,9 +54,10 @@ RESUME: another process picks up exactly there. An answer is used once.
   │
   ▼
 ACCEPT → SEND: your last line is the job's action: it writes everything before it, only to the signed folder, only the exact file you accepted (hash-checked).
-  The AI says if your last line is the action; if there is none it suggests one and you Agree or type your own.
+  The AI says if your last line is the action; if there is none it suggests one and you Agree or type your own (no Drop: every job ends with its write).
   An Ask before it is not required: if what goes out changed since your last accept, or you accepted nothing in this run, the run stops once
-  and asks (Accept / Not now) before it writes. [M13 am11, unreleased]
+  and asks (Accept / Not now) before it writes. [M13 am11, released in 0.35.0]
+  What lands in the Destination is one markdown report per run, `<job>-YYYY-MM-DD.md`: a section per job line, with what code checked and the AI's text. [M15 am3, released in 0.36.0]
   │
   ▼
 ENDED:  passed · failed · stopped · expired
@@ -77,8 +78,8 @@ NEXT TIME: a trigger reruns the same signed job.  [M9, released in 0.18.0: set W
 ## The one check list (~ ! $)
 
 Since M16 (0.33.0) and M17 (0.34.0) there is **one list of checks per job line, and nowhere else.**
-Every surface shows the same list: the plan card, the Job tab, the Audit "Checks" fold, the Result tab.
-Copied from bareloop (M16 from v0.56.0, M17 from v0.57.0), with fwdloop's own parts kept.
+Every surface shows the same list: the plan card, the draft readout, the Job tab, the Audit "Checks" fold, the Result tab.
+Copied from bareloop (M16 from v0.56.0, M17 from v0.57.0, M19 from v0.61.0), with fwdloop's own parts kept.
 
 **Three kinds of row, each wearing a tag:**
 
@@ -100,7 +101,15 @@ words already are the check is not asked at all. The AI naming a new rule is the
 never reads "agree" or "drop" out of what you typed. If the AI said "can't find X, found Y" and you Agree,
 the AI's reading becomes a `!` row (it replaces in place; nobody asks what it checks).
 
-**Not checked.** A rule that no check holds shows **once** in Not checked, with its reason. The usual
+**One look.** Since M19 (0.37.0) every surface reads the signed plan through one reader (`src/checkrows.js`), so a
+row's words and tag are never stored copies; the readout's check rows are the card's rows, and a card that differs from the
+plan is refused at sign. Checks sit in groups, each row with its tag (`[you]`, `[agent]`, `[default]`), its kind and why,
+under the legend `Done when every check below passes`. The NOT CHECKED group's rows lose their `not checked · ` prefix; the
+Audit keeps it. Each Audit job line is one block, with an Every line block.
+
+**Not checked.** A rule that no check holds shows **once** in Not checked, with its reason (written by one function, so
+every surface shows the same words: `line <n>: "<rule>" — <reason>`). A `~` rule that code cannot check is no longer asked
+about ("I can't check this"); it is Not checked, and the shape look may take it. The usual
 reason: "No check was picked for it, so you judge it at the Ask." On a rule that sits on an Ask line:
 "you judge it at the Ask." The machine never invents a check, and never says covered when it is not.
 
@@ -111,7 +120,11 @@ reason: "No check was picked for it, so you judge it at the Ask." On a rule that
 | **page** (read a web page) | facts quoted from the page; a rule code can tie to a quote becomes a check. Money in another currency than the page, or a phrase found in no result row, is Not checked. |
 | **sheet** (a CSV) | a cells check reads the step's own answer; code builds it on bareguard's helpers (M10b, M17). A second check on the same rule is its own `!` row with Drop. A **table** check reads only the input sheet ("the sheet has 8 rows"), so it is its own `!` row and **never covers your `~` rule** (M17 am7); a rule only it named is Not checked. A sheet step with no built check becomes a human-checked step. |
 | **Tickets** | the filter and the watch are rows on the list: the AI suggests the value, code proves it and writes the run's filter and watch from the row. Content rules are Not checked. |
-| **line with no guardrail of yours** | only the numbers tie; other checks cannot be signed there and show Not checked with the reason. |
+| **list of items** (shape, M19) | for a `~` rule that no other check takes, one AI look suggests the fields of a list of items (text, number, one of, money, date, time, url, list, boolean). The AI only suggests; code builds or refuses each field, and a field covers a rule only with a real bound taken from that rule's own words. A job whose rules all have a check makes no shape call. A rule that counts the items ("exactly 4 list items", "at least 3", "at most 10") is the list's own item count, on its own `[you]` row. The signed count row reads `the answer lists exactly N items`, `at least N items`, `at most N items`, or `at least N items and at most M items` (M19 am12). Each row has its own run result: an item-field red lands on that field's row, a count red on the row of the rule that set the count, a whole-list red on the shape row. **Drop** and **Add back** work on a shape row at $0, with no AI call. Not offered on a sheet, a Tickets grid, an Ask line or the action row. |
+| **line with no guardrail of yours** | only the numbers tie; other checks cannot be signed there and show Not checked with the reason. Add on such a line is refused. |
+
+A page phrase fact with several words signs all of them; a quote passes on any one, on word edges (M19 am5).
+A column tie on a `~` rule asks a closed pick list ("Choose one."), and the answer rewrites the rule in place (M17 am9).
 
 **Still waiting, not built.** (1) The AI's third-try questions that name the rule they are about, so an answer
 can replace or add (waits for bareloop's release; today such an answer adds a rule). (2) The Tickets filter rule is
@@ -120,7 +133,7 @@ still found by a fixed table of words (waits for the same bareloop change).
 **Parked.** "under N words" means `maxWords N`, so N passes (needs hamr's ruling on "under"). A word of a job's
 prose that is no rule (such as "aging report") can show in Not checked as a missing column (F198, recorded, not fixed).
 What was proven, by number: F185-F190 (the M16 copy and bareguard's sheet helpers), F191-F197 (one in, one out,
-code-built sheet checks, the table row), F196 (the aging practice walk), F198.
+code-built sheet checks, the table row), F196 (the aging practice walk), F198, F219-F221 (the report and the column tie), F222-F252 (M19: the bot flag, the shape look, the one reader).
 
 *The kid version:* one clipboard per chore. Some lines mom wrote (`~`). Some a helper pencilled in and mom's
 rulebook proved (`!`; mom can rub it out). Some are printed on every clipboard (`$`). A wrong answer
@@ -218,8 +231,8 @@ So in fwdloop terms:
 ### Layer 6 and on — in-run tools, learnings, triggers, real IO
 
 - **Does:** tools a step may use, with memory for one run (M7); learnings from earlier runs (M8); triggers (M9); reading a web page, a sheet or a document, with cited checks and asks that code forces (M10), and a sheet's checks from bareguard (M10b).
-- **Does (since then):** outside tools through MCP and tickets that start a run (M12); one setup for outside sources (M13); the carry memo, in-run memory told to every try (M14); one friendly `.md` result for every job (M15); one check list for every job line (M16, M17).
-- **Status:** released through v0.34.0, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6 to M17 are released (M16 in 0.33.0, M17 in 0.34.0). Mail and chat are not built.
+- **Does (since then):** outside tools through MCP and tickets that start a run (M12); one setup for outside sources (M13); the carry memo, in-run memory told to every try (M14); one friendly `.md` result for every job (M15), now one markdown report per run (0.36.0); one check list for every job line (M16, M17); the job's last line is its write, with no Ask needed before it (M13 am11, 0.35.0); shape jobs, lists of items with checked fields, and the one check-list look (M19, 0.37.0).
+- **Status:** released through v0.37.0, in order, on the ladder below. M5 is closed (Accept is sign; dry-run waits for a real outside send; versions moved to editing a signed job, M6). M6 to M17 and M19 are released (M16 in 0.33.0, M17 in 0.34.0, M19 in 0.37.0). M18 (search) was signed and withdrawn on 2026-11-17: open web research is out of scope; the person brings the link. Mail and chat are not built.
 
 ### Who keeps what
 
@@ -231,6 +244,7 @@ So in fwdloop terms:
 | "did it happen" | the harness | nobody mid-run |
 | money spent | the books | nobody; unknown stays unknown |
 | the answer to an ask | you | once |
+| the job's last action (the write) | the AI says if your last line is it, or suggests one; you Agree or type your own | you, by Revise; no Drop |
 | learnings (notes from ended runs) | code, at run end, in one ledger per user (`~/.config/fwdloop`, mode 600) | nobody; seeded once from past runs with `fwdloop learn seed`; handed only when `learningHints` is on |
 | thinking per try | code (try 1 off, retries on) | you, only with the Chat-box "Thinking on" box; it is kept with the job |
 | a job's checks (the `~` `!` `$` list) | code builds on bareguard, bareguard judges; the AI only suggests | you: your `~` rules, Drop or Add a `!` row, and the signature |
@@ -330,10 +344,10 @@ still be wrong. So it hears "crooked", never "2mm off".
 
 ## How many rungs
 
-`docs/wiki/the-module-ladder.md` holds **18 main modules (M0 to M17)** and the sub-rungs under them
+`docs/wiki/the-module-ladder.md` holds **19 main modules (M0 to M19; M18 is withdrawn)** and the sub-rungs under them
 (M0a, M0b, M4a to M4e, M4c-fix, M6a, M8b, M10b). Counts and every signed text are there; this table is only
 the state. M6b was folded into M4e. A rung starts only when its scope, exit and negative are signed by hamr.
-Latest release: **v0.34.0** (2026-11-15).
+Latest release: **v0.37.0** (2026-11-22).
 
 | rung | what | state |
 |---|---|---|
@@ -357,11 +371,13 @@ Latest release: **v0.34.0** (2026-11-15).
 | M10b | a sheet's checks are bareguard's | released (0.23.0); exit signed 2026-10-26 (0.26.0); a table check that fails on the input is refused at draft time (0.32.0) |
 | M11 | one runs list (Running now, Needs you, Scheduled, Jobs) | released (0.19.0 on; Reopen on the Run tab in 0.24.0) |
 | M12 | outside tools through MCP, and tickets that start a run | released (0.27.0) |
-| M13 | one setup for outside sources | released (0.28.0); later amendments see the ladder |
+| M13 | one setup for outside sources; the job's last line is its write (am11) | released (0.28.0); am11 in 0.35.0 |
 | M14 | the carry memo (memory in one run) | released (0.29.0) |
-| M15 | one friendly `.md` result for every job | released (0.29.0) |
+| M15 | one friendly `.md` result for every job; one markdown report per run (am3) | released (0.29.0); am3 in 0.36.0 |
 | M16 | one check list (`~` `!` `$`), copied from bareloop v0.56.0 | released (0.33.0); exit signed 2026-11-14 |
-| M17 | one check list for sheets and Tickets; an answer replaces its rule | released (0.34.0); exit: see the ladder |
+| M17 | one check list for sheets and Tickets; an answer replaces its rule; a column tie asks (am9) | released (0.34.0); am9 in 0.36.0; exit: see the ladder |
+| M18 | search the web for a job | withdrawn by hamr 2026-11-17 (open research is out of scope) |
+| M19 | shape jobs (lists of items) and the one check-list look, copied from bareloop v0.61.0 | released (0.37.0); exit signed 2026-11-22; am12 (count row words) signed 2026-11-23 |
 
 ---
 
@@ -385,6 +401,9 @@ The one place implementation names appear:
 | the harness (steps, strikes, caps, halts, stop) | `src/runner.js` |
 | the checks (green, softgreen, hitl) | `src/closers.js` |
 | the one check list (rows, tags, Drop and Add, replace on answer) | `src/checkblock.js`, `src/blockassemble.js`, `src/blockdraft.js`, `src/planrebuild.js`; sheet rows `src/sheetbuild.js`; Tickets rows `src/ticketrows.js` |
+| the one look (the reader every surface uses, the kind words and the Not checked split) | `src/checkrows.js`, `src/checklook.js` |
+| shape jobs (the AI look, the field builder, rows and words, per-row run results) | `src/shapelook.js`, `src/shapemenu.js`, `src/shapebuild.js`, `src/shaperows.js`, `src/shapewords.js`, `src/shaperesult.js`, `src/rowresults.js` |
+| the last action and the report | `src/action-stop.js` (the stop before the write), `src/report.js` (the one markdown report) |
 | a sheet's checks (bareguard's), cited page quotes | `src/sheetchecks.js`, `src/sheetrun.js`, `src/sheetclaims.js`, `src/sheetoffer.js` (what the drafter is offered), `src/sheetblock.js` (what a sheet job line shows); `src/citedcheck.js` (the cited check), `src/cited-record.js`, `src/pagebits.js` |
 | thinking per try | `src/thinking.js`, `src/model-step.js` |
 | the description (drafter, catalogue) | `src/drafter.js`, `src/catalogue.js` |
