@@ -4454,3 +4454,5 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 1. The refusal of M19 am13 item 2 reads: `Add at least one rule (~) for this job — for example what the result must include, or what must stay true.` This replaces am13 item 2's words. Nothing else in am13 or am14 changes.
 **Must fail when:** the CLI or the panel shows any other words for a job with no `~` rule.
 **Done when:** the am13 and am14 tests pin the new words and fail on the old; the full suite green. **Cap:** $0.
+
+**Built after signing — not signed text (2026-11-23), M19 am13a.** `src/minrule.js` `MIN_RULE_REFUSAL` (still the one writer) now carries the v0.62.0 words; `test/m19-am13-min-rule.test.js` and `test/m19-am14-refusal.test.js` pin them (red on the old words first, green after, red again with `src/minrule.js` reverted alone).
