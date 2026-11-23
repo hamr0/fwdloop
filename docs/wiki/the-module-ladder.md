@@ -4437,3 +4437,12 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** a $0 POC on the real draft path (both doors) shows the refusal with zero `~` and a normal draft with one; tests that fail first; the full suite green. **Cap:** $0.
 
 **Built after signing — not signed text (2026-11-23), M19 am13.** `src/minrule.js` (new): `MIN_RULE_REFUSAL` (the one writer of the words) and `minRuleRefusal(prose)`, which counts with the drafter's own reader (`parseSignedText`, then `rulesOfLine` per line) and returns the words or null; prose the reader cannot parse is not refused here (the drafter's own red wins). The one call place is `bin/fwdloop` `cmdDraft`, right after the prose read and before `takeMonthlyHold`, so a refused job leaves no hold row, no draft folder, no spend row and makes no provider call; it prints `fwdloop: draft refused at $0 — <the words>` and exits 1. The panel's Start drafting spawns `fwdloop draft` and shows the child's words (no panel-side precheck). In `cmdDraft` the model and key refusals come first, so a zero-`~` job with no usable key says the key words. Test: `test/m19-am13-min-rule.test.js` (red on the old code first; the CLI, MCP and Tickets, and the panel door through a real child).
+
+**M19 amendment 14 — SIGNED by hamr 2026-11-23 ("sign m19 am14."), the text exactly as shown (.claude/scratch/min-one-rule/m19-am14-draft.md, sha256 18879c694b33…):**
+**M19 amendment 14 — a draft refusal shows in red by the Draft button; a shorter job-box hint (hamr 2026-11-23 walk: "where is the error?").**
+1. When a draft is refused (the CLI's `draft refused at $0 — …` line, e.g. am13's no-rule words or a missing key), the panel shows the refusal words in red right under the Draft button, in the same style as a field error. It shows the words after `draft refused at $0 — `, as one line that wraps.
+2. The small grey copy of that refusal in the job card is removed: the words show in one place only.
+3. The job-box hint reads: `One step per line. A ~ line under a step is its rule; add at least one. Ask: stops for you (Ask 2h: waits 2h). The last line writes the result to the Destination.`
+4. Nothing else on the card changes.
+**Must fail when:** a refused draft shows its words anywhere other than under the Draft button, or not in red; the words differ from the CLI's; the hint differs from item 3; at 390 or 320 wide the words spill out of the card.
+**Done when:** a test that fails first; a practice walk at 1280, 390 and 320 wide; hamr's walk on his panel; the full suite green. **Cap:** $0.
