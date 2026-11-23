@@ -52,6 +52,7 @@ import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { minRuleRefusal } from '../src/minrule.js';
 import { readRecordFile, readRowChoices, readSheetDropped, readShapeDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
@@ -993,6 +994,11 @@ async function cmdDraft(rest) {
   const proseRead = gate.ok
     ? (gate.text.trim() === '' ? { ok: false, red: `prose: "${proseAbs}" is empty` } : gate)
     : { ok: false, red: gate.missing ? `prose: cannot read "${proseAbs}": ENOENT` : `prose: ${gate.red}` };
+  // M19 am13: a job with no `~` rule of the person's is refused here, at $0, before the hold, the draft folder or any provider call (the panel's Start drafting spawns this command and shows these words)
+  if (proseRead.ok) {
+    const noRule = minRuleRefusal(proseRead.text);
+    if (noRule !== null) fail(`draft refused at $0 — ${noRule}`);
+  }
   const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });

@@ -25,6 +25,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
 const FAKE_DRAFT = path.join(HERE, 'fixtures', 'cli-fake-draft-provider.mjs');
 const WORDS = 'Add at least one rule (~) for this job — for example what must stay true, or what must not change.';
+// the job #2 fixture carries one `~` (the Ask line's guardrail); the zero-rule job is the same prose with that line cut
+const ZERO = () => job2Fixture().prose.replace('   guardrail: nothing goes out before I accept\n', '');
 const base = { destination: 'out', capUsd: '0.25', askWait: '1h', inputs: '' };
 const proseOf = (job, extra = {}) => cardToProse(cardFields({ ...base, flowName: 'x', job, ...extra }));
 
@@ -57,7 +59,7 @@ function world(t) {
 
 test('zero ~ (plain): refused with the exact words, non-zero exit, no out folder, no hold or spend row', (t) => {
   const w = world(t);
-  const r = w.draft(job2Fixture().prose);
+  const r = w.draft(ZERO());
   assert.notEqual(r.status, 0);
   assert.ok(r.stderr.includes(WORDS), r.stderr);
   w.nothingLeft();
@@ -90,7 +92,7 @@ test('a Tickets job with only a filter ~ is not refused by this gate', (t) => {
 
 test('a typed `~ !x` and `~ $x` count as the person\'s rule: not refused', (t) => {
   const w = world(t);
-  const r = w.draft(job2Fixture().prose.replace('\n4. ask 30m', '\n   guardrail: !agent says so\n4. ask 30m'));
+  const r = w.draft(ZERO().replace('\n4. ask 30m', '\n   guardrail: !agent says so\n4. ask 30m'));
   assert.ok(!r.stderr.includes(WORDS), r.stderr);
 });
 
@@ -145,7 +147,7 @@ test('the panel door: Start drafting on a zero-~ card ends with the child\'s out
     HANDLES.push(h);
     const card = { flowName: 'job2', job: 'Read the notes and list the open items\nWrite a short summary', capUsd: '0.25', askWait: '1h', destination: outDir, provider: 'DEEPSEEK_API_KEY', model: 'fake-ticked', inputs: '' };
     const r = await rq(h.port, { method: 'POST', url: '/api/author/draft', body: card });
-    assert.equal(r.status, 200, r.text);
+    assert.equal(r.status, 202, r.text);
     const id = r.json().draftId;
     const log = path.join(root, '.drafts', id, 'child.log');
     const t0 = Date.now();
