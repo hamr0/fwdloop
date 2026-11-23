@@ -177,13 +177,22 @@ export function createAuthor(opts) {
     if (first) return { ...base, ...first };
     // no result yet: the child is the only thing that can still produce one
     if (running) return { ...base, phase: 'drafting' };
-    return { ...base, phase: 'stopped', say: logTail(dir, 'child.log', keys) || STOPPED_SAY };
+    return { ...base, phase: 'stopped', say: logTail(dir, 'child.log', keys) || STOPPED_SAY, refusal: refusalOf(dir, 'child.log', keys) };
   }
 
   /** The tail of a child's log, scrubbed and without its `fwdloop: ` prefix; '' when there is none. */
   function logTail(dir, rel, keys) {
     const logText = readFileInside(dir, rel);
     return logText.ok ? scrub(logText.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
+  }
+
+  /**
+   * M19 am14: the words after `draft refused at $0 — ` in a child's scrubbed log tail (the one reader of that line; the page shows them under the Draft button), or null
+   * when the child stopped for any other reason. `say` stays the whole tail.
+   */
+  function refusalOf(dir, rel, keys) {
+    const m = /^draft refused at \$0 — ([^\n]*)/.exec(logTail(dir, rel, keys));
+    return m ? m[1].trim() : null;
   }
 
   /**
@@ -275,16 +284,17 @@ export function createAuthor(opts) {
       if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
       if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
       if (running) return { n, kind, phase: 'running', name };
-      return { n, kind, name, phase: 'stopped', say: logTail(dir, `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`, keys) || STOPPED_SAY };
+      const logRel = `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`;
+      return { n, kind, name, phase: 'stopped', say: logTail(dir, logRel, keys) || STOPPED_SAY, refusal: refusalOf(dir, logRel, keys) };
     });
-    const cur = /** @type {{ phase: string, kind: string, say?: string }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
+    const cur = /** @type {{ phase: string, kind: string, say?: string, refusal?: string | null }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
     const firstQs = firstQsRead ?? readQuestions(join(dir, 'draft')); // the first plan's questions, read once per poll
     const asked = firstQs.questions.length > 0;
     const shared = { ...base, card, revises, revisesLeft, stepList: asked ? stepListOf(dir, 'draft', keys, true) : (first.stepList ?? null) };
     const rel = newest > 0 ? `draft-${newest}` : 'draft';
     if (cur.phase === 'running') return { ...shared, phase: cur.kind === 'answers' ? 'redrafting' : 'revising' };
-    if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say };
+    if (cur.phase === 'stopped') return { ...shared, phase: 'stopped', say: cur.say, refusal: cur.refusal ?? null };
     const res = newest > 0 ? resultOf(dir, rel, keys) : first;
     // the plan's questions: any open one makes the phase `questions-open`, whatever colour the plan is (the answers are what it was waiting for)
     const q = rel === 'draft' ? firstQs : readQuestions(join(dir, rel));
