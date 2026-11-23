@@ -13,7 +13,7 @@ const CLOSERS = [];
 after(() => Promise.all(CLOSERS.map((c) => c())));
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
-const WORDS = 'Add at least one rule (~) for this job — for example what must stay true, or what must not change.';
+const WORDS = 'Add at least one rule (~) for this job — for example what the result must include, or what must stay true.';
 const HINT = 'One step per line. A ~ line under a step is its rule; add at least one. Ask: stops for you (Ask 2h: waits 2h). The last line writes the result to the Destination.';
 const ZERO = 'Read the notes and list the open items\nWrite a short summary';
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();

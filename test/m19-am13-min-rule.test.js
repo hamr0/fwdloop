@@ -24,7 +24,7 @@ import { job2Fixture } from './drafter-fixture.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
 const FAKE_DRAFT = path.join(HERE, 'fixtures', 'cli-fake-draft-provider.mjs');
-const WORDS = 'Add at least one rule (~) for this job — for example what must stay true, or what must not change.';
+const WORDS = 'Add at least one rule (~) for this job — for example what the result must include, or what must stay true.';
 // the job #2 fixture carries one `~` (the Ask line's guardrail); the zero-rule job is the same prose with that line cut
 const ZERO = () => job2Fixture().prose.replace('   guardrail: nothing goes out before I accept\n', '');
 const base = { destination: 'out', capUsd: '0.25', askWait: '1h', inputs: '' };
