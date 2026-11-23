@@ -57,27 +57,13 @@ last word, and how to make cost and outcome honest. It borrows those solved prob
 primitives directly, as a sibling of the suite, and adds the part that was missing: the
 pauses, the checks, and the people.
 
-## The bare ecosystem
+## bare suite
 
-Local-first, composable agent infrastructure. Same patterns throughout, each module works
-standalone.
+- **Hands** · [barebrowse](https://github.com/hamr0/barebrowse) · [baremobile](https://github.com/hamr0/baremobile) · [beeperbox](https://github.com/hamr0/beeperbox)
+- **Rails** · [bareagent](https://github.com/hamr0/bareagent) · [bareguard](https://github.com/hamr0/bareguard) · [barebox](https://github.com/hamr0/barebox) · [litectx](https://github.com/hamr0/litectx)
+- **Apps** · **fwdloop** · [bareloop](https://github.com/hamr0/bareloop)
 
-**Core** — the brain, the gate, the memory.
-
-- **[bareagent](https://npmjs.com/package/bare-agent)** — the think→act→observe loop. *Goal in → coordinated actions out.*
-- **[bareguard](https://npmjs.com/package/bareguard)** — the single gate every action passes through. *Action in → allow / deny / ask-a-human out.*
-- **[litectx](https://npmjs.com/package/litectx)** — memory and context engineering (write · select · compress · isolate). *Query in → ranked context out.*
-
-**Optional reach** — give the agent hands.
-
-- **[barebrowse](https://npmjs.com/package/barebrowse)** — a real browser for agents.
-- **[baremobile](https://npmjs.com/package/baremobile)** — Android + iOS device control.
-- **[beeperbox](https://github.com/hamr0/beeperbox)** — 50+ messaging networks via one MCP server.
-
-**Siblings** — workflows on top of the rails.
-
-- **[bareloop](https://github.com/hamr0/bareloop)** — workflows that earn their own design, for repeated, verifiable jobs. Closed loop.
-- **fwdloop** — workflows with people in them. Open loop.
+Built from [bareagent](https://github.com/hamr0/bareagent), [barebrowse](https://github.com/hamr0/barebrowse), [bareguard](https://github.com/hamr0/bareguard) and [litectx](https://github.com/hamr0/litectx). → [The whole suite](https://github.com/hamr0)
 
 ## Status
 

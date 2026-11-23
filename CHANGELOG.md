@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Docs
+
+- README: the suite section is now a short map of the bare suite (Hands / Rails / Apps) plus what this pairs well with, linking the full list on github.com/hamr0.
+
 ## [0.37.0] - 2026-11-22
 
 M19: shape jobs (a list of items, each with its own checked fields) and the one check-list look, copied from bareloop
