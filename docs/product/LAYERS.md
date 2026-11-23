@@ -58,6 +58,7 @@ ACCEPT → SEND: your last line is the job's action: it writes everything before
   An Ask before it is not required: if what goes out changed since your last accept, or you accepted nothing in this run, the run stops once
   and asks (Accept / Not now) before it writes. [M13 am11, released in 0.35.0]
   What lands in the Destination is one markdown report per run, `<job>-YYYY-MM-DD.md`: a section per job line, with what code checked and the AI's text. [M15 am3, released in 0.36.0]
+  A job with no Ask writes every line: the report is the whole-job text of every work line in order, and the stop before the write shows that whole body and Accept binds its sha256. [M15 am4, released in 0.37.0]
   │
   ▼
 ENDED:  passed · failed · stopped · expired
@@ -344,7 +345,7 @@ still be wrong. So it hears "crooked", never "2mm off".
 
 ## How many rungs
 
-`docs/wiki/the-module-ladder.md` holds **19 main modules (M0 to M19; M18 is withdrawn)** and the sub-rungs under them
+`docs/wiki/the-module-ladder.md` holds **20 main modules (M0 to M19; M18 is withdrawn)** and the sub-rungs under them
 (M0a, M0b, M4a to M4e, M4c-fix, M6a, M8b, M10b). Counts and every signed text are there; this table is only
 the state. M6b was folded into M4e. A rung starts only when its scope, exit and negative are signed by hamr.
 Latest release: **v0.37.0** (2026-11-22).
@@ -373,7 +374,7 @@ Latest release: **v0.37.0** (2026-11-22).
 | M12 | outside tools through MCP, and tickets that start a run | released (0.27.0) |
 | M13 | one setup for outside sources; the job's last line is its write (am11) | released (0.28.0); am11 in 0.35.0 |
 | M14 | the carry memo (memory in one run) | released (0.29.0) |
-| M15 | one friendly `.md` result for every job; one markdown report per run (am3) | released (0.29.0); am3 in 0.36.0 |
+| M15 | one friendly `.md` result for every job; one markdown report per run (am3); a job with no Ask writes every line, as bareloop (am4) | released (0.29.0); am3 in 0.36.0; am4 in 0.37.0 |
 | M16 | one check list (`~` `!` `$`), copied from bareloop v0.56.0 | released (0.33.0); exit signed 2026-11-14 |
 | M17 | one check list for sheets and Tickets; an answer replaces its rule; a column tie asks (am9) | released (0.34.0); am9 in 0.36.0; exit: see the ladder |
 | M18 | search the web for a job | withdrawn by hamr 2026-11-17 (open research is out of scope) |
