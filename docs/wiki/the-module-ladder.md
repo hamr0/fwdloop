@@ -4425,3 +4425,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 3. No code change: these are the words fwd already shows (v0.37.0).
 **Must fail when:** a count row shows any other words; one surface shows different words from another.
 **Done when:** a test pins all four forms and the singular `item`, and fails when any of them is changed. **Cap:** $0.
+
+**M19 amendment 13 — SIGNED by hamr 2026-11-23 ("sign m19 am13 go"), the text exactly as shown (.claude/scratch/min-one-rule/m19-am13-draft.md, sha256 40261085a9ae…):**
+**M19 amendment 13 — a job needs at least one rule of yours (`~`), as bareloop's change road (hamr 2026-11-23 "lazy prompting not allowed").**
+1. A job with no `~` rule of the person's on any line is refused before drafting, at $0, with no AI call. Code counts `~` lines only; no AI judges them. `!` (AI-suggested) and `$` (code default) rows do not count.
+2. The refusal says, in bareloop's words: `Add at least one rule (~) for this job — for example what must stay true, or what must not change.`
+3. Both doors refuse the same way: the panel's Start drafting and the CLI `fwdloop draft`. Every job kind is covered: plain, MCP and Tickets MCP.
+4. A job already signed is unchanged: a green rerun reuses its plan and does not draft. A red run that would draft again is refused with the same words.
+5. This replaces, for drafting only, M4d am30's "No guardrail at all: only the default checks every step already has apply."
+**Must fail when:** a job with zero `~` lines reaches the drafter or spends anything; a job with one `~` line is refused; the panel and the CLI give different words; a `!` or `$` row is counted as a rule.
+**Done when:** a $0 POC on the real draft path (both doors) shows the refusal with zero `~` and a normal draft with one; tests that fail first; the full suite green. **Cap:** $0.
