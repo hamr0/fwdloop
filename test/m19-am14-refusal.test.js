@@ -2,7 +2,7 @@
 // Server: `refusal` is the words after `draft refused at $0 — ` (null without that prefix). Page: a real headless chromium on the real panel, $0 (fake provider).
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
@@ -67,3 +67,25 @@ for (const width of [1280, 390, 320]) {
     if (process.env.FWDLOOP_AM14_SHOTS) await chrome.screenshot(path.join(process.env.FWDLOOP_AM14_SHOTS, `am14-${width}.png`));
   });
 }
+
+// F259: a stopped (refused) draft leaves the boxes to the person: the poll must not write #jf-job back from the old card.
+test('browser: after a $0 refusal the poll leaves a newly typed job alone, and the next Draft sends it', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: ZERO }))).json().draftId;
+  await stopped(w, id);
+  await chrome.open(`http://127.0.0.1:${w.h.port}/`, 1280);
+  assert.ok(await chrome.waitFor('document.getElementById("chat-draft-refusal") && document.getElementById("chat-draft-refusal").textContent !== ""'), 'the refusal shows');
+  const NEW = 'Read the notes and list the open items\n~ lists every open item\nWrite a short summary';
+  await chrome.ev(`(function(){ var b = document.getElementById("jf-job"); b.value = ${JSON.stringify(NEW)}; b.dispatchEvent(new Event("input", {bubbles: true})); return true; })()`);
+  await new Promise((r) => setTimeout(r, 7000));
+  assert.equal(await chrome.ev('document.getElementById("jf-job").value'), NEW, 'the poll did not overwrite the typed job');
+  await chrome.ev('document.getElementById("chat-main-btn").click(); true');
+  const sent = await until(async () => {
+    const ids = readdirSync(path.join(w.root, '.drafts')).filter((d) => d !== id);
+    return ids.length ? ids[0] : null;
+  });
+  assert.equal(JSON.parse(readFileSync(path.join(w.dir(sent), 'card.json'), 'utf8')).job, NEW);
+});
