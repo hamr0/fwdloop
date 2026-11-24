@@ -80,6 +80,8 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
+/** M19 am14b: the prefix of the one log line `bin/fwdloop`'s `refuseDraft` writes (JSON `{box, words}`). */
+const REFUSAL_RECORD = 'fwdloop: refusal-record ';
 
 /** A draft id: `d-` + the start time in base 36 (so ids sort oldest to newest) + 4 random hex. */
 const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
@@ -183,16 +185,23 @@ export function createAuthor(opts) {
   /** The tail of a child's log, scrubbed and without its `fwdloop: ` prefix; '' when there is none. */
   function logTail(dir, rel, keys) {
     const logText = readFileInside(dir, rel);
-    return logText.ok ? scrub(logText.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
+    // the typed refusal record (`refusalOf` reads it) is machine text, never part of what the person is told
+    return logText.ok ? scrub(logText.text, keys).split('\n').filter((l) => !l.startsWith(REFUSAL_RECORD)).join('\n').trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
   }
 
   /**
-   * M19 am14: the words after `draft refused at $0 — ` in a child's scrubbed log tail (the one reader of that line; the page shows them under the Draft button), or null
-   * when the child stopped for any other reason. `say` stays the whole tail.
+   * M19 am14b: the typed refusal `{box, words}` the child's `refuseDraft` wrote as its last `fwdloop: refusal-record {...}` log line (scrubbed), or null when the child
+   * stopped for any other reason. The box is what the refusing check named; the words are never read to find it. `say` stays the whole tail.
    */
   function refusalOf(dir, rel, keys) {
-    const m = /^draft refused at \$0 — ([^\n]*)/.exec(logTail(dir, rel, keys));
-    return m ? m[1].trim() : null;
+    const log = readFileInside(dir, rel);
+    if (!log.ok) return null;
+    const lines = scrub(log.text, keys).split('\n').filter((l) => l.startsWith(REFUSAL_RECORD));
+    if (lines.length === 0) return null;
+    try {
+      const r = JSON.parse(lines[lines.length - 1].slice(REFUSAL_RECORD.length));
+      return { box: typeof r.box === 'string' ? r.box : null, words: String(r.words) };
+    } catch { return null; }
   }
 
   /**
@@ -287,7 +296,7 @@ export function createAuthor(opts) {
       const logRel = `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`;
       return { n, kind, name, phase: 'stopped', say: logTail(dir, logRel, keys) || STOPPED_SAY, refusal: refusalOf(dir, logRel, keys) };
     });
-    const cur = /** @type {{ phase: string, kind: string, say?: string, refusal?: string | null }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
+    const cur = /** @type {{ phase: string, kind: string, say?: string, refusal?: {box: string|null, words: string} | null }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
     // a first plan that asked questions did not end red, it ended by asking (open or answered): its plan-checks line is never the red one (am15 item 3)
     const firstQs = firstQsRead ?? readQuestions(join(dir, 'draft')); // the first plan's questions, read once per poll
     const asked = firstQs.questions.length > 0;

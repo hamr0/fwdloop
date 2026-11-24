@@ -395,28 +395,29 @@ export async function draft({
   if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
   if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known') return fail([`config: actionMode must be check | known, got ${JSON.stringify(actionMode)}`]);
   const parsed = parseSignedText(proseText);
-  if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`));
+  if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`), { box: 'job' });
   const { lines } = parsed;
   let { arbiter } = parsed;
   const ttlReds = unsignedAskTtls(arbiter);
-  if (ttlReds.length) return fail(ttlReds);
+  if (ttlReds.length) return fail(ttlReds, { box: 'job' });
   // M4e amendment 15 item 2: a guardrail that fights itself on words is red at $0, before any provider is built or called.
   const sumReds = checkGuardrailSums(lines);
-  if (sumReds.length) return fail(sumReds);
+  if (sumReds.length) return fail(sumReds, { box: 'job' });
   // M10 amendment 14 item 1: a guardrail on the send line is refused at $0 (the card says it first; a prose file straight to `fwdloop draft` is caught here).
   // M13 am11: with an actionMode the send is the card's tentative one; the refusal is made after the AI says whether the last line is the action (below)
   const sendReds = actionMode === null ? checkSendLineGuardrail(lines, arbiter) : [];
-  if (sendReds.length) return fail(sendReds);
+  if (sendReds.length) return fail(sendReds, { box: 'job' });
   const menu = wiredMenu(skills);
   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
   const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
-  if (!fileFacts.ok) return fail(fileFacts.reds);
+  if (!fileFacts.ok) return fail(fileFacts.reds, { box: 'inputs' });
   // M13 piece 4: with flow type Tickets, a GitHub issues list is a ticket role, not a page: never fetched at draft; the drafter is told it exists and may suggest a label filter.
   // The job's flow type and MCP (server + every tool of its newest OK check) come from the card; the refusals are at $0, before any provider is built.
   const ticketSources = flowType === 'tickets' ? ticketSourcesOf(arbiter.sources) : [];
   const servers = flowType === 'plain' ? [] : (mcpServers ?? userMcpServers());
   const flowReds = ticketReds({ flowType, ticketSources, pick: mcp, servers });
-  if (flowReds.length) return fail(flowReds);
+  // M19 am14b: the Tickets list address is an Inputs line; every other flow red is about the picked MCP
+  if (flowReds.length) return fail(flowReds, { box: flowType === 'tickets' && ticketSources.length === 0 ? 'inputs' : 'mcp' });
 
   let { provider, rates, modelId } = { provider: injected, rates: injectedRates, modelId: injectedModelId };
   let prices = null; // the one price lookup's result (live provider only); the cap check below uses the SAME price
@@ -426,7 +427,7 @@ export async function draft({
         provider, rates, modelId, prices = null,
       } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
     } catch (err) {
-      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
+      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`], { box: 'model' });
     }
   }
 
@@ -436,7 +437,7 @@ export async function draft({
   if (!cat.ok) return fail([`catalogue: ${cat.reds.join('; ')}`]);
   const validationCatalogue = cat.primitives;
   // The hold: the picked model's own Settings prices (or the rates a test injected) times the token bounds - never a table.
-  if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first']);
+  if (!rates) return fail(['price: this round has no price to hold - tick a model in Settings > Providers with both prices first'], { box: 'model' });
   const roundCeiling = ceilingCostUsd(rates);
   // M4d am13: the draft is capped by the card's Cap $ (the cap signed in the prose), the same number the run is capped at.
   // One round at its ceiling must fit that cap, or refuse at $0 before any provider call.
@@ -447,7 +448,7 @@ export async function draft({
   const tooSmall = (ceiling) => (priorUsd > 0
     ? `Cap ${usdText(arbiter.capUsd)} less ${usdText(priorUsd)} already spent on drafting leaves ${usdText(Math.max(0, budgetUsd))}, below one drafting round's worst case for ${modelId}, $${ceiling.toFixed(4)}. Raise Cap $ or pick another model.`
     : capTooSmallText('drafting', arbiter.capUsd, ceiling, modelId));
-  if (roundCeiling > budgetUsd) return fail([tooSmall(roundCeiling)]);
+  if (roundCeiling > budgetUsd) return fail([tooSmall(roundCeiling)], { box: 'capUsd' });
 
   const meterings = [];
   const log = [];
@@ -504,7 +505,7 @@ export async function draft({
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
       if (spentBefore + ceilingCostUsd(rates, sys.length + messages.reduce((n, m) => n + m.content.length, 0) + JSON.stringify(spec.schema).length) > budgetUsd) {
-        if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return { early: fail([tooSmall(roundCeiling)]) }; }
+        if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return { early: fail([tooSmall(roundCeiling)], { box: 'capUsd' }) }; }
         return { early: earlyStop(['the draft budget is spent'], 'budget') };
       }
       /** @type {any} */
@@ -638,7 +639,7 @@ export async function draft({
     const mapCeiling = ceilingCostUsd(rates, mapPrompt({ jobLines: seenLines, label: s.role, text: pg.text }).length + MAP_SYSTEM.length);
     const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     if (spentBefore + mapCeiling > budgetUsd) {
-      if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)]); }
+      if (meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(mapCeiling)], { box: 'capUsd' }); }
     }
     const callModel = makeCallModel('page-map');
     const got0 = await lookAtPage({ label: s.role, text: pg.text, jobLines: seenLines, callModel });
@@ -698,7 +699,7 @@ export async function draft({
     const text = headings === undefined ? facts.sheets[role] : '';
     const spentBefore = meterings.reduce((sum, ev) => sum + (ev.costUsd ?? roundCeiling), 0);
     const hold = ceilingCostUsd(rates, sheetPrompt({ jobLines: sheetJobLines, label: role, text, headings }).length + MAP_SYSTEM.length);
-    if (spentBefore + hold > budgetUsd && meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(hold)]); }
+    if (spentBefore + hold > budgetUsd && meterings.length === 0 && calls === 0) { removeFrozenPages(/** @type {string} */ (draftDir), Object.values(pages).map((q) => q.entry.frozen)); return fail([tooSmall(hold)], { box: 'capUsd' }); }
     const got = await lookAtSheet({ label: role, text, headings, jobLines: sheetJobLines, callModel: makeCallModel('sheet-map') });
     if (!got.ok) {
       const m = sumMeterings(meterings);

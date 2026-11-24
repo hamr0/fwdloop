@@ -5816,7 +5816,7 @@
     var startOverBtn = document.getElementById("chat-startover-btn");
     var reviseBtn = document.getElementById("chat-revise-btn");
     var errEl = document.getElementById("chat-card-error");        // POLL-OWNED: the draft's own sentence (red / stopped)
-    var refusalEl = document.getElementById("chat-draft-refusal");  // POLL-OWNED: a draft refused at $0, in its words (M19 am14)
+    var refusalEl = document.getElementById("chat-draft-refusal");  // POLL-OWNED: the pointer to a refusal under a box, or the words of one with no box (M19 am14b)
     var actionErrEl = document.getElementById("chat-action-error"); // ACTION-OWNED: only a click's refusal; the poll never wipes it
     var progressRow = document.getElementById("chat-progress-row");
     var questionBox = document.getElementById("chat-question");
@@ -7058,6 +7058,24 @@
       if(!sessionLive || reviseOpen || state.phase === "stopped" || state.phase === "red" || typeof jt !== "string" || jt === box.value) return;
       setVal("jf-job", jt); fitCardBoxes();
     }
+    // M19 am14b: the ONE writer of a draft refusal's lines. The box error is painted once per refusal (so a poll never brings back a line the person cleared by pressing Draft).
+    var REFUSAL_POINTER = "Not drafted: fix the red line above.";
+    var refusalKey = "";      // which refusal is painted
+    var refusalBoxEl = null;  // the box error line it was painted into (null: none)
+    function clearRefusal(){
+      if(refusalBoxEl) refusalBoxEl.textContent = "";
+      refusalBoxEl = null; refusalKey = ""; refusalEl.textContent = "";
+    }
+    function paintRefusal(state, r){
+      var key = r ? String(state.draftId) + "|" + r.box + "|" + r.words : "";
+      if(key === refusalKey) return;
+      clearRefusal();
+      refusalKey = key;
+      if(!r) return;
+      var boxEl = r.box ? errElFor(r.box) : null;
+      if(boxEl){ boxEl.textContent = r.words; refusalBoxEl = boxEl; refusalEl.textContent = REFUSAL_POINTER; }
+      else refusalEl.textContent = r.words;
+    }
     function renderActions(state){
       lastState = state;
       renderQuestion(state);
@@ -7066,9 +7084,10 @@
       if(signInfo && state.hash && state.hash !== signInfo.hash){ signInfo = null; signClickedOnce = false; }
       // #chat-card-error is POLL-OWNED: it carries only the draft's own sentence (a red plan or a stopped child), written here and
       // nowhere else. A refused click goes to #chat-action-error, which this function never touches.
-      // M19 am14: a draft refused at $0 shows its words under the Draft button ONLY; the grey card line carries every other sentence
-      var refusal = (state.phase === "stopped" && typeof state.refusal === "string") ? state.refusal : "";
-      refusalEl.textContent = refusal;
+      // M19 am14b: a draft refused at $0 shows its words under the box it is about (red, like "required") with one pointer by the Draft button; a refusal with no box shows
+      // its words under the button. No grey copy: the grey card line carries every other sentence (a red plan from the AI keeps its own).
+      var refusal = (state.phase === "stopped" && state.refusal && typeof state.refusal === "object") ? state.refusal : null;
+      paintRefusal(state, refusal);
       errEl.textContent = (!refusal && (state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
       var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}));
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
@@ -7093,7 +7112,7 @@
       threadKey = ""; thread.innerHTML = "";
       renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
-      refusalEl.textContent = "";
+      clearRefusal();
       progressRow.hidden = true; progressRow.innerHTML = ""; progressHtml = "";
       refreshStartEnabled();
     }
@@ -7101,7 +7120,7 @@
       thread.innerHTML = ""; threadKey = "";
       renderQuestion(null); renderExtras(null);
       errEl.textContent = "";
-      refusalEl.textContent = "";
+      clearRefusal();
       actionErrEl.textContent = "";
       clearFieldErrors();
       stopStart();
@@ -7239,6 +7258,7 @@
       }).catch(function(){ qBusy = false; qSend.disabled = false; qAgree.disabled = false; qDrop.disabled = false; qColumn.disabled = false; qError.textContent = NETWORK_SAY; });
     }
     function doDraft(startedOverFrom){
+      clearRefusal();
       clearFieldErrors();
       chatActionOk();
       // disabled from the click until the reply; unlocked below only if the draft is refused

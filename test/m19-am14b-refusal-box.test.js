@@ -3,7 +3,7 @@
 // A real panel and a real `fwdloop draft` child (no injected provider, fake key, no provider call, $0). Browser parts: real headless chromium.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
@@ -58,8 +58,10 @@ const CASES = {
   // no box: the draft folder already exists, so the drafter's claim refuses (a root / dir / claim refusal belongs to no box). A wrapper makes the folder, then runs the REAL CLI.
   async none() {
     const w = await real();
-    const wrap = path.join(w.work, 'claimed-bin.mjs');
-    writeFileSync(wrap, `import { mkdirSync } from 'node:fs';\nimport { spawnSync } from 'node:child_process';\nconst a = process.argv.slice(2);\nmkdirSync(a[a.indexOf('--out') + 1], { recursive: true });\nprocess.exit(spawnSync(process.execPath, [${JSON.stringify(path.join(HERE, '..', 'bin', 'fwdloop'))}, ...a], { stdio: 'inherit' }).status ?? 1);\n`);
+    // (the script's name must be `fwdloop`: the panel's liveness check only counts a process whose script is named so)
+    mkdirSync(path.join(w.work, 'wrap'));
+    const wrap = path.join(w.work, 'wrap', 'fwdloop');
+    writeFileSync(wrap, `const { mkdirSync } = require('node:fs');\nconst { spawnSync } = require('node:child_process');\nconst a = process.argv.slice(2);\nmkdirSync(a[a.indexOf('--out') + 1], { recursive: true });\nprocess.exit(spawnSync(process.execPath, [${JSON.stringify(path.join(HERE, '..', 'bin', 'fwdloop'))}, ...a], { stdio: 'inherit' }).status ?? 1);\n`);
     const h = remember(await createPanelServer({ port: 0, root: w.root, settings: { home: w.home, env: {} }, author: { loadEnv: () => keysForDoor({ env: w.env, keysHome: w.home }), bin: wrap } }));
     CLOSERS.push(() => h.close());
     const id = (await rq(h.port, { method: 'POST', url: '/api/author/draft', body: w.card({ job: JOB }) })).json().draftId;
