@@ -5,7 +5,6 @@ import { test } from 'node:test';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { signDraft } from '../src/authoring.js';
-import { NO_GUARDRAIL_WORDS } from '../src/checkblock.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { draftingSpent } from '../src/draftspend.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
@@ -103,7 +102,7 @@ test('an input that changed since the draft: the list is not rebuilt on guesswor
   assert.deepEqual(readdirSync(w.dir(id)).sort(), names);
 });
 
-test('Add on a line with no guardrail of the person\'s: the Add is refused with the no-guardrail words, nothing is written, and the plan that was green signs as it was (F251, hamr 2026-11-22 ruling "1": the check block is the one decider; it was Add accepted then signed Not checked)', async () => {
+test('Add on a line with no guardrail of the person\'s (M19 am15 items 1, 2; was F251 refused it): the Add is built through the panel\'s door, its step runs with the check\'s class, a NEW plan is written and signs; Drop returns the step to hitl', async () => {
   const w = await world({ extraEnv: { FWDLOOP_TEST_DRAFT_LEDGER: LEDGER } });
   writeFileSync(path.join(w.inDir, 'resume.md'), '# Resume\n\nJo Doe, a Rust engineer for ten years.\n');
   const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
@@ -111,15 +110,27 @@ test('Add on a line with no guardrail of the person\'s: the Add is refused with 
   await childGone(w, id);
   assert.equal(g.phase, 'green', JSON.stringify(g.reds ?? g));
   assert.equal(g.list.suggested.length, 1);
-  const names = readdirSync(w.dir(id)).sort();
+  const decl0 = JSON.parse(read(w, id, `${g.plan}/declaration.json`));
+  assert.equal(decl0.steps.find((s) => s.fromLine === 3).close.class, 'hitl', 'before the Add the step with no ~ is hitl');
   const r = await w.post(`/api/author/${id}/row-edit`, { op: 'add', key: g.list.suggested[0].key });
-  assert.equal(r.status, 409, r.text);
-  assert.ok(String(r.json().say ?? r.text).includes(NO_GUARDRAIL_WORDS), r.text);
-  assert.deepEqual(readdirSync(w.dir(id)).sort(), names);
-  const decl = JSON.parse(read(w, id, `${g.plan}/declaration.json`));
-  assert.equal(decl.steps.find((s) => s.fromLine === 3).close.class, 'hitl');
-  const signed = signDraft({ dir: path.join(w.dir(id), g.plan), approve: g.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
+  assert.equal(r.status, 200, r.text);
+  const after = await settle(w, id, ['green', 'red', 'stopped']);
+  assert.equal(after.phase, 'green', JSON.stringify(after));
+  assert.notEqual(after.plan, g.plan);
+  const decl = JSON.parse(read(w, id, `${after.plan}/declaration.json`));
+  const cls = decl.steps.find((s) => s.fromLine === 3).close.class;
+  assert.notEqual(cls, 'hitl', 'break: put the F251 gate back and the Add is refused');
+  assert.equal(decl.guardrailClasses['3'], cls);
+  const row = after.list.rows.find((x) => x.by === 'agent' && /Rust engineer/.test(x.text));
+  assert.ok(row && row.drop === true, JSON.stringify(after.list));
+  const signed = signDraft({ dir: path.join(w.dir(id), after.plan), approve: after.hash, signedBy: 'tester', env: {}, sessionDir: w.dir(id) });
   assert.equal(signed.ok, true, JSON.stringify(signed));
+  const drop = await w.post(`/api/author/${id}/row-edit`, { op: 'drop', key: row.key });
+  assert.equal(drop.status, 200, drop.text);
+  const last = await settle(w, id, ['green', 'red', 'stopped']);
+  const decl2 = JSON.parse(read(w, id, `${last.plan}/declaration.json`));
+  assert.equal(decl2.steps.find((s) => s.fromLine === 3).close.class, 'hitl');
+  assert.equal(Object.hasOwn(decl2.guardrailClasses ?? {}, '3'), false);
 });
 
 test('a Revise keeps the last draft\'s Add: the row is still on the list in draft 2, still [agent] with a Drop, and the Revise books no new Suggested for it', async () => {

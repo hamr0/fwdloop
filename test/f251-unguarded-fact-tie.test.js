@@ -1,6 +1,6 @@
-// F251 (docs/logs/FINDINGS.md): a line with no `~` guardrail of the person's own holds no signable check, and ONE place decides it: the check block (src/checkblock.js). The red it came from: the AI's ledger look suggested a phrase fact on
-// the unguarded line 1; the block built its fact part and tied line 2's numbers to it, then the assemble step dropped the part, so `close.numbersFrom: [1]` named a line that checks no quote. The plan is test/support/f251-unguarded-fact-tie
-// (the saved red draft, scrubbed), rebuilt through the real path. $0, no AI.
+// F251 (docs/logs/FINDINGS.md): the red it came from: the AI's ledger look suggested a phrase fact on the unguarded line 1; the block built its fact part and tied line 2's numbers to it, then the assemble step dropped the part,
+// so `close.numbersFrom: [1]` named a line that checks no quote. F251 fixed it by refusing every check on a line with no `~`; M19 am15/am15a replaced that (such a line keeps a built `!` row and the class it gives, so the tie
+// names a line that checks a quote). The test keeps the saved red draft (scrubbed, test/support/f251-unguarded-fact-tie), rebuilt through the real path: the tie and the part must agree. $0, no AI.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { rebuildBlock } from '../src/planrebuild.js';
-import { assembleFromBlock, NO_GUARDRAIL_WORDS } from '../src/blockassemble.js';
+import { assembleFromBlock } from '../src/blockassemble.js';
 import { validateDeclaration } from '../src/declaration.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { WIRED_VERBS } from '../src/primitives.js';
@@ -46,17 +46,16 @@ function setUp(withoutLine1Phrase = false) {
   return { b, built, v, step2: built.declaration.steps.find((/** @type {any} */ s) => s.fromLine === 2) };
 }
 
-test('F251: an AI phrase fact on the unguarded line 1 and a guarded item line 2: the plan passes its own gate, step 2 has no numbersFrom, line 1\'s row is Not checked with the no-guardrail reason', () => {
-  const { b, built, v, step2 } = setUp();
+test('F251 (read through M19 am15a): an AI phrase fact on line 1, which has no ~ of the person\'s, is built from line 1\'s own words, so step 2\'s numbers tie to it and the plan passes its own gate', () => {
+  const { built, v, step2 } = setUp();
   assert.equal(v.ok, true, v.ok ? '' : String(v.reds[0]));
-  assert.equal(Object.hasOwn(step2.close, 'numbersFrom'), false);
+  assert.deepEqual(step2.close.numbersFrom, [1], 'the tie names a line that checks a quote');
   assert.equal(step2.close.itemShape.minItems, 4);
   const row = built.declaration.checkList.find((/** @type {any} */ r) => r.key === 'L1.phrase.research notes');
-  assert.equal(row.state, 'not-checked');
-  assert.equal(row.reason, NO_GUARDRAIL_WORDS);
-  assert.deepEqual(built.notChecked, ['line 1: phrase "Research notes"']);
-  const c = b.block.reconcile();
-  assert.equal(c.map.some((/** @type {any} */ m) => m.line === 1 && c.parts[m.part].class === 'fact'), false, 'the block builds no fact part on a line with no guardrail');
+  assert.equal(row.state, 'built');
+  assert.equal(Object.hasOwn(row, 'reason'), false);
+  assert.deepEqual(built.notChecked, []);
+  assert.equal(built.declaration.steps.find((/** @type {any} */ s) => s.fromLine === 1).close.class, built.declaration.guardrailClasses['1']);
 });
 
 test('F251: an unguarded line before a guarded item line with no fact on it gives the rows it always gave (floor only on line 1, no numbers tie)', () => {

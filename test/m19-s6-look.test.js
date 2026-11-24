@@ -10,7 +10,7 @@ import { kindOfCheck, splitNotChecked, ncRowsOf, LOOK } from '../src/checklook.j
 import { auditChecksOf } from '../src/auditchecks.js';
 import { buildReadout } from '../src/authoring.js';
 import { REASON } from '../src/checkblock.js';
-import { NO_GUARDRAIL_WORDS, ASK_LINE_REASON } from '../src/blockassemble.js';
+import { ASK_LINE_REASON } from '../src/blockassemble.js';
 import { NO_VALUE_WHY } from '../src/ticketrows.js';
 import { dropLine, dropRows, dropSentence } from '../src/pagedropwords.js';
 import { lineRules } from '../src/pagebits.js';
@@ -146,7 +146,7 @@ test('D Must-fail 3: the card and the Job tab read one model: the same signed No
 test('A Must-fail 1: a list reason says "at Accept", never "at the Ask", for a rule that is not on an Ask line', () => {
   const rows = dropRows([{ line: 1, fact: 'Price', word: 'US dollars', reason: 'r1l', other: 'US dollars' }]);
   assert.ok(rows.length > 0);
-  for (const w of [REASON.noPick, REASON.nothingOnPage, NO_GUARDRAIL_WORDS, NO_VALUE_WHY]) {
+  for (const w of [REASON.noPick, REASON.nothingOnPage, NO_VALUE_WHY]) {
     assert.match(w, /judge it at Accept\.$/, w);
     assert.ok(!/at the Ask/.test(w), w);
   }
