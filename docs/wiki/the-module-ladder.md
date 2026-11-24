@@ -4466,3 +4466,11 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 5. A shape (list of items) row still needs a `~` of yours on its line, as bareloop. A step's own Ask line is unchanged.
 **Must fail when:** a `!` row on a no-`~` step cannot be added or dropped; an added `!` row does not sign or its step runs `hitl`; a `$` row on such a step is not built or can be dropped; the drafter alone (no Add) puts a non-`hitl` class on a no-`~` step; any text still says "no guardrail of yours".
 **Done when:** a $0 POC on real saved drafts shows Add then sign passes the plan checks on a no-`~` step and a drafter-invented class is still red; tests that fail first; a practice walk; hamr's walk; the full suite green. **Cap:** $0.
+
+**M19 amendment 15a — SIGNED by hamr 2026-11-24 ("sign m19 am15a"), the text exactly as shown (.claude/scratch/min-one-rule/m19-am15a-draft.md, sha256 ffcecbe70bd5…):**
+**M19 amendment 15a — on a step with no `~` of yours, a `!` check from that step's own words is built by itself, as on any line and as bareloop v0.62.0 (hamr 2026-11-24, ruling "1").**
+1. A `!` row that code builds from the words of the step line itself (no Add needed on a line with a `~`) is built the same way on a step with no `~` of yours: it signs a check without an Add, and its step runs with the class that check gives. You can Drop it, as on any line.
+2. Am15 item 2's "a step with no `~` and no added check stays `hitl`" reads: a step with no `~`, no added check and no check built from its own words stays `hitl`. Am15 item 4's "only where a check you added holds the class" reads: only where a check you added, or one code built from the step's own words, holds the class.
+3. The drafter alone still cannot give such a step a class: a class with no code-built row on that line behind it is a red, as today.
+**Must fail when:** a `!` row from a no-`~` step's own words waits for an Add, or does not sign; its Drop fails or does not return the step to `hitl`; a drafter-written class with no code-built row on the line passes.
+**Done when:** the F257 harness (re-run, not a copy) shows such rows built and signed on real saved drafts, and the drafter-alone red still holds; tests that fail first; the full suite green. **Cap:** $0.
