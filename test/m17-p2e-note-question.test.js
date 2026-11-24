@@ -132,7 +132,7 @@ test('a failed question replays as the same Not checked row', async (t) => {
 
 test('a note row whose line stops being facts-only (its last fact dropped) is no check any more (pins the existing row loop: the row is not built again, no code of its own)', () => {
   const texts = { notes: rd('m14-walk-5/notes.md') };
-  const B = newJobBlock({ texts, // F251: the line has a ~ rule of the person's, so the Add of its fact is a signable check
+  const B = newJobBlock({ texts, // the fixture's ~ is kept as a valid job (M19 am15 lets a no-~ line sign its ! and $ checks)
   jobLines: [{ n: 1, text: 'Find the raised bed and write a note about it', rule: 'must name the raised bed', rules: ['must name the raised bed'] }] });
   B.reconcile();
   B.applyDelta({ edits: [{ op: 'add', kind: 'phrase', line: 1, name: 'raised bed', words: ['Raised bed by the fence'], source: 'notes' }] });

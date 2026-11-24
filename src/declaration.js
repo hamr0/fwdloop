@@ -819,7 +819,7 @@ export function validateDeclaration(declaration, context = {}) {
 
   // --- guardrailClasses (REQUIRED — the harness always writes it; empty {}
   // is fine, missing entirely is not) ------------------------------------
-  // M19 am15 (F257): a line with no `~` of the person's own may carry a class only when the plan's list holds a built `!` check the person Added on that line
+  // M19 am15 (F257): a line with no `~` of the person's own may carry a class only when the plan's list holds a built `!` check on that line (one the person Added, or one code built from the line's own words, M19 am15a)
   const addedLines = new Set((Array.isArray(declaration.checkList) ? declaration.checkList : []).filter((r) => isPlainObject(r) && r.by === 'agent' && r.state === 'built' && r.kind !== 'floor' && Number.isInteger(r.line)).map((r) => r.line));
   let guardrailClasses = {};
   if (!Object.prototype.hasOwnProperty.call(declaration, 'guardrailClasses')) {
