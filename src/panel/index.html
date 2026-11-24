@@ -7054,7 +7054,8 @@
     function syncJobBoxFromSession(state){
       var jt = state && state.card && state.card.job;
       var box = document.getElementById("jf-job");
-      if(!sessionLive || reviseOpen || typeof jt !== "string" || jt === box.value) return;
+      // F259: a red or stopped draft has left the boxes to the person (the card is open to fix and draft again); the poll never writes them back
+      if(!sessionLive || reviseOpen || state.phase === "stopped" || state.phase === "red" || typeof jt !== "string" || jt === box.value) return;
       setVal("jf-job", jt); fitCardBoxes();
     }
     function renderActions(state){

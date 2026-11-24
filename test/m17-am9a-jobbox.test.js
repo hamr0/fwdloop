@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,6 +34,12 @@ test('browser: a live session\'s job box follows the newest card (the rule as an
   const dir = w.dir(id);
   const card = JSON.parse(readFileSync(path.join(dir, 'card.json'), 'utf8'));
   writeFileSync(path.join(dir, 'card-1.json'), `${JSON.stringify({ ...card, job: card.job.replace('~ under $150', '~ under $99') })}\n`);
+  // F259: the answer redraft is a LIVE child (phase `redrafting`); a dead one reads `stopped`, where the poll leaves the boxes to the person
+  const script = path.join(dir, 'fwdloop');   // liveness reads a child as ours only when node's script is named fwdloop
+  writeFileSync(script, 'setTimeout(() => {}, 60000);\n');
+  const live = spawn(process.execPath, [script], { detached: true, stdio: 'ignore' });
+  live.unref();
+  writeFileSync(path.join(dir, 'pid.json'), `${JSON.stringify({ pid: live.pid, startedAt: Date.now() })}\n`);
   writeFileSync(path.join(dir, 'redraft-1.json'), `${JSON.stringify({ fromPlan: 'draft', answers: [] })}\n`);
   assert.ok(await chrome.waitFor('document.getElementById("jf-job").value.indexOf("~ under $99") !== -1 && document.getElementById("jf-job").value.indexOf("~ under $150") === -1'), 'the job box shows the rule as answered');
 });
