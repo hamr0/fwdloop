@@ -1,0 +1,49 @@
+{
+ "label": "p15a",
+ "srcRoot": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/f258/p15a",
+ "drafts": 1264,
+ "withCheckList": 440,
+ "rebuilt": 353,
+ "ineligible": {
+  "no derived ! row on a no-~ line": 317,
+  "rebuild: The inputs of this plan have changed since it was drafted, so its check": 86,
+  "a derived row is on a no-~ line but code did not build it": 36,
+  "rebuild: This plan has no list of checks to change. Nothing was changed.": 1
+ },
+ "eligibleDrafts": 0,
+ "eligibleRows": 0,
+ "bar1": {
+  "rowsBuilt": 0,
+  "rowsNotBuilt": 0,
+  "draftsClassOk": 0,
+  "badClass": [],
+  "noGC": [],
+  "assembleRed": [],
+  "validateRed": [],
+  "indepRed": []
+ },
+ "bar2": {
+  "tried": 0,
+  "ok": 0,
+  "fail": []
+ },
+ "bar3": {
+  "control": 0,
+  "controlRed": [],
+  "a": 0,
+  "b": 0,
+  "aFail": [],
+  "bFail": [],
+  "cForgedPasses": 0,
+  "cForgedRed": 0
+ },
+ "info": {
+  "derivedHeldRows": 0,
+  "derivedStates": {
+   "not-checked": 36
+  },
+  "draftsWithDerivedBuiltAnyKind": 0
+ },
+ "notes": [],
+ "seconds": 99
+}
