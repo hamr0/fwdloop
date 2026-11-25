@@ -246,8 +246,6 @@ export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = nul
   return null;
 }
 
-/** M20 am1 item 9: the word (and whole label) of a cap-halt that cannot be resumed; `signParts` gives `[■]` this word, not "stopped" */
-export const CAPPED_WORD = 'capped';
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
 export const STUCK_LABEL = 'stuck — your answer is saved; the run stopped before using it';
 export const STUCK_LOCK_LABEL = 'stuck — an old resume lock is in the way';
@@ -269,11 +267,12 @@ export const SIGN_WORDS = {
  * opens with the word ("stuck — …") or is the word itself ("passed") loses that repeat, so it is never said twice.
  * `noWord`: a run the human ended on purpose with rerun wears `[✗]` but is never called "failed" (M4b amendment 3),
  * so it shows its plain line alone.
- * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord]
+ * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord] @param {{outcome: string|null|undefined, resumable: boolean}|null} [ending] the run's end row outcome and whether it can be continued
  * @returns {{word: string|null, line: string|null}}
  */
-export function signParts(glyph, label, noWord = false) {
-  const word = noWord ? null : (glyph === '[■]' && label === CAPPED_WORD ? CAPPED_WORD : (SIGN_WORDS[glyph] ?? null));
+export function signParts(glyph, label, noWord = false, ending = null) {
+  // M20 am1 items 1 and 9: a run that has ended reads the word of its ENDING (the one table, src/books.js); a sign alone gives the word for the rest
+  const word = noWord ? null : ((ending && ending.outcome ? endingWord(ending.outcome, ending.resumable) : null) ?? SIGN_WORDS[glyph] ?? null);
   if (word === null) return { word: null, line: label ?? null };
   if (typeof label !== 'string' || label === word) return { word, line: null };
   if (label.startsWith(`${word} — `)) return { word, line: label.slice(word.length + 3) };
@@ -413,7 +412,7 @@ export function computeGlyph({
     }
     if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
     // M20 am1 item 9: a cap-halt that cannot be resumed wears the stop sign with its own word, never "failed (cap-halt)"
-    if (historyRow.outcome === 'cap-halt') return { glyph: '[■]', label: CAPPED_WORD };
+    if (historyRow.outcome === 'cap-halt') return { glyph: '[■]', label: endingWord('cap-halt', false) ?? '' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
@@ -1184,7 +1183,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         runId,
         glyph,
         label,
-        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun', ctx.historyRow ? { outcome: ctx.historyRow.outcome, resumable: ctx.resumable === true } : null),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
@@ -1837,7 +1836,7 @@ export function getRunDetail({
     runId,
     glyph,
     label,
-    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun', ctx.historyRow ? { outcome: ctx.historyRow.outcome, resumable: ctx.resumable === true } : null),
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),

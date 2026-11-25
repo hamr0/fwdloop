@@ -324,6 +324,7 @@ export const HALT_FILE = 'halt.json';
  *   draftRow    a verdict a drafting row of the Audit can carry (anything else reads not-done)
  *   notRunEnd   not an end of a run (a pause, a failed stop, a skipped ticket): learnings wait
  *   word        the Runs list's bold word for it (`null` = none: a run the human ended with rerun)
+ *   wordUnresumed  its word when the run cannot be continued (M20 am1 item 9: a cap-halt with no usable halt.json reads "capped")
  * Outcome (history.jsonl) and verdict (audit.jsonl) are not split: one word means one thing on either book.
  * Not here, by design: the scheduler's own words (busy, monthly-exhausted, refused fire), the closers' verdicts (done, crash,
  * unparseable), and the Run tab's ending sentences (src/summary-words.js stays their one owner).
@@ -332,7 +333,7 @@ export const ENDINGS = Object.freeze({
   complete: { good: true, notFailed: true, word: 'passed' },
   skipped: { notFailed: true, notRunEnd: true, word: 'skipped' },
   stopped: { resumable: true, notFailed: true, open: true, humanNo: true, word: 'stopped' },
-  'cap-halt': { resumable: true, notFailed: true, blocked: true, spendFloor: true, word: 'stopped' },
+  'cap-halt': { resumable: true, notFailed: true, blocked: true, spendFloor: true, word: 'stopped', wordUnresumed: 'capped' },
   rerun: { notFailed: true, word: null },
   'ask-expired': { notFailed: true, blocked: true, open: true, word: 'expired' },
   'ask-timeout': { blocked: true, open: true, word: 'failed' },
@@ -377,8 +378,12 @@ export const isDraftRowVerdict = (/** @type {unknown} */ w) => endingHas(w, 'dra
 export const isNotRunEnd = (/** @type {unknown} */ w) => endingHas(w, 'notRunEnd');
 /** The outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
 export const isResumableEnding = (/** @type {unknown} */ w) => endingHas(w, 'resumable');
-/** the Runs list's bold word for an ending (`null` for none) @param {string} w @returns {string|null} */
-export function endingWord(w) { return Object.hasOwn(ENDINGS, w) ? /** @type {any} */ (ENDINGS)[w].word ?? null : null; }
+/** the Runs list's bold word for an ending (`null` for none); `resumable` false asks the word of a run that cannot be continued @param {string} w @param {boolean} [resumable] @returns {string|null} */
+export function endingWord(w, resumable = true) {
+  if (!Object.hasOwn(ENDINGS, w)) return null;
+  const e = /** @type {any} */ (ENDINGS)[w];
+  return resumable === false && typeof e.wordUnresumed === 'string' ? e.wordUnresumed : e.word ?? null;
+}
 
 /**
  * The ONE rule for "how did this run end": the LAST history row of the run (a run that was stopped or cap-halted and

@@ -11,7 +11,8 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow, makeParkingAskStep } from '../src/runner.js';
 import { sendViaPrimitive } from '../src/send.js';
-import { listRuns, getRunDetail } from '../src/panel/data.js';
+import { listRuns, getRunDetail, signParts } from '../src/panel/data.js';
+import { endingWord } from '../src/books.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 
 killChildrenAfter();
@@ -60,4 +61,15 @@ test('a cap-halt that cannot be resumed wears [■] "capped"; a resumable one ke
     assert.equal(det.glyph, '[■]');
     assert.equal(det.word, 'capped');
   } finally { w.cleanup(); }
+});
+
+test('the word comes from the ENDINGS table by ending; no label string decides the sign', () => {
+  assert.equal(endingWord('cap-halt'), 'stopped');
+  assert.equal(endingWord('cap-halt', false), 'capped');
+  assert.equal(endingWord('stopped', false), 'stopped', 'only a cap-halt has a word of its own when it cannot be continued');
+  assert.equal(signParts('[■]', 'capped').word, 'stopped', 'the label "capped" alone says nothing: the ending decides');
+  assert.equal(signParts('[■]', 'x', false, { outcome: 'cap-halt', resumable: false }).word, 'capped');
+  assert.equal(signParts('[■]', 'x', false, { outcome: 'cap-halt', resumable: true }).word, 'stopped');
+  assert.doesNotMatch(signParts.toString(), /label\s*===\s*['"`]/, 'signParts compares no label to a string');
+  assert.doesNotMatch(readFileSync(path.join(HERE, '..', 'src', 'panel', 'data.js'), 'utf8'), /CAPPED_WORD|['"]capped['"]/, 'no spelling of the word outside the table');
 });
