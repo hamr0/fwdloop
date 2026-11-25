@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { draft } from '../src/drafter.js';
-import { lookAtShape, SHAPE_SYSTEM, shapeLookPrompt } from '../src/shapelook.js';
+import { lookAtShape, parseShapeAnswer, SHAPE_SYSTEM, shapeLookPrompt } from '../src/shapelook.js';
 import { RATES, MODEL } from './drafter-fixture.mjs';
 import { callOf, textOf, router } from './m16-drafter-fixture.mjs';
 
@@ -107,4 +107,10 @@ test('lookAtShape: a 429 waits the vendor\'s stated time ONCE (not an attempt); 
   assert.deepEqual([down.ok, down.attempts, down.reason], [false, 2, 'the call about the shape of the answer failed: fetch failed']);
   const cut = await lookAtShape({ texts: { t: 'y' }, jobLines: job, lineNums: [1], callModel: async () => ({ text: SHAPE_RAW, cutOff: true }) });
   assert.deepEqual([cut.ok, cut.attempts], [false, 2]);
+});
+
+// Break that turns it red: drop the `!Array.isArray(m.shapes)` refusal in parseShapeAnswer (an empty string iterates nothing and would come back ok with a string for shapes).
+test('parseShapeAnswer refuses a shapes value that is not a list', () => {
+  for (const bad of ['{"shapes": ""}', '{"shapes": "x"}', '{"shapes": {}}', '{"shapes": null}', '{}']) assert.deepEqual(parseShapeAnswer(bad), { ok: false }, bad);
+  assert.deepEqual(parseShapeAnswer('{"shapes": []}'), { ok: true, shapes: [] });
 });

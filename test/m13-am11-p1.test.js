@@ -37,7 +37,9 @@ test('am11 item 4: the plan readout marks nothing `added`', () => {
 });
 
 test('am11 item 4: the hint is the new one; no grey added lines on the card', () => {
-  assert.match(PAGE, /Your last line writes the result to the Destination\. Leave it out and fwdloop suggests one\.<\/div>/);
+  // M19 am14 item 3 replaced the hint's words; the signed sentence is pinned in test/m19-am14-refusal.test.js
+  assert.match(PAGE, /The last line writes the result to the Destination\.<\/div>/);
+  assert.doesNotMatch(PAGE, /Leave it out and fwdloop suggests one/);
   assert.doesNotMatch(PAGE, /fwdloop adds the last check and the write/);
   assert.doesNotMatch(PAGE, /jf-added/);
   assert.doesNotMatch(PAGE, /paintAddedEnd/);

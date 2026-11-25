@@ -19,7 +19,7 @@ const make = (/** @type {string[]} */ rules, /** @type {any[]} */ facts, /** @ty
   const allFacts = close.parts.flatMap((/** @type {any} */ p) => p.facts ?? []);
   return { b, rec, allFacts };
 };
-const OWN = ['must name the flights']; // F251: a line with no ~ rule of the person's holds no signable check, so a test of a built `!` row gives its line one
+const OWN = ['must name the flights']; // the fixture's ~ is kept as a valid job (M19 am15 lets a no-~ line sign its ! and $ checks)
 const add = (/** @type {string} */ w) => ({ op: 'add', line: 2, kind: 'phrase', name: w, words: [w] });
 
 test('A: a `!` phrase on the page but in no result row is Not checked, with the look\'s own sentence', () => {

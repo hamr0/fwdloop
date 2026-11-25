@@ -3,8 +3,7 @@
 // Shape: { lines: [ { n, try, passed, tables: [{name, tableSha}], checks: [the signed check objects], claims: <the step's answer>, results: [{id, text, ok, result}], red } ] }.
 // `tables[].tableSha` is the one recorded at the run's start (run.json), the one the check used. Throws away: nothing the check saw; no cell text is kept here.
 import { readLineSection, writeLineSection } from './line-checks.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /**
  * @param {string} runDir @param {{n: number, try: number, checks: any[], closed: {verdict: string, red?: string|null, sheetRecord?: any}}} o

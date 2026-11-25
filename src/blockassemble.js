@@ -18,15 +18,11 @@ export const ASK_LINE_REASON = 'you judge it at the Ask';
  */
 export const SHAPE_ONLY_CLASS = 'green';
 
-// fwd (F251): the no-guardrail words are the check block's (src/checkblock.js), the one writer; re-exported for the readers that import them from here
-export { NO_GUARDRAIL_WORDS } from './checkblock.js';
-
 import { REASON } from './checkblock.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /** a countable part as the picked check the softgreen close runs: its own fields, the rule named `rule` (the inverse of the block's partOfPick) @param {Record<string, any>} part */
 export function pickedOf(part) {
@@ -67,7 +63,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     }
     if (!isRec(st) || !Number.isInteger(n) || !lineSet.has(n)) return st;
     const parts = partsOf(n);
-    // fwd (F251): the check block is the one decider that a line with no ~ guardrail holds no check (src/checkblock.js buildLine), so every part it holds is kept here
+    // the check block is the one decider of which parts a line holds (src/checkblock.js buildLine), so every part it holds is kept here
     const fact = parts.find((p) => p.class === 'fact');
     // M19 S5: the shape part rides the fact part (facts+shape, class green); a line with no fact part takes it only when a class is ruled for it (`shapeOnlyClass`)
     const picks = parts.filter((p) => p.class === 'countable' && p.check !== 'cited' && p.check !== 'numbersFromFacts');
@@ -102,7 +98,8 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
   for (const n of lineSet) {
     const mine = steps.find((/** @type {any} */ st) => isRec(st) && st.fromLine === n);
     // the classes of a list line are code's: a line with no guardrail of the person's has no class entry, whatever the AI sent
-    if (!guarded(n)) { delete guardrailClasses[String(n)]; continue; }
+    // M19 am15 (F257): a line with no guardrail of the person's has a class only when a check the person Added holds it; else no entry (hitl)
+    if (!guarded(n) && (!mine || mine.close.class === 'hitl')) { delete guardrailClasses[String(n)]; continue; }
     if (!mine) continue;
     guardrailClasses[String(n)] = mine.close.class;
   }

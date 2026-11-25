@@ -12,8 +12,7 @@ import { readFileInside } from './flow.js';
 import { readRunInputs } from './runfile.js';
 import { sheetCheckSentence, bareguardChecks } from './sheetchecks.js';
 import { sheetCheckName, sheetFoundWords } from './sheetblock.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /** The sheet inputs any step's `close.sheet` reads, once each, in order. @param {any[]} steps @returns {string[]} */
 export function sheetRolesOf(steps) {

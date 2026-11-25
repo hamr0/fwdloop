@@ -10,7 +10,7 @@ import { signDraft, readQuestions } from '../src/authoring.js';
 import { parseJobBox } from '../src/panel/authorcard.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import {
-  killChildrenAfter, until, world, HERE,
+  killChildrenAfter, untilDraft, world, HERE,
 } from './m4e-world.mjs';
 import { raw } from './fixtures/m10-map/load.mjs';
 
@@ -22,8 +22,8 @@ const jobOf = (rules) => ['Read my resume,', ...rules.map((r) => `~ ${r}`), 'and
 const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'sections', from: 'line 3 rule 1', shape: 'phrase', words: ['Select flight'] }] });
 const READ_RULES = ['under $150', 'not a red-eye', 'nonstop'];
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
-const settleOn = (w, id, phases) => until(async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });
-const childGone = (w, id) => until(() => {
+const settleOn = (w, id, phases) => untilDraft(w.dir, id, async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });
+const childGone = (w, id) => untilDraft(w.dir, id, () => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
 async function askWorld(rules = READ_RULES) {
@@ -34,7 +34,7 @@ async function askWorld(rules = READ_RULES) {
   await childGone(w, id);
   return { w, id, s, card };
 }
-const greenAfter = async (w, id) => { const g = await until(async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; }); await childGone(w, id); return g; };
+const greenAfter = async (w, id) => { const g = await untilDraft(w.dir, id, async () => { const j = await state(w, id); return ['green', 'red', 'stopped'].includes(j?.phase) ? j : null; }); await childGone(w, id); return g; };
 
 test('the draft stops before any drafting round with the look\'s question open; nothing is signable; the question is bareloop\'s words', async () => {
   const { w, id, s } = await askWorld();

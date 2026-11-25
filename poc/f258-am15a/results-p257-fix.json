@@ -1,0 +1,48 @@
+{
+ "label": "p257-fix",
+ "srcRoot": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/f258/p257",
+ "drafts": 1,
+ "withCheckList": 1,
+ "rebuilt": 1,
+ "ineligible": {},
+ "eligibleDrafts": 1,
+ "eligibleRows": 1,
+ "bar1": {
+  "rowsBuilt": 0,
+  "rowsNotBuilt": 1,
+  "draftsClassOk": 0,
+  "badClass": [
+   "x line 1: hitl"
+  ],
+  "noGC": [],
+  "assembleRed": [],
+  "validateRed": [],
+  "indepRed": []
+ },
+ "bar2": {
+  "tried": 1,
+  "ok": 0,
+  "fail": [
+   "x: drop refused: only a check that is on the card can be dropped"
+  ]
+ },
+ "bar3": {
+  "control": 1,
+  "controlRed": [],
+  "a": 1,
+  "b": 1,
+  "aFail": [],
+  "bFail": [],
+  "cForgedPasses": 0,
+  "cForgedRed": 1
+ },
+ "info": {
+  "derivedHeldRows": 0,
+  "derivedStates": {
+   "suggested+held": 1
+  },
+  "draftsWithDerivedBuiltAnyKind": 0
+ },
+ "notes": [],
+ "seconds": 0
+}

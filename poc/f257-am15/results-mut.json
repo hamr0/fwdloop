@@ -1,0 +1,67 @@
+{
+ "label": "mut",
+ "srcRoot": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/f257/proto-mut",
+ "drafts": 1264,
+ "withCheckList": 440,
+ "rebuilt": 353,
+ "notRebuilt": 87,
+ "reproduces": 232,
+ "eligible": 14,
+ "ineligible": {
+  "no suggested row and does not reproduce": 120,
+  "rebuild: The inputs of this plan have changed since it was drafted, so its check": 86,
+  "no suggested ! row on a no-~ line": 218,
+  "rebuild: This plan has no list of checks to change. Nothing was changed.": 1,
+  "does not reproduce its saved plan: The inputs of this plan have changed since it": 1
+ },
+ "bar1": {
+  "attempts": 17,
+  "ok": 17,
+  "classRule": 0,
+  "other": {},
+  "draftsOk": 14,
+  "draftsAllOk": 14,
+  "shapeOfOk": {
+   "badClass": 0,
+   "noRow": 0,
+   "noGC": 0,
+   "indepRed": 0
+  }
+ },
+ "bar2": {
+  "control": 14,
+  "controlRed": 0,
+  "a": 14,
+  "b": 14,
+  "aFail": [],
+  "bFail": []
+ },
+ "bar3": {
+  "tried": 14,
+  "ok": 14,
+  "fail": []
+ },
+ "bar4": {
+  "drafts": 90,
+  "reproducible": 34,
+  "refusedOwn": 34,
+  "other": [],
+  "builtAfterAdd": 0,
+  "addTried": 0
+ },
+ "bar5": {
+  "draftsChecked": 312,
+  "shapeRowsOnNoTilde": 0,
+  "armB": {
+   "drafts": 296,
+   "builderBuilt": 0,
+   "rowsAppeared": 0
+  },
+  "armBforced": {
+   "drafts": 296,
+   "rowsAppeared": 296
+  }
+ },
+ "notes": [],
+ "seconds": 128
+}

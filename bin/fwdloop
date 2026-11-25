@@ -52,6 +52,7 @@ import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
 import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { minRuleRefusal } from '../src/minrule.js';
 import { readRecordFile, readRowChoices, readSheetDropped, readShapeDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
@@ -110,9 +111,15 @@ function takeMonthlyHold({ what, flow, runId, runDir, holdUsd, spentAtHold = 0 }
     });
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
-    fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
+    const words = `${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`;
+    if (what === 'draft') refuseDraft('capUsd', words, words);
+    fail(words);
   }
-  if (!claim.ok) fail(monthlyRefusalText(claim.room));
+  if (!claim.ok) {
+    const words = monthlyRefusalText(claim.room);
+    if (what === 'draft') refuseDraft('capUsd', words, words);
+    fail(words);
+  }
   let settled = false;
   const settle = (why) => {
     if (settled || claim.holdId === null) return;
@@ -139,6 +146,14 @@ function rerunDirs(result, flowDir) {
 
 function fail(message) {
   process.stderr.write(`fwdloop: ${message}\n`);
+  process.exit(1);
+}
+
+// F262: the ONE writer of a draft refusal's typed record. `box` is named by the refusing check's own call site (job | capUsd | model | inputs | null), never read from words.
+// The human line is printed first, unchanged; the record is the last line of the log, one JSON line (so words with a newline stay one line).
+function refuseDraft(box, words, printed = `draft refused at $0 — ${words}`) {
+  process.stderr.write(`fwdloop: ${printed}\n`);
+  process.stderr.write(`fwdloop: refusal-record ${JSON.stringify({ box, words })}\n`);
   process.exit(1);
 }
 
@@ -959,15 +974,16 @@ async function cmdDraft(rest) {
     if (configDoorHome().skip) fail(NO_CONFIG_HOME_REFUSAL);
     try {
       const p = pickTicked(readPriceConfig(), values);
-      if (!p.ok) fail(`draft refused at $0 — ${p.say}`);
+      if (!p.ok) refuseDraft('model', p.say);
       pick = { slot: p.slot, model: p.model };
     } catch (err) {
       if (!(err instanceof ConfigError)) throw err;
-      fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
+      const words = `${err.message} — refusing to draft rather than guess the price. Nothing spent.`;
+      refuseDraft('model', words, words);
     }
     // The key preflight (draftToDir repeats it).
     const refusal = draftKeyRefusal(pick.slot, env);
-    if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
+    if (refusal !== null) refuseDraft('model', refusal);
   } else if (values.model !== undefined) pick = { slot: values.provider, model: values.model };
   // M4d piece 3: the monthly check — one ceiling round, priced from the
   // picked model's own Settings prices (an injected test provider carries its own rates). A model that is not
@@ -978,13 +994,14 @@ async function cmdDraft(rest) {
     if (!rates) {
       if (configDoorHome().skip) fail(NO_CONFIG_HOME_REFUSAL);
       const usable = resolveUsableModel(pick.slot, { config: readPriceConfig(), model: pick.model });
-      if (!usable.ok) fail(`draft refused at $0 — ${usable.say}`);
+      if (!usable.ok) refuseDraft('model', usable.say);
       rates = usable.rates;
     }
     ceiling = ceilingCostUsd(rates);
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
-    fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
+    const words = `${err.message} — refusing to draft rather than guess the price. Nothing spent.`;
+    refuseDraft('model', words, words);
   }
   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
   // the ONE read of the prose file goes through the safe gateway (a symlink or an outside path is refused); draftToDir is handed this read
@@ -993,6 +1010,11 @@ async function cmdDraft(rest) {
   const proseRead = gate.ok
     ? (gate.text.trim() === '' ? { ok: false, red: `prose: "${proseAbs}" is empty` } : gate)
     : { ok: false, red: gate.missing ? `prose: cannot read "${proseAbs}": ENOENT` : `prose: ${gate.red}` };
+  // M19 am13: a job with no `~` rule of the person's is refused here, at $0, before the hold, the draft folder or any provider call (the panel's Start drafting spawns this command and shows these words)
+  if (proseRead.ok) {
+    const noRule = minRuleRefusal(proseRead.text);
+    if (noRule !== null) refuseDraft('job', noRule);
+  }
   const hold = takeMonthlyHold({
     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
   });
@@ -1024,9 +1046,7 @@ async function cmdDraft(rest) {
   });
   const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
   if (!result.wrote) {
-    process.stderr.write(`fwdloop: draft refused at $0 — ${result.reds.join('; ')}\n`);
-    process.exitCode = 1;
-    return;
+    refuseDraft(result.box ?? null, result.reds.join('; '));
   }
   process.stdout.write(`draft dir: ${resolve(values.out)}  cost: ${cost}\n`);
   // M10 piece 3: a draft that stopped to ask what the page look raised is not red: it waits for the person's answers (the panel takes them)

@@ -341,8 +341,8 @@ export function checkShapes(declaration) {
  * safe); an invented proposal is a red, never normalised to hitl.
  * Returns `{ ok: true, class }` or `{ ok: false, error }`.
  */
-function resolveGuardrailClass(line, guardrailClasses) {
-  if (!line || !line.guardrail) {
+function resolveGuardrailClass(line, guardrailClasses, added = new Set()) {
+  if (!line || (!line.guardrail && !added.has(line.n))) {
     return { ok: true, class: 'hitl' };
   }
   const key = String(line.n);
@@ -363,7 +363,7 @@ function resolveGuardrailClass(line, guardrailClasses) {
 /** Same shape as poc/m0/validator.mjs's `deriveFromLine`: a step with no
  *  `fromLine` is silence -> hitl; a malformed or non-existent `fromLine` is
  *  a red; otherwise the class derives from that line's guardrail proposal. */
-function deriveFromLine(fromLine, lines, guardrailClasses) {
+function deriveFromLine(fromLine, lines, guardrailClasses, added = new Set()) {
   if (fromLine === null || fromLine === undefined) {
     return { ok: true, class: 'hitl', line: null };
   }
@@ -374,7 +374,7 @@ function deriveFromLine(fromLine, lines, guardrailClasses) {
   if (!line) {
     return { ok: false, error: `fromLine ${fromLine} does not name any of the signed numbered lines` };
   }
-  const resolved = resolveGuardrailClass(line, guardrailClasses);
+  const resolved = resolveGuardrailClass(line, guardrailClasses, added);
   if (!resolved.ok) return { ok: false, error: resolved.error };
   return { ok: true, class: resolved.class, line };
 }
@@ -819,6 +819,8 @@ export function validateDeclaration(declaration, context = {}) {
 
   // --- guardrailClasses (REQUIRED — the harness always writes it; empty {}
   // is fine, missing entirely is not) ------------------------------------
+  // M19 am15 (F257): a line with no `~` of the person's own may carry a class only when the plan's list holds a built `!` check on that line (one the person Added, or one code built from the line's own words, M19 am15a)
+  const addedLines = new Set((Array.isArray(declaration.checkList) ? declaration.checkList : []).filter((r) => isPlainObject(r) && r.by === 'agent' && r.state === 'built' && r.kind !== 'floor' && Number.isInteger(r.line)).map((r) => r.line));
   let guardrailClasses = {};
   if (!Object.prototype.hasOwnProperty.call(declaration, 'guardrailClasses')) {
     reds.push('declaration: "guardrailClasses" is required (an object keyed by line number; {} is fine)');
@@ -827,7 +829,7 @@ export function validateDeclaration(declaration, context = {}) {
     for (const key of Object.keys(guardrailClasses)) {
       const n = Number(key);
       const line = Number.isInteger(n) ? safeLines.find((l) => l.n === n) : undefined;
-      if (!line || !line.guardrail) {
+      if (!line || (!line.guardrail && !addedLines.has(n))) {
         reds.push(`declaration: guardrailClasses key "${key}" does not name a signed line with a guardrail`);
         continue;
       }
@@ -1032,7 +1034,7 @@ export function validateDeclaration(declaration, context = {}) {
       if (fromLine !== null && typeof fromLine !== 'number') {
         reds.push(`declaration: ${label}.fromLine must be an integer or null`);
       } else {
-        const resolved = deriveFromLine(fromLine, safeLines, guardrailClasses);
+        const resolved = deriveFromLine(fromLine, safeLines, guardrailClasses, addedLines);
         if (!resolved.ok) {
           reds.push(`declaration: ${label} ${resolved.error}`);
         } else {

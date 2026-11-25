@@ -1,8 +1,7 @@
 // M16 (docs/wiki/the-module-ladder.md, "M16" item 2, "a check that reaches the plan is not on the list"): the sign-time and run-start proof that the checks of a plan's list lines are the list's.
 // Equivalent of bareloop src/rubricstep.js@v0.56.0 (3383cce) `listMatchesClose`, read over fwdloop's close fields instead of a rubric-step stage: the checks of one line, in the order the check block
 // builds them, are [close.cited (the fact part)], [close.itemShape (the shape part, M19 S5)], then each entry of close.picked / close.shape.picked, then close.numbersFrom (the numbers tie). A signed row points at one of them by `part: {line, part: <index>}`.
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /**
  * The checks of one step's close in the block's part order. M16 am4: with `withSheet` (a plan whose list has sheet rows) each `close.sheet` check is a part too, after the others.

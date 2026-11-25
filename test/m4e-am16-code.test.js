@@ -58,7 +58,8 @@ test('C3: the CLI and draftToDir refuse the same way, at $0, with no dir (both c
         encoding: 'utf8', env: { PATH: process.env.PATH ?? '', NODE_TEST_CONTEXT: 'child-v8', FWDLOOP_CONFIG_HOME: tickedHome(), ...env },
       });
       assert.notEqual(cli.status, 0, what);
-      assert.equal(cli.stderr, `fwdloop: draft refused at $0 — ${said}\n`, `${what}: the CLI says the same sentence`);
+      // M19 am14b pin moved: the human line is unchanged, and the typed refusal record (box model, the same words) follows it
+      assert.equal(cli.stderr, `fwdloop: draft refused at $0 — ${said}\nfwdloop: refusal-record ${JSON.stringify({ box: 'model', words: said })}\n`, `${what}: the CLI says the same sentence`);
       assert.equal(existsSync(path.join(work, `cli-${what}`)), false, `${what}: nothing written`);
       assert.equal(existsSync(out), false, `${what}: nothing written`);
     }

@@ -33,12 +33,12 @@ import { worstThinkingStatus } from './thinking.js';
 import { citedBrief, toldPicks } from './citedcheck.js';
 import { shapeBriefOf, shapeLineBrief } from './rubricstep.js';
 
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 import { sheetAnswerProps, sheetBrief } from './sheetclaims.js';
 
 import {
   makeProvider, ModelRefusal, sumMeterings, appendSpendRow, classifyModelId, priceRecord,
 } from './provider.js';
+import { isRec } from './isrec.js';
 
 // F27: a provider's `chat/completions` can send HTTP 200 + headers + one byte
 // then nothing — a "zombie stream" that `timeoutMs`'s idle bound never

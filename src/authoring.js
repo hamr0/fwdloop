@@ -390,9 +390,9 @@ export async function draftToDir({
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
 }) {
-  const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
+  const refuse = (reds, box = /** @type {string|null} */ (null)) => ({ ok: false, wrote: false, reds, costUsd: 0, box });
   const nameCheck = checkFlowName(name);
-  if (!nameCheck.ok) return refuse([nameCheck.red]);
+  if (!nameCheck.ok) return refuse([nameCheck.red], 'flowName');
   if (typeof root !== 'string' || root === '') return refuse(['draft: --root <flows dir> is required']);
   // An unsigned draft folder inside the flows root would list as a flow in the panel and Inbox (checked by realpath, at use time).
   const realRoot = realpathOfNew(root);
@@ -410,7 +410,7 @@ export async function draftToDir({
   const injected = provider != null;
   if (!injected) {
     const refusal = draftKeyRefusal(slot, env);
-    if (refusal !== null) return refuse([refusal]);
+    if (refusal !== null) return refuse([refusal], 'model');
   }
   const secrets = keyValues(env, [...new Set([...(keyNames ?? []), ...(typeof slot === 'string' ? [slot] : [])])]);
   if (secrets.some((s) => s.length >= 8 && prose.text.includes(s))) return refuse(['prose: contains an API key value — refused']);
@@ -478,7 +478,7 @@ export async function draftToDir({
   });
   if (result.stop === 'pre-flight') {
     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
-    return refuse(cleanReds(result.reds));
+    return refuse(cleanReds(result.reds), result.box ?? null);
   }
   // M8 item 5a: what was handed is kept once beside the draft (only when a round was actually sent with it); a failure is recorded, never raised.
   try {

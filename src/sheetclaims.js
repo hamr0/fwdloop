@@ -5,8 +5,7 @@
 // Throws away: a check with no claim (a `table` check judges the sheet itself) adds no box; two checks with the same claim name share one box.
 import { rubricVocabulary, claimSchema } from 'bareguard';
 import { bareguardChecks } from './sheetchecks.js';
-
-export const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /**
  * The claim box of every `cells` check in the list: `[{claim, example}]`, one per claim name, in order. `example` is the op's worked-example answer (the box's shape

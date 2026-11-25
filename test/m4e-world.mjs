@@ -122,6 +122,29 @@ export async function until(fn, ms = 20000) {
 }
 
 /**
+ * `until` for a wait on a draft child's result (F261): the deadline is tied to the child, not the clock. While the draft's child process is alive the wait goes on
+ * (up to `hardMs`, so a hung child still fails); once the child is gone, `graceMs` more for the result files to be read. A fixed 20 s timed out under suite load,
+ * when the child was only slow (a loaded machine runs the same draft 5-10x slower).
+ * @param {(id: string) => string} dirOf `w.dir` @param {string} id @param {() => any} fn
+ */
+export async function untilDraft(dirOf, id, fn, { graceMs = 20000, hardMs = 240000 } = {}) {
+  const t0 = Date.now();
+  let lastAlive = t0;
+  const alive = () => {
+    try { const p = JSON.parse(readFileSync(path.join(dirOf(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) === true; } catch { return false; }
+  };
+  for (;;) {
+    const v = await fn(); // eslint-disable-line no-await-in-loop
+    if (v) return v;
+    const now = Date.now();
+    if (alive()) lastAlive = now;
+    if (now - t0 > hardMs) throw new Error(`until (child) hard deadline: ${fn}`);
+    if (now - Math.max(lastAlive, t0) > graceMs) throw new Error(`until timed out, child gone: ${fn}`);
+    await sleep(25); // eslint-disable-line no-await-in-loop
+  }
+}
+
+/**
  * @param {{ limit?: number, mode?: string, keysMode?: number, step?: string, bin?: string, extraEnv?: Record<string,string> }} [o]
  */
 /** The config the world's home starts from (M4d am6: a key row with an address, one ticked model), plus `extra` (e.g. a monthly limit). */

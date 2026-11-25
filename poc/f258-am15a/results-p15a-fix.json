@@ -1,0 +1,44 @@
+{
+ "label": "p15a-fix",
+ "srcRoot": "/home/hamr/PycharmProjects/fwdloop/.claude/scratch/f258/p15a",
+ "drafts": 1,
+ "withCheckList": 1,
+ "rebuilt": 1,
+ "ineligible": {},
+ "eligibleDrafts": 1,
+ "eligibleRows": 1,
+ "bar1": {
+  "rowsBuilt": 1,
+  "rowsNotBuilt": 0,
+  "draftsClassOk": 1,
+  "badClass": [],
+  "noGC": [],
+  "assembleRed": [],
+  "validateRed": [],
+  "indepRed": []
+ },
+ "bar2": {
+  "tried": 1,
+  "ok": 1,
+  "fail": []
+ },
+ "bar3": {
+  "control": 1,
+  "controlRed": [],
+  "a": 1,
+  "b": 1,
+  "aFail": [],
+  "bFail": [],
+  "cForgedPasses": 0,
+  "cForgedRed": 1
+ },
+ "info": {
+  "derivedHeldRows": 0,
+  "derivedStates": {
+   "built": 1
+  },
+  "draftsWithDerivedBuiltAnyKind": 0
+ },
+ "notes": [],
+ "seconds": 0
+}

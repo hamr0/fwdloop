@@ -10,7 +10,7 @@ import { parseJobBox } from '../src/panel/authorcard.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { ruleOfAnswer } from '../src/pageask.js';
 import {
-  killChildrenAfter, until, world, JOB, tmp,
+  killChildrenAfter, untilDraft, world, JOB, tmp,
 } from './m4e-world.mjs';
 import { raw } from './fixtures/m10-map/load.mjs';
 
@@ -22,8 +22,8 @@ const MAP = JSON.stringify({ facts: [...JSON.parse(raw(3)).facts, { name: 'secti
 const READ_RULES = ['under $150', 'not a red-eye', 'nonstop'];
 const PROPOSAL = 'departure time between 05:00 and 23:59';
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
-const settleOn = (w, id, phases) => until(async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });
-const childGone = (w, id) => until(() => {
+const settleOn = (w, id, phases) => untilDraft(w.dir, id, async () => { const j = await state(w, id); return phases.includes(j?.phase) ? j : null; });
+const childGone = (w, id) => untilDraft(w.dir, id, () => {
   try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; }
 });
 async function askWorld(rules = READ_RULES) {

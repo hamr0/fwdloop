@@ -1,0 +1,147 @@
+--- a/bin/fwdloop	2026-11-23 13:32:56.000000000 +0100
++++ b/bin/fwdloop	2026-11-24 13:34:20.072570437 +0100
+@@ -111,9 +111,11 @@
+     });
+   } catch (err) {
+     if (!(err instanceof ConfigError)) throw err;
+-    fail(`${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`);
++    const words = `${err.message} — refusing to start rather than guess the monthly limit. Nothing spent.`;
++    if (what === 'draft') refuseDraft('capUsd', words, words);
++    fail(words);
+   }
+-  if (!claim.ok) fail(monthlyRefusalText(claim.room));
++  if (!claim.ok) { if (what === 'draft') refuseDraft('capUsd', monthlyRefusalText(claim.room), monthlyRefusalText(claim.room)); fail(monthlyRefusalText(claim.room)); }
+   let settled = false;
+   const settle = (why) => {
+     if (settled || claim.holdId === null) return;
+@@ -143,6 +145,14 @@
+   process.exit(1);
+ }
+ 
++// F262: the ONE writer of a draft refusal's typed record. `box` is named by the refusing check's own call site (job | capUsd | model | inputs | null), never read from words.
++// The human line is printed first, unchanged; the record is the last line of the log, one JSON line (so words with a newline stay one line).
++function refuseDraft(box, words, printed = `draft refused at $0 — ${words}`) {
++  process.stderr.write(`fwdloop: ${printed}\n`);
++  process.stderr.write(`fwdloop: refusal-record ${JSON.stringify({ box, words })}\n`);
++  process.exit(1);
++}
++
+ /**
+  * The ONE place a human-typed `--root` becomes a path (hamr ruling
+  * 2026-09-29): resolved to its real path once, at command start. Nothing
+@@ -960,15 +970,16 @@
+     if (configDoorHome().skip) fail(NO_CONFIG_HOME_REFUSAL);
+     try {
+       const p = pickTicked(readPriceConfig(), values);
+-      if (!p.ok) fail(`draft refused at $0 — ${p.say}`);
++      if (!p.ok) refuseDraft('model', p.say);
+       pick = { slot: p.slot, model: p.model };
+     } catch (err) {
+       if (!(err instanceof ConfigError)) throw err;
+-      fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
++      const words = `${err.message} — refusing to draft rather than guess the price. Nothing spent.`;
++      refuseDraft('model', words, words);
+     }
+     // The key preflight (draftToDir repeats it).
+     const refusal = draftKeyRefusal(pick.slot, env);
+-    if (refusal !== null) fail(`draft refused at $0 — ${refusal}`);
++    if (refusal !== null) refuseDraft('model', refusal);
+   } else if (values.model !== undefined) pick = { slot: values.provider, model: values.model };
+   // M4d piece 3: the monthly check — one ceiling round, priced from the
+   // picked model's own Settings prices (an injected test provider carries its own rates). A model that is not
+@@ -979,13 +990,14 @@
+     if (!rates) {
+       if (configDoorHome().skip) fail(NO_CONFIG_HOME_REFUSAL);
+       const usable = resolveUsableModel(pick.slot, { config: readPriceConfig(), model: pick.model });
+-      if (!usable.ok) fail(`draft refused at $0 — ${usable.say}`);
++      if (!usable.ok) refuseDraft('model', usable.say);
+       rates = usable.rates;
+     }
+     ceiling = ceilingCostUsd(rates);
+   } catch (err) {
+     if (!(err instanceof ConfigError)) throw err;
+-    fail(`${err.message} — refusing to draft rather than guess the price. Nothing spent.`);
++    const words = `${err.message} — refusing to draft rather than guess the price. Nothing spent.`;
++    refuseDraft('model', words, words);
+   }
+   // M4d am19 item 1: the hold is what is left of the cap (cap minus this job's drafting so far), the most the draft may spend, not one round
+   // the ONE read of the prose file goes through the safe gateway (a symlink or an outside path is refused); draftToDir is handed this read
+@@ -997,7 +1009,7 @@
+   // M19 am13: a job with no `~` rule of the person's is refused here, at $0, before the hold, the draft folder or any provider call (the panel's Start drafting spawns this command and shows these words)
+   if (proseRead.ok) {
+     const noRule = minRuleRefusal(proseRead.text);
+-    if (noRule !== null) fail(`draft refused at $0 — ${noRule}`);
++    if (noRule !== null) refuseDraft('job', noRule);
+   }
+   const hold = takeMonthlyHold({
+     what: 'draft', flow: values.name, runId: null, runDir: resolve(values.out), holdUsd: draftHoldUsd(proseRead.ok ? proseRead.text : '', resolve(values.out), ceiling),
+@@ -1030,9 +1042,7 @@
+   });
+   const cost = result.costUsd === null ? 'UNKNOWN' : costText(Number(result.costUsd), result.spendComplete);
+   if (!result.wrote) {
+-    process.stderr.write(`fwdloop: draft refused at $0 — ${result.reds.join('; ')}\n`);
+-    process.exitCode = 1;
+-    return;
++    refuseDraft(result.box ?? null, result.reds.join('; '));
+   }
+   process.stdout.write(`draft dir: ${resolve(values.out)}  cost: ${cost}\n`);
+   // M10 piece 3: a draft that stopped to ask what the page look raised is not red: it waits for the person's answers (the panel takes them)
+--- a/src/authoring.js	2026-11-22 23:25:39.000000000 +0100
++++ b/src/authoring.js	2026-11-24 13:34:20.072972704 +0100
+@@ -390,7 +390,7 @@
+   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
+   actionMode = /** @type {null|'check'|'known'} */ (null),
+ }) {
+-  const refuse = (reds) => ({ ok: false, wrote: false, reds, costUsd: 0 });
++  const refuse = (reds, box = null) => ({ ok: false, wrote: false, reds, costUsd: 0, box });
+   const nameCheck = checkFlowName(name);
+   if (!nameCheck.ok) return refuse([nameCheck.red]);
+   if (typeof root !== 'string' || root === '') return refuse(['draft: --root <flows dir> is required']);
+@@ -478,7 +478,7 @@
+   });
+   if (result.stop === 'pre-flight') {
+     try { rmdirSync(dir); } catch { /* the claimed dir is still empty; leave it rather than mask the refusal */ }
+-    return refuse(cleanReds(result.reds));
++    return refuse(cleanReds(result.reds), result.box ?? null);
+   }
+   // M8 item 5a: what was handed is kept once beside the draft (only when a round was actually sent with it); a failure is recorded, never raised.
+   try {
+--- a/src/drafter.js	2026-11-22 23:25:39.000000000 +0100
++++ b/src/drafter.js	2026-11-24 13:34:20.073568107 +0100
+@@ -410,7 +410,7 @@
+   const menu = wiredMenu(skills);
+   // The file inputs are read first, at $0, before a provider is built (a page input is fetched only after the price and cap gates, below).
+   const fileFacts = readInputFacts((arbiter.sources ?? []).filter((s) => s.kind !== 'page'));
+-  if (!fileFacts.ok) return fail(fileFacts.reds);
++  if (!fileFacts.ok) return fail(fileFacts.reds, { box: 'inputs' });
+   // M13 piece 4: with flow type Tickets, a GitHub issues list is a ticket role, not a page: never fetched at draft; the drafter is told it exists and may suggest a label filter.
+   // The job's flow type and MCP (server + every tool of its newest OK check) come from the card; the refusals are at $0, before any provider is built.
+   const ticketSources = flowType === 'tickets' ? ticketSourcesOf(arbiter.sources) : [];
+@@ -426,7 +426,7 @@
+         provider, rates, modelId, prices = null,
+       } = makeProviderFn(slot, { model, env, ...LIVE_PROVIDER_OPTIONS }));
+     } catch (err) {
+-      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`]);
++      return fail([err instanceof ModelRefusal ? err.message : `${err instanceof ConfigError ? 'config' : 'key'}: ${err.message}`], { box: 'model' });
+     }
+   }
+ 
+--- a/src/panel/author.js	2026-11-23 15:18:32.000000000 +0100
++++ b/src/panel/author.js	2026-11-24 13:34:20.074035966 +0100
+@@ -191,8 +191,14 @@
+    * when the child stopped for any other reason. `say` stays the whole tail.
+    */
+   function refusalOf(dir, rel, keys) {
+-    const m = /^draft refused at \$0 — ([^\n]*)/.exec(logTail(dir, rel, keys));
+-    return m ? m[1].trim() : null;
++    const log = readFileInside(dir, rel);
++    if (!log.ok) return null;
++    const lines = scrub(log.text, keys).split('\n').filter((l) => l.startsWith('fwdloop: refusal-record '));
++    if (lines.length === 0) return null;
++    try {
++      const r = JSON.parse(lines[lines.length - 1].slice('fwdloop: refusal-record '.length));
++      return { box: typeof r.box === 'string' ? r.box : null, words: String(r.words) };
++    } catch { return null; }
+   }
+ 
+   /**

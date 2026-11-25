@@ -14,8 +14,7 @@ import { lineRules } from './pagebits.js';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { NO_VALUE_WHY } from './ticketrows.js';
-
-const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+import { isRec } from './isrec.js';
 
 /** the short plain name of each bareguard op (the ONE table; a test fails when bareguard gains an op this table does not name). `noDuplicates` and `noEmpty` add the column. */
 export const SHEET_OP_NAMES = Object.freeze({

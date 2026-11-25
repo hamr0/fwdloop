@@ -7,6 +7,7 @@ import { readDocxText, DOCX_MAX_UNCOMPRESSED_BYTES } from './docx.mjs';
 
 const REAL_PATH = '/home/hamr/Documents/resumes/Amr Hassan - Resume.docx';
 const REAL_SHA256 = '3d6b24a881e5600e1dc2910cdcb11ce6e65c4f6d46c2238d74b4c7a7f7c5beab';
+const REAL_ACTUAL_SHA256 = existsSync(REAL_PATH) ? createHash('sha256').update(readFileSync(REAL_PATH)).digest('hex') : null;
 
 // Bit-by-bit CRC-32, independent of docx.mjs's own implementation, so the
 // synthetic fixture doesn't rely on the module under test to build itself.
@@ -189,7 +190,7 @@ test('negative: truncated docx (cut at 60%) is rejected, never throws', () => {
   }
 });
 
-test('real resume: pinned sha256, extracted text, two known strings', { skip: !existsSync(REAL_PATH) && 'resume file not present (personal file, not in repo)' }, () => {
+test('real resume: pinned sha256, extracted text, two known strings', { skip: !existsSync(REAL_PATH) ? 'resume file not present (personal file, not in repo)' : REAL_ACTUAL_SHA256 !== REAL_SHA256 && `resume file changed since the pin (personal file, not in repo): expected ${REAL_SHA256}, got ${REAL_ACTUAL_SHA256}` }, () => {
   const buf = readFileSync(REAL_PATH);
   const actualSha = createHash('sha256').update(buf).digest('hex');
   assert.equal(

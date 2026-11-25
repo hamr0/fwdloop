@@ -70,10 +70,9 @@ export function checkedLines(declaration, { hasAsk = true, askLines, lines, csvR
       // M10b piece 1: the signed sheet checks, one row each, written by code from the typed fields
       lead = 'The machine recomputes each of these from the saved sheet and compares it with what the step gave:';
       out.push(...(sheet ? [] : sheetCheckRows(st.close.sheet).map((r) => labelled(r, 'agent'))));
-    } else if (cls === 'green' && st.close.itemShape && typeof st.close.itemShape === 'object') {
-      // M19 am11 item 6: a list line states no lead sentence; its checks are the rows below (listPartRows)
     } else if (cls === 'green') {
-      lead = 'Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.';
+      // M19 am11 item 6: a list line (itemShape) states no lead sentence; its checks are the rows below (listPartRows)
+      if (!(st.close.itemShape && typeof st.close.itemShape === 'object')) lead = 'Every figure must cite its source cell, or a formula over cells, and the machine recomputes it and compares it with its source.';
     } else if (cls === 'softgreen') {
       lead = 'The reply is checked as plain text only.';
       if (Number.isInteger(shape.maxWords)) out.push(labelled(`The whole output is under ${shape.maxWords} words.`, 'agent'));
