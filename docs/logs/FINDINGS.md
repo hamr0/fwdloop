@@ -10109,3 +10109,9 @@ Tool: `poc/m20-p1/snapshot.harness.mjs` (commit 444cd877). Run on a `cp -a` of `
 **Bar (am2, as signed).** (a) as F265 (a): while the child runs, the panel API returns the steps so far with exactly one running (fake draft with at least 3 drafting steps in its final list). (b) after the draft ends, the list equals `draftStepList`'s labels and order, and every line with an `id` the step lines hold has a start and an end. (c) a draft with no step lines shows no times.
 **Must fail when:** a time is joined by place instead of `id`; the final list differs from `draftStepList`'s; a new file is written; a line no step line matches shows a time. A fail on the letter stops the build.
 
+### F266 RESULT (2026-11-25, $0, no provider call; `src/`, `bin/`, `test/` untouched; prototype `poc/m20-p2b/`, copy built outside the repo)
+**PASS (a)(b)(c), 2 of 2 tests green.** Child writes `fwdloop: step-start {no,id,label,at}` / `step-end {no,status,label,at}` into `child.log` from one writer over `draftStepList`'s own `id` and label (the `thinking` line and `Fix:` notes get no line).
+- (a) Live (child hung on call 2): `[0 inputs done] [1 drafted running]`, exactly one running.
+- (b) After the end: `draftStepList` = `thinking off`, `inputs`, `drafted · deepseek-flash · 4 rounds · $0.0022`, `plan checks` (4 steps). Joined by id: inputs, drafted, checks each have start and end and the end label equals the list label; `thinking` has no line; no stray line.
+- (c) With the step lines removed from `child.log`, the panel returns `steps: []`.
+- No new file: the draft folder listing is the known set. Not run here: a revert-alone mutation (the build's tests carry it).
