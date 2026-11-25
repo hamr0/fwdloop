@@ -10133,3 +10133,94 @@ Tool: `poc/m20-p1/snapshot.harness.mjs` (commit 444cd877). Run on a `cp -a` of `
 **Verdicts.** ONE-OWNER = one writer and one reader function that everything calls. DRIFT = two or more places read/parse it themselves, or the same fact is derived from it in two or more places (named). EXEMPT = with the M8b/M20 reason. For each DRIFT: the fact, every site, and whether the sites could disagree today (yes/no + how; "unchecked" if not proven). Also noted: any NEW direct reader of an M20-owned file outside the M20 allow-lists.
 **Bar.** Every file name found by the grep, the constants and the templates gets one row.
 **Must fail when:** a verdict has no `file:line`; a claim is read from a comment, not code; a file is left out; anything under `src/`, `bin/` or `test/` changes.
+
+### F268 RESULT (2026-11-25, $0, no provider call; `src/`, `bin/`, `test/` untouched; no test run)
+Method as pre-registered: the name grep, every `*_FILE` constant and template, plus `ls` of a real flows root (`~/.config/fwdloop/flows`) to catch dynamically built names. Every site below was read in code; "unchecked live" = reasoned from the code, not run. 74 names: **32 ONE-OWNER, 29 DRIFT, 13 EXEMPT**. Excluded as M20-owned: audit.jsonl, history.jsonl, halt.json, log.json (both), state.json.
+**Writer = W, reader = R. "sites" are file:line.**
+
+**Run folder**
+| file | W / R | verdict |
+|---|---|---|
+| run.json | W runfile.js:56 (call runner.js:1466). R `readRunRecord` runfile.js:17 + named readers (`readRunModel` flowmodel.js:53, `readRunThinking`, `readRunInputs`); `rerun` read raw at data.js:2039-2041 and memo.js:42-44; `placeRules` raw at placerule.js:382 and :393; `mcp-use.js:33` parses it itself with `readFileSync` | DRIFT |
+| diary.jsonl | W diary.js:34. R diary.js:47 (`readCalls/Tools/Checks/TryStarts`); `mcp-use.js:42` own `readFileSync` + parse | DRIFT (1 site) |
+| spend.jsonl (run + draft) | W `appendSpendRow` provider.js:269 (model-step.js:552, :623; authoring.js:559; author.js:979). R `readSpendRows` provider.js:342 (data.js:938, draftspend.js:68, setup.js:40) | ONE-OWNER |
+| pids.jsonl | W books.js:41. R `readPidRows` books.js:50. "has the run started" = rows exist, decided at authorstart.js:98 and data.js:1069 | DRIFT (fact) |
+| pid.json (draft + start folders) | W spawn.js:44. R `childRunning` spawn.js:60; author.js:1030 own parse + `isFwdloopAlive`; authorstart.js:131 presence | DRIFT |
+| ask.json | W runner.js:1704 (+ legacy ask.js:119). R `readAsk` runner.js:3267; own parses ask.js:417, :495, bin/fwdloop:523, :611; presence authorstart.js:88 | DRIFT |
+| answer.json | W ask.js:531 area (`answerAsk`) + legacy. R `readSavedAnswer` data.js:177; runner.js:2570-2603; ask.js:134, :427, :569 (`brokenAnswerWhy` :311); bin none | DRIFT |
+| answer.<askId>.consumed.json | W runner.js:2632 (rename); legacy ask.js:155 names it by `safeStamp(askedAt)`, not askId. R ask.js:682, :766; data.js:2611 (own parse); presence data.js:166, resume.js:104/:166, runner.js:3208, bin:550 | DRIFT |
+| answer.<askId>.<kind>.<n>.json | W `setAsideAnswer` ask.js:333-347 (runner.js:3165). R none | ONE-OWNER (write-only) |
+| answer.stale.<n>.json | W ask.js:146 only, inside `makeFileAskStep` (exported index.js:19; callers are test/ask.test.js, runner tests, poc/m2/live.mjs; none in src/bin). R none | EXEMPT (legacy in-process ask) |
+| reopen.<askId>.<n>.json | W ask.js:455. R `effectiveExpiresAt` ask.js:366-380 (all callers) | ONE-OWNER |
+| asks/<id>.json | W `writeAskArchive` ask.js:630-641. R ask.js:677 (emits) and :733 (whole) - two parsers, same module | DRIFT (low) |
+| ask.<id>.stopped.json | W runner.js:3158. R ask.js:775 (presence) | ONE-OWNER |
+| state.<id>.stopped.json | W runner.js:3164. R none | ONE-OWNER (write-only) |
+| stop.request | W `requestStop` runner.js:137-139. R `readStopRequest` runner.js:155; unlink :208 | ONE-OWNER |
+| trigger.json | W authorstart.js:226. R `readTriggerRecord` data.js:1045 (data.js:1511, :2107, :2248); own parse data.js:1583; books.js:294-298 copies it into the history row | DRIFT |
+| signed-values.json / -r<n>.json | W runvalues.js:106. R `pickRunValues` runvalues.js:122-135; data.js:1993-2010 lists every version with its own parse | DRIFT |
+| line-checks.json | W line-checks.js:50. R line-checks.js:17, :33 (result.js:107 via `readLineSection`) | ONE-OWNER |
+| learnings.json | W flowmodel.js:68, :77, :89 (`writeOnce`); `takeLearningsRecord` rename :94-96. R `readLearningsRecord` flowmodel.js:104 (data.js:2098); planrebuild.js:227 copies the bytes by name | ONE-OWNER |
+| learn-error.jsonl | W runner.js:787, :1454 (`appendRow`). R none | ONE-OWNER (write-only) |
+| plan.json | W flow.js:759, :799. R `runOwnsPlan` flow.js:981 (existence); content never read | ONE-OWNER |
+| job/prose.txt, job/declaration.json, job/signature.json | W flow.js:795-798 (`writeRunJobCopy` :952), copyRunPlan :755. R `readRunJobCopy` flow.js:1026 (verifies); raw: authortrigger.js:93-94, :314, :365; learnstore.js:213, :216; memo.js:30; flow.js:730-733 | see prose.txt / declaration.json / signature.json |
+| artifacts/<id>.json | W runner.js:618, :627. R runner.js:652; names only learnstore.js:218 | ONE-OWNER |
+| inputs/<frozen> | W runner.js:418, :435. R path rebuilt as `inputs/${basename(entry.frozen)}` at runner.js:494, :718, cited-source.js:31, sheetrun.js:33, :58 | DRIFT |
+| needs-removed-<h>.json | W needsyou.js:24. R data.js:1292 | ONE-OWNER |
+
+**Flow folder**
+| file | W / R | verdict |
+|---|---|---|
+| prose.txt (flow, signed/, job/, draft plan) | W flow.js:550, :556, :688-690, :796; authoring.js:509. R flow.js:857, :1030 (loaders), :733, :1055; panel/author.js:406, :664, :746, :770, :972; authortrigger.js:86, :93; planrebuild.js:50; learnstore.js:216 | DRIFT |
+| declaration.json | W flow.js:551, :557, :689-691, :797; authoring.js:544. R flow.js:858, :1031, :731, :1056; author.js:250, :405, :747; authortrigger.js:86, :94, :314, :365; planrebuild.js:52; learnstore.js:213; memo.js:30; data.js:1934 | DRIFT |
+| signature.json | W flow.js:558, :692, :798. R `signedHashOf` flow.js:586; loaders flow.js:859, :1032; own parse authortrigger.js:84 | DRIFT (low) |
+| signed/ copy | W flow.js:557, :690. R flow.js:1055-1056 | ONE-OWNER |
+| model.json | W `writeModelRecord` flowmodel.js:31. R `readModelRecord` flowmodel.js:19 (9 callers) | ONE-OWNER |
+| setup.jsonl | W `writeSetup` setup.js:145 (authoring.js:682, :698). R `readSetup` setup.js:162 (data.js:1932, :2092, :2151, :2344) | ONE-OWNER |
+| schedule.json | W schedule.js:83-86. R `readSchedule` schedule.js:64. Remover schedule.js:91 | ONE-OWNER |
+| schedule-ledger.jsonl | W `appendOnce` trigger-clock.js:126 and `appendSeen` trigger-files.js:39. R `readRows` trigger-clock.js:120 and `readSeen` trigger-files.js:33 - byte-identical bodies | DRIFT |
+| triggers.jsonl | W `appendOutcome` authortrigger.js:65. R `readOutcomes` authortrigger.js:58 | ONE-OWNER |
+
+**Draft folder (a panel session dir with `draft/`, `draft-<n>/`)**
+| file | W / R | verdict |
+|---|---|---|
+| card.json, card-<n>.json | W author.js:665, :827, :983. R author.js:202, :316, :435; setup.js:105-115 own `readJson`; `CARD_RE` declared twice (author.js:100, setup.js:23); existence draftspend.js:119, :154 | DRIFT (2 rows) |
+| prose-<n>.txt | W author.js:826, :983. R the child, via argv (author.js:377; bin/fwdloop:927) | ONE-OWNER |
+| redraft-<n>.json | W author.js:377 area, :984. R author.js:312, :322, :434, :964; setup.js:118 | DRIFT |
+| revise-<n>.log, redraft-<n>.log | W spawn logPath author.js:384, :835. Name built at author.js:181, :332, :384, :835; regex draftspend.js:304. R author.js:logTail :222, refusalOf :232; draftspend.js `readDraftSteps` :215 | DRIFT (2 rows) |
+| answer-<k>.json | W author.js:891 (`ANSWER_FILE` authoring.js:66). R `readQuestions` authoring.js:112 | ONE-OWNER |
+| questions.json | W authoring.js:517. R `readQuestions` authoring.js:103 (author.js:213, :337, :345, :865; setup.js:72) | ONE-OWNER |
+| not-checked.json | W authoring.js:519 and planrebuild.js:246. R author.js:413, setup.js:129, planrebuild.js:206, :210 (three parsers, two interpreters `notCheckedView` / `notCheckedBlock`) | DRIFT |
+| page-look.json | W authoring.js:520; copy planrebuild.js:227. R planrebuild.js:58 | ONE-OWNER |
+| picks-record.json | W authoring.js:518, planrebuild.js:247. R `readRowChoices` pickrecord.js; raw `kept`: author.js:408, setup.js:84; planrebuild.js:60; authoring.js:653; author.js:396 presence | DRIFT |
+| target.json | W authoring.js:511 (+ planrebuild copy). R author.js:474; bin/fwdloop:1085; authoring.js:634; planrebuild.js:199, :201 | DRIFT (low) |
+| input-facts.json | W authoring.js:545. R bytes only: authoring.js:86, :625 (sign hash); planrebuild.js:200. (`readInputFacts` reads the SOURCE files, not this one) | ONE-OWNER |
+| readout.txt | W authoring.js:546, planrebuild.js:245. R author.js:286 (display), authoring.js:625 (hash) | ONE-OWNER |
+| spec.hash | W authoring.js:586, planrebuild.js:249. R author.js:284; setup.js:36; authoring.js:629 | DRIFT |
+| scrub-leak.red | W authoring.js:583. R author.js:290; setup.js:39; authoring.js:609 | DRIFT |
+| declaration.rejected.json | W authoring.js:553. R author.js:250 | ONE-OWNER |
+| draft-spend.json | W draftspend.js:35. R `readDraftSpend` draftspend.js:48 (draftspend.js:70, setup.js:40) | DRIFT (fact) |
+| started-over-from.json | W author.js:669. R draftspend.js:112 (+ `SESSION_ID_RE`); setup.js:108 | DRIFT |
+| run-of.json | W author.js:671. R author.js:739, :816, :915 (one field) | ONE-OWNER |
+| signed.json, abandoned.json | W author.js:762, :1051. R author.js:205, :204 | ONE-OWNER (2) |
+| start.json (start folders) | W authorstart.js:233 and :270 (two inline writes). R `readStart` authorstart.js:77 | DRIFT (writer) |
+| cleared.json | W authorstart.js:312. R authorstart.js:295 | ONE-OWNER |
+| child.log | W spawn logPath (author.js:676, authorstart.js:241, :276). R tail: author.js:222-226 (drops machine lines), authorstart.js:103-104 (own slice, own `LOG_TAIL_CHARS` copy at :47 and author.js:93); steps draftspend.js:215 | DRIFT |
+
+**Home / outside the three folders**
+config.json W/R config.js:66 (`readConfig`; settings.js:68, mcp-sources.js:32) ONE-OWNER; runs.jsonl monthly.js:42/:60/:66 ONE-OWNER; mcp-checks.jsonl mcp-checks.js:16/:22 ONE-OWNER; learn/ledger.json learnstore.js:52/:68/:87 ONE-OWNER. EXEMPT: panel.log (launcher.js:456, write-only log); `.mcp.json`, `mcp_servers.json`, `claude_desktop_config.json`, `mcp.json` (user files, mcp-sources.js:18, read by the bare-agent finder); the saved Result file `<job>-<date>.md` (the destination, result.js:177, M15); legacy names on disk in older folders with no src/bin reference (git log -S shows only m9 am20/m4e history): clock.jsonl, schedule-inputs.json, schedule-from.json, seen.jsonl, note.txt, note-<n>.txt.
+
+**M20-owned files: new direct readers outside books.js** - none outside the allow-listed files (the guard at test/m20-a1-one-loader.test.js:15 lists runner.js). Still, inside runner.js two parse the books themselves: `sumAuditUsd` runner.js:2252 (a torn audit line returns red; `readAudit` skips it) and the resume path runner.js:2429 (state.json strict; `readRunState` returns null). The `halt.<n>.consumed.json` pattern is written twice: runner.js:3048 and books.js:402. liveness.js:164 only names files for mtime.
+
+### DRIFT list, ranked (could disagree today first; "yes" = reasoned from code, unchecked live)
+1. **Same job?** flow.js:730-735 `planForReuse` (declaration exact, prose via `stripTrigger`) vs authortrigger.js:80-95 `greenRuns` (prose `trimEnd`, no `stripTrigger`) vs data.js:913 `runJobEdited` (signature hash). Yes: a prose that differs only in a trigger line or trailing space.
+2. **A run's job copy read unverified** at authortrigger.js:94, :314, :365; learnstore.js:213, :216; memo.js:30, while `readRunJobCopy` flow.js:1026 refuses a copy that fails its signature. Yes: a hand-edited `job/` copy.
+3. **"A folder that holds no run yet"** runvalues.js:193 (2 names) vs bin/fwdloop:441 (6 names) vs runner.js:399 (ask/answer). Yes: signed-values + `job/` or learnings.json: the CLI calls it not-a-run, `dropUnstartedValues` will not clean it.
+4. **A saved answer is usable** data.js:177 (askId only) vs runner.js:2584-2603 (object + answeredAt) vs ask.js:311, :427. Yes: a hand-placed answer.json with no answeredAt: panel shows it saved, Resume refuses.
+5. **Consumed marker name** ask.js:155 (`safeStamp(askedAt)`) vs runner.js:2632 (askId), read by ask.js:682, :766, data.js:2611. Yes if `makeFileAskStep` were used live; it is not in src/bin.
+6. **signed-values versions** data.js:1993-2010 vs runvalues.js:122-135: Audit lists a name `pickRunValues` rejects. Yes, hand-placed file.
+7. **trigger.json** data.js:1045 (object check) vs data.js:1583 (none) vs books.js:294-298 (history copy). Yes only for a hand-edited non-object file.
+8. **Child alive** author.js:1030 vs spawn.js:60. Yes without /proc (cannot-tell vs 10-minute rule).
+9. **mcp-use.js:33, :42** reads run.json and diary.jsonl past the gateway (follows a symlink, no torn-line rule). Yes for a symlinked file; display only.
+10. **notChecked list**: author.js:413 / setup.js:129 / planrebuild.js:206-210, two interpreters. Unchecked.
+11. **books inside runner.js** (M20 note): runner.js:2252 vs `readAudit` on a torn line. Yes.
+12. No today (structural copies): draft verdict author.js:283 / setup.js:36 / authoring.js:609, :629; draft spend row setup.js:40 vs draftspend.js:68; started-over-from; rerun predicate data.js:2041 / memo.js:44; ledger `readRows`/`readSeen`/`appendOnce`/`appendSeen`; frozen input path (5 sites); revise/redraft log name (4 sites) and `CARD_RE`; `LOG_TAIL_CHARS`; pids "started" (authorstart.js:98, data.js:1069); `asks/` parsers; start.json two writers; target.json name (3 readers); signature `.flow` (authortrigger.js:84); four copies of a tolerant JSON read (planrebuild.js:41, setup.js:25, learnstore.js:190, spawn.js:`readJsonFile`) and of a tolerant JSONL read (books `readLines`, `readRows`, `readSeen`, `readOutcomes`).
