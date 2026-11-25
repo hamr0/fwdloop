@@ -309,6 +309,8 @@ export function readHistory(flowDir) {
 }
 
 /** The two outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
+export const HALT_FILE = 'halt.json';
+
 export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
 
 /**
@@ -327,4 +329,47 @@ export function endRow(historyRows, runDir, runId) {
   const names = readdirInside(runDir, '.');
   const continuing = !names.includes('halt.json') && names.some((n) => /^halt\.\d+\.consumed\.json$/.test(n));
   return continuing ? null : last;
+}
+
+/** The one reader of halt.json (the run is waiting = the file EXISTS, parse or not: see {@link haltFileExists}): `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
+export function readHaltRecord(runDir) {
+  const r = readFileInside(runDir, HALT_FILE);
+  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
+  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
+}
+
+/**
+ * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
+ * hasn't reached an exit path yet (still running, or parked before any
+ * halt/complete), or the file is present but not valid JSON (a torn write),
+ * never a thrown error.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readLog(runDir) {
+  const result = readFileInside(runDir, 'log.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
+ * when the run has never parked, or the file is present but not valid JSON.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readRunState(runDir) {
+  const result = readFileInside(runDir, 'state.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * "Is this run waiting to be resumed?" as the panel's start watcher has always read it: a `halt.json` that EXISTS means
+ * waiting, even when it does not parse (unlike {@link readHaltRecord}, where a torn file is a red). One name for that rule.
+ * @param {string} runDir
+ */
+export function haltFileExists(runDir) {
+  return readFileInside(runDir, HALT_FILE).ok;
 }

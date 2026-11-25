@@ -15,8 +15,9 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { readHistory, readAudit } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import {
-  runFlow, resumeRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop, readHaltRecord,
+  runFlow, resumeRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop,
 } from '../src/runner.js';
+import { readHaltRecord } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { getRunDetail, listRuns } from '../src/panel/data.js';
 import {

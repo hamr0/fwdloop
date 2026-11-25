@@ -13,7 +13,7 @@ import { homedir } from 'node:os';
 import { compareNatural } from './natural.js';
 import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
-import { readAudit, readHistory } from './books.js';
+import { readAudit, readHistory, readLog, endRow } from './books.js';
 import { readChecks } from './diary.js';
 import { readRunInputs } from './runfile.js';
 import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
@@ -207,7 +207,7 @@ export function eventsOfRun(runDir, workflow) {
   const audit = readAudit(runDir);
   const rows = audit.filter(isTry);
   if (!rows.length) return null;
-  const log = jsonIn(runDir, 'log.json') ?? {};
+  const log = readLog(runDir) ?? {};
   const decl = jsonIn(runDir, 'job/declaration.json') ?? { steps: [] };
   const frozen = readRunInputs(runDir);
   const inputs = frozen.ok ? frozen.entries : null;
@@ -307,13 +307,14 @@ export function seedLedger({ root, home }) {
       out.read += 1;
       const runDir = join(flowDir, 'runs', runId);
       try {
-        const log = jsonIn(runDir, 'log.json');
+        const log = readLog(runDir);
         if (log && NOT_A_RUN_END.has(log.outcome)) { out.skipped['still-waiting'] += 1; continue; }
         if (history === null) { out.skipped.unreadable += 1; continue; }
-        const endRow = history.findLast((r) => r?.runId === runId && !NOT_A_RUN_END.has(r.outcome) && Number.isFinite(Date.parse(r.at)));
-        if (!endRow) { out.skipped['no-end'] += 1; continue; }
+        const last = endRow(history, runDir, runId);
+        const end = last && !NOT_A_RUN_END.has(last.outcome) && Number.isFinite(Date.parse(last.at)) ? last : null;
+        if (!end) { out.skipped['no-end'] += 1; continue; }
         if (!log) { out.skipped.unreadable += 1; continue; }
-        todo.push({ workflow, runId, runDir, end: new Date(endRow.at) });
+        todo.push({ workflow, runId, runDir, end: new Date(end.at) });
       } catch { out.skipped.unreadable += 1; }
     }
   }

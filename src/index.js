@@ -11,8 +11,9 @@ export {
   checkFlowName, checkRunId, resolveRunDir, writeFlow, readFlow, listFlowNames, listRunIds, FLOW_FILES,
 } from './flow.js';
 export {
-  runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS, readAsk, readRunState, readLog,
+  runFlow, resumeRun, makeParkingAskStep, STRIKE_LIMIT, MAX_ATTEMPTS, readAsk,
 } from './runner.js';
+export { readRunState, readLog } from './books.js';
 export { closeByClass } from './closers.js';
 export {
   makeFileAskStep, answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,

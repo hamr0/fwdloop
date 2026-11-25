@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { readHistory, readAudit } from '../src/books.js';
+import { readHistory, readAudit, readHaltRecord } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import * as R from '../src/runner.js';
 import { sendViaPrimitive } from '../src/send.js';
@@ -29,7 +29,7 @@ import {
 killChildrenAfter();
 
 const {
-  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop, readHaltRecord,
+  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop,
 } = R;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

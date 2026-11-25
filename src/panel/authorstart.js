@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
-import { readHistory, readPidRows } from '../books.js';
+import { endRow, haltFileExists, readHistory, readPidRows } from '../books.js';
 import {
   PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
@@ -92,14 +92,14 @@ export function createStarter(opts) {
     // A Resume (M4e amendment 4): the run already has book rows from its first leg, so "took over" is read from the halt record
     // (`halt.json`), which only the continuing process consumes — still there means the child has not taken the run yet.
     if (st.kind === 'resume') {
-      const waiting = readFileInside(resolved.runDir, 'halt.json').ok;
+      const waiting = haltFileExists(resolved.runDir);
       if (!waiting) return { ...base, phase: 'started', state: carriedOn() };
       if (alive) return { ...base, phase: 'starting' };
     } else if (readPidRows(resolved.runDir).length > 0) {
       return { ...base, phase: 'started', state: carriedOn() };
     } else if (alive) return { ...base, phase: 'starting' };
     // a SKIPPED run (hamr 2026-10-30) ends before its first pid row, but its history row is a real ending: a grey one, never a refusal
-    if (readHistory(flowDir).some((h) => h.runId === st.runId && h.outcome === 'skipped')) return { ...base, phase: 'started', state: 'ended' };
+    if (endRow(readHistory(flowDir), resolved.runDir, st.runId)?.outcome === 'skipped') return { ...base, phase: 'started', state: 'ended' };
     const log = readFileInside(dir, 'child.log');
     const tail = log.ok ? scrub(log.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
     const say = tail === '' ? ENDED_SAY : (tail.includes(NOTHING_SPENT) ? tail : `${tail}\n${NOTHING_SPENT}`);

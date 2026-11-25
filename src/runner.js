@@ -64,6 +64,7 @@ import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
+  readHaltRecord, readLog, readRunState, HALT_FILE,
 } from './books.js';
 import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
@@ -130,7 +131,7 @@ export const SPEND_TOLERANCE_USD = 1e-9;
 // ---------------------------------------------------------------------------
 
 export const STOP_FILE = 'stop.request';
-export const HALT_FILE = 'halt.json';
+export { HALT_FILE };
 
 /** The panel's one write of a stop request. `'exists'` = already asked, nothing more to do. @param {string} runDir */
 export function requestStop(runDir) {
@@ -205,13 +206,6 @@ function settleStop({
 
 function clearStop(runDir) {
   try { unlinkSync(join(runDir, STOP_FILE)); } catch { /* none pending */ }
-}
-
-/** The one reader of halt.json: `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
-export function readHaltRecord(runDir) {
-  const r = readFileInside(runDir, HALT_FILE);
-  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
-  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
 }
 
 // ---------------------------------------------------------------------------
@@ -3258,33 +3252,6 @@ function attemptEntry(row, modelOutput) {
  *  attempt, red runs included, never just the final artifacts. */
 function writeLog(runDir, payload) {
   writeFileSync(join(runDir, 'log.json'), JSON.stringify(payload, null, 2));
-}
-
-/**
- * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
- * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
- * hasn't reached an exit path yet (still running, or parked before any
- * halt/complete), or the file is present but not valid JSON (a torn write),
- * never a thrown error.
- * @param {string} runDir
- * @returns {any|null}
- */
-export function readLog(runDir) {
-  const result = readFileInside(runDir, 'log.json');
-  if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
-}
-
-/**
- * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
- * when the run has never parked, or the file is present but not valid JSON.
- * @param {string} runDir
- * @returns {any|null}
- */
-export function readRunState(runDir) {
-  const result = readFileInside(runDir, 'state.json');
-  if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
 }
 
 /**

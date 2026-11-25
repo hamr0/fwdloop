@@ -32,10 +32,10 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
-  readAsk, readRunState, readLog, readHaltRecord, stopPending,
+  readAsk, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
 import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';

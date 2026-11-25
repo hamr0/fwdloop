@@ -16,8 +16,9 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readHistory, readAudit } from '../src/books.js';
 import {
-  runFlow, continueRun, makeParkingAskStep, readHaltRecord, requestStop, HALT_FILE,
+  runFlow, continueRun, makeParkingAskStep, requestStop, HALT_FILE,
 } from '../src/runner.js';
+import { readHaltRecord } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { valuesHash, writeRunValues, pickRunValues } from '../src/runvalues.js';
 import {

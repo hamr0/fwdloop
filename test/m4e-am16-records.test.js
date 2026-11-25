@@ -13,14 +13,14 @@ import { spawnSync } from 'node:child_process';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { readHistory, readAudit } from '../src/books.js';
+import { readHistory, readAudit, readHaltRecord } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import * as R from '../src/runner.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { readRuns, spendSummary } from '../src/monthly.js';
 
 const {
-  runFlow, resumeRun, makeParkingAskStep, requestStop, STOP_FILE, HALT_FILE, readHaltRecord,
+  runFlow, resumeRun, makeParkingAskStep, requestStop, STOP_FILE, HALT_FILE,
 } = R;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

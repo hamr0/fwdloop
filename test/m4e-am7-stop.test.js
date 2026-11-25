@@ -16,8 +16,9 @@ import { readHistory, readAudit } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import {
-  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, requestStop, readHaltRecord,
+  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, requestStop,
 } from '../src/runner.js';
+import { readHaltRecord } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { getRunAudit } from '../src/panel/data.js';
 

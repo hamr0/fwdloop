@@ -27,8 +27,9 @@ import {
 } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk, readRunState,
+  runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk,
 } from '../src/runner.js';
+import { readRunState } from '../src/books.js';
 import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
