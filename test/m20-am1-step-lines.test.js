@@ -70,7 +70,7 @@ test('no step lines: no times, no line (an old draft)', () => {
   const dir = dirWith(['fwdloop: something else']);
   assert.deepEqual(withDraftTimes({ dir, running: false, list: LIST }).list.map((x) => x.time), [null, null, null, null, null]);
   assert.equal(withDraftTimes({ dir, running: true, list: null }).draftSoFar, null);
-  assert.equal(draftedLine(dir, { costUsd: 0.1, spendComplete: true }), null);
+  assert.equal(draftedLine({ dir, spentUsd: 0.1, complete: true }), null);
 });
 
 test('a torn line is skipped, the rest is read', () => {
@@ -80,10 +80,17 @@ test('a torn line is skipped, the rest is read', () => {
 
 test('Drafted in M:SS · $X: first start to last end, the draft\'s own spend, "at least" when unpriced, none without a cost', () => {
   const dir = dirWith(LINES);
-  assert.equal(draftedLine(dir, { costUsd: 0.0022, spendComplete: true }), 'Drafted in 0:43 · $0.0022');
-  assert.equal(draftedLine(dir, { costUsd: 0.05, spendComplete: false }), 'Drafted in 0:43 · at least $0.05');
-  assert.equal(draftedLine(dir, { costUsd: null, spendComplete: false }), null);
-  assert.equal(draftedLine(dir, null), null);
+  assert.equal(draftedLine({ dir, spentUsd: 0.0022, complete: true }), 'Drafted in 0:43 \u00B7 $0.0022');
+  assert.equal(draftedLine({ dir, spentUsd: 0.05, complete: false }), 'Drafted in 0:43 \u00B7 at least $0.05');
+  assert.equal(draftedLine({ dir, spentUsd: null, complete: false }), null);
+});
+
+test('Drafted in across a session: first start to last end over the first draft and every revise log', () => {
+  const dir = dirWith(LINES);
+  writeFileSync(path.join(dir, 'revise-1.log'), `${[ev('step-start', { no: 0, id: 'plan', label: 'revise 1', at: iso(100000) }), ev('step-end', { no: 0, status: 'done', label: 'revise 1', at: iso(160000) })].join('\n')}\n`);
+  assert.equal(draftedLine({ dir, spentUsd: 0.01, complete: true }), 'Drafted in 2:40 \u00B7 $0.01');
+  const r = withDraftTimes({ dir, file: 'revise-1.log', wholeId: 'plan', running: false, list: [{ id: 'plan', label: 'revise 1', status: 'done', details: [] }, { id: 'plan-fix', label: 'Fix: x', status: 'done', details: [], note: true }] });
+  assert.deepEqual(r.list.map((x) => x.time), ['took 1:00', null]);
 });
 
 test('the one writer: one start per id, labels from draftStepList, thinking and notes get no line', () => {
@@ -139,4 +146,33 @@ test('the page has no animated dots and prints the time, the so-far line and the
   const page = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
   assert.ok(!page.includes('step-dots'));
   for (const t of ['data-testid="step-time"', 'data-testid="drafting-so-far"', 'data-testid="drafted-line"']) assert.ok(page.includes(t), t);
+});
+
+test('real child: a revise shows its own live list, then times and the session\'s Drafted in line', async () => {
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  await until(async () => (await poll(w, id)())?.phase === 'green', 60000);
+  const first = (await poll(w, id)()).draftedLine;
+  const r = await w.post(`/api/author/${id}/revise`, w.card({ job: JOB, capUsd: '0.30' }));
+  assert.equal(r.status, 202, r.text);
+  const j = await until(async () => { const s = await poll(w, id)(); return s?.revises?.length === 1 && s.revises[0].phase === 'green' && s.draftedLine ? s : null; }, 60000);
+  const rv = j.revises[0];
+  assert.ok(rv.lines.length >= 1);
+  assert.match(rv.lines[0].time, /^took \d+:\d\d$/);
+  assert.ok(readFileSync(path.join(w.dir(id), 'revise-1.log'), 'utf8').includes('fwdloop: step-start '));
+  assert.match(j.draftedLine, /^Drafted in \d+:\d\d \u00B7 (at least )?\$\d/);
+  assert.ok(first && j.draftedLine !== undefined);
+});
+
+test('real child, hung revise (HANGMARK): the revise lists its own started steps, one running, Drafting so far', async () => {
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  await until(async () => (await poll(w, id)())?.phase === 'green', 60000);
+  const r = await w.post(`/api/author/${id}/revise`, w.card({ job: JOB.replace('Read my resume,', 'Read my resume HANGMARK,') }));
+  assert.equal(r.status, 202, r.text);
+  const j = await until(async () => { const s = await poll(w, id)(); return s?.phase === 'revising' && s.revises?.[0]?.lines?.length >= 2 ? s : null; }, 60000);
+  const lines = j.revises[0].lines;
+  assert.equal(lines.filter((l) => l.status === 'running').length, 1);
+  assert.match(lines.find((l) => l.status === 'running').time, /^\d+:\d\d so far$/);
+  assert.match(j.draftSoFar, /^Drafting so far: \d+:[03]0$/);
 });

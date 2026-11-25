@@ -209,11 +209,11 @@ export function makeStepWriter(emit) {
 
 /**
  * Fold the step lines of `<dir>/child.log` into one record per step, oldest first. A line that cannot be parsed is skipped.
- * @param {string} dir the draft folder
+ * @param {string} dir the draft folder @param {string} [file] the child's log: `child.log` (the first draft), `revise-<n>.log` or `redraft-<n>.log`
  * @returns {{no: number, id: string, label: string, status: 'running'|'done'|'failed', startedAt: string, endedAt: string|null, wallMs: number|null}[]}
  */
-export function readDraftSteps(dir) {
-  const r = readFileInside(dir, 'child.log');
+export function readDraftSteps(dir, file = 'child.log') {
+  const r = readFileInside(dir, file);
   if (!r.ok) return [];
   /** @type {Map<number, any>} */
   const byNo = new Map();
@@ -269,11 +269,12 @@ export function draftWallMs(steps) {
  * The ONE owner of the times on the chat's drafting list. While the draft runs the list is the started steps (`no` order, latest label), each `time` "M:SS so far"
  * (a finished one "took M:SS") and `draftSoFar` is "Drafting so far: M:SS". After it ends `list` is `draftStepList`'s list unchanged, each line taking the times of the
  * step line with the same `id` (the first unused, in order); a line no step line matches (thinking, a Fix note) has no time. No lines = no times, `draftSoFar` null.
- * @param {{dir: string, running: boolean, list: any[]|null, nowMs?: number}} p `dir` = the draft folder (its child.log), `list` = draftStepList's list or null
+ * A revise or answer redraft is read from its own log (`file`); its one `plan` line (`reviseStepList`) takes the draft's whole time (`wholeId`).
+ * @param {{dir: string, running: boolean, list: any[]|null, nowMs?: number, file?: string, wholeId?: string}} p `dir` = the draft folder, `file` = the child's log in it, `list` = draftStepList's (or reviseStepList's) list or null
  * @returns {{list: any[]|null, draftSoFar: string|null}}
  */
-export function withDraftTimes({ dir, running, list, nowMs = Date.now() }) {
-  const logged = readDraftSteps(dir);
+export function withDraftTimes({ dir, running, list, nowMs = Date.now(), file = 'child.log', wholeId }) {
+  const logged = readDraftSteps(dir, file);
   const timeOf = (/** @type {any} */ x) => {
     const a = Date.parse(x.startedAt);
     if (!Number.isFinite(a)) return null;
@@ -287,8 +288,10 @@ export function withDraftTimes({ dir, running, list, nowMs = Date.now() }) {
   }
   if (list === null) return { list, draftSoFar: null };
   const used = new Set();
+  const whole = wholeId !== undefined ? draftWallMs(logged) : null;
   return {
     list: list.map((st) => {
+      if (st.id === wholeId) return { ...st, time: whole === null ? null : `took ${mmss(whole)}` };
       const x = logged.find((l) => l.id === st.id && !used.has(l.no));
       if (x) used.add(x.no);
       return { ...st, time: x ? timeOf(x) : null };
@@ -297,14 +300,18 @@ export function withDraftTimes({ dir, running, list, nowMs = Date.now() }) {
   };
 }
 
+/** the logs of every draft of a session folder: the first draft's `child.log`, then each revise's and answer redraft's own */
+const draftLogFiles = (/** @type {string} */ dir) => ['child.log', ...readdirInside(dir, '.').filter((n) => /^(revise|redraft)-\d+\.log$/.test(n))];
+
 /**
- * The plan card's one line: "Drafted in M:SS · $X", the drafting's whole time ({@link draftWallMs}) and the draft's own spend (its log.json: `costUsd`; "at least"
- * when a call was unpriced). `null` when the draft has no step line with a time or its cost is not a number (a Reuse, an old draft): nothing is made up.
- * @param {string} dir the draft folder (child.log) @param {any} log the plan's log.json, parsed
+ * The plan card's one line: "Drafted in M:SS · $X". The time is the session's first step start to its last step end across ALL its drafts (the first, each revise,
+ * each answer redraft); the money is the session's drafting spend (`draftingSpent`, handed in as `spentUsd`; "at least" when `complete` is false). `null` when no
+ * step line has a time or the spend is not a number (a Reuse, an old draft, a session that never knew its cost): nothing is made up.
+ * @param {{dir: string, spentUsd: number|null, complete: boolean}} p `dir` = the session's draft folder
  * @returns {string|null}
  */
-export function draftedLine(dir, log) {
-  const ms = draftWallMs(readDraftSteps(dir));
-  if (ms === null || log === null || typeof log !== 'object' || typeof log.costUsd !== 'number') return null;
-  return `Drafted in ${mmss(ms)} \u00B7 ${log.spendComplete === false ? 'at least ' : ''}${usdText(log.costUsd)}`;
+export function draftedLine({ dir, spentUsd, complete }) {
+  const ms = draftWallMs(draftLogFiles(dir).flatMap((f) => readDraftSteps(dir, f)));
+  if (ms === null || typeof spentUsd !== 'number') return null;
+  return `Drafted in ${mmss(ms)} \u00B7 ${complete ? '' : 'at least '}${usdText(spentUsd)}`;
 }

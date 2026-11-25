@@ -6039,10 +6039,12 @@
             // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one; the server names each one (`rv.name`) and, from the plan's own log,
             // writes its line (`rv.lines`, src/draft-steps.js `reviseStepList`): one line, facts joined by " · ", a red one with one plain reason and a Fix line (am15)
             var label = rv.name || (rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1));
-            if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
+            if(rv.phase === "running" && !(Array.isArray(rv.lines) && rv.lines.length)) out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
             else if(Array.isArray(rv.lines) && rv.lines.length){
+              // M20 am1 item 5: a running revise lists its own started steps (its step lines), like the first draft
               rv.lines.forEach(function(l){
-                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : "done", details: []};
+                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : (l.status === "running" ? "running" : "done"), details: []};
+                if(typeof l.time === "string" && l.time) row.time = l.time;
                 if(l.note === true) row.note = true;
                 out.push(row);
               });

@@ -47,3 +47,39 @@ test('browser: live and ended drafting list, no dots, "Drafted in", 1280 / 390 /
     assert.deepEqual(s, { doc: true, bad: [] }, `no spill at ${width}`);
   }
 });
+
+test('browser: a revise lists its own live steps and, ended, the session\'s Drafted in line, 1280 / 390 / 320 wide', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
+  await until(async () => (await state(w, id))?.phase === 'green');
+  const hung = BOX_JOB.replace('Read my resume,', 'Read my resume HANGMARK,');
+  assert.notEqual(hung, BOX_JOB);
+  assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job: hung }))).status, 202);
+  await until(async () => (await state(w, id))?.revises?.[0]?.lines?.length >= 2);
+  for (const width of [1280, 390, 320]) {
+    await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+    assert.ok(await chrome.waitFor('document.querySelectorAll("#chat-progress-row .step.run").length === 1 && !!document.querySelector("[data-testid=drafting-so-far]")'), `live revise at ${width}`);
+    assert.ok(await chrome.ev('document.querySelector("#chat-progress-row .step.run [data-testid=step-time]").textContent.endsWith("so far")'));
+    assert.deepEqual(JSON.parse(await chrome.ev(SPILL)), { doc: true, bad: [] }, `no spill at ${width}`);
+  }
+});
+
+test('browser: after a revise ends, Drafted in shows (session time and spend)', { skip: SKIP && 'no browser' }, async (t) => {
+  const chrome = await launchChrome();
+  if (!chrome) { t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
+  await until(async () => (await state(w, id))?.phase === 'green');
+  assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job: BOX_JOB, capUsd: '0.30' }))).status, 202);
+  await until(async () => { const j = await state(w, id); return j?.phase === 'green' && j.revises?.length === 1 ? j : null; });
+  for (const width of [1280, 390, 320]) {
+    await chrome.open(`http://127.0.0.1:${w.h.port}/`, width);
+    assert.ok(await chrome.waitFor('!!document.querySelector("[data-testid=drafted-line]")'), `drafted line at ${width}`);
+    assert.match(await chrome.ev('document.querySelector("[data-testid=drafted-line]").textContent'), /^Drafted in \d+:\d\d \u00B7 (at least )?\$\d/);
+    assert.deepEqual(JSON.parse(await chrome.ev(SPILL)), { doc: true, bad: [] }, `no spill at ${width}`);
+  }
+});

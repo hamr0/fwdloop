@@ -166,16 +166,32 @@ export function createAuthor(opts) {
    */
   function readDraft(dir, id, keys) {
     const v = readDraftState(dir, id, keys);
-    // M20 am1 items 5-6: the times of the first draft's list and its "Drafted in" line, from the step lines in child.log (src/draftspend.js, the one owner); an old draft has none
-    if (v.phase !== 'drafting' && !Array.isArray(v.stepList)) return v;
-    if (v.plan !== undefined && v.plan !== 'draft') return v;
-    const timed = withDraftTimes({ dir, running: v.phase === 'drafting', list: Array.isArray(v.stepList) ? v.stepList : null });
+    // M20 am1 items 5-6: the times of every draft's list (the first, each revise and answer redraft: each reads its own child log) and the session's "Drafted in" line,
+    // from the step lines (src/draftspend.js, the one owner); an old draft has none
     const sc = (x) => scrub(String(x), keys);
     const out = { ...v };
-    if (timed.list !== null) out.stepList = timed.list.map((l) => ({ ...l, label: sc(l.label) }));
-    if (timed.draftSoFar !== null) out.draftSoFar = timed.draftSoFar;
-    if (v.phase === 'green' && !(Array.isArray(v.revises) && v.revises.length > 0)) {
-      const line = draftedLine(dir, readDraftLog(dir, 'draft'));
+    if ((v.phase === 'drafting' || Array.isArray(v.stepList)) && (v.plan === undefined || v.plan === 'draft')) {
+      const timed = withDraftTimes({ dir, running: v.phase === 'drafting', list: Array.isArray(v.stepList) ? v.stepList : null });
+      if (timed.list !== null) out.stepList = timed.list.map((l) => ({ ...l, label: sc(l.label) }));
+      if (timed.draftSoFar !== null) out.draftSoFar = timed.draftSoFar;
+    }
+    if (Array.isArray(v.revises)) {
+      out.revises = v.revises.map((rv) => {
+        const file = `${rv.kind === 'answers' ? 'redraft' : 'revise'}-${rv.n}.log`;
+        if (rv.phase === 'running') {
+          const t = withDraftTimes({ dir, file, running: true, list: null });
+          if (t.draftSoFar !== null) out.draftSoFar = t.draftSoFar;
+          return t.list === null ? rv : { ...rv, lines: t.list.map((l) => ({ ...l, label: sc(l.label) })) };
+        }
+        if (!Array.isArray(rv.lines)) return rv;
+        return { ...rv, lines: withDraftTimes({ dir, file, running: false, list: rv.lines, wholeId: 'plan' }).list };
+      });
+    }
+    if (v.phase === 'green') {
+      // the money is the session's drafting spend from the one session reader; a session none of whose plans knew its cost shows no line (never a number made of ceilings)
+      const known = readdirInside(dir, '.').some((n) => (n === 'draft' || PLAN_DIR_RE.test(n)) && typeof readDraftLog(dir, n)?.costUsd === 'number');
+      const spent = draftingSpent(dir, { ceilingUsd: capFloorFor(true, home, v.card) });
+      const line = draftedLine({ dir, spentUsd: known ? spent.usd : null, complete: spent.complete });
       if (line !== null) out.draftedLine = line;
     }
     return out;
