@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 
 import { readFileInside } from '../flow.js';
+import { isFailedEnding, isRedTry } from '../books.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { notCheckedLabelOf } from '../checked.js';
@@ -41,8 +42,6 @@ export const RESULT_YOU_CONFIRMED = '(you confirmed)';
 export const RESULT_DOOR_HEAD = 'waiting for you';
 export const RESULT_DOOR_ASK = 'the checks passed; is this what you wanted?';
 
-/** end-row outcomes that are not a failure of the job */
-const NOT_FAILED = new Set(['complete', 'stopped', 'cap-halt', 'rerun', 'ask-expired']);
 const FACT_KINDS = new Set(['phrase', 'value']);
 const isInt = (x) => Number.isInteger(x);
 const isStr = (x) => typeof x === 'string';
@@ -325,8 +324,8 @@ export function buildResult({
   // a run that failed delivered nothing: say its own first gap, never rows. A stop, a cap halt, a rerun and an expired ask are not a failure (the same
   // set `computeGlyph` colours `[✗]` by exclusion); a pause has no end row at all.
   let gap = null;
-  if (historyRow && !NOT_FAILED.has(historyRow.outcome)) {
-    const redRow = auditRows.findLast((r) => r.verdict === 'red' || r.verdict === 'not-done');
+  if (historyRow && isFailedEnding(historyRow.outcome)) {
+    const redRow = auditRows.findLast((r) => isRedTry(r.verdict));
     gap = gapOf(isStr(logJson?.red) && logJson.red !== '' ? logJson.red : (redRow ? `${redRow.step}: ${redRow.gap}` : null));
   }
   const pages = [...new Set(urls.values())];

@@ -63,10 +63,10 @@ import { citedLineOf, writeCitedLine, quotesOfLines } from './cited-record.js';
 import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
-  appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
-  readHaltRecord, readLog, readRunState, HALT_FILE,
+  appendAudit, appendHistory, readAudit, readHistory, endRow,
+  readHaltRecord, readLog, readRunState, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
 } from './books.js';
-import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun, placeSpecOf } from './learnstore.js';
+import { learnAtRunEnd, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
@@ -774,7 +774,7 @@ export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 function recordRunNotes({
   flowName, runId, runDir, outcome, now,
 }) {
-  if (NOT_A_RUN_END.has(outcome)) return;
+  if (isNotRunEnd(outcome)) return; // M8 am4 item 2 / M12 p3: a pause, a failed stop and a skipped ticket are not a run end (src/books.js ENDINGS)
   const door = configDoorHome();
   if (door.skip) return;
   try {
@@ -1210,7 +1210,7 @@ async function runStepTries({
     tryChecks.push(...closeRecords(step, artifact, closed, checkList, jobLines));
     saveTry();
 
-    if (closed.verdict === 'green' || closed.verdict === 'hitl') {
+    if (isGoodEnding(closed.verdict)) {
       recordAudit(rowOf({
         step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
@@ -1625,7 +1625,7 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
 function lastTryNumber(runDir, stepId) {
   let last = 0;
   for (const r of readAudit(runDir)) {
-    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && r.attempt > last) last = r.attempt;
+    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && !isStopNote(r.verdict) && r.attempt > last) last = r.attempt;
   }
   return last;
 }
@@ -3308,8 +3308,7 @@ function haltRun({
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
   // times the whole run, pauses included, never just the halting process.
   const wallMs = nowMs() - startedAt;
-  const spendComplete = priorSpendComplete
-    && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
+  const spendComplete = priorSpendComplete && !isSpendFloorEnding(outcome);
   mkdirSync(flowDir, { recursive: true });
   try {
     if (existsSync(runDir)) {
@@ -3318,7 +3317,7 @@ function haltRun({
         runId, outcome, red, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), attempts, artifacts,
       });
       // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
-      if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+      if (resumeAt && isResumableEnding(outcome)) {
         writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
           runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
           stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],

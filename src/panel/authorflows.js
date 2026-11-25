@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { scrub } from '../authoring.js';
 import { ticketSourcesOf } from '../ticket-draft.js';
 import { flowTypeOf } from '../declaration.js';
-import { endRow, readHistory } from '../books.js';
+import { endRow, readHistory, isGoodEnding } from '../books.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { loadCatalogue } from '../catalogue.js';
 import { ConfigError, readConfig } from '../config.js';
@@ -141,7 +141,7 @@ export function createFlowsDoor(opts) {
       if (!r.ok) continue;
       const end = endRow(history, r.runDir, id);
       if (end === null) continue;   // not ended (running, parked, died): neither green nor not green
-      if (end.outcome === 'complete') {
+      if (isGoodEnding(end.outcome)) {
         green += 1;
         passed.push({ runId: id, ...runValuesOf(read, name, r.runDir), sources: sourcesOf(r.runDir, roles, pageAddressesOf(read.arbiter)) });
       } else notGreen += 1;

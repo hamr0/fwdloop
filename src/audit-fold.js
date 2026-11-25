@@ -2,10 +2,11 @@
 // (audit.jsonl's try rows + the three diaries in src/diary.js). Nothing here calls a model ($0 replay), and the page only draws what this returns,
 // so the Audit rows, the summary and the cards can only agree. A run from before am29 has no diaries: no fold, `—` on the new lines, nothing made up.
 import { readCalls, readTools, readChecks } from './diary.js';
+import { isStopNote, isHumanNo } from './books.js';
 
 /** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). @param {any} r */
 export function isTryRow(r) {
-  return r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && !(r.verdict === 'stopped' && !Number.isInteger(r.attempt));
+  return !isStopNote(r.verdict) && !(r.verdict === 'stopped' && !Number.isInteger(r.attempt));
 }
 
 /** @param {string} runDir */
@@ -95,7 +96,7 @@ export function deriveFold(group, d, info = {}) {
           tries.push(open);
         }
         open.answer = humanWords(r);
-        open.mark = r.verdict === 'green' ? '✓' : (r.verdict === 'red' || r.verdict === 'stopped' ? '✗' : '·');
+        open.mark = r.verdict === 'green' ? '✓' : (isHumanNo(r.verdict) ? '✗' : '·');
       }
     }
     for (const r of group.rows) {

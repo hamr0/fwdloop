@@ -32,7 +32,8 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord,
+  endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
   readAsk, stopPending,
@@ -257,7 +258,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped', '[–]': 'skipped',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': endingWord('ask-expired') ?? '', '[?]': 'crashed', '[✓]': endingWord('complete') ?? '', '[✗]': endingWord('red') ?? '', '[■]': endingWord('stopped') ?? '', '[–]': endingWord('skipped') ?? '',
 };
 
 /**
@@ -402,7 +403,7 @@ export function computeGlyph({
     // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one: grey, never failed
     if (historyRow.outcome === 'skipped') return { glyph: '[–]', label: typeof historyRow.skipReason === 'string' && historyRow.skipReason !== '' ? `skipped — ${historyRow.skipReason}` : 'skipped' };
     // M6 amendment 4: a stopped (or cap-halted) run whose job was edited and signed since cannot be resumed; the words say so.
-    if (jobEdited === true && (historyRow.outcome === 'stopped' || historyRow.outcome === 'cap-halt')) return { glyph: '[■]', label: JOB_EDITED_LINE };
+    if (jobEdited === true && isResumableEnding(historyRow.outcome)) return { glyph: '[■]', label: JOB_EDITED_LINE };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
     if (historyRow.outcome === 'stopped') {
       return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}${STOPPED_AT_ASK_START_RE.test(stoppedAtAsk) ? ';' : ' —'} Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
@@ -670,11 +671,8 @@ export function deriveAuditAtWhy(row) {
  * @param {string|null|undefined} verdict
  * @returns {boolean}
  */
-const BLOCKED_VERDICTS = new Set([
-  'not-done', 'red', 'refused', 'ask-timeout', 'ask-expired', 'cap-halt', 'provider-red', 'pricing-red', 'close-casualty',
-]);
 export function isBlockedVerdict(verdict) {
-  return typeof verdict === 'string' && BLOCKED_VERDICTS.has(verdict);
+  return isBlockedEnding(verdict);
 }
 
 /**
@@ -694,8 +692,8 @@ export function isBlockedVerdict(verdict) {
  */
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
-  if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed' || verdict === 'stop-asked' || verdict === 'stopped' || verdict === 'stop-not-honoured') return '·';
+  if (isGoodEnding(verdict)) return '✓';
+  if (isOpenEnding(verdict)) return '·';
   return '✗';
 }
 
@@ -760,11 +758,11 @@ function auditStepName(step) {
  */
 export function deriveStepGroupState(rows) {
   // a Stop's notes (asked / not honoured) say nothing about the step's own state; a step with only notes reads as stopped
-  const own = rows.filter((r) => r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured');
+  const own = rows.filter((r) => !isStopNote(r.verdict));
   const last = own.length > 0 ? own[own.length - 1] : rows[rows.length - 1];
-  if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
+  if (isWaitingEnding(last.verdict)) return 'waiting';
   if (last.verdict === 'stopped') return 'user-stopped';
-  return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
+  return isGoodEnding(last.verdict) ? 'done' : 'stopped';
 }
 
 /**
@@ -1755,7 +1753,7 @@ export function getRunDetail({
     // recent stop is the one that actually describes where the run sits now.
     let redRow = null;
     for (const r of ctx.auditRows) {
-      if (r.verdict === 'not-done' || r.verdict === 'red') redRow = r;
+      if (isRedTry(r.verdict)) redRow = r;
     }
     if (redRow) {
       stopReason = `${redRow.step}: ${redRow.gap}`;
@@ -1919,7 +1917,7 @@ export function getDraftBlock(flowDir, runDir) {
     attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
   });
   const model = (r, attempt, label) => ({
-    attempt, step: 'drafting', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
+    attempt, step: 'drafting', class: null, verdict: isDraftRowVerdict(r.verdict) ? r.verdict : 'not-done', gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
     action: `${label} · ${r.model ?? 'model not recorded'}${r.hash ? ` · plan ${String(r.hash).slice(0, 8)}` : ''}`,
     usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
     ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
@@ -2967,7 +2965,7 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
-      const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
+      const jobEdited = end !== null && isResumableEnding(end.outcome) && catalogue !== undefined
         && runJobEdited(readHaltRecord(run.runDir), end, readRunJob({ root, name: flowName, catalogue, runDir: run.runDir }).read);
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,

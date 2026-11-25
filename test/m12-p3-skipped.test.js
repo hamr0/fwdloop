@@ -96,8 +96,8 @@ test('a matching ticket is not skipped', async (t) => {
 
 test('the ended words and the learnings: a skipped run has its own sentence and is no run end for the notes', async () => {
   const { endedWords } = await import('../src/summary-words.js');
-  const { NOT_A_RUN_END } = await import('../src/learnstore.js');
+  const { isNotRunEnd } = await import('../src/books.js');
   const w = endedWords({ outcome: 'skipped', line: null, destination: null, canResume: false, skipReason: 'closed' });
   assert.equal(w.reason, 'Skipped: closed. Nothing was spent.');
-  assert.ok(NOT_A_RUN_END.has('skipped'));
+  assert.ok(isNotRunEnd('skipped'));
 });

@@ -3,7 +3,7 @@
 // `asks/<id>.json` (the human's words, by `listArchivedAsks`), `job/declaration.json` (step order) and `run.json`'s `rerun` section. It writes nothing: the exact
 // text a try was handed is kept by that try's audit row (`memoText`, runner.js `makeAuditRow`), so no new run-folder file. Pure over those files, so it survives a
 // pause, a resume and a restart. It never carries money or time (no cost, no duration); gap texts are the closer's own words, kept as they are (cut at GAP_CHARS).
-import { readAudit } from './books.js';
+import { readAudit, isGoodEnding } from './books.js';
 import { readFileInside } from './flow.js';
 import { listArchivedAsks, DECISION_STATUS } from './ask.js';
 import { readRunRecord } from './runfile.js';
@@ -19,8 +19,6 @@ export const MEMO_CAP = 4000;
 /** one gap text is cut here (with an ellipsis), so a single long red cannot eat the whole cap */
 const GAP_CHARS = 300;
 
-/** a try that closed well; every other verdict of a model try is a failure the memo names */
-const WELL = new Set(['green', 'hitl']);
 const DECISION_OF = Object.fromEntries(Object.entries(DECISION_STATUS).map(([k, v]) => [v, k]));
 
 const oneLine = (/** @type {unknown} */ t) => (typeof t === 'string' ? t.replace(/\s+/g, ' ').trim() : '');
@@ -95,10 +93,10 @@ export function buildMemo(runDir, { step, cap = MEMO_CAP }) {
 
   const last = tries.at(-1) ?? null;
   // item 6: the newest failure's words are left out when the retry (the same step, straight after a failure) already gets them as its gap
-  const retryGetsGap = last !== null && last.step === step && !WELL.has(last.verdict);
+  const retryGetsGap = last !== null && last.step === step && !isGoodEnding(last.verdict);
   const earlier = tries.slice(0, -1);
   const sameStep = earlier.filter((t) => t.step === step);
-  const failures = earlier.filter((t) => t.step !== step && !WELL.has(t.verdict));
+  const failures = earlier.filter((t) => t.step !== step && !isGoodEnding(t.verdict));
   const label = (/** @type {{step: string, n: number, verdict: string, gap: string}} */ t) => `step ${t.step} try ${t.n} — result: ${t.verdict}`;
   const gapOf = (/** @type {{gap: string}} */ t) => (t.gap === '' ? '' : ` — ${cutGap(t.gap)}`);
   const foldLine = (/** @type {string} */ kind, /** @type {any[]} */ g) => ({ kind, text: `${kind}: ${label(g[0])}${gapOf(g[0])}${g.length > 1 ? ` (x${g.length})` : ''}` });

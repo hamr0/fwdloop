@@ -25,11 +25,10 @@ const negative = opt('negative');
 if (!root || !flow || runs.length !== 2) die('usage: m8-exit-check.mjs --root <flows dir> --flow <workflow> --runs run-1,run-2 [--home <config home>] [--negative <flow>/<run>]');
 const [run1, run2] = runs;
 
-const { readAudit, readHistory, endRow } = await import('../src/books.js');
+const { readAudit, readHistory, endRow, isNotRunEnd } = await import('../src/books.js');
 const { readLedger } = await import('../src/learnstore.js');
 const { renderHints, parseHintBlock, HINT_HEADER, HINT_CHARS_MAX, placeOf } = await import('../src/learn.js');
 const { resolvePlace, placeSpecOf, learningHintsOn } = await import('../src/learnstore.js');
-const { NOT_A_RUN_END } = await import('../src/learnstore.js');
 const { getRunAudit } = await import('../src/panel/data.js');
 const { loadCatalogue } = await import('../src/catalogue.js');
 
@@ -72,7 +71,7 @@ const ids2 = Array.isArray(rec2?.ids) ? rec2.ids : [];
   const end = endRow(history, dir1, run1);
   // M8 am4 replaced item 4: the notes count when the run ENDS, whatever the asks did; so what is checked is that the run ended, and the asks are shown.
   const asks = audit1.filter((r) => r.step === 'ask' || r.class === 'hitl').length;
-  say(!!end && !NOT_A_RUN_END.has(end.outcome), `1b ${run1}: the run ended (M8 am4: notes count at run end; item 4's Accept wait was replaced)`, end ? `history end row outcome=${end.outcome}, ${asks} hitl/ask audit rows` : `no history row for ${run1}`);
+  say(!!end && !isNotRunEnd(end.outcome), `1b ${run1}: the run ended (M8 am4: notes count at run end; item 4's Accept wait was replaced)`, end ? `history end row outcome=${end.outcome}, ${asks} hitl/ask audit rows` : `no history row for ${run1}`);
 }
 
 // ---- 2. the ledger: a counted row for this workflow, from run-1, not pending ------------------------------------------------------------------------

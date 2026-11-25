@@ -308,10 +308,77 @@ export function readHistory(flowDir) {
   return readLines(flowDir, 'history.jsonl');
 }
 
-/** The two outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
 export const HALT_FILE = 'halt.json';
 
-export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
+/**
+ * M20 am1 item 1: the ONE table of endings. Every history outcome and every audit verdict fwd writes is a key; the flags say what it
+ * means, and every reader asks a helper below (never its own list of words):
+ *   good        the run or try passed                         resumable   `halt.json` is left, the run can be continued
+ *   notFailed   not a failure of the job (complete, a stop, a cap halt, a rerun, an expired ask, a skipped ticket)
+ *   noise       the instrument failed, not the work (learnings set the run aside)
+ *   blocked     a verdict that stopped a step, the Run tab's "blocked" line
+ *   open        the Audit's `·` mark: waiting / a human note, not yet resolved either way
+ *   waiting     a step whose last row is this is parked        stopNote    a Stop's own note row, never a try
+ *   humanNo     the human's own no (the ask fold's `✗`)         redTry      a try that said the output was wrong
+ *   tryVerdict  a step's try with a verdict on its output       spendFloor  a halt whose spend can be a floor
+ *   draftRow    a verdict a drafting row of the Audit can carry (anything else reads not-done)
+ *   notRunEnd   not an end of a run (a pause, a failed stop, a skipped ticket): learnings wait
+ *   word        the Runs list's bold word for it (`null` = none: a run the human ended with rerun)
+ * Outcome (history.jsonl) and verdict (audit.jsonl) are not split: one word means one thing on either book.
+ * Not here, by design: the scheduler's own words (busy, monthly-exhausted, refused fire), the closers' verdicts (done, crash,
+ * unparseable), and the Run tab's ending sentences (src/summary-words.js stays their one owner).
+ */
+export const ENDINGS = Object.freeze({
+  complete: { good: true, notFailed: true, word: 'passed' },
+  skipped: { notFailed: true, notRunEnd: true, word: 'skipped' },
+  stopped: { resumable: true, notFailed: true, open: true, humanNo: true, word: 'stopped' },
+  'cap-halt': { resumable: true, notFailed: true, blocked: true, spendFloor: true, word: 'stopped' },
+  rerun: { notFailed: true, word: null },
+  'ask-expired': { notFailed: true, blocked: true, open: true, word: 'expired' },
+  'ask-timeout': { blocked: true, open: true, word: 'failed' },
+  refused: { blocked: true, open: true, waiting: true, word: 'failed' },
+  red: { blocked: true, humanNo: true, redTry: true, tryVerdict: true, draftRow: true, word: 'failed' },
+  'not-done': { blocked: true, redTry: true, tryVerdict: true, word: 'failed' },
+  'provider-red': { blocked: true, noise: true, spendFloor: true, word: 'failed' },
+  'pricing-red': { blocked: true, spendFloor: true, word: 'failed' },
+  'close-casualty': { blocked: true, noise: true, word: 'failed' },
+  'preflight-red': { word: 'failed' },
+  'struck-out': { word: 'failed' },
+  'attempt-fallback': { word: 'failed' },
+  'redo-halt': { word: 'failed' },
+  'stop-failed': { notRunEnd: true, word: 'failed' },
+  green: { good: true, tryVerdict: true, draftRow: true },
+  hitl: { good: true, tryVerdict: true },
+  softgreen: { tryVerdict: true }, // fwd writes no such verdict today; the learnings read audits shaped like bareloop's, so it stays a try
+  paused: { open: true, waiting: true, notRunEnd: true },
+  'ask-reopened': { open: true },
+  'lock-removed': { open: true },
+  'stop-asked': { open: true, stopNote: true },
+  'stop-not-honoured': { open: true, stopNote: true },
+  'stale-answer-ignored': {},
+  'answer-after-run': {},
+});
+
+/** @param {unknown} word @param {string} flag */
+const endingHas = (word, flag) => typeof word === 'string' && Object.hasOwn(ENDINGS, word) && /** @type {any} */ (ENDINGS)[word][flag] === true;
+export const isGoodEnding = (/** @type {unknown} */ w) => endingHas(w, 'good');
+/** a history outcome that is a failure of the job; a word the table does not know counts as one */
+export const isFailedEnding = (/** @type {unknown} */ w) => !endingHas(w, 'notFailed');
+export const isNoiseEnding = (/** @type {unknown} */ w) => endingHas(w, 'noise');
+export const isBlockedEnding = (/** @type {unknown} */ w) => endingHas(w, 'blocked');
+export const isOpenEnding = (/** @type {unknown} */ w) => endingHas(w, 'open');
+export const isWaitingEnding = (/** @type {unknown} */ w) => endingHas(w, 'waiting');
+export const isStopNote = (/** @type {unknown} */ w) => endingHas(w, 'stopNote');
+export const isHumanNo = (/** @type {unknown} */ w) => endingHas(w, 'humanNo');
+export const isRedTry = (/** @type {unknown} */ w) => endingHas(w, 'redTry');
+export const isTryVerdict = (/** @type {unknown} */ w) => endingHas(w, 'tryVerdict');
+export const isSpendFloorEnding = (/** @type {unknown} */ w) => endingHas(w, 'spendFloor');
+export const isDraftRowVerdict = (/** @type {unknown} */ w) => endingHas(w, 'draftRow');
+export const isNotRunEnd = (/** @type {unknown} */ w) => endingHas(w, 'notRunEnd');
+/** The outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
+export const isResumableEnding = (/** @type {unknown} */ w) => endingHas(w, 'resumable');
+/** the Runs list's bold word for an ending (`null` for none) @param {string} w @returns {string|null} */
+export function endingWord(w) { return Object.hasOwn(ENDINGS, w) ? /** @type {any} */ (ENDINGS)[w].word ?? null : null; }
 
 /**
  * The ONE rule for "how did this run end": the LAST history row of the run (a run that was stopped or cap-halted and
@@ -325,7 +392,7 @@ export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
 export function endRow(historyRows, runDir, runId) {
   let last = null;
   for (const r of historyRows) if (r && r.runId === runId) last = r;
-  if (last === null || !HALT_OUTCOMES.includes(last.outcome)) return last;
+  if (last === null || !isResumableEnding(last.outcome)) return last;
   const names = readdirInside(runDir, '.');
   const continuing = !names.includes('halt.json') && names.some((n) => /^halt\.\d+\.consumed\.json$/.test(n));
   return continuing ? null : last;

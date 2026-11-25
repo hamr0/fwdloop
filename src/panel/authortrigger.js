@@ -22,7 +22,7 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 
 import { flowValues, valuesHash } from '../runvalues.js';
 import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
-import { endRow, readHistory } from '../books.js';
+import { endRow, readHistory, isGoodEnding } from '../books.js';
 import { readRunInputs } from '../runfile.js';
 import { appendRow } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
@@ -89,7 +89,7 @@ function* greenRuns(flowDir) {
     const r = resolveRunDir(flowDir, id);
     if (!r.ok) continue;
     const end = endRow(history, r.runDir, id);
-    if (end === null || end.outcome !== 'complete') continue;
+    if (end === null || !isGoodEnding(end.outcome)) continue;
     const prose = readFileInside(r.runDir, 'job/prose.txt');
     const decl = readFileInside(r.runDir, 'job/declaration.json');
     const at = typeof end.at === 'string' ? end.at : '';
