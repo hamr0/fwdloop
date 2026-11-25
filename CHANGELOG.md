@@ -5,10 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.38.0] - 2026-11-25
+
+M19 amendments 12 to 15a: a job needs at least one rule of yours, a draft refusal shows under the box it is about, and a
+step with no `~` of yours gets its normal checks. The POCs behind it (F253-F262) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- A job with no `~` rule of yours on any line is refused before drafting, at $0, with no AI call, by `fwdloop draft`
+  and by the panel's Start drafting, for every job kind. The words are bareloop v0.62.0's: `Add at least one rule (~) for
+  this job — for example what the result must include, or what must stay true.` Code counts `~` lines only; `!` and `$`
+  rows do not count. A refused job leaves no draft folder and no spend row.
+- A draft refusal shows in red under the box it is about: no rule under Job, the monthly limit under Cap $, a price, an
+  unticked model or a missing key under Model, a missing or empty input file under Inputs. A one-line pointer under the
+  Draft button reads `Not drafted: fix the red line above.` A refusal that belongs to no box shows its own words under
+  the Draft button. The box is chosen by which check refused, never by reading the words, and the red clears on the
+  next Draft.
+- A step with no `~` of yours on a job that has one gets the same check rows as any other step: the `$` code defaults are
+  built, the AI's `!` suggestions show, and you can Add or Drop a `!` row (a `$` row is not droppable). A `!` row built
+  from the step's own words signs without an Add. An added or built check gives the step its class; a step with none
+  stays `hitl`.
+
+### Changed
+- The Job box hint reads: `One step per line. A ~ line under a step is its rule; add at least one. Ask: stops for you
+  (Ask 2h: waits 2h). The last line writes the result to the Destination.`
+- The "This line has no guardrail of yours, so a check on it cannot be signed" reason, and the refusal of Add on such a
+  line, are gone. A list-of-items (shape) row still needs a `~` of yours on its line.
+- A list line's count row words (exactly N items, at least N items, at most N items, both; `item` for 1) are pinned by a
+  test on every surface; the words are unchanged.
+
+### Fixed
+- After a refused or red draft, the Job box is left to the person: the poll no longer writes the old job back over
+  what was typed (F259).
+- A late answer from the page's first read of the signed flows no longer wipes a refusal's red line under its box.
+- `npm run typecheck` is green again (type annotations only, no behaviour change).
+
+### Development only (not in the package)
+- POCs F253-F262 are recorded in `docs/logs/FINDINGS.md`. The POC scripts under `poc/` are not part of the package.
+- Test-only: draft-child waits follow the child instead of a fixed 20 s (a flake under suite load); the M0 resume check
+  skips when the personal file changed since the pin; the refusal-box test closes the browser, then the proxy and its
+  sockets, before the panel. Internal: one `isRec` for fwdloop's own files, and the unused `offer` parameter of
+  `buildLine` is gone.
 
 ### Docs
-
 - README: the suite section is now a short map of the bare suite (Hands / Rails / Apps) plus what this pairs well with, linking the full list on github.com/hamr0.
 
 ## [0.37.0] - 2026-11-22
