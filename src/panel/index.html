@@ -744,11 +744,10 @@
   .audit-raw{color:var(--text-faint);font-size:11px;word-break:break-word;white-space:pre-wrap;margin-top:2px;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
-  .chat-steps .step.run .step-sign::after{content:"\2026";}
-  @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
-  @media (prefers-reduced-motion: no-preference){
-    .chat-steps .step.run .step-sign::after{content:"";animation:step-dots 1.2s steps(1,end) infinite;}
-  }
+  /* borrowed-from: bareloop src/panel/index.html@v0.63.0 (7bc2719b): the step time and the "Drafting so far" line; the animated dots are gone */
+  .chat-steps .step-time{color:var(--text-faint);}
+  .chat-steps .step-so-far{padding:3px 0 0;color:var(--text-faint);}
+  .drafted-line{color:var(--text-faint);font-size:12px;margin-top:6px;}
 
   .chat-thread{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
   .chat-thread:empty{display:none;}
@@ -6020,7 +6019,8 @@
       function draftLines(fallback){
         if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
         state.stepList.forEach(function(st){
-          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : "done"), details: st.details || []};
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : (st.status === "running" ? "running" : "done")), details: st.details || []};
+          if(typeof st.time === "string" && st.time) row.time = st.time;
           if(st.note === true) row.note = true;
           out.push(row);
         });
@@ -6029,7 +6029,8 @@
       var capPart = cap !== "" ? ", run cap $" + cap : "";
       if(state){
         if(state.phase === "drafting"){
-          out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
+          // M20 am1 item 5: the steps the drafter has started (its step lines), else the one line it always had
+          draftLines(function(){ out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []}); });
         } else if(Array.isArray(state.revises)){
           // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
           draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
@@ -6912,22 +6913,24 @@
       var key = e.target && e.target.getAttribute ? e.target.getAttribute("data-fold") : null;
       if(key) progressOpen[key] = e.target.open === true;
     }, true);
-    function renderProgress(steps){
+    function renderProgress(steps, soFar){
       progressRow.hidden = steps.length === 0;
       var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
-        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : ""));
+        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : (cls === "run" ? "▶" : "")));
+        // M20 am1 item 5: "took M:SS" / "M:SS so far", the server's words (src/draftspend.js withDraftTimes)
+        var time = typeof st.time === "string" && st.time ? '<span class="step-time" data-testid="step-time">' + escapeXml(st.time) + '</span>' : "";
         // M4d am15: a line with no ✓/✗ (the Fix line under a red plan check)
         if(st.note) cls += " note";
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
-          '<span class="step-sign">' + sign + '</span></div>' +
+          '<span class="step-sign">' + sign + '</span>' + time + '</div>' +
           (st.details || []).map(function(d, k){
             var raw = st.raw || [];
             var key = st.id + ":" + k;
             var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw" data-fold="' + escapeXml(key) + '"' + (progressOpen[key] ? " open" : "") + '><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
             return '<div class="step-detail">' + escapeXml("> " + d) + fold + '</div>';
           }).join("") + '</li>';
-      }).join("");
+      }).join("") + (steps.length && typeof soFar === "string" && soFar ? '<li class="step-so-far" data-testid="drafting-so-far">' + escapeXml(soFar) + '</li>' : "");
       if(html === progressHtml) return false;
       progressHtml = html;
       progressRow.innerHTML = html;
@@ -6948,7 +6951,8 @@
       var html = "";
       if(state && state.phase === "green" && state.readout){
         html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
-          '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
+          '\n\nPlan hash: ' + escapeXml(state.hash || "") +
+          (typeof state.draftedLine === "string" && state.draftedLine ? '\n<span class="drafted-line" data-testid="drafted-line">' + escapeXml(state.draftedLine) + '</span>' : "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
@@ -7090,7 +7094,7 @@
       var refusal = (state.phase === "stopped" && state.refusal && typeof state.refusal === "object") ? state.refusal : null;
       paintRefusal(state, refusal);
       errEl.textContent = (!refusal && (state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
-      var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}));
+      var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}), state && state.draftSoFar);
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
       refreshStartEnabled();
       syncJobBoxFromSession(state);
