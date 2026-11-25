@@ -159,6 +159,9 @@ test('real child: a revise shows its own live list, then times and the session\'
   const rv = j.revises[0];
   assert.ok(rv.lines.length >= 1);
   assert.match(rv.lines[0].time, /^took \d+:\d\d$/);
+  // hamr's live walk: after a revise the FIRST draft's lines keep their times (the state's plan is draft-1, its stepList is still the first draft's)
+  assert.equal(j.plan, 'draft-1');
+  assert.ok(j.stepList.filter((x) => x.id !== 'thinking' && !x.note).every((x) => /^took \d+:\d\d$/.test(x.time)), JSON.stringify(j.stepList));
   assert.ok(readFileSync(path.join(w.dir(id), 'revise-1.log'), 'utf8').includes('fwdloop: step-start '));
   assert.match(j.draftedLine, /^Drafted in \d+:\d\d \u00B7 (at least )?\$\d/);
   assert.ok(first && j.draftedLine !== undefined);

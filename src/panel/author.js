@@ -170,7 +170,8 @@ export function createAuthor(opts) {
     // from the step lines (src/draftspend.js, the one owner); an old draft has none
     const sc = (x) => scrub(String(x), keys);
     const out = { ...v };
-    if ((v.phase === 'drafting' || Array.isArray(v.stepList)) && (v.plan === undefined || v.plan === 'draft')) {
+    if ((v.phase === 'drafting' || Array.isArray(v.stepList)) && !(v.phase === 'questions-open' && v.plan !== 'draft')) {
+      // `stepList` is the FIRST draft's list in every phase but an open question on a later plan (that one is its own plan's list, which child.log does not hold)
       const timed = withDraftTimes({ dir, running: v.phase === 'drafting', list: Array.isArray(v.stepList) ? v.stepList : null });
       if (timed.list !== null) out.stepList = timed.list.map((l) => ({ ...l, label: sc(l.label) }));
       if (timed.draftSoFar !== null) out.draftSoFar = timed.draftSoFar;
