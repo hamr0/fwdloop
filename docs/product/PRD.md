@@ -662,6 +662,8 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 
 **Order:** P0 → P1 → items 3, 1, 2, 4 (smallest first, snapshot compared after each) → P2 → items 10, 11, then 6, 7, 8, 9 → practice walk → hamr's walk → self-review → branch review → release.
 
+*Signed by hamr 2026-11-25 ("sign m20"); the signed text and its record are in docs/wiki/the-module-ladder.md under M20. The draft above is kept as written.*
+
 ## Guiding principles — borrowed from bareloop, reminders not features
 
 Signed by hamr 2026-09-15. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
