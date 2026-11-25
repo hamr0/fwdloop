@@ -44,7 +44,9 @@ import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
 import { appendSpendRow } from '../provider.js';
 import { ruleOfAnswer, panelQuestionText, DROP_IT, TIE_PICK_SAY } from '../pageask.js';
-import { checkFlowName, nextRunId, readFileInside, readdirInside } from '../flow.js';
+import {
+  checkFlowName, nextRunId, readFileInside, readdirInside, readDraftLog,
+} from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
 import { isFwdloopAlive } from '../liveness.js';
 import {
@@ -212,7 +214,7 @@ export function createAuthor(opts) {
    */
   function stepListOf(dir, rel, keys, questionOpen = false) {
     const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
-    const list = draftStepList({ log: readJson(dir, `${rel}/log.json`), declaration, questionOpen });
+    const list = draftStepList({ log: readDraftLog(dir, rel), declaration, questionOpen });
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
     return list.map((st) => ({ ...st, label: sc(st.label), details: st.details.map(sc) }));
@@ -252,7 +254,7 @@ export function createAuthor(opts) {
       return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), stepList: stepListOf(dir, rel, keys) };
     }
     const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
-    const log = readJson(dir, `${rel}/log.json`);
+    const log = readDraftLog(dir, rel);
     if (leak.ok || (log && log.ok === false)) {
       const reds = Array.isArray(log?.reds) ? log.reds.map((r) => scrub(String(r), keys)) : [];
       if (leak.ok) reds.push(scrub(leak.text.trim(), keys));
@@ -288,7 +290,7 @@ export function createAuthor(opts) {
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
       const res = resultOf(dir, `draft-${n}`, keys);
-      const lines = reviseStepList({ log: readJson(dir, `draft-${n}/log.json`), name });
+      const lines = reviseStepList({ log: readDraftLog(dir, `draft-${n}`), name });
       const scrubbed = lines === null ? null : lines.map((l) => ({ ...l, label: scrub(l.label, keys) }));
       if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
       if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
@@ -378,7 +380,7 @@ export function createAuthor(opts) {
     const view = notCheckedView(ncFile?.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
     // M19 am6: a saved draft with a signed list draws its card rows read from the plan (a card saved with the old words is rebuilt); the suggestions, the restorable rows and the Drop flags are the saved card's
-    const savedLog = cardLinesOf(decl).size > 0 ? readJson(dir, `${rel}/log.json`) : undefined;
+    const savedLog = cardLinesOf(decl).size > 0 ? readDraftLog(dir, rel) : undefined;
     const card = savedLog?.checkCard && parsed?.ok === true && Array.isArray(savedLog.checkCard.rows)
       ? planCard(savedLog.checkCard, { declaration: decl, lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter), kept: Array.isArray(kept) ? kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [], log: savedLog.log })
       : savedLog?.checkCard;
@@ -386,7 +388,7 @@ export function createAuthor(opts) {
     // M16 P4c (bareloop's plan view): the job's lines with their `~` rules (the signed text's own, split at its "; " joins) and the two checks every step has; a plan with a list draws them
     const planLines = parsed?.ok === true ? parsed.lines.map((/** @type {any} */ l) => ({ n: l.n, text: l.text, rules: l.guardrail ? l.guardrail.split('; ') : [] })) : [];
     // M13 am11: the job's action (its last line, when the AI named it or the person agreed or typed it), drawn as `› line <n> writes everything before it [agent]` (no Drop, am11c)
-    const act = readJson(dir, `${rel}/log.json`)?.action;
+    const act = readDraftLog(dir, rel)?.action;
     const action = isObj(act) && Number.isInteger(act.line) && act.dropped !== true ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}) } : null;
     return {
       ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}), rows: ncRowsOf(view.items, isObj(ncFile?.by) ? ncFile.by : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),

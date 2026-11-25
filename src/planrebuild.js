@@ -7,7 +7,7 @@
 // What this throws away: nothing of the old plan (it is never rewritten, records are write-once).
 import path from 'node:path';
 import { parseSignedText } from './signed-text.js';
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside, readDraftLog } from './flow.js';
 import { readInputFacts } from './input-facts.js';
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft.js';
@@ -54,7 +54,7 @@ export function rebuildBlock({ planDir, asks }) {
   // the lines the block was given; a CSV job's sheet lines (M16 am4) have rows on the list too, but the block never had them
   const lineSet = listLinesOf(declaration);
   if (cardLinesOf(declaration).size === 0) return no(NO_LIST_SAY);
-  const log = readJson(planDir, 'log.json');
+  const log = readDraftLog(planDir);
   const pageLook = readJson(planDir, 'page-look.json');
   const look = isRec(pageLook?.look) ? { facts: Array.isArray(pageLook.look.facts) ? pageLook.look.facts : [], dropped: Array.isArray(pageLook.look.dropped) ? pageLook.look.dropped : [] } : { facts: [], dropped: [] };
   const record = readJson(planDir, RECORD_FILE) ?? {};

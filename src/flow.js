@@ -373,6 +373,19 @@ export function readFileInside(baseDir, relPath) {
 }
 
 /**
+ * M20 am1 item 4: the ONE reader of a DRAFT's `log.json` (`<dir>/<rel>/log.json`, or `<dir>/log.json` with no `rel`): what the drafter kept of its rounds,
+ * its `checkCard` and its `action`. The run's `log.json` is another file, read only by `readLog` (src/books.js). `null` when missing, refused by the
+ * gateway, unparseable or not an object (a torn write), never a thrown error.
+ * @param {string} dir @param {string} [rel] a plan folder under `dir` (`draft`, `draft-<n>`)
+ * @returns {any|null}
+ */
+export function readDraftLog(dir, rel = '') {
+  const r = readFileInside(dir, rel === '' ? 'log.json' : `${rel}/log.json`);
+  if (!r.ok) return null;
+  try { const j = JSON.parse(r.text); return j !== null && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
+}
+
+/**
  * `readdirSync` guarded the same way: refuses (returns `[]`) when `relDir`
  * itself is a symlink or resolves outside `baseDir`, and skips (never
  * follows) any individual entry that is itself a symlink — a directory

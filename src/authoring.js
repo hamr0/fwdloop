@@ -31,7 +31,9 @@ import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
-import { writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
+import {
+  writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName, readDraftLog,
+} from './flow.js';
 import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
@@ -639,10 +641,10 @@ export function signDraft({
   // Only a card saved with its own Not checked list (this build) is compared; an older saved card is drawn from the plan and not held to it.
   const cardReds = (() => {
     if (!Array.isArray(declaration.checkList)) return [];
-    const lg = read('log.json');
     const rec = read(RECORD_FILE);
-    /** @type {any} */ let log = null; /** @type {any} */ let record = null;
-    try { log = lg.ok ? JSON.parse(lg.text) : null; record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
+    const log = readDraftLog(dir);
+    /** @type {any} */ let record = null;
+    try { record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
     if (!log?.checkCard || !Array.isArray(log.checkCard.notChecked)) return [];
     const kept = Array.isArray(record?.kept) ? record.kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [];
     return planMatchesCard({ declaration, lines: signed.lines, csvRoles: csvRolesOf(signed.arbiter), kept, log: log.log }, log.checkCard);

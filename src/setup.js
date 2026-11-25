@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { readQuestions, scrub } from './authoring.js';
 import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside, readDraftLog } from './flow.js';
 import { readSpendRows } from './provider.js';
 import { checkAsks } from './checkpick.js';
 import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
@@ -35,7 +35,7 @@ const mtimeIso = (dir, rel) => {
 function planRow(sessionDir, rel, kind, n) {
   const hashFile = readFileInside(sessionDir, `${rel}/spec.hash`);
   const hash = hashFile.ok && hashFile.text.trim() !== '' ? hashFile.text.trim() : null;
-  const log = readJson(sessionDir, `${rel}/log.json`);
+  const log = readDraftLog(sessionDir, rel);
   const leak = readFileInside(sessionDir, `${rel}/scrub-leak.red`);
   const spent = readSpendRows(join(sessionDir, rel, 'spend.jsonl')).filter((r) => r && r.kind === 'draft').pop() ?? readDraftSpend(join(sessionDir, rel));
   let verdict = 'stopped';
