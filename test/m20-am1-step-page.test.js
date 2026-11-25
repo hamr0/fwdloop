@@ -2,6 +2,9 @@
 // ("took M:SS") and "Drafted in M:SS · $X", at 1280, 390 and 320 px wide: no horizontal scroll, every line inside the viewport. Skips only when no chromium is installed.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { isFwdloopAlive } from '../src/liveness.js';
 import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 import { BOX_JOB } from './m4e-box-fixture.mjs';
@@ -11,6 +14,8 @@ const CLOSERS = [];
 after(() => Promise.all(CLOSERS.map((c) => c())));
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
 const state = async (w, id) => (await w.get(`/api/author/${id}`)).json();
+// `phase: green` shows before the draft's child has exited, and a revise is (rightly) refused `draft-live` until it has: wait on the child, never a clock
+const childGone = (w, id) => until(() => { try { const p = JSON.parse(readFileSync(path.join(w.dir(id), 'pid.json'), 'utf8')); return isFwdloopAlive(p.pid, p.procStart) !== true; } catch { return true; } });
 const SPILL = `(function(){ var vw = document.documentElement.clientWidth, bad = [];
   document.querySelectorAll('#chat-progress-row *, [data-testid="drafted-line"]').forEach(function(e){ var r = e.getBoundingClientRect(); if(r.width > 0 && (r.right > vw + 1 || r.left < -1)) bad.push(e.className + ':' + Math.round(r.right)); });
   return JSON.stringify({ doc: document.documentElement.scrollWidth <= vw, bad: bad }); })()`;
@@ -55,6 +60,7 @@ test('browser: a revise lists its own live steps and, ended, the session\'s Draf
   const w = await world();
   const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
   await until(async () => (await state(w, id))?.phase === 'green');
+  await childGone(w, id);
   const hung = BOX_JOB.replace('Read my resume,', 'Read my resume HANGMARK,');
   assert.notEqual(hung, BOX_JOB);
   assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job: hung }))).status, 202);
@@ -74,6 +80,7 @@ test('browser: after a revise ends, Drafted in shows (session time and spend)', 
   const w = await world();
   const id = (await w.post('/api/author/draft', w.card({ job: BOX_JOB }))).json().draftId;
   await until(async () => (await state(w, id))?.phase === 'green');
+  await childGone(w, id);
   assert.equal((await w.post(`/api/author/${id}/revise`, w.card({ job: BOX_JOB, capUsd: '0.30' }))).status, 202);
   await until(async () => { const j = await state(w, id); return j?.phase === 'green' && j.revises?.length === 1 ? j : null; });
   for (const width of [1280, 390, 320]) {
