@@ -1014,7 +1014,7 @@ function lastStoppedAtAsk(runDir, auditRows, hasHistoryRow) {
   const stopped = auditRows.filter((r) => r.verdict === 'stopped' && typeof r.gap === 'string' && !Number.isInteger(r.attempt));
   const last = stopped.length > 0 ? stopped[stopped.length - 1] : null;
   if (!last || !STOPPED_AT_ASK_RE.test(last.gap)) return null;
-  const ordered = runAsksInOrder(runDir, hasHistoryRow);
+  const ordered = runAsksInOrder(runDir, hasHistoryRow, auditRows);
   const stepOf = deriveAskStepInfo(ordered, auditRows, null);
   const words = stoppedAskWords(ordered, auditRows);
   const i = stepOf.findIndex((x) => x.step !== null && x.step === last.step);
@@ -1152,7 +1152,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
       const controls = runControls(ctx, glyph, label);
       // M4c amendment 1 (c): the ask waiting on the human, by the same rule
       // listStops uses (deriveAskOpenFields) — the least time left if several.
-      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
+      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow, ctx.auditRows)
         .map((ask) => ({ ask, ...deriveAskOpenFields(ask, !!ctx.historyRow, ctx.resume) }))
         .filter((r) => r.waiting)
         .reduce((best, r) => (best === null || (r.timeLeftMs ?? Infinity) < (best.timeLeftMs ?? Infinity) ? r : best), /** @type {any} */ (null));
@@ -1323,7 +1323,7 @@ export function needsYouOf({
 function runReopenOffer(runDir, ctx) {
   if (ctx.historyRow || !ctx.askJson) return null;
   const savedAskId = readSavedAnswer(runDir)?.askId;
-  for (const a of runAsksInOrder(runDir, false)) {
+  for (const a of runAsksInOrder(runDir, false, ctx.auditRows)) {
     const offer = reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId);
     if (offer !== null) return { askId: a.askId, ...offer };
   }
@@ -1483,11 +1483,11 @@ function waitingLineOf(ctx) {
  */
 function jobWaitingLine(root, flowDir, flow, catalogue) {
   const ids = listRunIds(flowDir).sort((a, b) => compareNatural(b, a));
-  const history = readHistory(flowDir);   // `atAsk` needs no end row (`runControls`), so an ended run is skipped by the same `endRow` rule before a context is built for it
   for (const id of ids) {
     const run = resolveRunDir(flowDir, id);
-    if (!run.ok || endRow(history, run.runDir, id) !== null || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
     const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
+    if (ctx.historyRow !== null) continue; // `atAsk` needs no end row (`runControls`): an ended run is skipped by the same `endRow` rule
     const g = computeGlyph(ctx);
     if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
   }
@@ -2044,7 +2044,7 @@ export function getRunAudit({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const rawRows = readAudit(run.runDir);
+  const rawRows = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).auditRows;
   // hamr's review #6: the Audit tab's "Action" column is derived server-side
   // (never guessed client-side from partial data) — `action` is added to
   // each row here, off that SAME row's own fields, book order preserved.
@@ -2211,7 +2211,7 @@ export function getRunJob({
   // per-attempt `audit.jsonl` field the Run tab's summary uses
   // (`deriveRunModel`) and says so plainly when it does, rather than
   // pretending the signed prose named it.
-  const auditRows = readAudit(run.runDir);
+  const auditRows = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).auditRows;
   const model = deriveRunModel(auditRows);
   // the run's own signed values (cap, send folder, ask waits) when it has them; the flow's own otherwise
   const applied = applyRunValues(flowRead.arbiter, flow, sig.flow, pickRunValues(run.runDir));
@@ -2683,7 +2683,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
  *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false, jobEdited = false) {
+function runAsksInOrder(runDir, hasHistoryRow, auditRows, endedExpired = false, jobEdited = false) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
@@ -2706,7 +2706,7 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false, jobEdited =
   // reader of which step each ask belongs to) names for it, matched to the `stopped at the ask of step N` row written for that step.
   // Never by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it.
   if (ordered.some((a) => a.status === 'stopped')) {
-    const words = stoppedAskWords(ordered, readAudit(runDir));
+    const words = stoppedAskWords(ordered, auditRows);
     for (let i = 0; i < ordered.length; i++) {
       if (ordered[i].status === 'stopped' && words[i] !== null) ordered[i] = { ...ordered[i], statusText: words[i] };
     }
@@ -2858,18 +2858,17 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const histRow = endRow(readHistory(run.flowDir), run.runDir, runId) ?? undefined;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+  const histRow = ctx.historyRow ?? undefined;
   const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const { read: flowRead } = readRunJob({
-    root, name: flow, catalogue, runDir: run.runDir,
-  });
-  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
-  const auditRows = readAudit(run.runDir);
+  const flowRead = ctx.flowRead;
+  const auditRows = ctx.auditRows;
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, auditRows, histRow?.outcome === 'ask-expired', ctx.jobEdited);
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
   let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
@@ -2952,11 +2951,11 @@ export function listStops({ root, resumeAttempt, catalogue }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
-    const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      const end = endRow(historyRows, run.runDir, runId);
+      const ctx = loadRunContext(root, flowDir, run.runDir, flowName, runId, catalogue, null);
+      const end = ctx.historyRow;
       const hasHistoryRow = end !== null;
       const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
@@ -2965,9 +2964,8 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
       const savedAskId = readSavedAnswer(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
-      const jobEdited = end !== null && isResumableEnding(end.outcome) && catalogue !== undefined
-        && runJobEdited(readHaltRecord(run.runDir), end, readRunJob({ root, name: flowName, catalogue, runDir: run.runDir }).read);
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
+      const jobEdited = end !== null && isResumableEnding(end.outcome) && catalogue !== undefined && ctx.jobEdited;
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, ctx.auditRows, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
