@@ -1,0 +1,142 @@
+// M20 am1 items 5-6 + am2 (F265 failed, F266 passed): the drafting step lines in child.log, the times joined to draftStepList's list by id, and "Drafted in M:SS · $X".
+// Unit tests on src/draftspend.js, then a real panel and a real `fwdloop draft` child with the fake draft provider ($0).
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { test } from 'node:test';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { tmpdir } from 'node:os';
+import { draftStepList } from '../src/draft-steps.js';
+import { draftedLine, makeStepWriter, mmss, stepped, withDraftTimes } from '../src/draftspend.js';
+import { killChildrenAfter, until, world, JOB } from './m4e-world.mjs';
+
+killChildrenAfter();
+const T0 = Date.parse('2026-11-25T10:00:00.000Z');
+const iso = (ms) => new Date(T0 + ms).toISOString();
+const ev = (kind, o) => `fwdloop: ${kind} ${JSON.stringify(o)}`;
+const dirWith = (lines) => { const d = mkdtempSync(path.join(tmpdir(), 'fwdloop-m20-steps-')); writeFileSync(path.join(d, 'child.log'), `${lines.join('\n')}\n`); return d; };
+const LIST = [
+  { id: 'thinking', label: 'thinking off', status: 'done', details: [] },
+  { id: 'inputs', label: 'inputs · a', status: 'done', details: [] },
+  { id: 'drafted', label: 'drafted · m · 1 round · $0.0005', status: 'done', details: [] },
+  { id: 'checks', label: 'plan checks', status: 'done', details: [] },
+  { id: 'checks-fix', label: 'Fix: x', status: 'done', details: [], note: true },
+];
+const LINES = [
+  ev('step-start', { no: 0, id: 'inputs', label: 'inputs · a', at: iso(0) }), ev('step-end', { no: 0, status: 'done', label: 'inputs · a', at: iso(1000) }),
+  ev('step-start', { no: 1, id: 'drafted', label: 'drafted · m · 0 rounds · cost unknown', at: iso(1000) }), ev('step-end', { no: 1, status: 'done', label: 'drafted · m · 1 round · $0.0005', at: iso(43000) }),
+  ev('step-start', { no: 2, id: 'checks', label: 'plan checks', at: iso(43000) }), ev('step-end', { no: 2, status: 'done', label: 'plan checks', at: iso(43500) }),
+];
+
+test('mmss and 30 s steps (no ticking clock)', () => {
+  assert.equal(mmss(42000), '0:42');
+  assert.equal(mmss(125000), '2:05');
+  assert.equal(stepped(29999), 0);
+  assert.equal(stepped(30000), 30000);
+  assert.equal(stepped(89999), 60000);
+});
+
+test('after the draft: the list is draftStepList\'s unchanged, times joined by id; thinking and a Fix note show none', () => {
+  const r = withDraftTimes({ dir: dirWith(LINES), running: false, list: LIST });
+  assert.deepEqual(r.list.map((x) => x.label), LIST.map((x) => x.label));
+  assert.deepEqual(r.list.map((x) => x.time), [null, 'took 0:01', 'took 0:42', 'took 0:00', null]);
+  assert.equal(r.draftSoFar, null);
+});
+
+test('joined by id, not by place: the same lines under a list with an extra first line give the same times', () => {
+  const shifted = [{ id: 'extra', label: 'e', status: 'done', details: [] }, ...LIST];
+  const r = withDraftTimes({ dir: dirWith(LINES), running: false, list: shifted });
+  assert.deepEqual(r.list.map((x) => [x.id, x.time]).filter((x) => x[1]), [['inputs', 'took 0:01'], ['drafted', 'took 0:42'], ['checks', 'took 0:00']]);
+});
+
+test('a second line with the same id takes the first unused step line, in order', () => {
+  const two = [...LINES, ev('step-start', { no: 3, id: 'drafted', label: 'again', at: iso(50000) }), ev('step-end', { no: 3, status: 'done', label: 'again', at: iso(110000) })];
+  const list = [LIST[2], LIST[2]];
+  assert.deepEqual(withDraftTimes({ dir: dirWith(two), running: false, list }).list.map((x) => x.time), ['took 0:42', 'took 1:00']);
+});
+
+test('while it runs: the started steps in order, a running one "M:SS so far" in 30 s steps, "Drafting so far"', () => {
+  const live = LINES.slice(0, 3); // inputs ended, drafted running
+  const dir = dirWith(live);
+  const a = withDraftTimes({ dir, running: true, list: null, nowMs: T0 + 1000 + 29000 });
+  assert.deepEqual(a.list.map((x) => [x.id, x.status, x.time]), [['inputs', 'done', 'took 0:01'], ['drafted', 'running', '0:00 so far']]);
+  assert.equal(a.draftSoFar, 'Drafting so far: 0:30');
+  const b = withDraftTimes({ dir, running: true, list: null, nowMs: T0 + 1000 + 61000 });
+  assert.equal(b.list[1].time, '1:00 so far');
+  assert.equal(b.draftSoFar, 'Drafting so far: 1:00');
+});
+
+test('no step lines: no times, no line (an old draft)', () => {
+  const dir = dirWith(['fwdloop: something else']);
+  assert.deepEqual(withDraftTimes({ dir, running: false, list: LIST }).list.map((x) => x.time), [null, null, null, null, null]);
+  assert.equal(withDraftTimes({ dir, running: true, list: null }).draftSoFar, null);
+  assert.equal(draftedLine(dir, { costUsd: 0.1, spendComplete: true }), null);
+});
+
+test('a torn line is skipped, the rest is read', () => {
+  const dir = dirWith([ev('step-start', { no: 0, id: 'inputs', label: 'i', at: iso(0) }), 'fwdloop: step-end {"no":0,"sta', ev('step-start', { no: 1, id: 'drafted', label: 'd', at: iso(0) })]);
+  assert.deepEqual(withDraftTimes({ dir, running: true, list: null, nowMs: T0 }).list.map((x) => [x.id, x.status]), [['inputs', 'running'], ['drafted', 'running']]);
+});
+
+test('Drafted in M:SS · $X: first start to last end, the draft\'s own spend, "at least" when unpriced, none without a cost', () => {
+  const dir = dirWith(LINES);
+  assert.equal(draftedLine(dir, { costUsd: 0.0022, spendComplete: true }), 'Drafted in 0:43 · $0.0022');
+  assert.equal(draftedLine(dir, { costUsd: 0.05, spendComplete: false }), 'Drafted in 0:43 · at least $0.05');
+  assert.equal(draftedLine(dir, { costUsd: null, spendComplete: false }), null);
+  assert.equal(draftedLine(dir, null), null);
+});
+
+test('the one writer: one start per id, labels from draftStepList, thinking and notes get no line', () => {
+  const out = [];
+  const write = makeStepWriter((k, r) => out.push([k, r]));
+  const part = { ok: false, reds: [], rounds: 0, modelId: 'm', costUsd: null, spendComplete: false, thinking: { asked: 'off', status: 'applied' }, inputs: [{ role: 'a', detail: 'x' }], log: [] };
+  write(part, null, false);
+  write(part, null, false);
+  const fin = { ...part, ok: true, rounds: 2, costUsd: 0.01, spendComplete: true, log: [{ round: 1, kind: 'first', outcome: 'valid' }] };
+  write(fin, { steps: [] }, true);
+  assert.deepEqual(out.map(([k, r]) => [k, r.id ?? r.no]), [['step-start', 'inputs'], ['step-end', 0], ['step-start', 'drafted'], ['step-end', 1], ['step-start', 'checks'], ['step-end', 2]]);
+  const want = draftStepList({ log: fin, declaration: { steps: [] } }).filter((x) => x.id !== 'thinking' && !x.note);
+  assert.deepEqual(out.filter(([k]) => k === 'step-end').map(([, r]) => r.label), want.map((x) => x.label));
+});
+
+// ---- a real panel and a real child ($0) ----
+const poll = (w, id) => async () => (await w.get(`/api/author/${id}`)).json();
+
+test('real child, hung mid-draft: the panel API lists the started steps, one running, "Drafting so far"', async () => {
+  const w = await world({ mode: 'hang' });
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  const j = await until(async () => { const s = await poll(w, id)(); return s?.stepList?.length >= 2 ? s : null; }, 60000);
+  assert.equal(j.phase, 'drafting');
+  assert.equal(j.stepList.filter((s) => s.status === 'running').length, 1);
+  assert.match(j.stepList.find((s) => s.status === 'running').time, /^\d+:\d\d so far$/);
+  assert.match(j.draftSoFar, /^Drafting so far: \d+:[03]0$/);
+});
+
+test('real child, ended: the list is draftStepList\'s, times by id, "Drafted in", no new file; old draft has no times', async () => {
+  const w = await world();
+  const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
+  const j = await until(async () => { const s = await poll(w, id)(); return s?.phase === 'green' ? s : null; }, 60000);
+  const dir = path.join(w.dir(id), 'draft');
+  const jf = (f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
+  const want = draftStepList({ log: jf('log.json'), declaration: jf('declaration.json') });
+  assert.deepEqual(j.stepList.map((x) => x.label), want.map((x) => x.label));
+  for (const x of j.stepList) {
+    if (x.id === 'thinking' || x.note) assert.equal(x.time, null);
+    else assert.match(x.time, /^took \d+:\d\d$/, x.id);
+  }
+  assert.equal(j.draftSoFar, undefined);
+  assert.match(j.draftedLine, /^Drafted in \d+:\d\d · (at least )?\$\d/);
+  assert.deepEqual(readdirSync(w.dir(id)).sort(), ['card.json', 'child.log', 'draft', 'pid.json', 'prose.txt']);
+  // an old draft (no step lines) shows no times and no line; the stopped-say never carries step lines
+  const log = path.join(w.dir(id), 'child.log');
+  writeFileSync(log, readFileSync(log, 'utf8').split('\n').filter((l) => !/^fwdloop: step-(start|end) /.test(l)).join('\n'));
+  const old = await poll(w, id)();
+  assert.ok(old.stepList.every((x) => x.time === null));
+  assert.equal(old.draftedLine, undefined);
+});
+
+test('the page has no animated dots and prints the time, the so-far line and the drafted line', () => {
+  const page = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
+  assert.ok(!page.includes('step-dots'));
+  for (const t of ['data-testid="step-time"', 'data-testid="drafting-so-far"', 'data-testid="drafted-line"']) assert.ok(page.includes(t), t);
+});

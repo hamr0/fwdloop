@@ -456,6 +456,8 @@ export async function draft({
   let unmetered = 0; // calls that failed with no metering: their cost is unknown
   const book = (inFlight) => onBook?.({
     inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+    // M20 am1 item 5: the result so far, in log.json's shape, for the step lines (src/draftspend.js makeStepWriter)
+    partial: () => { const m = sumMeterings(meterings); return { ok: false, reds: [], rounds: m.rounds, modelId, costUsd: m.costUsd, spendComplete: unmetered === 0 && m.costUsd !== null, thinking: thinkingOf(), inputs: facts.list, log }; },
   });
 
   /** the result of a draft that stops before any drafting round with what it spent so far (a provider red, the budget); one literal for every such stop */

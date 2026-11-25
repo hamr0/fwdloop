@@ -1022,6 +1022,8 @@ async function cmdDraft(rest) {
   const result = await draftToDir({
     // M4d am32: the hold is given back when the draft's result is written, not when this process exits (the exit hook stays as the backstop)
     onResult: ({ ok }) => hold.settle(ok ? 'ended or parked' : 'ended (red)'),
+    // M20 am1 item 5: the step lines go to the log like `refusal-record` does (the panel reads child.log)
+    onStepLine: (kind, rec) => process.stderr.write(`fwdloop: ${kind} ${JSON.stringify(rec)}\n`),
     proseFile: resolve(proseFile),
     proseRead,
     dir: resolve(values.out),

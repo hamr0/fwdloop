@@ -42,7 +42,7 @@ import { readModelRecord, writeModelRecord, writeLearningsRecord, writeLearnings
 import { configDoorHome } from './config.js';
 import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
-import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
+import { makeStepWriter, sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
 import { RECORD_FILE } from './pickrecord.js';
 import { planMatchesCard, numbersWords } from './checkrows.js';
@@ -387,7 +387,7 @@ export function writePlanFiles(dir, files, opts = {}) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, onStepLine, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
@@ -430,9 +430,14 @@ export async function draftToDir({
   // Spend is booked per call into `<dir>/draft-spend.json` (src/draftspend.js), so a draft stopped between rounds
   // keeps what it paid. The first write is the mark that a call is in flight: if that cannot be written, the call is not made.
   let startedAt = null;
+  // M20 am1 item 5 (+ am2): the step lines, written by the CLI's `onStepLine` into the draft's existing child.log; none when nothing listens
+  const stepWriter = typeof onStepLine === 'function' ? makeStepWriter(onStepLine) : null;
   const onBook = ({
-    inFlight, calls, unmetered, metered, modelId: usedModel, price,
+    inFlight, calls, unmetered, metered, modelId: usedModel, price, partial,
   }) => {
+    if (stepWriter !== null && typeof partial === 'function') {
+      try { stepWriter(partial(), null, false); } catch { /* progress only: a failed line never fails the draft */ }
+    }
     const now = new Date().toISOString();
     startedAt ??= now;
     try {
@@ -524,6 +529,10 @@ export async function draftToDir({
     // M13 am11: the job's action (the last line the AI named, or the person agreed or typed), or null: the plan card's row `› line <n> writes everything before it`
     action: result.action ?? null,
   }), secrets);
+  // M20 am1 item 5: the last step lines (every step ended, final labels) are written before the result files, so a draft the panel sees finished already has them
+  if (stepWriter !== null) {
+    try { stepWriter(JSON.parse(files['log.json']), result.declaration ?? null, true); } catch { /* progress only */ }
+  }
   let hash = null;
   if (result.ok) {
     const declarationText = scrub(dj(result.declaration), secrets);

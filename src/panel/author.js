@@ -66,7 +66,7 @@ import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKI
 import { parseSignedText } from '../signed-text.js';
 import { draftStepList, reviseStepList } from '../draft-steps.js';
 import {
-  capTooSmallText, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, usdText,
+  capTooSmallText, draftedLine, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, STEP_LINE_PREFIXES, usdText, withDraftTimes,
 } from '../draftspend.js';
 import { jobKeyOfCard } from '../jobkey.js';
 import { flowValues, valuesHash, parseWaitMs } from '../runvalues.js';
@@ -165,6 +165,23 @@ export function createAuthor(opts) {
    * @param {string} dir the draft folder @param {string} id @param {string[]} keys
    */
   function readDraft(dir, id, keys) {
+    const v = readDraftState(dir, id, keys);
+    // M20 am1 items 5-6: the times of the first draft's list and its "Drafted in" line, from the step lines in child.log (src/draftspend.js, the one owner); an old draft has none
+    if (v.phase !== 'drafting' && !Array.isArray(v.stepList)) return v;
+    if (v.plan !== undefined && v.plan !== 'draft') return v;
+    const timed = withDraftTimes({ dir, running: v.phase === 'drafting', list: Array.isArray(v.stepList) ? v.stepList : null });
+    const sc = (x) => scrub(String(x), keys);
+    const out = { ...v };
+    if (timed.list !== null) out.stepList = timed.list.map((l) => ({ ...l, label: sc(l.label) }));
+    if (timed.draftSoFar !== null) out.draftSoFar = timed.draftSoFar;
+    if (v.phase === 'green' && !(Array.isArray(v.revises) && v.revises.length > 0)) {
+      const line = draftedLine(dir, readDraftLog(dir, 'draft'));
+      if (line !== null) out.draftedLine = line;
+    }
+    return out;
+  }
+
+  function readDraftState(dir, id, keys) {
     const card = readJson(dir, 'card.json');
     const base = { draftId: id, card };
     if (readJson(dir, 'abandoned.json')) return { ...base, phase: 'abandoned' };
@@ -188,7 +205,7 @@ export function createAuthor(opts) {
   function logTail(dir, rel, keys) {
     const logText = readFileInside(dir, rel);
     // the typed refusal record (`refusalOf` reads it) is machine text, never part of what the person is told
-    return logText.ok ? scrub(logText.text, keys).split('\n').filter((l) => !l.startsWith(REFUSAL_RECORD)).join('\n').trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
+    return logText.ok ? scrub(logText.text, keys).split('\n').filter((l) => !l.startsWith(REFUSAL_RECORD) && !STEP_LINE_PREFIXES.some((p) => l.startsWith(p))).join('\n').trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
   }
 
   /**

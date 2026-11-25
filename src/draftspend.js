@@ -20,6 +20,7 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 
 import { readdirInside, readFileInside } from './flow.js';
+import { draftStepList } from './draft-steps.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
 import { parseSignedText } from './signed-text.js';
 
@@ -173,4 +174,137 @@ export function draftHoldUsd(proseText, outDir, ceilingUsd) {
  */
 export function capTooSmallText(kind, capUsd, minUsd, modelId) {
   return `Cap ${usdText(capUsd)} is below one ${kind} round's worst case for ${modelId}, $${minUsd.toFixed(4)}. Raise Cap $ or pick another model.`;
+}
+
+// M20 am1 items 5-6 + am2: the drafting step lines. The `fwdloop draft` child writes them into the draft's existing child.log (as `fwdloop: refusal-record`, M19 am14b):
+//   `fwdloop: step-start {no, id, label, at}` and `fwdloop: step-end {no, status, label, at}`.
+// `id` and `label` are `draftStepList`'s own (src/draft-steps.js) for the step; the `thinking` line and a `Fix:` note get no line (they have no time).
+// Throws away: the model's replies and every per-round figure but what the label carries. Third outcomes: a torn or unparseable line is skipped; no lines = no times.
+export const STEP_LINE_RE = /^fwdloop: (step-start|step-end) (\{.*\})$/;
+export const STEP_LINE_PREFIXES = ['fwdloop: step-start ', 'fwdloop: step-end '];
+
+/**
+ * The ONE writer of the step lines. `emit(kind, record)` prints one line (the CLI passes stderr). Each call is given the result so far
+ * (`log`, as log.json will hold it) and writes a start for every step not yet started, and an end for every step but the last (the running one);
+ * `final` ends them all. A step is keyed by its `id`: written once.
+ * @param {(kind: 'step-start'|'step-end', rec: Record<string, any>) => void} emit
+ */
+export function makeStepWriter(emit) {
+  /** @type {string[]} */
+  const started = [];
+  const ended = new Set();
+  return (/** @type {any} */ log, /** @type {any} */ declaration, final) => {
+    const list = draftStepList({ log, declaration, questionOpen: !final });
+    const items = (list ?? []).filter((st) => st.note !== true && st.id !== 'thinking');
+    items.forEach((st, i) => {
+      const at = new Date().toISOString();
+      if (!started.includes(st.id)) { started.push(st.id); emit('step-start', { no: started.length - 1, id: st.id, label: st.label, at }); }
+      if ((final || i < items.length - 1) && !ended.has(st.id)) {
+        ended.add(st.id);
+        emit('step-end', { no: started.indexOf(st.id), status: st.status === 'failed' ? 'failed' : 'done', label: st.label, at });
+      }
+    });
+  };
+}
+
+/**
+ * Fold the step lines of `<dir>/child.log` into one record per step, oldest first. A line that cannot be parsed is skipped.
+ * @param {string} dir the draft folder
+ * @returns {{no: number, id: string, label: string, status: 'running'|'done'|'failed', startedAt: string, endedAt: string|null, wallMs: number|null}[]}
+ */
+export function readDraftSteps(dir) {
+  const r = readFileInside(dir, 'child.log');
+  if (!r.ok) return [];
+  /** @type {Map<number, any>} */
+  const byNo = new Map();
+  for (const line of r.text.split('\n')) {
+    const m = STEP_LINE_RE.exec(line);
+    if (!m) continue;
+    let ev;
+    try { ev = JSON.parse(m[2]); } catch { continue; }
+    if (!ev || typeof ev !== 'object' || !Number.isInteger(ev.no)) continue;
+    if (m[1] === 'step-start') {
+      byNo.set(ev.no, { no: ev.no, id: String(ev.id), label: String(ev.label), status: 'running', startedAt: ev.at, endedAt: null, wallMs: null });
+    } else if (byNo.has(ev.no)) {
+      const x = byNo.get(ev.no);
+      x.status = ev.status === 'failed' ? 'failed' : 'done';
+      x.endedAt = ev.at;
+      if (typeof ev.label === 'string') x.label = ev.label;
+    }
+  }
+  const steps = [...byNo.values()].sort((a, b) => a.no - b.no);
+  for (const x of steps) {
+    const a = Date.parse(x.startedAt);
+    const b = x.endedAt === null ? NaN : Date.parse(x.endedAt);
+    x.wallMs = Number.isFinite(a) && Number.isFinite(b) ? Math.max(0, b - a) : null;
+  }
+  return steps;
+}
+
+// borrowed-from: bareloop src/draftspend.js@v0.63.0 (7bc2719b): TIME_STEP_MS, mmss, stepped, draftWallMs, withDraftTimes, draftedLine
+/** a running time moves in 30 s steps, never a ticking clock (the page polls often; the words change every 30 s) */
+export const TIME_STEP_MS = 30_000;
+
+/** M:SS, the ONE spelling of a drafting time ("took 0:42", "Drafting so far: 2:00"). @param {number} ms @returns {string} */
+export function mmss(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** a running time floored to its 30 s step @param {number} ms @returns {number} */
+export const stepped = (ms) => Math.floor(Math.max(0, ms) / TIME_STEP_MS) * TIME_STEP_MS;
+
+/**
+ * The drafting's whole time: the first step's start to the last step's end; `null` when no step has both times.
+ * @param {{startedAt: string, endedAt: string|null}[]} steps `readDraftSteps`' records
+ * @returns {number|null}
+ */
+export function draftWallMs(steps) {
+  const starts = steps.map((x) => Date.parse(x.startedAt)).filter(Number.isFinite);
+  const ends = steps.map((x) => (x.endedAt === null ? NaN : Date.parse(x.endedAt))).filter(Number.isFinite);
+  return starts.length && ends.length ? Math.max(0, Math.max(...ends) - Math.min(...starts)) : null;
+}
+
+/**
+ * The ONE owner of the times on the chat's drafting list. While the draft runs the list is the started steps (`no` order, latest label), each `time` "M:SS so far"
+ * (a finished one "took M:SS") and `draftSoFar` is "Drafting so far: M:SS". After it ends `list` is `draftStepList`'s list unchanged, each line taking the times of the
+ * step line with the same `id` (the first unused, in order); a line no step line matches (thinking, a Fix note) has no time. No lines = no times, `draftSoFar` null.
+ * @param {{dir: string, running: boolean, list: any[]|null, nowMs?: number}} p `dir` = the draft folder (its child.log), `list` = draftStepList's list or null
+ * @returns {{list: any[]|null, draftSoFar: string|null}}
+ */
+export function withDraftTimes({ dir, running, list, nowMs = Date.now() }) {
+  const logged = readDraftSteps(dir);
+  const timeOf = (/** @type {any} */ x) => {
+    const a = Date.parse(x.startedAt);
+    if (!Number.isFinite(a)) return null;
+    if (x.status === 'running') return `${mmss(stepped(nowMs - a))} so far`;
+    return x.wallMs !== null ? `took ${mmss(x.wallMs)}` : null;
+  };
+  const starts = logged.map((x) => Date.parse(x.startedAt)).filter(Number.isFinite);
+  const draftSoFar = running && logged.some((x) => x.status === 'running') && starts.length ? `Drafting so far: ${mmss(stepped(nowMs - Math.min(...starts)))}` : null;
+  if (running) {
+    return { list: logged.length ? logged.map((x) => ({ id: x.id, label: x.label, status: x.status === 'failed' ? 'failed' : (x.status === 'running' ? 'running' : 'done'), details: [], time: timeOf(x) })) : list, draftSoFar };
+  }
+  if (list === null) return { list, draftSoFar: null };
+  const used = new Set();
+  return {
+    list: list.map((st) => {
+      const x = logged.find((l) => l.id === st.id && !used.has(l.no));
+      if (x) used.add(x.no);
+      return { ...st, time: x ? timeOf(x) : null };
+    }),
+    draftSoFar: null,
+  };
+}
+
+/**
+ * The plan card's one line: "Drafted in M:SS · $X", the drafting's whole time ({@link draftWallMs}) and the draft's own spend (its log.json: `costUsd`; "at least"
+ * when a call was unpriced). `null` when the draft has no step line with a time or its cost is not a number (a Reuse, an old draft): nothing is made up.
+ * @param {string} dir the draft folder (child.log) @param {any} log the plan's log.json, parsed
+ * @returns {string|null}
+ */
+export function draftedLine(dir, log) {
+  const ms = draftWallMs(readDraftSteps(dir));
+  if (ms === null || log === null || typeof log !== 'object' || typeof log.costUsd !== 'number') return null;
+  return `Drafted in ${mmss(ms)} \u00B7 ${log.spendComplete === false ? 'at least ' : ''}${usdText(log.costUsd)}`;
 }
