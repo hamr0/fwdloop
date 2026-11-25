@@ -629,6 +629,39 @@ Ruled by hamr 2026-11-02 (not a signature): the module number is M14; the memo t
 *Built after signing — not signed text: the draft above is kept as written. M14 was signed by hamr 2026-11-02 (with its amendments 1 and 2) and its exit 2026-11-03; M15 (one result for every job) was signed 2026-11-03. The signed text and what was built are in docs/wiki/the-module-ladder.md under M14 and M15.*
 *M16 (one check list, ported from bareloop v0.56.0; am1-am3) was signed by hamr 2026-11-13; signed text, build plan and rulings are in docs/wiki/the-module-ladder.md under M16; POCs F185-F189 in docs/logs/FINDINGS.md.*
 
+**M20 — one owner for every run fact, plus bareloop v0.63.0's draft times (DRAFT, not signed; module number: hamr picks).**
+
+**Why:** hamr 2026-11-25: "the issue with plumbing is huge, we kept running into it." A $0 code scan on main b7fa62c9 (2026-11-25) found each run file has one writer, and "how did this run end" has one reader (`endRow`, src/books.js:323, 9 callers). But: (1) "is this ending good or bad" is decided by its own list in 6 places (src/learn.js:263, src/panel/result.js:45, src/panel/data.js:674, src/panel/data.js:767, src/memo.js:23, src/runner.js:3345); (2) the Runs list and Run tab share one loader (`loadRunContext`, src/panel/data.js:928), but the Audit, Job and Asks tabs and the Stops list each read the run files themselves (src/panel/data.js:2049, 2216, 2863, 2957); (3) three side doors skip the one reader (src/panel/authorstart.js:95 reads halt.json raw, :102 scans history itself, src/learnstore.js:210 reads log.json with its own helper); (4) `log.json` names two different files (a run's, a draft's). bareloop v0.63.0 (tag v0.63.0, 7bc2719b) found the same creep and fixed it with one owner per fact (`isReusableGreen`, `currentLegView`, `finalCloseOf`), each with a guard test.
+
+**Part A — one owner per run fact (fwd's own cleanup; no screen changes).**
+1. **One table of endings.** Every history outcome and audit verdict fwd writes is listed once, in src/books.js beside `HALT_OUTCOMES`, with what it means: good, failed, noise, resumable. The 6 places above read that table; none keeps its own list. A guard test fails if any other src file spells a list of outcome or verdict words (a short allow-list, each with its reason, as bareloop's guard).
+2. **One run loader.** The Audit, Job and Asks tabs and the Stops list read a run through `loadRunContext`, as the Runs list and Run tab already do. A guard test fails if `readAudit`, `readHistory`, `readHaltRecord` or `readLog` is called outside an allow-listed file (each with its reason).
+3. **No side doors.** src/panel/authorstart.js:95 uses `readHaltRecord`; :102 uses `endRow`; src/learnstore.js:210 uses `readLog`.
+4. **One name, one thing.** The run's `log.json` is read only by `readLog`; a draft's `log.json` is read only by one draft reader. No file is renamed on disk, so old runs and drafts read as before.
+5. **Nothing on screen changes.** Every run on hamr's real flows root reads the same before and after: the Runs list, Run tab, Audit, Job, Asks, Result and Stops answers are byte-identical (a $0 snapshot taken before Part A, compared after).
+
+**Part B — copied from bareloop v0.63.0, only what fits fwd.** Copied from the tag, never main, with a `// borrowed-from: bareloop <path>@v0.63.0 (7bc2719b)` header; every screen word copied unchanged.
+6. **Draft step times.** The drafting list in chat shows a finished step as "took M:SS" and the running one as "M:SS so far", with signs ✓ done, ▶ running, ✗ failed (the animated dots are gone), and under the list "Drafting so far: M:SS". Times move in 30 s steps (no ticking clock), cost $0, and are read from the draft's own records. One owner: `withDraftTimes` in src/draftspend.js. A step with no recorded time shows no time. If a step's start or end is not recorded today, it is added to a row that already exists (no new file).
+7. **Plan card line.** Under the signed-ready plan: "Drafted in M:SS · $X" ("at least $X" when a call was unpriced). One owner: `draftedLine` in src/draftspend.js. Reuse shows no line.
+8. **Audit drafting table.** Shows the total draft time only, not each step's time (only if P0 finds fwd shows a per-step time today; else dropped).
+9. **NOW row.** While a run is live, the ENDED / NEXT / SCHEDULE box gets a first row, NOW: "AI working · M:SS" while a model step runs, or "Drafting · M:SS" while the run drafts, in 30 s steps, read from the run's own records. It goes when the run ends.
+10. **Capped wears [■].** A run that hit its money cap and cannot be resumed wears [■] like a stopped run, with the word "capped" (today it reads "[✗] failed (cap-halt)"). A resumable cap-halt keeps today's words.
+11. **A second tab follows.** A Run tab open in a second browser tab re-reads the open run when the Runs list says its sign or word changed (a Resume or Stop clicked in the first tab).
+
+**Not copied from v0.63.0, with the reason:** "usually about N min" (fwd never had it); the 30-minute check limit, `check-timeout`, `run-state.json`, `treeIdentity` and "the check that was running was killed" (fwd runs no test command); the already-green delivery and Reuse-estimate fixes (fwd writes no `already-green` ending; the word in src/learn.js:263 is dead and goes with item 1); `currentLegView`/`finalCloseOf` (fwd's audit rows carry no leg, and only `stopped`/`cap-halt` runs continue; item 2's one loader is fwd's form of the same fix); the page phrase and list-count items (bareloop copied them from fwd); one Destination record (P0 checks; if fwd keeps the Destination in two places it becomes an amendment, not built here).
+
+**POCs before build (pre-registered in docs/logs/FINDINGS.md):** P0 ($0): map every writer and reader for items 1-11 on main, and confirm each item's premise; an item P0 disproves is dropped and reported, not built. P1 ($0): the before-snapshot of every run on hamr's real flows root (item 5). P2 ($0): the draft records already hold, or can hold in an existing row, each step's start and end (items 6-7).
+
+**Done when:** each guard test fails when its rule is broken on purpose and passes on the built code; the item 5 snapshot is byte-identical before and after Part A; one real draft and one real run on deepseek-flash on hamr's real panel show the step times, the "Drafted in" line and the NOW row; a capped run shows [■] capped; a second tab follows a Stop and a Resume; the full suite and typecheck are green.
+
+**Must fail when:** a src file keeps its own list of ending words outside the table; a tab reads the run files outside the one loader; any Part A change alters a screen answer for any existing run; a copied screen word differs from the tag; a time ticks every second or costs money; a new run-folder or draft file is added; a file is copied from bareloop main instead of the tag.
+
+**Out of scope:** run-folder JSON clean-up (its own parked module); new screen words beyond the tag's; old runs are not repaired (they read as today).
+
+**Cap:** P0-P2 $0; one draft and one run for the walk, about 10 cents; build $0.
+
+**Order:** P0 → P1 → items 3, 1, 2, 4 (smallest first, snapshot compared after each) → P2 → items 10, 11, then 6, 7, 8, 9 → practice walk → hamr's walk → self-review → branch review → release.
+
 ## Guiding principles — borrowed from bareloop, reminders not features
 
 Signed by hamr 2026-09-15. Lifted from bareloop `docs/logs/CYBERNETICS.md@4bd52fe` (Ashby, Beer,
