@@ -6439,7 +6439,8 @@
 
     // ---- a refusal shows next to its box ----
     function clearFieldErrors(){
-      card.querySelectorAll(".jf-err").forEach(function(e){ e.textContent = ""; });
+      // the painted refusal's box line belongs to paintRefusal / clearRefusal (the one writer): a late flows answer repaints the Run form and must not wipe it
+      card.querySelectorAll(".jf-err").forEach(function(e){ if(e !== refusalBoxEl) e.textContent = ""; });
     }
     function errElFor(field){
       var m = /^inputs\.(\d+)$/.exec(field);

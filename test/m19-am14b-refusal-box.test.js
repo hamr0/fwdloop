@@ -3,6 +3,7 @@
 // A real panel and a real `fwdloop draft` child (no injected provider, fake key, no provider call, $0). Browser parts: real headless chromium.
 import assert from 'node:assert/strict';
 import { test, after } from 'node:test';
+import http from 'node:http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -180,3 +181,28 @@ for (const width of [1280, 390, 320]) {
     });
   }
 }
+
+// A slow Run-a-signed-flow list must not wipe a painted refusal: the page's first flows read repaints the Run form, which clears every box error.
+// A tiny proxy holds the flows answer back until the refusal is on screen, so the late answer lands after it (the order a loaded machine produces).
+test('browser: a late flows answer does not wipe the box error of a painted refusal', { skip: SKIP && 'no browser' }, async (t) => {
+  const c = await CASES.job();
+  await stopped(c.port, c.id);
+  let release = () => {};
+  const gate = new Promise((r) => { release = r; });
+  const proxy = http.createServer(async (req, res) => {
+    if (req.url.startsWith('/api/author/flows')) await gate;
+    const up = http.request({ host: '127.0.0.1', port: c.port, path: req.url, method: req.method, headers: { ...req.headers, host: `127.0.0.1:${c.port}` } }, (u) => { res.writeHead(u.statusCode, u.headers); u.pipe(res); });
+    req.pipe(up);
+  });
+  await new Promise((r) => proxy.listen(0, '127.0.0.1', r));
+  CLOSERS.push(() => new Promise((r) => proxy.close(r)));
+  const chrome = await launchChrome();
+  if (!chrome) { release(); t.skip('no chromium installed'); return; }
+  CLOSERS.push(async () => chrome.close());
+  await chrome.open(`http://127.0.0.1:${proxy.address().port}/`, 1280);
+  assert.ok(await chrome.waitFor('document.getElementById("jf-err-job").textContent !== ""'), 'the refusal shows');
+  release();
+  await new Promise((r) => setTimeout(r, 1500));
+  const after = await chrome.ev(`({ f: document.getElementById("jf-err-job").textContent, p: document.getElementById("chat-draft-refusal").textContent })`);
+  assert.deepEqual(after, { f: NO_RULE, p: POINTER });
+});
