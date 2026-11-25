@@ -656,7 +656,7 @@ export class CheckBlock {
     r.held = false;
     /** @type {any[]} */ const parts = [];
     /** @type {string[][]} */ const rows = [];
-    this.buildLine(l, parts, rows, new Set(), true);
+    this.buildLine(l, parts, rows, new Set());
     const ok = r.state === 'built';
     const reason = r.reason;
     const i = rows.findIndex((k) => k.includes(r.key));
@@ -670,7 +670,7 @@ export class CheckBlock {
   }
 
   /** one line's parts: a pick part per count rule, ONE fact part carrying every fact row of the line (and its result count), then the `$` defaults */
-  buildLine(/** @type {{n: number, text: string}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows, /** @type {Set<number>} */ factLines, /** @type {boolean} */ offer = false) {
+  buildLine(/** @type {{n: number, text: string}} */ l, /** @type {any[]} */ lineParts, /** @type {string[][]} */ lineRows, /** @type {Set<number>} */ factLines) {
     let foundFact = false;
     /** @type {any[]} */ const facts = [];
     /** @type {{r: Row, src: string}[]} */ const factRows = [];
