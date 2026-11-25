@@ -4554,3 +4554,15 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Must fail when:** a list of ending words stays outside the table or its allow-list; a moved reader is left also in src/runner.js; a corrupt `halt.json` stops reading as waiting; a draft `log.json` is read other than through `readDraftLog`; a new run-folder or draft file is added; the `try-start` row changes a check, a cost or a count the Audit shows; the live list's labels differ from `draftStepList`'s; a copied word differs from tag v0.63.0; a time ticks every second.
 
 **Order:** P1 (the before-snapshot) → item 3 (readers move, doors close) → item 1 → item 2 → item 4 → snapshot compared after each → P2 → items 5, 6 → item 8 → item 9 → P3 → item 10 → practice walk → hamr's walk → self-review → branch review → release.
+
+**M20 amendment 2 — SIGNED by hamr 2026-11-25 ("sign m20 am2."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am2-sign.md, sha256 2a4a0acf19b6…).**
+
+**M20 amendment 2 — the drafting step lines take bareloop's own shape, joined by step id.** Live: F265 (2026-11-25, $0, real panel and real `fwdloop draft` child, fake provider) FAILED bar (b): a fwd step's place and label are not known when it starts (the `thinking` line only exists after a reply and comes first, so every later place shifts; `drafted` and `plan checks` carry rounds, cost and tries only at the end), so am1 item 5's `step-start {no, label, at}` / `step-end {no, status, at}` joined by `no` cannot give `draftStepList`'s list. This replaces only the line shape and the join of am1 item 5 (and so the times am1 item 6 reads); every other line of am1 item 5 and item 6 stands.
+
+1. **The lines are bareloop v0.63.0's shape** (src/draftspend.js, DraftEvent): `step-start {no, id, label, at}` and `step-end {no, status, label, at}`. `no` counts the lines' own steps in the order they started; `id` is the step id `draftStepList` (src/draft-steps.js) gives that step (`inputs`, `drafted`, `checks`, `rubrics`); `label` on `step-start` is the step's label so far, and on `step-end` its final label.
+2. **While the draft runs,** the chat list is the started steps in `no` order, each with its latest label, ✓ / ▶ / ✗ and its time.
+3. **After the draft ends,** the list is `draftStepList`'s list, unchanged, each line taking the times of the step line with the same `id` (the first unused one, in order). A line no step line matches (the `thinking` line, a `Fix:` note) shows no time.
+
+**POC P2b (pre-registered in docs/logs/FINDINGS.md before the run, $0, the F265 harness reused):** (a) as F265 (a); (b) after the draft ends, the list equals `draftStepList`'s labels and order, and every line with an `id` the step lines hold has a start and an end; (c) a draft with no step lines shows no times. A fail on the letter stops the build.
+
+**Must fail when:** a time is joined by place instead of `id`; the final list differs from `draftStepList`'s; a new file is written; a line no step line matches shows a time.
