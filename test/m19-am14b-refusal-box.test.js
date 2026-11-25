@@ -192,17 +192,24 @@ test('browser: a late flows answer does not wipe the box error of a painted refu
   const proxy = http.createServer(async (req, res) => {
     if (req.url.startsWith('/api/author/flows')) await gate;
     const up = http.request({ host: '127.0.0.1', port: c.port, path: req.url, method: req.method, headers: { ...req.headers, host: `127.0.0.1:${c.port}` } }, (u) => { res.writeHead(u.statusCode, u.headers); u.pipe(res); });
+    up.on('error', () => res.destroy());
     req.pipe(up);
   });
   await new Promise((r) => proxy.listen(0, '127.0.0.1', r));
-  CLOSERS.push(() => new Promise((r) => proxy.close(r)));
   const chrome = await launchChrome();
-  if (!chrome) { release(); t.skip('no chromium installed'); return; }
-  CLOSERS.push(async () => chrome.close());
-  await chrome.open(`http://127.0.0.1:${proxy.address().port}/`, 1280);
-  assert.ok(await chrome.waitFor('document.getElementById("jf-err-job").textContent !== ""'), 'the refusal shows');
-  release();
-  await new Promise((r) => setTimeout(r, 1500));
-  const after = await chrome.ev(`({ f: document.getElementById("jf-err-job").textContent, p: document.getElementById("chat-draft-refusal").textContent })`);
+  if (!chrome) { release(); proxy.close(); t.skip('no chromium installed'); return; }
+  let after;
+  try {
+    await chrome.open(`http://127.0.0.1:${proxy.address().port}/`, 1280);
+    assert.ok(await chrome.waitFor('document.getElementById("jf-err-job").textContent !== ""'), 'the refusal shows');
+    release();
+    await new Promise((r) => setTimeout(r, 1500));
+    after = await chrome.ev(`({ f: document.getElementById("jf-err-job").textContent, p: document.getElementById("chat-draft-refusal").textContent })`);
+  } finally {
+    // the page polls through the proxy: close the browser first, then the proxy (its open sockets too), before the panel goes
+    release();
+    await chrome.close();
+    await new Promise((r) => { proxy.close(r); proxy.closeAllConnections(); });
+  }
   assert.deepEqual(after, { f: NO_RULE, p: POINTER });
 });
