@@ -10073,3 +10073,9 @@ Read on branch `m20-one-owner` (main b7fa62c9 plus docs). Every line below was r
 - Item 8 would remove a figure fwd shows now (per-row `wallMs`).
 - Item 9: no run-side "drafting" state exists; no "step running since" record.
 - Item 11: a second tab already refreshes at 10 s; the claimed gap is unproven.
+
+## F264 PRE-REGISTRATION (2026-11-25, $0, no provider call; written BEFORE the run; nothing under `src/` or `bin/` changes) — M20 P1 before-snapshot
+**Question.** Can one tool record, from a copy of hamr's real flows root, every answer the panel gives for the Runs list, Run tab, Audit, Job, Asks, Result and Stops, so M20 item 5 ("byte-identical before and after Part A") can be checked?
+**Method.** `poc/m20-p1/snapshot.harness.mjs <rootCopy> <out.json>` imports the panel's own getters from `src/panel/data.js` and calls them with the same arguments as `src/panel/server.js`; one JSON object, keys `flow/run/<getter>`, sorted, pretty-printed; fixed `now`; scratch HOME. Run on a `cp -a` copy of `~/.config/fwdloop/flows`, twice, then `cmp`.
+**Bar.** Two runs on unchanged code give byte-identical output (else it is not a usable instrument: find and pin the moving part, e.g. now/time, and say so). It covers every run of every flow in the copy. A run whose getter throws is recorded as its error text, not skipped.
+**Must fail when:** it reads or writes hamr's real root directly instead of a copy; a field is dropped from the output to make two runs match without saying which and why; anything under `src/`, `bin/` or `test/` changes.
