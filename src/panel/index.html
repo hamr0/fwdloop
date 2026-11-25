@@ -3121,12 +3121,13 @@
     var box = document.getElementById("ended-block");
     var note = document.getElementById("catchup-note");
     var sc = sm.schedule || null;
-    if(sm.ended || sc){
+    var nowText = typeof sm.now === "string" && sm.now ? sm.now : null;
+    if(sm.ended || sc || nowText){
       var tone = glyphClass(detail.glyph); // M9 am14: the colour of that run's card in the runs list, one decider (its dot)
       if(sc && sc.red === true) tone = "red";
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");
-      box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
+      box.innerHTML = (nowText ? summaryRow("NOW", nowText, "now-row") : "") + (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
         (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true, sc.grey === true) : "") : "");
     } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;

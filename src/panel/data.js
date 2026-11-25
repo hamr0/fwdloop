@@ -57,7 +57,8 @@ import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { hasResultCards, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { ticketListOf, ticketScheduleOf } from './tickets.js';
 import { buildJobGrid } from './jobgrid.js';
-import { readChecks } from '../diary.js';
+import { readChecks, readTryStarts } from '../diary.js';
+import { mmss, stepped } from '../draftspend.js';
 import { readRunInputs, readRunRecord } from '../runfile.js';
 import { filterUnsure } from '../ticket-labels.js';
 import { readSchedule } from '../schedule.js';
@@ -977,6 +978,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     liveness: stuckInputs.liveness,
     lock: stuckInputs.lock,
     booksFresh: historyRow ? false : booksFresh(runDir),
+    // M20 am1 item 8: the newest `try-start` diary row of a run with no end row (the NOW row reads it), else null
+    tryStart: historyRow ? null : (readTryStarts(runDir).at(-1) ?? null),
     // M4c exit walk: when the process that is working on the run started (its newest pid row's
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
     startedAt: historyRow ? null : lastPidStartedAt(runDir),
@@ -1532,11 +1535,25 @@ function jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun })
   return false;
 }
 
+// borrowed-from: bareloop src/panel/server.js@v0.63.0 (7bc2719b): nowOf (the NOW row's words and its 30 s steps); fwd reads its own report-only `try-start` diary row, and the try ends at the first audit row written at or after it (an equal time counts as ended)
+/**
+ * M20 am1 item 8: the Run tab's NOW row, "AI working · M:SS", only while the run is live (`[▶]`, no end row) and a model step's try is running: the newest
+ * `try-start` row has no audit row written at or after it. Anything else is null (nothing is made up between tries). The time moves in 30 s steps (`stepped`).
+ * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign @param {number} nowMs @returns {string|null}
+ */
+export function nowOf(ctx, glyph, nowMs) {
+  if (!isRunningNow(ctx, glyph) || !ctx.tryStart) return null;
+  const from = Date.parse(ctx.tryStart.at);
+  if (!Number.isFinite(from)) return null;
+  if (ctx.auditRows.some((r) => typeof r.at === 'string' && r.at >= ctx.tryStart.at)) return null;
+  return `AI working \u00B7 ${mmss(stepped(nowMs - from))}`;
+}
+
 /**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
  * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
- * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, schedule: {line1: string, line2: string|null, red: boolean}, canSchedule: boolean, catchUp: string|null}}
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, schedule: {line1: string, line2: string|null, red: boolean}, canSchedule: boolean, catchUp: string|null, now: string|null}}
  */
 function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const died = !ctx.historyRow && glyph === '[?]';
@@ -1568,7 +1585,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
   const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
-  return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
+  return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec), now: nowOf(ctx, glyph, now()) };
 }
 
 /**

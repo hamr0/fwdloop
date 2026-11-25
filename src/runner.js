@@ -71,7 +71,7 @@ import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import { stepThinkingMode, stepHintsWanted } from './thinking.js';
-import { appendChecks, nextRound } from './diary.js';
+import { appendChecks, appendTryStart, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
@@ -1049,6 +1049,8 @@ async function runStepTries({
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
     const startedAt = Date.now();
+    // M20 am1 item 8: the try begins - one report-only diary row, so the Run tab can say "AI working" and since when
+    if (runDir !== null) appendTryStart(runDir, { step: stepMeta.step, try: attempt, at: now() });
     // eslint-disable-next-line no-await-in-loop
     let result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
     if (result && result.ok === false && result.transport === true) {

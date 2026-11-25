@@ -2,6 +2,7 @@
 // (src/planrun.js: `new Gate({ audit: { path } })`, the path denied to the worker with `fs.deny`). Every row carries `kind`, in the order the rows were written:
 //   kind 'call'   one row per MODEL CALL:  step, try, round, cost, tokens, time, stop reason, thinking asked and status
 //   kind 'tool'   one row per TOOL CALL:   step, try, round, tool, path, the guard's decision (allow / deny + rule / no check)
+//   kind 'try-start' one row per model-step TRY, written when it begins: step, try, at (M20 am1 item 8; report-only, the Run tab's NOW row reads it; no check, cost or count reads it)
 //   kind 'checks' one row per TRY that ran checks: each check numbered, ✓/✗, its result, where it comes from, and the output it judged
 // Never saved: what the model said, what was in any file (a tool row names a path, never its content). Every string is scrubbed with the
 // ONE secret inventory (`redactSecrets`, src/redact.js) before the row is written. The model can never read this file: the step's
@@ -19,7 +20,7 @@ export const DIARY_FILE = 'diary.jsonl';
 /** The diary's absolute path for a run, for the model's deny list (a list, as the deny lists take one). @param {string} runDir @returns {string[]} */
 export const diaryPaths = (runDir) => [join(runDir, DIARY_FILE)];
 
-/** @typedef {'call'|'tool'|'checks'} DiaryKind */
+/** @typedef {'call'|'tool'|'checks'|'try-start'} DiaryKind */
 
 /** A copy of a JSON value with every string scrubbed. @param {any} v @returns {any} */
 function scrub(v) {
@@ -39,6 +40,9 @@ export const appendTool = (runDir, row) => write(runDir, 'tool', row);
 /** @param {string} runDir @param {{step:string|null, try:number, at:string, lastRound:number, checks:Array<{n:number, text:string, ok:boolean, result:string|null, source:string}>, output:{file:string, bytes:number, sha256:string}|null}} row */
 export const appendChecks = (runDir, row) => write(runDir, 'checks', row);
 
+/** @param {string} runDir @param {{step:string|null, try:number, at:string}} row */
+export const appendTryStart = (runDir, row) => write(runDir, 'try-start', row);
+
 /** The rows of one kind, in the order they were written; a torn or unparseable line is skipped (the writer's fresh-line rule is its other half). @param {string} runDir @param {DiaryKind} kind @returns {any[]} */
 const readKind = (runDir, kind) => readLines(runDir, DIARY_FILE).filter((r) => r.kind === kind);
 /** @param {string} runDir @returns {any[]} */
@@ -47,6 +51,9 @@ export const readCalls = (runDir) => readKind(runDir, 'call');
 export const readTools = (runDir) => readKind(runDir, 'tool');
 /** @param {string} runDir @returns {any[]} */
 export const readChecks = (runDir) => readKind(runDir, 'checks');
+
+/** @param {string} runDir @returns {any[]} */
+export const readTryStarts = (runDir) => readKind(runDir, 'try-start');
 
 /** The round number of this step's next model call: one more than the highest round it has in the diary, so it counts on across tries and across resumes.
  *  Read off the file each time (the diary is the one record), never a copy held in memory. @param {string} runDir @param {string|null} step */
