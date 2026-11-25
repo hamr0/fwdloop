@@ -390,7 +390,7 @@ export async function draftToDir({
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
 }) {
-  const refuse = (reds, box = null) => ({ ok: false, wrote: false, reds, costUsd: 0, box });
+  const refuse = (reds, box = /** @type {string|null} */ (null)) => ({ ok: false, wrote: false, reds, costUsd: 0, box });
   const nameCheck = checkFlowName(name);
   if (!nameCheck.ok) return refuse([nameCheck.red], 'flowName');
   if (typeof root !== 'string' || root === '') return refuse(['draft: --root <flows dir> is required']);
