@@ -632,7 +632,7 @@ function checkNumbersFromKey(step, label, steps, reds) {
  * `{source, facts, count?}`, src/citedcheck.js). Its SHAPE is checked in every mode (a signed flow is read the same way). With `fitJobLine` the number rules
  * must be the person's own words on the job line; with `pageWords` (the drafting copy of each page and what the page-word map kept) every word is proved on
  * the page at $0 (src/citedwords.js). Each red names the job line, so a redraft can be told which line.
- * @param {any} step @param {string} label @param {{sourceRoles: any[], reads: string[]|null, effectiveClass: string, lines: SignedLine[], fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}}} c @param {string[]} reds
+ * @param {any} step @param {string} label @param {{sourceRoles: any[], reads: string[]|null, effectiveClass: string, lines: SignedLine[], fitJobLine?: boolean, addedCounts?: Set<string>, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}}} c @param {string[]} reds
  */
 function checkCitedKey(step, label, c, reds) {
   const at = `declaration: ${label}.close.cited`;
@@ -650,7 +650,7 @@ function checkCitedKey(step, label, c, reds) {
   const jl = { n: jobLine.n, text: jobLine.text, ...(jobLine.guardrail ? { rule: jobLine.guardrail } : {}) };
   // a part that is not valid is not read further: its words would only repeat the same red
   if (factPartReds(part).length) return;
-  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look, doc: Array.isArray(c.pageWords.docs) && c.pageWords.docs.includes(part.source) }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl })];
+  const words = c.pageWords ? citedWordReds({ part, text: c.pageWords.texts[part.source], line: jl.n, jobLine: jl, look: c.pageWords.look, doc: Array.isArray(c.pageWords.docs) && c.pageWords.docs.includes(part.source), added: c.addedCounts }) : [...numberRuleReds({ part, jobLine: jl }), ...countReds({ part, jobLine: jl, added: c.addedCounts })];
   for (const r of words) reds.push(`declaration: ${r.detail}`);
 }
 
@@ -763,11 +763,11 @@ function inputReachVerbs(source) {
  * `sheetWords` (optional; M10 am8 item 2): `{headers: {role: header names}, facts: the columns the sheet look kept}`. With `fitJobLine`, every column a step's `close.columns` names
  * is proved a real column of its sheet, and a column the code kept for the step's line (an agreed one included) must be in it.
  * `sheetWords.tables` (optional; M10b piece 1): `{role: bareguard table}` of the drafting copy. With it, every `close.sheet` check passes bareguard's sign-time test at $0.
- * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[], tables?: Record<string, {header: string[], rows: any[]}>} }} [context]
+ * @param {{ arbiter?: unknown, lines?: unknown, catalogue?: unknown, wired?: Set<string>, verbatimGoals?: boolean, fitJobLine?: boolean, addedCounts?: Set<string>, pageWords?: {texts: Record<string, string>, look: any, docs?: string[]}, sheetWords?: {headers: Record<string, string[]>, facts: any[], tables?: Record<string, {header: string[], rows: any[]}>} }} [context]
  * @returns {ValidateDeclarationResult}
  */
 export function validateDeclaration(declaration, context = {}) {
-  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine, pageWords, sheetWords } = context;
+  const { arbiter, lines, catalogue, wired, verbatimGoals, fitJobLine, pageWords, sheetWords, addedCounts } = context;
   const reds = [];
 
   if (!isPlainObject(declaration)) {
@@ -1071,7 +1071,7 @@ export function validateDeclaration(declaration, context = {}) {
           reds.push(`declaration: ${label}.close.shape: a step that checks facts carries no count check of the drafter's own; only a check you picked (close.picked, on a line recorded in pickedLines) can sit beside its fact check`);
         }
         if (step.close.numbersFrom !== undefined) checkNumbersFromKey(step, label, steps, reds);
-        if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords }, reds);
+        if (step.close.cited !== undefined) checkCitedKey(step, label, { sourceRoles, reads, effectiveClass, lines: safeLines, fitJobLine, pageWords, addedCounts }, reds);
         if (step.close.itemShape !== undefined) checkItemShapeKey(step, label, effectiveClass, reds);
         if (step.close.sheet !== undefined) checkSheetKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, fitJobLine, sheetWords }, reds);
         if (step.close.columns !== undefined || (fitJobLine === true && sheetWords)) checkColumnsKey(step, label, { cellsRoles, reads, effectiveClass, lines: safeLines, sheetWords }, reds);

@@ -187,5 +187,24 @@ export function readKept(dir, rel = '.') {
   return { kept: j !== null && typeof j === 'object' && !Array.isArray(j) && Array.isArray(j.kept) ? j.kept : null, torn: false };
 }
 
+/**
+ * M20 am4: the counts the person switched on with Add, from the plan's `rowChoices` (the entries `readRowChoices` gives, or the block's own `choicesRecord()`): a set of
+ * `<line>:min:<n>` / `<line>:max:<n>` strings, one per number of an Added `count.<min>-<max>` row, the line found by its words as the record ties it. The count check
+ * (src/citedwords.js `countReds`) reads a number in this set as said: the Add says it.
+ * @param {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null|undefined} entries @param {{n: number, text: string}[]} lines @returns {Set<string>}
+ */
+export function addedCountsOf(entries, lines) {
+  const out = new Set();
+  const keys = lineKeys(lines);
+  for (const e of entries ?? []) {
+    const m = e.choice === 'add' ? /^count\.(\d*)-(\d*)$/.exec(e.tail) : null;
+    const line = m === null ? undefined : [...keys].find(([, k]) => k.lineWords === e.lineWords && k.occurrence === e.occurrence)?.[0];
+    if (m === null || line === undefined) continue;
+    if (m[1] !== '') out.add(`${line}:min:${m[1]}`);
+    if (m[2] !== '') out.add(`${line}:max:${m[2]}`);
+  }
+  return out;
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);

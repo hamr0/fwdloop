@@ -18,7 +18,7 @@ import { ledgerRowsOf } from './checkrows.js';
 import { editsOf } from './rowedit.js';
 import { NOTE_KIND } from './noteask.js';
 import { offerRules, rowsFromAnswer, codeScope } from './checkpick.js';
-import { matchRecord, readRowChoices, RECORD_FILE } from './pickrecord.js';
+import { matchRecord, readRowChoices, addedCountsOf, RECORD_FILE } from './pickrecord.js';
 import { listLinesOf, cardLinesOf } from './checklistsign.js';
 import { csvRolesOf } from './sheetblock.js';
 import { withTicketRows } from './ticketrows.js';
@@ -157,7 +157,7 @@ function assembleAgain(b, from = b.declaration) {
   const planFacts = b.look.facts.filter((f) => !b.lineSet.has(f.line) || inPlan.has(`${f.line}:${f.name}`));
   const pageSources = (b.parsed.arbiter.sources ?? []).some((/** @type {any} */ s) => s.kind === 'page');
   const verdict = validateDeclaration(a.declaration, {
-    arbiter: b.parsed.arbiter, lines: b.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+    arbiter: b.parsed.arbiter, lines: b.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true, addedCounts: addedCountsOf(b.block.choicesRecord(), b.lines),
     pageWords: { texts: b.texts, look: pageSources ? { facts: planFacts, dropped: b.look.dropped } : null, docs: docRolesOf(b.parsed.arbiter.sources) },
   });
   if (!verdict.ok) return { ok: false, say: `The changed list did not pass the plan's checks (${String(verdict.reds[0])}). Nothing was changed.` };

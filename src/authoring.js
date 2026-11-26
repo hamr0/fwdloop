@@ -43,7 +43,7 @@ import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { makeStepWriter, sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
-import { RECORD_FILE, readKept } from './pickrecord.js';
+import { RECORD_FILE, readKept, readRowChoices, recordPath, addedCountsOf } from './pickrecord.js';
 import { planMatchesCard, numbersWords } from './checkrows.js';
 import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
@@ -605,6 +605,7 @@ export function signDraft({
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {
     arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+    addedCounts: addedCountsOf(readRowChoices(recordPath(dir)), signed.lines),
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
   // M19 am6 item 3 (bareloop `planMatchesClose`): the card a draft saved must equal the checks the signed plan runs, line by line; a difference refuses the sign at $0, naming the line.

@@ -1,0 +1,14 @@
+1. Read the expenses sheet
+2. List every expense over 500, with how many there are and their total
+   guardrail: Amount over 500
+3. ask 1h: check the list with me
+4. Read the notes and sum them up in a short summary
+   guardrail: at most 100 words
+5. ask 1h: check the summary with me
+6. Write it out
+
+Arbiter guardrails (belong to no line; human-signed, tighten-only — never authored or claimed by the drafter):
+guardrail: cap $0.5 per run
+guardrail: send at line 6 to file:@@DIR@@/out
+guardrail: source expenses = file:@@DIR@@/inputs/expenses.csv
+guardrail: source notes = file:@@DIR@@/inputs/notes.txt
