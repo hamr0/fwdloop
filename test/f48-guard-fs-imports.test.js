@@ -33,7 +33,7 @@
 // Deliberately still a text scan, not a real AST walk (no parser dependency,
 // per the dependency-hierarchy rule) — but it scans at the import/binding
 // level, not the call-line level, which is what closes the four evasions
-// above. `src/flow.js`'s `readFileInside`/`readdirInside` (`resolveInside` +
+// above. `src/inside.js`'s `readFileInside`/`readdirInside` (`resolveInside` +
 // the actual read) remain the one mechanism every book reader is expected to
 // route through; this guard's job is to catch anything that reaches `fs`
 // WITHOUT going through them, or without a narrow, justified, count-pinned
@@ -294,7 +294,7 @@ function scanFsUsage(text) {
  * the EXACT use count per real fs export name (aliases and namespace/
  * default dot-or-bracket access already folded under the real name by
  * `scanFsUsage`) — a count that moves either direction fails. Classified
- * below (see the task report) as: safe-read implementation (src/flow.js),
+ * below (see the task report) as: safe-read implementation (src/inside.js),
  * writes-only books/panel/CLI checks, package-own bundled files, or a
  * documented F48 business-source/gated-read exemption.
  */
