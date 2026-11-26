@@ -16,7 +16,7 @@ import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
 import { checkAsks } from './checkpick.js';
-import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
+import { readKept, KEPT_WORDS } from './pickrecord.js';
 
 export const SETUP_FILE = 'setup.jsonl';
 
@@ -65,7 +65,7 @@ function humanRows(sessionDir, rel) {
   // a kept row's n counts the answered LOOK rows only, as before M14 am3 (a page-look row never changes)
   const lookAnswered = answered.filter((r) => r.source === 'look').length;
   // M10 am17 (6): a pick kept from the last draft is the same row, from this plan's picks record (not an answer file), its answer being the words `kept from last draft`
-  const kept = Array.isArray(readJsonFile(join(sessionDir, rel), RECORD_FILE)?.kept) ? readJsonFile(join(sessionDir, rel), RECORD_FILE).kept : [];
+  const kept = readKept(sessionDir, rel).kept ?? [];
   const keptRows = kept.map((k, i) => {
     const [ask] = checkAsks([{ line: k.line, rule: k.rule, text: k.ruleText, check: k.check ?? null, why: null }]);
     return {

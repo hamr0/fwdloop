@@ -172,5 +172,20 @@ export function columnsOnLines(entries, lines) {
   return entries.flatMap((e) => { const n = byKey.get(`${e.lineWords}#${e.occurrence}`); return n === undefined ? [] : [{ line: n, word: e.word, column: e.column }]; });
 }
 
+/**
+ * M20 am3e item 19: the record's `kept` list, the ONE reader (the plan card, the setup row and the sign-time card check all ask it). `kept` is the list as written, or null
+ * when there is none to read (no file, refused by the gateway, not a JSON object, no list). `torn` tells an unreadable record from an empty one: the file was read and
+ * is not JSON. The sign-time card check skips on a torn record; the other two read it as no list.
+ * @param {string} dir the folder that holds the plan folder @param {string} [rel] `draft`, `draft-<n>` or `.` (the plan folder itself)
+ * @returns {{kept: any[]|null, torn: boolean}}
+ */
+export function readKept(dir, rel = '.') {
+  const g = readFileInside(dir, `${rel}/${RECORD_FILE}`);
+  if (!g.ok) return { kept: null, torn: false };
+  let j;
+  try { j = JSON.parse(g.text); } catch { return { kept: null, torn: true }; }
+  return { kept: j !== null && typeof j === 'object' && !Array.isArray(j) && Array.isArray(j.kept) ? j.kept : null, torn: false };
+}
+
 /** where a plan folder keeps its record @param {string} planDir */
 export const recordPath = (planDir) => path.join(planDir, RECORD_FILE);

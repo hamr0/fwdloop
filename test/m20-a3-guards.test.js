@@ -266,3 +266,11 @@ test('am3e item 17: only draftfiles.js spells card.json / card-<n>.json (draftsp
 test('am3e item 18: only draftfiles.js spells redraft-<n>.json', () => {
   assert.deepEqual(strays(load(), /redraft-\$\{[^}]*\}\.json|redraft-\(\\d/, { 'draftfiles.js': 'redraftFileName / readRedraftMarker: the one name and the one read, rowEdit typed' }), []);
 });
+
+// am3e item 19: the picks record's `kept` list is read by readKept (src/pickrecord.js) only; planrebuild.js reads the whole record to carry it over and author.js asks only whether a plan folder holds one
+test('am3e item 19: only pickrecord.js reads `kept` from the picks record; the whole-record read and the presence check are on the list', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\brecord\??\.kept\b|(readJsonFile|JSON\.parse)\([^)\n]*\)\??\.kept\b/, { 'pickrecord.js': 'readKept: the one reader of the list', 'planrebuild.js': 'the whole record, carried over; it takes the kept keys the rebuild already holds from it' }), []);
+  assert.deepEqual(strays(files, /readJsonFile\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'planrebuild.js': 'the whole record, to carry it over into the rebuilt record' }), []);
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'pickrecord.js': 'the readers of the record\'s fields', 'panel/author.js': 'presence only: does a plan folder hold a record (--carry)' }), []);
+});

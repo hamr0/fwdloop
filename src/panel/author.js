@@ -56,7 +56,7 @@ import {
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
 import { EVERY_STEP_TEXTS } from '../try-checks.js';
-import { recordPath, RECORD_FILE, KEPT_WORDS } from '../pickrecord.js';
+import { recordPath, RECORD_FILE, KEPT_WORDS, readKept } from '../pickrecord.js';
 import { csvRolesOf } from '../sheetblock.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
@@ -397,7 +397,7 @@ export function createAuthor(opts) {
     const decl = readJsonFile(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const kept = readJsonFile(dir, `${rel}/${RECORD_FILE}`)?.kept;
+    const kept = readKept(dir, rel).kept;
     const opts = {
       ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
       ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),

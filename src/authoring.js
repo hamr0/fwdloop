@@ -44,7 +44,7 @@ import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { makeStepWriter, sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
-import { RECORD_FILE } from './pickrecord.js';
+import { RECORD_FILE, readKept } from './pickrecord.js';
 import { planMatchesCard, numbersWords } from './checkrows.js';
 import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
@@ -617,12 +617,11 @@ export function signDraft({
   // Only a card saved with its own Not checked list (this build) is compared; an older saved card is drawn from the plan and not held to it.
   const cardReds = (() => {
     if (!Array.isArray(declaration.checkList)) return [];
-    const rec = read(RECORD_FILE);
+    const keptRead = readKept(dir);
     const log = readDraftLog(dir);
-    /** @type {any} */ let record = null;
-    try { record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
+    if (keptRead.torn) return [];   // an unreadable record: the check skips
     if (!log?.checkCard || !Array.isArray(log.checkCard.notChecked)) return [];
-    const kept = Array.isArray(record?.kept) ? record.kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [];
+    const kept = (keptRead.kept ?? []).filter((/** @type {any} */ k) => k && Number.isInteger(k.line));
     return planMatchesCard({ declaration, lines: signed.lines, csvRoles: csvRolesOf(signed.arbiter), kept, log: log.log }, log.checkCard);
   })();
   if (cardReds.length) return { ok: false, reds: cardReds };
