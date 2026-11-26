@@ -66,10 +66,10 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: by[t] === 'you' || by[t] === 'agent' || by[t] === 'default' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
   // the two checks every step has (src/try-checks.js #1 and #2): passed when every step that ran them passed, failed when one did not
   const every = (/** @type {string} */ text) => {
-    const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (d.checks ?? []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));
+    const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (Array.isArray(d.checks) ? d.checks : []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));
     return seen.length === 0 ? 'none' : seen.every((/** @type {any} */ c) => c.ok) ? 'passed' : 'failed';
   };
-  const everyWhy = (/** @type {string} */ text) => whyOf((Array.isArray(diary) ? diary : []).flatMap((d) => (d.checks ?? []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text)).find((/** @type {any} */ c) => !c.ok));
+  const everyWhy = (/** @type {string} */ text) => whyOf((Array.isArray(diary) ? diary : []).flatMap((d) => (Array.isArray(d.checks) ? d.checks : []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text)).find((/** @type {any} */ c) => !c.ok));
   /** @type {AuditCheckRow[]} */
   const always = EVERY_STEP_TEXTS.map((text) => ({ text, kind: 'file', by: /** @type {'default'} */ ('default'), result: every(text), ...everyWhy(text) }));
   // M19 S7: one block per job line (its checks, its Not checked rows) and the Not checked rows no line owns; the two every-step rows are the page's "Every line" block (a one-line job's Line 1 block)
