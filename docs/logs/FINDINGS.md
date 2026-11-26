@@ -10248,3 +10248,60 @@ Not disagreements, recorded as seen: (1) word `null` with glyph `[■]`/`[✗]` 
 - `src/authoring.js` <-> `src/setup.js` (authoring imports writeSetup; setup imports readQuestions, scrub).
 - One strongly connected set of 18 files: `checkblock.js, checkpick.js, citedcheck.js, citedwords.js, closers.js, declaration.js, factwords.js, flow.js, pageask.js, pagedropwords.js, pagedry.js, placerule.js, rubricstep.js, runfile.js, sheetblock.js, sheetrows.js, sheetrun.js, ticketrows.js` (membership proven by the walk; the individual shortest loop is not listed here). `flow.js` is in it.
 Not claimed: class (d) beyond the checks above (log.json and line-checks.json cited/sheet sections were not compared); a live two-tab walk.
+
+## F270 RECORDED AFTER THE RUN, not pre-registered ($0 map) (2026-11-26; no provider call; `src/`, `bin/`, `test/` untouched) — M20 F268 re-run and the six drift rows am3 missed
+**What was run.** The F268 grep map was re-run on the tree after the am3 batches (`.claude/scratch/m20-one-owner/f268-rerun.out`, `f268-rerun2.out`). Then a question map for the files it still showed (`f268-rest-map.md`), measured by `f268-rest-measure.mjs` over the P1 copy and `~/.config/fwdloop/flows`.
+**Found.** Six F268 DRIFT rows that no am3 item names: ask.json, run.json `placeRules`, card.json and card-<n>.json, redraft-<n>.json, picks-record.json, and prose.txt/declaration.json in a draft plan folder. am3's own "Done when" (no drift row left) needed them. My am3 list missed them.
+**Measured.** Every ask.json (123 P1 / 127 real), run.json (163 / 167), card.json (157 / 160), card-<n>.json (91 / 93), redraft-<n>.json (66 / 66), picks-record.json (141 / 145) and declaration.json parses as a JSON object. 0 files give a different answer under any grouping. No run has a `placeRules` section. 59 of 66 redraft files have no `rowEdit`. 7 picks records hold a kept entry with no `check`.
+**Edge cases** (a torn file, a non-object) are from code reading only: unchecked live. Three of them would change behaviour if merged: `readAsk` returns null for every trouble, so four sites would lose their sentences (a typed reader keeps them); a truthy non-object `rowEdit` reads differently in author.js and setup.js; an unparseable picks-record.json skips the sign-time card check today.
+**Led to.** am3e (items 15-21), signed 2026-11-26, built in 716c723f, ac1d26ac, 56f7593e, 84a35553, fb888a45, 63ffa4b7.
+
+## F271 RECORDED AFTER THE RUN, not pre-registered ($0 map) (2026-11-26; no provider call; nothing committed by the map) — M20 the 18-file import loop
+**What was run.** The static walk of every `import/export ... from './x'` and bare `import './x'` in `src/` and `bin/` (155 files, 720 edges), Tarjan SCC, as `poc/m20-f269/cycles.harness.mjs` (same result). Written up in `.claude/scratch/m20-one-owner/loops/map.md`.
+**Found.** 1 strongly connected set, 18 files, 39 internal edges, closed by 7 back-edges and 8 names: `placerule.js`, `runfile.js` and `sheetrun.js` into `flow.js` (`readFileInside`, `readdirInside`); `pageask.js` into `checkpick.js` (`HOW_TO_ANSWER`); `pagedropwords.js` into `checkblock.js` (`REASON`); `sheetblock.js` into `ticketrows.js` (`NO_VALUE_WHY`); `declaration.js` into `ticketrows.js` (`ticketListReds`, dragging `TICKET_FIELDS`). Nothing else in `src/` or `bin/` is in a loop.
+**Proof.** Five verbatim moves were applied in a throwaway worktree (since removed; `loops/moves.patch`): loops 1 to 0, typecheck clean, every src file still imports, and apart from imports only two header lines differ. `NO_VALUE_WHY` is the same words as `REASON.noPick`, so it goes, not moves.
+**Led to.** am3f, signed 2026-11-26, built as M1 to M5 (fd91541b, 6d51e593, e2f9ce47, ff5077f0, ac780a42) and d5fe0786. The loop test's list is empty.
+
+## F272 RECORDED AFTER THE RUN, not pre-registered ($0 map) (2026-11-26; read-only; no code changed) — M20 what bareloop's F399 and F403 say about fwd
+**What was run.** A read of bareloop branch `feat/fwd-v038-refusal-boxes` by `git show` (its docs/wiki/FINDINGS.md F396 to F403, `src/runread.js`, `tests/runread-guard.test.js`, `tests/import-cycles.test.js`, `src/exportnames.js`) against fwd at 63ffa4b7. F399 and F403 are unreleased: the method was told to us, no code copied. Written up in `loop-lessons.md`.
+**Found.**
+- The derived-facts gap. F268 mapped files read twice. bareloop's F399 closed values worked out twice from several files. fwd has no row for these, and every guard in `test/m20-a3-guards.test.js` is "this file name or word list is spelled in these files only". The map found: newest-try checks of a step (4 derivations, 3 rules), "every step" checks (any try vs newest try), why a run is red (written twice, same words), what counts as a try row (5 to 6 predicates), money for one run, "green run", the ask deadline.
+- The loop test already counts strongly connected groups (Tarjan, `test/m20-import-loops.test.js`), which is bareloop's F403 lesson. bareloop's own test still prints the shortest cycle per start and works only because its list is empty.
+- No `./index.js` drift: 0 imports of it in `src` or `bin`.
+**Real data.** The file-order pick and the max-`try` pick differ on 0 of 111 diaries. No wrong screen seen: this is code reading plus a $0 probe.
+**Led to.** F273, then am3g.
+
+## F273 RECORDED AFTER THE RUN, not pre-registered ($0 map) (2026-11-26; read-only; no code changed) — M20 the derived-facts map
+**What was run.** A map by question (`derived-map.md`) at 04c09c4d, measured over the P1 copy (88 flows, 169 runs, 111 diaries) and `~/.config/fwdloop/flows` (92 flows, 175 runs, 117 diaries). hamr's rule applied: merge only when the question is the same and a merge changes nothing anywhere.
+**Found, 7 items.**
+1. Why a run is red: `data.js` and `result.js` write one rule twice, same string. 0 runs change. Merge.
+2. Newest-try checks: 3 sites, 3 rules (`auditchecks.js`, `result.js`, `jobgrid.js`); `audit-fold.js` folds every try, a different question. Merge the three. 0 / 0 runs differ.
+3. "Every step" checks: Audit reads any try, the grid reads the newest. Two questions. They agree on 0 / 0 runs because a failed every-step check halts the step.
+4. What counts as a try row: six questions. A merge would change 135 of 141 real runs' counts (460 of 851 audit rows P1; 480 of 879 real). Keep apart.
+5. Money for one run: the number is one rule (`runMoney`), the words differ for an exact zero (`$0.0000` on the Runs list and Run tab, `$0` on the ticket grid). Share the number, keep the two word writers. The words differ on 10 / 10 runs.
+6. "Green run": two questions (`greenRuns` for the schedule gate, `runsOf` for the Signed flow list). They differ on 6 of 107 good runs P1, 6 of 113 real.
+7. Ask deadline: already one owner (`effectiveExpiresAt` and `withReopen`).
+**Real counts.** Red text: 69 of 70 runs have any; log text and last-row text differ on 35, but both sites take the log first, so a merge changes 0.
+**Led to.** am3g (items 22 to 28), signed 2026-11-26. Built: item 22 0c325d1d, item 23 31bfdd4f, item 24 b6c959ab, items 25 to 27 as allow-list guards 65cb5d90.
+
+## F274 RECORDED AFTER THE RUN, not pre-registered ($0 replay) (2026-11-26; no provider call; walk found it live) — M20 a suggested count the person Adds is refused
+**Seen live.** hamr's walk 2026-11-26, draft `d-00mwxqfzaw-3c6d` (`m20-long-2`): the card offered `[agent] fact · results — 1 to 4 results` under SUGGESTED on line 4. Add was refused: `the result count has the number 1, but 1 is not in your words on line 4`.
+**Old, not from M20.** The same refusal came from v0.38.0 in a $0 replay on a copy of the draft (`addrows.mjs <repoRoot> <planDir>`: list the block rows, try Add on each suggested one, copies only).
+**Cause.** `inJob` (src/checkblock.js) makes a count row SUGGESTED exactly when its number is not in the job line's words. `countReds` (src/citedwords.js, M10 am7 item 1) refuses every count whose number is not in the job line's words. So every suggested count was an Add that could not pass.
+**Led to.** am4, signed 2026-11-26, built in 0ea6c272 (`addedCountsOf`, src/pickrecord.js). The replay fixture is hamr's draft.
+
+## F275 RECORDED AFTER THE RUN, not pre-registered ($0 map) (2026-11-26; read-only; no code changed) — M20 bareloop v0.63.0's current-leg reader against fwd's data
+**What was run.** A read of bareloop at tag v0.63.0 (7bc2719b) by `git show` and `git grep` against fwd at cd8f47be, plus plain node scripts over the P1 copy and the real root (`leg-map.md`). No test, typecheck or snapshot run.
+**Found.**
+- The copy does not fit. bareloop's legs come from a marker record in one spine. fwd has no spine and no leg marker: a leg is a `pids.jsonl` row (`run`, `resume`, `continue`). Audit, diary and history rows carry `at` and no leg. `finalCloseOf` has no analog (fwd writes no close record); `reused`, `lastEscalation` and `moneyHalt` have no fwd record.
+- 117 of 121 multi-leg runs on the P1 copy (129 of 133 real) hold only ask-answer `resume` legs: the same try carries on, so "current leg only" would drop work done before the ask.
+- 4 runs have a `continue` leg: `aging-live-1/run-1`, `m10-walk-flights/run-1`, `am11-c4/run-1`, `m7-walk-2/run-2`. Whole-run try counts and attempt lists differ from the current leg on all four, and "took" spans the gap (hours to days). No harm seen on a screen.
+- Try numbers restart after a cap-halt Continue (`attemptOffset` is set only on the stopped path, runner.js:3065). That is against signed M4d am30 ("In one step, try numbers never restart"). The Audit's file-order reader and the max-try readers (result.js, jobgrid.js) would then pick different rows when the continue leg runs fewer tries than the first. am3g item 23's newest-try owner (max `try`) could pick a dead leg's checks after such a restart. 0 runs are affected today: only 2 of the 4 hold a diary, and neither shows it. Unchecked on a run.
+- Signed text a copy would cross: M20 "Not copied from v0.63.0" (currentLegView, finalCloseOf), M4d am30, M4a "took", M4e am4 item 4 and am7 item 8 (a stopped step's tries stay on its card).
+**OPEN, awaiting hamr's A/B ruling.** No amendment drafted; no code changed.
+
+## Gates and walks recorded with F270 to F275 (2026-11-26)
+- Full suite at 63ffa4b7: 5421 tests, 5415 pass, 0 fail, 6 skipped (`suite/full4.log`).
+- Full suite at 25dc4905: 5430 tests, 5423 pass, 1 fail, 6 skipped (`suite/full5.log`). The fail was `m4d-am6-e` E1: a comment quoted a price literal. Fixed in 5eca2ba3.
+- hamr's real-panel walks, 2026-11-26: `m20-final`, `m20-final-2` (with Redo), `m20-long` (two Asks). Count 18 and Total 13,206.91, equal to the 18 Nov walk. `long-walk2`'s "stopped by you (rerun)" is the v0.38.0 wording, not a regression.
+- A practice walk cost $0.05. One $0.04 draft went to Claude by mistake, because the Model box defaults to option 0.
