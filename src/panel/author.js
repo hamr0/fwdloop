@@ -11,7 +11,7 @@
 //   card.json     the typed card fields (what the human typed; never a key — checkCard refuses one)
 //   prose.txt     the prose file `fwdloop draft` reads, built from the card by `cardToProse` (src/panel/authorcard.js)
 //   child.log     the child's stdout+stderr, mode 0600 (quoted to the page only after `scrub`)
-//   pid.json      { pid, procStart } written right after the spawn; the ONE liveness fact (`isFwdloopAlive`, M4c)
+//   pid.json      { pid, procStart } written right after the spawn; the ONE liveness fact (`childState` in spawn.js, M4c / M20 am3 item 8)
 //   draft/        the CLI's own output (spec.hash, readout.txt, log.json, spend.jsonl, draft-spend.json ...)
 //   card-<n>.json the card as the human submitted it for revise <n> (M4e amendment 14 item 2), written by `revise`, write-once ('wx'), never a key
 //   prose-<n>.txt the prose file built from card-<n>.json (the ONE `cardToProse`); the model gets this card only, never the old plan
@@ -48,7 +48,6 @@ import {
   checkFlowName, nextRunId, readFileInside, readdirInside, readDraftLog,
 } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
-import { isFwdloopAlive } from '../liveness.js';
 import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,
 } from '../monthly.js';
@@ -77,7 +76,7 @@ import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
-  childRunning as childRunningNow, providerKeys, readJsonFile, spawnDetached, writePidFile,
+  childAlive, childRunning as childRunningNow, childState, providerKeys, readJsonFile, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1015,7 +1014,7 @@ export function createAuthor(opts) {
     },
 
     /**
-     * `POST /api/author/:id/abandon`: stop the child (by its recorded pid, only after `isFwdloopAlive` says it is ours),
+     * `POST /api/author/:id/abandon`: stop the child (by its recorded pid, only after `childState` says it is ours),
      * confirm it is gone, then write `abandoned.json`. No further model call; the spend already booked stays booked.
      * @param {string} id
      */
@@ -1027,22 +1026,21 @@ export function createAuthor(opts) {
       const v = dir === null ? null : readDraft(dir, id, keys);
       if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
       if (FINISHED.has(v.phase)) return { status: 409, body: { ok: false, refused: 'not-abandonable', say: `This draft is already ${v.phase}.` } };
-      const pid = readJson(dir, 'pid.json');
+      const child = childState(dir);
       let killed = false;
-      if (pid && Number.isInteger(pid.pid)) {
-        const procStart = typeof pid.procStart === 'string' ? pid.procStart : null;
-        const alive = isFwdloopAlive(pid.pid, procStart);
+      if (child) {
+        const { alive } = child;
         if (alive === null) return { status: 409, body: { ok: false, refused: 'cannot-tell', say: 'The panel cannot tell whether the draft process is still running, so it did not stop anything.' } };
         if (alive === true) {
           // the child leads its own process group (detached), so one signal to the group reaches it and nothing else
           for (const { sig, wait } of [{ sig: 'SIGTERM', wait: KILL_WAIT_MS }, { sig: 'SIGKILL', wait: KILL_HARD_WAIT_MS }]) {
-            try { process.kill(-pid.pid, /** @type {NodeJS.Signals} */ (sig)); } catch { /* already gone */ }
+            try { process.kill(-child.pid, /** @type {NodeJS.Signals} */ (sig)); } catch { /* already gone */ }
             const t0 = Date.now();
             // eslint-disable-next-line no-await-in-loop
-            while (isFwdloopAlive(pid.pid, procStart) === true && Date.now() - t0 < wait) await sleep(25);
-            if (isFwdloopAlive(pid.pid, procStart) !== true) break;
+            while (childAlive(child) === true && Date.now() - t0 < wait) await sleep(25);
+            if (childAlive(child) !== true) break;
           }
-          if (isFwdloopAlive(pid.pid, procStart) === true) {
+          if (childAlive(child) === true) {
             return { status: 500, body: { ok: false, refused: 'still-running', say: 'The draft process did not stop. Nothing was marked abandoned.' } };
           }
           killed = true;

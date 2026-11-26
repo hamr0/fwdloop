@@ -121,3 +121,13 @@ test('item 6: a version the run refuses is listed as refused with the parser\'s 
   assert.match(e.red, /does not match its own hash/);
   assert.deepEqual(pickRunValues(dir), { ok: false, red: e.red });
 });
+
+// item 8: "the draft/start child is alive" is childState (src/panel/spawn.js); pid.json and isFwdloopAlive are named there only
+const CHILD_PID = {
+  'panel/spawn.js': 'writePidFile, childState / childAlive / childRunning: the one writer and the one owner of "is it alive"',
+  'panel/authorstart.js': 'presence only: a start folder holding pid.json had a process started (deadStarts); asks no liveness',
+};
+test('item 8: only spawn.js names pid.json or asks isFwdloopAlive for a panel child', () => {
+  const panel = Object.fromEntries(Object.entries(load()).filter(([f]) => f.startsWith('panel/')));
+  assert.deepEqual(strays(panel, /['"`]pid\.json['"`]|\bisFwdloopAlive\b/, CHILD_PID), []);
+});
