@@ -236,3 +236,8 @@ test('am3b item 1: only books.js reads answer.json (readSavedAnswer); the other 
   assert.deepEqual(strays(files, /readFileInside\([^)\n]*['"`]answer\.json['"`]|readFileSync\([^)\n]*answer(Path|\.json)|JSON\.parse\([^)\n]*(saved|answer)[A-Za-z]*\.text/, { 'books.js': 'readSavedAnswer: the one reader' }), []);
   assert.deepEqual(strays(files, /\bfunction readSavedAnswer\b/, { 'books.js': 'the one definition' }), []);
 });
+
+// am3d: the signature's `.flow` (this flow's signed hash) is read from signature.json by signedHashOf (src/flow.js) only
+test('am3d: only signedHashOf parses signature.json for its .flow', () => {
+  assert.deepEqual(strays(load(), /JSON\.parse\([^)\n]*\)\??\.flow\b/, { 'flow.js': 'signedHashOf: the one reader (a string that is not empty, else none)' }), []);
+});

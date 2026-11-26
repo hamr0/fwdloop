@@ -28,7 +28,7 @@ import { appendRow, parseJsonl, readTriggerLedger } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import {
-  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
+  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFileInside, readFlow, readRunJobCopy, resolveRunDir, signedHashOf,
 } from '../flow.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, validateSchedule } from '../trigger-clock.js';
@@ -80,8 +80,8 @@ export function* greenRuns(flowDir) {
     if (!r.ok) return;
     cur[f] = r.text;
   }
-  let sig;
-  try { sig = JSON.parse(cur['signature.json']).flow; } catch { return; }
+  const sig = signedHashOf(flowDir);   // the one reader of the signature's `.flow`: none (no usable hash) counts no green run
+  if (sig === null) return;
   const cat = loadCatalogue();
   if (!cat.ok) return;
   const history = readHistory(flowDir);
