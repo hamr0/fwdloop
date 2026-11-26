@@ -55,7 +55,7 @@ import {
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { hasResultCards, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { ticketListOf, ticketScheduleOf } from './tickets.js';
-import { buildJobGrid } from './jobgrid.js';
+import { buildJobGrid, runMoney } from './jobgrid.js';
 import { readChecks, readTryStarts } from '../diary.js';
 import { mmss, stepped } from '../draftspend.js';
 import { readRerunWords, readRunInputs } from '../runfile.js';
@@ -464,18 +464,15 @@ export function costDisplay(spentUsd, spendComplete) {
 }
 
 /**
- * A floor summed from whatever priced rows a run's own `spend.jsonl`
- * already recorded — used ONLY when there is no history row yet (died or
- * still parked) to show "at least $X" rather than nothing/zero. `null`
- * (never `$0`) when zero rows are priced yet.
- * @param {any[]} spendRows
- * @returns {string|null}
+ * A run's spend in the Runs list and the Run tab's words (`$0.0000` for an exact zero: the ticket grid writes it `$0`, src/panel/jobgrid.js `moneyWords`, on the guard's
+ * allow-list). The NUMBER is `runMoney`'s (M20 am3g item 24): the history row's total, else the priced spend rows as an "at least" floor (used ONLY when there is no history
+ * row yet), else null (never `$0` for unknown). A history row whose total is not a number gives null, never the rows' floor.
+ * @param {any} historyRow @param {any[]} spendRows @returns {string|null}
  */
-function spendFloorDisplay(spendRows) {
-  const priced = spendRows.filter((r) => typeof r.costUsd === 'number' && Number.isFinite(r.costUsd));
-  if (priced.length === 0) return null;
-  const sum = priced.reduce((acc, r) => acc + r.costUsd, 0);
-  return `at least $${sum.toFixed(4)}`;
+function runSpendDisplay(historyRow, spendRows) {
+  const m = runMoney(historyRow ?? null, historyRow ? [] : spendRows);
+  const cd = m.usd === null ? null : costDisplay(m.usd, m.complete);
+  return cd !== null && cd.ok ? cd.display : null;
 }
 
 /**
@@ -1142,13 +1139,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         .map((ask) => ({ ask, ...deriveAskOpenFields(ask, !!ctx.historyRow, ctx.resume) }))
         .filter((r) => r.waiting)
         .reduce((best, r) => (best === null || (r.timeLeftMs ?? Infinity) < (best.timeLeftMs ?? Infinity) ? r : best), /** @type {any} */ (null));
-      let spend;
-      if (ctx.historyRow) {
-        const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
-        spend = cd.ok ? cd.display : null;
-      } else {
-        spend = spendFloorDisplay(ctx.spendRows);
-      }
+      const spend = runSpendDisplay(ctx.historyRow, ctx.spendRows);
       // browser re-walk bug #4: a parked run's ask.json holds a real,
       // book-held timestamp (`askedAt`) — a run with an open ask is never
       // "unknown", even with no history row yet. `atWhy`'s generic "no
@@ -1786,13 +1777,7 @@ export function getRunDetail({
     : (ctx.historyRow ? 'history row has no wallMs recorded'
       : isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row yet (parked or died before completion)');
 
-  let spend;
-  if (ctx.historyRow) {
-    const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
-    spend = cd.ok ? cd.display : null;
-  } else {
-    spend = spendFloorDisplay(ctx.spendRows);
-  }
+  const spend = runSpendDisplay(ctx.historyRow, ctx.spendRows);
 
   // hamr's review #1 (Summary tab): model + spend.jsonl totals — read here
   // ONCE, off the same auditRows/spendRows this function already loaded, so

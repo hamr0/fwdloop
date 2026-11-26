@@ -305,3 +305,14 @@ test('am3g item 23: only diary.js picks a step\'s newest-try checks row (the hig
   assert.deepEqual(strays(load(), /r\.try >= (m|prev|newest)\.try/, { 'diary.js': 'newestChecksOf: the one rule' }), []);
   assert.deepEqual(strays(load(), /\.filter\(\(d\) => d\.step === \([^)]*\)\)\.at\(-1\)|checkRows\[checkRows\.length - 1\]/, {}), []);
 });
+
+// am3g item 24: a run's money NUMBER is runMoney (src/panel/jobgrid.js): the history total, else the priced spend rows as a floor, else unknown. Its words stay two writers:
+// "exact $0 is written `$0.0000` on the Runs list and Run tab (data.js) and `$0` on the ticket grid (jobgrid.js moneyWords)": no screen changes.
+test('am3g item 24: only jobgrid.js sums a run\'s priced spend rows; the words are written in data.js (costDisplay) and jobgrid.js (moneyWords)', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\bspendFloorDisplay\b|filter\(\(r\) => isNum\(r\?\.costUsd\)\)/, { 'panel/jobgrid.js': 'runMoney: the one number rule' }), []);
+  assert.deepEqual(strays(files, /export function costDisplay|export function moneyWords/, {
+    'panel/data.js': 'costDisplay: exact $0 is written `$0.0000` on the Runs list and Run tab',
+    'panel/jobgrid.js': 'moneyWords: exact $0 is written `$0` on the ticket grid',
+  }), []);
+});
