@@ -17,6 +17,7 @@ import { isAbsolute, join } from 'node:path';
 import { checkFlowName } from '../flow.js';
 import { isFlowType } from '../declaration.js';
 import { sameRuleWords } from '../blockpick.js';
+import { isShapeAsk } from '../pageask.js';
 import { isColumnChoiceRule, columnChoiceParts, swapColumnWord } from '../sheetoffer.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
@@ -197,7 +198,7 @@ export function applyAnswers(job, all) {
     } else appends.push({ line: x.line, answer: x.rule });
   }
   const grown = appendAnswersToJob(out, appends);
-  const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left)
+  const picks = all.filter((x) => isShapeAsk(x.ask) && !x.left)
     .map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, ...(x.own ? { own: true } : {}) }));
   const left = all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo }));
   return { job: grown.job, added: grown.added + done + columns.length, picks, left, columns };

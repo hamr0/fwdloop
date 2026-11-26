@@ -8,6 +8,8 @@ import { FLOW_TYPES, isFlowType } from '../src/declaration.js';
 import { scheduleChoices, scheduleKindsOf } from '../src/schedule-choices.js';
 import { isThinkingMode } from '../src/thinking.js';
 import { endsRun } from '../src/runner.js';
+import { isFactKind } from '../src/checkblock.js';
+import { isShapeAsk } from '../src/pageask.js';
 import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
@@ -116,4 +118,14 @@ test('1j endsRun: the three old runner.js sites ask paused-or-stopped of an ask 
     assert.equal(endsRun({ type }), type === 'paused' || type === 'stopped', JSON.stringify(type));
   }
   assert.equal(endsRun({}), false);
+});
+
+test('1l isFactKind and isShapeAsk: the old checkblock.js and pageask.js sites equal the owners', () => {
+  const kinds = ['rule', 'fact', 'phrase', 'count', 'cited', 'numbers', 'note', 'floor', 'sheet', 'shape', 'stage'];
+  // old sites src/checkblock.js:387,395,708,1145 (`r.kind === 'fact' || r.kind === 'phrase'`) and :1116 (negated)
+  same('fact-or-phrase', kinds, (k) => k === 'fact' || k === 'phrase', isFactKind);
+  same('negated', kinds, (k) => !(k !== 'fact' && k !== 'phrase'), isFactKind);
+  const asks = ['reading', 'check', 'no-check', 'cant-check', 'action', 'column'];
+  // old sites src/pageask.js:135,141 and src/panel/authorcard.js:199 (`x.ask === 'check' || x.ask === 'no-check'`)
+  same('shape ask', asks, (a) => a === 'check' || a === 'no-check', isShapeAsk);
 });

@@ -505,3 +505,20 @@ test('am8 item 1j: in code, only endsRun names the ask-loop outcomes paused and 
     { file: 'runner.js', snippet: 'const endsRun =', why: 'the one owner' },
   ]), []);
 });
+
+// am8 item 1l: in src/checkblock.js "is this check row's kind a fact or a phrase" is isFactKind; in src/pageask.js "is this a shape ask" (check or no-check) is isShapeAsk. The guard counts inside both files and across the rest, so each owner's own statement is named
+test('am8 item 1l: in code, only isFactKind names the row kinds fact and phrase together, and only isShapeAsk the asks check and no-check', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('fact', 'phrase'), '', [
+    { file: 'checkblock.js', snippet: 'const isFactKind =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "kind: 'fact', by: 'agent', from: 'look', name: d.fact", why: 'BUILDS a look fact row (its kind and its shape are two fields), not a question about a kind' },
+    { file: 'checkblock.js', snippet: "r.by === 'agent' && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'isBang: fact, phrase or COUNT (and agent), a wider question than fact-or-phrase' },
+    { file: 'checkblock.js', snippet: "r.kind === 'fact' && r.shape !== 'phrase'", why: "a fact row whose SHAPE is not a phrase, a row-kind test next to a shape test" },
+    { file: 'checkblock.js', snippet: "this.isSheetLine(l.n) && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'the sheet-line refusal: fact, phrase or COUNT, a wider question than fact-or-phrase' },
+    { file: 'checkblock.js', snippet: "e.kind === 'phrase' ? 'phrase' : 'fact'", why: 'MAKES a row key word from a kind, not a question about a kind' },
+    { file: 'checkrows.js', snippet: "const FACT_KINDS = new Set(['fact', 'phrase', 'count'])", why: 'fact, phrase or COUNT: the Not checked list\'s wider question' },
+    { file: 'rowresults.js', snippet: "const LINE_KINDS = ['rule', 'fact', 'phrase', 'count'", why: 'the vocabulary of every row kind in its order, not a question' },
+  ]), []);
+  assert.deepEqual(copies(filesAndPage(), anyOrder('check', 'no-check'), '', [
+    { file: 'pageask.js', snippet: 'const isShapeAsk =', why: 'the one owner' },
+  ]), []);
+});

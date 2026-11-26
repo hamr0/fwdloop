@@ -132,17 +132,20 @@ export function ruleOfAnswer(q, typed, choice) {
   // M17 am9 item 4: a column picked from a tie is the reading the tie carried for that column (the rule's words are rewritten in place by applyAnswers); anything not on the list never reaches here (the door refuses it)
   if (choice === 'column') return { rule: q.readings?.[typedText] ?? null, left: q.readings?.[typedText] === undefined };
   if (choice !== undefined) { // M10 am29: a typed choice decides, never the words; the box (`rule`) keeps its words whole
-    const shapeC = q.ask === 'check' || q.ask === 'no-check';
+    const shapeC = isShapeAsk(q.ask);
     if (choice === 'agree' && typeof q.proposal === 'string' && (q.ask === 'reading' || q.ask === 'check')) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
     if (choice === 'drop') return { rule: null, left: true };
     return { rule: typedText, left: false, ...(shapeC ? { own: true } : {}) };
   }
   const text = stripAgreeLead(typedText); // F240: "yes, check it as ..." is the person's own words minus the leading "yes,"
-  const shape = q.ask === 'check' || q.ask === 'no-check';
+  const shape = isShapeAsk(q.ask);
   if ((q.ask === 'reading' || q.ask === 'check') && typeof q.proposal === 'string' && isAgree(text)) return { rule: q.proposal, left: false, ...(q.ask === 'check' && q.check ? { check: q.check } : {}) };
   if ((q.ask === 'cant-check' || shape) && isDropIt(text)) return { rule: null, left: true };
   return { rule: text, left: false, ...(shape ? { own: true } : {}) };
 }
+
+/** M20 am8: the one question "is this a shape guardrail's ask" (`check` proposes a check, `no-check` found none) @param {unknown} ask @returns {boolean} */
+export const isShapeAsk = (ask) => ask === 'check' || ask === 'no-check';
 
 /** how every answer is told, once (am2 item 2's words) */
 export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;

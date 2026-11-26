@@ -46,6 +46,8 @@ import { REASON } from './reasons.js';
 
 /** the four row edits an AI reply may hold */
 export const EDIT_OPS = Object.freeze(['add', 'reading', 'pick', 'not-checkable', 'fence']);
+/** M20 am8: the one question "is this check row's kind a fact or a phrase" (a page-word row, not a count) @param {unknown} kind @returns {boolean} */
+export const isFactKind = (kind) => kind === 'fact' || kind === 'phrase';
 
 const norm = (/** @type {unknown} */ t) => String(t ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -385,7 +387,7 @@ export class CheckBlock {
   match() {
     // live draft 3 (hamr 2026-11-13: "anything not in your original job that code can check goes to Suggested"): a `!` fact whose page words are longer than what the job says ("Boston Logan International
     // Airport" for the job's "Boston") says the JOB's word; the row is then job-derived (inJob below, the one owner) and its phrase check uses that word
-    if (this.split) for (const r of this.rows) if (this.isBang(r) && (r.kind === 'fact' || r.kind === 'phrase')) this.takeJobWord(r);
+    if (this.split) for (const r of this.rows) if (this.isBang(r) && isFactKind(r.kind)) this.takeJobWord(r);
     for (const r of this.rows) {
       r.can = null;
       if (r.kind === 'floor') continue;
@@ -393,7 +395,7 @@ export class CheckBlock {
       else if (r.lookWhy && r.kind === 'fact' && !r.words.length) r.can = { ok: false, why: r.lookWhy };
       else if (r.kind === 'stage') r.can = r.refusal ? { ok: false, why: r.said } : { ok: true, how: 'stage' };
       else if (r.kind === 'rule') this.matchRule(r);
-      else if (r.kind === 'fact' || r.kind === 'phrase') this.matchBang(r);
+      else if (isFactKind(r.kind)) this.matchBang(r);
       else if (r.kind === 'count') this.matchCount(r);
       else if (r.kind === 'sheet') r.can = { ok: true, how: 'sheet' };
     }
@@ -706,7 +708,7 @@ export class CheckBlock {
           return k ? factsOfLook(k) : null;
         };
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); foundFact = true; if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
-    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
+    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && isFactKind(x.kind)) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     // facts+shape: the shape part follows the fact part (the same `results` list); its fields are the rules no truth check could take
     if (shapeRows.length > 0) this.buildShapePartOf(l, shapeRows, lineParts, lineRows);
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
@@ -1114,7 +1116,7 @@ export class CheckBlock {
 
   editAdd(/** @type {any} */ e) {
     if (e.kind === 'count') return this.addCount(e);
-    if (e.kind !== 'fact' && e.kind !== 'phrase') return { refusedBecause: 'an add is a fact, a phrase or a count' };
+    if (!isFactKind(e.kind)) return { refusedBecause: 'an add is a fact, a phrase or a count' };
     // an input the job does not have is refused alone (it would otherwise reach the draft gate as a red on code's own plan and stop the whole draft)
     if (e.source !== undefined && e.source !== null && !this.labels.includes(e.source)) return { refusedBecause: `"${String(e.source).slice(0, 60)}" is not one of the inputs` };
     // a job with more than one input never guesses which one an add quotes (code fills a missing source only when there is exactly one)
@@ -1143,7 +1145,7 @@ export class CheckBlock {
       const rs = wordSet(rr.text);
       if (wset.size && [...wset].every((w) => rs.has(w))) return `already on the list: a ~ rule says it (line ${line} rule ${rr.rule})`;
     }
-    if (this.rows.some((r) => (r.kind === 'fact' || r.kind === 'phrase') && r.line === line && (norm(r.name) === norm(name) || norm(r.words?.[0]) === norm(words[0])))) return 'already on the list';
+    if (this.rows.some((r) => isFactKind(r.kind) && r.line === line && (norm(r.name) === norm(name) || norm(r.words?.[0]) === norm(words[0])))) return 'already on the list';
     return null;
   }
 
