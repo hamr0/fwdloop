@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readRedraftMarker, redraftFileName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -301,7 +301,7 @@ export function createAuthor(opts) {
   function withRevises(base, dir, first, keys, firstQsRead) {
     const names = readdirInside(dir, '.');
     const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
-    const redrafts = new Set(ns.filter((n) => readJsonFile(dir, `redraft-${n}.json`) !== null));
+    const redrafts = new Set(ns.filter((n) => readRedraftMarker(dir, n) !== null));
     const used = names.filter((n) => PLAN_DIR_RE.test(n) && !redrafts.has(Number(PLAN_DIR_RE.exec(n)?.[1]))).length;
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
@@ -311,7 +311,7 @@ export function createAuthor(opts) {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
       if (kind === 'revise') reviseNo += 1;
       // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
-      const rowEdit = kind === 'answers' ? readJsonFile(dir, `redraft-${n}.json`)?.rowEdit : undefined;
+      const rowEdit = kind === 'answers' ? readRedraftMarker(dir, n)?.rowEdit : undefined;
       const name = rowEdit ? (rowEdit.op === 'drop' ? 'a check dropped' : 'a check added') : kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
@@ -366,7 +366,7 @@ export function createAuthor(opts) {
     id, dir, v, vet, env, marker, argvOf, failSay, undoToo = [],
   }) {
     const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
-    const files = [cardFileName(n), `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
+    const files = [cardFileName(n), `prose-${n}.txt`, redraftFileName(n)].map((f) => join(dir, f));
     const undo = () => { for (const f of [...files, ...undoToo]) rmSync(f, { force: true }); };
     let child;
     try {
@@ -423,7 +423,7 @@ export function createAuthor(opts) {
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
   function answersOf(dir, n, keys) {
-    const rec = readJsonFile(dir, `redraft-${n}.json`);
+    const rec = readRedraftMarker(dir, n);
     const card = readCard(dir, n);
     const steps = parseJobBox(typeof card?.job === 'string' ? card.job : '').steps;
     return (Array.isArray(rec?.answers) ? rec.answers : []).map((a) => ({
@@ -953,7 +953,7 @@ export function createAuthor(opts) {
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
       const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
-      const marker = cur === undefined ? null : readJsonFile(dir, `redraft-${cur}.json`);
+      const marker = cur === undefined ? null : readRedraftMarker(dir, Number(cur));
       const asks = marker === null ? true : (marker.rowEdit ? marker.rowEdit.asks !== false : false);
       const planDir = join(dir, v.plan);
       const made = rowEditPlan({ planDir, op: b.op, key: b.key, asks });
@@ -973,7 +973,7 @@ export function createAuthor(opts) {
         });
         writePlanFiles(dir, {
           [cardFileName(n)]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: prose.ok ? prose.text : '',
-          [`redraft-${n}.json`]: `${JSON.stringify({ fromPlan: v.plan, answers: [], rowEdit: { op: b.op, key: b.key, at, asks } })}\n`,
+          [redraftFileName(n)]: `${JSON.stringify({ fromPlan: v.plan, answers: [], rowEdit: { op: b.op, key: b.key, at, asks } })}\n`,
         }, { flag: 'wx', mode: 0o600 });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'write', say: `The changed plan could not be saved (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was changed.` } };

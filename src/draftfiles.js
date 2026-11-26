@@ -95,3 +95,18 @@ export function readNotCheckedFile(dir, rel = '.') {
 export const cardFileName = (n = 0) => (n > 0 ? `card-${n}.json` : 'card.json');
 /** @param {string} dir the session folder @param {number} [n] @returns {Record<string, any>|null} */
 export const readCard = (dir, n = 0) => readJsonFile(dir, cardFileName(n));
+
+/**
+ * M20 am3e item 18: `redraft-<n>.json`, the marker that plan n is a redraft after the person's answers or a Drop/Add edit, not a revise. Its name and its one read:
+ * the marker object as written (`fromPlan`, `answers`, `left`), or null (missing, refused, not JSON, not an object). `rowEdit` is typed: an object, or the key is
+ * left out (none): a `rowEdit` that is not an object reads as none everywhere.
+ * @param {number} n @returns {string}
+ */
+export const redraftFileName = (n) => `redraft-${n}.json`;
+/** @param {string} dir the session folder @param {number} n @returns {Record<string, any>|null} */
+export function readRedraftMarker(dir, n) {
+  const m = readJsonFile(dir, redraftFileName(n));
+  if (m === null || !Object.hasOwn(m, 'rowEdit') || isRec(m.rowEdit)) return m;
+  const { rowEdit: _dropped, ...rest } = m;
+  return rest;
+}

@@ -261,3 +261,8 @@ test('am3e item 17: only draftfiles.js spells card.json / card-<n>.json (draftsp
     'draftspend.js': 'asks only "is there a readable file" (true for a torn card.json) for the money count',
   }), []);
 });
+
+// am3e item 18: redraft-<n>.json is named and read by redraftFileName / readRedraftMarker (src/draftfiles.js) only; `rowEdit` is typed there
+test('am3e item 18: only draftfiles.js spells redraft-<n>.json', () => {
+  assert.deepEqual(strays(load(), /redraft-\$\{[^}]*\}\.json|redraft-\(\\d/, { 'draftfiles.js': 'redraftFileName / readRedraftMarker: the one name and the one read, rowEdit typed' }), []);
+});

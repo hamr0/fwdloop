@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf, CARD_RE } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { readQuestions, scrub, draftVerdict, readNotCheckedFile, readCard, cardFileName } from './draftfiles.js';
+import { readQuestions, scrub, draftVerdict, readNotCheckedFile, readCard, cardFileName, readRedraftMarker } from './draftfiles.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
@@ -98,8 +98,8 @@ export function buildSetupRows({
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, cardFileName(n)), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
       // M16 item 5: a plan made by a Drop or an Add of the person is booked as that, not as a redraft; it asked nothing, and what it kept is the earlier plan's row, not its own
-      const marker = readJsonFile(sessionDir, `redraft-${n}.json`);
-      const rowEdit = marker && marker.rowEdit && typeof marker.rowEdit === 'object' ? marker.rowEdit : null;
+      const marker = readRedraftMarker(sessionDir, n);
+      const rowEdit = marker?.rowEdit ?? null;
       rows.push({ ...planRow(sessionDir, `draft-${n}`, rowEdit ? 'rowedit' : marker ? 'redraft' : 'revise', n), ...(rowEdit ? { op: rowEdit.op, key: rowEdit.key } : {}) });
       if (!rowEdit) rows.push(...humanRows(sessionDir, `draft-${n}`));
     }
