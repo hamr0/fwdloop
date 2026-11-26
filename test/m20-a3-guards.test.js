@@ -442,3 +442,11 @@ test('am8 item 1b: only src/closers.js names the verdicts crash and unparseable 
     { file: 'runner.js', snippet: "closed.verdict !== 'red'", why: "a negated form: it is true for every verdict that is not red, so a future verdict would be a casualty here; it asks 'is it anything but red' after green and hitl returned, a different test from the named pair" },
   ]), []);
 });
+
+// am8 item 1c: "is this ask's answer being picked up" (starting or not-started, for THIS ask) is answerPickedUp (src/panel/data.js); the guard counts inside data.js too, so the owner's own statement is named
+test('am8 item 1c: in code, only answerPickedUp names the resume states starting and not-started together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('starting', 'not-started'), '', [
+    { file: 'panel/data.js', snippet: 'const answerPickedUp =', why: 'the one owner' },
+    { file: 'panel/data.js', snippet: "ctx.resume && (ctx.resume.state === 'starting'", why: 'asks a different question: any answer saved for the run, with no askId test (the run-level stop reason has no ask in hand)' },
+  ]), []);
+});

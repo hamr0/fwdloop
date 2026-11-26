@@ -233,6 +233,10 @@ export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = nul
   return null;
 }
 
+/** M20 am8: the one question "is THIS ask's saved answer being picked up, or the run stopped before using it" (`resume` = `deriveResumeState`: starting or not-started, for this ask) @param {any} resume @param {unknown} askId @returns {boolean} */
+export const answerPickedUp = (resume, askId) => resume != null && resume.askId === askId
+  && (resume.state === 'starting' || resume.state === 'not-started');
+
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
 export const STUCK_LABEL = 'stuck — your answer is saved; the run stopped before using it';
 export const STUCK_LOCK_LABEL = 'stuck — an old resume lock is in the way';
@@ -2430,14 +2434,12 @@ function isOpenStatus(status) {
 function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
   // M4c amendment 3: an ask past its deadline reads `expired`, but one whose answer was saved in time
   // (`resume` is null for a late/unreadable one, `deriveResumeState`) is still open: it can be carried on.
-  const answerSaved = resume != null && resume.askId === ask.askId
-    && (resume.state === 'starting' || resume.state === 'not-started');
+  const answerSaved = answerPickedUp(resume, ask.askId);
   const open = (isOpenStatus(ask.status) || (ask.status === 'expired' && answerSaved)) && !hasHistoryRow;
   // M4b fix: the ONE decision "is this ask waiting on the human". An open ask
   // whose answer is already saved (`resume` = `deriveResumeState` for THIS
   // ask, the run's own label) is open but not waiting: the human answered.
-  const answered = open && resume != null && resume.askId === ask.askId
-    && (resume.state === 'starting' || resume.state === 'not-started');
+  const answered = open && answerPickedUp(resume, ask.askId);
   const waiting = open && !answered;
   const expiresMs = waiting && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
   return {
@@ -2459,7 +2461,7 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
  */
 function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
   if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
-  if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
+  if (answerPickedUp(resume, ask.askId)) return null;
   // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered");
   // `why` is that line, the one the Ask tab and the Inbox row both draw.
   return Number.isFinite(openAskJson.waitMs)
