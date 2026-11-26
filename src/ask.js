@@ -552,6 +552,18 @@ export function writeAskArchive({
 }
 
 /**
+ * The one parse of an archived ask, `asks/<entry>` (entry = `<askId>.json`), through the safe gateway. `unreadable` keeps the gateway's own result in `read`
+ * (missing, a symlink, outside the folder); `invalid` is text that is not JSON, with the parser's message. The callers decide what a failure means.
+ * @param {string} runDir @param {string} entry
+ * @returns {{ok: true, ask: any}|{ok: false, code: 'unreadable', read: any}|{ok: false, code: 'invalid', message: string}}
+ */
+function readArchivedAsk(runDir, entry) {
+  const read = readFileInside(runDir, join('asks', entry));
+  if (!read.ok) return { ok: false, code: 'unreadable', read };
+  try { return { ok: true, ask: JSON.parse(read.text) }; } catch (err) { return { ok: false, code: 'invalid', message: err.message }; }
+}
+
+/**
  * M4b amendment 2: for each archived ask that carries `emits`, joins it BY
  * askId to its consumed answer and returns the recorded `artifactSha256` of
  * an ACCEPT. Only `decision: accept` with a string hash counts; never
@@ -570,10 +582,9 @@ export function readAcceptedHashesByEmits(runDir) {
   for (const entry of readdirInside(runDir, 'asks').sort()) {
     if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
     const askId = entry.slice(0, -'.json'.length);
-    const archiveRead = readFileInside(runDir, join('asks', entry));
-    if (!archiveRead.ok) continue; // eslint-disable-line no-continue
-    let emits;
-    try { emits = JSON.parse(archiveRead.text)?.emits; } catch { continue; } // eslint-disable-line no-continue
+    const archived = readArchivedAsk(runDir, entry);
+    if (!archived.ok) continue; // eslint-disable-line no-continue
+    const emits = archived.ask?.emits;
     if (typeof emits !== 'string' || emits.length === 0) continue; // eslint-disable-line no-continue
     const markerRead = readFileInside(runDir, consumedAnswerName(askId));
     if (!markerRead.ok) continue; // eslint-disable-line no-continue
@@ -626,9 +637,10 @@ export function listArchivedAsks(runDir) {
     if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
     const askId = entry.slice(0, -'.json'.length);
     const archivePath = join(runDir, 'asks', entry);
-    const archiveRead = readFileInside(runDir, join('asks', entry));
+    const archived = readArchivedAsk(runDir, entry);
     let ask;
-    if (!archiveRead.ok) {
+    if (!archived.ok && archived.code === 'unreadable') {
+      const archiveRead = archived.read;
       asks.push({
         askId, question: undefined, askedAt: undefined, expiresAt: undefined,
         evidence: {
@@ -642,16 +654,15 @@ export function listArchivedAsks(runDir) {
       });
       continue; // eslint-disable-line no-continue
     }
-    try {
-      ask = JSON.parse(archiveRead.text);
-    } catch (err) {
+    if (!archived.ok) {
       asks.push({
         askId, question: undefined, askedAt: undefined, expiresAt: undefined,
-        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${err.message}` },
+        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${archived.message}` },
         answer: { status: 'open' },
       });
       continue; // eslint-disable-line no-continue
     }
+    ask = archived.ask;
 
     const consumedRelPath = consumedAnswerName(askId);
     const consumedRead = readFileInside(runDir, consumedRelPath);

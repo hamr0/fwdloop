@@ -180,3 +180,10 @@ test('item 12 (draft log names): only draft-steps.js declares CARD_RE, LOG_TAIL_
 test('item 12 (process started): only books.js tests whether a run has a pid row', () => {
   assert.deepEqual(strays(load(), /readPidRows\([^)]*\)\.length/, { 'books.js': 'processStarted: the one test' }), []);
 });
+
+// item 12 (asks/<id>.json): an archived ask is parsed by readArchivedAsk (src/ask.js) only; no file reads `asks/<entry>` itself, and src/ask.js does it once
+test('item 12 (archived ask): only readArchivedAsk reads asks/<entry>', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*join\('asks'/, { 'ask.js': 'readArchivedAsk: the one parse' }), []);
+  assert.equal((code(files['ask.js']).match(/readFileInside\([^)\n]*join\('asks'/g) ?? []).length, 1, 'one read of asks/<entry> in src/ask.js');
+});
