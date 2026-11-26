@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readTargetName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -463,8 +463,8 @@ export function createAuthor(opts) {
     // amendments 24/25: a plan with a question open is never signed from here; signDraft refuses it again from the plan folder (the same check)
     if (v.phase === 'questions-open') return no(409, 'question-open', OPEN_QUESTION_SAY);
     if (v.phase !== 'green') return no(409, 'not-green', `This draft is ${v.phase}, not a finished plan, so it cannot be signed.`);
-    const name = readJsonFile(dir, `${v.plan}/target.json`)?.name;
-    if (typeof name !== 'string') return no(409, 'no-name', 'The draft has no readable flow name. Nothing was signed.');
+    const name = readTargetName(join(dir, v.plan));
+    if (name === null) return no(409, 'no-name', 'The draft has no readable flow name. Nothing was signed.');
     return {
       ok: true, v: /** @type {any} */ (v), name, dir,
     };

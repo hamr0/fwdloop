@@ -32,7 +32,7 @@ import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
 import {
-  writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName, readDraftLog,
+  writeFlow, writeRunPlan, readFlow, readFileInside, readJsonFile, readdirInside, checkFlowName, readDraftLog,
 } from './flow.js';
 import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
@@ -106,6 +106,16 @@ export function specHash({
   if (!target.ok) return { ok: false, red: 'target.json: is not valid JSON' };
   const framed = JSON.stringify([sha(prose.bytes), sha(decl.bytes), sha(facts.bytes), sha(readout.bytes), sha(target.bytes)]);
   return { ok: true, hash: sha(Buffer.from(framed, 'utf8')) };
+}
+
+/**
+ * The flow name a draft will sign as: the `name` in `target.json` of a plan folder (`planDir`, read through the safe gateway). A string that is not empty,
+ * else null (no file, not JSON, not an object, no name, a name that is empty or not a string).
+ * @param {string} planDir @returns {string|null}
+ */
+export function readTargetName(planDir) {
+  const name = readJsonFile(planDir, 'target.json')?.name;
+  return typeof name === 'string' && name !== '' ? name : null;
 }
 
 /**

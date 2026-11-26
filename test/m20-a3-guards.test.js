@@ -194,3 +194,38 @@ test('item 12 (start.json): only authorstart.js writes start.json, once', () => 
   assert.deepEqual(strays(files, /['"`]start\.json['"`]/, { 'panel/authorstart.js': 'writeStartRecord: the one writer; readStart reads it' }), []);
   assert.equal((code(files['panel/authorstart.js']).match(/writeFileSync\(join\(dir, 'start\.json'\)/g) ?? []).length, 1);
 });
+
+// am3c item 1: Not checked has two owners, one per question. notCheckedBlock = the drafter's own list kept word for word with its label (setup.js records it); notCheckedView = what the screen shows (card, Job tab, Audit).
+// They stay two functions: one for both changes a screen (68 of 228 files differ on the P1 copy). Every other reader goes through one of them.
+const NC_BLOCK = {
+  'checked.js': 'notCheckedBlock: the recorded list (the view builds on it)',
+  'setup.js': 'the recorded list as the drafter made it, label and items, in the draft\'s setup row',
+};
+const NC_VIEW = {
+  'checked.js': 'notCheckedView: what the screen shows',
+  'auditchecks.js': 'the Audit\'s Checks fold',
+  'authoring.js': 'the card\'s Not checked rows',
+  'panel/author.js': 'the card',
+  'panel/data.js': 'the Job tab',
+};
+test('am3c item 1: notCheckedBlock and notCheckedView stay two functions; only the listed files call each', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\bnotCheckedBlock\b/, NC_BLOCK), []);
+  assert.deepEqual(strays(files, /\bnotCheckedView\b/, NC_VIEW), []);
+  const checked = code(files['checked.js']);
+  assert.match(checked, /export function notCheckedBlock\(/);
+  assert.match(checked, /export function notCheckedView\(/);
+});
+
+// am3c items 2 and 3: target.json. The flow name is readTargetName (src/authoring.js) only; the bytes (hash, rebuilt-plan copy) and the object (sign, rebuild) are their own owners on this list.
+const TARGET = {
+  'authoring.js': 'the writer; the hash\'s bytes (specHash); readTargetName (the name); the sign\'s object read after the hash check',
+  'planrebuild.js': 'a rebuilt plan copies the bytes and reads the object for the plan it rebuilds',
+};
+test('am3c items 2 and 3: only the listed files name target.json; the flow name is read in readTargetName only', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]target\.json/, TARGET), []);
+  assert.deepEqual(strays(files, /target\.json[^\n]*\)\??\.name\b/, { 'authoring.js': 'readTargetName: the one reader of the name' }), []);
+  assert.equal((code(files['authoring.js']).match(/readJsonFile\([^)\n]*'target\.json'\)\??\.name/g) ?? []).length, 1, 'one name read in authoring.js');
+  assert.deepEqual(strays(files, /JSON\.parse\([^)\n]*target[^)\n]*\)\??\.name/, {}), []);
+});

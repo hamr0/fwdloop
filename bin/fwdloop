@@ -52,7 +52,7 @@ import {
 import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal, readTargetName } from '../src/authoring.js';
 import { minRuleRefusal } from '../src/minrule.js';
 import { readRecordFile, readRowChoices, readSheetDropped, readShapeDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
@@ -1081,10 +1081,8 @@ async function cmdSign(rest) {
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
   // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
   if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);
-  let flowName;
-  const tj = readFileInside(resolve(dir), 'target.json');
-  try { flowName = tj.ok ? JSON.parse(tj.text).name : undefined; } catch { flowName = undefined; }
-  if (typeof flowName !== 'string' || flowName === '') fail('sign refused — the draft has no readable target.json name');
+  const flowName = readTargetName(resolve(dir));
+  if (flowName === null) fail('sign refused — the draft has no readable target.json name');
   const typed = await confirmTypedName({ name: flowName });
   if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({
