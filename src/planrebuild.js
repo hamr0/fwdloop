@@ -31,7 +31,7 @@ import { buildShapes } from './shapebuild.js';
 import { parseShapeAnswer, SHAPE_CALL_LABEL } from './shapelook.js';
 import { lineRules } from './pagebits.js';
 import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE, SPEC_HASH_FILE } from './authoring.js';
-import { readNotCheckedFile } from './draftfiles.js';
+import { readNotCheckedFile, readPlanTexts } from './draftfiles.js';
 
 /** what a person is told when the saved inputs no longer give the saved list: nothing is written */
 export const REBUILD_CHANGED_SAY = 'The inputs of this plan have changed since it was drafted, so its checks cannot be changed here. Draft again from the card. Nothing was changed.';
@@ -47,10 +47,8 @@ const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' 
  */
 export function rebuildBlock({ planDir, asks }) {
   const no = (/** @type {string} */ say) => ({ ok: /** @type {const} */ (false), say });
-  const prose = readFileInside(planDir, 'prose.txt');
-  const parsed = prose.ok ? parseSignedText(prose.text) : null;
-  const declaration = readJsonFile(planDir, 'declaration.json');
-  if (!prose.ok || !parsed || !parsed.ok || !isRec(declaration)) return no('This plan could not be read. Nothing was changed.');
+  const { proseText, parsed, declaration } = readPlanTexts(planDir);
+  if (proseText === null || !parsed || !parsed.ok || !isRec(declaration)) return no('This plan could not be read. Nothing was changed.');
   // the lines the block was given; a CSV job's sheet lines (M16 am4) have rows on the list too, but the block never had them
   const lineSet = listLinesOf(declaration);
   if (cardLinesOf(declaration).size === 0) return no(NO_LIST_SAY);
@@ -70,10 +68,10 @@ export function rebuildBlock({ planDir, asks }) {
   if (!facts.ok) return no(REBUILD_CHANGED_SAY);
   const texts = { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) };
   // the lines the block was given are the lines the saved list has rows on
-  const all = blockJobLines(prose.text, undefined, []);
+  const all = blockJobLines(proseText, undefined, []);
   if (!all.ok) return no('This plan could not be read. Nothing was changed.');
   const tied = all.jobLines.filter((l) => !lineSet.has(l.n)).map((l) => l.n);
-  const plan = blockJobLines(prose.text, undefined, tied);
+  const plan = blockJobLines(proseText, undefined, tied);
   if (!plan.ok) return no('This plan could not be read. Nothing was changed.');
   const blockLineNums = new Set(plan.jobLines.map((l) => l.n));
   const inBlock = (/** @type {{line: number}} */ x) => blockLineNums.has(x.line);
@@ -129,7 +127,7 @@ export function rebuildBlock({ planDir, asks }) {
   if (sheetBuilt !== null) { block.setSheet(sheetBuilt); block.carrySheetDropped(Array.isArray(record.sheetDropped) ? record.sheetDropped : []); }
   if (Array.isArray(record.shapeDropped) && record.shapeDropped.length) block.carryShapeDropped(record.shapeDropped);
   block.reconcile();
-  return { ok: true, block, declaration, lines, lineSet, parsed, texts, look, record, log, proseText: prose.text };
+  return { ok: true, block, declaration, lines, lineSet, parsed, texts, look, record, log, proseText };
 }
 
 /**

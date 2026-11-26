@@ -2,6 +2,7 @@
 // src/authoring.js so src/setup.js (which records them) and src/authoring.js (which calls writeSetup) no longer import each other.
 import { readFileInside, readDraftLog, readJsonFile } from './flow.js';
 import { isRec } from './isrec.js';
+import { parseSignedText } from './signed-text.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
@@ -109,4 +110,17 @@ export function readRedraftMarker(dir, n) {
   if (m === null || !Object.hasOwn(m, 'rowEdit') || isRec(m.rowEdit)) return m;
   const { rowEdit: _dropped, ...rest } = m;
   return rest;
+}
+
+/**
+ * M20 am3e item 20: a draft plan folder's job text and steps, the ONE reader. `proseText` is prose.txt as it is (null when missing or refused), `parsed` the signed-text
+ * parse of it (`parseSignedText`'s result, ok or not; null when there is no prose), `declaration` declaration.json as an object (null when missing, refused, not JSON or not
+ * an object). Each caller keeps its own sentence for what it does when one is null. (A flow folder with a signature is `readFlow`'s; a plan that falls back to
+ * declaration.rejected.json is src/panel/author.js `stepListOf`'s own question.)
+ * @param {string} dir the folder that holds the plan folder @param {string} [rel] `draft`, `draft-<n>` or `.` (the plan folder itself)
+ * @returns {{proseText: string|null, parsed: ReturnType<typeof parseSignedText>|null, declaration: any}}
+ */
+export function readPlanTexts(dir, rel = '.') {
+  const prose = readFileInside(dir, `${rel}/prose.txt`);
+  return { proseText: prose.ok ? prose.text : null, parsed: prose.ok ? parseSignedText(prose.text) : null, declaration: readJsonFile(dir, `${rel}/declaration.json`) };
 }

@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readRedraftMarker, redraftFileName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -394,9 +394,7 @@ export function createAuthor(opts) {
    * "Not checked" (the drafter's own list, always with its label). Read-only; neither is signed or in the hash. @param {string} dir @param {string} rel
    */
   function planChecks(dir, rel) {
-    const decl = readJsonFile(dir, `${rel}/declaration.json`);
-    const prose = readFileInside(dir, `${rel}/prose.txt`);
-    const parsed = prose.ok ? parseSignedText(prose.text) : null;
+    const { declaration: decl, parsed } = readPlanTexts(dir, rel);
     const kept = readKept(dir, rel).kept;
     const opts = {
       ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
@@ -735,9 +733,7 @@ export function createAuthor(opts) {
       // run of its workflow signs no job, so it signs no schedule: the workflow keeps the one it has.
       let cardSchedule = null;
       if (asRunOf === undefined && v.card.schedule) {
-        const planProse = readFileInside(join(dir, v.plan), 'prose.txt');
-        const planDecl = readJsonFile(join(dir, v.plan), 'declaration.json');
-        const parsedPlan = planProse.ok ? parseSignedText(planProse.text) : null;
+        const { declaration: planDecl, parsed: parsedPlan } = readPlanTexts(join(dir, v.plan));
         if (!parsedPlan || !parsedPlan.ok || !planDecl) return { status: 409, body: { ok: false, refused: 'schedule', say: 'The plan could not be read to check its schedule. Nothing was signed.' } };
         const planned = triggerDoor.cardSchedule(v.card.schedule, { arbiter: parsedPlan.arbiter, declaration: planDecl });
         if (!planned.ok) return { status: 400, body: { ok: false, refused: 'schedule', say: planned.say } };
@@ -759,8 +755,7 @@ export function createAuthor(opts) {
       let values = null;
       // M13 am11a 2: a job with an action and no Ask line keeps the card's Ask wait (the stop before the action waits that long) in the same signed values as the Destination and the Cap
       const cardWait = typeof v.card?.askWait === 'string' ? v.card.askWait.trim().toLowerCase() : '';
-      const proseNow = readFileInside(join(dir, v.plan), 'prose.txt');
-      const parsedNow = proseNow.ok ? parseSignedText(proseNow.text) : null;
+      const parsedNow = readPlanTexts(join(dir, v.plan)).parsed;
       const actionWait = parsedNow && parsedNow.ok && parsedNow.arbiter.asks.length === 0 && parsedNow.arbiter.sends.length === 1 && parseWaitMs(cardWait) !== null ? { line: String(parsedNow.arbiter.sends[0].line), wait: cardWait } : null;
       if (pot.split.spentUsd > 0 || (actionWait !== null && parseWaitMs(actionWait.wait) !== DEFAULT_ACTION_WAIT_MS)) {
         const parsed = parsedNow;
@@ -961,7 +956,7 @@ export function createAuthor(opts) {
       const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
       const at = new Date().toISOString();
       const newDir = join(dir, `draft-${n}`);
-      const prose = readFileInside(planDir, 'prose.txt');
+      const proseText = readPlanTexts(planDir).proseText;
       try {
         claimPlanDir(newDir);
         if (Object.keys(made.pages).length > 0) claimPlanDir(join(newDir, 'pages'));
@@ -972,7 +967,7 @@ export function createAuthor(opts) {
           kind: 'draft', provider: null, price: null, model: readModelRecord(planDir)?.model ?? null, modelReturned: null, tokens: null, costUsd: 0, rounds: 0, calls: 0, spendComplete: true, stop: null, budgetUsd: null, startedAt: at, wallMs: 0,
         });
         writePlanFiles(dir, {
-          [cardFileName(n)]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: prose.ok ? prose.text : '',
+          [cardFileName(n)]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: proseText ?? '',
           [redraftFileName(n)]: `${JSON.stringify({ fromPlan: v.plan, answers: [], rowEdit: { op: b.op, key: b.key, at, asks } })}\n`,
         }, { flag: 'wx', mode: 0o600 });
       } catch (e) {

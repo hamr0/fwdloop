@@ -274,3 +274,15 @@ test('am3e item 19: only pickrecord.js reads `kept` from the picks record; the w
   assert.deepEqual(strays(files, /readJsonFile\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'planrebuild.js': 'the whole record, to carry it over into the rebuilt record' }), []);
   assert.deepEqual(strays(files, /readFileInside\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'pickrecord.js': 'the readers of the record\'s fields', 'panel/author.js': 'presence only: does a plan folder hold a record (--carry)' }), []);
 });
+
+// am3e item 20: a draft plan folder's prose.txt and declaration.json are read by readPlanTexts (src/draftfiles.js) only; flow.js is the signed flow folder's (readFlow and its loaders)
+test('am3e item 20: only draftfiles.js reads a draft plan folder\'s prose.txt / declaration.json; flow.js, author.js:stepListOf and data.js are on the list', () => {
+  assert.deepEqual(strays(load(), /(readFileInside|readJsonFile)\([^)\n]*(prose\.txt|declaration\.json)/, {
+    'draftfiles.js': 'readPlanTexts: the one reader of a draft plan folder',
+    'flow.js': 'a signed flow folder and its kept copies: readFlow and the loaders verify them (planForReuse / sameJob compare them)',
+    'panel/author.js': 'stepListOf: falls back to declaration.rejected.json, a different question',
+    'panel/data.js': 'the Audit tag: reads a signed flow\'s declaration even when its signature fails',
+  }), []);
+  // inside author.js the allow-list is one site: no second read of the plan folder's files
+  assert.equal((code(load()['panel/author.js']).match(/(readFileInside|readJsonFile)\([^)\n]*(prose\.txt|declaration\.json)/g) ?? []).length, 1);
+});
