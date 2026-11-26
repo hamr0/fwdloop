@@ -1630,6 +1630,9 @@ function lastTryNumber(runDir, stepId) {
   return last;
 }
 
+/** M20 am8: the one question "did the ask slot's loop already end the run" (it returned `paused` or `stopped`: its `result` is the run's own return value) @param {{type?: unknown}} r a loop's return @returns {boolean} */
+export const endsRun = (r) => r.type === 'paused' || r.type === 'stopped';
+
 /**
  * One signed ask slot's own loop (M2's ask branch, unchanged in spirit,
  * extracted so `resumeRun` can re-enter the SAME logic mid-ask instead of
@@ -2027,7 +2030,7 @@ async function foldFromStep({
             startedAt,
             runStartedAt,
           });
-          if (stop.type === 'paused' || stop.type === 'stopped') return stop.result;
+          if (endsRun(stop)) return stop.result;
           if (stop.type === 'halted') {
             return haltRun({
               flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stop.outcome, red: stop.red,
@@ -2147,7 +2150,7 @@ async function foldFromStep({
         runStartedAt,
       });
 
-      if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
+      if (endsRun(askResult)) return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
@@ -2837,7 +2840,7 @@ export async function resumeRun({
       runStartedAt,
     });
 
-    if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
+    if (endsRun(askResult)) return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,

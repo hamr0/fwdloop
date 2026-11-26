@@ -498,3 +498,10 @@ test('am8 item 1i: only src/thinking.js names the thinking modes on and off toge
     { file: 'panel/index.html', snippet: 'legacyIn.checked ? "on" : "off"', why: 'the Settings legacy-token word beside its tick box, not a thinking mode' },
   ]), []);
 });
+
+// am8 item 1j: "does this ask-loop outcome end the run" (paused or stopped) is endsRun (src/runner.js); the guard counts inside runner.js too, so the owner's own statement is named
+test('am8 item 1j: in code, only endsRun names the ask-loop outcomes paused and stopped together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('paused', 'stopped'), '', [
+    { file: 'runner.js', snippet: 'const endsRun =', why: 'the one owner' },
+  ]), []);
+});

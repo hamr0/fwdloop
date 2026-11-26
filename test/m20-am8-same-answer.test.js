@@ -7,6 +7,7 @@ import { answerPickedUp } from '../src/panel/data.js';
 import { FLOW_TYPES, isFlowType } from '../src/declaration.js';
 import { scheduleChoices, scheduleKindsOf } from '../src/schedule-choices.js';
 import { isThinkingMode } from '../src/thinking.js';
+import { endsRun } from '../src/runner.js';
 import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
@@ -106,4 +107,13 @@ test('1i isThinkingMode: the four old sites ask on-or-off of a thinking word', (
   same('positive', [...kind, 'On', 'auto'], (m) => m === 'on' || m === 'off', isThinkingMode);
   // old site src/drafter.js:396 (the refusal form)
   same('negated', kind, (m) => !(m !== 'on' && m !== 'off'), isThinkingMode);
+});
+
+test('1j endsRun: the three old runner.js sites ask paused-or-stopped of an ask loop return', () => {
+  const types = ['paused', 'stopped', 'halted', 'accepted'];
+  for (const type of [...types, '', null, undefined, 'nonsense']) {
+    // old sites src/runner.js:2030, :2150, :2840 (`x.type === 'paused' || x.type === 'stopped'`)
+    assert.equal(endsRun({ type }), type === 'paused' || type === 'stopped', JSON.stringify(type));
+  }
+  assert.equal(endsRun({}), false);
 });
