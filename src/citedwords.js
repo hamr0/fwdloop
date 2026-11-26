@@ -9,7 +9,7 @@
 // Pure: no I/O, no model. Compared white-space blind. Third outcome, named: a source with no page-read (md text, a page the look never read) is a red
 // `unread` - a check whose words were never proved against the source is never signed. What this throws away: nothing; every red is a sentence.
 
-import { asList, boundInWords, countExact, countPhrase, normLabel, wordsSaidOn } from './pagebits.js';
+import { asList, boundInWords, countExact, countPhrase, isAmountShape, normLabel, wordsSaidOn } from './pagebits.js';
 import { validReading } from './pagerules.js';
 import { ruleWords } from './pageask.js';
 import { dropSentence } from './pagedropwords.js';
@@ -123,7 +123,7 @@ export function numberRuleReds({ part, jobLine }) {
   const reds = [];
   const said = numbersSaid(wordsSaidOn(jobLine));
   const isSaid = (/** @type {string} */ shape, /** @type {unknown} */ b) => {
-    if (shape === 'money' || shape === 'number') return typeof b === 'number' && (said.bare.has(b) || said.amount.has(b));
+    if (isAmountShape(shape)) return typeof b === 'number' && (said.bare.has(b) || said.amount.has(b));
     if (shape === 'time') return typeof b === 'string' && said.time.has(timeKey(b));
     if (shape === 'date') return typeof b === 'string' && said.date.has(b);
     return false;

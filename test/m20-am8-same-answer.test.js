@@ -16,6 +16,9 @@ import { isThinkingMode } from '../src/thinking.js';
 import { endsRun } from '../src/runner.js';
 import { isFactKind } from '../src/checkblock.js';
 import { isShapeAsk } from '../src/pageask.js';
+import { FACT_SHAPES } from '../src/citedcheck.js';
+import { isAmountShape, isPhraseShape, isLegalCount } from '../src/pagebits.js';
+import { canReadLimit } from '../src/pagerules.js';
 import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
@@ -163,5 +166,58 @@ test('1m the five picks-record readers: opening through readJsonFile reads every
   for (const name of [...Object.keys(files), 'isdir', 'link', 'missing']) {
     const file = path.join(dir, `${name}.json`);
     for (const [field, reader, keep] of readers) assert.deepEqual(reader(file), oldRead(file, field, keep), `${field} of ${name}`);
+  }
+});
+
+test('1n isAmountShape: the seven old sites ask money-or-number of a fact shape', () => {
+  const kind = [...FACT_SHAPES, 'place'];
+  // old sites src/pagebits.js:10 (boundOk), src/pagerules.js:223, src/checkblock.js:777, src/citedwords.js:126, src/shaperows.js:199 (positive, either order)
+  same('positive', kind, (s) => s === 'money' || s === 'number', isAmountShape);
+  same('positive other order', kind, (s) => s === 'number' || s === 'money', isAmountShape);
+  // old sites src/citedcheck.js:124 and :323 (negated)
+  same('negated', kind, (s) => !(s !== 'number' && s !== 'money'), isAmountShape);
+});
+
+test('1n canReadLimit and isPhraseShape: the old sites equal the owners on every fact shape', () => {
+  const kind = [...FACT_SHAPES, 'place'];
+  // old sites src/checkblock.js:501 (positive), :1167 (negated), src/pagerules.js:49 (negated, other order)
+  same('limit positive', kind, (s) => s === 'money' || s === 'time', canReadLimit);
+  same('limit negated', kind, (s) => !(s !== 'money' && s !== 'time'), canReadLimit);
+  same('limit negated other order', kind, (s) => !(s !== 'time' && s !== 'money'), canReadLimit);
+  // old sites src/checkblock.js:492 (isPhrase), src/citedcheck.js:72 (positive), src/checkblock.js:449 (negated)
+  same('phrase positive', kind, (s) => s === 'phrase' || s === 'place', isPhraseShape);
+  same('phrase negated', kind, (s) => !(s !== 'phrase' && s !== 'place'), isPhraseShape);
+});
+
+test('1n isLegalCount: the three old result-count tests equal the owner on every {min, max} a JSON file or an edit can hold', () => {
+  const nums = [undefined, 0, 1, 2, 3, 2.5, -1, '2', null, NaN, Infinity, true];
+  // old site src/citedcheck.js:139 (factPartReds): `!== undefined` forms
+  const old139 = (c) => !!(c !== null && typeof c === 'object' && !Array.isArray(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (c.min !== undefined || c.max !== undefined)
+    && ['min', 'max'].every((k) => c[k] === undefined || (Number.isInteger(c[k]) && c[k] >= 1)) && (c.min === undefined || c.max === undefined || c.min <= c.max));
+  // old site src/citedcheck.js:352 (factShapeReds): Object.hasOwn forms
+  const old352 = (c) => !!(c !== null && typeof c === 'object' && !Array.isArray(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (Object.hasOwn(c, 'min') || Object.hasOwn(c, 'max'))
+    && ['min', 'max'].every((k) => !Object.hasOwn(c, k) || (Number.isInteger(c[k]) && c[k] >= 1))
+    && (!Object.hasOwn(c, 'min') || !Object.hasOwn(c, 'max') || c.min <= c.max));
+  // old site src/checkblock.js:1154 (addCount): the edit's own min and max
+  const old1154 = (e) => {
+    const ok = (x) => Number.isInteger(x) && x >= 1;
+    return !(![e.min, e.max].some(Number.isInteger) || [e.min, e.max].some((x) => x !== undefined && !ok(x)) || (Number.isInteger(e.min) && Number.isInteger(e.max) && e.min > e.max));
+  };
+  for (const min of nums) {
+    for (const max of nums) {
+      // a JSON file cannot hold undefined: a missing key is a missing key
+      const c = {};
+      if (min !== undefined) c.min = min;
+      if (max !== undefined) c.max = max;
+      assert.equal(isLegalCount(c), old139(c), `139 ${JSON.stringify(c)}`);
+      assert.equal(isLegalCount(c), old352(c), `352 ${JSON.stringify(c)}`);
+      assert.equal(isLegalCount({ min, max }), old1154({ min, max }), `1154 ${String(min)} ${String(max)}`);
+      // the explicit-undefined key is the one value where :139 and :352 differ (hasOwn); the owner keeps :139's, as addCount needs
+      assert.equal(isLegalCount({ min, max }), old139({ min, max }), `139 explicit ${String(min)} ${String(max)}`);
+    }
+  }
+  for (const odd of [null, undefined, '', 'x', 5, [], [1], {}, { min: 1, other: 2 }, { lo: 1 }]) {
+    assert.equal(isLegalCount(odd), old139(odd), `odd 139 ${JSON.stringify(odd)}`);
+    assert.equal(isLegalCount(odd), old352(odd), `odd 352 ${JSON.stringify(odd)}`);
   }
 });

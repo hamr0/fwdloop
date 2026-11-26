@@ -15,13 +15,13 @@
 // counts built into rubric-step parts; a repo job (`repo` option) holds `~` rule rows the write fence keeps (or that the person answers about), `!` rows for the drafter's catalogue work stages, and the same `$` rows.
 // The same rows store, the same asks, the same Drop/carry, the same signedRows and closeView serve both.
 import { globToPrefix } from './globprefix.js';
-import { countExact, countPhrase } from './pagebits.js';
+import { countExact, countPhrase, isAmountShape, isPhraseShape, isLegalCount } from './pagebits.js';
 import { checkFactWords, keptSetOf } from './factwords.js';
 import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords } from './blockpick.js';
 import { dropRows, dropSentence } from './pagedropwords.js';
 import { phraseInNoResult, asSeenOf } from './pagedry.js';
 import { boundInWords, rubricStepShapeReds, stageKeyOf, guardKeyOf, FENCE_KEY, defaultCitedText, defaultNoteText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
-import { validReading } from './pagerules.js';
+import { validReading, canReadLimit } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
 import { fitPlacePhrase } from './placerule.js';
 import { isRowChoice } from './pickrecord.js';
@@ -446,7 +446,7 @@ export class CheckBlock {
     if (r.kind === 'count') return [r.min, r.max].filter((x) => Number.isInteger(x)).some((n) => numberIn(said, n));
     // a money, time, number or date fact the person asked for BY NAME ("the release heading") is in the job too: the look's page words rarely echo the job's own words. A phrase or place is job-derived
     // only when its own words are in the person's text: a name the AI gave it is no proof (hamr 2026-11-15, live run mwi76vh8: "friendly" for "Select flight")
-    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && r.shape !== 'phrase' && r.shape !== 'place' && typeof r.name === 'string' && inText(said, r.name));
+    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && !isPhraseShape(r.shape) && typeof r.name === 'string' && inText(said, r.name));
   }
 
   /**
@@ -489,7 +489,7 @@ export class CheckBlock {
     if (isCountable(r.text)) { this.matchCountRule(r); return; }
     // F-a (hamr 2026-11-13): a rule that carries a negation ("nonstop is not mandatory") says what is NOT needed; its words can never give a phrase bound ("must say"). The one negation reader is NEGATING_RE.
     const negated = NEGATING_RE.test(r.text);
-    const isPhrase = (/** @type {any} */ l) => l.shape === 'phrase' || l.shape === 'place';
+    const isPhrase = (/** @type {any} */ l) => isPhraseShape(l.shape);
     if (negated && (r.links ?? []).length && (r.links ?? []).every(isPhrase)) { r.can = { ok: false, why: REASON.negated }; return; }
     const links = (r.links ?? []).filter((/** @type {any} */ l) => !(negated && isPhrase(l)) && l.words.some((/** @type {string} */ w) => proved(this.textOf(l.source), w)));
     const said = this.said(r.line);
@@ -498,7 +498,7 @@ export class CheckBlock {
     for (const l of links) {
       let reading = l.reading;
       let ownWords = false;
-      if (l.shape === 'money' || l.shape === 'time') {
+      if (canReadLimit(l.shape)) {
         // the person's words win (hamr 2026-11-13): code's reading of the `~` words beats the look's and the AI's; theirs is used only when code cannot read the words
         const rd = this.wordsReading(l, r.text);
         // fwdloop run walk-m16-flights run-1: "under $150" on a euro fact fell back to the look's reading and checked 150 euros; a bound in another currency than the page fact is never replaced by the look's or the AI's reading
@@ -774,7 +774,7 @@ export class CheckBlock {
     const mk = (/** @type {string} */ name, /** @type {any} */ extra) => ({ name: cleanName(name), ...extra });
     const kindFields = (/** @type {any} */ f, /** @type {string} */ anchor, /** @type {any} */ extra) => mk(f.name, {
       shape: f.shape, anchor, ...(f.unit ? { unit: f.unit } : {}), ...(f.currency ? { currency: f.currency } : {}),
-      ...(f.decimal && (f.shape === 'money' || f.shape === 'number') ? { decimal: f.decimal } : {}), ...(f.lang && f.shape === 'date' ? { lang: f.lang } : {}), ...extra,
+      ...(f.decimal && isAmountShape(f.shape) ? { decimal: f.decimal } : {}), ...(f.lang && f.shape === 'date' ? { lang: f.lang } : {}), ...extra,
     });
     /** @type {any[]} */ let fs;
     if (r.kind === 'rule') {
@@ -1150,8 +1150,7 @@ export class CheckBlock {
   }
 
   addCount(/** @type {any} */ e) {
-    const ok = (/** @type {unknown} */ x) => Number.isInteger(x) && /** @type {number} */ (x) >= 1;
-    if (![e.min, e.max].some(Number.isInteger) || [e.min, e.max].some((x) => x !== undefined && !ok(x)) || (Number.isInteger(e.min) && Number.isInteger(e.max) && e.min > e.max)) return { refusedBecause: 'no legal number given' };
+    if (!isLegalCount({ min: e.min, max: e.max })) return { refusedBecause: 'no legal number given' };
     if (this.rowsOn(e.line, 'count').length) return { refusedBecause: 'already on the list: this line has a result count' };
     const row = this.addRow({ key: `L${e.line}.count.${e.min ?? ''}-${e.max ?? ''}`, line: e.line, kind: 'count', by: 'agent', from: 'agent', min: e.min, max: e.max });
     return { accepted: true, landedKey: row.key };
@@ -1164,7 +1163,7 @@ export class CheckBlock {
 
   /** the one owner of "what do the person's own words say": code's reading of a `~` rule for a money/time fact, or undefined when it cannot read it */
   wordsReading(/** @type {any} */ l, /** @type {string} */ text) {
-    if (l.shape !== 'money' && l.shape !== 'time') return undefined;
+    if (!canReadLimit(l.shape)) return undefined;
     const own = readLimit(l.shape, text, l);
     const rd = 'reading' in own ? own.reading : undefined;
     return rd && validReading(l.shape, rd) && (rd.op === 'between' ? [rd.lo, rd.hi] : [rd.value]).every((b) => boundInWords(b, text)) ? rd : undefined;

@@ -7,7 +7,7 @@
 // Rows of one shape line: a `[you]` row per `~` rule that has a field (the rule's own row, kind `rule`), an `[agent]` row per extra field (kind `shape`, key `L<n>.shape.<name>`), and the line's `[default]` row (key
 // `L<n>.$shape`): the answer is a list of items, with the item count when the person's words gave one.
 import { createRubric, rubricVocabulary } from 'bareguard';
-import { lineRules } from './pagebits.js';
+import { lineRules, isAmountShape } from './pagebits.js';
 import { nameWhy, shapeNameRules, SHAPE_KINDS } from './shapemenu.js';
 import { countCheck } from './blockpick.js';
 
@@ -196,7 +196,7 @@ export function shapeItemCheck(part, id, factPart = null) {
   const count = facts !== null && factCounted ? {} : { ...(Number.isInteger(part.minItems) ? { minItems: part.minItems } : {}), ...(Number.isInteger(part.maxItems) ? { maxItems: part.maxItems } : {}) };
   const fields = facts === null ? own : {
     quote: { kind: 'text', required: true },
-    values: { kind: 'object', fields: Object.fromEntries(facts.map((f) => [String(f.name), f.shape === 'money' || f.shape === 'number' ? { kind: 'number', fromText: true } : { kind: 'text' }])) },
+    values: { kind: 'object', fields: Object.fromEntries(facts.map((f) => [String(f.name), isAmountShape(f.shape) ? { kind: 'number', fromText: true } : { kind: 'text' }])) },
     ...own,
   };
   return { id, rule: 'itemShape', field: SHAPE_FIELD, ...count, fields };

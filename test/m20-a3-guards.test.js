@@ -512,7 +512,6 @@ test('am8 item 1l: in code, only isFactKind names the row kinds fact and phrase 
     { file: 'checkblock.js', snippet: 'const isFactKind =', why: 'the one owner' },
     { file: 'checkblock.js', snippet: "kind: 'fact', by: 'agent', from: 'look', name: d.fact", why: 'BUILDS a look fact row (its kind and its shape are two fields), not a question about a kind' },
     { file: 'checkblock.js', snippet: "r.by === 'agent' && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'isBang: fact, phrase or COUNT (and agent), a wider question than fact-or-phrase' },
-    { file: 'checkblock.js', snippet: "r.kind === 'fact' && r.shape !== 'phrase'", why: "a fact row whose SHAPE is not a phrase, a row-kind test next to a shape test" },
     { file: 'checkblock.js', snippet: "this.isSheetLine(l.n) && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'the sheet-line refusal: fact, phrase or COUNT, a wider question than fact-or-phrase' },
     { file: 'checkblock.js', snippet: "e.kind === 'phrase' ? 'phrase' : 'fact'", why: 'MAKES a row key word from a kind, not a question about a kind' },
     { file: 'checkrows.js', snippet: "const FACT_KINDS = new Set(['fact', 'phrase', 'count'])", why: 'fact, phrase or COUNT: the Not checked list\'s wider question' },
@@ -529,4 +528,54 @@ test('am8 item 1m: no reader opens picks-record.json with readFileInside and par
     { file: 'pickrecord.js', snippet: 'const g = readFileInside(dir, `$', why: 'readKept: tells a torn record from a missing one (the sign-time card check skips on a torn one); readJsonFile reads both as null' },
     { file: 'panel/author.js', snippet: 'readFileInside(join(dir, r), RECORD_FILE).ok', why: 'asks only whether a record is there (which plan folder carries one), reads no field' },
   ]), []);
+});
+
+// am8 item 1n (amount shape): "is this fact shape an amount (money or number)" is isAmountShape (src/pagebits.js, the leaf every site already imports)
+test('am8 item 1n amount: only isAmountShape names the fact shapes money and number together, apart from named lists and other vocabularies', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'number'), '', [
+    { file: 'pagebits.js', snippet: 'const isAmountShape =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms reach nothing: am8 item 4 deletes them); not 'is it an amount'" },
+    { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
+    { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text), not 'is it an amount'" },
+    { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
+    { file: 'labelscan.js', snippet: "['money', /[$€£]", why: 'the scanners table, one pattern per shape, not a question' },
+    { file: 'pagelook.js', snippet: "shape === 'money' || shape === 'number' || shape === 'time'", why: "the shapes whose value sits after a label (three, with time): 'does the value follow a label', not 'is it an amount'" },
+    { file: 'pagerules.js', snippet: "const VALUE_SHAPES = ['money', 'time', 'number']", why: 'the same three value shapes, as a list' },
+    { file: 'shapebuild.js', snippet: "kind === 'number' || kind === 'money'", why: "bareguard's shape-field KIND words (a field kind, not a fact shape)" },
+    { file: 'shapebuild.js', snippet: "kind !== 'number' && kind !== 'money'", why: "bareguard's shape-field KIND words (a field kind, not a fact shape)" },
+  ]), []);
+});
+
+// am8 item 1n (code-readable limit): "can code read a limit from the person's words for this fact shape" (money or time) is canReadLimit (src/pagerules.js, which owns validReading)
+test('am8 item 1n limit: only canReadLimit names the fact shapes money and time together, apart from named lists and other questions', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'time'), '', [
+    { file: 'pagerules.js', snippet: 'const canReadLimit =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (am8 item 4 deletes the dead arms); not 'can code read a limit'" },
+    { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
+    { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text)" },
+    { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
+    { file: 'pagedry.js', snippet: "f.shape === 'money' || f.shape === 'time'", why: "'does a result-line finder exist for this shape' (moneyResultLines, timeCandidateLines): a capability of another function, not 'can code read a limit'" },
+    { file: 'pagelook.js', snippet: "shape === 'money' || shape === 'number' || shape === 'time'", why: "the shapes whose value sits after a label (three): not 'can code read a limit'" },
+    { file: 'pagemap.js', snippet: 'export const MAP_SHAPES =', why: "the vocabulary of the AI's map shapes, not a question" },
+    { file: 'pagerules.js', snippet: "const VALUE_SHAPES = ['money', 'time', 'number']", why: 'the three value shapes, as a list' },
+  ]), []);
+});
+
+// am8 item 1n (phrase-like): "is this fact shape phrase-like" (phrase or place) is isPhraseShape (src/pagebits.js)
+test('am8 item 1n phrase: only isPhraseShape names the fact shapes phrase and place together, apart from named lists and dispatches', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('phrase', 'place'), '', [
+    { file: 'pagebits.js', snippet: 'const isPhraseShape =', why: 'the one owner' },
+    { file: 'pagerules.js', snippet: "f.shape === 'place' || f.shape === 'phrase'", why: "the AI's raw map: which of the two a fact is decides how its words are counted (countExact or countPhrase), a dispatch on the map, not the kept fact's test" },
+    { file: 'pagerules.js', snippet: "p.f.shape === 'place' ? 'phrase'", why: 'MAKES the kept shape (place becomes phrase), not a question' },
+    { file: 'pagerules.js', snippet: "['place', 'phrase', 'value']", why: 'the kinds of the map, as a list' },
+    { file: 'pagemap.js', snippet: 'export const MAP_SHAPES =', why: "the vocabulary of the AI's map shapes, not a question" },
+    { file: 'citedcheck.js', snippet: "has('phrase') || has('place')", why: 'which FIELD the fact carries (phrase, place), not its shape' },
+    { file: 'checkblock.js', snippet: "r.can.how === 'place'", why: "how the check was built (the place route), a different field from the fact's shape" },
+    { file: 'citedcheck.js', snippet: "const FACT_FIELDS =", why: 'the vocabulary of fact fields, not a question' },
+  ]), []);
+});
+
+// am8 item 1n (result count): "is this a legal result count" ({min, max}, whole numbers 1 or more, min no more than max) is isLegalCount (src/pagebits.js)
+test('am8 item 1n count: only isLegalCount tests a result count`s keys (min and max) as a whole', () => {
+  assert.deepEqual(copies(filesAndPage(), /k === 'min' \|\| k === 'max'|Number\.isInteger\(e\.min\)|\[e\.min, e\.max\]/, 'pagebits.js', []), []);
 });
