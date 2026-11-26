@@ -50,19 +50,18 @@ import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
 import { hitlWords, notCheckedView } from './checked.js';
 import {
-  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, readQuestions, scrub,
+  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, NOT_CHECKED_FILE, readNotCheckedFile, readQuestions, scrub,
 } from './draftfiles.js';
 
 // one name, one place: the plan-folder readers live in src/draftfiles.js; they stay importable from here
 export {
-  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, readQuestions, scrub,
+  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, NOT_CHECKED_FILE, readNotCheckedFile, readQuestions, scrub,
 };
 
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
 export const PANEL_DRAFTS_DIR = '.drafts';
 /** M4e amendments 24/25: the drafter's questions (written once by `fwdloop draft`), each human answer (`answer-<k>.json`, written once by the panel),
  *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
-export const NOT_CHECKED_FILE = 'not-checked.json';
 /** M10: the drafting copy of each web page input is kept in this folder of the draft folder (a run freezes its own, never this one). */
 export const PAGES_DIR = 'pages';
 /** M10 item 3: what the page-word look kept and dropped, per page input (the map the AI named, the kept facts with their readings, every drop). Not signed. */

@@ -1,6 +1,7 @@
 // M20 am3b item 2: what a plan folder's own files say, apart from the sign: its verdict, its questions with their answers, and the key scrub. Moved out of
 // src/authoring.js so src/setup.js (which records them) and src/authoring.js (which calls writeSetup) no longer import each other.
-import { readFileInside, readDraftLog } from './flow.js';
+import { readFileInside, readDraftLog, readJsonFile } from './flow.js';
+import { isRec } from './isrec.js';
 
 export const SPEC_HASH_FILE = 'spec.hash';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
@@ -70,3 +71,17 @@ export function scrub(text, secrets) {
   return out;
 }
 
+
+/** the drafter's own "Not checked" reading, kept in a plan folder (information only; never in the readout, so never in the hash) */
+export const NOT_CHECKED_FILE = 'not-checked.json';
+/**
+ * M20 am3 item 10: the ONE reader of a plan folder's `not-checked.json`. `notChecked` is the file's own list as it is (any type; the callers keep what they
+ * accept of it: `notCheckedBlock`/`notCheckedView` filter strings, the rebuild keeps strings), `by` the tag of each line when the file holds an object, else null.
+ * A missing, refused, unparseable or non-object file reads as `{notChecked: undefined, by: null}` (a plan from before amendment 25 has none).
+ * @param {string} dir the folder that holds the plan folder @param {string} [rel] `draft`, `draft-<n>` or `.` (the plan folder itself)
+ * @returns {{notChecked: any, by: Record<string, any>|null}}
+ */
+export function readNotCheckedFile(dir, rel = '.') {
+  const f = readJsonFile(dir, `${rel}/${NOT_CHECKED_FILE}`);
+  return { notChecked: f?.notChecked, by: isRec(f?.by) ? f.by : null };
+}

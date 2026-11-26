@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf, CARD_RE } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { readQuestions, scrub, draftVerdict } from './draftfiles.js';
+import { readQuestions, scrub, draftVerdict, readNotCheckedFile } from './draftfiles.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
@@ -109,9 +109,9 @@ export function buildSetupRows({
   }
   // M4e amendment 36: the drafter's own "Not checked" list (the green plan folder's not-checked.json), kept word for word with its label. Not signed,
   // not in any hash. An unreadable or missing file is an empty list (a plan from before amendment 25 has none).
-  const ncFile = readJsonFile(planDir, 'not-checked.json');
+  const ncFile = readNotCheckedFile(planDir);
   // M16 item 5: the tag of each line that tells a list row rides the sign row (the Audit's Checks fold draws it); a plan with no list has none
-  const notChecked = { ...notCheckedBlock(ncFile?.notChecked), ...(ncFile?.by && typeof ncFile.by === 'object' && !Array.isArray(ncFile.by) ? { by: ncFile.by } : {}) };
+  const notChecked = { ...notCheckedBlock(ncFile.notChecked), ...(ncFile.by ? { by: ncFile.by } : {}) };
   rows.push({
     kind: 'sign', n: 0, at: signedAt, signedBy, hash, flowHash: flowHash ?? null, notChecked,
   });

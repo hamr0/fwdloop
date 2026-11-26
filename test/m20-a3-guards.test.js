@@ -241,3 +241,10 @@ test('am3b item 1: only books.js reads answer.json (readSavedAnswer); the other 
 test('am3d: only signedHashOf parses signature.json for its .flow', () => {
   assert.deepEqual(strays(load(), /JSON\.parse\([^)\n]*\)\??\.flow\b/, { 'flow.js': 'signedHashOf: the one reader (a string that is not empty, else none)' }), []);
 });
+
+// am3 item 10 (first half): a plan folder's not-checked.json is read by readNotCheckedFile (src/draftfiles.js) only; the writers (authoring.js, planrebuild.js) use NOT_CHECKED_FILE
+test('item 10: only draftfiles.js names not-checked.json or reads NOT_CHECKED_FILE; the writers use the constant', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]not-checked\.json/, { 'draftfiles.js': 'NOT_CHECKED_FILE declared; readNotCheckedFile: the one reader' }), []);
+  assert.deepEqual(strays(files, /readJsonFile\([^)\n]*NOT_CHECKED_FILE/, { 'draftfiles.js': 'readNotCheckedFile' }), []);
+});

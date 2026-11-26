@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readTargetName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -402,8 +402,8 @@ export function createAuthor(opts) {
       ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
       ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),
     };
-    const ncFile = readJsonFile(dir, `${rel}/${NOT_CHECKED_FILE}`);
-    const view = notCheckedView(ncFile?.notChecked, decl);
+    const ncFile = readNotCheckedFile(dir, rel);
+    const view = notCheckedView(ncFile.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
     // M19 am6: a saved draft with a signed list draws its card rows read from the plan (a card saved with the old words is rebuilt); the suggestions, the restorable rows and the Drop flags are the saved card's
     const savedLog = cardLinesOf(decl).size > 0 ? readDraftLog(dir, rel) : undefined;
@@ -417,7 +417,7 @@ export function createAuthor(opts) {
     const act = readDraftLog(dir, rel)?.action;
     const action = isObj(act) && Number.isInteger(act.line) && act.dropped !== true ? { line: act.line, ...(act.by === 'agent' || act.by === 'you' ? { by: act.by } : {}) } : null;
     return {
-      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(isObj(ncFile?.by) ? { by: ncFile.by } : {}), rows: ncRowsOf(view.items, isObj(ncFile?.by) ? ncFile.by : {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
+      ...(action ? { action } : {}), checked: checkedLines(decl, opts), notChecked: { ...view, ...(ncFile.by ? { by: ncFile.by } : {}), rows: ncRowsOf(view.items, ncFile.by ?? {}) }, ...(list ? { list, planLines, always: [...EVERY_STEP_TEXTS] } : {}),
     };
   }
 

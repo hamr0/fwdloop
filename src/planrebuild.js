@@ -31,6 +31,7 @@ import { buildShapes } from './shapebuild.js';
 import { parseShapeAnswer, SHAPE_CALL_LABEL } from './shapelook.js';
 import { lineRules } from './pagebits.js';
 import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE, SPEC_HASH_FILE } from './authoring.js';
+import { readNotCheckedFile } from './draftfiles.js';
 
 /** what a person is told when the saved inputs no longer give the saved list: nothing is written */
 export const REBUILD_CHANGED_SAY = 'The inputs of this plan have changed since it was drafted, so its checks cannot be changed here. Draft again from the card. Nothing was changed.';
@@ -202,11 +203,12 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const dj = (/** @type {unknown} */ o) => `${JSON.stringify(o, null, 2)}\n`;
   const declarationText = dj(after.declaration);
   // the "Not checked" list: what the old plan listed, less what the old list made, plus what the changed list makes (the AI's own list stays)
-  const oldNc = readJsonFile(planDir, NOT_CHECKED_FILE)?.notChecked;
+  const oldNcFile = readNotCheckedFile(planDir);
+  const oldNc = oldNcFile.notChecked;
   const oldList = Array.isArray(oldNc) ? oldNc.filter((x) => typeof x === 'string') : [];
   const was = new Set(before.notChecked);
   const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
-  const oldBy = isRec(readJsonFile(planDir, NOT_CHECKED_FILE)?.by) ? readJsonFile(planDir, NOT_CHECKED_FILE).by : {};
+  const oldBy = oldNcFile.by ?? {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
   // M19 am4: the plan card the new plan saves is the one its readout reads (one model)
   // M19 am8 item 1, am9 item 5: the new plan's ledger rows, one per Not checked row, in its own log; the card is read from the new plan (am6)
