@@ -224,7 +224,7 @@ function checksOfLine(stepsOfLine, diary) {
   const out = [];
   for (const st of stepsOfLine) {
     const newest = newestChecksOf(diary, st.emits);
-    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: c.by === 'you' || c.by === 'agent' || c.by === 'default' ? tagged(c.text, c.by) : c.text, result: isStr(c.result) ? c.result : null }); // hamr 2026-11-14: a check the plan's list built carries the tag of its row
+    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: tagged(c.text, c.by), result: isStr(c.result) ? c.result : null }); // hamr 2026-11-14: a check the plan's list built carries the tag of its row
   }
   return out;
 }

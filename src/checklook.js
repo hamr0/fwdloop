@@ -3,6 +3,8 @@
 // The card (src/cardlist.js), the Audit (src/auditchecks.js), the draft readout (src/authoring.js) and the page all take their kind word and their Not-checked split from these.
 // What this throws away: a Not checked item's own quotes round a whole rule and the reason "you judge it at Accept" (the group title says it).
 
+import { tagOf } from './checkwords.js';
+
 /** the group titles and the tail of the Not checked one (section 3.7, copied unchanged) */
 export const LOOK = Object.freeze({
   checked: 'CHECKED', notChecked: 'NOT CHECKED', notCheckedTail: 'you judge these at Accept', suggested: 'SUGGESTED · add if you want it', everyLine: 'Every line',
@@ -40,6 +42,6 @@ export function ncRowsOf(items, by = {}) {
     const m = /^line (\d+): ([\s\S]*)$/.exec(raw);
     const body = (m ? m[2] : raw).replace(/^not checked · /, '');
     const tag = by[raw];
-    return { line: m ? Number(m[1]) : 0, ...splitNotChecked(body), ...(tag === 'you' || tag === 'agent' || tag === 'default' ? { by: tag } : {}) };
+    return { line: m ? Number(m[1]) : 0, ...splitNotChecked(body), ...(tagOf(tag) !== '' ? { by: /** @type {'you'|'agent'|'default'} */ (tag) } : {}) };
   });
 }

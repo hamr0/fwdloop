@@ -4,6 +4,7 @@
 // What a run recorded for a check is read off its diary (`checks` rows: each check numbered with its `ok`, and for a list line its `part`); nothing is re-derived. What this throws away: the checks of a line off the list
 // (the sheet and the older plans keep their own Audit rows), and the per-try history (the LAST try of a step is the one that closed it).
 import { listLinesOf } from './checklistsign.js';
+import { tagOf } from './checkwords.js';
 import { newestChecksOf } from './diary.js';
 import { listPartRows, notCheckedView } from './checked.js';
 import { EVERY_STEP, EVERY_STEP_TEXTS } from './try-checks.js';
@@ -63,7 +64,7 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   // M17 am4 (C3): the Audit splits a reading note from Not checked as the card and the Job tab do (src/checked.js notCheckedView)
   const view = notCheckedView(notChecked?.items ?? [], declaration);
   /** @type {AuditCheckRow[]} */
-  const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: by[t] === 'you' || by[t] === 'agent' || by[t] === 'default' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
+  const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: tagOf(by[t]) !== '' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
   // the two checks every step has (src/try-checks.js #1 and #2): passed when every step that ran them passed, failed when one did not
   const every = (/** @type {string} */ text) => {
     const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (Array.isArray(d.checks) ? d.checks : []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));

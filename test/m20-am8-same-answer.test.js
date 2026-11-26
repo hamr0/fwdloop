@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
+import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
 import { startedNothing } from '../src/summary-words.js';
 
@@ -66,4 +67,10 @@ test('1e isRowChoice: the five old sites ask drop-or-add of a choice word', () =
   same('positive', kind, (c) => c === 'drop' || c === 'add', isRowChoice);
   same('negated', kind, (c) => !(c !== 'drop' && c !== 'add'), isRowChoice);
   same('array', [['drop']], (c) => c === 'drop' || c === 'add', isRowChoice);
+});
+
+test('1f tagOf: the node sites that spelled the three origin tags equal `tagOf(by) !== ""`, also on names that live on every object', () => {
+  const kind = ['you', 'agent', 'default'];
+  // old sites src/blockassemble.js:126, src/checklistsign.js:80,86,92, src/auditchecks.js:66, src/panel/result.js:227 (`x === 'you' || x === 'agent' || x === 'default'`), src/checklook.js:43 (the same triple)
+  same('triple', [...kind, 'constructor', 'toString', '__proto__', 'hasOwnProperty'], (b) => b === 'you' || b === 'agent' || b === 'default', (b) => tagOf(b) !== '');
 });

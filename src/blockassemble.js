@@ -20,6 +20,7 @@ export const SHAPE_ONLY_CLASS = 'green';
 
 import { REASON } from './reasons.js';
 import { KEPT_WORDS } from './pickrecord.js';
+import { tagOf } from './checkwords.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';
 import { isRec } from './isrec.js';
@@ -123,7 +124,7 @@ export function assembleFromBlock({ declaration, block, lines, lineSet, askLines
     if (own?.hidden) return null;
     // the reason is the signed row's own `reason` (src/checkblock.js REASON, the one table); M10 am17 (6): `kept` words
     const line = notCheckedItem(r, ruleTextOf(lines, r) ?? own?.text, own ? (own.name ? [own.name] : own.words) : undefined, own?.keptFromLast === true);
-    if (r.by === 'you' || r.by === 'agent' || r.by === 'default') notCheckedBy[line] = r.by;
+    if (tagOf(r.by) !== '') notCheckedBy[line] = r.by;
     return line;
   }).filter((x) => x !== null);
   for (const l of lines) {

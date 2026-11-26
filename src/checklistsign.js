@@ -2,6 +2,7 @@
 // Equivalent of bareloop src/rubricstep.js@v0.56.0 (3383cce) `listMatchesClose`, read over fwdloop's close fields instead of a rubric-step stage: the checks of one line, in the order the check block
 // builds them, are [close.cited (the fact part)], [close.itemShape (the shape part, M19 S5)], then each entry of close.picked / close.shape.picked, then close.numbersFrom (the numbers tie). A signed row points at one of them by `part: {line, part: <index>}`.
 import { isRec } from './isrec.js';
+import { tagOf } from './checkwords.js';
 
 /**
  * The checks of one step's close in the block's part order. M16 am4: with `withSheet` (a plan whose list has sheet rows) each `close.sheet` check is a part too, after the others.
@@ -77,19 +78,19 @@ const builtOn = (declaration, line) => (isRec(declaration) && Array.isArray(decl
  */
 export function partByOf(declaration, line, idx) {
   const r = builtOn(declaration, line).find((x) => isRec(x.part) && x.part.part === idx);
-  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+  return r && tagOf(r.by) !== '' ? r.by : null;
 }
 
 /** who made the fact named `name` of a list line's quote check (the row that built it), else null @param {any} declaration @param {number} line @param {string} name @returns {'you'|'agent'|'default'|null} */
 export function factByOf(declaration, line, name) {
   const r = builtOn(declaration, line).find((x) => Array.isArray(x.facts) && x.facts.includes(name));
-  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+  return r && tagOf(r.by) !== '' ? r.by : null;
 }
 
 /** who made the result count of a list line's quote check, else null @param {any} declaration @param {number} line @returns {'you'|'agent'|'default'|null} */
 export function countByOf(declaration, line) {
   const r = builtOn(declaration, line).find((x) => x.kind === 'count');
-  return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
+  return r && tagOf(r.by) !== '' ? r.by : null;
 }
 
 /**

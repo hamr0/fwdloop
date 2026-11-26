@@ -463,3 +463,10 @@ test('am8 item 1e: only src/pickrecord.js names the row choices drop and add tog
     { file: 'checkblock.js', snippet: "r.held = r.choice === 'drop' || (r.field?.held === true && r.choice !== 'add')", why: "asks 'is this shape row held': one choice against the other, not 'is it a legal choice'" },
   ]), []);
 });
+
+// am8 item 1f: "is this an origin tag (you, agent, default)" is tagOf (src/checkwords.js), `tagOf(by) !== ''`
+test('am8 item 1f: only src/checkwords.js names the origin tags you, agent and default together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('you', 'agent', 'default'), 'checkwords.js', [
+    { file: 'panel/index.html', snippet: 'return by === "you" || by === "agent" || by === "default"', why: 'tagWordOf: the page is a classic script and cannot import tagOf; how it asks the server (a flag on its data, or the TAG map the server injects) is not settled by the signed text: reported for a ruling' },
+  ]), []);
+});
