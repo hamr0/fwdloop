@@ -352,3 +352,12 @@ test('am5 item 1: one list of schedule choices and one shape check', () => {
   const page = readFileSync(path.join(SRC, 'panel', 'index.html'), 'utf8');
   assert.ok(!/<option value="(weekdays|weekly|daily|file-updated|new-file|new-ticket)"/.test(page), 'no schedule option is spelled in the page: both cards fill from SCHEDULE_CHOICES');
 });
+
+// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together on one line
+const CLOCK_KINDS_OWNER = {
+  'trigger-clock.js': 'CLOCK_KINDS and isClockKind: the one owner',
+  'schedule-choices.js': 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"',
+};
+test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code', () => {
+  assert.deepEqual(strays(load(), /['"`]daily['"`][^;\n]*['"`]weekdays['"`][^;\n]*['"`]weekly['"`]/, CLOCK_KINDS_OWNER), []);
+});

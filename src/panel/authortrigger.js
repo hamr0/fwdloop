@@ -30,7 +30,7 @@ import { canFlowRun, willNotRunSay } from '../canrun.js';
 import { FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFlow, readRunJobCopy, resolveRunDir, signedHashOf } from '../flow.js';
 import { readFileInside } from '../inside.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
-import { armTrigger, nextSlot, validateSchedule } from '../trigger-clock.js';
+import { armTrigger, isClockKind, nextSlot, validateSchedule } from '../trigger-clock.js';
 import { createFileTrigger, fileTriggerWhy } from '../trigger-files.js';
 import { shapeOf } from '../schedule-shape.js';
 import { lookProblemOf } from '../trigger-tickets.js';
@@ -614,7 +614,7 @@ export function createTriggerDoor(opts) {
       const armedRow = sc === null ? undefined : readTriggerLedger(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
       const outcomes = sc === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === sc.sig);
       const hasGreenRun = hasGreenRunForJob(flowDir);
-      const clockKind = trigger !== null && (trigger.kind === 'daily' || trigger.kind === 'weekdays' || trigger.kind === 'weekly');
+      const clockKind = trigger !== null && isClockKind(trigger.kind);
       return {
         flow, trigger, flowHash: r.signature.flow, sig: sc === null ? null : sc.sig, armed: armedRow !== undefined, armedAt: armedRow ? armedRow.at : null,
         nextSlotMs: clockKind && armedRow ? nextSlot(/** @type {any} */ (trigger), now()) : null,

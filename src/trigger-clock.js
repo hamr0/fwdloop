@@ -20,6 +20,11 @@ import { appendTriggerLedger } from './jsonl-append.js';
 /** A slot seen MORE than this after its set time is a catch-up (M9 am2 item 1). Exactly this late is on time. */
 export const GRACE_MS = 120_000;
 
+/** M20 am6: the one list of clock schedule kinds, and the one question "is this a clock kind" */
+export const CLOCK_KINDS = Object.freeze(['daily', 'weekdays', 'weekly']);
+/** @param {unknown} kind @returns {boolean} */
+export const isClockKind = (kind) => CLOCK_KINDS.includes(/** @type {string} */ (kind));
+
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 /**
@@ -30,8 +35,7 @@ const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export function validateSchedule(s) {
   if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('schedule must be an object like { kind, hour, minute }, not text');
   const o = /** @type {Record<string, unknown>} */ (s);
-  const kinds = ['daily', 'weekdays', 'weekly'];
-  if (!kinds.includes(/** @type {string} */ (o.kind))) throw new Error(`schedule kind "${o.kind}" is not one of ${kinds.join(', ')}`);
+  if (!isClockKind(o.kind)) throw new Error(`schedule kind "${o.kind}" is not one of ${CLOCK_KINDS.join(', ')}`);
   const allowed = o.kind === 'weekly' ? ['kind', 'day', 'hour', 'minute'] : ['kind', 'hour', 'minute'];
   for (const k of Object.keys(o)) if (!allowed.includes(k)) throw new Error(`schedule field "${k}" is not allowed on a ${o.kind} schedule`);
   const hour = o.hour; const minute = o.minute;

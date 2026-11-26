@@ -24,7 +24,7 @@ import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
 import { isTicketListUrl } from '../ticket-draft.js';
-import { validateSchedule } from '../trigger-clock.js';
+import { isClockKind, validateSchedule } from '../trigger-clock.js';
 import { scheduleKindsOf } from '../schedule-choices.js';
 import { shapeOf } from '../schedule-shape.js';
 import { fileTriggerWhy } from '../trigger-files.js';
@@ -499,7 +499,7 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     // M20 am5 item 1: the kinds a flow type offers are the one list (src/schedule-choices.js); a file or folder choice is checked as the Run card checks it (src/schedule-shape.js)
     if (sched.kind === 'new-ticket' && flow !== 'tickets') no('schedule', 'Only a Tickets MCP job can start on a new ticket.');
     else if (sched.kind === 'hand' || !scheduleKindsOf(flow).includes(sched.kind)) no('schedule', 'Pick when it runs from the choices.');
-    else if (sched.kind === 'daily' || sched.kind === 'weekdays' || sched.kind === 'weekly') {
+    else if (isClockKind(sched.kind)) {
       try { validateSchedule(sched); } catch { no('schedule', 'The time must be an hour 0-23 and a minute 0-59, like 09:00.'); }
     } else if (sched.kind === 'file-updated' || sched.kind === 'new-file') {
       const shaped = shapeOf(sched, parseInputLines(card.inputs).filter((i) => !isWebUrl(i.path)).map((i) => i.role));
