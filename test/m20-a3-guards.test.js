@@ -489,3 +489,12 @@ test('am8 item 1h: only src/declaration.js names the flow types plain, mcp and t
     { file: 'panel/index.html', snippet: '<option value="plain">plain</option>', why: 'the Flow type select the New job card and the Run card OFFER, not the question "is this a flow type"' },
   ]), []);
 });
+
+// am8 item 1i: "is this a thinking mode" (on or off) is isThinkingMode (src/thinking.js)
+test('am8 item 1i: only src/thinking.js names the thinking modes on and off together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('on', 'off'), 'thinking.js', [
+    { file: 'bin/fwdloop', snippet: "draftThinking: values.thinking === true ? 'on' : 'off'", why: 'MAKES a mode from the --thinking flag; it does not ask whether a value is one' },
+    { file: 'panel/index.html', snippet: 'isOnline ? "on" : "off"', why: 'a CSS class of the online dot, not a thinking mode' },
+    { file: 'panel/index.html', snippet: 'legacyIn.checked ? "on" : "off"', why: 'the Settings legacy-token word beside its tick box, not a thinking mode' },
+  ]), []);
+});

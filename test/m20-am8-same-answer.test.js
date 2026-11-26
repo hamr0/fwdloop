@@ -6,6 +6,7 @@ import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
 import { FLOW_TYPES, isFlowType } from '../src/declaration.js';
 import { scheduleChoices, scheduleKindsOf } from '../src/schedule-choices.js';
+import { isThinkingMode } from '../src/thinking.js';
 import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
@@ -97,4 +98,12 @@ test('1h isFlowType: the old node sites, the schedule choices and the page equal
   // old page sites index.html:1688, :6329, :6656: the page now asks the keys of the choices it gets; the keys are exactly the flow types
   assert.deepEqual(Object.keys(all), [...FLOW_TYPES]);
   same('page', kind, oldTypeOf, (x) => (typeof x === 'string' && Object.prototype.hasOwnProperty.call(all, x) ? x : 'plain'));
+});
+
+test('1i isThinkingMode: the four old sites ask on-or-off of a thinking word', () => {
+  const kind = ['on', 'off'];
+  // old sites src/model-step.js:395, src/draft-steps.js:67, src/thinking.js:68,69 (positive form)
+  same('positive', [...kind, 'On', 'auto'], (m) => m === 'on' || m === 'off', isThinkingMode);
+  // old site src/drafter.js:396 (the refusal form)
+  same('negated', kind, (m) => !(m !== 'on' && m !== 'off'), isThinkingMode);
 });

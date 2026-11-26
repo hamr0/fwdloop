@@ -38,6 +38,9 @@ export function worstThinkingStatus(statuses) {
   return WORST_FIRST.find((s) => statuses.includes(s)) ?? null;
 }
 
+/** M20 am8: the one question "is this a thinking mode" (on or off) @param {unknown} mode @returns {boolean} */
+export const isThinkingMode = (mode) => mode === 'on' || mode === 'off';
+
 /** The note beside the Chat "Thinking on" box, before any draft, for a model bareagent has not checked (M4d am11 item 2). */
 export const THINKING_UNVERIFIED_SAY = 'thinking off (not verified for this model)';
 
@@ -65,8 +68,8 @@ export function thinkingSay(status) {
 export function thinkingTryWords(thinking) {
   if (thinking === null || typeof thinking !== 'object') return null;
   const status = typeof thinking.status === 'string' ? thinking.status : null;
-  if (status === null) return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked} (no reply)` : null;
-  if (status === 'applied') return thinking.asked === 'on' || thinking.asked === 'off' ? `thinking ${thinking.asked}` : null;
+  if (status === null) return isThinkingMode(thinking.asked) ? `thinking ${thinking.asked} (no reply)` : null;
+  if (status === 'applied') return isThinkingMode(thinking.asked) ? `thinking ${thinking.asked}` : null;
   return thinkingSay(status);
 }
 

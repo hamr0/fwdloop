@@ -68,7 +68,7 @@ import {
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
-import { thinkingSay, worstThinkingStatus } from './thinking.js';
+import { thinkingSay, worstThinkingStatus, isThinkingMode } from './thinking.js';
 import { repairTrailingBraces } from './jsonbrace.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
@@ -393,7 +393,7 @@ export async function draft({
 
   // ---- $0 gates, before any provider is built -------------------------------
   // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
-  if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
+  if (!isThinkingMode(draftThinking)) return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
   if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known') return fail([`config: actionMode must be check | known, got ${JSON.stringify(actionMode)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`), { box: 'job' });

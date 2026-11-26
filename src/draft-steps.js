@@ -8,6 +8,7 @@
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
 
 import { plainPlanCheck, pickPlanRed } from './plain-checks.js';
+import { isThinkingMode } from './thinking.js';
 
 /** a plan folder's card file: `card-<n>.json` (n = the redraft or revise number) */
 export const CARD_RE = /^card-(\d+)\.json$/;
@@ -64,7 +65,7 @@ export function draftStepList({ log, declaration, questionOpen = false }) {
   const out = [];
 
   const t = log.thinking;
-  if (t && (t.asked === 'on' || t.asked === 'off') && typeof t.status === 'string') {
+  if (t && isThinkingMode(t.asked) && typeof t.status === 'string') {
     if (t.status === 'applied') out.push({ id: 'thinking', label: `thinking ${t.asked}`, status: 'done', details: [] });
     else if (typeof t.say === 'string' && t.say !== '') out.push({ id: 'thinking', label: t.say, status: 'failed', details: [] });
   }
