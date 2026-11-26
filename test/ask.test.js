@@ -11,7 +11,7 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { makeFileAskStep, answerAsk, readAskEvidence } from '../src/ask.js';
+import { answerAsk, readAskEvidence } from '../src/ask.js';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const fixtureJson = (name) => JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'ask-shapes', name), 'utf8'));
@@ -19,108 +19,6 @@ const fixtureJson = (name) => JSON.parse(readFileSync(path.join(HERE, 'fixtures'
 function tmpRunDir() {
   return mkdtempSync(path.join(tmpdir(), 'fwdloop-ask-'));
 }
-
-test('writes ask.json with the question and evidence, then resolves once answer.json appears', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000 });
-  const promise = askStep({ question: 'accept this draft?', evidence: { text: 'draft body' }, runDir });
-
-  // Poll for ask.json to exist before answering — never a fixed sleep.
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 2000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
-  assert.ok(existsSync(askPath));
-  const askJson = JSON.parse(readFileSync(askPath, 'utf8'));
-  assert.equal(askJson.question, 'accept this draft?');
-  assert.deepEqual(askJson.evidence, { text: 'draft body' });
-
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString() }));
-  const result = await promise;
-  assert.equal(result.decision, 'accept');
-});
-
-test('consume-once: the answer file is renamed away after being read, never left for a second read to find', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000, clock: () => '2026-09-24T12:00:00.000Z' });
-  const promise = askStep({ question: 'q', evidence: null, runDir });
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 2000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: '2026-09-24T12:00:05.000Z' }));
-  await promise;
-  assert.equal(existsSync(path.join(runDir, 'answer.json')), false, 'answer.json must be consumed (renamed away)');
-  assert.equal(existsSync(path.join(runDir, 'answer.2026-09-24T12-00-00-000Z.consumed.json')), true);
-});
-
-test('a stale answer (answeredAt before this ask\'s askedAt) is quarantined and never applied — the ask keeps waiting', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000, clock: () => '2026-09-24T12:00:00.000Z' });
-  const promise = askStep({ question: 'q', evidence: null, runDir });
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 2000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
-
-  // A stale answer arrives (answeredAt predates this ask's askedAt) —
-  // simulates a redraft mid-flight racing an answer from the PRIOR ask.
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: '2026-09-24T11:59:00.000Z' }));
-
-  // Poll: the stale file should get quarantined (answer.stale.1.json appears) while the promise
-  // is still pending — proves the stale answer was NOT applied.
-  const staleDeadline = Date.now() + 2000;
-  while (!existsSync(path.join(runDir, 'answer.stale.1.json')) && Date.now() < staleDeadline) {
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  assert.ok(existsSync(path.join(runDir, 'answer.stale.1.json')), 'stale answer must be quarantined');
-
-  let settled = false;
-  promise.then(() => { settled = true; });
-  await new Promise((r) => setTimeout(r, 100));
-  assert.equal(settled, false, 'the ask must still be waiting — a stale answer never resolves it');
-
-  const auditRows = readFileSync(path.join(runDir, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  const staleRow = auditRows.find((r) => r.verdict === 'stale-answer-ignored');
-  assert.ok(staleRow);
-  assert.ok(Array.isArray(staleRow.refused) && staleRow.refused.length === 0, 'stale-answer row carries refused: []');
-
-  // Now the REAL (fresh) answer arrives and the ask resolves.
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: '2026-09-24T12:00:10.000Z' }));
-  const result = await promise;
-  assert.equal(result.decision, 'accept');
-});
-
-test('PROOF the stale check can fail: a genuinely fresh answer (answeredAt after askedAt) is applied immediately, not quarantined', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000, clock: () => '2026-09-24T12:00:00.000Z' });
-  const promise = askStep({ question: 'q', evidence: null, runDir });
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 2000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'reject', reason: 'too long', answeredAt: '2026-09-24T12:00:01.000Z' }));
-  const result = await promise;
-  assert.equal(result.decision, 'redo', 'an old file that says reject is read as redo (M4b amendment 3)');
-  assert.equal(result.reason, 'too long');
-  assert.equal(existsSync(path.join(runDir, 'answer.stale.1.json')), false);
-});
-
-test('timeout: no answer.json within timeoutMs resolves { decision: "timeout" }, never throws, never hangs', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 150 });
-  const result = await askStep({ question: 'q', evidence: null, runDir });
-  assert.equal(result.decision, 'timeout');
-});
-
-test('a rerun/reject decision with no reason is returned as-is — refusing an empty reason is runner.js\'s job, not ask.js\'s', async () => {
-  const runDir = tmpRunDir();
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000, clock: () => '2026-09-24T12:00:00.000Z' });
-  const promise = askStep({ question: 'q', evidence: null, runDir });
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 2000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => setTimeout(r, 10)); }
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'rerun', answeredAt: '2026-09-24T12:00:01.000Z' }));
-  const result = await promise;
-  assert.equal(result.decision, 'rerun');
-  assert.equal(result.reason, undefined);
-});
 
 // ---------------------------------------------------------------------------
 // A present-but-unparseable ask.json "expiresAt" (Date.parse -> NaN) must

@@ -31,6 +31,15 @@ function appendLine(filePath, row) {
 }
 
 /**
+ * M20 am3 item 5: the ONE place the consumed-answer file name is spelled: `answer.<askId>.consumed.json`, what the resume
+ * renames `answer.json` to (F44). `askIdOfConsumedName` is its inverse (null for any other name, `answer.stale.<n>.json` included).
+ * @param {string} askId
+ */
+export const consumedAnswerName = (askId) => `answer.${askId}.consumed.json`;
+/** @param {string} name @returns {string|null} */
+export const askIdOfConsumedName = (name) => /^answer\.(.+)\.consumed\.json$/.exec(name)?.[1] ?? null;
+
+/**
  * M4c piece 1: the ONE writer of a run dir's `pids.jsonl` — append-only, never
  * rewritten, not a book the arbiter reads. One row per process that works on
  * the run (`src/liveness.js` `recordPid` builds the row).

@@ -1,28 +1,14 @@
-// M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
-// SIGNED", scope item 6): the file-checkpoint ask, in-process. Writes
-// `ask.json` (question + evidence + askedAt + attempt) into the run dir and
-// polls for `answer.json` (`{ decision: accept|redo|rerun, reason?,
-// answeredAt }`). Consumed exactly once (renamed away on read); a stale
-// answer — `answeredAt` older than THIS ask's `askedAt` — is quarantined
-// (renamed to `answer.stale.<n>.json`, audited `stale-answer-ignored`) and
-// never applied; a timeout returns `{ decision: 'timeout' }`, which
-// `src/runner.js` must treat as a halt (a pause spends nothing).
-//
-// borrowed-from: fwdloop poc/m0/runner.mjs@76a3607 (`checkpointAsk`'s file
-// protocol: `ask.json` out / poll `answer.json`, and the "ASK OPEN" stderr
-// line so a human watching knows a run is waiting on them) and
-// fwdloop poc/m0/answer.mjs@76a3607 (the answer file's own shape). Rewritten
-// off bare-agent's `Checkpoint` (M0's dependency) onto a plain poll loop —
-// M2's signed scope (item 6) calls for "M0's file checkpoint, in-process",
-// not a second Checkpoint instance layered on top of the same file protocol.
+// The ask's files and rules: the answer door (`answerAsk`), the reopen record, the archive of asked questions, the
+// one evidence reader, and the one decision table. (M2 piece 2's in-process file-checkpoint step was removed by M20 am3
+// item 5: the runner parks an ask and the Resume path reads the answer.)
 
 import {
-  existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
+  existsSync, linkSync, mkdirSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
-import { appendAudit } from './books.js';
+import { appendAudit, consumedAnswerName } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
 
 /**
@@ -75,96 +61,6 @@ export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran
 export function decisionStatus(decision) {
   const word = normalizeDecision(decision);
   return typeof word === 'string' && Object.hasOwn(DECISION_STATUS, word) ? DECISION_STATUS[word] : undefined;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => { setTimeout(resolve, ms); });
-}
-
-function safeStamp(iso) {
-  return String(iso).replace(/[^0-9A-Za-z]/g, '-');
-}
-
-/**
- * @param {{ timeoutMs?: number, pollMs?: number, clock?: () => string, writeLine?: (line:string) => void }} [opts]
- * @returns {(opts:{question:string, evidence:unknown, runDir:string, ttlMs?: number}) => Promise<{decision:string, reason?:string}>}
- */
-export function makeFileAskStep({
-  timeoutMs = 120_000,
-  pollMs = 500,
-  clock = () => new Date().toISOString(),
-  writeLine = (line) => { process.stderr.write(`${line}\n`); },
-} = {}) {
-  let attemptCounter = 0;
-
-  return async function fileAskStep({
-    question, evidence, runDir, ttlMs,
-  }) {
-    attemptCounter += 1;
-    const attempt = attemptCounter;
-
-    // M3 scope item 1 (fixes F43): a signed `ttlMs` threaded in by the
-    // runner always governs — this constructor's own `timeoutMs` is only
-    // ever the fallback for a DIRECT call that carries no signed ttl (e.g.
-    // this module's own unit tests). No code default overrides a signed
-    // value.
-    const effectiveTimeoutMs = typeof ttlMs === 'number' ? ttlMs : timeoutMs;
-
-    mkdirSync(runDir, { recursive: true });
-    const askPath = join(runDir, 'ask.json');
-    const answerPath = join(runDir, 'answer.json');
-    const askedAt = clock();
-    const askId = randomUUID();
-    const expiresAt = new Date(Date.parse(askedAt) + effectiveTimeoutMs).toISOString();
-
-    writeFileSync(askPath, JSON.stringify({
-      askId, question, evidence, askedAt, expiresAt, attempt,
-    }, null, 2));
-    writeLine(`ASK OPEN (expires in ${Math.round(effectiveTimeoutMs / 1000)}s): ${question} — answer by writing ${answerPath}`);
-
-    const deadline = Date.now() + effectiveTimeoutMs;
-    let staleCount = 0;
-
-    for (;;) {
-      // F48 round 3: `answer.json` is checked with `resolveInside`
-      // (`src/flow.js`) before it is ever read — a symlinked answer file (or
-      // a symlinked run-dir ancestor) is treated exactly like "no answer
-      // yet" (kept polling), never read through to an outside file's
-      // content standing in for the human's real decision.
-      const answerResolved = resolveInside(runDir, 'answer.json');
-      if (answerResolved.ok) {
-        let raw = null;
-        try { raw = readFileSync(answerPath, 'utf8'); } catch { raw = null; }
-        let parsed = null;
-        if (raw !== null) { try { parsed = JSON.parse(raw); } catch { parsed = null; } }
-
-        if (parsed) {
-          const { answeredAt } = parsed;
-          const isStale = typeof answeredAt === 'string' && typeof askedAt === 'string' && answeredAt < askedAt;
-          if (isStale) {
-            staleCount += 1;
-            let staleName = join(runDir, `answer.stale.${staleCount}.json`);
-            while (existsSync(staleName)) { staleCount += 1; staleName = join(runDir, `answer.stale.${staleCount}.json`); }
-            renameSync(answerPath, staleName);
-            appendAudit(runDir, {
-              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: clock(), tokens: null, tools: null, refused: [],
-            });
-            // Keep polling — a stale file quarantined does not mean THIS
-            // ask has been answered.
-          } else {
-            renameSync(answerPath, join(runDir, `answer.${safeStamp(askedAt)}.consumed.json`));
-            return { decision: normalizeDecision(parsed.decision), reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
-          }
-        }
-      }
-
-      if (Date.now() >= deadline) {
-        return { decision: 'timeout' };
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(pollMs);
-    }
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +318,7 @@ export function reopenAsk({
   const ask = withReopen(runDir, raw);
   if (Number.isNaN(Date.parse(ask.expiresAt))) return { ok: false, red: `reopenAsk: askId "${askId}" has an unparseable expiresAt — refusing` };
   if (ask.waitMs === null) return { ok: false, red: `reopenAsk: askId "${askId}" carries no readable wait (askedAt/expiresAt) to repeat — refusing` };
-  if (existsSync(join(runDir, `answer.${askId}.consumed.json`))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
+  if (existsSync(join(runDir, consumedAnswerName(askId)))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
   if (Date.parse(nowIso) <= Date.parse(ask.expiresAt)) return { ok: false, red: `reopenAsk: askId "${askId}" has not expired (it runs until ${ask.expiresAt})` };
   const saved = readFileInside(runDir, 'answer.json');
   let timing = null;
@@ -532,7 +428,7 @@ export function answerAsk({
   // A consumed marker survives long after the run has moved on (or ended) —
   // it must still refuse a second answer naming the SAME askId, never only
   // while answer.json happens to still be sitting there.
-  if (existsSync(join(runDir, `answer.${askId}.consumed.json`))) {
+  if (existsSync(join(runDir, consumedAnswerName(askId)))) {
     return { ok: false, red: `answerAsk: askId "${askId}" already answered for run ${runDir}` };
   }
 
@@ -679,7 +575,7 @@ export function readAcceptedHashesByEmits(runDir) {
     let emits;
     try { emits = JSON.parse(archiveRead.text)?.emits; } catch { continue; } // eslint-disable-line no-continue
     if (typeof emits !== 'string' || emits.length === 0) continue; // eslint-disable-line no-continue
-    const markerRead = readFileInside(runDir, `answer.${askId}.consumed.json`);
+    const markerRead = readFileInside(runDir, consumedAnswerName(askId));
     if (!markerRead.ok) continue; // eslint-disable-line no-continue
     let marker;
     try { marker = JSON.parse(markerRead.text); } catch { continue; } // eslint-disable-line no-continue
@@ -757,7 +653,7 @@ export function listArchivedAsks(runDir) {
       continue; // eslint-disable-line no-continue
     }
 
-    const consumedRelPath = `answer.${askId}.consumed.json`;
+    const consumedRelPath = consumedAnswerName(askId);
     const consumedRead = readFileInside(runDir, consumedRelPath);
     let answer = { status: 'open' };
     if (consumedRead.ok) {

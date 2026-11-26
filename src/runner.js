@@ -64,7 +64,7 @@ import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow,
-  readHaltRecord, readLog, readRunState, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
+  readHaltRecord, readLog, readRunState, consumedAnswerName, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
 } from './books.js';
 import { learnAtRunEnd, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
@@ -1592,8 +1592,7 @@ export async function runFlow({
 // ---------------------------------------------------------------------------
 
 /** An ask step that never waits — it immediately tells the fold to park.
- *  The counterpart to `makeFileAskStep`'s in-process poll (M2 scope item 6);
- *  a caller wanting park-and-exit behaviour from a FRESH `runFlow` call
+ *  A caller wanting park-and-exit behaviour from a FRESH `runFlow` call
  *  passes this (or an equivalent) as `askStep`.
  *  @returns {(opts?: any) => Promise<{decision: 'park'}>} */
 export function makeParkingAskStep() {
@@ -1695,7 +1694,7 @@ async function runAskSlot({
       const askedAt = now();
       const expiresAt = new Date(Date.parse(askedAt) + askSlot.ttlMs).toISOString();
       // F45 finding 2: a parked ask.json must carry the SAME evidence a
-      // human sees in-process (`makeFileAskStep`'s `{ artifact, unjudged }`)
+      // human sees (`{ artifact, unjudged }`)
       // — the draft under review and the unjudged evidence, never just the
       // question. `evidence` above is already recomputed at the top of every
       // loop iteration (including a re-park after a redo, where
@@ -2616,7 +2615,7 @@ export async function resumeRun({
 
     // Consume-once, BEFORE acting on the decision (F44) — the rename is
     // itself a one-winner gate, on top of the lock above.
-    const consumedPath = join(runDir, `answer.${answer.askId}.consumed.json`);
+    const consumedPath = join(runDir, consumedAnswerName(answer.askId));
     renameSync(answerPath, consumedPath);
     // M4c: the answer is ours and every guard has passed — record this resume process before its first step.
     recordPid(runDir, 'resume', now());
@@ -3192,7 +3191,7 @@ export async function stopParkedRun({
     const ask = readAsk(runDir);
     const state = readRunState(runDir);
     if (!ask || typeof ask.askId !== 'string' || !state || state.askId !== ask.askId) return refused(`run "${runId}" is not waiting at an ask`);
-    if (existsSync(join(runDir, `answer.${ask.askId}.consumed.json`))) return refused(`run "${runId}" already took its answer`);
+    if (existsSync(join(runDir, consumedAnswerName(ask.askId)))) return refused(`run "${runId}" already took its answer`);
     if (endRow(readHistory(flowDir), runDir, runId) !== null) return refused(`run "${runId}" has ended`);
     if (!Number.isInteger(state.stepIndex) || state.stepIndex < 0) return refused(`run "${runId}" state.json field "stepIndex" is not a step number`);
     const audit = auditSpend(runDir);

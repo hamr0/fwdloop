@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
-import { makeFileAskStep, sha256Hex, serializeArtifact } from '../src/ask.js';
+import { sha256Hex, serializeArtifact } from '../src/ask.js';
 import {
   runFlow, buildExecutorContext, findForbiddenInContext, STRIKE_LIMIT, MAX_ATTEMPTS, writeArtifact, readArtifact,
 } from '../src/runner.js';
@@ -1187,7 +1187,7 @@ test('M2 amendment 1 item 2: the unjudged list resets after an ask — a synthet
   assert.equal(ask2Row.unjudgedCount, 0);
 });
 
-test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries evidence.unjudged', async () => {
+test('M2 amendment 1 item 2: the evidence each ask is handed carries the unjudged steps before it', async () => {
   const root = tmpRoot('unjudged-ask-json');
   const written = writeFlow({
     root,
@@ -1205,8 +1205,13 @@ test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries e
 
   const { fn: modelStep } = job1ModelStepWithContexts();
   const runId = 'run-1';
-  const runDir = path.join(root, 'twoask', 'runs', runId);
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000 });
+  // M20 am3 item 5: an in-process ask step that records the evidence it is handed and accepts it, as the answer door does
+  // (M13 am11: the sha256 of what was shown)
+  const seen = [];
+  const askStep = async ({ evidence }) => {
+    seen.push(evidence);
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) };
+  };
 
   const runPromise = runFlow({
     root,
@@ -1221,35 +1226,12 @@ test('M2 amendment 1 item 2: ask.json on disk (the real file protocol) carries e
     businessDate: BUSINESS_DATE,
   });
 
-  const askPath = path.join(runDir, 'ask.json');
-  const deadline = Date.now() + 3000;
-  while (!existsSync(askPath) && Date.now() < deadline) { await new Promise((r) => { setTimeout(r, 10); }); }
-  assert.ok(existsSync(askPath), 'the first ask must reach disk');
-  const askJson = JSON.parse(readFileSync(askPath, 'utf8'));
-  assert.equal(askJson.evidence.unjudged.length, 2);
-  assert.deepEqual(askJson.evidence.unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
-
-  // M13 am11: the answer door records the sha256 of what was shown; without it nothing counts as accepted and the run stops once more before the action
-  const accept = (a) => writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString(), artifactSha256: sha256Hex(serializeArtifact(a.evidence.artifact)) }));
-  accept(askJson);
-
-  // Wait for the SECOND ask to land, then answer it too.
-  const secondAskDeadline = Date.now() + 3000;
-  let secondAskJson = null;
-  while (Date.now() < secondAskDeadline) {
-    if (existsSync(askPath)) {
-      const parsed = JSON.parse(readFileSync(askPath, 'utf8'));
-      if (parsed.attempt === 2) { secondAskJson = parsed; break; }
-    }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => { setTimeout(r, 10); });
-  }
-  assert.ok(secondAskJson, 'the second ask must reach disk');
-  assert.equal(secondAskJson.evidence.unjudged.length, 0, 'nothing unjudged happened between the two asks');
-  accept(secondAskJson);
-
   const result = await runPromise;
   assert.equal(result.outcome, 'complete', result.red);
+  assert.equal(seen.length, 2, 'two asks');
+  assert.equal(seen[0].unjudged.length, 2);
+  assert.deepEqual(seen[0].unjudged.map((u) => u.emits), ['aging_cells', 'customer_match']);
+  assert.equal(seen[1].unjudged.length, 0, 'nothing unjudged happened between the two asks');
 });
 
 // ---------------------------------------------------------------------------

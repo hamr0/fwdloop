@@ -16,7 +16,7 @@ export {
 export { readRunState, readLog } from './books.js';
 export { closeByClass } from './closers.js';
 export {
-  makeFileAskStep, answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,
+  answerAsk, readAskEvidence, writeAskArchive, listArchivedAsks,
 } from './ask.js';
 export {
   appendAudit, appendHistory, readAudit, readHistory, auditRowTokens, auditRowTools,

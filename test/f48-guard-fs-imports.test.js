@@ -318,9 +318,9 @@ const ALLOWLIST = {
     readArtifactCallSites: 4,
   },
   'src/ask.js': {
-    reason: 'ask/answer file lifecycle (mkdir/write/rename for asked/answered/consumed/stale, existsSync checks) plus one documented gated read: the answer.json read is resolveInside-guarded immediately above in the same loop iteration; M4c-fix amendment 1: moving a broken/late answer.json aside as a write-once record (hard link to a free name, then remove the old name — resolveInside-guarded); amendment 1 (b): reopenAsk writes one write-once (wx) reopen record and checks the ask was not already answered',
+    reason: 'ask/answer file lifecycle (mkdir/write for answered, existsSync checks; M20 am3 item 5 removed the in-process poll step with its answer.json read and renames); M4c-fix amendment 1: moving a broken/late answer.json aside as a write-once record (hard link to a free name, then remove the old name — resolveInside-guarded); amendment 1 (b): reopenAsk writes one write-once (wx) reopen record and checks the ask was not already answered',
     names: {
-      existsSync: 3, linkSync: 1, mkdirSync: 2, readFileSync: 1, renameSync: 2, unlinkSync: 1, writeFileSync: 4,
+      existsSync: 2, linkSync: 1, mkdirSync: 1, unlinkSync: 1, writeFileSync: 3,
     },
   },
   'src/books.js': {

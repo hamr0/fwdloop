@@ -29,7 +29,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import {
   runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk,
 } from '../src/runner.js';
-import { readRunState } from '../src/books.js';
+import { readRunState, consumedAnswerName } from '../src/books.js';
 import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
@@ -547,7 +547,7 @@ function cmdInbox(rest) {
       // Consumed-marker check also goes through `readFileInside` — a
       // symlinked consumed marker is treated as "not consumed" (still shown
       // as open/expired), never as proof the ask was answered.
-      if (readFileInside(runDir, `answer.${ask.askId}.consumed.json`).ok) continue; // eslint-disable-line no-continue -- this specific ask is already answered
+      if (readFileInside(runDir, consumedAnswerName(ask.askId)).ok) continue; // eslint-disable-line no-continue -- this specific ask is already answered
       // A present-but-unparseable expiresAt (Date.parse -> NaN) must never
       // read as "not expired" — `Date.now() > NaN` is false, so the naive
       // compare below would show this as [open] with a "NaNs left"

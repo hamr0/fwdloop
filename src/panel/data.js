@@ -32,7 +32,7 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, readTriggerRecord,
+  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
   endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
@@ -163,7 +163,7 @@ export function hasConsumedAnswer(runDir, askId) {
   // consumed answer that isn't really there by planting a symlink named to
   // match the pattern.
   const names = readdirInside(runDir, '.');
-  return names.includes(`answer.${askId}.consumed.json`);
+  return names.includes(consumedAnswerName(askId));
 }
 
 /**
@@ -2554,13 +2554,6 @@ function normalizeArchivedRow(a) {
   };
 }
 
-/** `^answer\.<askId>\.consumed\.json$` — deliberately excludes
- *  `answer.stale.<n>.json` (no capture group would match "stale" as a real
- *  askId; the stale-quarantine writer in `src/ask.js` uses that different
- *  name specifically so this convention-based scan never mistakes a
- *  quarantined stale answer for a real consumed one). */
-const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
-
 /** The line under an ask that ended expired though an answer was saved: the answer came too late. */
 const LATE_ANSWER_WHY = 'Your answer came after the deadline.';
 /** The line under an expired ask nobody answered. */
@@ -2597,12 +2590,10 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   const askJson = readAsk(runDir);
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
 
-  const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
+  const consumedFiles = names.filter((n) => askIdOfConsumedName(n) !== null).sort();
 
   for (const file of consumedFiles) {
-    const match = CONSUMED_ANSWER_RE.exec(file);
-    if (!match) continue; // eslint-disable-line no-continue -- filtered by the same regex above; never actually null
-    const askId = match[1];
+    const askId = /** @type {string} */ (askIdOfConsumedName(file));
     const fileRead = readFileInside(runDir, file);
     if (!fileRead.ok) {
       continue; // eslint-disable-line no-continue -- missing/symlink-refused, same as a torn write: skipped, never invented
@@ -2640,7 +2631,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   // "still open" stop at that point, no matter what its own askId says.
   if (askJson && !hasHistoryRow) {
     const hasConsumed = currentAskId !== null
-      && consumedFiles.includes(`answer.${currentAskId}.consumed.json`);
+      && consumedFiles.includes(consumedAnswerName(currentAskId));
     if (!hasConsumed) {
       if (currentAskId === null) {
         // A genuine pre-M3 ask.json: no askId/expiresAt at all — cannot be

@@ -1,5 +1,5 @@
 // M20 am3 item 13: each owner named in am3 has a guard that fails when a second reader of its file or fact appears outside its allow-list.
-// One file, one `strays` per owner; each allow-list entry carries its reason. Batch 1: items 11, 7, 9, 2, 1, 3.
+// One file, one `strays` per owner; each allow-list entry carries its reason. Batch 1: items 11, 7, 9, 2, 1, 3. Batch 2: items 5, 6, 8, 10, 12 (4 waits for am3b).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -91,4 +91,12 @@ test('item 3: each "folder holds ..." list is spelled once, in its owner', () =>
   ONLY(/valuesFileName\(0\)[^\n]*TRIGGER_RECORD_FILE|TRIGGER_RECORD_FILE[^\n]*valuesFileName\(0\)/, 'runvalues.js', 'dropUnstartedValues: may these pre-start files be deleted (2 names)');
   ONLY(/['"]setup\.jsonl['"][\s\S]{0,300}['"]plan\.json['"]|['"]plan\.json['"][\s\S]{0,300}['"]setup\.jsonl['"]/, 'bin/fwdloop', 'the CLI: does this folder hold no run yet (6 names)');
   ONLY(/['"]ask\.json['"]\s*,\s*['"]answer\.json['"]/, 'runner.js', 'checkFreshRunDir: is a stale ask or answer left here (2 names)');
+});
+
+// item 5: the consumed-answer name `answer.<askId>.consumed.json` is spelled in src/books.js only (consumedAnswerName, askIdOfConsumedName); the in-process file ask step and its `answer.stale.<n>.json` are gone
+const CONSUMED = { 'books.js': 'consumedAnswerName / askIdOfConsumedName: the one place the name is spelled' };
+test('item 5: only src/books.js spells the consumed-answer name; makeFileAskStep and answer.stale are gone', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\.consumed\.json|consumed\\\.json/, CONSUMED), []);
+  assert.deepEqual(strays(files, /makeFileAskStep|\bsafeStamp\b|answer\.stale/, {}), []);
 });
