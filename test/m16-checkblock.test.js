@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CheckBlock, renderCard, REASON } from '../src/checkblock.js';
+import { CheckBlock, renderCard } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { listMatchesClose } from '../src/rubricstep.js';
 import { MAX_BANG } from '../src/checklist.js';
 

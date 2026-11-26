@@ -8,7 +8,7 @@
 
 // borrowed-from: bareloop src/pagedropwords.js@v0.56.0 (3383cce) (the four reasons the block's drops carry, and the sign-twice sentence by `d.other`; FACT_LANGS lives with the facts in src/citedcheck.js)
 import { FACT_LANGS } from './citedcheck.js';
-import { REASON } from './checkblock.js';
+import { REASON } from './reasons.js';
 
 /** the two ways a sign listed twice can be used once (v0.56.0 spells the sentence from `d.other`; no other -> "currency", the sentence fwd has always written) */
 const SIGN_TWICE_AS = ['currency', 'unit'];

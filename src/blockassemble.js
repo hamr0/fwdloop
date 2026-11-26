@@ -18,7 +18,7 @@ export const ASK_LINE_REASON = 'you judge it at the Ask';
  */
 export const SHAPE_ONLY_CLASS = 'green';
 
-import { REASON } from './checkblock.js';
+import { REASON } from './reasons.js';
 import { KEPT_WORDS } from './pickrecord.js';
 import { lineRules } from './pagebits.js';
 import { isListedNotChecked, notCheckedItem, ruleTextOf } from './checkrows.js';

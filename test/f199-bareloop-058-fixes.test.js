@@ -2,7 +2,8 @@
 // F199 (docs/logs/FINDINGS.md): real CheckBlock on the product path (`split: true`), no mock. Each test must fail without its own fix.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CheckBlock, REASON } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 
 const TEXT = 'Flights\nSelect flight\nNonstop 120 euros\nSelect flight\nNonstop 140 euros\nSelect flight\nNonstop 150 euros\n';
 const fact = (/** @type {any} */ extra = {}) => ({ line: 2, name: 'friendly', shape: 'phrase', source: 'p', words: ['Select flight'], ...extra });

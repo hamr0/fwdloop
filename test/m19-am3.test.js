@@ -3,7 +3,8 @@
 // F234 (docs/logs/FINDINGS.md). $0: the block, the real drafter with the fake provider, and the real panel door with the real `fwdloop draft` child. Each test names the break that turns it red.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CheckBlock, REASON } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { killChildrenAfter, world } from './m4e-world.mjs';
 import { settle, childGone, state, readJsonIn, JOB as TRACKER_JOB, RAW_OWNER } from './m19-s9-world.mjs';
 import { writeFileSync, readFileSync } from 'node:fs';

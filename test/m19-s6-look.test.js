@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { kindOfCheck, splitNotChecked, ncRowsOf, LOOK } from '../src/checklook.js';
 import { auditChecksOf } from '../src/auditchecks.js';
 import { buildReadout } from '../src/authoring.js';
-import { REASON } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { ASK_LINE_REASON } from '../src/blockassemble.js';
 import { NO_VALUE_WHY } from '../src/ticketrows.js';
 import { dropLine, dropRows, dropSentence } from '../src/pagedropwords.js';
