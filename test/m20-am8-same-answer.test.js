@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
+import { FLOW_TYPES, isFlowType } from '../src/declaration.js';
+import { scheduleChoices, scheduleKindsOf } from '../src/schedule-choices.js';
 import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
@@ -80,4 +82,19 @@ test('1g needsReason: the two old node sites ask redo-or-rerun of a decision wor
   const kind = ['accept', 'redo', 'rerun', 'reject', 'timeout', 'park'];
   // old sites src/ask.js:446 (answerAsk) and src/runner.js:1795 (the saved answer's re-check, read as `isRedo`)
   same('decision', kind, (d) => d === 'redo' || d === 'rerun', needsReason);
+});
+
+test('1h isFlowType: the old node sites, the schedule choices and the page equal the owner on every flow type and odd value', () => {
+  const kind = ['plain', 'mcp', 'tickets', 'Plain', 'ticket', 'constructor', '__proto__', ['plain'], 5];
+  // old sites src/panel/authorcard.js:484 and bin/fwdloop:922 (a membership test of the three words)
+  same('membership', kind, (x) => ['plain', 'mcp', 'tickets'].includes(x), isFlowType);
+  // old sites src/declaration.js:113 and :122 (the string-typed form)
+  same('declaration', kind, (x) => typeof x === 'string' && FLOW_TYPES.includes(x), isFlowType);
+  // old site src/schedule-choices.js:32 typeOf: unknown reads plain; compared by the kinds each reads
+  const oldTypeOf = (x) => (x === 'mcp' || x === 'tickets' ? x : 'plain');
+  const all = scheduleChoices();
+  for (const v of [...kind, ...ODD]) assert.deepEqual(scheduleKindsOf(v), all[oldTypeOf(v)].map((c) => c.kind), `typeOf ${JSON.stringify(v)}`);
+  // old page sites index.html:1688, :6329, :6656: the page now asks the keys of the choices it gets; the keys are exactly the flow types
+  assert.deepEqual(Object.keys(all), [...FLOW_TYPES]);
+  same('page', kind, oldTypeOf, (x) => (typeof x === 'string' && Object.prototype.hasOwnProperty.call(all, x) ? x : 'plain'));
 });

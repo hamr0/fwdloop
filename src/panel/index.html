@@ -1684,8 +1684,10 @@
   function isFileKind(kind){
     return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.file; }); });
   }
+  // M20 am8: "is this a flow type" is answered by the server (isFlowType in src/declaration.js): the page takes the flow types from the keys of the schedule choices it gets (a test pins the keys to FLOW_TYPES)
+  function flowTypeOr(type){ return typeof type === "string" && Object.prototype.hasOwnProperty.call(SCHEDULE_CHOICES, type) ? type : "plain"; }
   function fillScheduleOptions(sel, flowType, newCard){
-    var list = SCHEDULE_CHOICES[flowType === "mcp" || flowType === "tickets" ? flowType : "plain"], keep = sel.value;
+    var list = SCHEDULE_CHOICES[flowTypeOr(flowType)], keep = sel.value;
     sel.innerHTML = "";
     list.forEach(function(c){ var o = document.createElement("option"); o.value = c.kind; o.textContent = newCard ? c.newCardLabel : c.label; sel.appendChild(o); });
     if(keep && list.some(function(c){ return c.kind === keep; })) sel.value = keep;
@@ -6326,7 +6328,7 @@
       byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
     }
     function setFlow(type, server, sched){
-      flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
+      flowTypeEl.value = flowTypeOr(type);
       paintMcpOptions(server || "");
       fillScheduleOptions(schedEl, flowTypeEl.value, true);
       schedEl.value = sched && schedEl.querySelector('option[value="' + sched.kind + '"]') ? sched.kind : "hand";
@@ -6653,7 +6655,7 @@
       jobBoxEl.hidden = !jobOpen; byId("jf-run-jobwrap").hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
       jobBoxEl.value = jobOpen ? f.edit.card.job : "";
       fitCardBoxes();
-      runFlowTypeEl.value = f && (f.flowType === "mcp" || f.flowType === "tickets") ? f.flowType : "plain";
+      runFlowTypeEl.value = flowTypeOr(f ? f.flowType : undefined);
       paintMcpInto(runMcpEl, f && f.mcp ? f.mcp : "");
       runMcpFieldEl.hidden = runFlowTypeEl.value === "plain";
       byId("jf-err-run-job").textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";

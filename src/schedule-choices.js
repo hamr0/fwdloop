@@ -1,5 +1,6 @@
 import { isClockKind } from './trigger-clock.js';
 import { isFileKind } from './trigger-files.js';
+import { isFlowType } from './declaration.js';
 
 // M20 am5 item 1: the ONE list of schedule choices per flow type. The Run card's When and the New job card's Schedule both ask it (the page gets it from the server,
 // `__FWDLOOP_SCHEDULE_CHOICES__`; the server's own card check asks `scheduleKindsOf`). The words are the Run card's.
@@ -29,7 +30,7 @@ const BY_TYPE = Object.freeze({
 });
 
 /** @param {unknown} flowType @returns {'plain'|'mcp'|'tickets'} */
-const typeOf = (flowType) => (flowType === 'mcp' || flowType === 'tickets' ? flowType : 'plain');
+const typeOf = (flowType) => (isFlowType(flowType) ? /** @type {'plain'|'mcp'|'tickets'} */ (flowType) : 'plain');
 
 /** the kinds a flow type offers, in the Run card's order @param {unknown} flowType @returns {string[]} */
 export const scheduleKindsOf = (flowType) => [...BY_TYPE[typeOf(flowType)]];

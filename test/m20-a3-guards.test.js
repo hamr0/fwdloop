@@ -481,3 +481,11 @@ test('am8 item 1g: only src/ask.js names the decisions redo and rerun together',
     { file: 'panel/index.html', snippet: 'return (decision === "redo" || decision === "rerun") && String(value).trim()', why: 'reasonMissing: the page is a classic script and cannot import needsReason; how it asks the server is not settled by the signed text: reported for a ruling (it only saves a round trip, the door still refuses)' },
   ]), []);
 });
+
+// am8 item 1h: "is this a flow type" (plain, mcp or tickets) is isFlowType (src/declaration.js, next to FLOW_TYPES); the page asks through the keys of the schedule choices it already gets
+test('am8 item 1h: only src/declaration.js names the flow types plain, mcp and tickets together (page script included)', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('plain', 'mcp', 'tickets'), 'declaration.js', [
+    { file: 'authoring.js', snippet: "flowType === 'mcp' ? 'MCP' : flowType === 'tickets' ? 'Tickets MCP' : 'plain'", why: "the card's own word for a type in the readout, not the question 'is this a flow type'" },
+    { file: 'panel/index.html', snippet: '<option value="plain">plain</option>', why: 'the Flow type select the New job card and the Run card OFFER, not the question "is this a flow type"' },
+  ]), []);
+});

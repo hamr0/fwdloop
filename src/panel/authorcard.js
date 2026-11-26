@@ -15,6 +15,7 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
+import { isFlowType } from '../declaration.js';
 import { sameRuleWords } from '../blockpick.js';
 import { isColumnChoiceRule, columnChoiceParts, swapColumnWord } from '../sheetoffer.js';
 import { isWebUrl } from '../pagefetch.js';
@@ -481,7 +482,7 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
   // M13 piece 4: the Flow type and its MCP. MCP and Tickets name an MCP fwdloop can start whose tools have been checked (R1: the job gets every tool of the newest OK check;
   // never a started server here). Tickets needs the ticket list address as an Inputs line; MCP may have none.
   const flow = /** @type {{flowType?: string, mcp?: string}} */ (card).flowType ?? 'plain';
-  if (!['plain', 'mcp', 'tickets'].includes(flow)) no('flowType', 'Flow type must be plain, MCP or Tickets MCP.');
+  if (!isFlowType(flow)) no('flowType', 'Flow type must be plain, MCP or Tickets MCP.');
   else if (flow !== 'plain') {
     const server = String(/** @type {any} */ (card).mcp ?? '');
     if (server === '') no('mcp', 'Pick an MCP.');

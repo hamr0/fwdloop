@@ -57,7 +57,7 @@ import { readRecordFile, readRowChoices, readSheetDropped, readShapeDropped, rea
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
-import { flowTypeOf } from '../src/declaration.js';
+import { flowTypeOf, isFlowType } from '../src/declaration.js';
 import { LOOK_TOOL } from '../src/ticket-draft.js';
 import { newestUnrunTicket } from '../src/ticket-next.js';
 
@@ -919,7 +919,7 @@ async function cmdDraft(rest) {
   });
   if (values.action !== undefined && !['check', 'known'].includes(values.action)) fail(`draft: --action takes check or known, got "${values.action}"`);
   const flowType = values['flow-type'] ?? 'plain';
-  if (!['plain', 'mcp', 'tickets'].includes(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
+  if (!isFlowType(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
   if (flowType === 'plain' && values.mcp !== undefined) fail('draft: --mcp goes with --flow-type mcp or tickets');
   if (flowType !== 'plain' && !values.mcp) fail(`draft: --flow-type ${flowType} needs --mcp <server>`);
   const keysLoad = keyedLoad();
