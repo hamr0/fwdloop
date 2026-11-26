@@ -163,3 +163,8 @@ test('item 12 (tolerant JSON): only flow.js reads one JSON object file tolerantl
   assert.deepEqual(strays(files, /return j !== null && typeof j === 'object' && !Array\.isArray\(j\) \? j : null/, { 'flow.js': 'readJsonFile: the one tolerant JSON-object read; readDraftLog asks it' }), []);
   assert.deepEqual(strays(files, /\bconst readJson\b|\bfunction readJson\b/, {}), []);
 });
+
+// item 12 (frozen input path): where a run keeps the frozen copy of an input (`inputs/<name>`) is INPUTS_DIR and frozenRel (src/runfile.js); no other file spells the folder
+test('item 12 (frozen input path): only runfile.js spells the run\'s inputs/ folder in a path', () => {
+  assert.deepEqual(strays(load(), /['"`]inputs\/|join\([^)\n]*['"`]inputs['"`]/, { 'runfile.js': 'INPUTS_DIR / frozenRel: the one place the folder is spelled' }), []);
+});

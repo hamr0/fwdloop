@@ -40,7 +40,7 @@ import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
-import { readRunInputs } from '../src/runfile.js';
+import { readRunInputs, INPUTS_DIR } from '../src/runfile.js';
 import { configDoorHome, defaultFlowsRoot } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
@@ -473,7 +473,7 @@ async function cmdRun(rest) {
   // refusal (moved to `src/runner.js` so any caller — this CLI, M4's web
   // panel — gets it for free); it also owns the ONLY `mkdirSync`/
   // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
-  const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
+  const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, INPUTS_DIR, `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs, mcp: stepMcp(declaration) });
 

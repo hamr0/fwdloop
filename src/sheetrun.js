@@ -5,11 +5,10 @@
 // Third outcomes, each named, never green: a sheet the run recorded no fingerprint for, a frozen copy that is missing, a table that no longer gives the recorded
 // `tableSha` (bareguard stops the check; the red names the input), any other stopped check.
 // Throws away: bareguard's `full` (expected values, evidence) is not kept - the red keeps the gaps, which name rows and counts and never a cell's text.
-import { basename } from 'node:path';
 import { createRubric, checkStep, runTableChecks, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
 import { readFileInside } from './flow.js';
-import { readRunInputs } from './runfile.js';
+import { readRunInputs, frozenRel } from './runfile.js';
 import { sheetCheckSentence, bareguardChecks } from './sheetchecks.js';
 import { sheetCheckName, sheetFoundWords } from './sheetblock.js';
 import { isRec } from './isrec.js';
@@ -30,7 +29,7 @@ export function sheetRolesOf(steps) {
  * @param {string} runDir @param {string} name the frozen file's name @returns {string|null}
  */
 export function tableShaOfFrozen(runDir, name) {
-  const file = readFileInside(runDir, `inputs/${name}`);
+  const file = readFileInside(runDir, frozenRel(name));
   return file.ok ? tableSha(sheetTable(parseCsv(file.text))) : null;
 }
 
@@ -55,7 +54,7 @@ export function readRunSheets(runDir, checks) {
     const entry = Array.isArray(entries) ? entries.find((e) => e?.id === role) : undefined;
     if (!entry || typeof entry.frozen !== 'string') return { ok: false, red: `input "${role}": this run froze no input with that name` };
     if (typeof entry.tableSha !== 'string' || !SHA_RE.test(entry.tableSha)) return { ok: false, red: `input "${role}": this run recorded no table fingerprint for it at its start` };
-    const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+    const file = readFileInside(runDir, frozenRel(entry.frozen));
     if (!file.ok) return { ok: false, red: file.missing ? `input "${role}": the frozen copy is missing` : `input "${role}": ${file.red}` };
     tables[role] = sheetTable(parseCsv(file.text));
     inputs.push({ name: role, sha256: entry.tableSha });

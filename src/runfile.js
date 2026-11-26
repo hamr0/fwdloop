@@ -3,11 +3,15 @@
 // `writeRunStart` and nothing else; every reader of those three goes through this file's readers (`readRunModel` is in src/flowmodel.js, which owns the provider's
 // key-name check). Kept free of the provider on purpose: the learnings note code reads `inputs` and must reach no provider module.
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { readFileInside } from './flow.js';
 
 /** the file's name in the run's folder */
 export const RUN_FILE = 'run.json';
+/** the folder inside a run that holds the frozen copy of each input */
+export const INPUTS_DIR = 'inputs';
+/** where the frozen copy named `name` lives, relative to the run folder (a name only; any folder part is dropped) @param {string} name */
+export const frozenRel = (name) => `${INPUTS_DIR}/${basename(name)}`;
 
 /**
  * The record as parsed, or why not. `missing` = no file; `unreadable` = the gateway refused it (a symlink, outside the folder); `invalid` = not a JSON object.

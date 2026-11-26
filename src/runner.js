@@ -76,7 +76,7 @@ import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
-import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
+import { readRunInputs, readRunRecord, writeRunStart, INPUTS_DIR, frozenRel } from './runfile.js';
 // borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
 import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
@@ -432,7 +432,7 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp, ticketFilter?: {priority?: string[], labels?: string[]}}} [o] */
 export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp, ticketFilter } = {}) {
-  const inputsDir = join(runDir, 'inputs');
+  const inputsDir = join(runDir, INPUTS_DIR);
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
   /** M12 piece 3: the first ticket the signed labels (or its state) skip: its reason; the run ends `skipped` after its start record is written */
@@ -491,7 +491,7 @@ export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
   if (facts.length === 0) return { ok: /** @type {true} */ (true), rows: null, values: {} };
   const read = readPlaceRules(facts.map((fact) => {
     const entry = manifest.find((e) => e?.id === fact.source);
-    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, `inputs/${basename(entry.frozen)}`) : null;
+    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, frozenRel(entry.frozen)) : null;
     return { fact, text: file && file.ok ? file.text : null, was: earlier[fact.key] ?? valueInWords(fact.place, fact.phrase) };
   }));
   if (!read.proceed) return { ok: /** @type {false} */ (false), words: stopWords(read.rows) };
@@ -715,7 +715,7 @@ function readInputCells(runDir, id) {
   if (!manifest.ok) return manifest.code === 'missing' ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
   const entry = manifest.entries.find((e) => e?.id === id);
   if (!entry || !isCellsPath(entry.frozen)) return { ok: false, missing: true };
-  const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+  const file = readFileInside(runDir, frozenRel(entry.frozen));
   if (!file.ok) return file.missing ? { ok: false, missing: false, red: 'the frozen copy is missing' } : { ok: false, missing: false, red: file.red };
   if (createHash('sha256').update(file.text).digest('hex') !== entry.sha256) return { ok: false, missing: false, red: 'the frozen copy changed since it was frozen' };
   return { ok: true, value: { kind: 'cells', ...parseCsv(file.text) } };

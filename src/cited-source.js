@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import { readFileInside, resolveInside } from './flow.js';
-import { readRunInputs } from './runfile.js';
+import { readRunInputs, frozenRel } from './runfile.js';
 import { readDocxSource } from './docx.js';
 
 /** the frozen files served as text: a saved page (.txt) or a text/markdown document. Any other kind (a spreadsheet, a .docx, a binary) is never served as text. */
@@ -28,7 +28,7 @@ export function readRunSource(runDir, role, { docx = false } = {}) {
   const lower = entry.frozen.toLowerCase();
   if (docx && lower.endsWith('.docx')) return readRunDocx(runDir, role, entry);
   if (!TEXT_EXTS.some((x) => lower.endsWith(x))) return { ok: false, code: 'not-text', red: `input "${role}": a quote can be checked against a web page, a text file or a .docx here, not "${basename(entry.frozen)}"` };
-  const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+  const file = readFileInside(runDir, frozenRel(entry.frozen));
   if (!file.ok) return { ok: false, code: 'unreadable', red: file.missing ? `input "${role}": the frozen copy is missing` : `input "${role}": ${file.red}` };
   const sha256 = createHash('sha256').update(file.text, 'utf8').digest('hex');
   if (sha256 !== entry.sha256) return { ok: false, code: 'unreadable', red: `input "${role}": the frozen copy changed since it was frozen` };
@@ -39,7 +39,7 @@ export function readRunSource(runDir, role, { docx = false } = {}) {
  *  @param {string} runDir @param {string} role @param {{frozen: string, sha256: string}} entry
  *  @returns {{ok: true, text: string, sha256: string, frozen: string}|{ok: false, red: string, code: 'unreadable'}} */
 function readRunDocx(runDir, role, entry) {
-  const where = resolveInside(runDir, `inputs/${basename(entry.frozen)}`);
+  const where = resolveInside(runDir, frozenRel(entry.frozen));
   if (!where.ok) return { ok: false, code: 'unreadable', red: where.missing ? `input "${role}": the frozen copy is missing` : `input "${role}": ${where.red}` };
   const doc = readDocxSource(where.full);
   if (!doc.ok) return { ok: false, code: 'unreadable', red: `input "${role}": ${doc.red}` };
