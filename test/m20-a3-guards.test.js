@@ -480,6 +480,8 @@ test('am8 item 1g: only src/ask.js names the decisions redo and rerun together',
     { file: 'panel/index.html', snippet: 'decision === "rerun" ? "rerun" : "redo"', why: 'which word the hint says (rerun or redo), not whether a reason is needed' },
     { file: 'panel/index.html', snippet: 'return (decision === "redo" || decision === "rerun") && String(value).trim()', why: 'reasonMissing: the page is a classic script and cannot import needsReason; how it asks the server is not settled by the signed text: reported for a ruling (it only saves a round trip, the door still refuses)' },
   ]), []);
+  // the runner's re-check of a saved answer asks needsReason, never the handling flag `isRedo` (the allowed statement above)
+  assert.deepEqual(copies(filesAndPage(), /isRedo && reason/, '', []), []);
 });
 
 // am8 item 1h: "is this a flow type" (plain, mcp or tickets) is isFlowType (src/declaration.js, next to FLOW_TYPES); the page asks through the keys of the schedule choices it already gets
