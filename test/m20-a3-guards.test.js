@@ -294,3 +294,8 @@ test('am3e item 15: only ask.js reads ask.json; authorstart.js asks only whether
     'panel/authorstart.js': 'presence only: "is there an ask.json" (parked), true for a torn file too',
   }), []);
 });
+
+// am3g item 22: why a run is red is redWhyOf (src/books.js); the Run tab and the Result tab ask it, nobody finds the last red audit row for it again
+test('am3g item 22: only books.js picks the last red audit row (isRedTry) for a run\'s red reason', () => {
+  assert.deepEqual(strays(load(), /findLast\(\(r\) => isRedTry|\bisRedTry\(r\.verdict\)/, { 'books.js': 'redWhyOf: the one rule', 'learnstore.js': 'a red moment per try (learnings), a different question' }), []);
+});

@@ -434,6 +434,16 @@ export const isWaitingEnding = (/** @type {unknown} */ w) => endingHas(w, 'waiti
 export const isStopNote = (/** @type {unknown} */ w) => endingHas(w, 'stopNote');
 export const isHumanNo = (/** @type {unknown} */ w) => endingHas(w, 'humanNo');
 export const isRedTry = (/** @type {unknown} */ w) => endingHas(w, 'redTry');
+/**
+ * M20 am3g item 22: the ONE rule for why a run is red: the log's own `red` when it is a non-empty string, else the LAST red audit row as `<step>: <gap>` (a step can fail,
+ * redo and fail again differently; the most recent stop is where the run sits now), else null. The Run tab and the Result tab ask it and keep their own guards and words.
+ * @param {any} logJson the run's log.json (or null) @param {any[]} auditRows @returns {string|null}
+ */
+export function redWhyOf(logJson, auditRows) {
+  if (typeof logJson?.red === 'string' && logJson.red.length > 0) return logJson.red;
+  const row = auditRows.findLast((r) => isRedTry(r.verdict));
+  return row ? `${row.step}: ${row.gap}` : null;
+}
 export const isTryVerdict = (/** @type {unknown} */ w) => endingHas(w, 'tryVerdict');
 export const isSpendFloorEnding = (/** @type {unknown} */ w) => endingHas(w, 'spendFloor');
 export const isDraftRowVerdict = (/** @type {unknown} */ w) => endingHas(w, 'draftRow');

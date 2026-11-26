@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 
 import { readFileInside } from '../inside.js';
-import { isFailedEnding, isRedTry } from '../books.js';
+import { isFailedEnding, redWhyOf } from '../books.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { notCheckedLabelOf } from '../checked.js';
@@ -325,8 +325,7 @@ export function buildResult({
   // set `computeGlyph` colours `[✗]` by exclusion); a pause has no end row at all.
   let gap = null;
   if (historyRow && isFailedEnding(historyRow.outcome)) {
-    const redRow = auditRows.findLast((r) => isRedTry(r.verdict));
-    gap = gapOf(isStr(logJson?.red) && logJson.red !== '' ? logJson.red : (redRow ? `${redRow.step}: ${redRow.gap}` : null));
+    gap = gapOf(redWhyOf(logJson, auditRows));
   }
   const pages = [...new Set(urls.values())];
   return {

@@ -32,7 +32,7 @@ import { readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRun
 import { readFileInside, readdirInside } from '../inside.js';
 import {
   readAudit, readHistory, endRow, readPidRows, readSavedAnswer, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
-  endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
+  endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, redWhyOf, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
   readAsk, stopPending,
@@ -1691,7 +1691,7 @@ export function getRunDetail({
           tryMarks: group ? group.tryMarks : [],
           // Filled below, ONLY on the one step that actually stopped this
           // run (never guessed onto every step) — see stoppedStepEmits.
-          stoppedReason: null,
+          stoppedReason: /** @type {string|null} */ (null),
         };
       });
     }
@@ -1727,6 +1727,7 @@ export function getRunDetail({
   // (`askJson` present, no consumed answer — the same test `computeGlyph`
   // uses for "waiting on you") reports the ask's own question as its whole
   // "why", never an unrelated earlier attempt's gap.
+  /** @type {string|null} */
   let stopReason = null;
   let stopReasonWhy = null;
   if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
@@ -1743,18 +1744,11 @@ export function getRunDetail({
     stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;
   } else if (!ctx.historyRow && ctx.askJson && !ctx.consumedAnswerExists) {
     stopReasonWhy = `waiting on you: ${typeof ctx.askJson.question === 'string' && ctx.askJson.question.length > 0 ? ctx.askJson.question : 'no question recorded'}`;
-  } else if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
-    stopReason = ctx.logJson.red;
   } else {
-    // The LAST matching row, not the first — a step can fail, then redo and
-    // fail again differently (or fail on a later step entirely); the most
-    // recent stop is the one that actually describes where the run sits now.
-    let redRow = null;
-    for (const r of ctx.auditRows) {
-      if (isRedTry(r.verdict)) redRow = r;
-    }
-    if (redRow) {
-      stopReason = `${redRow.step}: ${redRow.gap}`;
+    // the log's red, else the LAST red audit row (`redWhyOf`, the one rule the Result tab asks too)
+    const why = redWhyOf(ctx.logJson, ctx.auditRows);
+    if (why !== null) {
+      stopReason = why;
     } else {
       stopReasonWhy = 'run has not stopped on a red/not-done step (still parked, waiting, or clean so far)';
     }
