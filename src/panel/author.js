@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, readQuestions, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, NOT_CHECKED_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -280,18 +280,14 @@ export function createAuthor(opts) {
    * @returns {any}
    */
   function resultOf(dir, rel, keys) {
-    const hashFile = readFileInside(dir, `${rel}/spec.hash`);
-    if (hashFile.ok && hashFile.text.trim() !== '') {
+    const v = draftVerdict(dir, rel);
+    if (v.verdict === 'green') {
       const readout = readFileInside(dir, `${rel}/readout.txt`);
       const text = readout.ok ? scrub(readout.text, keys) : '';
-      return { phase: 'green', hash: hashFile.text.trim(), readout: text, readoutHeads: readoutHeadIndexes(text), stepList: stepListOf(dir, rel, keys) };
+      return { phase: 'green', hash: v.hash, readout: text, readoutHeads: readoutHeadIndexes(text), stepList: stepListOf(dir, rel, keys) };
     }
-    const leak = readFileInside(dir, `${rel}/scrub-leak.red`);
-    const log = readDraftLog(dir, rel);
-    if (leak.ok || (log && log.ok === false)) {
-      const reds = Array.isArray(log?.reds) ? log.reds.map((r) => scrub(String(r), keys)) : [];
-      if (leak.ok) reds.push(scrub(leak.text.trim(), keys));
-      return { phase: 'red', reds, say: RED_SAY, stepList: stepListOf(dir, rel, keys) };
+    if (v.verdict === 'red') {
+      return { phase: 'red', reds: v.reds.map((r) => scrub(r, keys)), say: RED_SAY, stepList: stepListOf(dir, rel, keys) };
     }
     return null;
   }

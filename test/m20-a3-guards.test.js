@@ -131,3 +131,9 @@ test('item 8: only spawn.js names pid.json or asks isFwdloopAlive for a panel ch
   const panel = Object.fromEntries(Object.entries(load()).filter(([f]) => f.startsWith('panel/')));
   assert.deepEqual(strays(panel, /['"`]pid\.json['"`]|\bisFwdloopAlive\b/, CHILD_PID), []);
 });
+
+// item 12 (draft verdict): a plan folder's verdict is draftVerdict (src/authoring.js); spec.hash and scrub-leak.red are named there only (the writers use the constants)
+const VERDICT = { 'authoring.js': 'SPEC_HASH_FILE / LEAK_MARKER_FILE declared, written by writePlanFiles, read by draftVerdict' };
+test('item 12 (draft verdict): only authoring.js names spec.hash or scrub-leak.red in code', () => {
+  assert.deepEqual(strays(load(), /['"`/]spec\.hash\b|['"`/]scrub-leak\.red\b/, VERDICT), []);
+});

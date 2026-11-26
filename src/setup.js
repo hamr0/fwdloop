@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { readQuestions, scrub } from './authoring.js';
+import { readQuestions, scrub, draftVerdict } from './authoring.js';
 import { notCheckedBlock } from './checked.js';
 import { readDraftSpend } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog } from './flow.js';
@@ -33,20 +33,11 @@ const mtimeIso = (dir, rel) => {
 
 /** One plan folder's row: model, cost, verdict (green / red / stopped), plan hash, first red. @param {string} sessionDir @param {string} rel `draft` or `draft-<n>` */
 function planRow(sessionDir, rel, kind, n) {
-  const hashFile = readFileInside(sessionDir, `${rel}/spec.hash`);
-  const hash = hashFile.ok && hashFile.text.trim() !== '' ? hashFile.text.trim() : null;
-  const log = readDraftLog(sessionDir, rel);
-  const leak = readFileInside(sessionDir, `${rel}/scrub-leak.red`);
+  const { verdict: v, hash, log, reds } = draftVerdict(sessionDir, rel);
   const spent = readSpendRows(join(sessionDir, rel, 'spend.jsonl')).filter((r) => r && r.kind === 'draft').pop() ?? readDraftSpend(join(sessionDir, rel));
-  let verdict = 'stopped';
+  const verdict = v === 'none' ? 'stopped' : v;
   /** @type {string|null} */
-  let gap = 'no result was recorded';
-  if (hash) { verdict = 'green'; gap = null; } else if (leak.ok || (log && log.ok === false)) {
-    verdict = 'red';
-    const reds = Array.isArray(log?.reds) ? log.reds.map(String) : [];
-    if (leak.ok) reds.push(leak.text.trim());
-    gap = reds.join('; ') || 'the plan did not pass the checks';
-  }
+  const gap = v === 'green' ? null : v === 'red' ? (reds.join('; ') || 'the plan did not pass the checks') : 'no result was recorded';
   return {
     kind, n, at: typeof spent?.at === 'string' ? spent.at : null, model: spent?.model ?? log?.modelId ?? null,
     costUsd: typeof spent?.costUsd === 'number' ? spent.costUsd : null, spendComplete: spent ? spent.spendComplete !== false && typeof spent.costUsd === 'number' : false,

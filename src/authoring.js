@@ -55,6 +55,22 @@ export const SPEC_HASH_FILE = 'spec.hash';
 export const PANEL_DRAFTS_DIR = '.drafts';
 /** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
 export const LEAK_MARKER_FILE = 'scrub-leak.red';
+/**
+ * M20 am3 item 12: the ONE reader of one plan folder's verdict, from its files (`spec.hash`, `scrub-leak.red`, `log.json`). Green = a
+ * non-empty spec.hash; red = a leak marker or a log that says not ok (`reds` = the log's own reds, then the marker's text); none otherwise.
+ * `hashFile` and `leak` are the raw reads, so sign can name a missing or refused file in its own words. Callers scrub `reds` themselves.
+ * @param {string} dir the folder that holds the plan folder @param {string} [rel] `draft`, `draft-<n>` or `.` (the plan folder itself)
+ * @returns {{verdict: 'green'|'red'|'none', hash: string|null, hashFile: ReturnType<typeof readFileInside>, leak: ReturnType<typeof readFileInside>, log: any, reds: string[]}}
+ */
+export function draftVerdict(dir, rel = '.') {
+  const hashFile = readFileInside(dir, `${rel}/${SPEC_HASH_FILE}`);
+  const hash = hashFile.ok && hashFile.text.trim() !== '' ? hashFile.text.trim() : null;
+  const leak = readFileInside(dir, `${rel}/${LEAK_MARKER_FILE}`);
+  const log = readDraftLog(dir, rel);
+  const reds = [...(Array.isArray(log?.reds) ? log.reds.map(String) : []), ...(leak.ok ? [leak.text.trim()] : [])];
+  return { verdict: hash ? 'green' : (leak.ok || (log && log.ok === false)) ? 'red' : 'none', hash, hashFile, leak, log, reds };
+}
+
 /** M4e amendments 24/25: the drafter's questions (written once by `fwdloop draft`), each human answer (`answer-<k>.json`, written once by the panel),
  *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
 export const QUESTIONS_FILE = 'questions.json';
@@ -606,7 +622,8 @@ export function signDraft({
   dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, keyNames, sessionDir, replaces, asRunOf,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
-  if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
+  const dv = draftVerdict(dir);
+  if (dv.leak.ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
   const openQuestion = questionsRefusal(dir);
   if (openQuestion !== null) return refuse(`sign: ${openQuestion}`);
   // Sign is $0 and takes no key, so it can only sweep for the keys it is told of (`keyNames`, the rows set up in Settings).
@@ -617,7 +634,7 @@ export function signDraft({
   const read = (f) => readFileInside(dir, f);
   const parts = {};
   for (const f of ['prose.txt', 'declaration.json', 'input-facts.json', 'readout.txt', SPEC_HASH_FILE, 'target.json']) {
-    const r = read(f);
+    const r = f === SPEC_HASH_FILE ? dv.hashFile : read(f);
     if (!r.ok) return refuse(`sign: "${dir}" is not a green draft — ${f} ${r.missing ? 'is missing' : `is refused (${r.red})`}`);
     parts[f] = r.text;
   }

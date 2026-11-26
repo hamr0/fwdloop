@@ -30,7 +30,7 @@ import { docRolesOf } from './drafter.js';
 import { buildShapes } from './shapebuild.js';
 import { parseShapeAnswer, SHAPE_CALL_LABEL } from './shapelook.js';
 import { lineRules } from './pagebits.js';
-import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE } from './authoring.js';
+import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE, SPEC_HASH_FILE } from './authoring.js';
 
 /** what a person is told when the saved inputs no longer give the saved list: nothing is written */
 export const REBUILD_CHANGED_SAY = 'The inputs of this plan have changed since it was drafted, so its checks cannot be changed here. Draft again from the card. Nothing was changed.';
@@ -246,7 +246,7 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
       [NOT_CHECKED_FILE]: dj({ notChecked, ...(Object.keys(by).length ? { by } : {}) }),
       [RECORD_FILE]: dj({ ...record, rowChoices: b.block.choicesRecord(), ...(droppedNow.length ? { sheetDropped: droppedNow } : {}), ...(shapeDroppedNow.length ? { shapeDropped: shapeDroppedNow } : {}) }),
       'log.json': dj({ ...(isRec(b.log) ? b.log : {}), log: [...(Array.isArray(b.log?.log) ? b.log.log : []), logRow, ...ledger], checkCard: card }),
-      'spec.hash': `${h.hash}\n`,
+      [SPEC_HASH_FILE]: `${h.hash}\n`,
     },
   };
 }
