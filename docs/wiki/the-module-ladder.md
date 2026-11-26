@@ -4590,3 +4590,12 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Must fail when:** a file is merged, split, renamed or added; an existing run's screen changes other than item 4's; an owner keeps a second reader outside its allow-list; a refused job copy is read as a job.
 
 **Order:** items 11, 7, 9 (small) → 2 → 1 → 3 → 4, 5 → 6 → 8 → 10 → 12 → 13 alongside each; snapshot after each; then the F268 re-run, the full suite, a practice walk of a draft, a revise, a run through an Accept and a Resume, then hamr's walk, self-review, branch review, release.
+
+**M20 amendment 3a — SIGNED by hamr 2026-11-26 ("sign m20 am3a."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3a-sign.md, sha256 ac2200e7e4e6…).**
+
+**M20 amendment 3a — items 1 and 3 of am3 name facts that are not one fact.** Live: the am3 build (2026-11-26, $0) stopped on both, as am3 asks, because each could not be built without a screen or behaviour change. My am3 text was wrong on these two: F268 called them one fact, and the code shows they are different questions. This replaces am3 items 1 and 3 only; every other am3 line stands.
+
+1. **Item 1 becomes: "same job" has one owner, `sameJob`, for the question it is.** `sameJob` in src/flow.js holds `planForReuse`'s rule (src/flow.js:725-735: the run's verified job copy, the exact declaration, the prose without its trigger line). `planForReuse` and `greenRuns` (src/panel/authortrigger.js:80-95) ask it; for `greenRuns` this is the change am3 named (a trigger-line or trailing-space difference no longer splits the count). `runJobEdited` (src/panel/data.js:913) asks a different question: was the job this stopped run signed with edited since it stopped (the halt record's signature hash against the run's own job). It stays its own owner, on the item 13 allow-list with that reason.
+2. **Item 3 becomes: three owners, one per question, each named.** (a) `dropUnstartedValues` (src/runvalues.js:193) asks "may these pre-start files be deleted" and keeps its own two names; (b) bin/fwdloop:441 asks "does this folder hold no run yet" and keeps its six names; (c) `checkFreshRunDir` (src/runner.js:399) asks "is a stale ask or answer left here" and keeps its two names. Each list is spelled once, in its owner, and the item 13 guard test fails if one of these lists is spelled anywhere else.
+
+**Done when / Must fail when:** as am3, plus: `greenRuns` and `planForReuse` give the same "same job" answer for every run on the P1 copy; none of the three item 3 owners changes what it allows, deletes or refuses.
