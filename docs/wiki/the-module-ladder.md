@@ -4633,3 +4633,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** as am3, plus: the P1 snapshot is byte-identical; each owner above has its guard test, proven red once.
 
 **Must fail when:** `notCheckedBlock` and `notCheckedView` become one function; a screen word changes; a target.json name is read outside the one reader.
+
+**M20 amendment 3d — SIGNED by hamr 2026-11-26 ("sign m20 am3d."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3d-sign.md, sha256 87d17233dd59…).**
+
+**M20 amendment 3d — the signature's `.flow`: one owner, the broken-file case named.** Live: the am3 batch 3 build (2026-11-26, $0) stopped at item 12's signature `.flow`, as am3 asks. Both sites ask the same question, "this flow's signed hash". `signedHashOf` (src/flow.js:593) answers it with a check: a string that is not empty, else none. `greenRuns` (src/panel/authortrigger.js:84) is a copy without that check, so on a signature.json with no usable `.flow` it compares nothing with nothing and counts an old run that has no job copy and no `signatureHash` as green. That is drift, not a second question. 0 of the 260 real signature.json files has no usable `.flow`. This adds to am3 item 12; every other am3, am3a, am3b and am3c line stands.
+
+1. **One owner.** `greenRuns` asks `signedHashOf` and reads `.flow` nowhere else. Named change: when `signedHashOf` gives none, `greenRuns` counts no green run (no screen change is expected, since no real flow has such a file).
+
+**Done when:** as am3, plus: the P1 snapshot is byte-identical; the `.flow` guard test is proven red once; a test with a signature.json holding no `.flow` shows `greenRuns` counting nothing, red on the old copy.
+
+**Must fail when:** `.flow` is read outside `signedHashOf`; `greenRuns` counts a run as green on a signature.json with no usable `.flow`.
