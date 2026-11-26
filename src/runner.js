@@ -3059,8 +3059,9 @@ export async function continueRun({
 
     // Amendment 7 item 8: a Stop that cut the step short leaves its tries in the books; Resume re-enters it as a NEW try, numbered after them.
     // A try the Stop cut mid-way (its `stopped` row) wears a number but is replaced, not counted against the step's limit. Read from the
-    // books (the source of truth), never a second record. A cap-halt re-entry keeps its own, earlier behaviour.
+    // books (the source of truth), never a second record. A cap-halt re-entry (M4d am30, F275) only numbers its tries after the step's last; its limit is the step's own, as before.
     const resumeTries = { numbered: 0, done: 0 };
+    if (halt.outcome === 'cap-halt' && steps[halt.stepIndex]) resumeTries.numbered = lastTryNumber(runDir, steps[halt.stepIndex].emits ?? null);
     if (halt.outcome === 'stopped' && steps[halt.stepIndex]) {
       const tries = readAudit(runDir).filter((r) => r.step === steps[halt.stepIndex].emits && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt');
       resumeTries.numbered = tries.length;
