@@ -522,3 +522,11 @@ test('am8 item 1l: in code, only isFactKind names the row kinds fact and phrase 
     { file: 'pageask.js', snippet: 'const isShapeAsk =', why: 'the one owner' },
   ]), []);
 });
+
+// am8 item 1m: picks-record.json is opened by readJsonFile (src/flow.js) in every reader; each reader keeps its own field. readKept (torn is not missing) and the presence check stay apart, named
+test('am8 item 1m: no reader opens picks-record.json with readFileInside and parses it itself, apart from two named statements', () => {
+  assert.deepEqual(copies(filesAndPage(), /readFileInside\([^;\n]*(?<![A-Z_])(RECORD_FILE|basename\(file\))/, '', [
+    { file: 'pickrecord.js', snippet: 'const g = readFileInside(dir, `$', why: 'readKept: tells a torn record from a missing one (the sign-time card check skips on a torn one); readJsonFile reads both as null' },
+    { file: 'panel/author.js', snippet: 'readFileInside(join(dir, r), RECORD_FILE).ok', why: 'asks only whether a record is there (which plan folder carries one), reads no field' },
+  ]), []);
+});

@@ -5,6 +5,7 @@
 // Throws away: line and rule numbers (recomputed), the model's words (it never sees a pick), a pick whose line or guardrail words no longer match.
 import path from 'node:path';
 import { readFileInside } from './inside.js';
+import { readJsonFile } from './flow.js';
 
 /** M20 am8: the one list of a person's row choices on the plan card, and the one question "is this a legal Drop or Add choice" (the row-edit door, the record's reader and the check block ask it) */
 export const ROW_CHOICES = Object.freeze(['drop', 'add']);
@@ -101,12 +102,8 @@ export function matchRecord(entries, lines, rules) {
  * @param {string} file @returns {Entry[]|null}
  */
 export function readRecordFile(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.picks) ? j.picks.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string') : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.picks) ? j.picks.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string') : null;
 }
 
 // borrowed-from: bareloop src/pickrecord.js@v0.56.0 (3383cce) (readRowChoices; read through readFileInside; writeRecordPart not taken, see the M16 p1 report)
@@ -115,12 +112,8 @@ export function readRecordFile(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null}
  */
 export function readRowChoices(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && isRowChoice(e.choice)) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && isRowChoice(e.choice)) : null;
 }
 
 // borrowed-from: bareloop src/pickrecord.js@v0.61.0 (fc56e1f3) (readShapeDropped; read through readFileInside like readSheetDropped; writeRecordPart not taken: fwd's writers are src/authoring.js and src/planrebuild.js)
@@ -129,12 +122,8 @@ export function readRowChoices(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, name?: string, rule?: number}[]|null}
  */
 export function readShapeDropped(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.shapeDropped) ? j.shapeDropped.filter((/** @type {any} */ d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.shapeDropped) ? j.shapeDropped.filter((/** @type {any} */ d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))) : null;
 }
 
 /**
@@ -143,12 +132,8 @@ export function readShapeDropped(file) {
  * @param {string} file @returns {{key: string, line: number, index: number, check: Record<string, any>, text: string}[]|null}
  */
 export function readSheetDropped(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
 }
 
 /**
@@ -157,12 +142,8 @@ export function readSheetDropped(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, word: string, column: string}[]|null}
  */
 export function readColumns(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.columns) ? j.columns.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string') : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.columns) ? j.columns.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string') : null;
 }
 
 /** @param {{n: number, text: string}[]} lines @param {{line: number, word: string, column: string}[]} cols @returns {{lineWords: string, occurrence: number, word: string, column: string}[]} the answers as the record keeps them */

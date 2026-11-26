@@ -1,5 +1,11 @@
 // M20 am8 item 1: for each merged question, every OLD site's predicate (frozen here as a literal copy, named `old site file:line`) gives the owner's answer on every value of its kind plus empty, missing and unknown values.
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { tmpdir } from 'node:os';
+import { readFileInside } from '../src/inside.js';
+import { readRecordFile, readRowChoices, readShapeDropped, readSheetDropped, readColumns } from '../src/pickrecord.js';
 import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
@@ -128,4 +134,34 @@ test('1l isFactKind and isShapeAsk: the old checkblock.js and pageask.js sites e
   const asks = ['reading', 'check', 'no-check', 'cant-check', 'action', 'column'];
   // old sites src/pageask.js:135,141 and src/panel/authorcard.js:199 (`x.ask === 'check' || x.ask === 'no-check'`)
   same('shape ask', asks, (a) => a === 'check' || a === 'no-check', isShapeAsk);
+});
+
+test('1m the five picks-record readers: opening through readJsonFile reads every kind of file as the old open-and-parse did', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'am8-1m-'));
+  const entry = { lineWords: 'a', occurrence: 0, ruleText: 'r', tail: 't', choice: 'drop', key: 'k', line: 1, index: 0, check: { x: 1 }, text: 'x', name: 'n', word: 'w', column: 'c' };
+  const body = (extra) => JSON.stringify({ picks: [entry, null, { lineWords: 5 }], rowChoices: [entry, { ...entry, choice: 'keep' }], shapeDropped: [entry], sheetDropped: [entry], columns: [entry], ...extra });
+  const files = { object: body({}), empty: '', torn: '{"picks": [', array: '[1,2]', string: '"x"', number: '5', nullDoc: 'null', noFields: '{}', wrongTypes: '{"picks":"x","rowChoices":5,"shapeDropped":{},"sheetDropped":null,"columns":true}' };
+  for (const [name, text] of Object.entries(files)) writeFileSync(path.join(dir, `${name}.json`), text);
+  mkdirSync(path.join(dir, 'isdir.json'));
+  symlinkSync(path.join(dir, 'object.json'), path.join(dir, 'link.json'));
+  // old sites src/pickrecord.js:98,117,126,140,154: open through readFileInside, JSON.parse inside try, the field's own filter after
+  const oldRead = (file, field, keep) => {
+    try {
+      const g = readFileInside(path.dirname(file), path.basename(file));
+      if (!g.ok) return null;
+      const j = JSON.parse(g.text);
+      return Array.isArray(j?.[field]) ? j[field].filter(keep) : null;
+    } catch { return null; }
+  };
+  const readers = [
+    ['picks', readRecordFile, (e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string'],
+    ['rowChoices', readRowChoices, (e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && (e.choice === 'drop' || e.choice === 'add')],
+    ['shapeDropped', readShapeDropped, (d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))],
+    ['sheetDropped', readSheetDropped, (d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)],
+    ['columns', readColumns, (e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string'],
+  ];
+  for (const name of [...Object.keys(files), 'isdir', 'link', 'missing']) {
+    const file = path.join(dir, `${name}.json`);
+    for (const [field, reader, keep] of readers) assert.deepEqual(reader(file), oldRead(file, field, keep), `${field} of ${name}`);
+  }
 });
