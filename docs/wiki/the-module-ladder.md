@@ -4703,3 +4703,15 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** a test replays hamr's draft (copied as a fixture) with Add on `L4.count.1-4`: refused on today's code, a new plan with the count under CHECKED after the fix; a drafter-written count not in the line's words is still refused; the P1 snapshot is byte-identical; the full suite is green.
 
 **Must fail when:** a count the person did not Add passes without its number in the line's words; an Add of a suggested count is refused by the count check.
+
+**M20 amendment 5 — SIGNED by hamr 2026-11-26 ("sign m20 am5."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am5-sign.md, sha256 8e1830a2374e…).**
+
+**M20 amendment 5 — the New job card offers every schedule; two small leftovers.** Live: hamr 2026-11-26 asked why a new job's Schedule offers only By hand and Every day while the Schedule button on a signed job offers every kind, and ruled the New job card should offer everything (it still waits for the first green run). The other two items were found by the M20 builds (2026-11-26, $0), not seen on screen. This replaces M13 item 7's built choice list (the New job card's `By hand` and `Every day at HH:MM` only, with "the weekdays, weekly and file choices stay on the Run card") and adds to M20; every other signed line stands.
+
+1. **One list of schedule choices, the Run card's.** The New job card's `Schedule` offers exactly what the Run card's When offers for the same flow type, in the same words and with the same time, day, file and folder boxes: for plain, By hand, Every day at HH:MM, Weekdays at HH:MM, Every <day> at HH:MM, When <file> is updated, When a new file arrives in <folder>; MCP (generic) and Tickets as the Run card has them today (Tickets adds `When a new ticket arrives`). One function owns the list per flow type; both cards ask it. It is still signed in `schedule.json` in the same sign, off until the first green run, with `Schedule waiting for a green run` while it waits (M13 item 7). A file or folder choice is refused at $0 when its file or folder is missing, as the Run card refuses it.
+2. **A broken diary row no longer crashes the Audit.** A diary row whose `checks` is not a list is read as a row with no checks by the Audit's "every step" read (src/auditchecks.js), as the other readers already skip it (am3g item 23). No real run has one.
+3. **The old POC script says why it no longer runs.** poc/m2/live.mjs imported `makeFileAskStep`, which am3 item 5 deleted with nothing in its place; the script stays as history and gets one header line saying so. No behaviour.
+
+**Done when:** a panel test picks each Run-card choice on the New job card and finds the same `schedule.json` the Run card writes for it, at 1280, 390 and 320; a test with a non-list `checks` row shows the Audit, red on today's code; the P1 snapshot is byte-identical; the full suite is green; hamr's walk sets a Weekdays schedule on a new job and sees it wait for the green run.
+
+**Must fail when:** the two cards offer different choices for one flow type; a schedule fires before the first green run; the Audit crashes on a diary row.
