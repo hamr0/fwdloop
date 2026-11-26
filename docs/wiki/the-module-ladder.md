@@ -4631,11 +4631,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 - **am3f** (signed 04c09c4d): fd91541b M1 src/inside.js, 6d51e593 M2 `HOW_TO_ANSWER` to pageask.js, e2f9ce47 M3 src/reasons.js, ff5077f0 M4 `NO_VALUE_WHY` gone, ac780a42 M5 `ticketListReds` and `TICKET_FIELDS` to checklistsign.js, d5fe0786 the draftfiles pass-through goes. The loop test's list is empty.
 - **am3g** (signed 54a6fd95): 0c325d1d item 22 `redWhyOf`, 31bfdd4f item 23 `newestChecksOf`, b6c959ab item 24 `runMoney`, 65cb5d90 items 25 to 27 allow-list guards. 5eca2ba3 rewords a comment that quoted a price literal (the m4d-am6-e guard; the full suite at 25dc4905 had one fail, this).
 - **am4** (signed 3d3f7b56): 0ea6c272 `addedCountsOf` in src/pickrecord.js.
-- **am5** (signed cd8f47be): built, not committed.
+- **am5** (signed cd8f47be): ef20fb12 item 1 (`src/schedule-choices.js`, `src/schedule-shape.js`), f259d58b items 2 and 3, d04d5e36 the m13-p5-card third case weekly to monthly (weekly is now a New job card choice).
+- **F275 fixed** (hamr ruled A 2026-11-26): d09a4f21, a cap-halt Continue numbers its tries after the step's last (M4d am30); the try limit is unchanged.
 - Gates: full suite at 63ffa4b7 5421 tests, 5415 pass, 0 fail, 6 skipped. hamr's real-panel walks 2026-11-26 green.
 - F270 to F275 (docs/logs/FINDINGS.md) record the maps behind am3e to am4 and the leg map. All are recorded after the run, not pre-registered.
 - **Builder choices not in the signed text.** src/draftfiles.js was added to break the authoring/setup loop. The am4 replay fixture has a `.fixture` suffix, because the m19 brief snapshot pins pre-S5 fixtures only. am4 reads `readRowChoices`, not `readKept`, because an Add lives in rowChoices.
-- **Left open.** am5 is built but uncommitted and waits for gates. F275 (current-leg reader, restarting try numbers after a cap-halt Continue) awaits hamr's A/B ruling. bareloop F399 and F403 wait for its next tag. The derived-facts items 25 to 27 are on the allow-list.
+- **Left open.** F276 ("is this schedule kind a clock kind" is answered in `src/trigger-clock.js`, `src/panel/authortrigger.js` and `src/panel/authorcard.js`) awaits hamr. bareloop F399 and F403 wait for its next tag. The derived-facts items 25 to 27 are on the allow-list.
+- Gates: full suite at d09a4f21 5441 tests, 5435 pass, 0 fail, 6 skipped. hamr's real-panel walks 2026-11-26 evening green (see FINDINGS).
 
 **M20 amendment 3c — SIGNED by hamr 2026-11-26 ("sign m20 am3c."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3c-sign.md, sha256 7841f543a6e4…).**
 

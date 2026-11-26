@@ -10298,10 +10298,22 @@ Not claimed: class (d) beyond the checks above (log.json and line-checks.json ci
 - 4 runs have a `continue` leg: `aging-live-1/run-1`, `m10-walk-flights/run-1`, `am11-c4/run-1`, `m7-walk-2/run-2`. Whole-run try counts and attempt lists differ from the current leg on all four, and "took" spans the gap (hours to days). No harm seen on a screen.
 - Try numbers restart after a cap-halt Continue (`attemptOffset` is set only on the stopped path, runner.js:3065). That is against signed M4d am30 ("In one step, try numbers never restart"). The Audit's file-order reader and the max-try readers (result.js, jobgrid.js) would then pick different rows when the continue leg runs fewer tries than the first. am3g item 23's newest-try owner (max `try`) could pick a dead leg's checks after such a restart. 0 runs are affected today: only 2 of the 4 hold a diary, and neither shows it. Unchecked on a run.
 - Signed text a copy would cross: M20 "Not copied from v0.63.0" (currentLegView, finalCloseOf), M4d am30, M4a "took", M4e am4 item 4 and am7 item 8 (a stopped step's tries stay on its card).
-**OPEN, awaiting hamr's A/B ruling.** No amendment drafted; no code changed.
+**FIXED.** hamr ruled A on 2026-11-26. Fixed in d09a4f21: a cap-halt Continue numbers its tries after the step's last (`lastTryNumber`); the try limit is unchanged. New test `test/m20-f275-cap-continue-tries.test.js` is red on the old code (`[1,1,2,3]`) and green after (`[1,2,3,4]`). 23 related test files: 441 pass, 0 fail.
 
 ## Gates and walks recorded with F270 to F275 (2026-11-26)
 - Full suite at 63ffa4b7: 5421 tests, 5415 pass, 0 fail, 6 skipped (`suite/full4.log`).
 - Full suite at 25dc4905: 5430 tests, 5423 pass, 1 fail, 6 skipped (`suite/full5.log`). The fail was `m4d-am6-e` E1: a comment quoted a price literal. Fixed in 5eca2ba3.
 - hamr's real-panel walks, 2026-11-26: `m20-final`, `m20-final-2` (with Redo), `m20-long` (two Asks). Count 18 and Total 13,206.91, equal to the 18 Nov walk. `long-walk2`'s "stopped by you (rerun)" is the v0.38.0 wording, not a regression.
 - A practice walk cost $0.05. One $0.04 draft went to Claude by mistake, because the Model box defaults to option 0.
+
+## F276 RECORDED AFTER THE RUN, not pre-registered ($0 scan) (2026-11-26; no provider call; no code changed) — M20 one question answered in three places
+**What was run.** The drift re-scan at d09a4f21 (`f268-rerun.sh`, output `f268-rerun3.out`). The only new reader lines go through owners (the `pickrecord.js` readers, `shapeOf`). The import-loop guard's list is empty and green.
+**Found.** One leftover. "Is this schedule kind a clock kind" (daily, weekdays, weekly) is answered in three places: `src/trigger-clock.js:33` (2026-10-13), `src/panel/authortrigger.js:617` (2026-10-13) and `src/panel/authorcard.js:502` (added by am5, ef20fb12).
+**OPEN, awaiting hamr.** No amendment drafted; no code changed. Not checked whether the three answers can differ on real data.
+
+## Gates and walks recorded with am5 and F275 (2026-11-26)
+- am5 built: ef20fb12 (item 1: one schedule-choice list in `src/schedule-choices.js`, file and folder checks in `src/schedule-shape.js`; a typecheck fix, a cast at `src/panel/authorcard.js:507`) and f259d58b (items 2 and 3). The Audit test was red on the old code (TypeError) and green after. Gates: snapshot SAME, guards 77/77, panel tests 236/0.
+- Full suite at f259d58b: 5440 tests, 5433 pass, 1 fail, 6 skipped (`suite/full6.log`). The fail was `test/m13-p5-card.test.js`, third case. d04d5e36 changed it from weekly to monthly, because am5 replaces M13 item 7's list: weekly is now a New job card choice.
+- F275 ruled A by hamr 2026-11-26 and fixed in d09a4f21 (see F275).
+- Full suite at d09a4f21: 5441 tests, 5435 pass, 0 fail, 6 skipped (`suite/full7.log`).
+- hamr's real-panel walks, 2026-11-26 evening: `m20-am4` had a Weekdays 19:45 schedule. run-1 went green at 19:41 and armed it; run-2 was started by the trigger at 19:45 and went green. Both ran on Claude Sonnet (the Model box default), $0.21, so they do not count as the baseline walk. The schedule was later changed to daily, then cancelled; the ledger has the cancelled row. `m20-am4-2` on deepseek-flash: the Added suggested count `L4.count.1-1` is in the signed plan and passed in the run ("1 result"), line 2 count 18, run green, $0.032. `walk-am3` run-3 green, $0.037.
