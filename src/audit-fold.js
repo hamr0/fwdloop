@@ -1,7 +1,7 @@
 // M4d am29 items 4-8: the Audit step fold, the Run summary's two lines and the step card's one line, all derived HERE from the run's files on disk
 // (audit.jsonl's try rows + the three diaries in src/diary.js). Nothing here calls a model ($0 replay), and the page only draws what this returns,
 // so the Audit rows, the summary and the cards can only agree. A run from before am29 has no diaries: no fold, `—` on the new lines, nothing made up.
-import { readCalls, readTools, readChecks } from './diary.js';
+import { readCalls, readTools, readChecks, newestChecksOf } from './diary.js';
 import { isStopNote, isHumanNo } from './books.js';
 
 /** A Stop's notes are not tries: the asked/not-honoured rows, and a `stopped` row that cut no try (no attempt number). @param {any} r */
@@ -139,7 +139,7 @@ export function deriveFold(group, d, info = {}) {
   const tally = {};
   for (const t of tools) tally[t.tool] = (tally[t.tool] ?? 0) + 1;
   const tallyWords = Object.entries(tally).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, v]) => `${k} ${v}`).join(', ');
-  const lastChecks = checkRows.length ? checkRows[checkRows.length - 1].checks : null;
+  const lastChecks = newestChecksOf(checkRows, step)?.checks ?? null;
   const answered = human ? group.rows.filter((r) => r.verdict !== 'paused' && isTryRow(r) && humanWords(r) !== null) : [];
   const lastAnswerRow = answered.length ? answered[answered.length - 1] : null;
   return {

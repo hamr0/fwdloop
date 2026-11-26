@@ -299,3 +299,9 @@ test('am3e item 15: only ask.js reads ask.json; authorstart.js asks only whether
 test('am3g item 22: only books.js picks the last red audit row (isRedTry) for a run\'s red reason', () => {
   assert.deepEqual(strays(load(), /findLast\(\(r\) => isRedTry|\bisRedTry\(r\.verdict\)/, { 'books.js': 'redWhyOf: the one rule', 'learnstore.js': 'a red moment per try (learnings), a different question' }), []);
 });
+
+// am3g item 23: a step's newest-try checks are newestChecksOf (src/diary.js): no other file reduces the diary's rows to the highest try
+test('am3g item 23: only diary.js picks a step\'s newest-try checks row (the highest try, a tie to the later row)', () => {
+  assert.deepEqual(strays(load(), /r\.try >= (m|prev|newest)\.try/, { 'diary.js': 'newestChecksOf: the one rule' }), []);
+  assert.deepEqual(strays(load(), /\.filter\(\(d\) => d\.step === \([^)]*\)\)\.at\(-1\)|checkRows\[checkRows\.length - 1\]/, {}), []);
+});

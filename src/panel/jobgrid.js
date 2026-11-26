@@ -8,6 +8,7 @@
 import { GROUP_OF, TICKET_GROUPS } from './tickets.js';
 import { EVERY_STEP } from '../try-checks.js';
 import { compareNatural } from '../natural.js';
+import { newestChecksOf } from '../diary.js';
 
 /** the buckets, in the mock's order (the same four as the M12 ticket list: one list of words) */
 export const GRID_BUCKETS = TICKET_GROUPS;
@@ -45,13 +46,8 @@ export function sumMoney(moneys) {
  * @param {any[]} diary @returns {Array<{step: string, checks: Array<{n: number, text: string, ok: boolean, result: string|null, source: string|null}>}>}
  */
 function newestTries(diary) {
-  const by = new Map();
-  for (const r of diary ?? []) {
-    if (!r || typeof r.step !== 'string' || !Number.isInteger(r.try) || !Array.isArray(r.checks)) continue;
-    const prev = by.get(r.step);
-    if (!prev || r.try >= prev.try) by.set(r.step, r);
-  }
-  return [...by.values()].map((r) => ({
+  const steps = [...new Set((diary ?? []).filter((r) => r && typeof r.step === 'string' && Number.isInteger(r.try) && Array.isArray(r.checks)).map((r) => r.step))];
+  return steps.map((step) => /** @type {any} */ (newestChecksOf(diary, step))).map((r) => ({
     step: r.step,
     checks: r.checks.filter((c) => c && typeof c.text === 'string' && typeof c.ok === 'boolean')
       .map((c) => ({ n: c.n, text: c.text, ok: c.ok, result: typeof c.result === 'string' ? c.result : null, source: typeof c.source === 'string' ? c.source : null })),

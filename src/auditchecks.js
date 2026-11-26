@@ -4,6 +4,7 @@
 // What a run recorded for a check is read off its diary (`checks` rows: each check numbered with its `ok`, and for a list line its `part`); nothing is re-derived. What this throws away: the checks of a line off the list
 // (the sheet and the older plans keep their own Audit rows), and the per-try history (the LAST try of a step is the one that closed it).
 import { listLinesOf } from './checklistsign.js';
+import { newestChecksOf } from './diary.js';
 import { listPartRows, notCheckedView } from './checked.js';
 import { EVERY_STEP, EVERY_STEP_TEXTS } from './try-checks.js';
 import { sheetRowsOf } from './sheetrows.js';
@@ -25,7 +26,7 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   const sheetRows = sheetOn ? sheetRowsOf({ declaration, lines: jobLines, csvRoles }) : null;
   if (lines.size === 0 && !(sheetRows && sheetRows.card.length > 0)) return null;
   const steps = (Array.isArray(declaration?.steps) ? declaration.steps : []).filter((/** @type {any} */ st) => lines.has(st?.fromLine));
-  const lastTry = (/** @type {any} */ st) => (Array.isArray(diary) ? diary : []).filter((d) => d.step === (st.emits ?? st.goal ?? null)).at(-1);
+  const lastTry = (/** @type {any} */ st) => newestChecksOf(Array.isArray(diary) ? diary : [], st.emits ?? st.goal ?? null) ?? undefined;
   /** @type {AuditCheckRow[]} */
   const checks = [];
   // the same rows by the job line that owns them, their words without the `line N · ` prefix (S7: one block per line)

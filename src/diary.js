@@ -58,3 +58,18 @@ export const readTryStarts = (runDir) => readKind(runDir, 'try-start');
 /** The round number of this step's next model call: one more than the highest round it has in the diary, so it counts on across tries and across resumes.
  *  Read off the file each time (the diary is the one record), never a copy held in memory. @param {string} runDir @param {string|null} step */
 export const nextRound = (runDir, step) => readCalls(runDir).filter((r) => r.step === step).reduce((m, r) => Math.max(m, r.round), 0) + 1;
+
+/**
+ * M20 am3g item 23: the ONE rule for a step's newest-try checks, over the run's `checks` rows (`readChecks`): a row of this step with a whole-number `try` and a `checks` list;
+ * the highest `try`, a tie going to the later row; the row, or null when the step has none. The Audit, the Result tab and the ticket grid ask it and keep their own words
+ * and tags; the Audit card's "checks on the last try" count asks it too (its per-try fold is another question).
+ * @param {any[]|null|undefined} diary @param {unknown} stepId @returns {any|null}
+ */
+export function newestChecksOf(diary, stepId) {
+  let newest = null;
+  for (const r of diary ?? []) {
+    if (!r || r.step !== stepId || !Number.isInteger(r.try) || !Array.isArray(r.checks)) continue;
+    if (newest === null || r.try >= newest.try) newest = r;
+  }
+  return newest;
+}
