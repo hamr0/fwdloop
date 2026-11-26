@@ -56,7 +56,7 @@ test('the card refuses a Schedule it cannot sign, at $0, naming the Schedule box
   assert.equal(rs[0].say, 'Only a Tickets MCP job can start on a new ticket.');
   rs = await bad({ kind: 'daily', hour: 25, minute: 0 });
   assert.equal(rs[0].say, 'The time must be an hour 0-23 and a minute 0-59, like 09:00.');
-  rs = await bad({ kind: 'weekly', day: 'mon', hour: 9, minute: 0 });
+  rs = await bad({ kind: 'monthly', hour: 9, minute: 0 });
   assert.equal(rs[0].say, 'Pick when it runs from the choices.');
   assert.equal(w.starts().length, 0);
 });
