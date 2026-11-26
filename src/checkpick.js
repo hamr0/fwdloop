@@ -10,7 +10,7 @@ import { isCellsPath } from './closers.js';
 import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
-import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountGuardrail } from './declaration.js';
+import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountable } from './blockpick.js';
 import { HOW_TO_ANSWER } from './pageask.js';
 
 /** the one tool the suggestion call is forced to use */
@@ -29,7 +29,7 @@ export const hasRoutingInput = (sources) => (sources ?? []).some((s) => (s.kind 
  * (the one thing the shape reader still takes in such a job). A page job whose guardrail is a count therefore counts as in (F144b caveat).
  * @param {any[]|undefined} sources @param {string} g @returns {'in'|'out'}
  */
-export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountGuardrail(g) ? 'out' : 'in');
+export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountable(g) ? 'out' : 'in');
 
 /**
  * Every guardrail rule on a step line (not a signed ask or send line) that this call settles, in line order. `rule` is the rule's number on its line (the one
@@ -58,7 +58,7 @@ export function scopedRules(lines, arbiter) {
  * The rules the suggestion call offers for a draft: `scopedRules` less the ones a kept page or sheet fact already serves (the look tied it: line + rule number).
  * @param {{n: number, guardrail?: string}[]} lines @param {any} arbiter @param {{line: number, forRule?: number}[]} facts `look.facts` + the sheets' facts
  */
-export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountGuardrail(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
+export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountable(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
 
 // ---- code's keep-or-drop (am16 (2)) --------------------------------------------------------------------------------------------------------
 const norm = (/** @type {unknown} */ t) => String(t).toLowerCase().replace(/\s+/g, ' ').trim();

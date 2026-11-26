@@ -3,7 +3,8 @@
 // (src/declaration.js checkTicketFilter / checkTicketWatch) and writes the declaration's field from it, only when a rule of that kind is on the job. This file is the ONE writer of a ticket row,
 // its signed fields, its card words and its proof. A job with no ticket rows (a plan signed before M17) is not examined: its filter and watch run exactly as signed.
 // What this throws away: the filter's and watch's values (they stay in the declaration); a row keeps its line, rule number, tag, state and reason.
-import { checkTicketFilter, checkTicketWatch, isCountGuardrail } from './declaration.js';
+import { checkTicketFilter, checkTicketWatch } from './declaration.js';
+import { isCountable } from './blockpick.js';
 import { isRec } from './isrec.js';
 import { REASON } from './reasons.js';
 
@@ -12,7 +13,7 @@ import { REASON } from './reasons.js';
  * @param {string} t the rule's words @returns {'ticketFilter'|'ticketWatch'|null}
  */
 export function ticketRuleField(t) {
-  if (isCountGuardrail(t)) return null;
+  if (isCountable(t)) return null;
   if (/\b(?:state|labels)\b[^;]*\bchange/i.test(t)) return 'ticketWatch';
   if (/\bp[0-3]\b/i.test(t) || /\blabel(?:l?ed|s)?\b/i.test(t)) return 'ticketFilter';
   return null;

@@ -581,3 +581,9 @@ test('am8 item 1n phrase: only isPhraseShape names the fact shapes phrase and pl
 test('am8 item 1n count: only isLegalCount tests a result count`s keys (min and max) as a whole', () => {
   assert.deepEqual(copies(filesAndPage(), /k === 'min' \|\| k === 'max'|Number\.isInteger\(e\.min\)|\[e\.min, e\.max\]/, 'pagebits.js', []), []);
 });
+
+// am8 item 2: the guardrail readers and the count-rule test have one body each, in src/blockpick.js (src/declaration.js re-exports the five readers); no other file defines one or spells its regex
+test('am8 item 2: only src/blockpick.js defines guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount and isCountable', () => {
+  const defines = /\b(?:function|const|let|var)\s+(?:guardrailWordNumbers|guardrailStandaloneNumbers|guardrailWordsPerSection|guardrailSectionCount|guardrailItemCount|isCountGuardrail|isCountable)\b|words\?\\b\(\?!\\s\*\(\?:each|\(\?:bullets\?\|bullet\\s\+points\?|\\s\+\(\?:\\w\+\\s\+\)\?sections\?\\b/;
+  assert.deepEqual(copies(filesAndPage(), defines, 'blockpick.js', []), []);
+});

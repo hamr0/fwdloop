@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseSignedText } from '../src/signed-text.js';
 import { scopedRules, offerRules } from '../src/checkpick.js';
-import { guardrailItemCount, isCountGuardrail } from '../src/declaration.js';
+import { guardrailItemCount, isCountable } from '../src/blockpick.js';
 
 const prose = (guard, source = 'page:https://example.test/p') => `1. Summarise the page,
    guardrail: ${guard}
@@ -38,7 +38,7 @@ test('am23 (3): a guardrail that is not a count behaves as before (out of scope 
   for (const g of ['under $150', 'nonstop', 'the price is $5 per item', 'departs 05:00']) {
     const p = parsed(g);
     assert.deepEqual(offerRules(p.lines, p.arbiter, []), [], `${g} untied`);
-    assert.equal(isCountGuardrail(g), false, g);
+    assert.equal(isCountable(g), false, g);
   }
   // a non-count rule that is in scope (no routing input) and tied is still removed
   const p = parsed('nonstop', 'file:poc/m0/in.txt');
@@ -50,5 +50,5 @@ test('am23: one reader says what a count is', () => {
   assert.equal(guardrailItemCount('exactly 3 bullets'), 3);
   assert.equal(guardrailItemCount('exactly three bullet points'), 3);
   assert.equal(guardrailItemCount('under $150 per item'), null);
-  assert.equal(isCountGuardrail('under 80 words'), true);
+  assert.equal(isCountable('under 80 words'), true);
 });

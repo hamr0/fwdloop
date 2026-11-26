@@ -4,7 +4,7 @@
 import { redactSecrets } from './redact.js';
 import { newJobBlock } from './blocklines.js';
 import { EDIT_OPS } from './checkblock.js';
-import { isCountGuardrail } from './declaration.js';
+import { isCountable } from './blockpick.js';
 import { ticketRuleField } from './ticketrows.js';
 
 /** the cap of refusals one revise turn carries (bareloop REVISE_RED_CAP) */
@@ -84,5 +84,5 @@ export const editRecord = (rec) => rec.edits.map((e) => ({ op: e?.op, accepted: 
  */
 export function ticketLeaveOut(flowType, jobLines) {
   if (flowType !== 'tickets') return [];
-  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => ticketRuleField(x.t) !== null && !isCountGuardrail(x.t)).map((x) => ({ line: x.line, rule: x.rule })));
+  return jobLines.flatMap((l) => (l.rules ?? []).map((t, i) => ({ line: l.n, rule: i + 1, t })).filter((x) => ticketRuleField(x.t) !== null && !isCountable(x.t)).map((x) => ({ line: x.line, rule: x.rule })));
 }

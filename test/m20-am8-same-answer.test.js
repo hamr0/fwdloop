@@ -221,3 +221,57 @@ test('1n isLegalCount: the three old result-count tests equal the owner on every
     assert.equal(isLegalCount(odd), old352(odd), `odd 352 ${JSON.stringify(odd)}`);
   }
 });
+
+// ---- item 2: the guardrail readers (src/blockpick.js is the one copy) -----------------------------------------------------------------------
+import { readFileSync } from 'node:fs';
+import * as owner from '../src/blockpick.js';
+import * as declaration from '../src/declaration.js';
+
+const NUMBER_WORDS_OLD = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+const readNumberOld = (t) => Number(t.replace(/,/g, ''));
+// old site src/declaration.js:392-438 (HEAD ab6e0077), frozen
+const oldDecl = {
+  words: (guardrail) => (typeof guardrail !== 'string' ? [] : [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumberOld(m[1]))),
+  standalone: (guardrail) => (typeof guardrail !== 'string' ? [] : [...guardrail.matchAll(/(?<![A-Za-z0-9_.,])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?![A-Za-z0-9_])/g)].map((m) => Number(m[1].replace(/,/g, '')))),
+  perSection: (guardrail) => { const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null; return m ? readNumberOld(m[1]) : null; },
+  sections: (guardrail) => { const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null; if (!m) return null; return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS_OLD[m[1].toLowerCase()]; },
+  items: (guardrail) => { const m = typeof guardrail === 'string' ? /(?<![$€£\d.,])\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|list items?|items?|lines?|points?)\b/i.exec(guardrail) : null; if (!m) return null; return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS_OLD[m[1].toLowerCase()]; },
+};
+oldDecl.isCount = (guardrail) => oldDecl.words(guardrail).length > 0 || oldDecl.items(guardrail) !== null || oldDecl.sections(guardrail) !== null;
+// old site src/blockpick.js:25-79 (HEAD ab6e0077), frozen; the four readers other than items equal the declaration ones, items has no lookbehind
+const oldBlock = {
+  ...oldDecl,
+  items: (g) => { const m = typeof g === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|bullet\s+points?|list\s+items?|items?|lines?|points?)\b/i.exec(g) : null; if (!m) return null; return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS_OLD[m[1].toLowerCase()]; },
+};
+oldBlock.isCount = (g) => oldBlock.words(g).length > 0 || oldBlock.items(g) !== null || oldBlock.sections(g) !== null;
+
+const READERS = [
+  ['guardrailWordNumbers', 'words'], ['guardrailStandaloneNumbers', 'standalone'], ['guardrailWordsPerSection', 'perSection'], ['guardrailSectionCount', 'sections'], ['guardrailItemCount', 'items'],
+];
+// test/fixtures/m20-am8-guardrail-texts.json: the distinct guardrail texts of every job, signed copy, run copy, draft and test fixture on the F277 measure (2026-11-26), 749 found, 9 dropped as possibly personal (a handle, a home-dir file name, a scratch id): 740 kept
+const TEXTS = JSON.parse(readFileSync(new URL('./fixtures/m20-am8-guardrail-texts.json', import.meta.url), 'utf8'));
+
+test('am8 item 2: both old copies and the owner read every real guardrail text the same way (740 kept of 749)', () => {
+  assert.equal(TEXTS.length, 740);
+  for (const t of [...TEXTS, ...ODD]) {
+    for (const [name, key] of READERS) {
+      assert.deepEqual(owner[name](t), oldDecl[key](t), `old declaration.js:392-438 ${name} ${JSON.stringify(t)}`);
+      assert.deepEqual(owner[name](t), oldBlock[key](t), `old blockpick.js:25-79 ${name} ${JSON.stringify(t)}`);
+    }
+    assert.equal(owner.isCountable(t), oldDecl.isCount(t), `old declaration.js:438 isCountGuardrail ${JSON.stringify(t)}`);
+    assert.equal(owner.isCountable(t), oldBlock.isCount(t), `old blockpick.js:79 isCountable ${JSON.stringify(t)}`);
+  }
+});
+
+test('am8 item 2: the declaration.js names are the owner\'s functions, not second bodies', () => {
+  for (const [name] of READERS) assert.equal(declaration[name], owner[name], name);
+});
+
+test('am8 item 2 probes: a price or a decimal before an item word is no count (old blockpick said 5, 3, 5, 5); "3 bullet points" is 3', () => {
+  for (const [t, was] of [['$5 per item', 5], ['under $3 each line', 3], ['2.5 items', 5], ['1,5 items', 5]]) {
+    assert.equal(owner.guardrailItemCount(t), null, t);
+    assert.equal(owner.isCountable(t), false, t);
+    assert.equal(oldBlock.items(t), was, `the old blockpick copy read ${t}`);
+  }
+  assert.equal(owner.guardrailItemCount('3 bullet points'), 3);
+});

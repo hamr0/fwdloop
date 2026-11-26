@@ -47,6 +47,7 @@ import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { checkListReds } from './checklistsign.js';
 import { ticketListReds } from './checklistsign.js';
+import { guardrailWordNumbers, guardrailWordsPerSection, guardrailSectionCount } from './blockpick.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */
@@ -382,24 +383,6 @@ function deriveFromLine(fromLine, lines, guardrailClasses, added = new Set()) {
   return { ok: true, class: resolved.class, line };
 }
 
-/** M4e amendment 16 C14: a guardrail number, with or without thousands separators ("1,000" -> 1000). Commas must group by exactly three
- *  ("1,00" and "1,0000" match nothing), and the number cannot start in the middle of another one. */
-const readNumber = (t) => Number(t.replace(/,/g, ''));
-
-/** Every whole-output word number in a guardrail ("3 sections, under 600 words, each heading at most 3 words" -> [600, 3]), in order; [] when
- *  there is none. Code does not decide which one is the limit: the AI picks `maxWords` and the validator checks the pick is one of these
- *  (M4e amendments 28 + 29). A "<n> words each" / "<n> words per section" is the per-section size (amendment 15), never listed here. */
-export function guardrailWordNumbers(guardrail) {
-  if (typeof guardrail !== 'string') return [];
-  return [...guardrail.matchAll(/(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)\s*words?\b(?!\s*(?:each|per\s+section)\b)/gi)].map((m) => readNumber(m[1]));
-}
-
-/** M10 amendment 14 item 2: every standalone number in a guardrail's own text (digits not joined to letters: "P1" and "250ish" are not one; "1,000" and "2.5" are one number each). */
-export function guardrailStandaloneNumbers(guardrail) {
-  if (typeof guardrail !== 'string') return [];
-  return [...guardrail.matchAll(/(?<![A-Za-z0-9_.,])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?![A-Za-z0-9_])/g)].map((m) => Number(m[1].replace(/,/g, '')));
-}
-
 /** M10 amendment 14 item 1: the send line (a signed send) is where the accepted result is written out and no AI runs, so a guardrail under it is refused at $0, naming the line.
  *  Pure; the card (src/panel/authorcard.js checkCard) and the drafter's pre-flight both call it. @param {any[]} lines `parseSignedText`'s lines @param {{sends?: {line: number}[]}} arbiter */
 export function checkSendLineGuardrail(lines, arbiter) {
@@ -413,29 +396,8 @@ export function checkSendLineGuardrail(lines, arbiter) {
   return reds;
 }
 
-/** M4e amendment 15 item 1: the "<n> words each" / "<n> words per section" size in a guardrail ("about 250 words each", "250ish each" -> 250), or null. */
-export function guardrailWordsPerSection(guardrail) {
-  const m = typeof guardrail === 'string' ? /(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\s*words?|ish(?:\s+words?)?)\s+(?:each|per\s+section)\b/i.exec(guardrail) : null;
-  return m ? readNumber(m[1]) : null;
-}
-
-const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-/** M4e amendment 7 item 1: the first "<N> sections" in a guardrail (N digits, or the words one..ten), or null. */
-export function guardrailSectionCount(guardrail) {
-  const m = typeof guardrail === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?sections?\b/i.exec(guardrail) : null;
-  if (!m) return null;
-  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
-}
-
-/** M10 amendment 23: the first "<N> bullets / list items / items / lines / points" in a guardrail (N digits, or the words one..ten; not a price like "$5 per item"), or null. */
-export function guardrailItemCount(guardrail) {
-  const m = typeof guardrail === 'string' ? /(?<![$€£\d.,])\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|list items?|items?|lines?|points?)\b/i.exec(guardrail) : null;
-  if (!m) return null;
-  return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
-}
-
-/** M10 amendment 23: the ONE place that says a guardrail is a count code can check: N words, N bullets / list items / items / lines / points, or N sections. */
-export const isCountGuardrail = (guardrail) => guardrailWordNumbers(guardrail).length > 0 || guardrailItemCount(guardrail) !== null || guardrailSectionCount(guardrail) !== null;
+// M20 am8 item 2: the guardrail readers and the count-rule test have one owner, src/blockpick.js; they are named here for the callers that read them from this file
+export { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount } from './blockpick.js';
 
 /** M4e amendment 15 item 2: for each line whose guardrail gives a size for each section, a section count AND a word number,
  *  size x count more than the LARGEST word number (no possible pick fits) is a red naming the line and the numbers. $0; run before any model

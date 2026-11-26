@@ -5,13 +5,13 @@ import os from 'node:os';
 import { parseSignedText } from '../../src/signed-text.js';
 import { askableFromLook, MAX_LOOK_ASKS } from '../../src/pageask.js';
 import { offerRules } from '../../src/checkpick.js';
-import { isCountGuardrail } from '../../src/declaration.js';
+import { isCountable } from '../../src/blockpick.js';
 
 const out = []; let ok = true;
 const say = (s) => out.push(s);
 const rj = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const todayAsks = (facts, lines) => askableFromLook({ facts }, lines);
-const candAsks = (facts, lines) => todayAsks(facts, lines).filter((a) => !isCountGuardrail(a.ruleText));
+const candAsks = (facts, lines) => todayAsks(facts, lines).filter((a) => !isCountable(a.ruleText));
 const label = (a) => `L${a.line}.${a.rule} ${a.ask} "${a.ruleText}"`;
 
 // replay one saved draft dir (containing page-look.json and prose.txt)
@@ -58,7 +58,7 @@ for (const d of fs.readdirSync(drafts).sort()) {
     n++;
     const removed = r.today.filter((a) => !r.cand.some((c) => c.line === a.line && c.rule === a.rule && c.ask === a.ask));
     const added = r.cand.filter((c) => !r.today.some((a) => a.line === c.line && a.rule === c.rule && a.ask === c.ask));
-    const badRemoved = removed.filter((a) => !isCountGuardrail(a.ruleText));
+    const badRemoved = removed.filter((a) => !isCountable(a.ruleText));
     if (added.length || badRemoved.length) { bad++; say(`BAD ${d}/${s}: added [${added.map(label)}] non-count removed [${badRemoved.map(label)}]`); }
     if (removed.length) { changed++; const cantBefore = r.today.length, cantAfter = r.cand.length; if (cantBefore !== cantAfter) capChange++; say(`changed ${d}/${s}: removed [${removed.map(label).join(' | ')}]; page asks ${cantBefore} -> ${cantAfter}`); }
   }
