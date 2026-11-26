@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
+import { startedNothing } from '../src/summary-words.js';
 
 const ODD = ['', null, undefined, 'nonsense', 0, {}, 'Live', ' live'];
 /** old == owner on every value @param {string} what @param {unknown[]} kind @param {(v:any)=>unknown} oldFn @param {(v:any)=>unknown} owner */
@@ -45,5 +46,15 @@ test('1c answerPickedUp: the three old data.js sites ask starting-or-not-started
       for (const open of [true, false]) assert.equal(open && answerPickedUp(r, askId), old2439(open), `2439 ${open} ${tag}`);
       assert.equal(!!answerPickedUp(r, askId), old2462, `2462 ${tag}`);
     }
+  }
+});
+
+test('1d startedNothing: the old data.js:1493 test equals the owner on every fire outcome and on a missing or odd row', () => {
+  const outcomes = ['started', 'busy', 'monthly-exhausted', 'refused', 'schedule-changed', 'skipped', 'caught-up'];
+  const rows = [...outcomes.map((outcome) => ({ outcome })), {}, null, undefined, { outcome: null }, { outcome: 'nonsense' }, 0, ''];
+  for (const latest of rows) {
+    // old site src/panel/data.js:1493 (the schedule block's `problem`), read as the truth of the ternary it fed
+    const old = !!(latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome));
+    assert.equal(!!startedNothing(latest), old, JSON.stringify(latest));
   }
 });

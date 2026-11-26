@@ -50,7 +50,7 @@ import { panelQuestionText, decidedWords } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import {
-  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
+  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedNothing, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { hasResultCards, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
@@ -1490,7 +1490,7 @@ function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
     trigger: t && t.trigger ? t.trigger : null, home,
     last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
     nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), waiting: !!(t && t.waiting), lookProblem: t ? t.lookProblem ?? null : null, nowMs: now(),
-    problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
+    problem: startedNothing(latest) ? latest : null,
   });
 }
 

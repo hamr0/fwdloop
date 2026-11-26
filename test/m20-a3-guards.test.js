@@ -450,3 +450,8 @@ test('am8 item 1c: in code, only answerPickedUp names the resume states starting
     { file: 'panel/data.js', snippet: "ctx.resume && (ctx.resume.state === 'starting'", why: 'asks a different question: any answer saved for the run, with no askId test (the run-level stop reason has no ask in hand)' },
   ]), []);
 });
+
+// am8 item 1d: "did a fire start nothing" (busy, monthly-exhausted or refused) is startedNothing (src/summary-words.js); data.js no longer spells the three
+test('am8 item 1d: only src/summary-words.js names the fire outcomes busy, monthly-exhausted and refused together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('busy', 'monthly-exhausted', 'refused'), 'summary-words.js', []), []);
+});
