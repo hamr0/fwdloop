@@ -316,3 +316,29 @@ test('am3g item 24: only jobgrid.js sums a run\'s priced spend rows; the words a
     'panel/jobgrid.js': 'moneyWords: exact $0 is written `$0` on the ticket grid',
   }), []);
 });
+
+// am3g item 25: "every step" checks stay two owners: the Audit (src/auditchecks.js) shows them from ANY try, the ticket grid (src/panel/jobgrid.js) from the NEWEST try. Different questions; no third file reads the `every step` source.
+test('am3g item 25: only auditchecks.js (any try) and jobgrid.js (newest try) test a check row\'s every-step source', () => {
+  assert.deepEqual(strays(load(), /source === EVERY_STEP/, {
+    'auditchecks.js': 'the Audit shows an every-step row from any try (a whole-run row)',
+    'panel/jobgrid.js': 'the ticket grid shows them from each step\'s newest try (a per-step cell)',
+  }), []);
+});
+
+// am3g item 26: "what counts as a try row" stays six owners, one question each (a cap halt, a pause, a hitl row and a stop split them; one rule would change 135 of 141 real runs' counts)
+test('am3g item 26: the try-row rules are spelled only in their six owners, each with its question', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /export function isTryRow/, { 'audit-fold.js': 'tries to SHOW (the Audit fold, try marks, Run tab counts)' }), []);
+  assert.deepEqual(strays(files, /const isTry = /, { 'learnstore.js': 'tries to LEARN from (a hitl red and a pause are not tries)' }), []);
+  assert.deepEqual(strays(files, /r\.model != null && typeof r\.step === 'string' && r\.verdict !== 'stopped'/, { 'memo.js': 'tries to TELL the model (a model try, not a hitl row)' }), []);
+  assert.deepEqual(strays(files, /Number\.isInteger\(r\.attempt\) && r\.verdict !== 'cap-halt'/, { 'runner.js': 'attempt numbers USED (lastTryNumber) and numbers Resume must skip (a stopped row counts)' }), []);
+  assert.deepEqual(strays(files, /const own = rows\.filter\(\(r\) => !isStopNote\(r\.verdict\)\)/, { 'panel/data.js': 'a step group\'s STATE: stop notes dropped, then the last row\'s verdict' }), []);
+});
+
+// am3g item 27: "green run" stays two owners: greenRuns = "a green run of this exact job" (the schedule gate); runsOf = "a run that ended well" (the Signed flow list). They differ on 6 real runs by design.
+test('am3g item 27: only authortrigger.js (greenRuns) and authorflows.js (runsOf) turn a good ending into a green run', () => {
+  assert.deepEqual(strays(load(), /isGoodEnding\(end\.outcome\)/, {
+    'panel/authortrigger.js': 'greenRuns: a green run of this exact job (sameJob), the schedule gate',
+    'panel/authorflows.js': 'runsOf: a run that ended well, for the Signed flow list and its pickable runs',
+  }), []);
+});
