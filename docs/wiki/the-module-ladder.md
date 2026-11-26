@@ -4659,3 +4659,20 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** as am3, plus: the P1 snapshot is byte-identical after each item; each new owner has a guard test proven red once; a $0 re-run of the F268 map finds no drift row left.
 
 **Must fail when:** a refusal word changes, other than the named changes in items 18 and 21; a file is merged, split, renamed or added; an owner keeps a second reader outside its allow-list.
+
+**M20 amendment 3f — SIGNED by hamr 2026-11-26 ("sign m20 am3f and go"), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3f-sign.md, sha256 e52c89221155…).**
+
+**M20 amendment 3f — the 18-file import loop is broken; the draftfiles pass-through goes.** Live: the $0 map (2026-11-26, .claude/scratch/m20-one-owner/loops/map.md) found the one loop am3b item 2 left listed: 18 files in src/, 39 edges, closed by 7 imports. bareloop's F403 method (the loop session, 2026-11-26, unreleased; the method only, no code copied) was proved in a throwaway worktree: five moves take it from 1 loop to 0, typecheck clean, every src file still imports, and apart from imports only two header lines differ. This replaces am3b item 2's "The 18-file loop stays on the list" and adds to am3b; every other am3 and am3a-am3e line stands.
+
+1. **Five moves, each verbatim, every importer pointed straight at the new place, no pass-through file:**
+   (1) `resolveInside`, `readFileInside`, `readdirInside` move from src/flow.js to a new file src/inside.js (the safe read gateway, which imports nothing back);
+   (2) `HOW_TO_ANSWER` moves from src/checkpick.js to src/pageask.js, which owns the ask words;
+   (3) the `REASON` table moves from src/checkblock.js to a new file src/reasons.js;
+   (4) `NO_VALUE_WHY` leaves src/ticketrows.js; it is the same words as `REASON.noPick`, so its users read `REASON.noPick` (one copy, not two);
+   (5) `ticketListReds` and `TICKET_FIELDS` move from src/ticketrows.js to src/checklistsign.js, which owns `checkListReds`.
+2. **The draftfiles pass-through goes.** src/authoring.js stops passing on the 14 names it re-exports from src/draftfiles.js; the 6 src files and the tests that used them import from src/draftfiles.js.
+3. **The tests follow.** test/m20-import-loops.test.js counts tangled groups (it does today) and its list is empty: any loop is red. test/f48-guard-fs-imports.test.js gets an entry for src/inside.js with the gateway's reason, and src/flow.js's counts are lowered to what it still uses; no other entry changes.
+
+**Done when:** the import-loop test is green with an empty list and red once when a loop is added; the P1 snapshot is byte-identical; typecheck and the full suite are green.
+
+**Must fail when:** a moved line changes other than its imports; a pass-through file is added; a screen word, a refusal or a behaviour changes; the f48 guard is loosened for any file but by the moves above.
