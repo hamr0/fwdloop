@@ -13,7 +13,7 @@ import { rubricVocabulary } from 'bareguard';
 import { lineRules } from './pagebits.js';
 import { sheetCheckSentence } from './sheetchecks.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
-import { NO_VALUE_WHY } from './ticketrows.js';
+import { REASON } from './reasons.js';
 import { isRec } from './isrec.js';
 
 /** the short plain name of each bareguard op (the ONE table; a test fails when bareguard gains an op this table does not name). `noDuplicates` and `noEmpty` add the column. */
@@ -131,7 +131,7 @@ export function sheetLineBlocks({ declaration, lines, csvRoles = [], record }) {
 export function uncoveredRules(declaration, lines, csvRoles, built) {
   if (csvRoles.length === 0) return [];
   return sheetLineBlocks({ declaration, lines, csvRoles }).flatMap((b) => (b.notChecked === 'none' ? [] : b.notChecked
-    .map((r) => `line ${b.line}: "${r}" \u2014 ${built?.notChecked[`line ${b.line}: "${r}"`] ?? NO_VALUE_WHY}`)));
+    .map((r) => `line ${b.line}: "${r}" \u2014 ${built?.notChecked[`line ${b.line}: "${r}"`] ?? REASON.noPick}`)));
 }
 
 /** @param {any} arbiter @returns {string[]} the roles of the signed sources that are a CSV file (the sheets a check reads) */

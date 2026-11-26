@@ -5,11 +5,10 @@
 // What this throws away: the filter's and watch's values (they stay in the declaration); a row keeps its line, rule number, tag, state and reason.
 import { checkTicketFilter, checkTicketWatch, isCountGuardrail } from './declaration.js';
 import { isRec } from './isrec.js';
+import { REASON } from './reasons.js';
 
 /** @type {readonly ('ticketFilter'|'ticketWatch')[]} */
 export const TICKET_FIELDS = Object.freeze(['ticketFilter', 'ticketWatch']);
-/** the Not-checked reason of a ticket rule no legal value was suggested for (the block's own noPick sentence is used by the caller's words) */
-export const NO_VALUE_WHY = 'No check was picked for it, so you judge it at Accept.';
 
 /**
  * Which signed field a Tickets rule is the check of: `ticketWatch` (a state or labels change), `ticketFilter` (a priority P0 to P3 or a label), or null (a content rule or a count).
@@ -61,9 +60,9 @@ export function ticketRowsOf({ declaration, lines }) {
       if (field === null) return;
       const key = ticketRowKey(l.n, i + 1, field);
       const has = Object.hasOwn(declaration, field);
-      signed.push({ line: l.n, key, from: 'rule', by: 'you', kind: 'ticket', state: has ? 'built' : 'not-checked', rule: i + 1, field, ...(has ? {} : { reason: NO_VALUE_WHY }) });
-      card.push({ key, line: l.n, by: 'you', state: has ? 'built' : 'not-checked', text: has ? `"${t}" -> ${ticketWords(field, declaration[field])}` : `"${t}"`, reason: has ? null : NO_VALUE_WHY, drop: false });
-      if (!has) notChecked.push({ line: l.n, rule: t, reason: NO_VALUE_WHY });
+      signed.push({ line: l.n, key, from: 'rule', by: 'you', kind: 'ticket', state: has ? 'built' : 'not-checked', rule: i + 1, field, ...(has ? {} : { reason: REASON.noPick }) });
+      card.push({ key, line: l.n, by: 'you', state: has ? 'built' : 'not-checked', text: has ? `"${t}" -> ${ticketWords(field, declaration[field])}` : `"${t}"`, reason: has ? null : REASON.noPick, drop: false });
+      if (!has) notChecked.push({ line: l.n, rule: t, reason: REASON.noPick });
     });
   }
   return { signed, card, notChecked };
