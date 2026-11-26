@@ -455,3 +455,11 @@ test('am8 item 1c: in code, only answerPickedUp names the resume states starting
 test('am8 item 1d: only src/summary-words.js names the fire outcomes busy, monthly-exhausted and refused together', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('busy', 'monthly-exhausted', 'refused'), 'summary-words.js', []), []);
 });
+
+// am8 item 1e: "is this a legal Drop or Add choice" is isRowChoice (src/pickrecord.js, which owns the picks record); the door, the record reader and the check block ask it
+test('am8 item 1e: only src/pickrecord.js names the row choices drop and add together, apart from two named statements that ask which choice it is', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('drop', 'add'), 'pickrecord.js', [
+    { file: 'checkblock.js', snippet: "r.choice !== 'add' && (!r.derived || r.choice === 'drop')", why: "asks 'is this row held': one choice against the other, not 'is it a legal choice'" },
+    { file: 'checkblock.js', snippet: "r.held = r.choice === 'drop' || (r.field?.held === true && r.choice !== 'add')", why: "asks 'is this shape row held': one choice against the other, not 'is it a legal choice'" },
+  ]), []);
+});

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
+import { isRowChoice } from '../src/pickrecord.js';
 import { startedNothing } from '../src/summary-words.js';
 
 const ODD = ['', null, undefined, 'nonsense', 0, {}, 'Live', ' live'];
@@ -57,4 +58,12 @@ test('1d startedNothing: the old data.js:1493 test equals the owner on every fir
     const old = !!(latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome));
     assert.equal(!!startedNothing(latest), old, JSON.stringify(latest));
   }
+});
+
+test('1e isRowChoice: the five old sites ask drop-or-add of a choice word', () => {
+  const kind = ['drop', 'add'];
+  // old sites src/pickrecord.js:117 and src/checkblock.js:1335 (positive form); src/checkblock.js:1314, :1343 and src/panel/author.js:944 (negated form)
+  same('positive', kind, (c) => c === 'drop' || c === 'add', isRowChoice);
+  same('negated', kind, (c) => !(c !== 'drop' && c !== 'add'), isRowChoice);
+  same('array', [['drop']], (c) => c === 'drop' || c === 'add', isRowChoice);
 });

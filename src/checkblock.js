@@ -24,6 +24,7 @@ import { boundInWords, rubricStepShapeReds, stageKeyOf, guardKeyOf, FENCE_KEY, d
 import { validReading } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
 import { fitPlacePhrase } from './placerule.js';
+import { isRowChoice } from './pickrecord.js';
 import { ruleWords } from './pageask.js';
 import { SIGNED_ROW_FIELDS } from './declaredclose.js';
 import { factSentence, countSentence, factsOfLook } from './citedcheck.js';
@@ -1311,7 +1312,7 @@ export class CheckBlock {
     }
     if (r.by === 'you') return { ok: false, why: 'that check comes from a rule you wrote; edit the job to change it' };
     if (r.by !== 'agent' || !this.droppable(r)) return { ok: false, why: 'that check is code\'s own and stays' };
-    if (choice !== 'drop' && choice !== 'add') return { ok: false, why: 'not one of the choices' };
+    if (!isRowChoice(choice)) return { ok: false, why: 'not one of the choices' };
     if (r.kind === 'stage') {
       // a repo work stage: Drop takes it out of the close (never the last check on its line), Add puts it back
       if (choice === 'drop' && r.state !== 'built') return { ok: false, why: 'only a check that is on the card can be dropped' };
@@ -1332,7 +1333,7 @@ export class CheckBlock {
 
   /** the person's Drop/Add choices, tied to the line's words (not its number) and the row's own name, so a Revise keeps them @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]} */
   choicesRecord() {
-    return choiceEntries(this.lines, this.rows.filter((r) => r.kind !== 'sheet' && r.kind !== 'shape' && (r.choice === 'drop' || r.choice === 'add')).map((r) => ({ line: r.line, key: r.key, choice: String(r.choice) })));
+    return choiceEntries(this.lines, this.rows.filter((r) => r.kind !== 'sheet' && r.kind !== 'shape' && isRowChoice(r.choice)).map((r) => ({ line: r.line, key: r.key, choice: String(r.choice) })));
   }
 
   /** a Revise keeps the last draft's Drop/Add choices on the rows that are still there (same line words, same row); code still judges every one @param {{lineWords: string, occurrence: number, tail: string, choice: string}[]} rec */
@@ -1340,7 +1341,7 @@ export class CheckBlock {
     const seen = new Map();
     const lines = this.lines.map((l) => { const w = norm(l.text); const o = seen.get(w) ?? 0; seen.set(w, o + 1); return { n: l.n, w, o }; });
     for (const c of Array.isArray(rec) ? rec : []) {
-      if (!c || (c.choice !== 'drop' && c.choice !== 'add')) continue;
+      if (!c || !isRowChoice(c.choice)) continue;
       const line = lines.find((l) => l.w === c.lineWords && l.o === c.occurrence);
       const r = line ? this.rows.find((x) => x.line === line.n && this.droppable(x) && x.key.replace(/^L\d+\./, '') === c.tail) : undefined;
       if (r) { r.choice = c.choice; r.keptFromLast = true; }

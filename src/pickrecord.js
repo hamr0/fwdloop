@@ -6,6 +6,11 @@
 import path from 'node:path';
 import { readFileInside } from './inside.js';
 
+/** M20 am8: the one list of a person's row choices on the plan card, and the one question "is this a legal Drop or Add choice" (the row-edit door, the record's reader and the check block ask it) */
+export const ROW_CHOICES = Object.freeze(['drop', 'add']);
+/** @param {unknown} choice @returns {boolean} */
+export const isRowChoice = (choice) => ROW_CHOICES.includes(/** @type {string} */ (choice));
+
 /** the record's file, inside a drafting folder only (never a run folder) */
 export const RECORD_FILE = 'picks-record.json';
 /** the exact words a kept pick is marked with in the draft log, the Audit and the plan card (M10 am17 (6)) */
@@ -114,7 +119,7 @@ export function readRowChoices(file) {
     const g = readFileInside(path.dirname(file), path.basename(file));
     if (!g.ok) return null;
     const j = JSON.parse(g.text);
-    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && (e.choice === 'drop' || e.choice === 'add')) : null;
+    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && isRowChoice(e.choice)) : null;
   } catch { return null; }
 }
 

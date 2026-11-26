@@ -54,7 +54,7 @@ import {
 } from './authorcard.js';
 import { checkedLines, notCheckedView } from '../checked.js';
 import { EVERY_STEP_TEXTS } from '../try-checks.js';
-import { recordPath, RECORD_FILE, KEPT_WORDS, readKept } from '../pickrecord.js';
+import { recordPath, RECORD_FILE, KEPT_WORDS, readKept, isRowChoice } from '../pickrecord.js';
 import { csvRolesOf } from '../sheetblock.js';
 import {
   readPriceConfig, resolveSlot, resolveUsableModel, tickedLines,
@@ -941,7 +941,7 @@ export function createAuthor(opts) {
       if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
       if (v.phase !== 'green' || typeof v.plan !== 'string' || !Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-green', say: `This draft is ${v.phase}, not a finished plan, so its checks cannot be changed.` } };
       const b = body && typeof body === 'object' ? body : {};
-      if (b.op !== 'drop' && b.op !== 'add') return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
+      if (!isRowChoice(b.op)) return { status: 400, body: { ok: false, refused: 'bad-choice', say: 'That is not one of the choices. Nothing was changed.' } };
       if (typeof b.key !== 'string' || b.key === '' || b.key.length > 200) return { status: 400, body: { ok: false, refused: 'bad-row', say: 'That check is not on the list. Nothing was changed.' } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
