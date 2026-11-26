@@ -175,3 +175,8 @@ test('item 12 (draft log names): only draft-steps.js declares CARD_RE, LOG_TAIL_
   const own = { 'draft-steps.js': 'CARD_RE, LOG_TAIL_CHARS, draftLogName, DRAFT_LOG_RE: the one place' };
   assert.deepEqual(strays(files, /(const|let)\s+(CARD_RE|LOG_TAIL_CHARS)\b|card-\(\\d\+\)|(revise|redraft)-\$\{[^}]*\}\.log|\(revise\|redraft\)/, own), []);
 });
+
+// item 12 (process started): "has a process started on this run" is processStarted (src/books.js); no other file tests the pid rows' length
+test('item 12 (process started): only books.js tests whether a run has a pid row', () => {
+  assert.deepEqual(strays(load(), /readPidRows\([^)]*\)\.length/, { 'books.js': 'processStarted: the one test' }), []);
+});

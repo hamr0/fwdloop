@@ -32,7 +32,7 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
+  readAudit, readHistory, endRow, readPidRows, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
   endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
@@ -1059,7 +1059,7 @@ export function runControls(ctx, glyph, label = '') {
   const running = isRunningNow(ctx, glyph) && (!ctx.askJson || ctx.consumedAnswerExists || ctx.resume?.state === 'not-started');
   // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
   const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
-  const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
+  const starting = !ctx.historyRow && !ctx.askJson && !processStarted(ctx.runDir);
   const canResume = ctx.resumable === true && ctx.sameJob === true;
   return {
     canStop: running || atAsk,

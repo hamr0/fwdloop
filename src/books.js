@@ -59,6 +59,11 @@ export function readPidRows(runDir) {
   return readLines(runDir, 'pids.jsonl');
 }
 
+/** Has a process started on this run? (the run wrote its first pid row; a run with none is still starting, or never started) @param {string} runDir */
+export function processStarted(runDir) {
+  return readPidRows(runDir).length > 0;
+}
+
 /**
  * Raw read-back of one JSONL book, one writer's own sibling reader (M4a
  * piece 2, docs/wiki/the-module-ladder.md M4a scope item 2: "one reader per

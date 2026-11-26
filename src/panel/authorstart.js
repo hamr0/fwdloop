@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { LOG_TAIL_CHARS } from '../draft-steps.js';
-import { endRow, haltFileExists, readHistory, readPidRows } from '../books.js';
+import { endRow, haltFileExists, readHistory, processStarted } from '../books.js';
 import {
   PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readJsonFile, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
@@ -95,7 +95,7 @@ export function createStarter(opts) {
       const waiting = haltFileExists(resolved.runDir);
       if (!waiting) return { ...base, phase: 'started', state: carriedOn() };
       if (alive) return { ...base, phase: 'starting' };
-    } else if (readPidRows(resolved.runDir).length > 0) {
+    } else if (processStarted(resolved.runDir)) {
       return { ...base, phase: 'started', state: carriedOn() };
     } else if (alive) return { ...base, phase: 'starting' };
     // a SKIPPED run (hamr 2026-10-30) ends before its first pid row, but its history row is a real ending: a grey one, never a refusal
