@@ -11,6 +11,7 @@ import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
 import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountGuardrail } from './declaration.js';
+import { HOW_TO_ANSWER } from './pageask.js';
 
 /** the one tool the suggestion call is forced to use */
 export const SUGGEST_TOOL = 'suggest_checks';
@@ -204,8 +205,6 @@ export function countCheck(text) {
 // ---- the asks (words are item 4's) -----------------------------------------------------------------------------------------------------
 /** the can't-check ask, as the signed words say it */
 export const CANT_CHECK_WORDS = "I can't check this. Your own words, or Not checked?";
-/** how every answer is told, once (am2 item 2's words) */
-export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
 
 /**
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or

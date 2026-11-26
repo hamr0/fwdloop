@@ -3,7 +3,6 @@
 // borrowed-from: bareloop src/pagemap.js@v0.49.0 (d51a367) (stripAgreeLead, F240; adapted: literal regex, src/ bans new RegExp)
 // The words of the asks and of the answers to them. M17 am4 (A1): the asks themselves come from the list (src/blockasks.js); the page-look ask path that sat here is gone.
 import { redactSecrets } from './redact.js';
-import { HOW_TO_ANSWER } from './checkpick.js';
 import { columnTail } from './sheetfind.js';
 
 /** the most asks before drafting; more than this is a job to rewrite, not a questionnaire (am1) */
@@ -144,3 +143,6 @@ export function ruleOfAnswer(q, typed, choice) {
   if ((q.ask === 'cant-check' || shape) && isDropIt(text)) return { rule: null, left: true };
   return { rule: text, left: false, ...(shape ? { own: true } : {}) };
 }
+
+/** how every answer is told, once (am2 item 2's words) */
+export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;

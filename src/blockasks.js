@@ -3,7 +3,8 @@
 // The questions of the check block, as the answer gate reads them (`answerQuestions`, src/questionbox.js): ONE spelling of the question words, written by code from a row that
 // code could not settle (reading | check). The block's `open` list is the source; the person's CHOICE (agree | drop | rule) goes back through `block.applyAnswer`.
 import { readingQuestion } from './pageask.js';
-import { plainWords, HOW_TO_ANSWER } from './checkpick.js';
+import { plainWords } from './checkpick.js';
+import { HOW_TO_ANSWER } from './pageask.js';
 
 /** @typedef {{key: string, rowKey: string, line: number, rule: number, source: 'look', ask: 'reading'|'check', ruleText: string, question: string, counted: boolean, reading?: string, check?: Record<string, any>}} BlockAsk */
 
