@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { serializeArtifact } from './ask.js';
 import { labelled } from './checkwords.js';
+import { noJudgment } from './closers.js';
 import { sheetRowKey } from './sheetrows.js';
 import { listLinesOf, partByOf } from './checklistsign.js';
 import { rowResultsOf } from './rowresults.js';
@@ -74,7 +75,7 @@ export function closeRecords(step, artifact, closed, checkList = undefined, jobL
 /** @param {any} step @param {any} artifact @param {any} closed @param {((idx: number) => string|null)} [partBy] set for a list line (M16): its softgreen picks carry the row's `by` instead of a label @param {any[]} [checkList] the signed list: a sheet row on it gives its check's `by` @param {any[]} [jobLines] */
 function factRecords(step, artifact, closed, partBy = undefined, checkList = undefined, jobLines = undefined) {
   const source = lineSource(step);
-  if (closed.verdict === 'unparseable' || closed.verdict === 'crash') {
+  if (noJudgment(closed.verdict)) {
     return [{
       n: 3, text: 'the close could run', ok: false, result: closed.verdict, source,
     }];

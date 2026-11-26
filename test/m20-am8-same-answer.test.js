@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
+import { noJudgment } from '../src/closers.js';
 
 const ODD = ['', null, undefined, 'nonsense', 0, {}, 'Live', ' live'];
 /** old == owner on every value @param {string} what @param {unknown[]} kind @param {(v:any)=>unknown} oldFn @param {(v:any)=>unknown} owner */
@@ -15,4 +16,14 @@ test('1a lockMayBeHeld: the three old sites ask live-or-unknown of a lock state'
   same('lock.state', states, (s) => s === 'live' || s === 'unknown', lockMayBeHeld);
   // old site src/panel/data.js:298 (the `lock` word of stuckState, the same state string)
   same('data lock', states, (lock) => lock === 'live' || lock === 'unknown', lockMayBeHeld);
+});
+
+test('1b noJudgment: the old sites ask crash-or-unparseable of a closer verdict', () => {
+  const verdicts = ['green', 'red', 'hitl', 'unparseable', 'crash', 'stopped', 'close-casualty'];
+  // old sites src/closers.js:125,126 (withItemShape), :353,:354 (withNumbers), :383,:384 (closeFactAndPicks), in the `v === 'crash' || v === 'unparseable'` form
+  same('closers verdict', verdicts, (v) => v === 'crash' || v === 'unparseable', noJudgment);
+  // old site src/try-checks.js:77, the pair in the other order
+  same('try-checks verdict', verdicts, (v) => v === 'unparseable' || v === 'crash', noJudgment);
+  // src/runner.js:1223 asks `!== 'red'` after green and hitl returned: equal on the three verdicts that can reach it, different on any other, so it stays apart (see the guard)
+  for (const v of ['red', 'unparseable', 'crash']) assert.equal(noJudgment(v), v !== 'red');
 });

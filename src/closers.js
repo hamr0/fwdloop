@@ -120,10 +120,13 @@ export async function closeItemShape(step, artifact) {
   }
 }
 
+/** M20 am8: the one question "did the closer render NO judgment" (a third outcome: crash or unparseable, never green and never red) @param {unknown} verdict a CloseVerdict's `verdict` @returns {boolean} */
+export const noJudgment = (verdict) => verdict === 'crash' || verdict === 'unparseable';
+
 /** the items check beside the facts line's own verdict: red if either is red (both told, the fact half first); a third outcome of either is never turned into green, the fact half's winning when it has one @param {any} base @param {any} sh @returns {CloseVerdict} */
 function withItemShape(base, sh) {
-  if (base.verdict === 'crash' || base.verdict === 'unparseable') return base;
-  if (sh.verdict === 'crash' || sh.verdict === 'unparseable') return { ...sh, ...(base.cited ? { cited: base.cited } : {}) };
+  if (noJudgment(base.verdict)) return base;
+  if (noJudgment(sh.verdict)) return { ...sh, ...(base.cited ? { cited: base.cited } : {}) };
   if (sh.verdict === 'green') return base;
   const reds = [...(base.verdict === 'red' ? String(base.red).split('\n') : []), ...sh.reds];
   return { ...base, verdict: 'red', red: reds.join('\n'), reds, shapeGaps: sh.shapeGaps };
@@ -350,8 +353,8 @@ export function closeNumbers(step, artifact, from, numbers) {
 /** the numbers tie beside the class's own verdict: red if either is red (both told); a third outcome of either is never turned into green, the class's own winning when it has one @param {any} base @param {ReturnType<typeof closeNumbers>} num @returns {CloseVerdict} */
 function withNumbers(base, num) {
   const numbersCheck = { text: num.text, ok: num.verdict === 'green', result: num.verdict === 'green' ? null : num.verdict === 'red' ? num.red : num.verdict };
-  if (base.verdict === 'crash' || base.verdict === 'unparseable') return { ...base, numbersCheck };
-  if (num.verdict === 'crash' || num.verdict === 'unparseable') return { ...num, verdict: num.verdict, red: num.red, ...(base.cited ? { cited: base.cited } : {}), numbersCheck };
+  if (noJudgment(base.verdict)) return { ...base, numbersCheck };
+  if (noJudgment(num.verdict)) return { ...num, verdict: num.verdict, red: num.red, ...(base.cited ? { cited: base.cited } : {}), numbersCheck };
   if (num.verdict === 'green') return { ...base, numbersCheck };
   const reds = [...(base.verdict === 'red' ? [base.red] : []), num.red].filter(Boolean);
   return { ...base, verdict: 'red', red: reds.join('\n'), ...(base.reds || reds.length > 1 ? { reds } : {}), numbersCheck };
@@ -380,8 +383,8 @@ async function closeFactAndPicks(step, artifact, ctx) {
     ? await closeSoftgreen({ text }, { picked })
     : { verdict: 'red', red: 'no text: the answer has no "text" for your checks to read', checks: [{ id: 'text', text: plainWords({ rule: 'nonEmpty' }), ok: false, result: 'no text' }] });
   const pickChecks = Array.isArray(picks.checks) ? picks.checks.filter((/** @type {any} */ c) => c.id !== 'keys') : picks.checks; // the one-key row is code's, always true here
-  if (fact.verdict === 'crash' || fact.verdict === 'unparseable') return { ...fact, pickChecks };
-  if (picks.verdict === 'crash' || picks.verdict === 'unparseable') return fact.verdict === 'red' ? { ...fact, pickChecks } : { ...picks, cited: fact.cited, sheetRecord: fact.sheetRecord, checks: fact.checks };
+  if (noJudgment(fact.verdict)) return { ...fact, pickChecks };
+  if (noJudgment(picks.verdict)) return fact.verdict === 'red' ? { ...fact, pickChecks } : { ...picks, cited: fact.cited, sheetRecord: fact.sheetRecord, checks: fact.checks };
   if (fact.verdict === 'green' && picks.verdict === 'green') return { ...fact, pickChecks };
   const reds = [...(fact.verdict === 'red' ? [fact.red] : []), ...(picks.verdict === 'red' ? [picks.red] : [])].filter(Boolean);
   return { ...fact, verdict: 'red', red: reds.join('\n'), reds, pickChecks };

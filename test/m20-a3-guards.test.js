@@ -434,3 +434,11 @@ const anyOrder = (...kinds) => {
 test('am8 item 1a: only src/liveness.js names the resume-lock states live and unknown together', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('live', 'unknown'), 'liveness.js', []), []);
 });
+
+// am8 item 1b: "did the closer give no judgment" (crash or unparseable, a third outcome) is noJudgment (src/closers.js)
+test('am8 item 1b: only src/closers.js names the verdicts crash and unparseable together, and only the runner tests a closed verdict against red alone', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('crash', 'unparseable'), 'closers.js', []), []);
+  assert.deepEqual(copies(filesAndPage(), /closed\.verdict !== 'red'/, 'closers.js', [
+    { file: 'runner.js', snippet: "closed.verdict !== 'red'", why: "a negated form: it is true for every verdict that is not red, so a future verdict would be a casualty here; it asks 'is it anything but red' after green and hitl returned, a different test from the named pair" },
+  ]), []);
+});
