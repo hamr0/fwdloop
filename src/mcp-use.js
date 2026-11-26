@@ -3,8 +3,10 @@
 //   - a ticket read: `run.json` `inputs[].mcp.calls` (server + tool; the file holds no time, so `last` is the file's mtime);
 //   - a step's tool call: a `kind:"tool"` row of `diary.jsonl` whose tool is `<server>_<tool>` (M13 piece 2); `decision:"deny"` is a denied call, counted apart and not as a use.
 // A torn or unreadable file is skipped, row by row (its rows go missing from the count; it never breaks the page).
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { readRunRecord } from './runfile.js';
+import { readTools } from './diary.js';
 
 const safeDir = (/** @type {string} */ p) => { try { return readdirSync(p); } catch { return []; } };
 
@@ -30,7 +32,9 @@ export function countMcpUse(root, servers) {
       const dir = join(root, flow, 'runs', name);
       const key = `${flow}/${name}`;
       try {
-        const j = JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8'));
+        const rr = readRunRecord(dir);
+        if (!rr.ok) throw new Error(rr.red);
+        const j = rr.rec;
         const mtime = statSync(join(dir, 'run.json')).mtime.toISOString();
         for (const i of Array.isArray(j?.inputs) ? j.inputs : []) {
           const m = i?.mcp;
@@ -38,13 +42,8 @@ export function countMcpUse(root, servers) {
           for (const c of Array.isArray(m.calls) ? m.calls : []) if (typeof c?.tool === 'string') use(m.server, c.tool, key, mtime, false);
         }
       } catch { /* no run.json, or torn: nothing counted from it */ }
-      let text;
-      try { text = readFileSync(join(dir, 'diary.jsonl'), 'utf8'); } catch { continue; }
-      for (const line of text.split('\n')) {
-        if (!line.includes('"kind":"tool"')) continue;
-        let r;
-        try { r = JSON.parse(line); } catch { continue; }
-        if (r?.kind !== 'tool' || typeof r.tool !== 'string') continue;
+      for (const r of readTools(dir)) {
+        if (typeof r?.tool !== 'string') continue;
         const server = byLength.find((s) => r.tool.startsWith(`${s}_`) && r.tool.length > s.length + 1);
         if (server) use(server, r.tool.slice(server.length + 1), key, typeof r.at === 'string' ? r.at : '', r.decision === 'deny');
       }

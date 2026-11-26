@@ -56,3 +56,14 @@ const TRIGGER = {
 test('item 7: only the listed files name trigger.json in code', () => {
   assert.deepEqual(strays(load(), /TRIGGER_RECORD_FILE|['"`]trigger\.json['"`]/, TRIGGER), []);
 });
+
+// item 9: a run's run.json and diary.jsonl are read through readRunRecord (runfile.js) and the diary readers (diary.js) only
+const RUN_DIARY = {
+  'runfile.js': 'the run.json writer and readRunRecord, its one reader',
+  'diary.js': 'the diary writer and readKind, its one reader',
+  'panel/authorflows.js': 'the file\'s mtime only (lstat to order runs); content goes through readRunInputs',
+  'mcp-use.js': 'the file\'s mtime only (statSync after readRunRecord accepted it); content goes through readRunRecord and readTools',
+};
+test('item 9: only the listed files name run.json or diary.jsonl in code', () => {
+  assert.deepEqual(strays(load(), /['"`]run\.json['"`]|['"`]diary\.jsonl['"`]|\bRUN_FILE\b|\bDIARY_FILE\b/, RUN_DIARY), []);
+});
