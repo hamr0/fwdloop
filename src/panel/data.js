@@ -464,7 +464,7 @@ export function costDisplay(spentUsd, spendComplete) {
 }
 
 /**
- * A run's spend in the Runs list and the Run tab's words (`$0.0000` for an exact zero: the ticket grid writes it `$0`, src/panel/jobgrid.js `moneyWords`, on the guard's
+ * A run's spend in the Runs list and the Run tab's words (four decimals even for an exact zero; the ticket grid writes a bare zero, src/panel/jobgrid.js `moneyWords`, on the guard's
  * allow-list). The NUMBER is `runMoney`'s (M20 am3g item 24): the history row's total, else the priced spend rows as an "at least" floor (used ONLY when there is no history
  * row yet), else null (never `$0` for unknown). A history row whose total is not a number gives null, never the rows' floor.
  * @param {any} historyRow @param {any[]} spendRows @returns {string|null}
