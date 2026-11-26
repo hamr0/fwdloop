@@ -1,8 +1,7 @@
 // borrowed-from: bareloop src/checkpick.js@v0.57.0 (c18df406)
 // fwd changed (M20 am8 item 2): guardrailItemCount keeps fwd's lookbehind (a number right after $ € £ . , is not an item count), and these readers are the one copy fwd's src/declaration.js re-exports.
 // first ported from: bareloop src/checkpick.js@v0.56.0 (3383cce) (isCountable, keepOrDrop, countCheck, partOfPick, sameRuleWords and what they call; HOW_TO_ANSWER and CANT_CHECK_WORDS are fwd's own, src/checkpick.js, the same words)
-// This file is bareloop's checkpick.js. fwd already has a src/checkpick.js (the M10 am16 pick path, whose keepOrDrop and countCheck differ from these); the check block calls THESE,
-// so they live here under another name and the am16 module is left as it is.
+// This file is bareloop's checkpick.js. fwd's src/checkpick.js (the M10 am16 pick path) calls THESE keepOrDrop and countCheck (M20 am8 item 3: its own two are gone), as does the check block.
 // The pick vocabulary and its keep-or-drop: a suggested check is kept only if its rule is on bareguard's list and offered here, it carries only that rule's own fields, and every
 // number is one the person's rule names.
 import { rubricVocabulary } from 'bareguard';

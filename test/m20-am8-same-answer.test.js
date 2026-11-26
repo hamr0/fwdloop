@@ -275,3 +275,30 @@ test('am8 item 2 probes: a price or a decimal before an item word is no count (o
   }
   assert.equal(owner.guardrailItemCount('3 bullet points'), 3);
 });
+
+// ---- item 3: keepOrDrop and countCheck (src/blockpick.js is the one body; src/checkpick.js rowsFromAnswer calls it) ------------------------------
+import { rowsFromAnswer } from '../src/checkpick.js';
+
+// test/fixtures/m20-am8-check-suggest-replay.json: the 125 saved check-suggest answers of every draft on the F277 measure (2026-11-26; 145 entries, 20 had no job text to replay), 0 dropped for personal data (the 18 distinct
+// guardrail texts are plain rules like "at most 60 words"). Each row holds the guardrail text, the model's entry, and what the OLD path (src/checkpick.js rowsFromAnswer with its own keepOrDrop and countCheck at HEAD c4b73a72) made of it.
+const REPLAY = JSON.parse(readFileSync(new URL('./fixtures/m20-am8-check-suggest-replay.json', import.meta.url), 'utf8'));
+
+test('am8 item 3: the 125 saved check-suggest answers come to the same check or the same reason through the one keepOrDrop', () => {
+  assert.equal(REPLAY.length, 125);
+  assert.equal(REPLAY.filter((r) => r.check !== null).length, REPLAY.filter((r) => r.why === null).length);
+  for (const r of REPLAY) {
+    const row = rowsFromAnswer([{ line: r.entry.line, rule: r.entry.guardrail, text: r.text }], { checks: [r.entry] })[0];
+    assert.deepEqual({ check: row.check, why: row.why }, { check: r.check, why: r.why }, `old src/checkpick.js:keepOrDrop+countCheck ${JSON.stringify(r.text)} ${JSON.stringify(r.entry)}`);
+  }
+});
+
+test('am8 item 3 probes: list rules the old first filter dropped are kept with their bound, "at least 3 items" is a minimum of 3', () => {
+  const via = (text, entry) => rowsFromAnswer([{ line: 1, rule: 1, text }], { checks: [{ line: 1, guardrail: 1, ...entry }] })[0];
+  // the old src/checkpick.js:73 keepOrDrop dropped each of these four (the number is not one the text names; maxListItems floor was 1); the first three then fell to the old countCheck's exact listItems 3, 3, 4, the fourth to no check
+  assert.deepEqual(via('more than 3 bullets', { rule: 'minListItems', value: 4 }).check, { rule: 'minListItems', value: 4 });
+  assert.deepEqual(via('fewer than 3 bullets', { rule: 'maxListItems', value: 2 }).check, { rule: 'maxListItems', value: 2 });
+  assert.deepEqual(via('under 4 items', { rule: 'maxListItems', value: 3 }).check, { rule: 'maxListItems', value: 3 });
+  assert.deepEqual(via('no more than 0 bullets', { rule: 'maxListItems', value: 0 }).check, { rule: 'maxListItems', value: 0 });
+  // the old src/checkpick.js:192 countCheck built listItems 3 for this text
+  assert.deepEqual(via('at least 3 items', { rule: 'none' }).check, { rule: 'minListItems', value: 3 });
+});

@@ -587,3 +587,9 @@ test('am8 item 2: only src/blockpick.js defines guardrailWordNumbers, guardrailS
   const defines = /\b(?:function|const|let|var)\s+(?:guardrailWordNumbers|guardrailStandaloneNumbers|guardrailWordsPerSection|guardrailSectionCount|guardrailItemCount|isCountGuardrail|isCountable)\b|words\?\\b\(\?!\\s\*\(\?:each|\(\?:bullets\?\|bullet\\s\+points\?|\\s\+\(\?:\\w\+\\s\+\)\?sections\?\\b/;
   assert.deepEqual(copies(filesAndPage(), defines, 'blockpick.js', []), []);
 });
+
+// am8 item 3: keepOrDrop and countCheck have one body each, in src/blockpick.js; src/checkpick.js neither defines nor passes them on
+test('am8 item 3: only src/blockpick.js defines keepOrDrop and countCheck; nothing imports them from src/checkpick.js', () => {
+  const defines = /\b(?:function|const|let|var)\s+(?:keepOrDrop|countCheck)\b|\b(?:keepOrDrop|countCheck)\b[^;]*from\s*['"]\.\/checkpick\.js['"]/;
+  assert.deepEqual(copies(filesAndPage(), defines, 'blockpick.js', []), []);
+});
