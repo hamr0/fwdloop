@@ -69,7 +69,7 @@ import {
   isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
 } from '../audit-fold.js';
 import {
-  runLiveness, booksFresh, readResumeLock,
+  runLiveness, booksFresh, readResumeLock, lockMayBeHeld,
 } from '../liveness.js';
 import {
   readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, decisionStatus, answerTiming,
@@ -295,7 +295,7 @@ export const STUCK_REASONS = {
  * @returns {{stuck: false, reason: null, label: null, why: null}|{stuck: true, reason: 'retry'|'lock-no-holder', label: string, why: string|null}}
  */
 export function stuckState({ resume, liveness, lock }) {
-  if (!resume || resume.state !== 'not-started' || liveness === 'running' || lock === 'live' || lock === 'unknown') {
+  if (!resume || resume.state !== 'not-started' || liveness === 'running' || lockMayBeHeld(lock)) {
     return {
       stuck: false, reason: null, label: null, why: null,
     };

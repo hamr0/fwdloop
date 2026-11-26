@@ -422,3 +422,15 @@ test('am7 item 3: a copy planted in schedule-shape.js (file kinds) and in schedu
   const c = planted('schedule-choices.js', "const X = ['daily', 'weekdays', 'weekly'];");
   assert.notDeepEqual(copies(c, CLOCK_TOGETHER, CLOCK_KINDS_OWNER, CLOCK_ALLOWED), [], 'clock-kind copy in schedule-choices.js');
 });
+
+// M20 am8 item 1: every question named below has one owner; a second statement that names the same words together (any order, up to the neighbouring `;`, `{` or `}`) is a copy unless it is named here with its reason
+/** the kinds together in one statement, in any order @param {...string} kinds */
+const anyOrder = (...kinds) => {
+  const perms = (xs) => (xs.length < 2 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
+  return new RegExp(perms(kinds).map((p) => together(...p).source).join('|'));
+};
+
+// am8 item 1a: "may someone still hold this run's resume lock" (live or unknown) is lockMayBeHeld (src/liveness.js)
+test('am8 item 1a: only src/liveness.js names the resume-lock states live and unknown together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('live', 'unknown'), 'liveness.js', []), []);
+});

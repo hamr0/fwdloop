@@ -88,7 +88,7 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { mcpToolName } from './primitives.js';
 import { decideTicket, readTicketFields } from './ticket-labels.js';
 import {
-  readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
+  readResumeLock, lockMayBeHeld, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -2302,7 +2302,7 @@ async function takeResumeLock(runDir, runId, lockPath) {
       await new Promise((r) => { setTimeout(r, 150); });
       lock = readResumeLock(runDir);
     }
-    if (lock.state === 'live' || lock.state === 'unknown') {
+    if (lockMayBeHeld(lock.state)) {
       return { ok: false, red: `resume: run "${runId}" is locked by another resumer (pid ${lock.pid}, ${lockPath})` };
     }
     if (lock.state === 'empty') {

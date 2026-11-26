@@ -160,6 +160,9 @@ export function readResumeLock(runDir) {
   return { state: alive === true ? 'live' : alive === false ? 'dead' : 'unknown', pid: h.pid, procStart, path };
 }
 
+/** M20 am8: the one question "may someone still hold this run's resume lock": a live holder, or one whose liveness cannot be told (never treated as dead) @param {unknown} state a `readResumeLock` state @returns {boolean} */
+export const lockMayBeHeld = (state) => state === 'live' || state === 'unknown';
+
 /** The run's books, for the 10-minute fallback: state, audit, model log, spend ledger, and the pid file itself. */
 const BOOK_FILES = ['state.json', 'audit.jsonl', 'log.json', 'spend.jsonl', 'pids.jsonl'];
 const FRESH_MS = 10 * 60 * 1000;
