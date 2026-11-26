@@ -1,3 +1,5 @@
+import { isClockKind } from './trigger-clock.js';
+
 // M20 am5 item 1: the ONE list of schedule choices per flow type. The Run card's When and the New job card's Schedule both ask it (the page gets it from the server,
 // `__FWDLOOP_SCHEDULE_CHOICES__`; the server's own card check asks `scheduleKindsOf`). The words are the Run card's.
 // What a choice needs from the job (a file input for the two file kinds, a ticket list for a new ticket) is the card's own availability rule, not this list's.
@@ -31,7 +33,7 @@ const typeOf = (flowType) => (flowType === 'mcp' || flowType === 'tickets' ? flo
 /** the kinds a flow type offers, in the Run card's order @param {unknown} flowType @returns {string[]} */
 export const scheduleKindsOf = (flowType) => [...BY_TYPE[typeOf(flowType)]];
 
-/** the whole list as the page takes it: per flow type, `{kind, label, newCardLabel}` @returns {Record<string, {kind: string, label: string, newCardLabel: string}[]>} */
+/** the whole list as the page takes it: per flow type, `{kind, clock, label, newCardLabel}` (clock: the one answer of isClockKind) @returns {Record<string, {kind: string, clock: boolean, label: string, newCardLabel: string}[]>} */
 export function scheduleChoices() {
-  return Object.fromEntries(Object.entries(BY_TYPE).map(([type, kinds]) => [type, kinds.map((kind) => ({ kind, label: LABELS[kind], newCardLabel: NEW_CARD_LABELS[kind] ?? LABELS[kind] }))]));
+  return Object.fromEntries(Object.entries(BY_TYPE).map(([type, kinds]) => [type, kinds.map((kind) => ({ kind, clock: isClockKind(kind), label: LABELS[kind], newCardLabel: NEW_CARD_LABELS[kind] ?? LABELS[kind] }))]));
 }

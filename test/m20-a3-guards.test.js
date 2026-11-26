@@ -358,6 +358,9 @@ const CLOCK_KINDS_OWNER = {
   'trigger-clock.js': 'CLOCK_KINDS and isClockKind: the one owner',
   'schedule-choices.js': 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"',
 };
-test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code', () => {
-  assert.deepEqual(strays(load(), /['"`]daily['"`][^;\n]*['"`]weekdays['"`][^;\n]*['"`]weekly['"`]/, CLOCK_KINDS_OWNER), []);
+const pageFiles = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? pageFiles(p) : n.endsWith('.html') ? [p] : []; });
+test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code (page script included)', () => {
+  const files = load();
+  for (const f of pageFiles(SRC)) files[path.relative(SRC, f)] = readFileSync(f, 'utf8');
+  assert.deepEqual(strays(files, /['"`]daily['"`][^;\n]*['"`]weekdays['"`][^;\n]*['"`]weekly['"`]/, CLOCK_KINDS_OWNER), []);
 });

@@ -1676,6 +1676,10 @@
   var PLAN_CHECK_RULES = __FWDLOOP_PLAN_CHECK_RULES__;
   // M20 am5 item 1: the one list of schedule choices per flow type (src/schedule-choices.js); the New job card's Schedule and the Run card's When both fill from it
   var SCHEDULE_CHOICES = __FWDLOOP_SCHEDULE_CHOICES__;
+  // M20 am6: "is this a clock kind" is answered by the server (isClockKind in src/trigger-clock.js), carried on every choice as `clock`
+  function isClockKind(kind){
+    return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.clock; }); });
+  }
   function fillScheduleOptions(sel, flowType, newCard){
     var list = SCHEDULE_CHOICES[flowType === "mcp" || flowType === "tickets" ? flowType : "plain"], keep = sel.value;
     sel.innerHTML = "";
@@ -6274,7 +6278,7 @@
       roleSel.innerHTML = "";
       roles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
       if(roles.indexOf(keep) >= 0) roleSel.value = keep;
-      byId("jf-sched-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
+      byId("jf-sched-clock").hidden = !isClockKind(kind);
       byId("jf-sched-day").hidden = kind !== "weekly";
       byId("jf-sched-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
       byId("jf-sched-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
@@ -6688,7 +6692,7 @@
     function whenTriggerFromBoxes(){
       var kind = byId("jf-when").value;
       if(kind === "hand") return null;
-      if(kind === "daily" || kind === "weekdays" || kind === "weekly"){
+      if(isClockKind(kind)){
         var m = /^(\d{2}):(\d{2})$/.exec(byId("jf-when-time").value);
         var o = m ? {kind: kind, hour: Number(m[1]), minute: Number(m[2])} : {kind: kind};   // an empty time goes to the server, which says so
         if(kind === "weekly") o.day = byId("jf-when-day").value;
@@ -6701,7 +6705,7 @@
     }
     function whenShowSubs(){
       var kind = byId("jf-when").value;
-      byId("jf-when-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
+      byId("jf-when-clock").hidden = !isClockKind(kind);
       byId("jf-when-day").hidden = kind !== "weekly";
       byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file" || kind === "new-ticket");
       byId("jf-when-path").hidden = kind === "new-ticket";
