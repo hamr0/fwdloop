@@ -4742,3 +4742,14 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** a guard test fails if `src/` or `bin/` names the three clock kinds together outside `src/trigger-clock.js` (red before the change); the P1 snapshot is byte-identical; the targeted schedule and panel tests are green; the full suite is green.
 
 **Must fail when:** a fourth place asks the clock-kind question with its own list; any schedule is accepted, refused or timed differently from today.
+
+**M20 amendment 7 — SIGNED by hamr 2026-11-26 ("sign m20 am7."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am7-sign.md, sha256 1050aec08f84…).**
+
+**M20 amendment 7 — one owner for "is this a file schedule".** Found 2026-11-26 by the M20 self-review ($0, read-only), not seen on screen; the same kind of drift as am6 (F276). The question "is this schedule kind `file-updated` or `new-file`" is answered in eleven places: `src/schedule.js` (`isFile`), `src/summary-words.js` (the card's "next: waiting for a new file"), `src/schedule-shape.js` (the file and folder check), `src/panel/authortrigger.js` (two), `src/panel/authorcard.js` (the New job card's file check), `src/panel/scheduler.js` (the file look), and `src/panel/index.html` (five: which choices need a file input on each card, and when the file box shows). It adds to M20; every other signed line stands.
+
+1. **One owner.** `src/trigger-files.js` exports the one list of file kinds and one function that answers it. Every place above asks it; the page asks it through a `file` flag on the schedule choices it already gets (as am6's `clock` flag). The Run card's box that also shows for a new ticket asks the file question and adds the ticket kind itself. No behaviour changes: the same kinds, words, boxes and refusals.
+2. **The guards see a wrapped list.** The am6 clock guard and this one fail when the kinds are named together in one statement, also when it is wrapped over more than one line, not only on one line (self-review Later 3).
+
+**Done when:** the file-kind guard fails if `src/` or `bin/` names both file kinds together outside `src/trigger-files.js` (red before the change, naming the files); both guards go red on a test string with the kinds wrapped over two lines; the P1 snapshot is byte-identical; the targeted schedule and panel tests are green at 1280, 390 and 320; the full suite is green.
+
+**Must fail when:** a twelfth place asks the file-kind question with its own list; any schedule is accepted, refused, shown or looked at differently from today.
