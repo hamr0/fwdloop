@@ -353,14 +353,43 @@ test('am5 item 1: one list of schedule choices and one shape check', () => {
   assert.ok(!/<option value="(weekdays|weekly|daily|file-updated|new-file|new-ticket)"/.test(page), 'no schedule option is spelled in the page: both cards fill from SCHEDULE_CHOICES');
 });
 
-// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together on one line
+// M20 am7 item 2: a statement wrapped over several lines is still one statement: the matcher reads up to the next `;` or brace, not only to the end of the line
+const together = (...kinds) => new RegExp(kinds.map((k) => `['"\`]${k}['"\`]`).join('[^;{}]*'));
+const CLOCK_TOGETHER = together('daily', 'weekdays', 'weekly');
+const FILE_TOGETHER = together('file-updated', 'new-file');
+const FILE_TOGETHER_REV = together('new-file', 'file-updated');
+const filesAndPage = () => {
+  const files = load();
+  for (const f of pageFiles(SRC)) files[path.relative(SRC, f)] = readFileSync(f, 'utf8');
+  return files;
+};
+const pageFiles = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? pageFiles(p) : n.endsWith('.html') ? [p] : []; });
+
+// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together in one statement
 const CLOCK_KINDS_OWNER = {
   'trigger-clock.js': 'CLOCK_KINDS and isClockKind: the one owner',
   'schedule-choices.js': 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"',
 };
-const pageFiles = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? pageFiles(p) : n.endsWith('.html') ? [p] : []; });
 test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code (page script included)', () => {
-  const files = load();
-  for (const f of pageFiles(SRC)) files[path.relative(SRC, f)] = readFileSync(f, 'utf8');
-  assert.deepEqual(strays(files, /['"`]daily['"`][^;\n]*['"`]weekdays['"`][^;\n]*['"`]weekly['"`]/, CLOCK_KINDS_OWNER), []);
+  assert.deepEqual(strays(filesAndPage(), CLOCK_TOGETHER, CLOCK_KINDS_OWNER), []);
+});
+
+// M20 am7 item 1: "is this schedule kind file-updated or new-file" has one owner (isFileKind / FILE_KINDS in src/trigger-files.js)
+const FILE_KINDS_OWNER = {
+  'trigger-files.js': 'FILE_KINDS and isFileKind: the one owner',
+  'schedule-choices.js': 'PLAIN and LABELS: the choices a card OFFERS, not the question "is this a file kind"',
+  'trigger-line.js': 'parseTriggerLine builds a trigger object of a given kind from a line (FILE_RE); it does not ask which kinds are file kinds',
+  'schedule-shape.js': 'shapeOf builds the typed trigger of a given kind (after the isFileKind check); the choice of folder or path field is the kind itself',
+};
+test('am7 item 1: only src/trigger-files.js names file-updated and new-file together in code (page script included)', () => {
+  const files = filesAndPage();
+  assert.deepEqual(strays(files, new RegExp(`${FILE_TOGETHER.source}|${FILE_TOGETHER_REV.source}`), FILE_KINDS_OWNER), []);
+});
+
+// M20 am7 item 2: both guards see the kinds wrapped over more than one line
+test('am7 item 2: the clock and file-kind guards go red on kinds wrapped over two lines', () => {
+  assert.ok(CLOCK_TOGETHER.test(code("const k = ['daily', 'weekdays',\n  'weekly'];")), 'clock kinds wrapped over two lines');
+  assert.ok(FILE_TOGETHER.test(code("const a = kind === 'file-updated' ||\n  kind === 'new-file';")), 'file kinds wrapped over two lines');
+  assert.ok(FILE_TOGETHER_REV.test(code("if (k === 'new-file' ||\n k === 'file-updated') {")), 'file kinds wrapped, other order');
+  assert.ok(!FILE_TOGETHER.test(code("const a = 'file-updated';\nconst b = 'new-file';")), 'two statements are not one');
 });
