@@ -44,3 +44,15 @@ test('item 11: only the listed files name audit.jsonl, state.json, halt.<n>.cons
   assert.deepEqual(strays(files, /['"`]state\.json['"`]/, STATE), []);
   assert.deepEqual(strays(files, /halt\\\.\\d|halt\.\$\{[^}]*\}\.consumed/, HALT_CONSUMED), []);
 });
+
+// item 7: a run's trigger.json is read by readTriggerRecord (src/books.js) only
+const TRIGGER = {
+  'trigger-line.js': 'declares the file name',
+  'books.js': 'readTriggerRecord: the one reader',
+  'panel/authorstart.js': 'the one writer (the start claim, flag wx)',
+  'runvalues.js': 'a name in the "folder holds no run yet" list; reads nothing',
+  'bin/fwdloop': 'a name in the "folder holds no run yet" list; reads nothing',
+};
+test('item 7: only the listed files name trigger.json in code', () => {
+  assert.deepEqual(strays(load(), /TRIGGER_RECORD_FILE|['"`]trigger\.json['"`]/, TRIGGER), []);
+});

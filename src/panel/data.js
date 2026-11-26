@@ -32,7 +32,7 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord,
+  readAudit, readHistory, endRow, readPidRows, readRunState, readLog, readHaltRecord, readTriggerRecord,
   endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
@@ -1040,13 +1040,6 @@ function firstPidStartedAt(runDir) {
   return null;
 }
 
-/** The run's own `trigger.json` (why it started), or null for a hand run. @param {string} runDir */
-function readTriggerRecord(runDir) {
-  const f = readFileInside(runDir, 'trigger.json');
-  if (!f.ok) return null;
-  try { const j = JSON.parse(f.text); return j && typeof j === 'object' ? j : null; } catch { return null; }
-}
-
 /** The ONE running rule for wording is the glyph's own (`computeGlyph` -> `[▶]`, which already
  *  folds in `runLiveness`): a run with no end row whose glyph is `[▶]` is running. */
 const RUNNING_WHY = 'still running — not finished yet';
@@ -1579,9 +1572,7 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
     });
     scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
   }
-  let rec = null;
-  const f = readFileInside(ctx.runDir, 'trigger.json');
-  if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
+  const rec = readTriggerRecord(ctx.runDir);
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
   const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
   return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec), now: nowOf(ctx, glyph, now()) };

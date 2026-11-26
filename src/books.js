@@ -293,6 +293,17 @@ export function readAudit(runDir, { strict = false } = {}) {
 }
 
 /**
+ * The one reader of a run's `trigger.json` (why it started): an object, or `null` (a hand run, a missing, refused or unreadable file, a non-object).
+ * @param {string} runDir
+ * @returns {Record<string, any>|null}
+ */
+export function readTriggerRecord(runDir) {
+  const f = readFileInside(runDir, TRIGGER_RECORD_FILE);
+  if (!f.ok) return null;
+  try { const j = JSON.parse(f.text); return j && typeof j === 'object' ? j : null; } catch { return null; }
+}
+
+/**
  * One row per run. `row` shape: `{ runId, at, outcome, spentUsd,
  * spendComplete, capUsd, wallMs, signatureHash }`. Append-only, one writer.
  *
@@ -302,10 +313,8 @@ export function readAudit(runDir, { strict = false } = {}) {
 export function appendHistory(flowDir, row) {
   checkCostField(row, 'spentUsd', 'appendHistory');
   // M9 (am2 item 1): a run a trigger started says so in its history row, read from the record the start wrote into the run's own folder
-  const rec = typeof row.runId === 'string' && row.trigger === undefined ? readFileInside(join(flowDir, 'runs', row.runId), TRIGGER_RECORD_FILE) : null;
-  let trigger;
-  if (rec !== null && rec.ok) { try { trigger = JSON.parse(rec.text); } catch { trigger = undefined; } }
-  appendLine(join(flowDir, 'history.jsonl'), trigger === undefined ? row : { ...row, trigger });
+  const trigger = typeof row.runId === 'string' && row.trigger === undefined ? readTriggerRecord(join(flowDir, 'runs', row.runId)) : null;
+  appendLine(join(flowDir, 'history.jsonl'), trigger === null ? row : { ...row, trigger });
 }
 
 /**
