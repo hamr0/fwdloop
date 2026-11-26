@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { draft } from '../src/drafter.js';
-import { ticketRuleField, proposalReds, ticketRowsOf, ticketListReds } from '../src/ticketrows.js';
+import { ticketRuleField, proposalReds, ticketRowsOf } from '../src/ticketrows.js';
+import { ticketListReds } from '../src/checklistsign.js';
 import { RATES, MODEL } from './drafter-fixture.mjs';
 import { callOf, router } from './m16-drafter-fixture.mjs';
 

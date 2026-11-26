@@ -46,7 +46,7 @@ import { lineRules } from './pagebits.js';
 import { OFFERED as OFFERED_RULES } from './checkwords.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { checkListReds } from './checklistsign.js';
-import { ticketListReds } from './ticketrows.js';
+import { ticketListReds } from './checklistsign.js';
 
 /** @typedef {import('./types.js').Arbiter} Arbiter */
 /** @typedef {import('./types.js').SignedLine} SignedLine */

@@ -61,7 +61,8 @@ import { sheetSuggestProp, sheetOfferRules, agreedColumnWords } from './sheetoff
 import { uncoveredRules, csvRolesOf } from './sheetblock.js';
 import { withSheetRows, withSheetCard } from './sheetrows.js';
 import { buildSheetChecks, unbuiltSheetLines } from './sheetbuild.js';
-import { TICKET_FIELDS, ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
+import { ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
+import { TICKET_FIELDS } from './checklistsign.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';

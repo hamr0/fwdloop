@@ -91,3 +91,24 @@ export function countByOf(declaration, line) {
   const r = builtOn(declaration, line).find((x) => x.kind === 'count');
   return r && (r.by === 'you' || r.by === 'agent' || r.by === 'default') ? r.by : null;
 }
+
+/**
+ * The proof of a plan whose list has ticket rows (a plan with none is not examined): a built ticket row needs the declaration's field, and a field the declaration holds needs a built row for it.
+ * @param {any} declaration @returns {string[]}
+ */
+export function ticketListReds(declaration) {
+  const list = isRec(declaration) && Array.isArray(declaration.checkList) ? declaration.checkList.filter((/** @type {any} */ r) => isRec(r) && r.kind === 'ticket') : [];
+  if (list.length === 0) return [];
+  /** @type {string[]} */
+  const reds = [];
+  for (const f of TICKET_FIELDS) {
+    const built = list.some((/** @type {any} */ r) => r.field === f && r.state === 'built');
+    const has = Object.hasOwn(declaration, f);
+    if (built && !has) reds.push(`declaration: checkList: a row says "${f}" is its check, but the plan has no "${f}". Nothing was signed - draft again.`);
+    if (has && !built) reds.push(`declaration: "${f}" is not the check of any rule on the list. Nothing was signed - draft again.`);
+  }
+  return reds;
+}
+
+/** @type {readonly ('ticketFilter'|'ticketWatch')[]} */
+export const TICKET_FIELDS = Object.freeze(['ticketFilter', 'ticketWatch']);

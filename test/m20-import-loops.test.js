@@ -9,10 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** a loop = its files, src- or bin-relative, sorted, joined with " <-> "; the reason is why it may stay */
-const LISTED = {
-  'src/declaration.js <-> src/ticketrows.js':
-    'mapped and broken in its own step',
-};
+const LISTED = {};
 
 function files() {
   const out = [];
