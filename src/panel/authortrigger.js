@@ -28,7 +28,7 @@ import { appendRow } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import {
-  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
+  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
 } from '../flow.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
@@ -73,7 +73,7 @@ export function appendOutcome(flowDir, row) {
  * A run from before runs kept a job copy has none to compare, so it counts only when its history row's signature is the job's current one.
  * @param {string} flowDir @returns {Generator<{runId: string, runDir: string, at: string}>}
  */
-function* greenRuns(flowDir) {
+export function* greenRuns(flowDir) {
   const cur = {};
   for (const f of FLOW_FILES) {
     const r = readFileInside(flowDir, f);
@@ -82,8 +82,6 @@ function* greenRuns(flowDir) {
   }
   let sig;
   try { sig = JSON.parse(cur['signature.json']).flow; } catch { return; }
-  const key = (/** @type {string} */ prose, /** @type {string} */ decl) => `${prose.trimEnd()}\n\u0000${decl}`;
-  const want = key(cur['prose.txt'], cur['declaration.json']);
   const cat = loadCatalogue();
   if (!cat.ok) return;
   const history = readHistory(flowDir);
@@ -92,9 +90,9 @@ function* greenRuns(flowDir) {
     if (!r.ok) continue;
     const end = endRow(history, r.runDir, id);
     if (end === null || !isGoodEnding(end.outcome)) continue;
-    const copy = readRunJobCopy(r.runDir, cat.primitives);   // a copy that fails its signature reads as no job: not green
+    const job = sameJob({ flowDir, runDir: r.runDir, catalogue: cat.primitives });   // a copy that fails its signature reads as no job: not green
     const at = typeof end.at === 'string' ? end.at : '';
-    if (copy.present) { if (copy.ok && key(copy.proseText ?? '', copy.declarationText ?? '') === want) yield { runId: id, runDir: r.runDir, at }; } else if (end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
+    if (job.present) { if (job.ok && job.same) yield { runId: id, runDir: r.runDir, at }; } else if (end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
   }
 }
 

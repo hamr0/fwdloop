@@ -722,19 +722,31 @@ function replaceSigned({
 export function planForReuse({
   root, name, runDir, catalogue,
 }) {
-  const kept = readRunJobCopy(runDir, catalogue);
-  if (!kept.present) return { ok: true, same: true };
+  const job = sameJob({ flowDir: path.join(root, name), runDir, catalogue });
+  if (!job.present) return { ok: true, same: true };
   const runId = path.basename(runDir);
-  if (!kept.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${kept.reds[0]}), so it cannot be reused. Nothing was started.` };
-  const flowDir = path.join(root, name);
-  const a = readFileInside(runDir, `${RUN_JOB_DIR}/declaration.json`);
-  const b = readFileInside(flowDir, 'declaration.json');
-  const ap = readFileInside(runDir, `${RUN_JOB_DIR}/prose.txt`);
-  const bp = readFileInside(flowDir, 'prose.txt');
-  if (a.ok && b.ok && ap.ok && bp.ok && a.text === b.text && stripTrigger(ap.text) === stripTrigger(bp.text)) return { ok: true, same: true };
-  const { present, ...rest } = kept;
-  void present;
+  if (!job.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${job.reds[0]}), so it cannot be reused. Nothing was started.` };
+  if (job.same) return { ok: true, same: true };
+  const { present, same, ...rest } = job;
+  void present; void same;
   return { ok: true, same: false, read: /** @type {any} */ (rest) };
+}
+
+/**
+ * M20 am3 item 1 (as am3a): the ONE rule for "this run ran the job the flow holds now": the run's verified job copy (`readRunJobCopy`), the exact
+ * declaration, the prose without its trigger line. `{present:false}` = the run kept no copy (before M6); `{present:true, ok:false, reds}` = a copy that
+ * fails its signature; `{present:true, ok:true, same, ...copy}` otherwise.
+ * @param {{flowDir: string, runDir: string, catalogue: unknown}} a
+ * @returns {{present: false} | {present: true, ok: false, reds: string[]} | ({present: true, same: boolean} & ReadFlowResult & {ok: true})}
+ */
+export function sameJob({ flowDir, runDir, catalogue }) {
+  const kept = readRunJobCopy(runDir, catalogue);
+  if (!kept.present) return { present: false };
+  if (!kept.ok) return /** @type {any} */ ({ present: true, ok: false, reds: kept.reds });
+  const b = readFileInside(flowDir, 'declaration.json');
+  const bp = readFileInside(flowDir, 'prose.txt');
+  const same = b.ok && bp.ok && kept.declarationText === b.text && stripTrigger(kept.proseText ?? '') === stripTrigger(bp.text);
+  return /** @type {any} */ ({ ...kept, same });
 }
 
 /**

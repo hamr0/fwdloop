@@ -73,3 +73,22 @@ const JOB_COPY = { 'flow.js': 'readRunJobCopy: the one reader; writeRunJobCopy /
 test('item 2: only src/flow.js names a run\'s job/ files in code', () => {
   assert.deepEqual(strays(load(), /job\/(prose\.txt|declaration\.json|signature\.json)|\bRUN_JOB_DIR\b/, JOB_COPY), []);
 });
+
+// item 1 (am3a): "this run ran the job the flow holds now" is sameJob (src/flow.js): the prose-without-trigger-line comparison is spelled there only.
+// runJobEdited (panel/data.js) asks a different question (the halt record's signature hash against the run's own job) and does not compare prose, so it is not on this list.
+const SAME_JOB = {
+  'trigger-line.js': 'declares stripTrigger',
+  'flow.js': 'sameJob: the one rule (planForReuse and greenRuns ask it)',
+};
+test('item 1: only sameJob compares a run\'s prose with the flow\'s (stripTrigger)', () => {
+  assert.deepEqual(strays(load(), /\bstripTrigger\b/, SAME_JOB), []);
+});
+
+// item 3 (am3a): three questions, three owners; each list of file names is spelled in its owner only
+test('item 3: each "folder holds ..." list is spelled once, in its owner', () => {
+  const files = load();
+  const ONLY = (re, owner, why) => assert.deepEqual(strays(files, re, { [owner]: why }), [], why);
+  ONLY(/valuesFileName\(0\)[^\n]*TRIGGER_RECORD_FILE|TRIGGER_RECORD_FILE[^\n]*valuesFileName\(0\)/, 'runvalues.js', 'dropUnstartedValues: may these pre-start files be deleted (2 names)');
+  ONLY(/['"]setup\.jsonl['"][\s\S]{0,300}['"]plan\.json['"]|['"]plan\.json['"][\s\S]{0,300}['"]setup\.jsonl['"]/, 'bin/fwdloop', 'the CLI: does this folder hold no run yet (6 names)');
+  ONLY(/['"]ask\.json['"]\s*,\s*['"]answer\.json['"]/, 'runner.js', 'checkFreshRunDir: is a stale ask or answer left here (2 names)');
+});
