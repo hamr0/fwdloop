@@ -80,6 +80,17 @@ export const STARTED_OVER_FILE = 'started-over-from.json';
 const SESSION_ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 
 /**
+ * M20 am3 item 12: the ONE reader of a session folder's `started-over-from.json`: the `startedOverFrom` value it holds, or null when
+ * there is no file, it is unreadable, or it holds none. (A value that is not a session id is the caller's to judge.)
+ * @param {string} sessionDir @returns {unknown}
+ */
+export function readStartedOverFrom(sessionDir) {
+  const so = readFileInside(sessionDir, STARTED_OVER_FILE);
+  if (!so.ok) return null;
+  try { return JSON.parse(so.text)?.startedOverFrom ?? null; } catch { return null; }
+}
+
+/**
  * M4d amendment 16 item 1: what ALL of a job's drafting spent — the one writer of that total. A panel draft's session folder holds one plan
  * folder per draft (`draft/`, `draft-<n>/` for each revise and the redraft after answers); each is read by `readDirSpendRows` and priced by
  * `spendRowCost`, the one cost rule. A round whose cost is not known counts at its WORST CASE (item 5): its own booked price's ceiling, else
@@ -109,22 +120,18 @@ export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}, seen
   }
   // M4d am19 item 3: a Start over opens a new session folder that names the one it started over from (`started-over-from.json`, written once by the panel):
   // what the earlier session spent is still this job's drafting, so the chain is followed (a name that points back at a folder already counted is not).
-  const so = readFileInside(sessionDir, STARTED_OVER_FILE);
-  if (so.ok) {
-    let from = null;
-    try { from = JSON.parse(so.text)?.startedOverFrom; } catch { /* unreadable: no chain */ }
-    if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
-      const prev = join(dirname(sessionDir), from);
-      // M4d am21 item 2: a link naming a folder that is gone is NOT $0: what it spent cannot be counted (`missingEarlier`, never a clean figure)
-      if (!readFileInside(prev, 'card.json').ok) missingEarlier = true;
-      else {
-        const before = draftingSpent(prev, { ceilingUsd }, seen);
-        usd += before.usd;
-        notPriced += before.notPriced;
-        missingEarlier = before.missingEarlier;
-      }
-    } else if (typeof from === 'string' && !SESSION_ID_RE.test(from)) missingEarlier = true;
-  }
+  const from = readStartedOverFrom(sessionDir);
+  if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
+    const prev = join(dirname(sessionDir), from);
+    // M4d am21 item 2: a link naming a folder that is gone is NOT $0: what it spent cannot be counted (`missingEarlier`, never a clean figure)
+    if (!readFileInside(prev, 'card.json').ok) missingEarlier = true;
+    else {
+      const before = draftingSpent(prev, { ceilingUsd }, seen);
+      usd += before.usd;
+      notPriced += before.notPriced;
+      missingEarlier = before.missingEarlier;
+    }
+  } else if (typeof from === 'string' && !SESSION_ID_RE.test(from)) missingEarlier = true;
   return { usd, notPriced, complete: notPriced === 0 && !missingEarlier, missingEarlier };
 }
 

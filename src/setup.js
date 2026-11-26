@@ -13,9 +13,8 @@ import { join } from 'node:path';
 
 import { readQuestions, scrub, draftVerdict } from './authoring.js';
 import { notCheckedBlock } from './checked.js';
-import { readDraftSpend } from './draftspend.js';
+import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog } from './flow.js';
-import { readSpendRows } from './provider.js';
 import { checkAsks } from './checkpick.js';
 import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
 
@@ -34,7 +33,7 @@ const mtimeIso = (dir, rel) => {
 /** One plan folder's row: model, cost, verdict (green / red / stopped), plan hash, first red. @param {string} sessionDir @param {string} rel `draft` or `draft-<n>` */
 function planRow(sessionDir, rel, kind, n) {
   const { verdict: v, hash, log, reds } = draftVerdict(sessionDir, rel);
-  const spent = readSpendRows(join(sessionDir, rel, 'spend.jsonl')).filter((r) => r && r.kind === 'draft').pop() ?? readDraftSpend(join(sessionDir, rel));
+  const spent = /** @type {any} */ (readDirSpendRows(join(sessionDir, rel)).filter(Boolean).pop());
   const verdict = v === 'none' ? 'stopped' : v;
   /** @type {string|null} */
   const gap = v === 'green' ? null : v === 'red' ? (reds.join('; ') || 'the plan did not pass the checks') : 'no result was recorded';
@@ -96,8 +95,7 @@ export function buildSetupRows({
     const card = readJson(sessionDir, 'card.json');
     if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, 'card.json'), card });
     // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
-    const so = readJson(sessionDir, 'started-over-from.json');
-    rows.push(planRow(sessionDir, 'draft', typeof so?.startedOverFrom === 'string' ? 'startover' : 'draft', 0));
+    rows.push(planRow(sessionDir, 'draft', typeof readStartedOverFrom(sessionDir) === 'string' ? 'startover' : 'draft', 0));
     rows.push(...humanRows(sessionDir, 'draft'));
     // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
     const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);

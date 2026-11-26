@@ -137,3 +137,12 @@ const VERDICT = { 'authoring.js': 'SPEC_HASH_FILE / LEAK_MARKER_FILE declared, w
 test('item 12 (draft verdict): only authoring.js names spec.hash or scrub-leak.red in code', () => {
   assert.deepEqual(strays(load(), /['"`/]spec\.hash\b|['"`/]scrub-leak\.red\b/, VERDICT), []);
 });
+
+// item 12 (draft spend row, started-over-from): a draft folder's spend rows are readDirSpendRows and started-over-from.json is readStartedOverFrom, both in src/draftspend.js
+const DRAFT_SPEND = { 'draftspend.js': 'DRAFT_SPEND_FILE / STARTED_OVER_FILE: the writer, readDraftSpend, readDirSpendRows, readStartedOverFrom' };
+test('item 12 (draft spend, started-over): only draftspend.js names draft-spend.json or started-over-from.json, or reads a draft dir\'s spend rows', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]draft-spend\.json|['"`/]started-over-from\.json|\breadDraftSpend\b/, DRAFT_SPEND), []);
+  // the draft folder's own spend.jsonl is read through readDirSpendRows (setup.js, monthly.js, draftspend.js); no other file may read `join(<plan folder>, 'spend.jsonl')` itself for a draft
+  assert.deepEqual(strays(files, /readSpendRows\(join\(sessionDir/, {}), []);
+});
