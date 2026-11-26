@@ -365,25 +365,45 @@ const filesAndPage = () => {
 };
 const pageFiles = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? pageFiles(p) : n.endsWith('.html') ? [p] : []; });
 
-// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together in one statement
-const CLOCK_KINDS_OWNER = {
-  'trigger-clock.js': 'CLOCK_KINDS and isClockKind: the one owner',
-  'schedule-choices.js': 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"',
+// M20 am7 item 3: a non-owner file may carry a hit only for a NAMED statement (file + verbatim snippet + reason), never as a whole file
+/** every statement (up to the neighbouring `;`, `{` or `}`) of `files` that matches `re`, outside the owner, and not one of the named allowed ones; plus allowed entries that matched nothing @param {Record<string,string>} files @param {RegExp} re @param {string} owner @param {{file:string, snippet:string, why:string}[]} allowed */
+const copies = (files, re, owner, allowed) => {
+  const g = new RegExp(re.source, 'g');
+  const used = new Set();
+  const out = [];
+  for (const f of Object.keys(files)) {
+    if (f === owner) continue;
+    const text = code(files[f]);
+    for (const m of text.matchAll(g)) {
+      const from = Math.max(text.lastIndexOf(';', m.index), text.lastIndexOf('{', m.index), text.lastIndexOf('}', m.index)) + 1;
+      const ends = [';', '{', '}'].map((c) => text.indexOf(c, m.index + m[0].length)).filter((i) => i >= 0);
+      const stmt = text.slice(from, ends.length ? Math.min(...ends) : text.length);
+      const ok = allowed.find((a) => a.file === f && stmt.includes(a.snippet));
+      if (ok) used.add(ok); else out.push(`${f}: ${stmt.trim().slice(0, 80)}`);
+    }
+  }
+  for (const a of allowed) if (!used.has(a)) out.push(`stale allow-list entry (matches nothing): ${a.file}: ${a.snippet}`);
+  return out;
 };
+
+// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together in one statement
+const CLOCK_KINDS_OWNER = 'trigger-clock.js'; // CLOCK_KINDS and isClockKind: the one owner
+const CLOCK_ALLOWED = [
+  { file: 'schedule-choices.js', snippet: "const PLAIN = Object.freeze(['hand', 'daily'", why: 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"' },
+];
 test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code (page script included)', () => {
-  assert.deepEqual(strays(filesAndPage(), CLOCK_TOGETHER, CLOCK_KINDS_OWNER), []);
+  assert.deepEqual(copies(filesAndPage(), CLOCK_TOGETHER, CLOCK_KINDS_OWNER, CLOCK_ALLOWED), []);
 });
 
 // M20 am7 item 1: "is this schedule kind file-updated or new-file" has one owner (isFileKind / FILE_KINDS in src/trigger-files.js)
-const FILE_KINDS_OWNER = {
-  'trigger-files.js': 'FILE_KINDS and isFileKind: the one owner',
-  'schedule-choices.js': 'PLAIN and LABELS: the choices a card OFFERS, not the question "is this a file kind"',
-  'trigger-line.js': 'parseTriggerLine builds a trigger object of a given kind from a line (FILE_RE); it does not ask which kinds are file kinds',
-  'schedule-shape.js': 'shapeOf builds the typed trigger of a given kind (after the isFileKind check); the choice of folder or path field is the kind itself',
-};
+const FILE_KINDS_OWNER = 'trigger-files.js'; // FILE_KINDS and isFileKind: the one owner
+const FILE_ANY = new RegExp(`${FILE_TOGETHER.source}|${FILE_TOGETHER_REV.source}`);
+const FILE_ALLOWED = [
+  { file: 'schedule-choices.js', snippet: "const PLAIN = Object.freeze(['hand', 'daily'", why: 'PLAIN: the choices a card OFFERS, not the question "is this a file kind"' },
+  { file: 'schedule-choices.js', snippet: "'file-updated': 'When <file> is updated'", why: 'LABELS: the words a card shows per kind, not the question "is this a file kind"' },
+];
 test('am7 item 1: only src/trigger-files.js names file-updated and new-file together in code (page script included)', () => {
-  const files = filesAndPage();
-  assert.deepEqual(strays(files, new RegExp(`${FILE_TOGETHER.source}|${FILE_TOGETHER_REV.source}`), FILE_KINDS_OWNER), []);
+  assert.deepEqual(copies(filesAndPage(), FILE_ANY, FILE_KINDS_OWNER, FILE_ALLOWED), []);
 });
 
 // M20 am7 item 2: both guards see the kinds wrapped over more than one line
@@ -392,4 +412,13 @@ test('am7 item 2: the clock and file-kind guards go red on kinds wrapped over tw
   assert.ok(FILE_TOGETHER.test(code("const a = kind === 'file-updated' ||\n  kind === 'new-file';")), 'file kinds wrapped over two lines');
   assert.ok(FILE_TOGETHER_REV.test(code("if (k === 'new-file' ||\n k === 'file-updated') {")), 'file kinds wrapped, other order');
   assert.ok(!FILE_TOGETHER.test(code("const a = 'file-updated';\nconst b = 'new-file';")), 'two statements are not one');
+});
+
+// M20 am7 item 3 (planted copy): a copy of either question inside a file the guards let through must be reported
+const planted = (name, extra) => { const files = filesAndPage(); files[name] += `\n${extra}\n`; return files; };
+test('am7 item 3: a copy planted in schedule-shape.js (file kinds) and in schedule-choices.js (clock kinds) is reported', () => {
+  const f = planted('schedule-shape.js', "if (t.kind === 'file-updated' || t.kind === 'new-file') {}");
+  assert.notDeepEqual(copies(f, FILE_ANY, FILE_KINDS_OWNER, FILE_ALLOWED), [], 'file-kind copy in schedule-shape.js');
+  const c = planted('schedule-choices.js', "const X = ['daily', 'weekdays', 'weekly'];");
+  assert.notDeepEqual(copies(c, CLOCK_TOGETHER, CLOCK_KINDS_OWNER, CLOCK_ALLOWED), [], 'clock-kind copy in schedule-choices.js');
 });
