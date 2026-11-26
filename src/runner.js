@@ -2561,7 +2561,6 @@ export async function resumeRun({
       if (savedAnswer.missing) {
         return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
       }
-      if (savedAnswer.readFailed !== undefined) return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${savedAnswer.readFailed}` };
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${savedAnswer.red}` };
     }
     if (savedAnswer.parseError !== null) {

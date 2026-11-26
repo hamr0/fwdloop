@@ -312,7 +312,7 @@ const ALLOWLIST = {
     reason: 'writes/checks for run-dir bookkeeping (mkdir/write/rename/copy/lock create + stale-lock clear + cleanup, M4c amendment 2) plus three documented gated/business reads: hashFile (business source), the frozen-input re-hash (already sha256-pinned at freeze time), and the answer.json read (resolveInside-guarded immediately above); M4e amendment 1: checkSendDestination realpaths/stats the send FOLDER (a business destination, not a book) and the refused folders; the flow-folder test (existsSync of a FLOW_FILES file under the root child); M4e amendment 4 item 4: requestStop (one `wx` write of stop.request), clearStop (its one unlink) and the halt record (one `wx` write of halt.json, only for a cap-halt or stopped run); `continueRun` (Resume) repeats resumeRun\'s frozen-input re-hash (existsSync + readFileSync), its lock close and consumes halt.json by one rename; M4e amendment 13: `stopParkedRun` takes the resume lock (one more close) and `stopAtAsk` sets the stopped ask aside by two renames (ask.json, state.json -> ask/state.<askId>.stopped.json) after existsSync checks for a consumed answer and a saved answer.json; M10 item 1 (reviewed): `freezePage` writes a fetched web page\'s text as the run\'s own frozen input (one mkdir, one write, one stat of the frozen copy; the sha256 is then taken by hashFile)',
     names: {
       accessSync: 1, closeSync: 4, constants: 1, copyFileSync: 1, existsSync: 11,
-      mkdirSync: 7, openSync: 1, readFileSync: 4, realpathSync: 5, renameSync: 4,
+      mkdirSync: 7, openSync: 1, readFileSync: 3, realpathSync: 5, renameSync: 4,
       statSync: 3, unlinkSync: 4, writeFileSync: 7,
     },
     readArtifactCallSites: 4,
@@ -474,7 +474,7 @@ const ALLOWLIST = {
   'src/panel/authorstart.js': {
     reason: 'M4e piece 2b: the ONE run-start path — creates ITS OWN start folder `<root>/.starts/<id>/` (mkdir 0700) and writes the one file it owns there (start.json 0600; M9: trigger.json 0600, once, the reason a triggered start has, inside the run folder it just claimed; cleared.json 0600, once, when the human dismisses a refused start; pid.json and child.log go through spawn.js); realpathSync of the typed --root at use time; existsSync of a typed run dir (presence only, to refuse an id already used); rmdirSync of a run dir this start just claimed when the start is refused before the child runs (rmdir removes only an EMPTY folder). Every READ of a start folder and of the run dir (pids.jsonl, ask.json) goes through readFileInside/readPidRows/readdirInside, never fs directly.',
     names: {
-      existsSync: 1, mkdirSync: 5, realpathSync: 10, rmSync: 2, rmdirSync: 1, writeFileSync: 4,
+      existsSync: 1, mkdirSync: 5, realpathSync: 10, rmSync: 2, rmdirSync: 1, writeFileSync: 3,
     },
   },
   'src/panel/authortrigger.js': {

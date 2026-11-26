@@ -18,10 +18,10 @@
 // history); both throw (never silently coerce) on a violation, so a bad
 // caller fails loudly at the one place that would otherwise hide it.
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { readFileInside, readdirInside, resolveInside } from './flow.js';
+import { readFileInside, readdirInside } from './flow.js';
 import { appendRow } from './jsonl-append.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
@@ -64,16 +64,14 @@ export function readPidRows(runDir) {
  * gateway (a symlink or a file outside the folder is refused). It parses nothing else's words: each caller keeps its own refusal sentence and reads these fields.
  * `broken` = no JSON object, no `askId`, or no readable `answeredAt`: the file is not a usable answer for any ask. `value` is the parsed JSON as it is (any shape),
  * `parseError` the parser's message when the text is not JSON, `isObject` says `value` is a plain JSON object. `decision` is the file's own word, not normalised.
- * `readFailed` is set when the file could not be read after the gateway passed it (the message).
  * @param {string} runDir
- * @returns {{ok: false, missing: boolean, red: string, readFailed?: string}
+ * @returns {{ok: false, missing: boolean, red: string}
  *   | {ok: true, value: any, parseError: string|null, isObject: boolean, askId: string|null, decision: string|null, answeredAt: string|null, broken: boolean}}
  */
 export function readSavedAnswer(runDir) {
-  const where = resolveInside(runDir, 'answer.json');
-  if (!where.ok) return where.missing ? { ok: false, missing: true, red: 'answer.json is missing' } : { ok: false, missing: false, red: where.red };
-  let text;
-  try { text = readFileSync(where.full, 'utf8'); } catch (err) { return { ok: false, missing: false, red: `could not read "answer.json" — ${err.message}`, readFailed: err.message }; }
+  const r = readFileInside(runDir, 'answer.json');
+  if (!r.ok) return r.missing ? { ok: false, missing: true, red: 'answer.json is missing' } : { ok: false, missing: false, red: r.red };
+  const text = r.text;
   let value;
   try { value = JSON.parse(text); } catch (err) {
     return { ok: true, value: undefined, parseError: err.message, isObject: false, askId: null, decision: null, answeredAt: null, broken: true };
