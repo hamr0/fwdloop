@@ -84,16 +84,17 @@ function* greenRuns(flowDir) {
   try { sig = JSON.parse(cur['signature.json']).flow; } catch { return; }
   const key = (/** @type {string} */ prose, /** @type {string} */ decl) => `${prose.trimEnd()}\n\u0000${decl}`;
   const want = key(cur['prose.txt'], cur['declaration.json']);
+  const cat = loadCatalogue();
+  if (!cat.ok) return;
   const history = readHistory(flowDir);
   for (const id of listRunIds(flowDir)) {
     const r = resolveRunDir(flowDir, id);
     if (!r.ok) continue;
     const end = endRow(history, r.runDir, id);
     if (end === null || !isGoodEnding(end.outcome)) continue;
-    const prose = readFileInside(r.runDir, 'job/prose.txt');
-    const decl = readFileInside(r.runDir, 'job/declaration.json');
+    const copy = readRunJobCopy(r.runDir, cat.primitives);   // a copy that fails its signature reads as no job: not green
     const at = typeof end.at === 'string' ? end.at : '';
-    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) yield { runId: id, runDir: r.runDir, at }; } else if (!prose.ok && prose.missing && end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
+    if (copy.present) { if (copy.ok && key(copy.proseText ?? '', copy.declarationText ?? '') === want) yield { runId: id, runDir: r.runDir, at }; } else if (end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
   }
 }
 
@@ -311,9 +312,9 @@ export function createTriggerDoor(opts) {
       if (!pf.ok) return reply(409, { refused: 'plan', say: pf.red.replace('Nothing was started.', 'Nothing was changed.') });
       scheduledFrom = planOf;
       if (!pf.same) {
-        const decl = readFileInside(rr.runDir, 'job/declaration.json');
-        if (!decl.ok) return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
-        scheduledPlan = { run: planOf, flowHash: String(pf.read.signature.flow), declSha: createHash('sha256').update(decl.text).digest('hex') };
+        const declText = pf.read.declarationText;
+        if (typeof declText !== 'string') return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
+        scheduledPlan = { run: planOf, flowHash: String(pf.read.signature.flow), declSha: createHash('sha256').update(declText).digest('hex') };
       }
     }
     return {
@@ -362,8 +363,7 @@ export function createTriggerDoor(opts) {
       const cat = loadCatalogue();
       const rr = resolveRunDir(flowDir, planRec.run);
       const kept = rr.ok && cat.ok ? readRunJobCopy(rr.runDir, cat.primitives) : null;
-      const decl = rr.ok ? readFileInside(rr.runDir, 'job/declaration.json') : null;
-      const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && decl && decl.ok && createHash('sha256').update(decl.text).digest('hex') === planRec.declSha;
+      const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && typeof kept.declarationText === 'string' && createHash('sha256').update(kept.declarationText).digest('hex') === planRec.declSha;
       if (!good) return ({ outcome: 'refused', why: `The plan of ${planRec.run} is no longer the one that was signed, so nothing started. Set the schedule again.` });
       read = /** @type {any} */ (kept);
       planRun = planRec.run;

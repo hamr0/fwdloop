@@ -18,7 +18,8 @@ import {
 } from './books.js';
 import { readChecks } from './diary.js';
 import { readRunInputs } from './runfile.js';
-import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
+import { readFileInside, readdirInside, listFlowNames, listRunIds, readRunJobCopy } from './flow.js';
+import { loadCatalogue } from './catalogue.js';
 
 /**
  * M8 item 5a (loose end): the ONE function that turns a source as written into a place. The run-end notes (`learnAtRunEnd`: a path the panel/CLI gave the run) and
@@ -186,13 +187,6 @@ function unifiedDiff(a, b, ctx = 1) {
   return out.join('\n');
 }
 
-/** @param {string} runDir @param {string} rel @returns {any} the parsed JSON file inside the run folder, or null when absent / unreadable */
-function jsonIn(runDir, rel) {
-  const r = readFileInside(runDir, rel);
-  if (!r.ok) return null;
-  try { return JSON.parse(r.text); } catch { return null; }
-}
-
 /** audit.jsonl rows that are a step's TRY with a verdict on its output; a human redo (class hitl + red), a pause, a stop and a funding halt are not one. */
 const isTry = (/** @type {any} */ r) => Number.isInteger(r.attempt) && isTryVerdict(r.verdict) && !(r.class === 'hitl' && r.verdict === 'red');
 
@@ -210,10 +204,12 @@ export function eventsOfRun(runDir, workflow) {
   const rows = audit.filter(isTry);
   if (!rows.length) return null;
   const log = readLog(runDir) ?? {};
-  const decl = jsonIn(runDir, 'job/declaration.json') ?? { steps: [] };
+  const cat = loadCatalogue();
+  const job = cat.ok ? readRunJobCopy(runDir, cat.primitives) : { present: /** @type {false} */ (false) };   // M20 am3 item 2: a copy that fails its signature is no job
+  const decl = job.present && job.ok ? job.declaration : { steps: [] };
   const frozen = readRunInputs(runDir);
   const inputs = frozen.ok ? frozen.entries : null;
-  const prose = (() => { const r = readFileInside(runDir, 'job/prose.txt'); return r.ok ? r.text : ''; })();
+  const prose = job.present && job.ok ? (job.proseText ?? '') : '';
   const checks = readChecks(runDir);
   const made = new Set(readdirInside(runDir, 'artifacts'));
   const outBy = new Map((log.attempts || []).map((/** @type {any} */ a) => [`${a.step}#${a.attempt}`, a.modelOutput]));

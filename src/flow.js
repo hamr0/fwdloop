@@ -1037,11 +1037,14 @@ export function readRunJobCopy(runDir, catalogue) {
   if (reds.length > 0) return { present: true, ok: false, reds };
   const verified = verifyFlow({ proseText, declarationText, signature: signatureJson });
   if (!verified.ok) return { present: true, ok: false, reds: [...verified.reds] };
+  const read = interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
+  });
+  // a good read carries the verified bytes, so no caller reads `job/` a second time (M20 am3 item 2)
   return {
     present: /** @type {true} */ (true),
-    ...interpretSigned({
-      proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
-    }),
+    ...read,
+    ...(read.ok ? { proseText: /** @type {string} */ (proseText), declarationText: /** @type {string} */ (declarationText) } : {}),
   };
 }
 

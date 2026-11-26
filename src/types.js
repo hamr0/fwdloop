@@ -222,6 +222,8 @@
  * @property {Record<string, any>} declaration
  * @property {Signature} signature
  * @property {Record<string, string>} classes
+ * @property {string} [proseText] only on `readRunJobCopy`: the verified copy's own bytes (prose.txt)
+ * @property {string} [declarationText] only on `readRunJobCopy`: the verified copy's own bytes (declaration.json)
  */
 
 /**

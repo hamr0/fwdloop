@@ -512,8 +512,8 @@ const ALLOWLIST = {
     names: { existsSync: 1, readFileSync: 1 },
   },
   'src/mcp-use.js': {
-    reason: "M13 piece 3 (F113): READS the run folders' run.json and diary.jsonl to count MCP tool use (readdirSync through one safe-listing helper, readFileSync of the two files, statSync for run.json's time). Read-only, no new record file; a torn file is skipped.",
-    names: { readFileSync: 2, readdirSync: 1, statSync: 1 },
+    reason: "M13 piece 3 (F113): counts MCP tool use from the run folders (readdirSync through one safe-listing helper, statSync for run.json's time). Read-only, no new record file; the contents of run.json and diary.jsonl are read through readRunRecord and readTools (M20 am3 item 9), so no readFileSync is left here.",
+    names: { readdirSync: 1, statSync: 1 },
   },
   'src/mcp-checks.js': {
     reason: "M13 piece 3 (hamr 2026-10-31): the ONE reader/appender of `<configHome>/mcp-checks.jsonl`, the append-only log of `check tools` presses, a regular file beside config.json outside any run/flow dir: one appendFileSync per press (never a rewrite), one readFileSync to find the newest line per MCP, one mkdirSync of the config home.",

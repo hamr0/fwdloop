@@ -4,7 +4,8 @@
 // text a try was handed is kept by that try's audit row (`memoText`, runner.js `makeAuditRow`), so no new run-folder file. Pure over those files, so it survives a
 // pause, a resume and a restart. It never carries money or time (no cost, no duration); gap texts are the closer's own words, kept as they are (cut at GAP_CHARS).
 import { readAudit, isGoodEnding } from './books.js';
-import { readFileInside } from './flow.js';
+import { readFileInside, readRunJobCopy } from './flow.js';
+import { loadCatalogue } from './catalogue.js';
 import { listArchivedAsks, DECISION_STATUS } from './ask.js';
 import { readRunRecord } from './runfile.js';
 import {
@@ -27,12 +28,10 @@ const says = (/** @type {string} */ words) => (words === '' ? '' : ` — user sa
 
 /** step names in the job's own order, from the run's copy of the job (`[]` when it cannot be read) @param {string} runDir @returns {string[]} */
 function stepOrder(runDir) {
-  const r = readFileInside(runDir, 'job/declaration.json');
-  if (!r.ok) return [];
-  try {
-    const steps = JSON.parse(r.text)?.steps;
-    return Array.isArray(steps) ? steps.map((s) => s?.emits).filter((e) => typeof e === 'string') : [];
-  } catch { return []; }
+  const cat = loadCatalogue();
+  const job = cat.ok ? readRunJobCopy(runDir, cat.primitives) : { present: /** @type {false} */ (false) };   // M20 am3 item 2: a copy that fails its signature is no job
+  const steps = job.present && job.ok ? job.declaration?.steps : null;
+  return Array.isArray(steps) ? steps.map((s) => s?.emits).filter((e) => typeof e === 'string') : [];
 }
 
 /** the human lines: the rerun line first (this run began as a rerun), then one per answered ask in the order they were asked (N counts every ask of this run) @param {string} runDir @param {string[]} order @returns {string[]} */
