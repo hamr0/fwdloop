@@ -4692,3 +4692,14 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** as am3, plus: the P1 snapshot is byte-identical after each item; each owner in items 22-24 has a guard test proven red once; item 23's named change has a test red on the old Audit code.
 
 **Must fail when:** a screen word changes; a money number or a count changes on any real run; an owner keeps a second copy outside its allow-list.
+
+**M20 amendment 4 — SIGNED by hamr 2026-11-26 ("sign m20 am4."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am4-sign.md, sha256 9c736f845d6a…).**
+
+**M20 amendment 4 — a suggested count you Add is yours.** Live: hamr's walk 2026-11-26, draft d-00mwxqfzaw-3c6d (`m20-long-2`): the card offered `[agent] fact · results — 1 to 4 results` under SUGGESTED on line 4, and Add was refused: `the result count has the number 1, but 1 is not in your words on line 4`. The same refusal comes from v0.38.0 (a $0 replay on a copy of the draft), so it is old, not from M20. Cause: a count row is SUGGESTED exactly when its number is not in the job line's words (src/checkblock.js `inJob`), and the count check (src/citedwords.js `countReds`, M10 am7 item 1) refuses every count whose number is not in the job line's words, so every suggested count is an Add that always fails. bareloop has no such count check, so its Add works. hamr 2026-11-26: "ai suggestions are accepted as long as it advises, proposes based on the job … i should be able to add suggested". This changes M10 am7 item 1's count check for this case only; every other signed line stands.
+
+1. **Your Add says the number.** A `!` count row the person switched on with Add on the plan card (its Add is in the plan's picks record) passes the count check, as if the number were in the line's words. The row then shows under CHECKED, as any Added row does.
+2. **Nothing else loosens.** A count the drafter writes on its own, not Added by the person, is still refused when its number is not in the line's words. A Drop of the added count takes it out again, as today.
+
+**Done when:** a test replays hamr's draft (copied as a fixture) with Add on `L4.count.1-4`: refused on today's code, a new plan with the count under CHECKED after the fix; a drafter-written count not in the line's words is still refused; the P1 snapshot is byte-identical; the full suite is green.
+
+**Must fail when:** a count the person did not Add passes without its number in the line's words; an Add of a suggested count is refused by the count check.
