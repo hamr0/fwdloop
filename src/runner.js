@@ -50,7 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { readPlan, readRunPlan, runOwnsPlan, resolveRunDir, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy } from './flow.js';
 import { readFileInside, readdirInside, resolveInside } from './inside.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer, readAskFile,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer, readAskFile, needsReason,
 } from './ask.js';
 import {
   findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findMcpPlanRed,
@@ -1795,7 +1795,7 @@ async function runAskSlot({
     const isRedo = answer.decision === 'redo' || answer.decision === 'rerun';
     const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
 
-    if (isRedo && reason.length === 0) {
+    if (needsReason(answer.decision) && reason.length === 0) {
       recordAudit(makeAuditRow({
         step, attempt: redone + 1, verdict: 'refused', gap: 'a redo/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);

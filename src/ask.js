@@ -52,6 +52,9 @@ export function stripControl(text) {
   return String(text).replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, '');
 }
 
+/** M20 am8: the one question "does this decision need a reason" (a redo or a rerun; an accept does not): the answer door and the runner's re-check of a saved answer ask it @param {unknown} decision @returns {boolean} */
+export const needsReason = (decision) => decision === 'redo' || decision === 'rerun';
+
 /** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
  *  Look it up with `normalizeDecision(decision)`. */
 export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
@@ -443,7 +446,7 @@ export function answerAsk({
   }
 
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if ((decision === 'redo' || decision === 'rerun') && trimmedReason.length === 0) {
+  if (needsReason(decision) && trimmedReason.length === 0) {
     return { ok: false, red: `answerAsk: askId "${askId}" needs a non-blank reason to ${decision}` };
   }
 

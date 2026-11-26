@@ -470,3 +470,14 @@ test('am8 item 1f: only src/checkwords.js names the origin tags you, agent and d
     { file: 'panel/index.html', snippet: 'return by === "you" || by === "agent" || by === "default"', why: 'tagWordOf: the page is a classic script and cannot import tagOf; how it asks the server (a flag on its data, or the TAG map the server injects) is not settled by the signed text: reported for a ruling' },
   ]), []);
 });
+
+// am8 item 1g: "does this decision need a reason" (redo or rerun) is needsReason (src/ask.js)
+test('am8 item 1g: only src/ask.js names the decisions redo and rerun together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('redo', 'rerun'), 'ask.js', [
+    { file: 'runner.js', snippet: "const isRedo = answer.decision === 'redo'", why: "the ask loop's handling branch (it counts a redo, writes a red row, runs the step again): asks what the answer IS, not whether it needs a reason" },
+    { file: 'panel/data.js', snippet: "accepted: 'accept', redo: 'redo', reran: 'rerun'", why: 'WORKING_WORD: a table from an archive status to a decision word, not a question' },
+    { file: 'panel/index.html', snippet: 'accepted: "accepted", redo: "redo", reran: "rerun"', why: 'a table from a decision to its status word, not a question' },
+    { file: 'panel/index.html', snippet: 'decision === "rerun" ? "rerun" : "redo"', why: 'which word the hint says (rerun or redo), not whether a reason is needed' },
+    { file: 'panel/index.html', snippet: 'return (decision === "redo" || decision === "rerun") && String(value).trim()', why: 'reasonMissing: the page is a classic script and cannot import needsReason; how it asks the server is not settled by the signed text: reported for a ruling (it only saves a round trip, the door still refuses)' },
+  ]), []);
+});

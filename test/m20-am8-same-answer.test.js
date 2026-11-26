@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { lockMayBeHeld } from '../src/liveness.js';
 import { noJudgment } from '../src/closers.js';
 import { answerPickedUp } from '../src/panel/data.js';
+import { needsReason } from '../src/ask.js';
 import { tagOf } from '../src/checkwords.js';
 import { isRowChoice } from '../src/pickrecord.js';
 import { startedNothing } from '../src/summary-words.js';
@@ -73,4 +74,10 @@ test('1f tagOf: the node sites that spelled the three origin tags equal `tagOf(b
   const kind = ['you', 'agent', 'default'];
   // old sites src/blockassemble.js:126, src/checklistsign.js:80,86,92, src/auditchecks.js:66, src/panel/result.js:227 (`x === 'you' || x === 'agent' || x === 'default'`), src/checklook.js:43 (the same triple)
   same('triple', [...kind, 'constructor', 'toString', '__proto__', 'hasOwnProperty'], (b) => b === 'you' || b === 'agent' || b === 'default', (b) => tagOf(b) !== '');
+});
+
+test('1g needsReason: the two old node sites ask redo-or-rerun of a decision word', () => {
+  const kind = ['accept', 'redo', 'rerun', 'reject', 'timeout', 'park'];
+  // old sites src/ask.js:446 (answerAsk) and src/runner.js:1795 (the saved answer's re-check, read as `isRedo`)
+  same('decision', kind, (d) => d === 'redo' || d === 'rerun', needsReason);
 });
