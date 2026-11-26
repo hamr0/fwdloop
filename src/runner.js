@@ -76,7 +76,7 @@ import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
-import { readRunInputs, readRunRecord, writeRunStart, INPUTS_DIR, frozenRel } from './runfile.js';
+import { readRunInputs, readPlaceRows, writeRunStart, INPUTS_DIR, frozenRel } from './runfile.js';
 // borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
 import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
@@ -505,8 +505,8 @@ export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
  */
 export function stepsWithRecordedPlaces(runDir, steps) {
   if (citedPlaceFactsOf(steps).length === 0) return { ok: /** @type {true} */ (true), steps };
-  const got = readRunRecord(runDir);
-  const values = got.ok && Array.isArray(got.rec.placeRules?.rows) ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: got.rec.placeRules.rows }]) : null;
+  const placed = readPlaceRows(runDir);
+  const values = placed !== null ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: placed }]) : null;
   if (values === null) return { ok: /** @type {false} */ (false), words: NO_PLACE_RECORD_WORDS };
   return { ok: /** @type {true} */ (true), steps: bindCitedPlaceValues(steps, values) };
 }

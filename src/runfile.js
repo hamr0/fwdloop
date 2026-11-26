@@ -61,6 +61,16 @@ export function readRunInputs(runDir) {
 }
 
 /**
+ * M20 am3e item 16: the place-rule rows the run recorded at its start (`placeRules.rows`), or null when there are none to read (no record, a refused or torn file,
+ * no `placeRules` section, rows that are not a list). Each caller maps null to its own none: the carry-forward reads it as no rows, a resume refuses by name.
+ * @param {string|null} runDir @returns {any[]|null}
+ */
+export function readPlaceRows(runDir) {
+  const got = readRunRecord(runDir);
+  return got.ok && Array.isArray(got.rec.placeRules?.rows) ? got.rec.placeRules.rows : null;
+}
+
+/**
  * M8b item 1: the ONE writer of `run.json`, called once when a fresh run has frozen its inputs (`runFlow`); never over an existing record. `model` is the pick
  * the run started on (M4d am33; null = the section is left out), `thinking` the job's "Thinking on" box as it was at the start (M4d am25: written for every fresh
  * run, ticked or not), `inputs` the manifest `freezeInputs` returned. A fresh run always has `thinking` and `inputs`.

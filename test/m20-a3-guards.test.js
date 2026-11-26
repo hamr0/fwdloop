@@ -248,3 +248,8 @@ test('item 10: only draftfiles.js names not-checked.json or reads NOT_CHECKED_FI
   assert.deepEqual(strays(files, /['"`/]not-checked\.json/, { 'draftfiles.js': 'NOT_CHECKED_FILE declared; readNotCheckedFile: the one reader' }), []);
   assert.deepEqual(strays(files, /readJsonFile\([^)\n]*NOT_CHECKED_FILE/, { 'draftfiles.js': 'readNotCheckedFile' }), []);
 });
+
+// am3e item 16: run.json's `placeRules` rows are read by readPlaceRows (src/runfile.js) only; the writer writes the section there too
+test('am3e item 16: only runfile.js reads the placeRules section of run.json', () => {
+  assert.deepEqual(strays(load(), /rec\.placeRules\b/, { 'runfile.js': 'readPlaceRows' }), []);
+});
