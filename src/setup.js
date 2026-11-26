@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf, CARD_RE } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { readQuestions, scrub, draftVerdict } from './authoring.js';
+import { readQuestions, scrub, draftVerdict } from './draftfiles.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
