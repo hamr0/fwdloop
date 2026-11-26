@@ -64,7 +64,7 @@ import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow,
-  readHaltRecord, readLog, readRunState, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
+  readHaltRecord, readLog, readRunState, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
 } from './books.js';
 import { learnAtRunEnd, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
@@ -2249,18 +2249,11 @@ function sumAuditUsd(runDir, { skipVerdicts = /** @type {string[]} */ ([]) } = {
   // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
   // directory) reads as "missing" (total 0), never as some outside file's
   // content summed into a cap check.
-  const result = readFileInside(runDir, 'audit.jsonl');
-  if (!result.ok) return { ok: true, total: 0, complete: true };
-  const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
+  const read = readAudit(runDir, { strict: true });
+  if (!read.ok) return read;
   let total = 0;
   let complete = true;
-  for (const line of lines) {
-    let row;
-    try {
-      row = JSON.parse(line);
-    } catch (err) {
-      return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` };
-    }
+  for (const row of read.rows) {
     // a row of a verdict the caller names cost nothing and carries `usd: null` on purpose (a cap-halt: the round was never bought)
     if (skipVerdicts.includes(row.verdict)) continue;
     if (row.spendComplete === false) complete = false;
@@ -2426,19 +2419,14 @@ export async function resumeRun({
     // symlinked run dir ancestor) is refused by name here, never read
     // through to an outside file's content (the same class `answer.json`
     // and `audit.jsonl` above already close).
-    const stateResult = readFileInside(runDir, 'state.json');
+    const stateResult = readRunState(runDir, { strict: true });
     if (!stateResult.ok) {
       if (stateResult.missing) {
         return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
       }
       return { outcome: 'refused', red: `resume: state.json for run "${runId}" — ${stateResult.red}` };
     }
-    let state;
-    try {
-      state = JSON.parse(stateResult.text);
-    } catch (err) {
-      return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
-    }
+    const state = stateResult.state;
 
     // F45 finding 3: the run's TRUE wall-clock start, restored from the
     // parked state rather than this process's own `startedAt` — otherwise
@@ -3045,8 +3033,7 @@ export async function continueRun({
     if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
 
     // Consume-once BEFORE acting (the answer's own rule, F44): the rename is a one-winner gate on top of the lock.
-    const taken = readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
-    renameSync(join(runDir, HALT_FILE), join(runDir, `halt.${taken + 1}.consumed.json`));
+    renameSync(join(runDir, HALT_FILE), join(runDir, nextHaltConsumedName(runDir)));
     settleStop({ runDir, now, outcome: halt.outcome ?? 'halted' }); // a request left over from before the halt is not this continue's
     recordPid(runDir, 'continue', now());
 

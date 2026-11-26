@@ -274,11 +274,22 @@ export function auditRowAt(row) {
  * Read back every row `appendAudit` has written for one run, in file order
  * (append order — never re-sorted). `[]` when the file doesn't exist yet
  * (a run that hasn't made an attempt), never a thrown error.
+ * `{ strict: true }` is the one named mode for the money sum: `{ok:true, rows}` or `{ok:false, red}` on a torn line.
  * @param {string} runDir
- * @returns {any[]}
+ * @param {{strict?: boolean}} [opts]
+ * @returns {any}
  */
-export function readAudit(runDir) {
-  return readLines(runDir, 'audit.jsonl');
+export function readAudit(runDir, { strict = false } = {}) {
+  if (!strict) return readLines(runDir, 'audit.jsonl');
+  // strict mode (M20 am3 item 11): the money sum must balance, so a torn line is a red, never skipped; a missing or refused file is no rows
+  const result = readFileInside(runDir, 'audit.jsonl');
+  if (!result.ok) return { ok: true, rows: [] };
+  const rows = [];
+  for (const line of result.text.split('\n')) {
+    if (line.trim().length === 0) continue;
+    try { rows.push(JSON.parse(line)); } catch (err) { return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` }; }
+  }
+  return { ok: true, rows };
 }
 
 /**
@@ -399,8 +410,17 @@ export function endRow(historyRows, runDir, runId) {
   for (const r of historyRows) if (r && r.runId === runId) last = r;
   if (last === null || !isResumableEnding(last.outcome)) return last;
   const names = readdirInside(runDir, '.');
-  const continuing = !names.includes('halt.json') && names.some((n) => /^halt\.\d+\.consumed\.json$/.test(n));
+  const continuing = !names.includes('halt.json') && haltConsumedCount(runDir) > 0;
   return continuing ? null : last;
+}
+
+/** The one place `halt.<n>.consumed.json` is named: how many a run holds, and the name the next continue renames halt.json to. @param {string} runDir */
+export function haltConsumedCount(runDir) {
+  return readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
+}
+/** @param {string} runDir */
+export function nextHaltConsumedName(runDir) {
+  return `halt.${haltConsumedCount(runDir) + 1}.consumed.json`;
 }
 
 /** The one reader of halt.json (the run is waiting = the file EXISTS, parse or not: see {@link haltFileExists}): `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
@@ -427,12 +447,19 @@ export function readLog(runDir) {
 
 /**
  * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
- * when the run has never parked, or the file is present but not valid JSON.
+ * when the run has never parked, or the file is present but not valid JSON. `{ strict: true }` (Resume) returns
+ * `{ok:true, state}`, `{ok:false, missing:true}` or `{ok:false, red}` instead.
  * @param {string} runDir
- * @returns {any|null}
+ * @param {{strict?: boolean}} [opts]
+ * @returns {any}
  */
-export function readRunState(runDir) {
+export function readRunState(runDir, { strict = false } = {}) {
   const result = readFileInside(runDir, 'state.json');
+  if (strict) {
+    // strict mode (M20 am3 item 11, Resume): missing, refused and torn stay three different words
+    if (!result.ok) return result.missing ? { ok: false, missing: true } : { ok: false, red: result.red };
+    try { return { ok: true, state: JSON.parse(result.text) }; } catch (err) { return { ok: false, red: `is not valid JSON — ${err.message}` }; }
+  }
   if (!result.ok) return null;
   try { return JSON.parse(result.text); } catch { return null; }
 }
