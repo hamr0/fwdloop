@@ -4753,3 +4753,31 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** the file-kind guard fails if `src/` or `bin/` names both file kinds together outside `src/trigger-files.js` (red before the change, naming the files); both guards go red on a test string with the kinds wrapped over two lines; the P1 snapshot is byte-identical; the targeted schedule and panel tests are green at 1280, 390 and 320; the full suite is green.
 
 **Must fail when:** a twelfth place asks the file-kind question with its own list; any schedule is accepted, refused, shown or looked at differently from today.
+
+**M20 amendment 8 — SIGNED by hamr 2026-11-26 ("sign m20 am8."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am8-sign.md, sha256 41ecaf06843a…).**
+
+**M20 amendment 8 — one owner for every question still asked in more than one place (F277).** Found 2026-11-26 by a $0 read-only map after am7 (F277: two readers read every site by meaning, not by search; the orchestrator re-read the risky ones) and a $0 measure on real data (749 distinct guardrail texts from every job, signed copy, run copy, draft and the P1 copy; 125 saved check-suggest inputs from draft logs). hamr 2026-11-26: "one owner", with a regression test. It adds to M20; every other signed line stands.
+
+1. **Same question, one owner (no behaviour change).** Each of these questions gets one function in the module that owns the fact, and every place that asks it calls that function; the page asks through a flag on data it already gets (as am6 and am7):
+   a. may someone still hold this run's resume lock (src/liveness.js);
+   b. did the check give no judgment, crash or unparseable (src/closers.js);
+   c. is an answer being picked up (src/panel/data.js); a site found to ask a different question stays apart, named with its reason;
+   d. did a fire start nothing: the existing `startedNothing` (src/summary-words.js), which src/panel/data.js stops spelling out;
+   e. is this an Add or Drop choice;
+   f. is this an origin tag (you, agent, default): the existing `tagOf` (src/checkwords.js);
+   g. does this decision need a reason (redo, rerun) (src/ask.js);
+   h. is this a flow type (next to `FLOW_TYPES`, src/declaration.js);
+   i. is this a thinking mode (src/thinking.js);
+   j. does this outcome end the run, paused or stopped (src/runner.js);
+   k. on the page: red or stopped, and a revise or redraft is running;
+   l. in src/checkblock.js fact or phrase, and in src/pageask.js the shape ask;
+   m. reading picks-record.json: every reader opens it through `readJsonFile` (src/flow.js); each reader keeps its own field;
+   n. the same halves of the amount-shape, code-readable-limit, phrase-like and min/max-count checks.
+   The pairs the map found to ask different questions stay apart, each named on the guard's allow-list with its reason.
+2. **One owner for the guardrail readers.** src/declaration.js and src/blockpick.js each carry `guardrailWordNumbers`, `guardrailStandaloneNumbers`, `guardrailWordsPerSection`, `guardrailSectionCount`, `guardrailItemCount` and the count-rule test (`isCountGuardrail` = `isCountable`). One copy stays and every caller uses it. `guardrailItemCount` keeps bareloop v0.63.0's words (adds "bullet points") and keeps fwd's rule that a number right after `$ € £ . ,` is not an item count, so "$5 per item" and "2.5 items" are not read as 5 items. On today's data no guardrail reads differently (0 of 749). loop is told the "2.5 items" reading.
+3. **One owner for keep-or-drop and the count check.** src/checkpick.js's `keepOrDrop` and `countCheck` go; every caller (the first-draft check suggestion, the row-edit replay) uses src/blockpick.js's, which is bareloop's. A suggested list rule "more than N", "fewer than N" or "no more than 0" items is then kept with its min or max, not dropped at the first filter, and "at least 3 items" becomes a minimum of 3, not exactly 3. On today's saved drafts nothing changes (0 of 125).
+4. **Dead branches go.** src/checkblock.js's `number` and `date` arms that no reading can reach are deleted.
+
+**Regression tests (Done when):** for each question in item 1 a guard fails while a second place asks it with its own list or test (red before the change, naming the files; a list wrapped over lines counts); for each merged function a same-answer test compares every old site's answer with the owner's on every value of its kind plus empty, missing and unknown values, and all match; item 2: a test runs both old copies and the owner over the 749 real guardrail texts (copied as a fixture, PII scrubbed) and finds no change, and the four probes above give the new answers; item 3: a test replays the 125 saved check-suggest inputs through the old and new path and finds no change, and the list-rule probes give the new answers; the P1 snapshot is byte-identical; the full suite is green; the live panel check at 1280, 390 and 320 passes; hamr's walk reruns one old job (reuse, no draft) and drafts one new job with a list rule, both as before or as item 3 says.
+
+**Must fail when:** a question in item 1 is asked in a second place with its own list or test; a guardrail reader or keep-or-drop has two copies; any screen, run or check differs from today except the readings items 2 and 3 name.
