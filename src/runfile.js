@@ -24,6 +24,16 @@ export function readRunRecord(runDir) {
 }
 
 /**
+ * M20 am3 item 12: the ONE test for "this run began as a rerun": the human's words its `run.json` carries (`rerun.decision` is `rerun` and
+ * `rerun.words` is a string), or null. The Audit's first step and the carry memo ask it. @param {string|null} runDir @returns {string|null}
+ */
+export function readRerunWords(runDir) {
+  const rec = readRunRecord(runDir);
+  const rr = rec.ok ? rec.rec.rerun : null;
+  return rr && typeof rr === 'object' && rr.decision === 'rerun' && typeof rr.words === 'string' ? rr.words : null;
+}
+
+/**
  * M4d am26: the run's OWN record of the box (`thinking` in `<run>/run.json`) and nothing else: `true`/`false`, or `null` when the run has none (a run from before am25).
  * An unreadable record is box off, as `readJobThinking` has always read it. @param {string|null} runDir @returns {boolean|null}
  */

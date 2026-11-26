@@ -146,3 +146,8 @@ test('item 12 (draft spend, started-over): only draftspend.js names draft-spend.
   // the draft folder's own spend.jsonl is read through readDirSpendRows (setup.js, monthly.js, draftspend.js); no other file may read `join(<plan folder>, 'spend.jsonl')` itself for a draft
   assert.deepEqual(strays(files, /readSpendRows\(join\(sessionDir/, {}), []);
 });
+
+// item 12 (rerun test): "this run began as a rerun" is readRerunWords (src/runfile.js); the run record's `rerun` is read there only
+test('item 12 (rerun): only runfile.js reads the run record\'s rerun', () => {
+  assert.deepEqual(strays(load(), /\.rec\.rerun\b|\brec\??\.rerun\b/, { 'runfile.js': 'readRerunWords: the one test; writeRunStart writes it' }), []);
+});

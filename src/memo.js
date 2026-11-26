@@ -7,7 +7,7 @@ import { readAudit, isGoodEnding } from './books.js';
 import { readFileInside, readRunJobCopy } from './flow.js';
 import { loadCatalogue } from './catalogue.js';
 import { listArchivedAsks, DECISION_STATUS } from './ask.js';
-import { readRunRecord } from './runfile.js';
+import { readRerunWords } from './runfile.js';
 import {
   foldCards, nameOf, errorKinds, flaggedTokens, quoteLines,
 } from './learn.js';
@@ -38,9 +38,8 @@ function stepOrder(runDir) {
 function humanLines(runDir, order) {
   /** @type {string[]} */
   const lines = [];
-  const rec = readRunRecord(runDir);
-  const rr = rec.ok ? rec.rec.rerun : null;
-  if (rr && typeof rr === 'object' && rr.decision === 'rerun' && typeof rr.words === 'string') lines.push(`rerun${says(oneLine(rr.words))}`);
+  const rerunWords = readRerunWords(runDir);
+  if (rerunWords !== null) lines.push(`rerun${says(oneLine(rerunWords))}`);
   const listed = listArchivedAsks(runDir);
   if (!listed.archived) return lines;
   const asks = [...listed.asks].sort((a, b) => String(a.askedAt ?? '').localeCompare(String(b.askedAt ?? '')));
