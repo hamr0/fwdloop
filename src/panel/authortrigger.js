@@ -31,7 +31,8 @@ import { FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sam
 import { readFileInside } from '../inside.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, validateSchedule } from '../trigger-clock.js';
-import { checkTarget, createFileTrigger } from '../trigger-files.js';
+import { createFileTrigger, fileTriggerWhy } from '../trigger-files.js';
+import { shapeOf } from '../schedule-shape.js';
 import { lookProblemOf } from '../trigger-tickets.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { LOOK_TOOL } from '../ticket-draft.js';
@@ -155,37 +156,6 @@ function newTicketTrigger(read, trigger) {
 }
 
 /**
- * The trigger a body asks for, checked as data: null (By hand) or exactly one of the five shapes, the role one of the job's inputs, a full
- * path. Returns the typed trigger or the sentence that says what to fix.
- * @param {unknown} t @param {string[]} roles
- * @returns {{ok: true, trigger: Trigger|null} | {ok: false, say: string}}
- */
-function shapeOf(t, roles) {
-  if (t === null) return { ok: true, trigger: null };
-  if (!t || typeof t !== 'object' || Array.isArray(t)) return { ok: false, say: 'Pick when it runs from the choices. A schedule is not typed as text. Nothing was changed.' };
-  const o = /** @type {Record<string, unknown>} */ (t);
-  if (o.kind === 'file-updated' || o.kind === 'new-file') {
-    const where = o.kind === 'new-file' ? 'folder' : 'path';
-    const extra = Object.keys(o).filter((k) => !['kind', 'role', where].includes(k));
-    if (extra.length > 0) return { ok: false, say: `A "${o.kind}" trigger takes a kind, a role and a ${where}, not "${extra[0]}". Nothing was changed.` };
-    if (typeof o.role !== 'string' || !roles.includes(o.role)) return { ok: false, say: `This job has no input named "${String(o.role)}" (it takes: ${roles.join(', ') || 'none'}). Pick one of those. Nothing was changed.` };
-    const p = o[where];
-    // eslint-disable-next-line no-control-regex
-    if (typeof p !== 'string' || p === '' || !isAbsolute(p) || /[\x00-\x1f\x7f]/.test(p)) return { ok: false, say: `The ${where} must be a full path on one line, like /home/you/inbox. Nothing was changed.` };
-    return { ok: true, trigger: /** @type {Trigger} */ (o.kind === 'new-file' ? { kind: 'new-file', role: o.role, folder: p } : { kind: 'file-updated', role: o.role, path: p }) };
-  }
-  if (o.kind === 'new-ticket') {
-    // M12 piece 2: the person picks the input; the list address, the job's server and the look's tool are filled from the signed job (inspect), never typed here
-    const extra = Object.keys(o).filter((k) => !['kind', 'role', 'watch'].includes(k));
-    if (extra.length > 0) return { ok: false, say: `A "new-ticket" trigger takes a kind and a role, not "${extra[0]}". Nothing was changed.` };
-    if (typeof o.role !== 'string' || !roles.includes(o.role)) return { ok: false, say: `This job has no input named "${String(o.role)}" (it takes: ${roles.join(', ') || 'none'}). Pick one of those. Nothing was changed.` };
-    if (o.watch !== undefined && !(Array.isArray(o.watch) && o.watch.every((w) => WATCHABLE.includes(w)))) return { ok: false, say: `A ticket schedule can watch only ${WATCHABLE.join(' and ')}. Nothing was changed.` };
-    return { ok: true, trigger: /** @type {Trigger} */ ({ kind: 'new-ticket', role: o.role, list: '', server: '', tool: '', ...(o.watch ? { watch: o.watch } : {}) }) };
-  }
-  try { return { ok: true, trigger: validateSchedule(t) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was changed.` }; }
-}
-
-/**
  * THE builder of a Schedule record (the Run card's second click and the New job card's sign both call it): the hash binds exactly what the human was shown.
  * @param {{flow: string, flowSignatureHash: string, trigger: Trigger, model: Schedule['model'], destination: string|null, inputs: Schedule['inputs'], plan: Schedule['plan'], from: string|null, signedBy: string, at: number}} o
  * @returns {Schedule}
@@ -249,15 +219,8 @@ export function createTriggerDoor(opts) {
       return reply(400, { refused: 'bad-trigger', say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
     }
     if (fileTrigger !== null) {
-      try {
-        checkTarget(fileTrigger.kind === 'new-file' ? 'new' : 'updated', fileTrigger.kind === 'new-file' ? fileTrigger.folder : fileTrigger.path);
-      } catch (e) {
-        return reply(400, { refused: 'bad-trigger', say: `${/** @type {Error} */ (e).message}. Nothing was changed.` });
-      }
-      // a file that does not exist yet may arrive (checkTarget allows it), but its folder must be there: a typo is caught now, not never
-      if (fileTrigger.kind === 'file-updated') {
-        try { realpathSync(dirname(fileTrigger.path)); } catch { return reply(400, { refused: 'bad-trigger', say: `The folder of ${fileTrigger.path} does not exist. Nothing was changed.` }); }
-      }
+      const why = fileTriggerWhy(fileTrigger);
+      if (why !== null) return reply(400, { refused: 'bad-trigger', say: `${why} Nothing was changed.` });
     }
     // M6 am5 item 3: a schedule may carry the model of the run it was made from (a run field). Checked now by the Run door's own model check; the same as
     // the job's recorded model is no change (null). It is bound into the hash, written beside the trigger's ledger, and read by the fire.
@@ -518,12 +481,23 @@ export function createTriggerDoor(opts) {
      * @returns {{ok: true, trigger: Trigger} | {ok: false, say: string}}
      */
     cardSchedule(spec, plan) {
+      // M20 am5 item 1: the card's choice is checked as the Run card checks its own (`shapeOf`, `fileTriggerWhy`, the web-page input refusal), on the plan about to be signed
+      const roles = (plan.arbiter.sources ?? []).map((/** @type {any} */ s) => s.role);
+      const unsigned = (/** @type {string} */ say) => ({ ok: /** @type {false} */ (false), say: say.replace(/ Nothing was changed\.$/, ' Nothing was signed.') });
       if (spec.kind === 'new-ticket') {
-        const roles = Object.keys(ticketListsOf(plan.arbiter));
-        if (roles.length !== 1) return { ok: false, say: 'When a new ticket arrives needs exactly one ticket list in Inputs. Nothing was signed.' };
-        return newTicketTrigger(plan, { role: roles[0] });
+        const lists = Object.keys(ticketListsOf(plan.arbiter));
+        if (lists.length !== 1) return { ok: false, say: 'When a new ticket arrives needs exactly one ticket list in Inputs. Nothing was signed.' };
+        return newTicketTrigger(plan, { role: lists[0] });
       }
-      try { return { ok: true, trigger: validateSchedule(spec) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was signed.` }; }
+      const shaped = shapeOf(spec, roles);
+      if (!shaped.ok) return unsigned(shaped.say);
+      const trigger = shaped.trigger;
+      if (trigger !== null && (trigger.kind === 'file-updated' || trigger.kind === 'new-file')) {
+        if (Object.hasOwn(pageAddressesOf(plan.arbiter), trigger.role)) return { ok: false, say: `The input "${trigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was signed.` };
+        const why = fileTriggerWhy(trigger);
+        if (why !== null) return { ok: false, say: `${why} Nothing was signed.` };
+      }
+      return trigger === null ? { ok: false, say: 'Pick when it runs from the choices. Nothing was signed.' } : { ok: true, trigger };
     },
 
     /**

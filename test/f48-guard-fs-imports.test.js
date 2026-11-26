@@ -368,7 +368,7 @@ const ALLOWLIST = {
   'src/trigger-files.js': {
     reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir; the read and the append go through src/jsonl-append.js). M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
     names: {
-      existsSync: 2, lstatSync: 8, readFileSync: 3, readdirSync: 1, realpathSync: 6,
+      existsSync: 2, lstatSync: 8, readFileSync: 3, readdirSync: 1, realpathSync: 7,
     },
   },
   'src/schedule.js': {
@@ -483,7 +483,7 @@ const ALLOWLIST = {
   },
   'src/panel/authortrigger.js': {
     reason: "M9 pieces 3-4 and am20: the schedule door. realpathSync of the flows root, of a file trigger's folder and of each input path a fire starts a run with, and of the scheduled destination at fire time (all at use time). Appends ONE line per fire outcome to `<flow>/triggers.jsonl` (append-only, 0600, through src/jsonl-append.js). It writes nothing else itself: the schedule file and the queue go through src/schedule.js. Every READ of a job, a run, its copy and the outcome file goes through readFileInside / readFlow / the ledgers' own readers, never fs directly.",
-    names: { realpathSync: 4 },
+    names: { realpathSync: 3 },
   },
   'src/panel/authorresume.js': {
     reason: 'M4e amendment 4 items 4 and 6: the Resume door — realpathSync of the typed --root at use time. Writes nothing itself: the new signed cap version goes through `writeRunValues` (src/runvalues.js, write-once) and the continue through authorstart.js; every book it reads goes through readFlow/readdirInside/readFileInside.',

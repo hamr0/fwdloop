@@ -111,6 +111,23 @@ export function checkTarget(mode, target) {
 }
 
 /**
+ * Is a file or folder trigger's target usable now? The words say what is wrong, without the closing "Nothing was changed."; null = fine. A file that does not exist yet may arrive
+ * (`checkTarget` allows it), but its folder must be there: a typo is caught now, not never.
+ * @param {{kind: 'file-updated', path: string}|{kind: 'new-file', folder: string}} trigger @returns {string|null}
+ */
+export function fileTriggerWhy(trigger) {
+  try {
+    checkTarget(trigger.kind === 'new-file' ? 'new' : 'updated', trigger.kind === 'new-file' ? trigger.folder : trigger.path);
+  } catch (e) {
+    return `${/** @type {Error} */ (e).message}.`;
+  }
+  if (trigger.kind === 'file-updated') {
+    try { realpathSync(dirname(trigger.path)); } catch { return `The folder of ${trigger.path} does not exist.`; }
+  }
+  return null;
+}
+
+/**
  * M9 am16: does a trigger on this target still watch this file? New: the file sits directly in the same (real) folder. Updated: it is the same (real) file. False when the target cannot be resolved.
  * @param {'new'|'updated'} mode @param {string} target @param {string} filePath a queued file's path as the watcher recorded it (a real path)
  */

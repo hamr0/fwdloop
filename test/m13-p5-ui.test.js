@@ -49,12 +49,12 @@ for (const width of [1280, 390, 320]) {
     const c = o.chrome;
     assert.equal(await c.ev('document.querySelector("label[for=jf-sched]").textContent'), 'Schedule');
     assert.equal(await c.ev('document.getElementById("jf-sched").value'), 'hand');
-    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM'], 'plain');
+    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM', 'Weekdays at HH:MM', 'Every <day> at HH:MM'], 'plain (M20 am5: the Run card\'s list; no file input, so no file choice)');
     assert.equal(await shown(c, 'jf-sched-hint'), false, 'By hand has no hint');
     await setSel(c, 'jf-flowtype', 'mcp');
     assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM'], 'MCP');
     await setSel(c, 'jf-flowtype', 'tickets');
-    assert.deepEqual(await optionsOf(c), ['By hand', 'When a new ticket arrives', 'Every day at HH:MM'], 'Tickets MCP');
+    assert.deepEqual(await optionsOf(c), [...['By hand', 'Every day at HH:MM', 'Weekdays at HH:MM', 'Every <day> at HH:MM'], 'When a new ticket arrives'], 'Tickets MCP');
     await setSel(c, 'jf-sched', 'new-ticket');
     assert.equal(await c.ev('document.getElementById("jf-sched-hint").textContent'), 'off until the first green run, then turns on');
     assert.equal(await c.ev('document.getElementById("jf-sched-ticket-hint").textContent'), 'the first run reads the newest ticket at the time it starts; older tickets never run');
@@ -69,7 +69,7 @@ for (const width of [1280, 390, 320]) {
     await setSel(c, 'jf-sched', 'new-ticket');
     await setSel(c, 'jf-flowtype', 'plain');
     assert.equal(await c.ev('document.getElementById("jf-sched").value'), 'hand');
-    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM']);
+    assert.deepEqual(await optionsOf(c), ['By hand', 'Every day at HH:MM', 'Weekdays at HH:MM', 'Every <day> at HH:MM']);
   });
 }
 

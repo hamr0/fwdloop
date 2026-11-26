@@ -342,3 +342,13 @@ test('am3g item 27: only authortrigger.js (greenRuns) and authorflows.js (runsOf
     'panel/authorflows.js': 'runsOf: a run that ended well, for the Signed flow list and its pickable runs',
   }), []);
 });
+
+// am5 item 1: the schedule choices per flow type are src/schedule-choices.js (the page fills both cards from it); the typed-schedule shape check is schedule-shape.js, the file/folder check trigger-files.js
+test('am5 item 1: one list of schedule choices and one shape check', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /Weekdays at HH:MM|Every <day> at HH:MM|When a new file arrives in <folder>/, { 'schedule-choices.js': 'the one list, in the Run card\'s words' }), []);
+  assert.deepEqual(strays(files, /function shapeOf\(/, { 'schedule-shape.js': 'the one shape check of a typed schedule (the Run card\'s door and the New job card)' }), []);
+  assert.deepEqual(strays(files, /function fileTriggerWhy\(/, { 'trigger-files.js': 'the one "is this file or folder there" check' }), []);
+  const page = readFileSync(path.join(SRC, 'panel', 'index.html'), 'utf8');
+  assert.ok(!/<option value="(weekdays|weekly|daily|file-updated|new-file|new-ticket)"/.test(page), 'no schedule option is spelled in the page: both cards fill from SCHEDULE_CHOICES');
+});

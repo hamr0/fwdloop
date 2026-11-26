@@ -48,6 +48,7 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
+import { scheduleChoices } from '../schedule-choices.js';
 import { pageRules } from '../plain-checks.js';
 import { readOwnVersion } from '../version.js';
 import path, { dirname, join } from 'node:path';
@@ -532,6 +533,7 @@ export function handleRequest(req, res, opts) {
     const version = opts.version !== undefined ? opts.version : readOwnVersion(opts.packagePath); // M4d am17: the header's number from fwdloop's own package.json; M4b am5 item 5: the one read at panel start (opts.version), not at serve time
     html = version === null ? html.replace(/v__FWDLOOP_VERSION__/g, 'version unknown').replace(/__FWDLOOP_VERSION__/g, '') : html.replace(/__FWDLOOP_VERSION__/g, version);
     html = html.replace(/__FWDLOOP_PLAN_CHECK_RULES__/g, () => JSON.stringify(pageRules())); // M4d am15: the one copy of the plain words
+    html = html.replace(/__FWDLOOP_SCHEDULE_CHOICES__/g, () => JSON.stringify(scheduleChoices())); // M20 am5 item 1: the one list of schedule choices per flow type
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();
