@@ -85,3 +85,13 @@ export function readNotCheckedFile(dir, rel = '.') {
   const f = readJsonFile(dir, `${rel}/${NOT_CHECKED_FILE}`);
   return { notChecked: f?.notChecked, by: isRec(f?.by) ? f.by : null };
 }
+
+/**
+ * M20 am3e item 17: a draft session folder's card files, spelled and read here only. `card.json` is the first card (n 0 or none), `card-<n>.json` the card of
+ * revise or redraft n. `readCard` is the tolerant read: the card object, or null (missing, refused, not JSON, not an object). A site that only asks "is there a
+ * readable file" (src/draftspend.js, the money count) is not this question and keeps its own check.
+ * @param {number} [n] @returns {string}
+ */
+export const cardFileName = (n = 0) => (n > 0 ? `card-${n}.json` : 'card.json');
+/** @param {string} dir the session folder @param {number} [n] @returns {Record<string, any>|null} */
+export const readCard = (dir, n = 0) => readJsonFile(dir, cardFileName(n));

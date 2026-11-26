@@ -253,3 +253,11 @@ test('item 10: only draftfiles.js names not-checked.json or reads NOT_CHECKED_FI
 test('am3e item 16: only runfile.js reads the placeRules section of run.json', () => {
   assert.deepEqual(strays(load(), /rec\.placeRules\b/, { 'runfile.js': 'readPlaceRows' }), []);
 });
+
+// am3e item 17: a session folder's card files are named and read by cardFileName / readCard (src/draftfiles.js); draftspend.js asks "is there a readable file" (true for a torn card.json, which the money count needs), a different question
+test('am3e item 17: only draftfiles.js spells card.json / card-<n>.json (draftspend.js: the readable-file check for the money count)', () => {
+  assert.deepEqual(strays(load(), /['"`]card\.json['"`]|card-\$\{/, {
+    'draftfiles.js': 'cardFileName / readCard: the one name and the one read',
+    'draftspend.js': 'asks only "is there a readable file" (true for a torn card.json) for the money count',
+  }), []);
+});

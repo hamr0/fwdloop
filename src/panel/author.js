@@ -38,7 +38,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
+  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
 } from '../authoring.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
@@ -195,7 +195,7 @@ export function createAuthor(opts) {
   }
 
   function readDraftState(dir, id, keys) {
-    const card = readJsonFile(dir, 'card.json');
+    const card = readCard(dir);
     const base = { draftId: id, card };
     if (readJsonFile(dir, 'abandoned.json')) return { ...base, phase: 'abandoned' };
     const signed = readJsonFile(dir, 'signed.json');
@@ -305,7 +305,7 @@ export function createAuthor(opts) {
     const used = names.filter((n) => PLAN_DIR_RE.test(n) && !redrafts.has(Number(PLAN_DIR_RE.exec(n)?.[1]))).length;
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
-    const card = newest > 0 ? (readJsonFile(dir, `card-${newest}.json`) ?? base.card) : base.card;
+    const card = newest > 0 ? (readCard(dir, newest) ?? base.card) : base.card;
     let reviseNo = 0;
     const revises = ns.map((n) => {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
@@ -366,7 +366,7 @@ export function createAuthor(opts) {
     id, dir, v, vet, env, marker, argvOf, failSay, undoToo = [],
   }) {
     const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
-    const files = [`card-${n}.json`, `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
+    const files = [cardFileName(n), `prose-${n}.txt`, `redraft-${n}.json`].map((f) => join(dir, f));
     const undo = () => { for (const f of [...files, ...undoToo]) rmSync(f, { force: true }); };
     let child;
     try {
@@ -424,7 +424,7 @@ export function createAuthor(opts) {
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
   function answersOf(dir, n, keys) {
     const rec = readJsonFile(dir, `redraft-${n}.json`);
-    const card = readJsonFile(dir, `card-${n}.json`);
+    const card = readCard(dir, n);
     const steps = parseJobBox(typeof card?.job === 'string' ? card.job : '').steps;
     return (Array.isArray(rec?.answers) ? rec.answers : []).map((a) => ({
       line: a.line, lineText: steps[a.line - 1]?.text ?? null, question: scrub(String(a.question), keys), answer: scrub(String(a.answer), keys),
@@ -654,7 +654,7 @@ export function createAuthor(opts) {
       mkdirSync(dd, { recursive: true, mode: 0o700 });
       mkdirSync(dir, { mode: 0o700 });
       const proseFile = join(dir, 'prose.txt');
-      writeFileSync(join(dir, 'card.json'), `${JSON.stringify(card, null, 2)}\n`, { mode: 0o600 });
+      writeFileSync(join(dir, cardFileName()), `${JSON.stringify(card, null, 2)}\n`, { mode: 0o600 });
       // amendment 14 item 6: a Start over names the draft it started over from; write-once, here only. An id that is not one of this panel's drafts is ignored.
       const from = body?.startedOverFrom;
       if (typeof from === 'string' && ID_RE.test(from) && listIds().includes(from)) {
@@ -816,7 +816,7 @@ export function createAuthor(opts) {
       }
       const n = Math.max(0, ...v.revises.map((x) => x.n)) + 1;
       const proseFile = join(dir, `prose-${n}.txt`);
-      writeFileSync(join(dir, `card-${n}.json`), `${JSON.stringify(vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+      writeFileSync(join(dir, cardFileName(n)), `${JSON.stringify(vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
       writeFileSync(proseFile, vet.prose, { mode: 0o600, flag: 'wx' });
       let child;
       try {
@@ -972,7 +972,7 @@ export function createAuthor(opts) {
           kind: 'draft', provider: null, price: null, model: readModelRecord(planDir)?.model ?? null, modelReturned: null, tokens: null, costUsd: 0, rounds: 0, calls: 0, spendComplete: true, stop: null, budgetUsd: null, startedAt: at, wallMs: 0,
         });
         writePlanFiles(dir, {
-          [`card-${n}.json`]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: prose.ok ? prose.text : '',
+          [cardFileName(n)]: `${JSON.stringify(v.card, null, 2)}\n`, [`prose-${n}.txt`]: prose.ok ? prose.text : '',
           [`redraft-${n}.json`]: `${JSON.stringify({ fromPlan: v.plan, answers: [], rowEdit: { op: b.op, key: b.key, at, asks } })}\n`,
         }, { flag: 'wx', mode: 0o600 });
       } catch (e) {

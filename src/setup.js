@@ -11,7 +11,7 @@ import { lstatSync, writeFileSync } from 'node:fs';
 import { triesOf, CARD_RE } from './draft-steps.js';
 import { join } from 'node:path';
 
-import { readQuestions, scrub, draftVerdict, readNotCheckedFile } from './draftfiles.js';
+import { readQuestions, scrub, draftVerdict, readNotCheckedFile, readCard, cardFileName } from './draftfiles.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
 import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
@@ -86,16 +86,16 @@ export function buildSetupRows({
 }) {
   const rows = [];
   if (sessionDir) {
-    const card = readJsonFile(sessionDir, 'card.json');
-    if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, 'card.json'), card });
+    const card = readCard(sessionDir);
+    if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, cardFileName()), card });
     // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
     rows.push(planRow(sessionDir, 'draft', typeof readStartedOverFrom(sessionDir) === 'string' ? 'startover' : 'draft', 0));
     rows.push(...humanRows(sessionDir, 'draft'));
     // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
     const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     for (const n of ns) {
-      const card = readJsonFile(sessionDir, `card-${n}.json`);
-      if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
+      const card = readCard(sessionDir, n);
+      if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, cardFileName(n)), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
       // M16 item 5: a plan made by a Drop or an Add of the person is booked as that, not as a redraft; it asked nothing, and what it kept is the earlier plan's row, not its own
       const marker = readJsonFile(sessionDir, `redraft-${n}.json`);
