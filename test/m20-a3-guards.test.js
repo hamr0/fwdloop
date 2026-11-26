@@ -286,3 +286,11 @@ test('am3e item 20: only draftfiles.js reads a draft plan folder\'s prose.txt / 
   // inside author.js the allow-list is one site: no second read of the plan folder's files
   assert.equal((code(load()['panel/author.js']).match(/(readFileInside|readJsonFile)\([^)\n]*(prose\.txt|declaration\.json)/g) ?? []).length, 1);
 });
+
+// am3e item 15: a run's ask.json is read (found as it is) by readAskFile (src/ask.js) only; readAsk adds withReopen; the presence check in authorstart.js asks only "is there a file"
+test('am3e item 15: only ask.js reads ask.json; authorstart.js asks only whether the file is there, runner.js writes it and sets it aside', () => {
+  assert.deepEqual(strays(load(), /(readFileInside|readJsonFile)\([^)\n]*['"`]ask\.json['"`]/, {
+    'ask.js': 'readAskFile: the one reader',
+    'panel/authorstart.js': 'presence only: "is there an ask.json" (parked), true for a torn file too',
+  }), []);
+});

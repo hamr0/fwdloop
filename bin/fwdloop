@@ -47,7 +47,7 @@ import {
 } from '../src/monthly.js';
 import { keysForDoor } from '../src/keysfile.js';
 import {
-  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
+  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen, readAskFile,
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
@@ -520,11 +520,12 @@ function cmdInbox(rest) {
       const resolved = resolveRunDir(flowDir, runId);
       if (!resolved.ok) continue; // eslint-disable-line no-continue
       const runDir = resolved.runDir;
-      const askRead = readFileInside(runDir, 'ask.json');
+      const askRead = readAskFile(runDir);
       if (!askRead.ok) continue; // eslint-disable-line no-continue -- missing (or refused) ask.json: nothing to show
       let ask;
       try {
-        ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
+        if (askRead.parseError !== null) throw new Error(askRead.parseError);
+        ask = withReopen(runDir, askRead.value); // the effective deadline (a reopened ask's new one)
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
@@ -608,7 +609,7 @@ function cmdShow(rest) {
 
   // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
   // symlinked ask.json is refused by name here, never read through.
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) {
     fail(askRead.missing
       ? `show: no ask.json for askId "${askId}"`
@@ -617,7 +618,8 @@ function cmdShow(rest) {
   }
   let ask;
   try {
-    ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
+    if (askRead.parseError !== null) throw new Error(askRead.parseError);
+    ask = withReopen(runDir, askRead.value); // the effective deadline (a reopened ask's new one)
   } catch (err) {
     fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
     return;

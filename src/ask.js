@@ -276,6 +276,20 @@ export function effectiveExpiresAt(runDir, askId, original) {
 }
 
 /**
+ * M20 am3e item 15: the ONE reader of a run's `ask.json`, as found, through the safe gateway: `{ok: false, missing, red}` when the gateway gives nothing (missing, a symlink,
+ * outside the folder), else `{ok: true, value, parseError}`: `value` is the parsed JSON as it is (any shape), `parseError` the parser's message when the text is not JSON
+ * (`value` is then undefined). It applies nothing: each caller keeps its own refusal words and its own `withReopen` step (`readAsk` in src/runner.js is this plus
+ * `withReopen`, null on any trouble).
+ * @param {string} runDir
+ * @returns {{ok: false, missing: boolean, red?: string}|{ok: true, value: any, parseError: string|null}}
+ */
+export function readAskFile(runDir) {
+  const r = readFileInside(runDir, 'ask.json');
+  if (!r.ok) return r;
+  try { return { ok: true, value: JSON.parse(r.text), parseError: null }; } catch (err) { return { ok: true, value: undefined, parseError: /** @type {any} */ (err).message }; }
+}
+
+/**
  * An `ask.json`-shaped object as every reader should see it: `expiresAt` is the effective deadline, and `waitMs`
  * is the signed wait the ask was parked with (its own `expiresAt` minus `askedAt`, written from the signed ttl),
  * which a reopen repeats. `waitMs` is `null` when either time cannot be read.
@@ -309,10 +323,10 @@ export function reopenAsk({
   if (typeof runDir !== 'string' || runDir.length === 0) return { ok: false, red: 'reopenAsk: "runDir" must be a non-empty string' };
   if (typeof askId !== 'string' || askId.length === 0) return { ok: false, red: 'reopenAsk: "askId" must be a non-empty string' };
   if (typeof by !== 'string' || by.length === 0) return { ok: false, red: 'reopenAsk: "by" must name who reopened it' };
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) return { ok: false, red: `reopenAsk: no open ask for run ${runDir}` };
-  let raw;
-  try { raw = JSON.parse(askRead.text); } catch (err) { return { ok: false, red: `reopenAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` }; }
+  if (askRead.parseError !== null) return { ok: false, red: `reopenAsk: ask.json for run ${runDir} is not valid JSON — ${askRead.parseError}` };
+  const raw = askRead.value;
   if (raw === null || typeof raw !== 'object' || raw.askId !== askId) return { ok: false, red: `reopenAsk: askId "${askId}" is unknown for run ${runDir}` };
   const ask = withReopen(runDir, raw);
   if (Number.isNaN(Date.parse(ask.expiresAt))) return { ok: false, red: `reopenAsk: askId "${askId}" has an unparseable expiresAt — refusing` };
@@ -386,19 +400,17 @@ export function answerAsk({
   // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
   // (or a symlinked run-dir ancestor) reads as "no open ask", never as some
   // outside file's content.
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) {
     if (askRead.missing) {
       return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
     }
     return { ok: false, red: `answerAsk: ask.json for run ${runDir} — ${askRead.red}` };
   }
-  let ask;
-  try {
-    ask = JSON.parse(askRead.text);
-  } catch (err) {
-    return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` };
+  if (askRead.parseError !== null) {
+    return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${askRead.parseError}` };
   }
+  const ask = askRead.value;
   if (ask.askId !== askId) {
     return { ok: false, red: `answerAsk: askId "${askId}" is unknown for run ${runDir}` };
   }

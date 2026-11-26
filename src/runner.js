@@ -51,7 +51,7 @@ import {
   readPlan, readRunPlan, runOwnsPlan, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy,
 } from './flow.js';
 import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer, readAskFile,
 } from './ask.js';
 import {
   findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findMcpPlanRed,
@@ -3246,10 +3246,10 @@ function writeLog(runDir, payload) {
  * @returns {any|null}
  */
 export function readAsk(runDir) {
-  const result = readFileInside(runDir, 'ask.json');
-  if (!result.ok) return null;
+  const result = readAskFile(runDir);
+  if (!result.ok || result.parseError !== null) return null;
   // The deadline every reader sees is the effective one (`withReopen`: a reopened ask's new deadline).
-  try { return withReopen(runDir, JSON.parse(result.text)); } catch { return null; }
+  try { return withReopen(runDir, result.value); } catch { return null; }
 }
 
 /**
