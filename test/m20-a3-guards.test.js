@@ -187,3 +187,10 @@ test('item 12 (archived ask): only readArchivedAsk reads asks/<entry>', () => {
   assert.deepEqual(strays(files, /readFileInside\([^)\n]*join\('asks'/, { 'ask.js': 'readArchivedAsk: the one parse' }), []);
   assert.equal((code(files['ask.js']).match(/readFileInside\([^)\n]*join\('asks'/g) ?? []).length, 1, 'one read of asks/<entry> in src/ask.js');
 });
+
+// item 12 (start.json): a start folder's start.json is written by writeStartRecord (src/panel/authorstart.js) only: one writeFileSync of it in the file
+test('item 12 (start.json): only authorstart.js writes start.json, once', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`]start\.json['"`]/, { 'panel/authorstart.js': 'writeStartRecord: the one writer; readStart reads it' }), []);
+  assert.equal((code(files['panel/authorstart.js']).match(/writeFileSync\(join\(dir, 'start\.json'\)/g) ?? []).length, 1);
+});

@@ -45,6 +45,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 const ID_RE = /^s-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `s-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
+/** the one writer of a start folder's `start.json`: the caller's fields, then when the start was made @param {string} dir @param {Record<string, any>} rec */
+function writeStartRecord(dir, rec) {
+  writeFileSync(join(dir, 'start.json'), `${JSON.stringify({ ...rec, startedAt: new Date().toISOString() }, null, 2)}\n`, { mode: 0o600 });
+}
 const NOTHING_SPENT = 'Nothing spent.';
 const ENDED_SAY = `The run process ended before it started. ${NOTHING_SPENT}`;
 
@@ -230,9 +234,7 @@ export function createStarter(opts) {
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });
       mkdirSync(dir, { mode: 0o700 });
-      writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
-        kind, flow, runId, sources, startedAt: new Date().toISOString(),
-      }, null, 2)}\n`, { mode: 0o600 });
+      writeStartRecord(dir, { kind, flow, runId, sources });
       // M12: `--ticket N` (the one ticket of the list this run reads) follows the sources
       const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), ...sources.flatMap((s) => (s.ticket === undefined ? [] : ['--ticket', String(s.ticket), ...(s.anyway === true ? ['--anyway'] : [])])), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
       let child;
@@ -267,9 +269,7 @@ export function createStarter(opts) {
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });
       mkdirSync(dir, { mode: 0o700 });
-      writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
-        kind: 'resume', flow, runId, version, sources: [], startedAt: new Date().toISOString(),
-      }, null, 2)}\n`, { mode: 0o600 });
+      writeStartRecord(dir, { kind: 'resume', flow, runId, version, sources: [] });
       let child;
       try {
         child = spawnDetached({
