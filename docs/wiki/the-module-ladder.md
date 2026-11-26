@@ -4732,3 +4732,13 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** a panel test picks each Run-card choice on the New job card and finds the same `schedule.json` the Run card writes for it, at 1280, 390 and 320; a test with a non-list `checks` row shows the Audit, red on today's code; the P1 snapshot is byte-identical; the full suite is green; hamr's walk sets a Weekdays schedule on a new job and sees it wait for the green run.
 
 **Must fail when:** the two cards offer different choices for one flow type; a schedule fires before the first green run; the Audit crashes on a diary row.
+
+**M20 amendment 6 — SIGNED by hamr 2026-11-26 ("sign m20 am6."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am6-sign.md, sha256 42406dedf396…).**
+
+**M20 amendment 6 — one owner for "is this a clock schedule".** Found 2026-11-26 by a $0 re-scan after am5 (F276), not seen on screen. The question "is this schedule kind daily, weekdays or weekly" is answered in three places: `src/trigger-clock.js` `validateSchedule` (its own list), `src/panel/authortrigger.js` (the Run card's next-slot time) and `src/panel/authorcard.js` (the New job card's time check, added by am5). It adds to M20; every other signed line stands.
+
+1. **One owner.** `src/trigger-clock.js` exports the one list of clock kinds and one function that answers it. `validateSchedule`, the Run card's next-slot time and the New job card's time check all ask it. No behaviour changes: the same kinds, the same words, the same refusals.
+
+**Done when:** a guard test fails if `src/` or `bin/` names the three clock kinds together outside `src/trigger-clock.js` (red before the change); the P1 snapshot is byte-identical; the targeted schedule and panel tests are green; the full suite is green.
+
+**Must fail when:** a fourth place asks the clock-kind question with its own list; any schedule is accepted, refused or timed differently from today.
