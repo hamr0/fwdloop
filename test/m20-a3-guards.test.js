@@ -2,9 +2,12 @@
 // One file, one `strays` per owner; each allow-list entry carries its reason. Batch 1: items 11, 7, 9, 2, 1, 3. Batch 2: items 5, 6, 8, 10, 12 (4 waits for am3b).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { listRunValues, pickRunValues } from '../src/runvalues.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src');
@@ -99,4 +102,22 @@ test('item 5: only src/books.js spells the consumed-answer name; makeFileAskStep
   const files = load();
   assert.deepEqual(strays(files, /\.consumed\.json|consumed\\\.json/, CONSUMED), []);
   assert.deepEqual(strays(files, /makeFileAskStep|\bsafeStamp\b|answer\.stale/, {}), []);
+});
+
+// item 6: signed-values files are read by runvalues.js only (pickRunValues for the version in force, listRunValues for the Audit's list: one parser, readValuesFile)
+const SIGNED_VALUES = {
+  'runvalues.js': 'the writer, readValuesFile (the one parser), listRunValues, pickRunValues',
+  'bin/fwdloop': 'a name in the "folder holds no run yet" list (item 3); reads nothing',
+};
+test('item 6: only runvalues.js names the signed-values files in code', () => {
+  assert.deepEqual(strays(load(), /signed-values|VALUES_FILE_RE|\bvaluesFileName\b/, SIGNED_VALUES), []);
+});
+
+test('item 6: a version the run refuses is listed as refused with the parser\'s own words, the same as pickRunValues gives', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3-values-'));
+  writeFileSync(path.join(dir, 'signed-values.json'), JSON.stringify({ version: 0, flow: 'f', flowSignatureHash: 'x', hash: 'not-the-hash', values: { capUsd: 1, destination: null, askWaits: {} } }));
+  const [e] = listRunValues(dir);
+  assert.equal(e.ok, false);
+  assert.match(e.red, /does not match its own hash/);
+  assert.deepEqual(pickRunValues(dir), { ok: false, red: e.red });
 });

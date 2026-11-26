@@ -39,7 +39,7 @@ import {
   readAsk, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
+import { applyRunValues, listRunValues, parseWaitMs, pickRunValues } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, notCheckedLabelOf, listPartRows } from '../checked.js';
@@ -1980,28 +1980,20 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
     });
   }
-  const versions = [];
-  for (const f of readdirInside(runDir, '.')) {
-    const m = VALUES_FILE_RE.exec(f);
-    if (m !== null) versions.push({ file: f, version: m[1] === undefined ? 0 : Number(m[1]) });
-  }
-  versions.sort((a, b) => a.version - b.version);
-  for (const { file, version } of versions) {
-    const t = readFileInside(runDir, file);
-    let rec = null;
-    try { rec = t.ok ? JSON.parse(t.text) : null; } catch { rec = null; }
-    const v = rec && typeof rec === 'object' ? rec.values : null;
-    const waits = v && typeof v === 'object' && v.askWaits && typeof v.askWaits === 'object'
-      ? Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) })) : [];
-    const head = v && typeof v === 'object' ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean) : [];
-    const gap = v && typeof v === 'object'
-      ? [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ')
-      : `${file} could not be read`;
-    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec?.signedBy ?? 'you'})`);
-    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
+  const versions = listRunValues(runDir);
+  for (const e of versions) {
+    // M20 am3 item 6: the run's own parser read this file; a version it refuses shows as that refusal, never as a signed row
+    if (!e.ok) { rows.push(human({ at: undefined }, rows.length + 1, { action: e.red, gap: '' })); continue; } // eslint-disable-line no-continue -- a refused version is not a signed one
+    const { version, record: rec } = e;
+    const v = rec.values;
+    const waits = Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) }));
+    const head = [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean);
+    const gap = [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ');
+    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec.signedBy ?? 'you'})`);
+    rows.push(human({ at: rec.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
-  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise' || r.kind === 'redraft').length + versions.length : null;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise' || r.kind === 'redraft').length + versions.filter((e) => e.ok).length : null;
   const totals = setup.present
     ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change' || r.kind === 'revise' || r.kind === 'redraft' || r.kind === 'startover'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
     : null;

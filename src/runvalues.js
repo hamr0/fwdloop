@@ -21,7 +21,7 @@ import { readFileInside, readdirInside } from './flow.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 import { DEFAULT_ACTION_WAIT_MS } from './action-stop.js';
 
-export const VALUES_FILE_RE = /^signed-values(?:-r(\d+))?\.json$/;
+const VALUES_FILE_RE = /^signed-values(?:-r(\d+))?\.json$/;
 
 const WAIT_RE = /^(\d+)\s*([smh])$/i;
 const UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000 };
@@ -113,37 +113,60 @@ export function writeRunValues(runDir, record) {
 }
 
 /**
- * The ONE decision "which signed version does this run use": the highest version file in the run folder.
- * `{ok:true, none:true}` = the flow's own values; `{ok:true, version, record}`; `{ok:false, red}` = a file that cannot be trusted
- * (unreadable, not JSON, wrong shape, a hash that does not match its fields, a name that disagrees with its version).
- * @param {string} runDir
- * @returns {{ok: true, none: true} | {ok: true, none?: false, version: number, record: any} | {ok: false, red: string}}
+ * The ONE reader of one signed values file: trusted or refused. A refusal is a file that cannot be trusted (unreadable, not JSON,
+ * wrong shape, a hash that does not match its fields, a name that disagrees with its version).
+ * @param {string} runDir @param {string} name the file's name @param {number} version the version its name says
+ * @returns {{ok: true, version: number, record: any} | {ok: false, red: string}}
  */
-export function pickRunValues(runDir) {
-  let best = null;
-  for (const name of readdirInside(runDir, '.')) {
-    const m = VALUES_FILE_RE.exec(name);
-    if (m === null) continue;
-    const version = m[1] === undefined ? 0 : Number(m[1]);
-    if (best === null || version > best.version) best = { version, name };
-  }
-  if (best === null) return { ok: true, none: true };
-  const f = readFileInside(runDir, best.name);
-  if (!f.ok) return { ok: false, red: `signed values: ${best.name} — ${f.missing ? 'unreadable' : f.red}` };
+function readValuesFile(runDir, name, version) {
+  const f = readFileInside(runDir, name);
+  if (!f.ok) return { ok: false, red: `signed values: ${name} — ${f.missing ? 'unreadable' : f.red}` };
   let record;
-  try { record = JSON.parse(f.text); } catch (err) { return { ok: false, red: `signed values: ${best.name} is not valid JSON — ${err.message}` }; }
+  try { record = JSON.parse(f.text); } catch (err) { return { ok: false, red: `signed values: ${name} is not valid JSON — ${err.message}` }; }
   const v = record?.values;
-  const shaped = record && typeof record === 'object' && record.version === best.version && typeof record.flow === 'string' && typeof record.flowSignatureHash === 'string'
+  const shaped = record && typeof record === 'object' && record.version === version && typeof record.flow === 'string' && typeof record.flowSignatureHash === 'string'
     && typeof record.hash === 'string' && v && typeof v === 'object' && Number.isFinite(v.capUsd) && v.capUsd > 0
     && (v.destination === null || (typeof v.destination === 'string' && v.destination !== ''))
     && v.askWaits && typeof v.askWaits === 'object' && Object.values(v.askWaits).every((w) => parseWaitMs(w) !== null)
     && (v.model === undefined || (v.model && typeof v.model.slot === 'string' && v.model.slot !== '' && typeof v.model.model === 'string' && v.model.model !== ''));
-  if (!shaped) return { ok: false, red: `signed values: ${best.name} does not have the shape of a signed values record` };
+  if (!shaped) return { ok: false, red: `signed values: ${name} does not have the shape of a signed values record` };
   const want = valuesHash({
-    flow: record.flow, flowSignatureHash: record.flowSignatureHash, runId: best.version === 0 ? null : (record.runId ?? null), version: best.version, values: v,
+    flow: record.flow, flowSignatureHash: record.flowSignatureHash, runId: version === 0 ? null : (record.runId ?? null), version, values: v,
   });
-  if (want !== record.hash) return { ok: false, red: `signed values: ${best.name} does not match its own hash — it was changed after it was signed` };
-  return { ok: true, version: best.version, record };
+  if (want !== record.hash) return { ok: false, red: `signed values: ${name} does not match its own hash — it was changed after it was signed` };
+  return { ok: true, version, record };
+}
+
+/**
+ * Every signed values file in the run folder, oldest version first, each read by `readValuesFile` (the Audit lists them; a refused one
+ * shows as refused).
+ * @param {string} runDir
+ * @returns {Array<{file: string, version: number} & ({ok: true, record: any} | {ok: false, red: string})>}
+ */
+export function listRunValues(runDir) {
+  const out = [];
+  for (const file of readdirInside(runDir, '.')) {
+    const m = VALUES_FILE_RE.exec(file);
+    if (m === null) continue;
+    out.push({ file, version: m[1] === undefined ? 0 : Number(m[1]) });
+  }
+  out.sort((a, b) => a.version - b.version);
+  return out.map((e) => { const r = readValuesFile(runDir, e.file, e.version); return r.ok ? { file: e.file, version: e.version, ok: true, record: r.record } : { file: e.file, version: e.version, ok: false, red: r.red }; });
+}
+
+/**
+ * The ONE decision "which signed version does this run use": the highest version file in the run folder.
+ * `{ok:true, none:true}` = the flow's own values; `{ok:true, version, record}`; `{ok:false, red}` = a file that cannot be trusted
+ * (see `readValuesFile`).
+ * @param {string} runDir
+ * @returns {{ok: true, none: true} | {ok: true, none?: false, version: number, record: any} | {ok: false, red: string}}
+ */
+export function pickRunValues(runDir) {
+  const all = listRunValues(runDir);
+  if (all.length === 0) return { ok: true, none: true };
+  const top = all[all.length - 1].version;
+  const best = all.find((e) => e.version === top) ?? all[0]; // the first file of the top version, as before
+  return best.ok ? { ok: true, version: best.version, record: best.record } : { ok: false, red: best.red };
 }
 
 /**

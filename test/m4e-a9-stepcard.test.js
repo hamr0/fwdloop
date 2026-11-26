@@ -8,6 +8,7 @@ import path from 'node:path';
 
 import { getRunAudit, getRunDetail } from '../src/panel/data.js';
 import { loadCatalogue } from '../src/catalogue.js';
+import { valuesHash } from '../src/runvalues.js';
 import { killChildrenAfter, world } from './m4e-world.mjs';
 
 killChildrenAfter();
@@ -31,7 +32,9 @@ async function draftOf(rows, valuesFiles = 0) {
   const runDir = path.join(flowDir, 'runs', 'run-1');
   mkdirSync(runDir, { recursive: true });
   for (let i = 0; i < valuesFiles; i++) {
-    writeFileSync(path.join(runDir, i === 0 ? 'signed-values.json' : `signed-values-r${i}.json`), JSON.stringify({ signedBy: 'hamr', at: 'x', values: { capUsd: 0.25 } }));
+    // M20 am3 item 6: the Audit lists a version the run's own parser accepts, so each file is a real signed record
+    const rec = { flow: 'job2', flowSignatureHash: 'x', runId: i === 0 ? null : 'run-1', version: i, values: { capUsd: 0.25, destination: null, askWaits: {} } };
+    writeFileSync(path.join(runDir, i === 0 ? 'signed-values.json' : `signed-values-r${i}.json`), JSON.stringify({ ...rec, hash: valuesHash(rec), signedBy: 'hamr', at: 'x' }));
   }
   writeFileSync(path.join(flowDir, 'setup.jsonl'), `${rows.map((r) => JSON.stringify(r)).join('\n')}\n`);
   return { w, detail: getRunDetail({ root: w.root, flow: 'job2', runId: 'run-1', catalogue: CAT }), audit: getRunAudit({ root: w.root, flow: 'job2', runId: 'run-1' }) };
