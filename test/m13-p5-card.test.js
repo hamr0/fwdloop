@@ -10,8 +10,8 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { killChildrenAfter, until, useHome, world } from './m4e-world.mjs';
 import { appendMcpCheck } from '../src/mcp-checks.js';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
-import { readRows } from '../src/trigger-clock.js';
 import { LIST } from './m12-p2-world.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -46,7 +46,7 @@ async function greenDraft(w, card) {
   assert.equal(g.phase, 'green', JSON.stringify(g));
   return { id, g };
 }
-const armedRows = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? null : readRows(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); };
+const armedRows = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? null : readTriggerLedger(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); };
 
 test('the card refuses a Schedule it cannot sign, at $0, naming the Schedule box: a new ticket on a plain job, a bad time, an unknown kind', async () => {
   const w = await tWorld();

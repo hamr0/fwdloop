@@ -380,7 +380,15 @@ export function readFileInside(baseDir, relPath) {
  * @returns {any|null}
  */
 export function readDraftLog(dir, rel = '') {
-  const r = readFileInside(dir, rel === '' ? 'log.json' : `${rel}/log.json`);
+  return readJsonFile(dir, rel === '' ? 'log.json' : `${rel}/log.json`);
+}
+
+/**
+ * M20 am3 item 12: the ONE tolerant JSON read of a file in a folder, through the gateway: the parsed object, or null when the file is missing, refused,
+ * unparseable (a torn write) or not an object. Never throws. @param {string} dir @param {string} rel @returns {any|null}
+ */
+export function readJsonFile(dir, rel) {
+  const r = readFileInside(dir, rel);
   if (!r.ok) return null;
   try { const j = JSON.parse(r.text); return j !== null && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
 }

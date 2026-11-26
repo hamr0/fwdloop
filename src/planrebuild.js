@@ -7,7 +7,7 @@
 // What this throws away: nothing of the old plan (it is never rewritten, records are write-once).
 import path from 'node:path';
 import { parseSignedText } from './signed-text.js';
-import { readFileInside, readdirInside, readDraftLog } from './flow.js';
+import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
 import { readInputFacts } from './input-facts.js';
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft.js';
@@ -38,7 +38,6 @@ export const REBUILD_CHANGED_SAY = 'The inputs of this plan have changed since i
 export const NO_LIST_SAY = 'This plan has no list of checks to change. Nothing was changed.';
 
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const readJson = (/** @type {string} */ dir, /** @type {string} */ rel) => { const r = readFileInside(dir, rel); if (!r.ok) return null; try { return JSON.parse(r.text); } catch { return null; } };
 
 /**
  * Rebuild the block of a saved plan at $0. `choices` = the Drop/Add choices the plan was made with (its record's `rowChoices`).
@@ -49,15 +48,15 @@ export function rebuildBlock({ planDir, asks }) {
   const no = (/** @type {string} */ say) => ({ ok: /** @type {const} */ (false), say });
   const prose = readFileInside(planDir, 'prose.txt');
   const parsed = prose.ok ? parseSignedText(prose.text) : null;
-  const declaration = readJson(planDir, 'declaration.json');
+  const declaration = readJsonFile(planDir, 'declaration.json');
   if (!prose.ok || !parsed || !parsed.ok || !isRec(declaration)) return no('This plan could not be read. Nothing was changed.');
   // the lines the block was given; a CSV job's sheet lines (M16 am4) have rows on the list too, but the block never had them
   const lineSet = listLinesOf(declaration);
   if (cardLinesOf(declaration).size === 0) return no(NO_LIST_SAY);
   const log = readDraftLog(planDir);
-  const pageLook = readJson(planDir, 'page-look.json');
+  const pageLook = readJsonFile(planDir, 'page-look.json');
   const look = isRec(pageLook?.look) ? { facts: Array.isArray(pageLook.look.facts) ? pageLook.look.facts : [], dropped: Array.isArray(pageLook.look.dropped) ? pageLook.look.dropped : [] } : { facts: [], dropped: [] };
-  const record = readJson(planDir, RECORD_FILE) ?? {};
+  const record = readJsonFile(planDir, RECORD_FILE) ?? {};
   // the frozen copies of the page inputs, then the document inputs as the draft read them (they are not copied into the folder: an input that changed is caught below)
   /** @type {Record<string, {text: string}>} */
   const pages = {};
@@ -196,18 +195,18 @@ export function rowEditPlan({ planDir, op, key, asks = true }) {
   const shapeDroppedNow = b.block.shapeDroppedRecord();
   const after = assembleAgain(b);
   if (!after.ok) return { ok: false, say: after.say, refused: 'rebuild' };
-  const target = readJson(planDir, 'target.json');
+  const target = readJsonFile(planDir, 'target.json');
   const inputFactsText = readFileInside(planDir, 'input-facts.json');
   const targetText = readFileInside(planDir, 'target.json');
   if (!targetText.ok || !inputFactsText.ok || !isRec(target)) return { ok: false, say: 'This plan could not be read. Nothing was changed.', refused: 'rebuild' };
   const dj = (/** @type {unknown} */ o) => `${JSON.stringify(o, null, 2)}\n`;
   const declarationText = dj(after.declaration);
   // the "Not checked" list: what the old plan listed, less what the old list made, plus what the changed list makes (the AI's own list stays)
-  const oldNc = readJson(planDir, NOT_CHECKED_FILE)?.notChecked;
+  const oldNc = readJsonFile(planDir, NOT_CHECKED_FILE)?.notChecked;
   const oldList = Array.isArray(oldNc) ? oldNc.filter((x) => typeof x === 'string') : [];
   const was = new Set(before.notChecked);
   const notChecked = [...new Set([...oldList.filter((x) => !was.has(x)), ...after.notChecked])];
-  const oldBy = isRec(readJson(planDir, NOT_CHECKED_FILE)?.by) ? readJson(planDir, NOT_CHECKED_FILE).by : {};
+  const oldBy = isRec(readJsonFile(planDir, NOT_CHECKED_FILE)?.by) ? readJsonFile(planDir, NOT_CHECKED_FILE).by : {};
   const by = { ...Object.fromEntries(Object.entries(oldBy).filter(([t]) => !was.has(t))), ...after.notCheckedBy };
   // M19 am4: the plan card the new plan saves is the one its readout reads (one model)
   // M19 am8 item 1, am9 item 5: the new plan's ledger rows, one per Not checked row, in its own log; the card is read from the new plan (am6)

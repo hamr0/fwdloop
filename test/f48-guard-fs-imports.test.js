@@ -361,14 +361,10 @@ const ALLOWLIST = {
       mkdirSync: 1, readFileSync: 1, realpathSync: 1,
     },
   },
-  'src/trigger-clock.js': {
-    reason: "M9 piece 1: the ONE reader/writer of a trigger's clock ledger (append-only JSONL: armed/fire rows), a regular file OUTSIDE any run/flow dir, not a book: mkdir of its folder; the read and the append go through src/jsonl-append.js.",
-    names: { mkdirSync: 1 },
-  },
   'src/trigger-files.js': {
-    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir): mkdir (the read and the append go through src/jsonl-append.js). M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
+    reason: "M9 piece 2: watches ONE caller-signed BUSINESS file or folder (not a run/flow-dir book): realpathSync on the folder at use time, lstatSync per file (symlinks refused, never followed), readdirSync of the top level, readFileSync of the stable file to hash it; plus the one seen-sha ledger (append-only JSONL, outside any run dir; the read and the append go through src/jsonl-append.js). M9 am3: `recheck` looks at a queued file again at its turn (realpathSync on its folder, lstatSync, readFileSync to re-hash).",
     names: {
-      existsSync: 2, lstatSync: 8, mkdirSync: 1, readFileSync: 3, readdirSync: 1, realpathSync: 6,
+      existsSync: 2, lstatSync: 8, readFileSync: 3, readdirSync: 1, realpathSync: 6,
     },
   },
   'src/schedule.js': {
@@ -380,9 +376,9 @@ const ALLOWLIST = {
     names: { renameSync: 1, writeFileSync: 1 },
   },
   'src/jsonl-append.js': {
-    reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
+    reason: "The ONE fresh-line append for every append-only JSONL file (books, trigger ledgers, triggers.jsonl): reads the file's LAST BYTE (openSync/fstatSync/readSync/closeSync) to see whether a crash tore the last line, then appendFileSync; `ledgerText` is the one whole-file read of a trigger ledger (existsSync + readFileSync); `appendTriggerLedger` makes the ledger's folder (mkdirSync). Files outside any run/flow-dir book reader are the callers' business; the books' own reads still go through readFileInside.",
     names: {
-      appendFileSync: 1, closeSync: 1, existsSync: 1, fstatSync: 1, openSync: 1, readFileSync: 1, readSync: 1,
+      appendFileSync: 1, closeSync: 1, existsSync: 1, fstatSync: 1, mkdirSync: 1, openSync: 1, readFileSync: 1, readSync: 1,
     },
   },
   'src/provider.js': {

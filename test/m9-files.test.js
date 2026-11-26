@@ -10,7 +10,8 @@ import {
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { queueOf as queueOfSync, createFileTrigger, readSeen, recordArrived, recordDropped, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
+import { queueOf as queueOfSync, createFileTrigger, recordArrived, recordDropped, recordRan, STABLE_POLLS } from '../src/trigger-files.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const root = () => mkdtempSync(path.join(tmpdir(), 'm9files-'));
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -105,7 +106,7 @@ test('never twice across restart: a fresh trigger on the same ledger rereads it'
   const x = path.join(dir, 'X.csv'); unlinkSync(x); writeFileSync(x, 'invoice,100\n');
   writeFileSync(path.join(dir, 'again.csv'), 'invoice,100\n');
   assert.equal(pollN(w, 8).length, 0);
-  assert.deepEqual(readSeen(ledger).filter((r) => r.sha === sha('invoice,100\n')).map((r) => r.kind), ['arrived', 'ran'], 'one arrived and one ran row per sha');
+  assert.deepEqual(readTriggerLedger(ledger).filter((r) => r.sha === sha('invoice,100\n')).map((r) => r.kind), ['arrived', 'ran'], 'one arrived and one ran row per sha');
 });
 
 test('poll() writes nothing; arrived and ran are the caller\'s rows (a poll that was never recorded is handed out again after a restart)', () => {
@@ -115,7 +116,7 @@ test('poll() writes nothing; arrived and ran are the caller\'s rows (a poll that
   w.poll(); w.poll();
   const r = w.poll().arrived;
   assert.equal(r.length, 1);
-  assert.deepEqual(readSeen(ledger), [], 'no row yet: the scheduler writes them');
+  assert.deepEqual(readTriggerLedger(ledger), [], 'no row yet: the scheduler writes them');
   const w2 = mkTrigger({ mode: 'new', target: dir, ledger });
   assert.equal(pollN(w2, 8).length, 1, 'never recorded: it arrives again');
   assert.equal(pollN(mkTrigger({ mode: 'new', target: dir, ledger }), 8).length, 0, 'recorded: it never does');
@@ -126,7 +127,7 @@ test('a folder holding 3 files at arm: no run (am2 item 2)', () => {
   for (const n of ['a.csv', 'b.csv', 'c.csv']) writeFileSync(path.join(dir, n), `${n}\n`);
   const w = mkTrigger({ mode: 'new', target: dir, ledger }); w.arm();
   assert.equal(pollN(w, 10).length, 0);
-  assert.equal(readSeen(ledger).filter((r) => r.kind === 'baseline').length, 3);
+  assert.equal(readTriggerLedger(ledger).filter((r) => r.kind === 'baseline').length, 3);
   writeFileSync(path.join(dir, 'd.csv'), 'd\n');
   assert.deepEqual(pollN(w).map((r) => path.basename(r.path)), ['d.csv'], 'only a new file runs');
 });
@@ -172,13 +173,13 @@ test('F1 a version that arrived and is still queued does not arrive twice; one t
   recordArrived(ledger, b, Date.now()); // queued, not run
   stamp(f);
   assert.equal(w.poll().arrived.length + w.poll().arrived.length + w.poll().arrived.length, 0, 'queued: not twice');
-  recordDropped(ledger, { ...b, ...readSeen(ledger).find((r) => r.kind === 'arrived') }, 'changed', Date.now());
+  recordDropped(ledger, { ...b, ...readTriggerLedger(ledger).find((r) => r.kind === 'arrived') }, 'changed', Date.now());
   stamp(f);
   const again = (() => { let r = []; for (let i = 0; i < 4 && !r.length; i++) r = w.poll().arrived; return r; })();
   assert.deepEqual(again.map((r) => r.sha), [sha('BBBBB')], 'dropped never ran: arrives again');
   recordArrived(ledger, again[0], Date.now());
-  assert.equal(readSeen(ledger).filter((r) => r.kind === 'arrived').length, 2, 'a second arrived row is written');
-  assert.deepEqual(queueOfSync(readSeen(ledger)).map((r) => r.sha), [sha('BBBBB')], 'queued again once');
+  assert.equal(readTriggerLedger(ledger).filter((r) => r.kind === 'arrived').length, 2, 'a second arrived row is written');
+  assert.deepEqual(queueOfSync(readTriggerLedger(ledger)).map((r) => r.sha), [sha('BBBBB')], 'queued again once');
 });
 
 test('new-file: a baseline file sitting in the folder never arrives, nor does its content under a NEW name (hamr 2026-10-13: content present at arm never runs)', () => {
@@ -256,5 +257,5 @@ test('ledger is JSONL, write-once per sha, no mutable latest file', () => {
   assert.equal(new Set(rows.map((r) => r.id)).size, 4);
   assert.equal(rows.length, 4, 'one arrived and one ran row per sha');
   assert.ok(rows.every((r) => r.id === `${r.kind}:${r.sha}`));
-  assert.deepEqual(readSeen(path.join(base, 'none.jsonl')), []);
+  assert.deepEqual(readTriggerLedger(path.join(base, 'none.jsonl')), []);
 });

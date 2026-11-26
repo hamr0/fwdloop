@@ -14,18 +14,13 @@ import { join } from 'node:path';
 import { readQuestions, scrub, draftVerdict } from './authoring.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
-import { readFileInside, readdirInside, readDraftLog } from './flow.js';
+import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
 import { checkAsks } from './checkpick.js';
 import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
 
 export const SETUP_FILE = 'setup.jsonl';
 const CARD_RE = /^card-(\d+)\.json$/;
 
-const readJson = (dir, rel) => {
-  const r = readFileInside(dir, rel);
-  if (!r.ok) return null;
-  try { return JSON.parse(r.text); } catch { return null; }
-};
 const mtimeIso = (dir, rel) => {
   try { return lstatSync(join(dir, rel)).mtime.toISOString(); } catch { return null; }
 };
@@ -71,7 +66,7 @@ function humanRows(sessionDir, rel) {
   // a kept row's n counts the answered LOOK rows only, as before M14 am3 (a page-look row never changes)
   const lookAnswered = answered.filter((r) => r.source === 'look').length;
   // M10 am17 (6): a pick kept from the last draft is the same row, from this plan's picks record (not an answer file), its answer being the words `kept from last draft`
-  const kept = Array.isArray(readJson(join(sessionDir, rel), RECORD_FILE)?.kept) ? readJson(join(sessionDir, rel), RECORD_FILE).kept : [];
+  const kept = Array.isArray(readJsonFile(join(sessionDir, rel), RECORD_FILE)?.kept) ? readJsonFile(join(sessionDir, rel), RECORD_FILE).kept : [];
   const keptRows = kept.map((k, i) => {
     const [ask] = checkAsks([{ line: k.line, rule: k.rule, text: k.ruleText, check: k.check ?? null, why: null }]);
     return {
@@ -92,7 +87,7 @@ export function buildSetupRows({
 }) {
   const rows = [];
   if (sessionDir) {
-    const card = readJson(sessionDir, 'card.json');
+    const card = readJsonFile(sessionDir, 'card.json');
     if (card) rows.push({ kind: 'card', n: 0, at: mtimeIso(sessionDir, 'card.json'), card });
     // amendment 14 item 6: a draft begun by Start over says so (written once by the panel's start); its row reads `start over`
     rows.push(planRow(sessionDir, 'draft', typeof readStartedOverFrom(sessionDir) === 'string' ? 'startover' : 'draft', 0));
@@ -100,11 +95,11 @@ export function buildSetupRows({
     // amendment 14 item 6: each revise is the card as submitted, then its plan row (model, cost, verdict, hash); there is no note row
     const ns = readdirInside(sessionDir, '.').map((f) => CARD_RE.exec(f)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
     for (const n of ns) {
-      const card = readJson(sessionDir, `card-${n}.json`);
+      const card = readJsonFile(sessionDir, `card-${n}.json`);
       if (card) rows.push({ kind: 'card', n, at: mtimeIso(sessionDir, `card-${n}.json`), card });
       // M4e amendment 24 item 4: a plan drafted again after the human's answers is booked as `redraft`, not `revise` (it uses none of the 2 revises)
       // M16 item 5: a plan made by a Drop or an Add of the person is booked as that, not as a redraft; it asked nothing, and what it kept is the earlier plan's row, not its own
-      const marker = readJson(sessionDir, `redraft-${n}.json`);
+      const marker = readJsonFile(sessionDir, `redraft-${n}.json`);
       const rowEdit = marker && marker.rowEdit && typeof marker.rowEdit === 'object' ? marker.rowEdit : null;
       rows.push({ ...planRow(sessionDir, `draft-${n}`, rowEdit ? 'rowedit' : marker ? 'redraft' : 'revise', n), ...(rowEdit ? { op: rowEdit.op, key: rowEdit.key } : {}) });
       if (!rowEdit) rows.push(...humanRows(sessionDir, `draft-${n}`));
@@ -115,7 +110,7 @@ export function buildSetupRows({
   }
   // M4e amendment 36: the drafter's own "Not checked" list (the green plan folder's not-checked.json), kept word for word with its label. Not signed,
   // not in any hash. An unreadable or missing file is an empty list (a plan from before amendment 25 has none).
-  const ncFile = readJson(planDir, 'not-checked.json');
+  const ncFile = readJsonFile(planDir, 'not-checked.json');
   // M16 item 5: the tag of each line that tells a list row rides the sign row (the Audit's Checks fold draws it); a plan with no list has none
   const notChecked = { ...notCheckedBlock(ncFile?.notChecked), ...(ncFile?.by && typeof ncFile.by === 'object' && !Array.isArray(ncFile.by) ? { by: ncFile.by } : {}) };
   rows.push({

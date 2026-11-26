@@ -15,10 +15,11 @@ import { isAbsolute, join } from 'node:path';
 
 import { readFileInside } from './flow.js';
 import { appendRow } from './jsonl-append.js';
-import { queueOf, readSeen, recordDropped } from './trigger-files.js';
-import { readRows, validateSchedule } from './trigger-clock.js';
+import { queueOf, recordDropped } from './trigger-files.js';
+import { validateSchedule } from './trigger-clock.js';
 import { triggerHash } from './trigger-line.js';
 import { WATCHABLE } from './ticket-shape.js';
+import { readTriggerLedger } from './jsonl-append.js';
 
 /** @typedef {import('./trigger-line.js').Trigger} Trigger */
 /**
@@ -99,7 +100,7 @@ export function sameTarget(cur, next) {
 }
 
 /** Is this signing armed (its `armed` row is in the ledger)? @param {string} flowDir @param {string} sig */
-export const isArmed = (flowDir, sig) => readRows(ledgerOf(flowDir), sig).some((r) => r.kind === 'armed');
+export const isArmed = (flowDir, sig) => readTriggerLedger(ledgerOf(flowDir), sig).some((r) => r.kind === 'armed');
 
 /**
  * Every file waiting under signing `sig` leaves its queue: one `dropped` row (under `sig`) and ONE row in the outcome file with am16's words. The drop is written
@@ -108,7 +109,7 @@ export const isArmed = (flowDir, sig) => readRows(ledgerOf(flowDir), sig).some((
  */
 export function dropQueue(flowDir, sig, nowMs, note) {
   const ledger = ledgerOf(flowDir);
-  for (const q of queueOf(readSeen(ledger, sig))) {
+  for (const q of queueOf(readTriggerLedger(ledger, sig))) {
     recordDropped(ledger, q, 'schedule-changed', nowMs, sig);
     note({ outcome: 'schedule-changed', file: q.path, sha: q.sha, say: droppedSay(q.name) });
   }
@@ -121,7 +122,7 @@ export function dropQueue(flowDir, sig, nowMs, note) {
  */
 export function carryQueue(flowDir, from, to) {
   const ledger = ledgerOf(flowDir);
-  for (const r of readSeen(ledger, from)) {
+  for (const r of readTriggerLedger(ledger, from)) {
     if (!['baseline', 'arrived', 'ran', 'dropped'].includes(r.kind)) continue;
     const { sig: _old, ...row } = r;
     appendRow(ledger, { ...row, sig: to });
@@ -131,7 +132,7 @@ export function carryQueue(flowDir, from, to) {
 /** The old signing's files that `carryQueue` copied are no longer its own to run. @param {string} flowDir @param {string} from @param {number} nowMs */
 export function finishCarry(flowDir, from, nowMs) {
   const ledger = ledgerOf(flowDir);
-  for (const q of queueOf(readSeen(ledger, from))) recordDropped(ledger, q, 'carried', nowMs, from);
+  for (const q of queueOf(readTriggerLedger(ledger, from))) recordDropped(ledger, q, 'carried', nowMs, from);
 }
 
 /** Cancel's own row in the ledger. @param {string} flowDir @param {string} sig @param {number} nowMs */

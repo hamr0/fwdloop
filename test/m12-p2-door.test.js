@@ -9,12 +9,12 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 import { readSchedule, ledgerOf } from '../src/schedule.js';
-import { readSeen } from '../src/trigger-files.js';
 import { readOutcomes } from '../src/panel/authortrigger.js';
 import { scheduledWords } from '../src/summary-words.js';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 import { seedGreen } from './m9-trigger-world.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -50,7 +50,7 @@ test('the first click fills the look from the signed job: the list address, the 
   const s = await f.w.post('/api/author/trigger', { flow: 'tk', trigger: TICKET, hash: p.json().hash });
   assert.equal(s.status, 200, s.text);
   assert.deepEqual(readSchedule(f.flowDir).trigger, { kind: 'new-ticket', role: 'jd', list: LIST, server: 'github', tool: 'list_issues' });
-  assert.deepEqual(readSeen(ledgerOf(f.flowDir)).filter((r) => r.kind === 'baseline'), [], 'the starting point is the first LOOK, not the click');
+  assert.deepEqual(readTriggerLedger(ledgerOf(f.flowDir)).filter((r) => r.kind === 'baseline'), [], 'the starting point is the first LOOK, not the click');
   assert.equal(scheduledWords(readSchedule(f.flowDir).trigger), 'When a new ticket arrives in jd');
 });
 
@@ -94,7 +94,7 @@ test('end to end through the panel\'s own tick: first look = starting point, the
   const p = await prepare(f.w, TICKET);
   assert.equal((await f.w.post('/api/author/trigger', { flow: 'tk', trigger: TICKET, hash: p.json().hash })).status, 200);
   const ledger = ledgerOf(f.flowDir);
-  const rows = (kind) => readSeen(ledger).filter((r) => r.kind === kind);
+  const rows = (kind) => readTriggerLedger(ledger).filter((r) => r.kind === kind);
   f.w.h.tick();   // the first look
   await until(() => rows('baseline').length === 5);
   assert.equal(f.argv().length, 0, 'the starting point runs nothing');

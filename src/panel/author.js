@@ -45,7 +45,7 @@ import { cardLinesOf } from '../checklistsign.js';
 import { appendSpendRow } from '../provider.js';
 import { ruleOfAnswer, panelQuestionText, DROP_IT, TIE_PICK_SAY } from '../pageask.js';
 import {
-  checkFlowName, nextRunId, readFileInside, readdirInside, readDraftLog,
+  checkFlowName, nextRunId, readFileInside, readJsonFile, readdirInside, readDraftLog,
 } from '../flow.js';
 import { readModelRecord } from '../flowmodel.js';
 import {
@@ -76,7 +76,7 @@ import { createTriggerDoor } from './authortrigger.js';
 import { createResumeDoor } from './authorresume.js';
 import { createStarter } from './authorstart.js';
 import {
-  childAlive, childRunning as childRunningNow, childState, providerKeys, readJsonFile, spawnDetached, writePidFile,
+  childAlive, childRunning as childRunningNow, childState, providerKeys, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -141,7 +141,6 @@ export function createAuthor(opts) {
     try { return join(realpathSync(root), PANEL_DRAFTS_DIR); } catch { return null; }
   };
 
-  const readJson = readJsonFile;
   /** every file text scrubbed of the keys, as the draft child writes them @param {Record<string, string>} files @param {string[]} keys */
   const scrubbed = (files, keys) => Object.fromEntries(Object.entries(files).map(([f, t]) => [f, scrub(t, keys)]));
   const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -198,10 +197,10 @@ export function createAuthor(opts) {
   }
 
   function readDraftState(dir, id, keys) {
-    const card = readJson(dir, 'card.json');
+    const card = readJsonFile(dir, 'card.json');
     const base = { draftId: id, card };
-    if (readJson(dir, 'abandoned.json')) return { ...base, phase: 'abandoned' };
-    const signed = readJson(dir, 'signed.json');
+    if (readJsonFile(dir, 'abandoned.json')) return { ...base, phase: 'abandoned' };
+    const signed = readJsonFile(dir, 'signed.json');
     if (signed) return { ...base, phase: 'signed' };
 
     // C9: ask "is it still running" FIRST, then read the result. A child that finishes between the two reads is then seen as finished
@@ -246,7 +245,7 @@ export function createAuthor(opts) {
    * @param {string} dir @param {string} rel @param {string[]} keys @param {boolean} [questionOpen]
    */
   function stepListOf(dir, rel, keys, questionOpen = false) {
-    const declaration = readJson(dir, `${rel}/declaration.json`) ?? readJson(dir, `${rel}/declaration.rejected.json`);
+    const declaration = readJsonFile(dir, `${rel}/declaration.json`) ?? readJsonFile(dir, `${rel}/declaration.rejected.json`);
     const list = draftStepList({ log: readDraftLog(dir, rel), declaration, questionOpen });
     if (list === null) return null;
     const sc = (x) => scrub(String(x), keys);
@@ -304,17 +303,17 @@ export function createAuthor(opts) {
   function withRevises(base, dir, first, keys, firstQsRead) {
     const names = readdirInside(dir, '.');
     const ns = names.map((n) => CARD_RE.exec(n)?.[1]).filter((x) => x !== undefined).map(Number).sort((a, b) => a - b);
-    const redrafts = new Set(ns.filter((n) => readJson(dir, `redraft-${n}.json`) !== null));
+    const redrafts = new Set(ns.filter((n) => readJsonFile(dir, `redraft-${n}.json`) !== null));
     const used = names.filter((n) => PLAN_DIR_RE.test(n) && !redrafts.has(Number(PLAN_DIR_RE.exec(n)?.[1]))).length;
     const revisesLeft = Math.max(0, MAX_REVISES - used);
     const newest = ns.length > 0 ? ns[ns.length - 1] : 0;
-    const card = newest > 0 ? (readJson(dir, `card-${newest}.json`) ?? base.card) : base.card;
+    const card = newest > 0 ? (readJsonFile(dir, `card-${newest}.json`) ?? base.card) : base.card;
     let reviseNo = 0;
     const revises = ns.map((n) => {
       const kind = redrafts.has(n) ? 'answers' : 'revise';
       if (kind === 'revise') reviseNo += 1;
       // M4d am15 (every line of the list): this plan's own line, from its own log, built by `reviseStepList`; the try history is in the Audit Draft group
-      const rowEdit = kind === 'answers' ? readJson(dir, `redraft-${n}.json`)?.rowEdit : undefined;
+      const rowEdit = kind === 'answers' ? readJsonFile(dir, `redraft-${n}.json`)?.rowEdit : undefined;
       const name = rowEdit ? (rowEdit.op === 'drop' ? 'a check dropped' : 'a check added') : kind === 'answers' ? 'drafted again with your answers' : `revise ${reviseNo}`;
       const running = n === newest && childRunning(dir); // C9: running first, then the result
       // the result BEFORE the log: the child writes log.json first and the result (spec.hash, or the red log itself) after, so a result we see has its log already on disk
@@ -397,15 +396,15 @@ export function createAuthor(opts) {
    * "Not checked" (the drafter's own list, always with its label). Read-only; neither is signed or in the hash. @param {string} dir @param {string} rel
    */
   function planChecks(dir, rel) {
-    const decl = readJson(dir, `${rel}/declaration.json`);
+    const decl = readJsonFile(dir, `${rel}/declaration.json`);
     const prose = readFileInside(dir, `${rel}/prose.txt`);
     const parsed = prose.ok ? parseSignedText(prose.text) : null;
-    const kept = readJson(dir, `${rel}/${RECORD_FILE}`)?.kept;
+    const kept = readJsonFile(dir, `${rel}/${RECORD_FILE}`)?.kept;
     const opts = {
       ...(parsed?.ok === true ? { askLines: parsed.arbiter.asks.map((x) => x.line), lines: parsed.lines, csvRoles: csvRolesOf(parsed.arbiter) } : { hasAsk: true }),
       ...(Array.isArray(kept) ? { keptChecks: kept.filter((k) => k && k.check).map((k) => ({ line: k.line, check: k.check })), keptWords: KEPT_WORDS } : {}),
     };
-    const ncFile = readJson(dir, `${rel}/${NOT_CHECKED_FILE}`);
+    const ncFile = readJsonFile(dir, `${rel}/${NOT_CHECKED_FILE}`);
     const view = notCheckedView(ncFile?.notChecked, decl);
     // M16 item 5: the plan card's list - the rows with their tags and Drop, the suggestions with Add - read from the card the draft saved (src/cardlist.js); a plan without a list has none
     // M19 am6: a saved draft with a signed list draws its card rows read from the plan (a card saved with the old words is rebuilt); the suggestions, the restorable rows and the Drop flags are the saved card's
@@ -426,8 +425,8 @@ export function createAuthor(opts) {
 
   /** The answers an answer-redraft was drafted with, as the marker recorded them: `[{ line, lineText, question, answer }]` (scrubbed). @param {string} dir @param {number} n @param {string[]} keys */
   function answersOf(dir, n, keys) {
-    const rec = readJson(dir, `redraft-${n}.json`);
-    const card = readJson(dir, `card-${n}.json`);
+    const rec = readJsonFile(dir, `redraft-${n}.json`);
+    const card = readJsonFile(dir, `card-${n}.json`);
     const steps = parseJobBox(typeof card?.job === 'string' ? card.job : '').steps;
     return (Array.isArray(rec?.answers) ? rec.answers : []).map((a) => ({
       line: a.line, lineText: steps[a.line - 1]?.text ?? null, question: scrub(String(a.question), keys), answer: scrub(String(a.answer), keys),
@@ -466,7 +465,7 @@ export function createAuthor(opts) {
     // amendments 24/25: a plan with a question open is never signed from here; signDraft refuses it again from the plan folder (the same check)
     if (v.phase === 'questions-open') return no(409, 'question-open', OPEN_QUESTION_SAY);
     if (v.phase !== 'green') return no(409, 'not-green', `This draft is ${v.phase}, not a finished plan, so it cannot be signed.`);
-    const name = readJson(dir, `${v.plan}/target.json`)?.name;
+    const name = readJsonFile(dir, `${v.plan}/target.json`)?.name;
     if (typeof name !== 'string') return no(409, 'no-name', 'The draft has no readable flow name. Nothing was signed.');
     return {
       ok: true, v: /** @type {any} */ (v), name, dir,
@@ -731,7 +730,7 @@ export function createAuthor(opts) {
       }
       const signedBy = userInfo().username;
       // M6 am9: a red run's redraft of an unchanged job is signed as the plan of a NEW run of the same workflow (the workflow's files are not written)
-      const runOfRec = readJson(dir, RUN_OF_FILE);
+      const runOfRec = readJsonFile(dir, RUN_OF_FILE);
       const asRunOf = typeof runOfRec?.flow === 'string' ? { flow: runOfRec.flow } : undefined;
       if (asRunOf !== undefined && runId !== '') return { status: 400, body: { ok: false, refused: 'run-id', say: 'This plan becomes the next run of its workflow by itself; a run name cannot be typed. Nothing was signed.' } };
       // M13 piece 5 (signed item 7): the card's Schedule row is checked now, on the plan about to be signed, so a refusal never leaves a signed job without its schedule. A plan that becomes the next
@@ -739,7 +738,7 @@ export function createAuthor(opts) {
       let cardSchedule = null;
       if (asRunOf === undefined && v.card.schedule) {
         const planProse = readFileInside(join(dir, v.plan), 'prose.txt');
-        const planDecl = readJson(join(dir, v.plan), 'declaration.json');
+        const planDecl = readJsonFile(join(dir, v.plan), 'declaration.json');
         const parsedPlan = planProse.ok ? parseSignedText(planProse.text) : null;
         if (!parsedPlan || !parsedPlan.ok || !planDecl) return { status: 409, body: { ok: false, refused: 'schedule', say: 'The plan could not be read to check its schedule. Nothing was signed.' } };
         const planned = triggerDoor.cardSchedule(v.card.schedule, { arbiter: parsedPlan.arbiter, declaration: planDecl });
@@ -808,7 +807,7 @@ export function createAuthor(opts) {
       if (v.revisesLeft <= 0) return { status: 409, body: { ok: false, refused: 'no-revises-left', say: `This draft has used its ${MAX_REVISES} revises. Start over: it keeps the fields and gives ${MAX_REVISES} new revises.` } };
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       if (draftingSpent(dir).missingEarlier) return { status: 400, body: { ok: false, refused: 'earlier-missing', say: EARLIER_MISSING_SAY } };
-      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
+      const vet = vetCard(body, loaded, draftedSoFar(dir, v.card), readJsonFile(dir, RUN_OF_FILE)?.flow);
       if (!vet.ok) return vet.reply;
       for (const other of listIds()) {
         if (other === id) continue;
@@ -907,7 +906,7 @@ export function createAuthor(opts) {
         const jobWithAction = act !== undefined && act.action === 'known' && typeof act.actionLine === 'string' && act.actionLine !== '' ? `${baseJob.replace(/\s+$/, '')}\n${act.actionLine}` : baseJob;
         const grown = applyAnswers(jobWithAction, all);
         if (grown.added !== adds.length) return { status: 409, body: { ok: false, refused: 'no-such-line', say: 'An answer is about a job line the card no longer has. Draft again from the card. Nothing was signed.' } };
-        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card), readJson(dir, RUN_OF_FILE)?.flow);
+        const vet = vetCard({ ...v.card, job: grown.job }, loaded, draftedSoFar(dir, v.card), readJsonFile(dir, RUN_OF_FILE)?.flow);
         if (!vet.ok) return vet.reply;
         for (const other of listIds()) {
           if (other === id) continue;
@@ -956,7 +955,7 @@ export function createAuthor(opts) {
       if (childRunning(dir)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'The draft process is still finishing. Try again in a moment.' } };
       // the plan was drafted with questions on, unless it is the redraft after answers (it never asks); a plan made by a Drop or an Add keeps the one it came from
       const cur = PLAN_DIR_RE.exec(v.plan)?.[1];
-      const marker = cur === undefined ? null : readJson(dir, `redraft-${cur}.json`);
+      const marker = cur === undefined ? null : readJsonFile(dir, `redraft-${cur}.json`);
       const asks = marker === null ? true : (marker.rowEdit ? marker.rowEdit.asks !== false : false);
       const planDir = join(dir, v.plan);
       const made = rowEditPlan({ planDir, op: b.op, key: b.key, asks });

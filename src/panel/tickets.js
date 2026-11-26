@@ -5,11 +5,11 @@
 import { join } from 'node:path';
 
 import { readSchedule, ledgerOf } from '../schedule.js';
-import { readSeen } from '../trigger-files.js';
 import { compareNatural } from '../natural.js';
 import { readRunInputs } from '../runfile.js';
 import { recordAnyway } from '../trigger-tickets.js';
 import { isTicketNumber, TICKET_NUMBER_WORDS } from '../ticket-shape.js';
+import { readTriggerLedger } from '../jsonl-append.js';
 
 /** the four groups, in the mockup's order: key, label, open at first. The page draws them; it types none of these words. */
 export const TICKET_GROUPS = Object.freeze([
@@ -41,7 +41,7 @@ export function ticketListOf({ flowDir, runId, runIdsOf, glyphOf, atOf = () => n
   const sched = ticketScheduleOf(flowDir, runId, readSched);
   if (!sched) return null;
   const arrivals = new Map();
-  for (const r of /** @type {any[]} */ (readSeen(ledgerOf(flowDir), sched.sig))) {
+  for (const r of /** @type {any[]} */ (readTriggerLedger(ledgerOf(flowDir), sched.sig))) {
     if (r.kind !== 'arrived' || !Number.isInteger(r.number)) continue;
     const a = arrivals.get(r.number) ?? { first: r.at, last: r.at, count: 0, reason: null };
     arrivals.set(r.number, { first: Math.min(a.first, r.at), last: Math.max(a.last, r.at), count: a.count + 1, reason: typeof r.reason === 'string' ? r.reason : a.reason });

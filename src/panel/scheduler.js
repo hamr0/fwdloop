@@ -14,15 +14,14 @@
 //   2. file kinds: `poll` of this job's file trigger; each file taken is already in the ledger (`ran`) BEFORE the fire.
 // A schedule change or a Cancel settles the queue in its own click (src/schedule.js `dropQueue` / `carryQueue`): no tick settles anything.
 // A failure on one job (a folder that went away) is written once to `triggers.jsonl` as `refused` and never stops the other jobs.
-import { due, readRows, recordFire } from '../trigger-clock.js';
-import {
-  createFileTrigger, queueOf, readSeen, recheck, recordArrived, recordDropped, recordRan,
-} from '../trigger-files.js';
+import { due, recordFire } from '../trigger-clock.js';
+import { createFileTrigger, queueOf, recheck, recordArrived, recordDropped, recordRan } from '../trigger-files.js';
 import { ledgerOf } from '../schedule.js';
 import {
   TICKET_LOOK_MS, hasBaseline, lastSeen, lookTickets, recordLook, seenNumbers,
 } from '../trigger-tickets.js';
 import { readOutcomes } from './authortrigger.js';
+import { readTriggerLedger } from '../jsonl-append.js';
 
 /**
  * @param {{ door: ReturnType<typeof import('./authortrigger.js').createTriggerDoor>, now?: () => number, intervalMs?: number, look?: typeof lookTickets, mcpConfig?: string }} opts
@@ -49,7 +48,7 @@ export function createScheduler(opts) {
    */
   function runQueue(job, ledger, nowMs) {
     const { sig } = job;
-    let queue = queueOf(readSeen(ledger, sig));
+    let queue = queueOf(readTriggerLedger(ledger, sig));
     if (queue.length === 0) return;
     const key = (/** @type {string} */ sha, /** @type {Record<string, any>} */ r) => `${sha}|${r.outcome}|${r.why ?? ''}`;   // a refusal is told once PER REASON; busy / monthly carry no `why`
     const spoken = new Set(readOutcomes(job.flowDir).filter((r) => typeof r.sha === 'string' && r.sig === sig).map((r) => key(r.sha, r)));
@@ -92,7 +91,7 @@ export function createScheduler(opts) {
     const first = !hasBaseline(ledger, sig);
     const watch = Array.isArray(trigger.watch) ? trigger.watch : [];
     // M13 piece 5 (F114f): the turn-on wrote the ticket number the first green run read; the first look baselines only tickets up to it
-    const armedRow = first ? readRows(ledger, sig).find((r) => r.kind === 'armed') : undefined;
+    const armedRow = first ? readTriggerLedger(ledger, sig).find((r) => r.kind === 'armed') : undefined;
     const cut = Number.isInteger(armedRow?.ticketN) ? armedRow?.ticketN : undefined;
     const out = Promise.resolve(look({
       listUrl: trigger.list, mcp: { server: trigger.server, tool: trigger.tool }, ...(mcpConfig ? { configPath: mcpConfig } : {}),
@@ -132,7 +131,7 @@ export function createScheduler(opts) {
           for (const f of arrived) recordArrived(ledger, f, nowMs, sig);   // THE writer of the file ledger: arrival time is this clock, never the file's mtime
           runQueue(job, ledger, nowMs);
         } else {
-          const d = due(trigger, readRows(ledger, sig), nowMs);
+          const d = due(trigger, readTriggerLedger(ledger, sig), nowMs);
           if (d.fire) {
             recordFire(ledger, d, nowMs, sig);   // BEFORE the fire: a crash loses a run, never doubles one
             door.fire(job, {

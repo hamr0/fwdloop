@@ -24,15 +24,15 @@ import { flowValues, valuesHash } from '../runvalues.js';
 import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
 import { endRow, readHistory, isGoodEnding } from '../books.js';
 import { readRunInputs } from '../runfile.js';
-import { appendRow } from '../jsonl-append.js';
+import { appendRow, parseJsonl, readTriggerLedger } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
 import {
   FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
 } from '../flow.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
-import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
-import { checkTarget, createFileTrigger, readSeen } from '../trigger-files.js';
+import { armTrigger, nextSlot, validateSchedule } from '../trigger-clock.js';
+import { checkTarget, createFileTrigger } from '../trigger-files.js';
 import { lookProblemOf } from '../trigger-tickets.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { LOOK_TOOL } from '../ticket-draft.js';
@@ -59,7 +59,7 @@ const HISTORY_FILE = 'triggers.jsonl';
 export function readOutcomes(flowDir) {
   const f = readFileInside(flowDir, HISTORY_FILE);
   if (!f.ok) return [];
-  return f.text.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  return parseJsonl(f.text);
 }
 
 /** The ONE writer of `triggers.jsonl`: append-only, one line per fire outcome. @param {string} flowDir @param {Record<string, any>} row */
@@ -638,7 +638,7 @@ export function createTriggerDoor(opts) {
       const flowDir = join(realRoot, flow);
       const sc = liveSchedule(flowDir, r.signature.flow);
       const trigger = sc === null ? null : sc.trigger;
-      const armedRow = sc === null ? undefined : readRows(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
+      const armedRow = sc === null ? undefined : readTriggerLedger(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
       const outcomes = sc === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === sc.sig);
       const hasGreenRun = hasGreenRunForJob(flowDir);
       const clockKind = trigger !== null && (trigger.kind === 'daily' || trigger.kind === 'weekdays' || trigger.kind === 'weekly');
@@ -648,7 +648,7 @@ export function createTriggerDoor(opts) {
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
         hasGreenRun,
         // M13 item 9b.3: the cause when the newest look of a ticket schedule could not read (pass locked, a server error), else null
-        lookProblem: sc !== null && trigger !== null && trigger.kind === 'new-ticket' ? lookProblemOf(readSeen(ledgerOf(flowDir), sc.sig)) : null,
+        lookProblem: sc !== null && trigger !== null && trigger.kind === 'new-ticket' ? lookProblemOf(readTriggerLedger(ledgerOf(flowDir), sc.sig)) : null,
         // M13 piece 5: signed with the job and still off, because no run has been green yet (a green run not yet turned on by the next check is not waiting for one)
         waiting: sc !== null && armedRow === undefined && !hasGreenRun,
       };

@@ -10,7 +10,6 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { writeSchedule, sigOf, ledgerOf } from '../src/schedule.js';
 import { triggerHash } from '../src/trigger-line.js';
 import { writeRunStart } from '../src/runfile.js';
-import { appendSeen } from '../src/trigger-files.js';
 import { ticketListOf, ticketAnyway, TICKET_GROUPS } from '../src/panel/tickets.js';
 
 function world(t, { from = 'run-1', kind = 'new-ticket' } = {}) {
@@ -34,6 +33,7 @@ const GL = { 'run-1': ['[✓]', 'passed'], 'run-2': ['[–]', 'skipped — no P1
 const glyphOf = (id) => (GL[id] ? { glyph: GL[id][0], label: GL[id][1] } : null);
 const idsOf = (flowDir) => ['run-1', 'run-2', 'run-3', 'run-4', 'run-5', 'run-6'].filter((id) => { try { return require_ok(flowDir, id); } catch { return false; } });
 import { existsSync } from 'node:fs';
+import { appendTriggerLedger } from '../src/jsonl-append.js';
 const require_ok = (flowDir, id) => existsSync(path.join(flowDir, 'runs', id));
 const list = (w, runId = 'run-1') => ticketListOf({ flowDir: w.flowDir, runId, runIdsOf: idsOf, glyphOf });
 
@@ -80,8 +80,8 @@ test('one row per ticket number: the newest run decides (a skipped ticket run an
 test('a ticket that arrived again by a watched change carries the ledger\'s reason', (t) => {
   const w = world(t);
   addRun(w.flowDir, 'run-1', 9, 'T', 1000);
-  appendSeen(ledgerOf(w.flowDir), { id: 'arrived:ticket:9', kind: 'arrived', sha: 'ticket:9', name: '#9', size: 0, at: 5, number: 9 }, w.sig);
-  appendSeen(ledgerOf(w.flowDir), { id: 'arrived:ticket:9:1', kind: 'arrived', sha: 'ticket:9:1', name: '#9', size: 0, at: 9, number: 9, reason: 'status changed: open → closed' }, w.sig);
+  appendTriggerLedger(ledgerOf(w.flowDir), { id: 'arrived:ticket:9', kind: 'arrived', sha: 'ticket:9', name: '#9', size: 0, at: 5, number: 9 }, w.sig);
+  appendTriggerLedger(ledgerOf(w.flowDir), { id: 'arrived:ticket:9:1', kind: 'arrived', sha: 'ticket:9:1', name: '#9', size: 0, at: 9, number: 9, reason: 'status changed: open → closed' }, w.sig);
   const row = list(w).groups.find((g) => g.key === 'done').rows[0];
   assert.equal(row.changed, 'status changed: open → closed');
   assert.equal(row.at, 9);

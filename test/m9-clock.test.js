@@ -9,9 +9,8 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import {
-  GRACE_MS, validateSchedule, due, nextSlot, armTrigger, recordFire, readRows,
-} from '../src/trigger-clock.js';
+import { GRACE_MS, validateSchedule, due, nextSlot, armTrigger, recordFire } from '../src/trigger-clock.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const dir = () => mkdtempSync(path.join(tmpdir(), 'm9clock-'));
@@ -76,9 +75,9 @@ test('three missed: exactly three slots -> one fire with missed 3', () => {
   const f = dir() + '/ledger.jsonl';
   armTrigger(f, at(2026, 10, 9, 10, 0));
   recordFire(f, d, now);
-  assert.equal(readRows(f).filter((r) => r.kind === 'fire').length, 1);
-  assert.equal(due(daily9, readRows(f), now + 60000).fire, false, 'after the one fire, nothing is still due');
-  assert.equal(due(daily9, readRows(f), at(2026, 10, 13, 9, 0)).fire, true, 'next slot is normal');
+  assert.equal(readTriggerLedger(f).filter((r) => r.kind === 'fire').length, 1);
+  assert.equal(due(daily9, readTriggerLedger(f), now + 60000).fire, false, 'after the one fire, nothing is still due');
+  assert.equal(due(daily9, readTriggerLedger(f), at(2026, 10, 13, 9, 0)).fire, true, 'next slot is normal');
 });
 
 test('several missed slots with the latest on time are still a catch-up', () => {
@@ -110,18 +109,18 @@ test('nextSlot: the next time, strictly after; weekly and weekdays skip ahead', 
 
 test('ledger: append-only JSONL, write-once by id, survives restart (reread from disk)', () => {
   const f = path.join(dir(), 'sub', 'clock.jsonl');
-  assert.deepEqual(readRows(f), [], 'missing file = no rows');
+  assert.deepEqual(readTriggerLedger(f), [], 'missing file = no rows');
   armTrigger(f, at(2026, 10, 12, 8, 0));
-  const armedId = readRows(f)[0].id;
+  const armedId = readTriggerLedger(f)[0].id;
   assert.throws(() => armTrigger(f, at(2026, 10, 12, 8, 0)), /already/, 'same id is write-once');
-  const d = due(daily9, readRows(f), at(2026, 10, 12, 9, 0));
+  const d = due(daily9, readTriggerLedger(f), at(2026, 10, 12, 9, 0));
   recordFire(f, d, at(2026, 10, 12, 9, 0));
   assert.throws(() => recordFire(f, d, at(2026, 10, 12, 9, 0)), /already/, 'a slot fires once');
   const raw = readFileSync(f, 'utf8').split('\n').filter(Boolean);
   assert.equal(raw.length, 2);
   assert.equal(JSON.parse(raw[0]).id, armedId);
   // "restart": no process state is kept, so a fresh read decides
-  const rows = readRows(f);
+  const rows = readTriggerLedger(f);
   assert.equal(due(daily9, rows, at(2026, 10, 12, 9, 0, 30)).fire, false, 'already fired');
   assert.equal(due(daily9, rows, at(2026, 10, 13, 9, 0)).fire, true);
   assert.ok(!existsSync(path.join(path.dirname(f), 'latest.json')));
@@ -131,8 +130,8 @@ test('a fire row records catchUp and missed for the history row', () => {
   const f = path.join(dir(), 'c.jsonl');
   armTrigger(f, at(2026, 10, 12, 8, 0));
   const now = at(2026, 10, 12, 9, 5);
-  recordFire(f, due(daily9, readRows(f), now), now);
-  const row = readRows(f).find((r) => r.kind === 'fire');
+  recordFire(f, due(daily9, readTriggerLedger(f), now), now);
+  const row = readTriggerLedger(f).find((r) => r.kind === 'fire');
   assert.equal(row.catchUp, true);
   assert.equal(row.slot, at(2026, 10, 12, 9, 0));
   assert.equal(row.at, now);
@@ -146,13 +145,14 @@ function berlin(code) {
   return JSON.parse(r.stdout);
 }
 const dstScript = (armISO, nows) => `
-import { due, armTrigger, recordFire, readRows } from './src/trigger-clock.js';
+import { due, armTrigger, recordFire } from './src/trigger-clock.js';
+import { readTriggerLedger } from './src/jsonl-append.js';
 import { mkdtempSync, rmSync } from 'node:fs'; import { tmpdir } from 'node:os'; import path from 'node:path';
 const d = mkdtempSync(path.join(tmpdir(), 'm9dst-')); const f = path.join(d, 'l.jsonl');
 const s = { kind: 'daily', hour: 2, minute: 30 };
 armTrigger(f, Date.parse(${JSON.stringify(armISO)}));
 const out = [];
-for (const n of ${JSON.stringify(nows)}) { const t = Date.parse(n); const x = due(s, readRows(f), t); if (x.fire) recordFire(f, x, t); out.push([n, x.fire, x.catchUp]); }
+for (const n of ${JSON.stringify(nows)}) { const t = Date.parse(n); const x = due(s, readTriggerLedger(f), t); if (x.fire) recordFire(f, x, t); out.push([n, x.fire, x.catchUp]); }
 rmSync(d, { recursive: true, force: true });
 console.log(JSON.stringify(out));`;
 

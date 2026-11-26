@@ -151,3 +151,15 @@ test('item 12 (draft spend, started-over): only draftspend.js names draft-spend.
 test('item 12 (rerun): only runfile.js reads the run record\'s rerun', () => {
   assert.deepEqual(strays(load(), /\.rec\.rerun\b|\brec\??\.rerun\b/, { 'runfile.js': 'readRerunWords: the one test; writeRunStart writes it' }), []);
 });
+
+// item 12 (ledger, tolerant reads): one tolerant JSONL parse, one ledger reader and appender (src/jsonl-append.js), one tolerant JSON-object read (src/flow.js readJsonFile)
+test('item 12 (ledger): only jsonl-append.js parses a JSONL text line by line, reads or appends a trigger ledger', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /flatMap\(\(l\) => \{ try \{ return \[JSON\.parse\(l\)\]/, { 'jsonl-append.js': 'parseJsonl: the one tolerant JSONL parse' }), []);
+  assert.deepEqual(strays(files, /\b(readSeen|readRows|appendSeen|appendOnce)\b/, {}), [], 'the old per-ledger names are gone: readTriggerLedger and appendTriggerLedger are the only ones');
+});
+test('item 12 (tolerant JSON): only flow.js reads one JSON object file tolerantly (readJsonFile); no local readJson', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /return j !== null && typeof j === 'object' && !Array\.isArray\(j\) \? j : null/, { 'flow.js': 'readJsonFile: the one tolerant JSON-object read; readDraftLog asks it' }), []);
+  assert.deepEqual(strays(files, /\bconst readJson\b|\bfunction readJson\b/, {}), []);
+});

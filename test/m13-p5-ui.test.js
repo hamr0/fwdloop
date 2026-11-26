@@ -9,10 +9,10 @@ import { launchChrome } from '../scripts/panel-fixtures/cdp.mjs';
 import { killChildrenAfter, rq, tmp, world } from './m4e-world.mjs';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
-import { readRows } from '../src/trigger-clock.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readFlow, writeRunJobCopy } from '../src/flow.js';
 import { createTriggerDoor } from '../src/panel/authortrigger.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const SKIP = process.env.FWDLOOP_NO_BROWSER === '1';
@@ -139,7 +139,7 @@ for (const width of [390, 320]) {
     appendFileSync(path.join(flowDir, 'history.jsonl'), `${JSON.stringify({ runId: 'first-a', at: new Date().toISOString(), outcome: 'complete', spentUsd: 0.01, spendComplete: true, capUsd: 0.25, wallMs: 1000, signatureHash: sig })}\n`);
     w.h.tick();
     const sc = readSchedule(flowDir);
-    assert.equal(readRows(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed').length, 1, 'the panel\'s check turned it on');
+    assert.equal(readTriggerLedger(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed').length, 1, 'the panel\'s check turned it on');
     const body = (await rq(w.h.port, { url: '/api/runs/tk/first-a' })).json();
     assert.notEqual(body.summary.schedule.line2, 'Schedule waiting for a green run');
   });

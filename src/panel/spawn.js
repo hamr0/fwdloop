@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, openSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { readFileInside } from '../flow.js';
+import { readJsonFile } from '../flow.js';
 import { isFwdloopAlive, procStartOf } from '../liveness.js';
 import { keyValues } from '../keysfile.js';
 
@@ -42,13 +42,6 @@ export function spawnDetached({
 export function writePidFile(dir, child) {
   if (!Number.isInteger(child.pid)) return;
   writeFileSync(join(dir, 'pid.json'), `${JSON.stringify({ pid: child.pid, procStart: procStartOf(/** @type {number} */ (child.pid)), startedAt: Date.now() })}\n`, { mode: 0o600 });
-}
-
-/** One JSON file of a panel folder through the one safe gateway; null when missing, unreadable or not an object. @param {string} dir @param {string} rel */
-export function readJsonFile(dir, rel) {
-  const r = readFileInside(dir, rel);
-  if (!r.ok) return null;
-  try { const j = JSON.parse(r.text); return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
 }
 
 /**

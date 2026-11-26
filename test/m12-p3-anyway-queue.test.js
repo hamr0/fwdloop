@@ -12,8 +12,8 @@ import { createScheduler } from '../src/panel/scheduler.js';
 import { createPanelServer } from '../src/panel/server.js';
 import { ticketAnyway, arriveAnywayOf } from '../src/panel/tickets.js';
 import { ledgerOf } from '../src/schedule.js';
-import { readSeen } from '../src/trigger-files.js';
 import { skippedWorld } from './m12-p3-world.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-mcp-server.mjs');
 const SIG = 'sig-1';
@@ -39,7 +39,7 @@ function setup(t) {
   const queue = arriveAnywayOf({ scan: door.scan, now: () => clock.t });
   const ledger = ledgerOf(dir);
   return {
-    s, clock, fires, queue, ledger, rows: (kind) => readSeen(ledger, SIG).filter((r) => r.kind === kind),
+    s, clock, fires, queue, ledger, rows: (kind) => readTriggerLedger(ledger, SIG).filter((r) => r.kind === kind),
     async step(ms = 0) { clock.t += ms; s.tick(); await s.settled(); s.tick(); },
   };
 }

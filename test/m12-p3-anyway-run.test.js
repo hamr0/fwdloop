@@ -14,12 +14,12 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { createScheduler } from '../src/panel/scheduler.js';
 import { arriveAnywayOf } from '../src/panel/tickets.js';
 import { ledgerOf } from '../src/schedule.js';
-import { readSeen, appendSeen } from '../src/trigger-files.js';
 import { readHistory, readAudit } from '../src/books.js';
 import { skippedWorld, runPrimitives, DECL } from './m12-p3-world.mjs';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
 import { seedGreen } from './m9-trigger-world.mjs';
+import { appendTriggerLedger, readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -105,11 +105,11 @@ test('the scheduler fires an anyway arrival with `anyway: true`, and a watched-c
   assert.equal(f.fires.length, 1);
   assert.deepEqual([f.fires[0].number, f.fires[0].why, f.fires[0].anyway], [2, 'it is valid', true]);
   // a watched change: the very row shape the look writes (an arrived row with a reason, no anyway field)
-  appendSeen(ledgerOf(f.dir), { id: 'arrived:ticket:3:1', kind: 'arrived', sha: 'ticket:3:1', name: '#3', path: '#3', size: 0, at: f.clock.t, number: 3, reason: 'labels changed' }, 'sig-1');
+  appendTriggerLedger(ledgerOf(f.dir), { id: 'arrived:ticket:3:1', kind: 'arrived', sha: 'ticket:3:1', name: '#3', path: '#3', size: 0, at: f.clock.t, number: 3, reason: 'labels changed' }, 'sig-1');
   await f.step(1000);
   assert.equal(f.fires.length, 2);
   assert.deepEqual([f.fires[1].number, f.fires[1].why, f.fires[1].anyway], [3, 'labels changed', undefined]);
-  assert.equal(readSeen(ledgerOf(f.dir), 'sig-1').filter((r) => r.kind === 'arrived' && r.anyway === true).length, 1);
+  assert.equal(readTriggerLedger(ledgerOf(f.dir), 'sig-1').filter((r) => r.kind === 'arrived' && r.anyway === true).length, 1);
 });
 
 // ---- the panel's own start: `--anyway` follows the ticket in the spawned run's argv only for an anyway arrival ----------------------------------------------------
@@ -131,7 +131,7 @@ test('the panel starts an anyway ticket with `--anyway`, and a watched-change ti
   const p = await w.post('/api/author/trigger-prepare', { flow: 'tk', trigger });
   assert.equal((await w.post('/api/author/trigger', { flow: 'tk', trigger, hash: p.json().hash })).status, 200);
   w.h.tick();
-  await until(() => readSeen(ledgerOf(flowDir)).filter((r) => r.kind === 'baseline').length === 5);
+  await until(() => readTriggerLedger(ledgerOf(flowDir)).filter((r) => r.kind === 'baseline').length === 5);
   const sc = JSON.parse(readFileSync(path.join(flowDir, 'schedule.json'), 'utf8'));
   const { recordAnyway } = await import('../src/trigger-tickets.js');
   assert.equal(recordAnyway(ledgerOf(flowDir), sc.sig, { number: 4, reason: 'it is valid' }, clock.t).ok, true);
@@ -140,7 +140,7 @@ test('the panel starts an anyway ticket with `--anyway`, and a watched-change ti
   assert.equal(a[a.indexOf('--ticket') + 1], '4');
   assert.ok(a.includes('--anyway'), JSON.stringify(a));
   // a watched-change row: same shape, reason, no anyway field
-  appendSeen(ledgerOf(flowDir), { id: 'arrived:ticket:3:1', kind: 'arrived', sha: 'ticket:3:1', name: '#3', path: '#3', size: 0, at: clock.t, number: 3, reason: 'labels changed' }, sc.sig);
+  appendTriggerLedger(ledgerOf(flowDir), { id: 'arrived:ticket:3:1', kind: 'arrived', sha: 'ticket:3:1', name: '#3', path: '#3', size: 0, at: clock.t, number: 3, reason: 'labels changed' }, sc.sig);
   await until(() => { w.h.tick(); return argv().length > 1; });
   const b = argv()[1];
   assert.equal(b[b.indexOf('--ticket') + 1], '3');

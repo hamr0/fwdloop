@@ -9,7 +9,8 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 
 import { configForServer, remoteRefusal, mcpStartOpts, startRefusal, firstLine, isDeviceLogin } from './ticket-mcp.js';
 import { parseTicketList, isTicketNumber, TICKET_MAX } from './ticket-shape.js';
-import { appendSeen, readSeen, queueOf } from './trigger-files.js';
+import { queueOf } from './trigger-files.js';
+import { appendTriggerLedger, readTriggerLedger } from './jsonl-append.js';
 
 /** A look every 15 minutes, fixed (item 8). */
 export const TICKET_LOOK_MS = 15 * 60_000;
@@ -142,12 +143,12 @@ export async function lookTickets({
 
 /** The numbers a signing has a baseline or an arrived row for. @param {string} ledger @param {string} sig */
 export function seenNumbers(ledger, sig) {
-  return new Set(readSeen(ledger, sig).filter((r) => (r.kind === 'baseline' || r.kind === 'arrived') && Number.isInteger(/** @type {any} */ (r).number)).map((r) => /** @type {any} */ (r).number));
+  return new Set(readTriggerLedger(ledger, sig).filter((r) => (r.kind === 'baseline' || r.kind === 'arrived') && Number.isInteger(/** @type {any} */ (r).number)).map((r) => /** @type {any} */ (r).number));
 }
 /** Last-seen watched values per number: the newest baseline/arrived row's. @param {string} ledger @param {string} sig @returns {Map<number, {state: string, labels: string[]}>} */
 export function lastSeen(ledger, sig) {
   const m = new Map();
-  for (const r of /** @type {any[]} */ (readSeen(ledger, sig))) if ((r.kind === 'baseline' || r.kind === 'arrived') && r.watch) m.set(r.number, r.watch);
+  for (const r of /** @type {any[]} */ (readTriggerLedger(ledger, sig))) if ((r.kind === 'baseline' || r.kind === 'arrived') && r.watch) m.set(r.number, r.watch);
   return m;
 }
 /** Has this signing had its first look (its baseline written)? @param {string} ledger @param {string} sig */
@@ -159,7 +160,7 @@ export function lookProblemOf(rows) {
   const last = /** @type {any[]} */ (rows).findLast((r) => r.kind === 'unreadable' || r.kind === 'looked' || r.kind === 'baseline' || r.kind === 'arrived');
   return last?.kind === 'unreadable' ? { at: last.at, why: String(last.why ?? 'it could not read the list') } : null;
 }
-export const hasBaseline = (ledger, sig) => readSeen(ledger, sig).some((r) => r.kind === 'baseline');
+export const hasBaseline = (ledger, sig) => readTriggerLedger(ledger, sig).some((r) => r.kind === 'baseline');
 
 /**
  * Write what a look found, once. First look: a `baseline` row per ticket on the page (never runs). Later: an `arrived` row per new ticket, oldest first (its arrival
@@ -169,50 +170,50 @@ export const hasBaseline = (ledger, sig) => readSeen(ledger, sig).some((r) => r.
  */
 export function recordLook(ledger, sig, look, at) {
   if (!look.ok) {
-    appendSeen(ledger, /** @type {any} */ ({ id: `unreadable:${at}`, kind: 'unreadable', sha: `unreadable:${at}`, name: '', size: 0, at, why: look.error }), sig);
+    appendTriggerLedger(ledger, /** @type {any} */ ({ id: `unreadable:${at}`, kind: 'unreadable', sha: `unreadable:${at}`, name: '', size: 0, at, why: look.error }), sig);
     return { arrived: [], unreadable: look.error };
   }
   // a look that read, after one that could not: one `looked` row ends the problem even when nothing is new (the only look row that is not found tickets)
   // M13 piece 7 (9.7): ticket numbers over the cap were ignored by the look; ONE reason is recorded on the same row
   const note = look.ignored?.length ? `ignored ${look.ignored.length} ticket number${look.ignored.length === 1 ? '' : 's'} over ${TICKET_MAX.toLocaleString('en-US')}: ${look.ignored.slice(0, 5).join(', ')}` : null;
-  if (note !== null || lookProblemOf(readSeen(ledger, sig))) appendSeen(ledger, /** @type {any} */ ({ id: `looked:${at}`, kind: 'looked', sha: `looked:${at}`, name: '', size: 0, at, ...(note !== null ? { why: note } : {}) }), sig);
+  if (note !== null || lookProblemOf(readTriggerLedger(ledger, sig))) appendTriggerLedger(ledger, /** @type {any} */ ({ id: `looked:${at}`, kind: 'looked', sha: `looked:${at}`, name: '', size: 0, at, ...(note !== null ? { why: note } : {}) }), sig);
   const arrived = [];
   const watch = (/** @type {{state: string, labels: string[]}} */ w) => ({ state: w.state, labels: w.labels });
   if (look.first) {
     for (const i of [...look.found].reverse()) {
       if (look.cut !== undefined && i.number > look.cut) {
         // M13 piece 5 (F114f): above the number the first green run read = it came in after that run began, so it runs once the schedule is on
-        appendSeen(ledger, /** @type {any} */ ({
+        appendTriggerLedger(ledger, /** @type {any} */ ({
           id: `arrived:ticket:${i.number}`, kind: 'arrived', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
         }), sig);
         arrived.push(i.number);
         continue;
       }
-      appendSeen(ledger, /** @type {any} */ ({
+      appendTriggerLedger(ledger, /** @type {any} */ ({
         id: `baseline:ticket:${i.number}`, kind: 'baseline', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
       }), sig);
     }
     return { arrived, unreadable: null };
   }
   for (const i of [...look.found].reverse()) {
-    appendSeen(ledger, /** @type {any} */ ({
+    appendTriggerLedger(ledger, /** @type {any} */ ({
       id: `arrived:ticket:${i.number}`, kind: 'arrived', sha: `ticket:${i.number}`, name: `#${i.number}`, path: `#${i.number}`, size: 0, at, number: i.number, watch: watch(i),
     }), sig);
     arrived.push(i.number);
   }
   for (const c of look.changed) {
-    const rows = readSeen(ledger, sig);
+    const rows = readTriggerLedger(ledger, sig);
     if (queueOf(rows).some((q) => /** @type {any} */ (q).number === c.number)) {
       // already waiting: the queued run reads the ticket as it is when it starts, so no second run. Advance the last-seen value (a `baseline` row, same writer) so the
       // next look does not re-fire this same change once that run has started; a LATER change still differs from it and arrives once.
       const b = rows.filter((r) => r.kind === 'baseline' && /** @type {any} */ (r).number === c.number).length;
-      appendSeen(ledger, /** @type {any} */ ({
+      appendTriggerLedger(ledger, /** @type {any} */ ({
         id: `baseline:ticket:${c.number}:${b}`, kind: 'baseline', sha: `ticket:${c.number}`, name: `#${c.number}`, path: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c),
       }), sig);
       continue;
     }
     const n = rows.filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === c.number).length;
-    appendSeen(ledger, /** @type {any} */ ({
+    appendTriggerLedger(ledger, /** @type {any} */ ({
       id: `arrived:ticket:${c.number}:${n}`, kind: 'arrived', sha: `ticket:${c.number}:${n}`, name: `#${c.number}`, path: `#${c.number}`, size: 0, at, number: c.number, watch: watch(c), reason: c.reason,
     }), sig);
     arrived.push(c.number);
@@ -227,11 +228,11 @@ export function recordLook(ledger, sig, look, at) {
  * @returns {{ok: true} | {ok: false, say: string}}
  */
 export function recordAnyway(ledger, sig, a, at) {
-  const rows = readSeen(ledger, sig);
+  const rows = readTriggerLedger(ledger, sig);
   if (queueOf(rows).some((q) => /** @type {any} */ (q).number === a.number)) return { ok: false, say: `Ticket #${a.number} is already queued. Nothing more was queued.` };
   const n = rows.filter((r) => r.kind === 'arrived' && /** @type {any} */ (r).number === a.number).length;
   const watch = lastSeen(ledger, sig).get(a.number);
-  appendSeen(ledger, /** @type {any} */ ({
+  appendTriggerLedger(ledger, /** @type {any} */ ({
     id: `arrived:ticket:${a.number}:${n}`, kind: 'arrived', sha: `ticket:${a.number}:${n}`, name: `#${a.number}`, path: `#${a.number}`, size: 0, at, number: a.number, ...(watch ? { watch } : {}), reason: a.reason, anyway: true,
   }), sig);
   return { ok: true };

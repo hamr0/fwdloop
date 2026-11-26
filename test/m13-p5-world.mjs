@@ -11,11 +11,10 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { loadCatalogue } from '../src/catalogue.js';
 import { readFlow, writeRunJobCopy } from '../src/flow.js';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
-import { readRows } from '../src/trigger-clock.js';
-import { readSeen } from '../src/trigger-files.js';
 import { createTriggerDoor, readOutcomes } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
 import { LIST, ticketJob } from './m12-p2-world.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 export const MIN = 60_000;
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -55,8 +54,8 @@ export function p5World({ trigger = { kind: 'new-ticket', role: 'jd', list: LIST
     sign: () => door.signSchedule({ flow: 'tk', flowSignatureHash: sigHash(), trigger, from: null, signedBy: 'hamr' }),
     setList: (n) => writeFileSync(listFile, JSON.stringify(newestFirst(n))),
     lookCalls: () => { try { return readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean).length; } catch { return 0; } },
-    armed: () => { const sc = readSchedule(flowDir); return sc === null ? [] : readRows(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); },
-    seen: (kind) => { const sc = readSchedule(flowDir); return sc === null ? [] : readSeen(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === kind); },
+    armed: () => { const sc = readSchedule(flowDir); return sc === null ? [] : readTriggerLedger(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); },
+    seen: (kind) => { const sc = readSchedule(flowDir); return sc === null ? [] : readTriggerLedger(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === kind); },
     started: () => readOutcomes(flowDir).filter((r) => r.outcome === 'started').map((r) => r.ticket),
     /** a run written as files; `rows` = [[outcome, atMs], ...]; `mutate` changes the run's job copy afterwards */
     run(runId, { ticket, rows, mutate = false }) {

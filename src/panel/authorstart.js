@@ -31,13 +31,13 @@ import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { endRow, haltFileExists, readHistory, readPidRows } from '../books.js';
 import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
+  PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readJsonFile, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
 } from '../flow.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../trigger-line.js';
 import {
-  childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
+  childRunning, providerKeys, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
