@@ -52,11 +52,6 @@ import {
   SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, NOT_CHECKED_FILE, readNotCheckedFile, readQuestions, scrub, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts,
 } from './draftfiles.js';
 
-// one name, one place: the plan-folder readers live in src/draftfiles.js; they stay importable from here
-export {
-  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, NOT_CHECKED_FILE, readNotCheckedFile, readQuestions, scrub, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts,
-};
-
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
 export const PANEL_DRAFTS_DIR = '.drafts';
 /** M4e amendments 24/25: the drafter's questions (written once by `fwdloop draft`), each human answer (`answer-<k>.json`, written once by the panel),

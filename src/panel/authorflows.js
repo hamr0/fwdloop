@@ -13,7 +13,7 @@
 import { lstatSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { ticketSourcesOf } from '../ticket-draft.js';
 import { flowTypeOf } from '../declaration.js';
 import { endRow, readHistory, isGoodEnding } from '../books.js';

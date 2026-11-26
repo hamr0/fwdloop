@@ -28,7 +28,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { LOG_TAIL_CHARS } from '../draft-steps.js';
 import { endRow, haltFileExists, readHistory, processStarted } from '../books.js';
 import { PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readJsonFile, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER } from '../flow.js';

@@ -41,7 +41,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { keyValues } from '../keysfile.js';
 import { spawnDetached } from './spawn.js';
 import { consumedAnswerName } from '../books.js';

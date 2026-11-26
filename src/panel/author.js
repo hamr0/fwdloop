@@ -37,9 +37,8 @@ import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  ANSWER_FILE, OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, draftVerdict, readQuestions, readNotCheckedFile, readTargetName, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts, readoutHeadIndexes, scrub, signDraft, writePlanFiles,
-} from '../authoring.js';
+import { OPEN_QUESTION_SAY, PANEL_DRAFTS_DIR, claimPlanDir, readTargetName, readoutHeadIndexes, signDraft, writePlanFiles } from '../authoring.js';
+import { ANSWER_FILE, draftVerdict, readQuestions, readNotCheckedFile, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts, scrub } from '../draftfiles.js';
 import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
 import { appendSpendRow } from '../provider.js';

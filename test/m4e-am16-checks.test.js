@@ -8,7 +8,8 @@ import { rmSync } from 'node:fs';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import * as D from '../src/declaration.js';
 const firstNum = (g) => D.guardrailWordNumbers(g)[0] ?? null; // these inputs hold one whole-output number
-import { draftToDir, signDraft, specHash, SPEC_HASH_FILE } from '../src/authoring.js';
+import { draftToDir, signDraft, specHash } from '../src/authoring.js';
+import { SPEC_HASH_FILE } from '../src/draftfiles.js';
 import { RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
 const G_OLD = 'guardrail: 3 sections, all under 600 words';

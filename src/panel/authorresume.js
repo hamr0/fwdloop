@@ -14,7 +14,7 @@ import { realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { loadCatalogue } from '../catalogue.js';
 import { changeSentence, checkFlowName, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
 import { readResumeLock } from '../liveness.js';

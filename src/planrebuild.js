@@ -31,8 +31,8 @@ import { docRolesOf } from './drafter.js';
 import { buildShapes } from './shapebuild.js';
 import { parseShapeAnswer, SHAPE_CALL_LABEL } from './shapelook.js';
 import { lineRules } from './pagebits.js';
-import { buildReadout, specHash, PAGES_DIR, NOT_CHECKED_FILE, SPEC_HASH_FILE } from './authoring.js';
-import { readNotCheckedFile, readPlanTexts } from './draftfiles.js';
+import { buildReadout, specHash, PAGES_DIR } from './authoring.js';
+import { NOT_CHECKED_FILE, SPEC_HASH_FILE, readNotCheckedFile, readPlanTexts } from './draftfiles.js';
 
 /** what a person is told when the saved inputs no longer give the saved list: nothing is written */
 export const REBUILD_CHANGED_SAY = 'The inputs of this plan have changed since it was drafted, so its checks cannot be changed here. Draft again from the card. Nothing was changed.';

@@ -129,7 +129,8 @@ import { fileURLToPath } from 'node:url';
 // eslint-disable-next-line import/first
 import { isFwdloopAlive } from '../src/liveness.js';
 // eslint-disable-next-line import/first
-import { signDraft, specHash, OPEN_QUESTION_SAY, readQuestions } from '../src/authoring.js';
+import { signDraft, specHash, OPEN_QUESTION_SAY } from '../src/authoring.js';
+import { readQuestions } from '../src/draftfiles.js';
 // eslint-disable-next-line import/first
 import { appendAnswersToJob, parseJobBox } from '../src/panel/authorcard.js';
 // eslint-disable-next-line import/first
