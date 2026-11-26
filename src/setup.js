@@ -8,7 +8,7 @@
 // carry `note` / `change` kinds; they are only ever READ back, from the flow's own setup.jsonl.
 // Third outcomes: a draft with no result is `stopped`; a cost nobody booked is `null` (shown "unknown", never $0).
 import { lstatSync, writeFileSync } from 'node:fs';
-import { triesOf } from './draft-steps.js';
+import { triesOf, CARD_RE } from './draft-steps.js';
 import { join } from 'node:path';
 
 import { readQuestions, scrub, draftVerdict } from './authoring.js';
@@ -19,7 +19,6 @@ import { checkAsks } from './checkpick.js';
 import { RECORD_FILE, KEPT_WORDS } from './pickrecord.js';
 
 export const SETUP_FILE = 'setup.jsonl';
-const CARD_RE = /^card-(\d+)\.json$/;
 
 const mtimeIso = (dir, rel) => {
   try { return lstatSync(join(dir, rel)).mtime.toISOString(); } catch { return null; }

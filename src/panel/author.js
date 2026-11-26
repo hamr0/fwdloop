@@ -63,7 +63,7 @@ import {
 } from '../provider.js';
 import { thinkingSupport as bareagentThinkingSupport, THINKING_FIXED_SAY, THINKING_UNVERIFIED_SAY } from '../thinking.js';
 import { parseSignedText } from '../signed-text.js';
-import { draftStepList, reviseStepList } from '../draft-steps.js';
+import { draftStepList, reviseStepList, CARD_RE, LOG_TAIL_CHARS, draftLogName } from '../draft-steps.js';
 import {
   capTooSmallText, draftedLine, draftingSpent, EARLIER_MISSING_SAY, potSplit, STARTED_OVER_FILE, STEP_LINE_PREFIXES, usdText, withDraftTimes,
 } from '../draftspend.js';
@@ -89,14 +89,12 @@ const ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `d-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
 /** The phases that end a card's life: Abandon or a sign. Everything else is still on the card (to read, to sign, to retry). */
 const FINISHED = new Set(['abandoned', 'signed']);
-const LOG_TAIL_CHARS = 1500;
 const STOPPED_SAY = 'The draft process ended before it finished (it was stopped from outside). Nothing was signed and nothing was sent. Draft again.';
 /** M6 am9: written once into a draft folder when the draft is a red run's redraft of an UNCHANGED job: `{flow, fromRun}`. Sign reads it; nothing else decides. */
 const RUN_OF_FILE = 'run-of.json';
 const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed and nothing was sent. Fix the job and draft again; this draft is kept on disk and is never reused.';
 /** Up to 2 revises per draft (amendment 14 item 3); a revise is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
 export const MAX_REVISES = 2;
-const CARD_RE = /^card-(\d+)\.json$/;
 /** The phases in which a draft child is running (a first draft, a revise, or the redraft after the human's answers). */
 const LIVE_PHASES = new Set(['drafting', 'revising', 'redrafting']);
 const ANSWERS_NOT_DRAFTED_SAY = 'Your answers are saved, but the plan was not drafted again with them (the process did not start). Nothing was signed. Draft again from the card.';
@@ -176,7 +174,7 @@ export function createAuthor(opts) {
     }
     if (Array.isArray(v.revises)) {
       out.revises = v.revises.map((rv) => {
-        const file = `${rv.kind === 'answers' ? 'redraft' : 'revise'}-${rv.n}.log`;
+        const file = draftLogName(rv.kind, rv.n);
         if (rv.phase === 'running') {
           const t = withDraftTimes({ dir, file, running: true, list: null });
           if (t.draftSoFar !== null) out.draftSoFar = t.draftSoFar;
@@ -323,7 +321,7 @@ export function createAuthor(opts) {
       if (res && res.phase === 'green') return { n, kind, phase: 'green', hash: res.hash, name, lines: scrubbed };
       if (res) return { n, kind, phase: 'red', reds: res.reds, say: kind === 'answers' ? REDRAFT_RED_SAY : REVISE_RED_SAY, name, lines: scrubbed };
       if (running) return { n, kind, phase: 'running', name };
-      const logRel = `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`;
+      const logRel = draftLogName(kind, n);
       return { n, kind, name, phase: 'stopped', say: logTail(dir, logRel, keys) || STOPPED_SAY, refusal: refusalOf(dir, logRel, keys) };
     });
     const cur = /** @type {{ phase: string, kind: string, say?: string, refusal?: {box: string|null, words: string} | null }} */ (newest > 0 ? revises[revises.length - 1] : { phase: first.phase, kind: 'first' });
@@ -375,7 +373,7 @@ export function createAuthor(opts) {
       writeFileSync(files[0], `${JSON.stringify(vet.card, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
       writeFileSync(files[1], vet.prose, { mode: 0o600, flag: 'wx' });
       writeFileSync(files[2], `${JSON.stringify(marker)}\n`, { mode: 0o600, flag: 'wx' });
-      child = spawnDetached({ bin, argv: argvOf(n, files[1], realpathSync(root)), env, logPath: join(dir, `redraft-${n}.log`) });
+      child = spawnDetached({ bin, argv: argvOf(n, files[1], realpathSync(root)), env, logPath: join(dir, draftLogName('answers', n)) });
     } catch (e) {
       undo();
       return { status: 500, body: { ok: false, refused: 'spawn', say: failSay(String(/** @type {any} */ (e)?.code ?? 'error')), draftId: id } };
@@ -826,7 +824,7 @@ export function createAuthor(opts) {
           bin,
           argv: ['draft', proseFile, '--out', join(dir, `draft-${n}`), '--root', realpathSync(root), '--name', vet.card.flowName, ...carryArgv(dir, v.revises.map((x) => x.n)), ...modelArgv(vet.card), ...actionArgv(vet.card)],
           env: loaded.env,
-          logPath: join(dir, `revise-${n}.log`),
+          logPath: join(dir, draftLogName('revise', n)),
         });
       } catch (e) {
         return { status: 500, body: { ok: false, refused: 'spawn', say: `The revise could not be started (${/** @type {any} */ (e)?.code ?? 'error'}). Nothing was spent.`, draftId: id } };

@@ -168,3 +168,10 @@ test('item 12 (tolerant JSON): only flow.js reads one JSON object file tolerantl
 test('item 12 (frozen input path): only runfile.js spells the run\'s inputs/ folder in a path', () => {
   assert.deepEqual(strays(load(), /['"`]inputs\/|join\([^)\n]*['"`]inputs['"`]/, { 'runfile.js': 'INPUTS_DIR / frozenRel: the one place the folder is spelled' }), []);
 });
+
+// item 12 (draft log names): CARD_RE, LOG_TAIL_CHARS, the revise/redraft log names (draftLogName, DRAFT_LOG_RE) are declared in src/draft-steps.js only
+test('item 12 (draft log names): only draft-steps.js declares CARD_RE, LOG_TAIL_CHARS, or spells a revise or redraft log name', () => {
+  const files = load();
+  const own = { 'draft-steps.js': 'CARD_RE, LOG_TAIL_CHARS, draftLogName, DRAFT_LOG_RE: the one place' };
+  assert.deepEqual(strays(files, /(const|let)\s+(CARD_RE|LOG_TAIL_CHARS)\b|card-\(\\d\+\)|(revise|redraft)-\$\{[^}]*\}\.log|\(revise\|redraft\)/, own), []);
+});

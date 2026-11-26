@@ -20,7 +20,7 @@ import { renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 
 import { readdirInside, readFileInside } from './flow.js';
-import { draftStepList } from './draft-steps.js';
+import { draftStepList, DRAFT_LOG_RE } from './draft-steps.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
 import { parseSignedText } from './signed-text.js';
 
@@ -308,7 +308,7 @@ export function withDraftTimes({ dir, running, list, nowMs = Date.now(), file = 
 }
 
 /** the logs of every draft of a session folder: the first draft's `child.log`, then each revise's and answer redraft's own */
-const draftLogFiles = (/** @type {string} */ dir) => ['child.log', ...readdirInside(dir, '.').filter((n) => /^(revise|redraft)-\d+\.log$/.test(n))];
+const draftLogFiles = (/** @type {string} */ dir) => ['child.log', ...readdirInside(dir, '.').filter((n) => DRAFT_LOG_RE.test(n))];
 
 /**
  * The plan card's one line: "Drafted in M:SS · $X". The time is the session's first step start to its last step end across ALL its drafts (the first, each revise,

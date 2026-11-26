@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
+import { LOG_TAIL_CHARS } from '../draft-steps.js';
 import { endRow, haltFileExists, readHistory, readPidRows } from '../books.js';
 import {
   PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readJsonFile, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
@@ -44,7 +45,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 const ID_RE = /^s-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `s-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
-const LOG_TAIL_CHARS = 1500;
 const NOTHING_SPENT = 'Nothing spent.';
 const ENDED_SAY = `The run process ended before it started. ${NOTHING_SPENT}`;
 
