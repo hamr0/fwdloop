@@ -4676,3 +4676,19 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** the import-loop test is green with an empty list and red once when a loop is added; the P1 snapshot is byte-identical; typecheck and the full suite are green.
 
 **Must fail when:** a moved line changes other than its imports; a pass-through file is added; a screen word, a refusal or a behaviour changes; the f48 guard is loosened for any file but by the moves above.
+
+**M20 amendment 3g — SIGNED by hamr 2026-11-26 ("sign m20 am3g."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3g-sign.md, sha256 d87d09e37852…).**
+
+**M20 amendment 3g — facts worked out twice get one owner.** Live: bareloop's F399 and F403 (the loop session, 2026-11-26, unreleased; told to us, no code copied) closed values *derived* in two places, not only files read twice. F268 mapped file reads only. A $0 map (2026-11-26, .claude/scratch/m20-one-owner/derived-map.md) found 7 such facts in fwd and measured each over the P1 copy and ~/.config/fwdloop/flows. hamr 2026-11-26: there should be no change in how anything works. This adds items 22-28 to am3; every other am3 and am3a-am3f line stands.
+
+22. **Why a run is red: one owner.** The Run tab (src/panel/data.js:1747-1757) and the Result tab (src/panel/result.js:326-329) write the same rule twice (the log's red, else the last red audit row). One function in src/books.js holds it; both ask it. 0 runs change.
+23. **A step's newest-try checks: one owner** in src/diary.js: rows with a whole-number `try` and a `checks` list, the highest `try`, a tie going to the later row. src/auditchecks.js (~:28), src/panel/result.js (~:223) and src/panel/jobgrid.js (~:47) ask it, each keeping its own words and tags. Named change, on odd rows only: a row whose `try` is not a whole number or whose `checks` is not a list is skipped by the Audit too, and the Audit picks the highest `try` where it took the last in the file (0 of the P1 and real runs differ). src/audit-fold.js (~:142) folds every try, which is a different question; it uses the owner for its "last try" count and keeps its per-try pairing.
+24. **A run's money number: one owner,** `runMoney` (src/panel/jobgrid.js): the history total, else the priced spend rows as an "at least" floor, else unknown. The Runs list and Run tab (`costDisplay`, `spendFloorDisplay`, src/panel/data.js) ask it for the number. 0 runs change. The words stay two writers, on the allow-list with the reason "exact $0 is written `$0.0000` on the Runs list and Run tab and `$0` on the ticket grid": no screen changes.
+25. **"Every step" checks stay two owners:** the Audit (src/auditchecks.js ~:67) shows them from any try, the ticket grid (src/panel/jobgrid.js ~:77) from the newest try. Different questions; both on the allow-list with that reason.
+26. **"What counts as a try row" stays six owners** (src/audit-fold.js, src/learnstore.js, src/memo.js, src/runner.js twice, src/panel/data.js): each counts a different thing (a cap halt, a pause, a hitl row and a stop split them), and one rule would change 135 of 141 real runs' counts. Each goes on the allow-list with its question.
+27. **"Green run" stays two owners:** `greenRuns` (src/panel/authortrigger.js) is "a green run of this exact job" for the schedule gate; `runsOf` (src/panel/authorflows.js) is "a run that ended well" for the Signed flow list. They differ on 6 real runs by design; both on the allow-list with that reason.
+28. **The ask deadline already has one owner** (`readAsk` with `withReopen`, `effectiveExpiresAt`); nothing changes.
+
+**Done when:** as am3, plus: the P1 snapshot is byte-identical after each item; each owner in items 22-24 has a guard test proven red once; item 23's named change has a test red on the old Audit code.
+
+**Must fail when:** a screen word changes; a money number or a count changes on any real run; an owner keeps a second copy outside its allow-list.
