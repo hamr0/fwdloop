@@ -18,10 +18,10 @@
 // history); both throw (never silently coerce) on a violation, so a bad
 // caller fails loudly at the one place that would otherwise hide it.
 
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside, resolveInside } from './flow.js';
 import { appendRow } from './jsonl-append.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
@@ -57,6 +57,36 @@ export function appendPidRow(runDir, row) {
  */
 export function readPidRows(runDir) {
   return readLines(runDir, 'pids.jsonl');
+}
+
+/**
+ * M20 am3b item 1: the ONE reader of a run's saved answer, `answer.json` (what `answerAsk` writes; the resume consumes it by renaming it away). Through the safe
+ * gateway (a symlink or a file outside the folder is refused). It parses nothing else's words: each caller keeps its own refusal sentence and reads these fields.
+ * `broken` = no JSON object, no `askId`, or no readable `answeredAt`: the file is not a usable answer for any ask. `value` is the parsed JSON as it is (any shape),
+ * `parseError` the parser's message when the text is not JSON, `isObject` says `value` is a plain JSON object. `decision` is the file's own word, not normalised.
+ * `readFailed` is set when the file could not be read after the gateway passed it (the message).
+ * @param {string} runDir
+ * @returns {{ok: false, missing: boolean, red: string, readFailed?: string}
+ *   | {ok: true, value: any, parseError: string|null, isObject: boolean, askId: string|null, decision: string|null, answeredAt: string|null, broken: boolean}}
+ */
+export function readSavedAnswer(runDir) {
+  const where = resolveInside(runDir, 'answer.json');
+  if (!where.ok) return where.missing ? { ok: false, missing: true, red: 'answer.json is missing' } : { ok: false, missing: false, red: where.red };
+  let text;
+  try { text = readFileSync(where.full, 'utf8'); } catch (err) { return { ok: false, missing: false, red: `could not read "answer.json" — ${err.message}`, readFailed: err.message }; }
+  let value;
+  try { value = JSON.parse(text); } catch (err) {
+    return { ok: true, value: undefined, parseError: err.message, isObject: false, askId: null, decision: null, answeredAt: null, broken: true };
+  }
+  const isObject = value !== null && typeof value === 'object' && !Array.isArray(value);
+  const askId = isObject && typeof value.askId === 'string' && value.askId.length > 0 ? value.askId : null;
+  const answeredAt = isObject && typeof value.answeredAt === 'string' ? value.answeredAt : null;
+  return {
+    ok: true, value, parseError: null, isObject, askId,
+    decision: isObject && typeof value.decision === 'string' ? value.decision : null,
+    answeredAt,
+    broken: !isObject || askId === null || Number.isNaN(Date.parse(answeredAt ?? '')),
+  };
 }
 
 /** Has a process started on this run? (the run wrote its first pid row; a run with none is still starting, or never started) @param {string} runDir */

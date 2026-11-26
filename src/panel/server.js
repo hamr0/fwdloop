@@ -60,7 +60,7 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, savedAnswerOf, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { ticketAnyway, arriveAnywayOf } from './tickets.js';
 import { createResumer } from './resume.js';
@@ -157,7 +157,7 @@ function resolveRun(res, root, flow, runId) {
  *  for it and none was consumed? Then a resume child still alive for the run is only closing.
  *  @param {string} runDir @param {string} askId */
 function parkedOnYou(runDir, askId) {
-  return readAsk(runDir)?.askId === askId && readSavedAnswer(runDir) === null && !hasConsumedAnswer(runDir, askId);
+  return readAsk(runDir)?.askId === askId && savedAnswerOf(runDir) === null && !hasConsumedAnswer(runDir, askId);
 }
 
 /**
@@ -243,7 +243,7 @@ function removeLockRoute(res, body, root, resumer) {
   const { flow, runId } = b;
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
-  const saved = readSavedAnswer(runDir);
+  const saved = savedAnswerOf(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
@@ -328,7 +328,7 @@ function resumeRoute(res, body, root, resumer) {
   const { flow, runId } = b;
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
-  const saved = readSavedAnswer(runDir);
+  const saved = savedAnswerOf(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;

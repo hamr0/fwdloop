@@ -8,7 +8,7 @@ import {
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
-import { appendAudit, consumedAnswerName } from './books.js';
+import { appendAudit, consumedAnswerName, readSavedAnswer } from './books.js';
 import { readFileInside, resolveInside, readdirInside } from './flow.js';
 
 /**
@@ -207,15 +207,14 @@ export function sha256Hex(serialised) {
  * M4c-fix amendment 1 (a): why a saved `answer.json` is not a usable answer for the open ask `openAskId`, or `null`
  * when it is usable. The resume refuses each of these by name before it consumes the file, so without a way aside
  * the file would block every new answer (`answerAsk`'s exclusive create).
- * @param {string} text the file's text @param {string} openAskId
+ * @param {Extract<ReturnType<typeof readSavedAnswer>, {ok: true}>} saved `readSavedAnswer`'s result (the one reader of the file) @param {string} openAskId
  * @returns {string|null}
  */
-export function brokenAnswerWhy(text, openAskId) {
-  let a;
-  try { a = JSON.parse(text); } catch { return 'it is not valid JSON'; }
-  if (a === null || typeof a !== 'object' || Array.isArray(a)) return 'it is not a JSON object';
-  if (a.askId !== openAskId) return `it names another ask ("${a.askId}")`;
-  if (Number.isNaN(Date.parse(typeof a.answeredAt === 'string' ? a.answeredAt : ''))) return 'it carries no readable saved time';
+export function brokenAnswerWhy(saved, openAskId) {
+  if (saved.parseError !== null) return 'it is not valid JSON';
+  if (!saved.isObject) return 'it is not a JSON object';
+  if (saved.value.askId !== openAskId) return `it names another ask ("${saved.value.askId}")`;
+  if (saved.broken) return 'it carries no readable saved time';
   return null;
 }
 
@@ -320,12 +319,11 @@ export function reopenAsk({
   if (ask.waitMs === null) return { ok: false, red: `reopenAsk: askId "${askId}" carries no readable wait (askedAt/expiresAt) to repeat — refusing` };
   if (existsSync(join(runDir, consumedAnswerName(askId)))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
   if (Date.parse(nowIso) <= Date.parse(ask.expiresAt)) return { ok: false, red: `reopenAsk: askId "${askId}" has not expired (it runs until ${ask.expiresAt})` };
-  const saved = readFileInside(runDir, 'answer.json');
+  const saved = readSavedAnswer(runDir);
   let timing = null;
   if (saved.ok) {
-    let a = null;
-    try { a = JSON.parse(saved.text); } catch { /* broken: set aside below */ }
-    timing = a !== null && typeof a === 'object' && a.askId === askId ? answerTiming(a.answeredAt, ask.expiresAt) : 'unreadable';
+    // a broken answer, or one for another ask, is set aside below
+    timing = !saved.broken && saved.askId === askId ? answerTiming(saved.answeredAt, ask.expiresAt) : 'unreadable';
     if (timing === 'on-time') return { ok: false, red: `reopenAsk: askId "${askId}" has an answer saved in time — resume it, it is not expired` };
   }
   // Amendment 3 (b): the stale answer is moved aside FIRST. If that fails nothing is written (no record, no audit
@@ -462,9 +460,9 @@ export function answerAsk({
   // M4c-fix amendment 1 (a): a saved answer that is broken (not JSON, not an object, names another ask, no readable
   // time) would block this write for good — it is moved aside as a record first (never deleted). Only a broken one.
   let setAside = null;
-  const savedRead = readFileInside(runDir, 'answer.json');
+  const savedRead = readSavedAnswer(runDir);
   if (savedRead.ok) {
-    const why = brokenAnswerWhy(savedRead.text, askId);
+    const why = brokenAnswerWhy(savedRead, askId);
     if (why !== null) {
       const moved = setAsideAnswer(runDir, askId, 'broken');
       if (!moved.ok) return { ok: false, red: `answerAsk: askId "${askId}" — a broken saved answer (${why}) is in the way — ${moved.red}` };

@@ -32,7 +32,7 @@ import {
   readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
 } from '../flow.js';
 import {
-  readAudit, readHistory, endRow, readPidRows, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
+  readAudit, readHistory, endRow, readPidRows, readSavedAnswer, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
   endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
@@ -167,27 +167,15 @@ export function hasConsumedAnswer(runDir, askId) {
 }
 
 /**
- * M4b piece 2: a SAVED, not-yet-consumed answer — `answer.json` (what
- * `answerAsk` writes; the resume consumes it by renaming it away, F44). Read
- * through `readFileInside` (a symlinked file is "none"). `null` when there is
- * none or it is unreadable/unparseable or names no askId.
+ * M4b piece 2: a SAVED, not-yet-consumed answer, as the panel shows it: `readSavedAnswer` (src/books.js, the one reader) read for an answer that names an ask.
+ * `null` when there is none or it is unreadable, unparseable or names no askId. `broken` is the reader's own field (M20 am3b item 1).
  * @param {string} runDir
- * @returns {{askId: string, decision: string|null, answeredAt: string|null}|null}
+ * @returns {{askId: string, decision: string|null, answeredAt: string|null, broken: boolean}|null}
  */
-export function readSavedAnswer(runDir) {
-  const r = readFileInside(runDir, 'answer.json');
-  if (!r.ok) return null;
-  try {
-    const a = JSON.parse(r.text);
-    if (a && typeof a.askId === 'string' && a.askId.length > 0) {
-      return {
-        askId: a.askId,
-        decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null,
-        answeredAt: typeof a.answeredAt === 'string' ? a.answeredAt : null,
-      };
-    }
-  } catch { /* unparseable: not a usable answer */ }
-  return null;
+export function savedAnswerOf(runDir) {
+  const r = readSavedAnswer(runDir);
+  if (!r.ok || r.askId === null) return null;
+  return { askId: r.askId, decision: r.decision === null ? null : normalizeDecision(r.decision), answeredAt: r.answeredAt, broken: r.broken };
 }
 
 /** What the `resume` field says when the panel has no attempt record for a run
@@ -204,7 +192,7 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * answer for that ask that was NOT saved in time, once the deadline has passed, is not a resumable answer: it reads
  * as none, so the ask is expired and offers the reopen (M4c-fix amendment 1 (b)). One with no readable time, before
  * the deadline, reads `broken` (amendment 1 (a)).
- * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
+ * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null, broken?: boolean}|null, attempt: any, ask?: any}} ctx
  * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
 export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = null }) {
@@ -218,7 +206,7 @@ export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = nul
   if (saved) {
     // M4c-fix amendment 1 (a): a saved answer with no readable time is broken — the resume would refuse it every
     // time. It is not stuck, not "answer saved": the doors come back with a note, and answering again sets it aside.
-    if (Number.isNaN(Date.parse(saved.answeredAt ?? ''))) {
+    if (saved.broken) {
       return {
         state: 'broken', askId: saved.askId, tries: null, maxTries: null, reason: BROKEN_ANSWER_WHY, label: BROKEN_LABEL,
       };
@@ -941,7 +929,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const stateJson = readRunState(runDir);
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
-  const savedAnswer = historyRow ? null : readSavedAnswer(runDir);
+  const savedAnswer = historyRow ? null : savedAnswerOf(runDir);
   const resume = historyRow ? null : deriveResumeState({ savedAnswer, attempt, ask: askJson });
   const stuckInputs = historyRow ? { liveness: 'unknown', lock: 'none' } : readStuckInputs(runDir);
 
@@ -1321,7 +1309,7 @@ export function needsYouOf({
  */
 function runReopenOffer(runDir, ctx) {
   if (ctx.historyRow || !ctx.askJson) return null;
-  const savedAskId = readSavedAnswer(runDir)?.askId;
+  const savedAskId = savedAnswerOf(runDir)?.askId;
   for (const a of runAsksInOrder(runDir, false, ctx.auditRows)) {
     const offer = reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId);
     if (offer !== null) return { askId: a.askId, ...offer };
@@ -2864,7 +2852,7 @@ export function getRunAsks({
   const ordered = runAsksInOrder(run.runDir, hasHistoryRow, auditRows, histRow?.outcome === 'ask-expired', ctx.jobEdited);
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
-  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
+  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: savedAnswerOf(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
   // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`stuckState`).
   let runStuckNow = false;
   if (resume) {
@@ -2904,7 +2892,7 @@ export function getRunAsks({
   const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-    reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),
+    reopen: reopenOffer(ask, openAskJson, resume, savedAnswerOf(run.runDir)?.askId === ask.askId),
     stuck: runStuckNow && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,
@@ -2950,12 +2938,12 @@ export function listStops({ root, resumeAttempt, catalogue }) {
       const ctx = loadRunContext(root, flowDir, run.runDir, flowName, runId, catalogue, null);
       const end = ctx.historyRow;
       const hasHistoryRow = end !== null;
-      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
+      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: savedAnswerOf(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
-      const savedAskId = readSavedAnswer(run.runDir)?.askId;
+      const savedAskId = savedAnswerOf(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
       const jobEdited = end !== null && isResumableEnding(end.outcome) && catalogue !== undefined && ctx.jobEdited;
       const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, ctx.auditRows, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({

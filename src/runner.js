@@ -64,7 +64,7 @@ import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
   appendAudit, appendHistory, readAudit, readHistory, endRow,
-  readHaltRecord, readLog, readRunState, consumedAnswerName, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
+  readHaltRecord, readLog, readRunState, readSavedAnswer, consumedAnswerName, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
 } from './books.js';
 import { learnAtRunEnd, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
@@ -2554,26 +2554,22 @@ export async function resumeRun({
       };
     }
 
-    const answerPath = join(runDir, 'answer.json');
-    // F48 round 3: `answer.json` goes through `resolveInside` too — a
-    // symlinked answer file (or a symlinked run dir ancestor) is refused by
-    // name here, the same as "no answer yet", never read through to an
-    // outside file's content.
-    const answerResolved = resolveInside(runDir, 'answer.json');
-    if (!answerResolved.ok) {
-      if (answerResolved.missing) {
+    // F48 round 3: `answer.json` goes through the gateway (`readSavedAnswer`) — a symlinked answer file (or a symlinked run dir ancestor) is refused by
+    // name here, the same as "no answer yet", never read through to an outside file's content.
+    const savedAnswer = readSavedAnswer(runDir);
+    if (!savedAnswer.ok) {
+      if (savedAnswer.missing) {
         return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
       }
-      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${answerResolved.red}` };
+      if (savedAnswer.readFailed !== undefined) return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${savedAnswer.readFailed}` };
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${savedAnswer.red}` };
     }
-    let answer;
-    try {
-      answer = JSON.parse(readFileSync(answerPath, 'utf8'));
-    } catch (err) {
-      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
+    if (savedAnswer.parseError !== null) {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${savedAnswer.parseError}` };
     }
+    let answer = savedAnswer.value;
     // Valid JSON that is not an object (`null`, a number, a string, an array) has no askId to read: refused by name.
-    if (answer === null || typeof answer !== 'object' || Array.isArray(answer)) {
+    if (!savedAnswer.isObject) {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not a JSON object (it holds ${answer === null ? 'null' : Array.isArray(answer) ? 'an array' : `a ${typeof answer}`})` };
     }
     // M4b amendment 3: a consumed/saved answer that says `reject` (an older
@@ -2585,7 +2581,7 @@ export async function resumeRun({
 
     // M4c amendment 3: an answer's saved time, never the restart's clock, says whether it was on time. A missing or
     // unreadable one is refused by name here, before the consume, so the answer stays replayable.
-    const timing = answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
+    const timing = savedAnswer.broken ? 'unreadable' : answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
     if (timing === 'unreadable') {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
@@ -2616,7 +2612,7 @@ export async function resumeRun({
     // Consume-once, BEFORE acting on the decision (F44) — the rename is
     // itself a one-winner gate, on top of the lock above.
     const consumedPath = join(runDir, consumedAnswerName(answer.askId));
-    renameSync(answerPath, consumedPath);
+    renameSync(join(runDir, 'answer.json'), consumedPath);
     // M4c: the answer is ours and every guard has passed — record this resume process before its first step.
     recordPid(runDir, 'resume', now());
 

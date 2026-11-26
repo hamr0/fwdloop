@@ -229,3 +229,10 @@ test('am3c items 2 and 3: only the listed files name target.json; the flow name 
   assert.equal((code(files['authoring.js']).match(/readJsonFile\([^)\n]*'target\.json'\)\??\.name/g) ?? []).length, 1, 'one name read in authoring.js');
   assert.deepEqual(strays(files, /JSON\.parse\([^)\n]*target[^)\n]*\)\??\.name/, {}), []);
 });
+
+// am3b item 1: a run's saved answer.json is read by readSavedAnswer (src/books.js) only; Resume, answerAsk, reopenAsk and the panel read its fields (askId, broken, ...), none parses the file itself
+test('am3b item 1: only books.js reads answer.json (readSavedAnswer); the other files only name it to set it aside, rename it or list it', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*['"`]answer\.json['"`]|readFileSync\([^)\n]*answer(Path|\.json)|JSON\.parse\([^)\n]*(saved|answer)[A-Za-z]*\.text/, { 'books.js': 'readSavedAnswer: the one reader' }), []);
+  assert.deepEqual(strays(files, /\bfunction readSavedAnswer\b/, { 'books.js': 'the one definition' }), []);
+});
