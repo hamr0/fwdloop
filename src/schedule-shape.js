@@ -2,6 +2,7 @@
 // (its card check and its sign). `shapeOf` moved verbatim out of src/panel/authortrigger.js; the file/folder check is `fileTriggerWhy` in src/trigger-files.js. Reads and writes no file.
 import { isAbsolute } from 'node:path';
 import { validateSchedule } from './trigger-clock.js';
+import { isFileKind } from './trigger-files.js';
 import { WATCHABLE } from './ticket-shape.js';
 
 /** @typedef {import('./trigger-line.js').Trigger} Trigger */
@@ -16,7 +17,7 @@ export function shapeOf(t, roles) {
   if (t === null) return { ok: true, trigger: null };
   if (!t || typeof t !== 'object' || Array.isArray(t)) return { ok: false, say: 'Pick when it runs from the choices. A schedule is not typed as text. Nothing was changed.' };
   const o = /** @type {Record<string, unknown>} */ (t);
-  if (o.kind === 'file-updated' || o.kind === 'new-file') {
+  if (isFileKind(o.kind)) {
     const where = o.kind === 'new-file' ? 'folder' : 'path';
     const extra = Object.keys(o).filter((k) => !['kind', 'role', where].includes(k));
     if (extra.length > 0) return { ok: false, say: `A "${o.kind}" trigger takes a kind, a role and a ${where}, not "${extra[0]}". Nothing was changed.` };

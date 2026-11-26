@@ -26,6 +26,11 @@ import { appendTriggerLedger, readTriggerLedger } from './jsonl-append.js';
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
 
+/** M20 am7: the one list of file schedule kinds, and the one question "is this a file kind" */
+export const FILE_KINDS = Object.freeze(['file-updated', 'new-file']);
+/** @param {unknown} kind @returns {boolean} */
+export const isFileKind = (kind) => FILE_KINDS.includes(/** @type {string} */ (kind));
+
 /** Consecutive polls with the same size and mtime before a file is taken. (Two matches in a row = taken on the third sighting.) */
 export const STABLE_POLLS = 2;
 

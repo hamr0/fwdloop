@@ -31,7 +31,7 @@ import { FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sam
 import { readFileInside } from '../inside.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, isClockKind, nextSlot, validateSchedule } from '../trigger-clock.js';
-import { createFileTrigger, fileTriggerWhy } from '../trigger-files.js';
+import { createFileTrigger, fileTriggerWhy, isFileKind } from '../trigger-files.js';
 import { shapeOf } from '../schedule-shape.js';
 import { lookProblemOf } from '../trigger-tickets.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
@@ -46,6 +46,7 @@ import { triggerHash, triggerLine } from '../trigger-line.js';
 
 /** @typedef {import('../trigger-line.js').Trigger} Trigger */
 /** @typedef {import('../schedule.js').Schedule} Schedule */
+/** @typedef {Extract<Trigger, {kind: 'file-updated' | 'new-file'}>} FileTrigger */
 
 /** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
 const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
@@ -214,7 +215,7 @@ export function createTriggerDoor(opts) {
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
     // M9 am20 item 3: neither Cancel nor a new schedule is refused because a run is starting, working or waiting: a run carries on from its own copy and
     // keeps its own signed values; the next fire uses the new schedule. (A schedule never touches the job, so there is nothing for a run to collide with.)
-    const fileTrigger = trigger !== null && (trigger.kind === 'file-updated' || trigger.kind === 'new-file') ? trigger : null;
+    const fileTrigger = trigger !== null && isFileKind(trigger.kind) ? /** @type {FileTrigger} */ (trigger) : null;
     if (fileTrigger !== null && Object.hasOwn(pageAddressesOf(read.arbiter), fileTrigger.role)) {
       return reply(400, { refused: 'bad-trigger', say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
     }
@@ -492,9 +493,10 @@ export function createTriggerDoor(opts) {
       const shaped = shapeOf(spec, roles);
       if (!shaped.ok) return unsigned(shaped.say);
       const trigger = shaped.trigger;
-      if (trigger !== null && (trigger.kind === 'file-updated' || trigger.kind === 'new-file')) {
-        if (Object.hasOwn(pageAddressesOf(plan.arbiter), trigger.role)) return { ok: false, say: `The input "${trigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was signed.` };
-        const why = fileTriggerWhy(trigger);
+      if (trigger !== null && isFileKind(trigger.kind)) {
+        const fileTrigger = /** @type {FileTrigger} */ (trigger);
+        if (Object.hasOwn(pageAddressesOf(plan.arbiter), fileTrigger.role)) return { ok: false, say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was signed.` };
+        const why = fileTriggerWhy(fileTrigger);
         if (why !== null) return { ok: false, say: `${why} Nothing was signed.` };
       }
       return trigger === null ? { ok: false, say: 'Pick when it runs from the choices. Nothing was signed.' } : { ok: true, trigger };

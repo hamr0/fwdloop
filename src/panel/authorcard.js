@@ -27,7 +27,7 @@ import { isTicketListUrl } from '../ticket-draft.js';
 import { isClockKind, validateSchedule } from '../trigger-clock.js';
 import { scheduleKindsOf } from '../schedule-choices.js';
 import { shapeOf } from '../schedule-shape.js';
-import { fileTriggerWhy } from '../trigger-files.js';
+import { fileTriggerWhy, isFileKind } from '../trigger-files.js';
 import { remoteRefusal } from '../ticket-mcp.js';
 import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
@@ -501,7 +501,7 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
     else if (sched.kind === 'hand' || !scheduleKindsOf(flow).includes(sched.kind)) no('schedule', 'Pick when it runs from the choices.');
     else if (isClockKind(sched.kind)) {
       try { validateSchedule(sched); } catch { no('schedule', 'The time must be an hour 0-23 and a minute 0-59, like 09:00.'); }
-    } else if (sched.kind === 'file-updated' || sched.kind === 'new-file') {
+    } else if (isFileKind(sched.kind)) {
       const shaped = shapeOf(sched, parseInputLines(card.inputs).filter((i) => !isWebUrl(i.path)).map((i) => i.role));
       if (!shaped.ok) no('schedule', shaped.say.replace(/ Nothing was changed\.$/, ''));
       else if (shaped.trigger !== null) { const why = fileTriggerWhy(/** @type {any} */ (shaped.trigger)); if (why !== null) no('schedule', why); }

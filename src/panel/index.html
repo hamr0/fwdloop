@@ -1680,6 +1680,10 @@
   function isClockKind(kind){
     return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.clock; }); });
   }
+  // M20 am7: "is this a file kind" is answered by the server (isFileKind in src/trigger-files.js), carried on every choice as `file`
+  function isFileKind(kind){
+    return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.file; }); });
+  }
   function fillScheduleOptions(sel, flowType, newCard){
     var list = SCHEDULE_CHOICES[flowType === "mcp" || flowType === "tickets" ? flowType : "plain"], keep = sel.value;
     sel.innerHTML = "";
@@ -6271,7 +6275,7 @@
       // M20 am5 item 1: the choices are the Run card's, from the one list (fillScheduleOptions); the file boxes name an Inputs line that is a file (a web page is never offered)
       fillScheduleOptions(schedEl, flowTypeEl.value, true);
       var roles = schedFileRoles();
-      ["file-updated", "new-file"].forEach(function(k){ var o = schedEl.querySelector('option[value="' + k + '"]'); if(o) o.hidden = o.disabled = roles.length === 0; });
+      Array.prototype.forEach.call(schedEl.options, function(o){ if(isFileKind(o.value)) o.hidden = o.disabled = roles.length === 0; });
       if(schedEl.selectedOptions.length && schedEl.selectedOptions[0].disabled) schedEl.value = "hand";
       var kind = schedEl.value;
       var roleSel = byId("jf-sched-role"), keep = roleSel.value;
@@ -6280,7 +6284,7 @@
       if(roles.indexOf(keep) >= 0) roleSel.value = keep;
       byId("jf-sched-clock").hidden = !isClockKind(kind);
       byId("jf-sched-day").hidden = kind !== "weekly";
-      byId("jf-sched-filebox").hidden = !(kind === "file-updated" || kind === "new-file");
+      byId("jf-sched-filebox").hidden = !isFileKind(kind);
       byId("jf-sched-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
       byId("jf-sched-hint").hidden = kind === "hand";
       byId("jf-sched-ticket-hint").hidden = kind !== "new-ticket";
@@ -6298,7 +6302,7 @@
       var kind = schedEl.value;
       if(kind === "hand") return null;
       if(kind === "new-ticket") return {kind: "new-ticket"};
-      if(kind === "file-updated" || kind === "new-file"){
+      if(isFileKind(kind)){
         var q = {kind: kind, role: byId("jf-sched-role").value};
         q[kind === "new-file" ? "folder" : "path"] = byId("jf-sched-path").value.trim();
         return q;
@@ -6707,7 +6711,7 @@
       var kind = byId("jf-when").value;
       byId("jf-when-clock").hidden = !isClockKind(kind);
       byId("jf-when-day").hidden = kind !== "weekly";
-      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file" || kind === "new-ticket");
+      byId("jf-when-filebox").hidden = !(isFileKind(kind) || kind === "new-ticket");
       byId("jf-when-path").hidden = kind === "new-ticket";
       byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
     }
@@ -6744,7 +6748,7 @@
       // M13 p4 (signed item 5): MCP offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
       // M20 am5 item 1: the choices a flow type offers are the one list (SCHEDULE_CHOICES), the same the New job card's Schedule fills from; what the job has (a file input, a ticket list) decides which of them show
       fillScheduleOptions(byId("jf-when"), f ? f.flowType : "plain", false);
-      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); if(o) o.hidden = o.disabled = fileRoles.length === 0; });
+      Array.prototype.forEach.call(byId("jf-when").options, function(o){ if(isFileKind(o.value)) o.hidden = o.disabled = fileRoles.length === 0; });
       var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); if(tk) tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a Tickets job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule

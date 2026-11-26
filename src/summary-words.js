@@ -7,6 +7,7 @@
 // The table here is fwdloop's own: it is keyed by the outcomes fwdloop's history row can hold.
 import { homedir } from 'node:os';
 import { basename } from 'node:path';
+import { isFileKind } from './trigger-files.js';
 
 /** @typedef {import('./trigger-line.js').Trigger} Trigger */
 
@@ -278,7 +279,7 @@ export function scheduleBlockWords(f) {
   if (head === null || tr === null) return { line1: 'By hand', line2: null, red: false };
   if (f.waiting === true) return { line1: head, line2: SCHEDULE_WAITING_SAY, red: false, grey: true };
   if (f.lookProblem) return { line1: head, line2: `last look ${shortStamp(f.lookProblem.at)} · ${lookProblemWords(f.lookProblem)}`, red: true };   // M13 item 9b.3
-  const file = tr.kind === 'new-file' || tr.kind === 'file-updated';
+  const file = isFileKind(tr.kind);
   const next = tr.kind === 'new-ticket' ? 'next: waiting for a new ticket' : file ? 'next: waiting for a new file' : (f.nextSlotMs !== null && f.armed ? `next ${dayStamp(f.nextSlotMs)}` : 'next: not armed yet');
   const p = f.problem;
   if (p) {

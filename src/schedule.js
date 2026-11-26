@@ -15,7 +15,7 @@ import { isAbsolute, join } from 'node:path';
 
 import { readFileInside } from './inside.js';
 import { appendRow } from './jsonl-append.js';
-import { queueOf, recordDropped } from './trigger-files.js';
+import { isFileKind, queueOf, recordDropped } from './trigger-files.js';
 import { validateSchedule } from './trigger-clock.js';
 import { triggerHash } from './trigger-line.js';
 import { WATCHABLE } from './ticket-shape.js';
@@ -43,7 +43,7 @@ export const ledgerOf = (flowDir) => join(flowDir, LEDGER_FILE);
 /** @param {string} bound @param {string} signedAt */
 export const sigOf = (bound, signedAt) => createHash('sha256').update(`${bound}\n${signedAt}`).digest('hex');
 
-const isFile = (/** @type {any} */ t) => t?.kind === 'new-file' || t?.kind === 'file-updated';
+const isFile = (/** @type {any} */ t) => isFileKind(t?.kind);
 const isTicket = (/** @type {any} */ t) => t?.kind === 'new-ticket';
 const str = (/** @type {unknown} */ v) => typeof v === 'string' && v !== '';
 
