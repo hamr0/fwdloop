@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 import { appendRow } from './jsonl-append.js';
 import { queueOf, recordDropped } from './trigger-files.js';
 import { validateSchedule } from './trigger-clock.js';

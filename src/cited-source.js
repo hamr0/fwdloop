@@ -7,7 +7,7 @@
 // the copy is missing or changed); a step that merely READS a role (src/runner.js readArtifactsMapChecked) halts only on 'unreadable'.
 import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
-import { readFileInside, resolveInside } from './flow.js';
+import { readFileInside, resolveInside } from './inside.js';
 import { readRunInputs, frozenRel } from './runfile.js';
 import { readDocxSource } from './docx.js';
 

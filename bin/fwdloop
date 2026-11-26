@@ -22,9 +22,8 @@ import { basename, dirname, extname, join, resolve } from 'node:path';
 import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
-import {
-  readPlan, readRunPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
-} from '../src/flow.js';
+import { readPlan, readRunPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, claimRunId } from '../src/flow.js';
+import { readFileInside } from '../src/inside.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
   runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk,

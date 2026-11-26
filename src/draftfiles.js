@@ -1,6 +1,7 @@
 // M20 am3b item 2: what a plan folder's own files say, apart from the sign: its verdict, its questions with their answers, and the key scrub. Moved out of
 // src/authoring.js so src/setup.js (which records them) and src/authoring.js (which calls writeSetup) no longer import each other.
-import { readFileInside, readDraftLog, readJsonFile } from './flow.js';
+import { readDraftLog, readJsonFile } from './flow.js';
+import { readFileInside } from './inside.js';
 import { isRec } from './isrec.js';
 import { parseSignedText } from './signed-text.js';
 

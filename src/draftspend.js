@@ -19,7 +19,7 @@
 import { renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 
-import { readdirInside, readFileInside } from './flow.js';
+import { readdirInside, readFileInside } from './inside.js';
 import { draftStepList, DRAFT_LOG_RE } from './draft-steps.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
 import { parseSignedText } from './signed-text.js';

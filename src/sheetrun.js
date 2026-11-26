@@ -7,7 +7,7 @@
 // Throws away: bareguard's `full` (expected values, evidence) is not kept - the red keeps the gaps, which name rows and counts and never a cell's text.
 import { createRubric, checkStep, runTableChecks, renderGaps, tableSha } from 'bareguard';
 import { parseCsv, sheetTable } from './csv.js';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 import { readRunInputs, frozenRel } from './runfile.js';
 import { sheetCheckSentence, bareguardChecks } from './sheetchecks.js';
 import { sheetCheckName, sheetFoundWords } from './sheetblock.js';

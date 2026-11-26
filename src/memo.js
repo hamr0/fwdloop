@@ -4,7 +4,8 @@
 // text a try was handed is kept by that try's audit row (`memoText`, runner.js `makeAuditRow`), so no new run-folder file. Pure over those files, so it survives a
 // pause, a resume and a restart. It never carries money or time (no cost, no duration); gap texts are the closer's own words, kept as they are (cut at GAP_CHARS).
 import { readAudit, isGoodEnding } from './books.js';
-import { readFileInside, readRunJobCopy } from './flow.js';
+import { readRunJobCopy } from './flow.js';
+import { readFileInside } from './inside.js';
 import { loadCatalogue } from './catalogue.js';
 import { listArchivedAsks, DECISION_STATUS } from './ask.js';
 import { readRerunWords } from './runfile.js';

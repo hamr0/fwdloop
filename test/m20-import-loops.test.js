@@ -10,7 +10,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** a loop = its files, src- or bin-relative, sorted, joined with " <-> "; the reason is why it may stay */
 const LISTED = {
-  'src/checkblock.js <-> src/checkpick.js <-> src/citedcheck.js <-> src/citedwords.js <-> src/closers.js <-> src/declaration.js <-> src/factwords.js <-> src/flow.js <-> src/pageask.js <-> src/pagedropwords.js <-> src/pagedry.js <-> src/placerule.js <-> src/rubricstep.js <-> src/runfile.js <-> src/sheetblock.js <-> src/sheetrows.js <-> src/sheetrun.js <-> src/ticketrows.js':
+  'src/checkblock.js <-> src/checkpick.js <-> src/citedcheck.js <-> src/citedwords.js <-> src/closers.js <-> src/declaration.js <-> src/factwords.js <-> src/pageask.js <-> src/pagedropwords.js <-> src/pagedry.js <-> src/rubricstep.js <-> src/sheetblock.js <-> src/sheetrows.js <-> src/sheetrun.js <-> src/ticketrows.js':
     'mapped and broken in its own step',
 };
 

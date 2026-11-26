@@ -19,7 +19,7 @@ import {
   mkdirSync,
 } from 'node:fs';
 import { dirname, basename } from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 import { appendRow } from './jsonl-append.js';
 import { readConfig, configDoorHome, cleanBaseUrl } from './config.js';
 import { isKeyName } from './keysfile.js';

@@ -7,7 +7,8 @@
 // What this throws away: nothing of the old plan (it is never rewritten, records are write-once).
 import path from 'node:path';
 import { parseSignedText } from './signed-text.js';
-import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
+import { readDraftLog, readJsonFile } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { readInputFacts } from './input-facts.js';
 import { blockJobLines } from './blocklines.js';
 import { setUpBlock, ticketLeaveOut, pickEdits, ledgerEdits } from './blockdraft.js';

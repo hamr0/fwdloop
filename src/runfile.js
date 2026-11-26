@@ -4,7 +4,7 @@
 // key-name check). Kept free of the provider on purpose: the learnings note code reads `inputs` and must reach no provider module.
 import { writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 
 /** the file's name in the run's folder */
 export const RUN_FILE = 'run.json';

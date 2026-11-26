@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 import { appendAudit, consumedAnswerName, readSavedAnswer } from './books.js';
-import { readFileInside, resolveInside, readdirInside } from './flow.js';
+import { readFileInside, resolveInside, readdirInside } from './inside.js';
 
 /**
  * M4c amendment 3: the ONE rule for "was this answer saved in time" — the

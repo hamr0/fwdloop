@@ -4,7 +4,7 @@
 // (`entriesFromAnswers`) and the only reader that decides keep-or-ask (`matchRecord`); the logic is the one F146 / F146b proved (poc/m10-am17/keep-picks-am18.mjs).
 // Throws away: line and rule numbers (recomputed), the model's words (it never sees a pick), a pick whose line or guardrail words no longer match.
 import path from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 
 /** the record's file, inside a drafting folder only (never a run folder) */
 export const RECORD_FILE = 'picks-record.json';

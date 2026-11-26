@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 import { DEFAULT_ACTION_WAIT_MS } from './action-stop.js';
 

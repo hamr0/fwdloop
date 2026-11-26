@@ -14,7 +14,8 @@ import { join } from 'node:path';
 import { readQuestions, scrub, draftVerdict, readNotCheckedFile, readCard, cardFileName, readRedraftMarker } from './draftfiles.js';
 import { notCheckedBlock } from './checked.js';
 import { readDirSpendRows, readStartedOverFrom } from './draftspend.js';
-import { readFileInside, readdirInside, readDraftLog, readJsonFile } from './flow.js';
+import { readDraftLog, readJsonFile } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { checkAsks } from './checkpick.js';
 import { readKept, KEPT_WORDS } from './pickrecord.js';
 

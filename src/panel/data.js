@@ -28,9 +28,8 @@ import { plainPlanCheck, pickPlanRed } from '../plain-checks.js';
 import { compareNatural } from '../natural.js';
 import { join, sep } from 'node:path';
 
-import {
-  readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
-} from '../flow.js';
+import { readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName } from '../flow.js';
+import { readFileInside, readdirInside } from '../inside.js';
 import {
   readAudit, readHistory, endRow, readPidRows, readSavedAnswer, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
   endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, isRedTry, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,

@@ -31,9 +31,8 @@ import { loadCatalogue } from '../catalogue.js';
 import { scrub } from '../authoring.js';
 import { LOG_TAIL_CHARS } from '../draft-steps.js';
 import { endRow, haltFileExists, readHistory, processStarted } from '../books.js';
-import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readJsonFile, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
-} from '../flow.js';
+import { PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readJsonFile, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER } from '../flow.js';
+import { readFileInside, readdirInside } from '../inside.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../trigger-line.js';

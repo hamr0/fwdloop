@@ -18,7 +18,8 @@ import {
 } from './books.js';
 import { readChecks } from './diary.js';
 import { readRunInputs } from './runfile.js';
-import { readFileInside, readdirInside, listFlowNames, listRunIds, readRunJobCopy } from './flow.js';
+import { listFlowNames, listRunIds, readRunJobCopy } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { loadCatalogue } from './catalogue.js';
 
 /**

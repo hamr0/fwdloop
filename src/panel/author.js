@@ -44,9 +44,8 @@ import { rowEditPlan } from '../planrebuild.js';
 import { cardLinesOf } from '../checklistsign.js';
 import { appendSpendRow } from '../provider.js';
 import { ruleOfAnswer, panelQuestionText, DROP_IT, TIE_PICK_SAY } from '../pageask.js';
-import {
-  checkFlowName, nextRunId, readFileInside, readJsonFile, readdirInside, readDraftLog,
-} from '../flow.js';
+import { checkFlowName, nextRunId, readJsonFile, readDraftLog } from '../flow.js';
+import { readFileInside, readdirInside } from '../inside.js';
 import { readModelRecord } from '../flowmodel.js';
 import {
   checkMonthlyRoom, ConfigError, monthlyNote, monthlyRefusalText,

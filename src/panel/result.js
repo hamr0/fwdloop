@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 
-import { readFileInside } from '../flow.js';
+import { readFileInside } from '../inside.js';
 import { isFailedEnding, isRedTry } from '../books.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';

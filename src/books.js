@@ -21,7 +21,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { appendRow } from './jsonl-append.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 

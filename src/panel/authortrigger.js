@@ -27,9 +27,8 @@ import { readRunInputs } from '../runfile.js';
 import { appendRow, parseJsonl, readTriggerLedger } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
-import {
-  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFileInside, readFlow, readRunJobCopy, resolveRunDir, signedHashOf,
-} from '../flow.js';
+import { FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFlow, readRunJobCopy, resolveRunDir, signedHashOf } from '../flow.js';
+import { readFileInside } from '../inside.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
 import { armTrigger, nextSlot, validateSchedule } from '../trigger-clock.js';
 import { checkTarget, createFileTrigger } from '../trigger-files.js';

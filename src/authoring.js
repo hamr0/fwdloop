@@ -31,9 +31,8 @@ import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
-import {
-  writeFlow, writeRunPlan, readFlow, readFileInside, readJsonFile, readdirInside, checkFlowName, readDraftLog,
-} from './flow.js';
+import { writeFlow, writeRunPlan, readFlow, readJsonFile, checkFlowName, readDraftLog } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';

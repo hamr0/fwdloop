@@ -9,7 +9,7 @@
 // This module is the graduation (a REWRITE, never a copy) of the round-3 POC (F321). Pure except `lastPlaceRead`, which reads earlier runs' spines.
 
 import path from 'node:path';
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { readPlaceRows } from './runfile.js';
 
 /** the two rule kinds on the menu: the version in a heading, and the date on the same heading line */
