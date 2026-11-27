@@ -20,6 +20,21 @@ export const ALLOW = {
   'closers.js': 'the closers\' own result words (green, red, ...) from a check, before any row is written; the run reads them through the table',
 };
 
+/** per statement, not per file (the shape of the a3 guards' allowed entries): a statement spelled verbatim in its file is blanked out before the scan; an entry found nowhere fails the guard */
+export const ALLOW_STATEMENTS = [
+  { file: 'panel/author.js', snippet: "export const NOT_GREEN_PHASES = Object.freeze(['red', 'stopped']);", why: 'draft phases (how a draft ended), not run endings' },
+];
+
+/** the text of `rel` with its allowed statements blanked out; pushes a stale entry into `stale` @param {string} rel @param {string} text @param {string[]} stale @param {typeof ALLOW_STATEMENTS} allowed */
+export function withoutAllowed(rel, text, stale, allowed = ALLOW_STATEMENTS) {
+  for (const a of allowed) {
+    if (a.file !== rel) continue;
+    if (!text.includes(a.snippet)) stale.push(`stale allow-list statement (not found verbatim): ${a.file}: ${a.snippet}`);
+    else text = text.split(a.snippet).join('');
+  }
+  return text;
+}
+
 function walk(dir) {
   const out = [];
   for (const n of readdirSync(dir)) {
@@ -49,11 +64,14 @@ export function listsOfEndings(text, words = Object.keys(ENDINGS)) {
 
 test('no src file outside books.js (and the allow-list) spells a list of 2+ ending words', () => {
   const bad = [];
+  const seen = new Set();
   for (const f of walk(SRC)) {
     const rel = path.relative(SRC, f);
+    seen.add(rel);
     if (Object.hasOwn(ALLOW, rel)) continue;
-    for (const h of listsOfEndings(readFileSync(f, 'utf8'))) bad.push(`${rel}: ${h}`);
+    for (const h of listsOfEndings(withoutAllowed(rel, readFileSync(f, 'utf8'), bad))) bad.push(`${rel}: ${h}`);
   }
+  for (const a of ALLOW_STATEMENTS) if (!seen.has(a.file)) bad.push(`stale allow-list statement (file gone): ${a.file}`);
   assert.deepEqual(bad, [], 'a list of ending words outside the table in src/books.js');
 });
 
@@ -63,6 +81,16 @@ test('the guard can fail: it sees a Set, an array and a chain of ending words', 
   assert.equal(listsOfEndings("if (r.verdict === 'paused' || r.verdict === 'refused') {}").length, 1);
   assert.equal(listsOfEndings("// ['green', 'hitl'] in a comment\nconst x = 1;").length, 0);
   assert.equal(listsOfEndings("if (r.verdict === 'green') {}").length, 0);
+});
+
+test('the per-statement allow can fail: a second list in the file, or a changed statement, is reported', () => {
+  const [a] = ALLOW_STATEMENTS;
+  const stale = [];
+  assert.equal(listsOfEndings(withoutAllowed(a.file, a.snippet, stale)).length, 0);
+  assert.deepEqual(stale, []);
+  assert.equal(listsOfEndings(withoutAllowed(a.file, `${a.snippet}\nconst X = ['red', 'stopped'];`, stale)).length, 1, 'a second bracket is still seen');
+  withoutAllowed(a.file, "export const NOT_GREEN_PHASES = Object.freeze(['red']);", stale);
+  assert.equal(stale.length, 1, 'a changed statement is stale');
 });
 
 test('the table says what each ending means (the old lists, word for word)', () => {
