@@ -4638,7 +4638,7 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 - Gates: full suite at 63ffa4b7 5421 tests, 5415 pass, 0 fail, 6 skipped. hamr's real-panel walks 2026-11-26 green.
 - F270 to F275 (docs/logs/FINDINGS.md) record the maps behind am3e to am4 and the leg map. All are recorded after the run, not pre-registered.
 - **Builder choices not in the signed text.** src/draftfiles.js was added to break the authoring/setup loop. The am4 replay fixture has a `.fixture` suffix, because the m19 brief snapshot pins pre-S5 fixtures only. am4 reads `readRowChoices`, not `readKept`, because an Add lives in rowChoices.
-- **Left open.** F276 ("is this schedule kind a clock kind" is answered in `src/trigger-clock.js`, `src/panel/authortrigger.js` and `src/panel/authorcard.js`) awaits hamr. bareloop F399 and F403 wait for its next tag. The derived-facts items 25 to 27 are on the allow-list.
+- **Left open.** F276 ("is this schedule kind a clock kind" is answered in `src/trigger-clock.js`, `src/panel/authortrigger.js` and `src/panel/authorcard.js`) awaited hamr when this was written; am6 then signed it and `isClockKind` is its one owner (see "M20 am6" below). bareloop F399 and F403 wait for its next tag. The derived-facts items 25 to 27 are on the allow-list.
 - Gates: full suite at d09a4f21 5441 tests, 5435 pass, 0 fail, 6 skipped. hamr's real-panel walks 2026-11-26 evening green (see FINDINGS).
 
 **M20 amendment 3c — SIGNED by hamr 2026-11-26 ("sign m20 am3c."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am3c-sign.md, sha256 7841f543a6e4…).**
