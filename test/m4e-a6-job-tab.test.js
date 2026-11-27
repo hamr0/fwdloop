@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const PAGE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'panel', 'index.html'), 'utf8');
 const fn = (name) => {
@@ -34,7 +35,7 @@ const rows = (el) => el.children.map((c) => `${c.className}|${c.textContent}`);
 
 function render(job, extra = []) {
   const document = fakeDom();
-  const src = [...extra, 'duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'planLegend', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
+  const src = PAGE_WORDS_PRELUDE + '\n' + [...extra, 'duration', 'plainWait', 'textDiv', 'sheetBlockLines', 'renderRowsField', 'readableDateTime', 'stepSummaryText', 'jobStepFold', 'planLegend', 'paintJobPlan', 'renderJob'].map(fn).join('\n');
   const run = new Function('document', `${src}\nreturn { renderJob, plainWait };`)(document);
   run.renderJob(job);
   return { document, plainWait: run.plainWait };

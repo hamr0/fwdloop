@@ -9,6 +9,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { auditChecksOf } from '../src/auditchecks.js';
 import { killChildrenAfter, until, world } from './m4e-world.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 killChildrenAfter();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,7 @@ class El {
 /** the Audit's checks fold, drawn by the page's own `auditChecksEl`; returns its body's html */
 const drawn = (/** @type {any} */ ac) => {
   const ctx = vm.createContext({ document: { createElement: () => new El() }, auditExpanded: {} });
-  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'auditCheckRowHtml', 'auditChecksSignClass', 'auditChecksEl'].map(fnSource).join('\n'), ctx);
+  vm.runInContext(PAGE_WORDS_PRELUDE + '\n' + ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'auditCheckRowHtml', 'auditChecksSignClass', 'auditChecksEl'].map(fnSource).join('\n'), ctx);
   const wrap = /** @type {El} */ (/** @type {any} */ (ctx).auditChecksEl(ac));
   return wrap.children.find((c) => c.attrs['data-testid'] === 'audit-checks-body').innerHTML;
 };

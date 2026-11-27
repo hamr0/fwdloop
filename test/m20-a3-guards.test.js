@@ -469,6 +469,13 @@ test('am8 item 1f: only src/checkwords.js names the origin tags you, agent and d
   assert.deepEqual(copies(filesAndPage(), anyOrder('you', 'agent', 'default'), 'checkwords.js', []), []);
 });
 
+// am8b item 1: the page draws the tag word in one place, tagWordOf (it asks the handed list); no other page function puts brackets round a row's `by`
+const BRACKETED_BY = /['"]\[['"]\s*\+[^;{}]*\bby\b[^;{}]*\+\s*['"]\]['"]/;
+test('am8b item 1: no page function but tagWordOf builds a tag word from a row\'s by', () => {
+  assert.deepEqual(copies(filesAndPage(), BRACKETED_BY, '', []), []);
+  assert.ok(BRACKETED_BY.test(code('function f(by){ return by ? "[" + escapeXml(by) + "]" : ""; }')), 'the old ckTagHtml shape is caught');
+});
+
 // am8a item 1: the page asks f (origin tags), g (decisions that need a reason) and k (phases of a running revise or redraft; red or stopped) through the one list the server hands it (src/page-words.js, built from the owners)
 // am8 item 1g: "does this decision need a reason" (redo or rerun) is needsReason (src/ask.js)
 test('am8 item 1g: only src/ask.js names the decisions redo and rerun together', () => {

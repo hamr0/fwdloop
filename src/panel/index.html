@@ -4211,7 +4211,8 @@
   function byTagOf(by, form){ return (tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + (by === "you" ? "~ " : by === "agent" ? "! " : "$ ") + tagWordOf(by) + '</span>') + (form === "shape" ? ' <span class="by" data-testid="plan-form" data-form="shape">[shape]</span>' : ""); }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) ckTagHtml, ckRowHtml, ckGroupHtml (the signed check-list look): a row is `[tag] kind words ... right`, the tag first in a fixed column,
   // the kind word second (`truth`, `shape`, `file`), the Drop / Add or the result at the right; a long reason sits behind "why", a failed row's red reason indented under it.
-  function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + (by ? "[" + escapeXml(by) + "]" : "") + "</span>"; }
+  // M20 am8b: the text inside the tag span is tagWordOf(by), the page's one answer to "what is the tag word of this row" (v0.61.0 built the brackets here itself)
+  function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + tagWordOf(by) + "</span>"; }
   function ckRowHtml(o){
     var why = o.why ? ' <details class="ck-why" data-testid="ck-why"><summary>\u25B8 why</summary><div class="hint">' + escapeXml(o.why) + "</div></details>" : "";
     return '<div class="ck-row" data-testid="' + (o.testid || "plan-check") + '"' + (o.attrs || "") + (o.title ? ' title="' + escapeXml(o.title) + '"' : "") + ">" + ckTagHtml(o.by) + '<span class="kind" data-testid="ck-kind">' + (o.kind ? escapeXml(o.kind) : "") + '</span><span class="ck-t">' + escapeXml(o.text) + why + "</span>" + (o.right ? '<span class="ck-right">' + o.right + "</span>" : "") + (o.under || "") + "</div>";

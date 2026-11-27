@@ -344,3 +344,25 @@ test('am8a k: the page\'s two phase questions and the server\'s revise check are
   same('not green', PHASES, (p) => p === 'red' || p === 'stopped', (p) => PAGE.inWords(pageWords().notGreen, p));
   same('not green reversed', PHASES, (p) => p === 'stopped' || p === 'red', (p) => PAGE.inWords(pageWords().notGreen, p));
 });
+
+// ---- am8b item 1: ckTagHtml (the tag column of a check row) takes its tag word from tagWordOf ---------------------------------------------------
+import { fnSrc } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
+
+// the old ckTagHtml as it stood before am8b (src/panel/index.html, borrowed from bareloop v0.61.0), frozen
+const OLD_CK_TAG = `function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + (by ? "[" + escapeXml(by) + "]" : "") + "</span>"; }`;
+const ckTag = (src) => new Function(`${PAGE_WORDS_PRELUDE}\n${fnSrc(PAGE_SRC, 'escapeXml', '  ')}\n${fnSrc(PAGE_SRC, 'tagWordOf', '  ')}\n${src}\nreturn ckTagHtml;`)();
+
+test('am8b item 1: the page\'s ckTagHtml draws what it drew on you, agent, default, empty and missing', () => {
+  const oldFn = ckTag(OLD_CK_TAG);
+  const newFn = ckTag(fnSrc(PAGE_SRC, 'ckTagHtml', '  '));
+  for (const by of ['you', 'agent', 'default', '', undefined, null]) assert.equal(newFn(by), oldFn(by), `by = ${JSON.stringify(by)}`);
+  assert.match(newFn('you'), />\[you\]<\/span>$/);
+});
+
+test('am8b item 1: on a word the server never sends, the new ckTagHtml keeps data-by and draws no text (the old one bracketed it)', () => {
+  const oldFn = ckTag(OLD_CK_TAG);
+  const newFn = ckTag(fnSrc(PAGE_SRC, 'ckTagHtml', '  '));
+  assert.equal(newFn('stranger'), '<span class="by tagcol" data-testid="plan-by" data-by="stranger"></span>');
+  assert.notEqual(newFn('stranger'), oldFn('stranger'));
+});
