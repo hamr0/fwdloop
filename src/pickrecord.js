@@ -4,7 +4,13 @@
 // (`entriesFromAnswers`) and the only reader that decides keep-or-ask (`matchRecord`); the logic is the one F146 / F146b proved (poc/m10-am17/keep-picks-am18.mjs).
 // Throws away: line and rule numbers (recomputed), the model's words (it never sees a pick), a pick whose line or guardrail words no longer match.
 import path from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
+import { readJsonFile } from './flow.js';
+
+/** M20 am8: the one list of a person's row choices on the plan card, and the one question "is this a legal Drop or Add choice" (the row-edit door, the record's reader and the check block ask it) */
+export const ROW_CHOICES = Object.freeze(['drop', 'add']);
+/** @param {unknown} choice @returns {boolean} */
+export const isRowChoice = (choice) => ROW_CHOICES.includes(/** @type {string} */ (choice));
 
 /** the record's file, inside a drafting folder only (never a run folder) */
 export const RECORD_FILE = 'picks-record.json';
@@ -96,12 +102,8 @@ export function matchRecord(entries, lines, rules) {
  * @param {string} file @returns {Entry[]|null}
  */
 export function readRecordFile(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.picks) ? j.picks.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string') : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.picks) ? j.picks.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.ruleText === 'string') : null;
 }
 
 // borrowed-from: bareloop src/pickrecord.js@v0.56.0 (3383cce) (readRowChoices; read through readFileInside; writeRecordPart not taken, see the M16 p1 report)
@@ -110,12 +112,8 @@ export function readRecordFile(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null}
  */
 export function readRowChoices(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && (e.choice === 'drop' || e.choice === 'add')) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.rowChoices) ? j.rowChoices.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.tail === 'string' && isRowChoice(e.choice)) : null;
 }
 
 // borrowed-from: bareloop src/pickrecord.js@v0.61.0 (fc56e1f3) (readShapeDropped; read through readFileInside like readSheetDropped; writeRecordPart not taken: fwd's writers are src/authoring.js and src/planrebuild.js)
@@ -124,12 +122,8 @@ export function readRowChoices(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, name?: string, rule?: number}[]|null}
  */
 export function readShapeDropped(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.shapeDropped) ? j.shapeDropped.filter((/** @type {any} */ d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.shapeDropped) ? j.shapeDropped.filter((/** @type {any} */ d) => d && typeof d.lineWords === 'string' && Number.isInteger(d.occurrence) && (typeof d.name === 'string' || Number.isInteger(d.rule))) : null;
 }
 
 /**
@@ -138,12 +132,8 @@ export function readShapeDropped(file) {
  * @param {string} file @returns {{key: string, line: number, index: number, check: Record<string, any>, text: string}[]|null}
  */
 export function readSheetDropped(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.sheetDropped) ? j.sheetDropped.filter((/** @type {any} */ d) => d && typeof d.key === 'string' && Number.isInteger(d.line) && d.check && typeof d.check === 'object' && !Array.isArray(d.check)) : null;
 }
 
 /**
@@ -152,12 +142,8 @@ export function readSheetDropped(file) {
  * @param {string} file @returns {{lineWords: string, occurrence: number, word: string, column: string}[]|null}
  */
 export function readColumns(file) {
-  try {
-    const g = readFileInside(path.dirname(file), path.basename(file));
-    if (!g.ok) return null;
-    const j = JSON.parse(g.text);
-    return Array.isArray(j?.columns) ? j.columns.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string') : null;
-  } catch { return null; }
+  const j = readJsonFile(path.dirname(file), path.basename(file));
+  return Array.isArray(j?.columns) ? j.columns.filter((/** @type {any} */ e) => e && typeof e.lineWords === 'string' && Number.isInteger(e.occurrence) && typeof e.word === 'string' && typeof e.column === 'string') : null;
 }
 
 /** @param {{n: number, text: string}[]} lines @param {{line: number, word: string, column: string}[]} cols @returns {{lineWords: string, occurrence: number, word: string, column: string}[]} the answers as the record keeps them */
@@ -170,6 +156,40 @@ export function columnEntries(lines, cols) {
 export function columnsOnLines(entries, lines) {
   const byKey = new Map([...lineKeys(lines)].map(([n, k]) => [`${k.lineWords}#${k.occurrence}`, n]));
   return entries.flatMap((e) => { const n = byKey.get(`${e.lineWords}#${e.occurrence}`); return n === undefined ? [] : [{ line: n, word: e.word, column: e.column }]; });
+}
+
+/**
+ * M20 am3e item 19: the record's `kept` list, the ONE reader (the plan card, the setup row and the sign-time card check all ask it). `kept` is the list as written, or null
+ * when there is none to read (no file, refused by the gateway, not a JSON object, no list). `torn` tells an unreadable record from an empty one: the file was read and
+ * is not JSON. The sign-time card check skips on a torn record; the other two read it as no list.
+ * @param {string} dir the folder that holds the plan folder @param {string} [rel] `draft`, `draft-<n>` or `.` (the plan folder itself)
+ * @returns {{kept: any[]|null, torn: boolean}}
+ */
+export function readKept(dir, rel = '.') {
+  const g = readFileInside(dir, `${rel}/${RECORD_FILE}`);
+  if (!g.ok) return { kept: null, torn: false };
+  let j;
+  try { j = JSON.parse(g.text); } catch { return { kept: null, torn: true }; }
+  return { kept: j !== null && typeof j === 'object' && !Array.isArray(j) && Array.isArray(j.kept) ? j.kept : null, torn: false };
+}
+
+/**
+ * M20 am4: the counts the person switched on with Add, from the plan's `rowChoices` (the entries `readRowChoices` gives, or the block's own `choicesRecord()`): a set of
+ * `<line>:min:<n>` / `<line>:max:<n>` strings, one per number of an Added `count.<min>-<max>` row, the line found by its words as the record ties it. The count check
+ * (src/citedwords.js `countReds`) reads a number in this set as said: the Add says it.
+ * @param {{lineWords: string, occurrence: number, tail: string, choice: string}[]|null|undefined} entries @param {{n: number, text: string}[]} lines @returns {Set<string>}
+ */
+export function addedCountsOf(entries, lines) {
+  const out = new Set();
+  const keys = lineKeys(lines);
+  for (const e of entries ?? []) {
+    const m = e.choice === 'add' ? /^count\.(\d*)-(\d*)$/.exec(e.tail) : null;
+    const line = m === null ? undefined : [...keys].find(([, k]) => k.lineWords === e.lineWords && k.occurrence === e.occurrence)?.[0];
+    if (m === null || line === undefined) continue;
+    if (m[1] !== '') out.add(`${line}:min:${m[1]}`);
+    if (m[2] !== '') out.add(`${line}:max:${m[2]}`);
+  }
+  return out;
 }
 
 /** where a plan folder keeps its record @param {string} planDir */

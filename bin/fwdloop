@@ -22,13 +22,13 @@ import { basename, dirname, extname, join, resolve } from 'node:path';
 import { draftHoldUsd } from '../src/draftspend.js';
 import { pathToFileURL } from 'node:url';
 
-import {
-  readPlan, readRunPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, readFileInside, claimRunId,
-} from '../src/flow.js';
+import { readPlan, readRunPlan, checkFlowName, resolveRunDir, listFlowNames, listRunIds, claimRunId } from '../src/flow.js';
+import { readFileInside } from '../src/inside.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import {
-  runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk, readRunState,
+  runFlow, resumeRun, continueRun, auditSpend, makeParkingAskStep, readAsk,
 } from '../src/runner.js';
+import { readRunState, consumedAnswerName } from '../src/books.js';
 import { applyRunValues, pickRunValues, dropUnstartedValues, runModelOf } from '../src/runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../src/trigger-line.js';
 import { makeLiveModelStep } from '../src/model-step.js';
@@ -39,25 +39,25 @@ import {
   checkKeyPreflight, resolveUsableModel, pickTicked, readPriceConfig, ceilingCostUsd,
 } from '../src/provider.js';
 import { readModelRecord, readRunModel, LEARNINGS_FILE } from '../src/flowmodel.js';
-import { readRunInputs } from '../src/runfile.js';
+import { readRunInputs, INPUTS_DIR } from '../src/runfile.js';
 import { configDoorHome, defaultFlowsRoot } from '../src/config.js';
 import {
   claimHold, settleHold, nameRunDir, monthlyRefusalText, ConfigError,
 } from '../src/monthly.js';
 import { keysForDoor } from '../src/keysfile.js';
 import {
-  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen,
+  answerAsk, readAskEvidence, normalizeDecision, stripControl, withReopen, readAskFile,
 } from '../src/ask.js';
 import { panelMain } from '../src/panel/server.js';
 import { launcherMain } from '../src/launcher.js';
 import { isInteractive, confirmTypedName, NEEDS_TTY } from '../src/sign-confirm.js';
-import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal } from '../src/authoring.js';
+import { draftToDir, draftKeyRefusal, signDraft, SIGN_LINE, costText, questionsRefusal, readTargetName } from '../src/authoring.js';
 import { minRuleRefusal } from '../src/minrule.js';
 import { readRecordFile, readRowChoices, readSheetDropped, readShapeDropped, readColumns } from '../src/pickrecord.js';
 import { userInfo } from 'node:os';
 import { pageAddressesOf, pageAddressRefusal } from '../src/pagefetch.js';
 import { ticketListsOf, isTicketNumber, TICKET_NUMBER_WORDS } from '../src/ticket-shape.js';
-import { flowTypeOf } from '../src/declaration.js';
+import { flowTypeOf, isFlowType } from '../src/declaration.js';
 import { LOOK_TOOL } from '../src/ticket-draft.js';
 import { newestUnrunTicket } from '../src/ticket-next.js';
 
@@ -472,7 +472,7 @@ async function cmdRun(rest) {
   // refusal (moved to `src/runner.js` so any caller — this CLI, M4's web
   // panel — gets it for free); it also owns the ONLY `mkdirSync`/
   // `freezeInputs` for this run dir, so a refusal leaves nothing behind.
-  const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, 'inputs', `${s.id}${extname(s.path)}`) }));
+  const predictedInputs = sources.map((s) => ({ id: s.id, frozen: join(runDir, INPUTS_DIR, `${s.id}${extname(s.path)}`) }));
   const allVerbs = [...new Set(declaration.steps.flatMap((s) => s.primitives ?? []))];
   const { tools: primitives, reds: primitiveReds } = resolvePrimitives(catalogue, allVerbs, { runDir, inputs: predictedInputs, mcp: stepMcp(declaration) });
 
@@ -519,11 +519,12 @@ function cmdInbox(rest) {
       const resolved = resolveRunDir(flowDir, runId);
       if (!resolved.ok) continue; // eslint-disable-line no-continue
       const runDir = resolved.runDir;
-      const askRead = readFileInside(runDir, 'ask.json');
+      const askRead = readAskFile(runDir);
       if (!askRead.ok) continue; // eslint-disable-line no-continue -- missing (or refused) ask.json: nothing to show
       let ask;
       try {
-        ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
+        if (askRead.parseError !== null) throw new Error(askRead.parseError);
+        ask = withReopen(runDir, askRead.value); // the effective deadline (a reopened ask's new one)
       } catch (err) {
         // A malformed/unparseable ask.json must never crash inbox — show it
         // naming the run as unreadable and move on to the next one.
@@ -546,7 +547,7 @@ function cmdInbox(rest) {
       // Consumed-marker check also goes through `readFileInside` — a
       // symlinked consumed marker is treated as "not consumed" (still shown
       // as open/expired), never as proof the ask was answered.
-      if (readFileInside(runDir, `answer.${ask.askId}.consumed.json`).ok) continue; // eslint-disable-line no-continue -- this specific ask is already answered
+      if (readFileInside(runDir, consumedAnswerName(ask.askId)).ok) continue; // eslint-disable-line no-continue -- this specific ask is already answered
       // A present-but-unparseable expiresAt (Date.parse -> NaN) must never
       // read as "not expired" — `Date.now() > NaN` is false, so the naive
       // compare below would show this as [open] with a "NaNs left"
@@ -607,7 +608,7 @@ function cmdShow(rest) {
 
   // F48 round 3: routed through `readFileInside` (`src/flow.js`) — a
   // symlinked ask.json is refused by name here, never read through.
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) {
     fail(askRead.missing
       ? `show: no ask.json for askId "${askId}"`
@@ -616,7 +617,8 @@ function cmdShow(rest) {
   }
   let ask;
   try {
-    ask = withReopen(runDir, JSON.parse(askRead.text)); // the effective deadline (a reopened ask's new one)
+    if (askRead.parseError !== null) throw new Error(askRead.parseError);
+    ask = withReopen(runDir, askRead.value); // the effective deadline (a reopened ask's new one)
   } catch (err) {
     fail(`show: ask.json for askId "${askId}" is not valid JSON — ${err.message}`);
     return;
@@ -917,7 +919,7 @@ async function cmdDraft(rest) {
   });
   if (values.action !== undefined && !['check', 'known'].includes(values.action)) fail(`draft: --action takes check or known, got "${values.action}"`);
   const flowType = values['flow-type'] ?? 'plain';
-  if (!['plain', 'mcp', 'tickets'].includes(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
+  if (!isFlowType(flowType)) fail(`draft: --flow-type takes plain, mcp or tickets, got "${flowType}"`);
   if (flowType === 'plain' && values.mcp !== undefined) fail('draft: --mcp goes with --flow-type mcp or tickets');
   if (flowType !== 'plain' && !values.mcp) fail(`draft: --flow-type ${flowType} needs --mcp <server>`);
   const keysLoad = keyedLoad();
@@ -1021,6 +1023,8 @@ async function cmdDraft(rest) {
   const result = await draftToDir({
     // M4d am32: the hold is given back when the draft's result is written, not when this process exits (the exit hook stays as the backstop)
     onResult: ({ ok }) => hold.settle(ok ? 'ended or parked' : 'ended (red)'),
+    // M20 am1 item 5: the step lines go to the log like `refusal-record` does (the panel reads child.log)
+    onStepLine: (kind, rec) => process.stderr.write(`fwdloop: ${kind} ${JSON.stringify(rec)}\n`),
     proseFile: resolve(proseFile),
     proseRead,
     dir: resolve(values.out),
@@ -1078,10 +1082,8 @@ async function cmdSign(rest) {
   // Amendment 2: a person at a keyboard. TTY check first (cheapest), then the typed flow name; only then
   // signDraft's own $0 checks (hash, wired, goals, TTL, sources, send, leak). signDraft writes only on success.
   if (!isInteractive()) fail(`sign refused — ${NEEDS_TTY}`);
-  let flowName;
-  const tj = readFileInside(resolve(dir), 'target.json');
-  try { flowName = tj.ok ? JSON.parse(tj.text).name : undefined; } catch { flowName = undefined; }
-  if (typeof flowName !== 'string' || flowName === '') fail('sign refused — the draft has no readable target.json name');
+  const flowName = readTargetName(resolve(dir));
+  if (flowName === null) fail('sign refused — the draft has no readable target.json name');
   const typed = await confirmTypedName({ name: flowName });
   if (!typed.ok) fail(`sign refused — ${typed.red}`);
   const result = signDraft({

@@ -11,7 +11,8 @@
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
 
-import { readFileInside } from '../flow.js';
+import { readFileInside } from '../inside.js';
+import { isFailedEnding, redWhyOf } from '../books.js';
 import { isCellsPath } from '../closers.js';
 import { readAcceptedHashesByEmits } from '../ask.js';
 import { notCheckedLabelOf } from '../checked.js';
@@ -21,7 +22,7 @@ import { flowTypeOf } from '../declaration.js';
 import { isAgree, readingOfQuestion } from '../pageask.js';
 import { lineRules } from '../pagebits.js';
 import { readLineSection, LINE_CHECKS_FILE } from '../line-checks.js';
-import { readChecks } from '../diary.js';
+import { readChecks, newestChecksOf } from '../diary.js';
 import { sheetLineBlocks, csvRolesOf } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import { tagged } from '../checkwords.js';
@@ -41,8 +42,6 @@ export const RESULT_YOU_CONFIRMED = '(you confirmed)';
 export const RESULT_DOOR_HEAD = 'waiting for you';
 export const RESULT_DOOR_ASK = 'the checks passed; is this what you wanted?';
 
-/** end-row outcomes that are not a failure of the job */
-const NOT_FAILED = new Set(['complete', 'stopped', 'cap-halt', 'rerun', 'ask-expired']);
 const FACT_KINDS = new Set(['phrase', 'value']);
 const isInt = (x) => Number.isInteger(x);
 const isStr = (x) => typeof x === 'string';
@@ -224,9 +223,8 @@ export function deliveredOf({
 function checksOfLine(stepsOfLine, diary) {
   const out = [];
   for (const st of stepsOfLine) {
-    const rows = diary.filter((r) => r && r.step === st.emits && isInt(r.try) && Array.isArray(r.checks));
-    const newest = rows.reduce((m, r) => (m === null || r.try >= m.try ? r : m), null);
-    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: c.by === 'you' || c.by === 'agent' || c.by === 'default' ? tagged(c.text, c.by) : c.text, result: isStr(c.result) ? c.result : null }); // hamr 2026-11-14: a check the plan's list built carries the tag of its row
+    const newest = newestChecksOf(diary, st.emits);
+    for (const c of newest ? newest.checks : []) if (c && isStr(c.text) && typeof c.ok === 'boolean') out.push({ ok: c.ok, text: tagged(c.text, c.by), result: isStr(c.result) ? c.result : null }); // hamr 2026-11-14: a check the plan's list built carries the tag of its row
   }
   return out;
 }
@@ -325,9 +323,8 @@ export function buildResult({
   // a run that failed delivered nothing: say its own first gap, never rows. A stop, a cap halt, a rerun and an expired ask are not a failure (the same
   // set `computeGlyph` colours `[✗]` by exclusion); a pause has no end row at all.
   let gap = null;
-  if (historyRow && !NOT_FAILED.has(historyRow.outcome)) {
-    const redRow = auditRows.findLast((r) => r.verdict === 'red' || r.verdict === 'not-done');
-    gap = gapOf(isStr(logJson?.red) && logJson.red !== '' ? logJson.red : (redRow ? `${redRow.step}: ${redRow.gap}` : null));
+  if (historyRow && isFailedEnding(historyRow.outcome)) {
+    gap = gapOf(redWhyOf(logJson, auditRows));
   }
   const pages = [...new Set(urls.values())];
   return {

@@ -41,9 +41,10 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { keyValues } from '../keysfile.js';
 import { spawnDetached } from './spawn.js';
+import { consumedAnswerName } from '../books.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
@@ -101,7 +102,7 @@ export function createResumer(opts) {
   /** One resume process. Resolves as soon as the books show the answer consumed,
    *  or the child exited, or `deadline` passed — never waits for a long resume. */
   function tryOnce({ flow, runId, runDir, askId, logPath, deadline }) {
-    const consumedPath = join(runDir, `answer.${askId}.consumed.json`);
+    const consumedPath = join(runDir, consumedAnswerName(askId));
     const loaded = loadEnv ? loadEnv() : { ok: true, env, refusal: null };
     if (!loaded.ok) return Promise.resolve({ kind: 'exited', code: null, sig: null, text: String(loaded.refusal) });
     const runEnv = loaded.env; // ONE object: the spawn env below AND the scrub list further down (POC (a) wiring rule)
@@ -163,7 +164,7 @@ export function createResumer(opts) {
     // append to, nor have its log deleted by, the first one's clean exit (M4c-fix item 7).
     const logPath = join(ensureLogDir(opts.logDir), `resume-${rootTag}-${rec.flow}-${rec.runId}-${randomBytes(4).toString('hex')}.log`);
     rec.logPath = logPath;
-    const consumed = () => existsSync(join(runDir, `answer.${rec.askId}.consumed.json`));
+    const consumed = () => existsSync(join(runDir, consumedAnswerName(rec.askId)));
     for (let n = 1; n <= maxTries; n += 1) {
       if (rec.superseded) return;
       rec.tries = n;

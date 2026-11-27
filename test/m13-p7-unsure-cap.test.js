@@ -21,12 +21,12 @@ import { decideTicket, filterUnsure } from '../src/ticket-labels.js';
 import { TICKET_MAX, isTicketNumber } from '../src/ticket-shape.js';
 import { readTicketMcp } from '../src/ticket-mcp.js';
 import { lookTickets, recordLook } from '../src/trigger-tickets.js';
-import { readSeen } from '../src/trigger-files.js';
 import { ticketAnyway } from '../src/panel/tickets.js';
 import { buildJobGrid } from '../src/panel/jobgrid.js';
 import { buildWorld } from './m4d-am29-world.mjs';
 import { skippedWorld } from './m12-p3-world.mjs';
 import { sandboxSend } from './send-sandbox.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -127,7 +127,7 @@ describe('9.7 one cap on a ticket number: 10 digits', () => {
       const ledger = path.join(w.dir, 'ledger.jsonl');
       const out = recordLook(ledger, 'sig', r, 1000);
       assert.deepEqual(out.arrived.sort((a, b) => a - b), [2, 9999999999]);
-      const notes = readSeen(ledger, 'sig').filter((x) => x.why);
+      const notes = readTriggerLedger(ledger, 'sig').filter((x) => x.why);
       assert.equal(notes.length, 1);
       assert.match(notes[0].why, /ignored 1 ticket number over 9,999,999,999: 10000000000/);
     });

@@ -14,34 +14,25 @@
 // one. 'dropped' = it was deleted / changed before its turn. A sha with a `ran` row never arrives again, whatever its name or mtime; see `arrives` for baseline / queued / dropped.
 // poll() writes nothing: it only reports finished files whose sha is new.
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync,
+  existsSync, lstatSync, readFileSync, readdirSync, realpathSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { compareNatural } from './natural.js';
 
-import { appendRow, ledgerText } from './jsonl-append.js';
+import { appendTriggerLedger, readTriggerLedger } from './jsonl-append.js';
 
 /** @typedef {{id:string, kind:'baseline'|'arrived'|'ran'|'dropped', sha:string, name:string, size:number, at:number, path?:string, why?:string, of?:string, sig?:string}} SeenRow */
 /** @typedef {{path:string, sha:string, size:number}} ToRun */
 /** @typedef {{path:string, why:string}} Refused */
 
+/** M20 am7: the one list of file schedule kinds, and the one question "is this a file kind" */
+export const FILE_KINDS = Object.freeze(['file-updated', 'new-file']);
+/** @param {unknown} kind @returns {boolean} */
+export const isFileKind = (kind) => FILE_KINDS.includes(/** @type {string} */ (kind));
+
 /** Consecutive polls with the same size and mtime before a file is taken. (Two matches in a row = taken on the third sighting.) */
 export const STABLE_POLLS = 2;
-
-/** Every row that parses; a line a crash tore mid-append is skipped (it counts as not written). `appendSeen` starts each append on a fresh line, so a torn line can never glue onto the next row. @param {string} file @param {string} [sig] M9 am20: only the rows of that schedule signing (the one schedule ledger carries every signing's rows); absent = every row @returns {SeenRow[]} */
-export function readSeen(file, sig) {
-  const rows = ledgerText(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-  return sig === undefined ? rows : rows.filter((r) => r.sig === sig);
-}
-
-/** The ONE appender: write-once by id within a signing (a second row with the same id is not written). Starts on a fresh line when the file does not end in a newline (a torn last line). @param {string} file @param {SeenRow} row @param {string} [sig] stamped on the row @returns {boolean} written */
-export function appendSeen(file, row, sig) {
-  if (readSeen(file, sig).some((r) => r.id === row.id)) return false;
-  mkdirSync(dirname(file), { recursive: true });
-  appendRow(file, sig === undefined ? row : { ...row, sig });
-  return true;
-}
 
 /** Rows of one sha, file order. @param {SeenRow[]} rows @param {string} sha */
 const ofSha = (rows, sha) => rows.filter((r) => r.sha === sha);
@@ -65,17 +56,17 @@ function arrives(rows, it, mode) {
 
 /** Arrived rows are never overwritten: the 2nd arrival of a sha (after a drop) gets its own id. @param {string} ledger @param {ToRun & {name?:string}} item @param {number} at the scheduler's clock, never the file's mtime @param {string} [sig] */
 export function recordArrived(ledger, item, at, sig) {
-  const rows = readSeen(ledger, sig);
+  const rows = readTriggerLedger(ledger, sig);
   if (rows.some((r) => r.sha === item.sha && (r.kind === 'ran' || waiting(rows, r)))) return false; // one writer decides: ran or already queued
   const n = rows.filter((r) => r.kind === 'arrived' && r.sha === item.sha).length;
-  return appendSeen(ledger, { id: n ? `arrived:${item.sha}:${n}` : `arrived:${item.sha}`, kind: 'arrived', sha: item.sha, name: basename(item.path), size: item.size, path: item.path, at }, sig);
+  return appendTriggerLedger(ledger, { id: n ? `arrived:${item.sha}:${n}` : `arrived:${item.sha}`, kind: 'arrived', sha: item.sha, name: basename(item.path), size: item.size, path: item.path, at }, sig);
 }
 /** Call immediately before the run is started. @param {string} ledger @param {{sha:string, path:string, size:number}} item @param {number} at @param {string} [sig] */
-export const recordRan = (ledger, item, at, sig) => appendSeen(ledger, { id: `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at }, sig);
+export const recordRan = (ledger, item, at, sig) => appendTriggerLedger(ledger, { id: `ran:${item.sha}`, kind: 'ran', sha: item.sha, name: basename(item.path), size: item.size, at }, sig);
 /** `of` = the arrived row it cancels (item.id when a queue row is passed). @param {string} ledger @param {{sha:string, path:string, size:number, id?:string}} item @param {'deleted'|'changed'|'schedule-changed'|'carried'} why @param {number} at @param {string} [sig] */
 export function recordDropped(ledger, item, why, at, sig) {
   const of = item.id ?? `arrived:${item.sha}`;
-  return appendSeen(ledger, { id: `dropped:${of}`, kind: 'dropped', sha: item.sha, name: basename(item.path), size: item.size, why, at, of }, sig);
+  return appendTriggerLedger(ledger, { id: `dropped:${of}`, kind: 'dropped', sha: item.sha, name: basename(item.path), size: item.size, why, at, of }, sig);
 }
 
 /**
@@ -122,6 +113,23 @@ export function checkTarget(mode, target) {
     try { real = realpathSync(target); } catch { throw new Error(`folder to watch ${target} does not exist`); }
     if (!lstatSync(real).isDirectory()) throw new Error(`${target} is not a folder`);
   }
+}
+
+/**
+ * Is a file or folder trigger's target usable now? The words say what is wrong, without the closing "Nothing was changed."; null = fine. A file that does not exist yet may arrive
+ * (`checkTarget` allows it), but its folder must be there: a typo is caught now, not never.
+ * @param {{kind: 'file-updated', path: string}|{kind: 'new-file', folder: string}} trigger @returns {string|null}
+ */
+export function fileTriggerWhy(trigger) {
+  try {
+    checkTarget(trigger.kind === 'new-file' ? 'new' : 'updated', trigger.kind === 'new-file' ? trigger.folder : trigger.path);
+  } catch (e) {
+    return `${/** @type {Error} */ (e).message}.`;
+  }
+  if (trigger.kind === 'file-updated') {
+    try { realpathSync(dirname(trigger.path)); } catch { return `The folder of ${trigger.path} does not exist.`; }
+  }
+  return null;
 }
 
 /**
@@ -179,7 +187,7 @@ export function createFileTrigger({ mode, target, ledger, sig }) {
     for (const p of candidates().files) {
       const buf = readFileSync(p);
       const sha = sha256(buf);
-      appendSeen(ledger, { id: `baseline:${sha}:${basename(p)}`, kind: 'baseline', sha, name: basename(p), size: buf.length, at: Date.now() }, sig); // write-once: re-arming adds nothing
+      appendTriggerLedger(ledger, { id: `baseline:${sha}:${basename(p)}`, kind: 'baseline', sha, name: basename(p), size: buf.length, at: Date.now() }, sig); // write-once: re-arming adds nothing
     }
   }
 
@@ -189,7 +197,7 @@ export function createFileTrigger({ mode, target, ledger, sig }) {
     const st2 = lstatSync(p);
     if (`${st2.size}:${st2.mtimeMs}` !== t.key) return 'changed'; // changed while reading: retry next poll
     const sha = sha256(buf);
-    if (!arrives(readSeen(ledger, sig), { sha }, mode)) return null; // ran, still queued, or still the starting point
+    if (!arrives(readTriggerLedger(ledger, sig), { sha }, mode)) return null; // ran, still queued, or still the starting point
     return { path: p, sha, size: buf.length };
   }
 

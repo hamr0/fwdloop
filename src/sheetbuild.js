@@ -9,14 +9,14 @@
 // One writer per field: `id`, `claim`, `covers` and `table` (when absent and the line reads one sheet) are assigned here. A rule row's id is `l<line>r<rules>`, an agent row's `l<line>a<k>`; the claim is the id.
 // What this throws away: a suggestion's `id`, `claim`, `text` (and its `covers`: an agent row's is only the rule no rule row holds); a refused suggestion's check (only its reason is kept, on the rules it named).
 // Third outcomes, named: a suggestion that is not an object, names no rule or op bareguard has, a table it cannot read, a column that is no header: refused with that helper's words; a rule that no
-// check holds is Not checked with the last refusal that named it, or the no-pick sentence (`NO_VALUE_WHY`).
+// check holds is Not checked with the last refusal that named it, or the no-pick sentence (`REASON.noPick`).
 import { rubricVocabulary, claimSchema, groundedLiterals } from 'bareguard';
 import { SHEET_RULES, sheetCheckColumns, sheetCheckReds, bareguardChecks } from './sheetchecks.js';
 import { tableChecksFailingOnInput } from './sheetrun.js';
 import { isColumnChoiceRule } from './sheetoffer.js';
 import { rulesOfLine } from './sheetblock.js';
 import { wordsSaidOn } from './pagebits.js';
-import { NO_VALUE_WHY } from './ticketrows.js';
+import { REASON } from './reasons.js';
 
 const V = /** @type {any} */ (rubricVocabulary);
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -101,7 +101,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
     if (isColumnChoiceRule(text)) return { rule: n, text, state: 'column', reason: null, id: null };
     if (held.has(n)) return { rule: n, text, state: 'built', reason: null, id: /** @type {string} */ (held.get(n)) };
     if (coveredByAgent.has(n)) return { rule: n, text, state: 'agent-row', reason: null, id: /** @type {string} */ (coveredByAgent.get(n)) };
-    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? NO_VALUE_WHY, id: null };
+    return { rule: n, text, state: 'not-checked', reason: refusedFor.get(n) ?? REASON.noPick, id: null };
   });
   return { rows, ruleRows, agentRows, checks: [...ruleRows, ...agentRows].map((p) => p.check), refused };
 }
@@ -113,7 +113,7 @@ export async function buildSheetLine({ line, tables, suggestions }) {
  * then Not checked with the no-pick sentence, never silently nothing). A suggestion that names no sheet line, or is not an object, is refused and listed with its helper.
  * @param {{lines: {n: number, text?: string, rules?: string[], guardrail?: string, rule?: string}[], tables: Record<string, {header: string[], rows: any[]}>, suggestions: any[]}} o
  * @returns {Promise<{built: Record<number, Awaited<ReturnType<typeof buildSheetLine>>>, checks: any[], notChecked: Record<string, string>, refused: {line: number|null, helper: string, why: string}[]}>}
- * `notChecked`: `line N: "rule"` -> the refusal that named it (or `NO_VALUE_WHY`), for each rule of a sheet line that no check holds
+ * `notChecked`: `line N: "rule"` -> the refusal that named it (or `REASON.noPick`), for each rule of a sheet line that no check holds
  */
 export async function buildSheetChecks({ lines, tables, suggestions }) {
   /** @type {Record<number, Awaited<ReturnType<typeof buildSheetLine>>>} */
@@ -154,7 +154,7 @@ export function unbuiltSheetLines({ declaration, lines, roles, notChecked }) {
     const line = lines.find((l) => l.n === st.fromLine);
     const rules = line ? rulesOfLine(line).filter((r) => !isColumnChoiceRule(r)) : [];
     if (rules.length === 0) continue;
-    unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? NO_VALUE_WHY}`) });
+    unbuilt.push({ line: st.fromLine, lost: rules.map((r) => `line ${st.fromLine}: "${r}" \u2014 ${notChecked[`line ${st.fromLine}: "${r}"`] ?? REASON.noPick}`) });
   }
   return unbuilt;
 }

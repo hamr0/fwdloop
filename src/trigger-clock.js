@@ -11,12 +11,7 @@
 //   { id:'armed:<ms>', kind:'armed', at }                       the trigger was set: the starting point
 //   { id:'fire:<slotMs>', kind:'fire', slot, at, catchUp, missed } one run started for that slot
 // Starting a run is NOT this file; the caller does it after `recordFire`.
-import {
-  mkdirSync,
-} from 'node:fs';
-import { dirname } from 'node:path';
-
-import { appendRow, ledgerText } from './jsonl-append.js';
+import { appendTriggerLedger } from './jsonl-append.js';
 
 /** @typedef {{kind:'daily'|'weekdays', hour:number, minute:number} | {kind:'weekly', day:string, hour:number, minute:number}} Schedule */
 /** @typedef {{id:string, kind:'armed'|'fire', at:number, slot?:number, catchUp?:boolean, missed?:number, sig?:string, ticketN?:number}} ClockRow */
@@ -24,6 +19,11 @@ import { appendRow, ledgerText } from './jsonl-append.js';
 
 /** A slot seen MORE than this after its set time is a catch-up (M9 am2 item 1). Exactly this late is on time. */
 export const GRACE_MS = 120_000;
+
+/** M20 am6: the one list of clock schedule kinds, and the one question "is this a clock kind" */
+export const CLOCK_KINDS = Object.freeze(['daily', 'weekdays', 'weekly']);
+/** @param {unknown} kind @returns {boolean} */
+export const isClockKind = (kind) => CLOCK_KINDS.includes(/** @type {string} */ (kind));
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
@@ -35,8 +35,7 @@ const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export function validateSchedule(s) {
   if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('schedule must be an object like { kind, hour, minute }, not text');
   const o = /** @type {Record<string, unknown>} */ (s);
-  const kinds = ['daily', 'weekdays', 'weekly'];
-  if (!kinds.includes(/** @type {string} */ (o.kind))) throw new Error(`schedule kind "${o.kind}" is not one of ${kinds.join(', ')}`);
+  if (!isClockKind(o.kind)) throw new Error(`schedule kind "${o.kind}" is not one of ${CLOCK_KINDS.join(', ')}`);
   const allowed = o.kind === 'weekly' ? ['kind', 'day', 'hour', 'minute'] : ['kind', 'hour', 'minute'];
   for (const k of Object.keys(o)) if (!allowed.includes(k)) throw new Error(`schedule field "${k}" is not allowed on a ${o.kind} schedule`);
   const hour = o.hour; const minute = o.minute;
@@ -116,22 +115,9 @@ export function nextSlot(schedule, afterMs) {
   return /** @type {number} */ (found);
 }
 
-/** @param {string} file @param {string} [sig] M9 am20: only the rows of that schedule signing (the one schedule ledger carries every signing's rows); absent = every row @returns {ClockRow[]} every row on disk that parses, oldest first; a missing file is no rows; a line a crash tore mid-append is skipped (`appendOnce` starts each append on a fresh line, so it never glues onto the next row). */
-export function readRows(file, sig) {
-  const rows = ledgerText(file).split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-  return sig === undefined ? rows : rows.filter((r) => r.sig === sig);
-}
-
-/** Append one row; a row whose id is already on disk (under the same signing) is refused (write-once). @param {string} file @param {ClockRow} row @param {string} [sig] stamped on the row (M9 am20) */
-function appendOnce(file, row, sig) {
-  if (readRows(file, sig).some((r) => r.id === row.id)) throw new Error(`ledger row ${row.id} already written`);
-  mkdirSync(dirname(file), { recursive: true });
-  appendRow(file, sig === undefined ? row : { ...row, sig });
-}
-
 /** The trigger was set at `now`: no slot before this ever fires. M13 piece 5: `ticketN` = the highest ticket number the first green run read; a ticket schedule's first look baselines only tickets up to it. @param {string} file @param {number} now @param {string} [sig] @param {number} [ticketN] */
 export function armTrigger(file, now, sig, ticketN) {
-  appendOnce(file, { id: `armed:${now}`, kind: 'armed', at: now, ...(Number.isInteger(ticketN) ? { ticketN } : {}) }, sig);
+  appendTriggerLedger(file, { id: `armed:${now}`, kind: 'armed', at: now, ...(Number.isInteger(ticketN) ? { ticketN } : {}) }, sig, { throwIfWritten: true });
 }
 
 /**
@@ -140,5 +126,5 @@ export function armTrigger(file, now, sig, ticketN) {
  */
 export function recordFire(file, d, now, sig) {
   if (!d.fire || d.slot === undefined) throw new Error('recordFire needs a due result with fire true');
-  appendOnce(file, { id: `fire:${d.slot}`, kind: 'fire', slot: d.slot, at: now, catchUp: d.catchUp, missed: d.missed }, sig);
+  appendTriggerLedger(file, { id: `fire:${d.slot}`, kind: 'fire', slot: d.slot, at: now, catchUp: d.catchUp, missed: d.missed }, sig, { throwIfWritten: true });
 }

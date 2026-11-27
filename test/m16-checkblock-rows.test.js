@@ -4,7 +4,8 @@
 // refusal, the empty list's record. A behaviour that changed by design says so in a comment (docs/product/ITEM33-BUILD.md "CHECK BLOCK BUILD SPEC" and hamr's rulings of 2026-11-12).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CheckBlock, REASON } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { ledgerRecord, isEmptyList, EMPTY_LIST_WORDS, WEEK_ONLY_WORDS } from '../src/checklist.js';
 
 const TEXT = '## [0.54.1] - 2026-11-04\n### Fixed\n- one\n- two\n';

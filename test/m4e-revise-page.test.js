@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -16,7 +17,7 @@ const SECTION = PAGE.slice(PAGE.indexOf('<section id="panel-chat"'), PAGE.indexO
 const CODE = CHAT.replace(/^\s*\/\/.*$/gm, '');
 
 const fnSrc = (name) => cutFn(CHAT, name, '    ');
-const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
+const load = (name, prelude = '') => new Function(`${PAGE_WORDS_PRELUDE}\n${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 const green = { mode: 'new', session: true, startOk: true, busy: false, phase: 'green', revisable: true, left: 2 };
 
 test('item 1: after a green plan there is no note box, no Send, no bubbles; the buttons are Sign & run and Revise', () => {
@@ -118,7 +119,7 @@ test('(g) a refresh brings back the newest plan or reds, the count, and the last
   const prelude = `var threadKey = ""; var thread = { innerHTML: "" };
     var escapeXml = function(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); };
     ${fnSrc('readoutHtml')}`;
-  const render = new Function(`${prelude}\n${fnSrc('renderThread')}\nreturn function(s){ renderThread(s); return thread.innerHTML; };`)();
+  const render = new Function(`${PAGE_WORDS_PRELUDE}\n${prelude}\n${fnSrc('renderThread')}\nreturn function(s){ renderThread(s); return thread.innerHTML; };`)();
   const h1 = render({ phase: 'green', readout: 'PLAN ONE', hash: 'aaa' });
   assert.match(h1, /PLAN ONE/);
   assert.equal(render({ phase: 'revising' }), h1, 'a revise in flight keeps the plan on show');

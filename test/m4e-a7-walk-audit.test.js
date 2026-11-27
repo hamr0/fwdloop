@@ -15,7 +15,7 @@ import { readHistory, readAudit, appendAudit } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import { makeLiveModelStep } from '../src/model-step.js';
 import {
-  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, requestStop, readHaltRecord,
+  runFlow, resumeRun, continueRun, makeParkingAskStep, STOP_FILE, requestStop,
 } from '../src/runner.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { getRunAudit, deriveAuditGroups } from '../src/panel/data.js';

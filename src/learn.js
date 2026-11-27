@@ -260,7 +260,7 @@ export function quoteLines(gap) {
 }
 
 /** terminal words that mean the run ended well */
-const isGreen = (/** @type {unknown} */ o) => o === 'green' || o === 'already-green';
+const isGreen = (/** @type {unknown} */ o) => o === 'green';
 /** escalation categories that make a run NOISE: the instrument, not the work, failed */
 const NOISE_CATEGORIES = new Set(['provider-red', 'close-crashed']);
 

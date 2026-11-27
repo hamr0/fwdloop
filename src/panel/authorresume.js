@@ -14,10 +14,10 @@ import { realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { userInfo } from 'node:os';
 
-import { scrub } from '../authoring.js';
+import { scrub } from '../draftfiles.js';
 import { loadCatalogue } from '../catalogue.js';
 import { changeSentence, checkFlowName, readPlan, readRunPlan, resolveRunDir } from '../flow.js';
-import { readResumeLock } from '../liveness.js';
+import { lockMayBeHeld, readResumeLock } from '../liveness.js';
 import { auditSpend } from '../runner.js';
 import {
   flowValues, pickRunValues, valuesHash, writeRunValues,
@@ -68,7 +68,7 @@ export function createResumeDoor(opts) {
     if (controls.canStop && !controls.atAsk) return no(409, { refused: 'running', say: 'This run is still running. Stop it first, or wait for it to end; a Resume is for a run that stopped.' });
     if (!controls.canResume) return no(409, { refused: 'not-resumable', say: 'This run did not stop at its cap or by Stop, so there is nothing to resume. Start a new run instead.' });
     const lock = readResumeLock(rd.runDir);
-    if (lock.state === 'live' || lock.state === 'unknown') return no(409, { refused: 'already-resuming', say: 'This run is already carrying on. Wait a moment, then look again.' });
+    if (lockMayBeHeld(lock.state)) return no(409, { refused: 'already-resuming', say: 'This run is already carrying on. Wait a moment, then look again.' });
     const picked = pickRunValues(rd.runDir);
     if (!picked.ok) return no(409, { refused: 'values', say: `${picked.red}. Nothing was signed.` });
     const base = picked.none ? flowValues(read.arbiter) : picked.record.values;

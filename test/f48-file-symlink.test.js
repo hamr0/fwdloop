@@ -33,8 +33,9 @@ import { createPanelServer } from '../src/panel/server.js';
 import { remember, cookieHeader } from '../scripts/panel-fixtures/panel-auth.mjs';
 import { getRunAudit } from '../src/panel/data.js';
 import {
-  readAudit, readHistory, readLog, readRunState, readAsk, readSpendRows, listArchivedAsks, writeAskArchive,
+  readAudit, readHistory, readAsk, readSpendRows, listArchivedAsks, writeAskArchive,
 } from '../src/index.js';
+import { readLog, readRunState } from '../src/books.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');

@@ -4,7 +4,7 @@
 // One writer (`writeModelRecord`), one reader (`readModelRecord`); both go through the safe gateway.
 import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 import { readRunRecord, readRunThinking } from './runfile.js';
 import { isKeyName } from './provider.js';
 

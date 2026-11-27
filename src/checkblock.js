@@ -15,15 +15,16 @@
 // counts built into rubric-step parts; a repo job (`repo` option) holds `~` rule rows the write fence keeps (or that the person answers about), `!` rows for the drafter's catalogue work stages, and the same `$` rows.
 // The same rows store, the same asks, the same Drop/carry, the same signedRows and closeView serve both.
 import { globToPrefix } from './globprefix.js';
-import { countExact, countPhrase } from './pagebits.js';
+import { countExact, countPhrase, isAmountShape, isPhraseShape, isLegalCount } from './pagebits.js';
 import { checkFactWords, keptSetOf } from './factwords.js';
 import { isCountable, keepOrDrop, countCheck, obviousCheck, partOfPick, plainWords } from './blockpick.js';
 import { dropRows, dropSentence } from './pagedropwords.js';
 import { phraseInNoResult, asSeenOf } from './pagedry.js';
 import { boundInWords, rubricStepShapeReds, stageKeyOf, guardKeyOf, FENCE_KEY, defaultCitedText, defaultNoteText, readLimit, holdsManyBounds, NEGATING_RE, WHY_OTHER_CURRENCY } from './rubricstep.js';
-import { validReading } from './pagerules.js';
+import { validReading, canReadLimit } from './pagerules.js';
 import { weekOnly, weekTokens, WEEK_ONLY_WORDS, MAX_BANG } from './checklist.js';
 import { fitPlacePhrase } from './placerule.js';
+import { isRowChoice } from './pickrecord.js';
 import { ruleWords } from './pageask.js';
 import { SIGNED_ROW_FIELDS } from './declaredclose.js';
 import { factSentence, countSentence, factsOfLook } from './citedcheck.js';
@@ -33,6 +34,7 @@ import { sheetCheckName, sheetPlainText, coversWords } from './sheetblock.js';
 import { sheetCheckBody, sheetRowKey } from './sheetrows.js';
 import { shapeRowKey, shapeDefaultKey, shapeFieldText, buildShapePart, itemCountOf } from './shaperows.js';
 import { fieldSpec } from './shapebuild.js';
+import { REASON } from './reasons.js';
 
 /**
  * A row. `kind`: rule, fact, phrase, count, cited, numbers, floor. `by`: you (`~`), agent (`!`), default (`$`). A `~` row may carry `links` (the look's facts tied to it),
@@ -44,6 +46,8 @@ import { fieldSpec } from './shapebuild.js';
 
 /** the four row edits an AI reply may hold */
 export const EDIT_OPS = Object.freeze(['add', 'reading', 'pick', 'not-checkable', 'fence']);
+/** M20 am8: the one question "is this check row's kind a fact or a phrase" (a page-word row, not a count) @param {unknown} kind @returns {boolean} */
+export const isFactKind = (kind) => kind === 'fact' || kind === 'phrase';
 
 const norm = (/** @type {unknown} */ t) => String(t ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 const isRec = (/** @type {unknown} */ v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -75,30 +79,6 @@ const numberIn = (text, n) => {
   return false;
 };
 const wordSet = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}]+/gu) ?? []);
-
-/** the plain reasons code gives, in one place (the card, the Job tab and the Audit read them from the row) */
-export const REASON = Object.freeze({
-  left: 'You chose to leave it Not checked, so you judge it at Accept.',
-  nothingOnPage: 'Your own words are on the line; the machine has no check for them, so you judge it at Accept.',
-  noRule: 'No rule can check this, so you judge it at Accept.',
-  waitingPick: 'waiting for your answer on the proposed check',
-  waitingReading: 'waiting for your answer on the reading',
-  onePerLine: 'this line finds facts, so it has no text to quote',
-  manyInputs: 'the job has more than one input and code cannot pick which one the claims quote',
-  oneSidedTime: 'a time limit the AI proposes must be a range, so you judge it at Accept.',
-  countNeedsFact: 'a result count needs a fact to count; this line has none',
-  countNeedsSuggested: 'a result count needs a fact to count; add the suggested fact on this line to count its results',
-  lookNoWords: "the page does not hold the words of the look's fact for this rule",
-  afterLast: 'no more tries: Start over (rows are never changed by the AI after the last try)',
-  noPick: 'No check was picked for it, so you judge it at Accept.',
-  itemCountByRule: 'your rule on this line sets the item count',
-  negated: 'it says what is not needed, so there is nothing to check',
-  dropped: 'You dropped it.',
-  suggested: 'Suggested: not in your job, so it is not checked unless you add it.',
-  sheetLine: 'this line reads a sheet and its rules are checked by the sheet checks, so a row edit about it is not used',
-  sheetFacts: 'this line reads a sheet, so it is checked by its sheet checks and not by page facts',
-  columnRule: "this rule only names a column; the agent's checks on this line use it",
-});
 
 /** the card's rows: which rows show, and their key, line, tag, state and reason. NO words: the words of a row are the plan reader's (src/checkrows.js `planCard`), one writer (M19 am6 item 4). @param {Row[]} rows */
 export function renderCard(rows) {
@@ -407,7 +387,7 @@ export class CheckBlock {
   match() {
     // live draft 3 (hamr 2026-11-13: "anything not in your original job that code can check goes to Suggested"): a `!` fact whose page words are longer than what the job says ("Boston Logan International
     // Airport" for the job's "Boston") says the JOB's word; the row is then job-derived (inJob below, the one owner) and its phrase check uses that word
-    if (this.split) for (const r of this.rows) if (this.isBang(r) && (r.kind === 'fact' || r.kind === 'phrase')) this.takeJobWord(r);
+    if (this.split) for (const r of this.rows) if (this.isBang(r) && isFactKind(r.kind)) this.takeJobWord(r);
     for (const r of this.rows) {
       r.can = null;
       if (r.kind === 'floor') continue;
@@ -415,7 +395,7 @@ export class CheckBlock {
       else if (r.lookWhy && r.kind === 'fact' && !r.words.length) r.can = { ok: false, why: r.lookWhy };
       else if (r.kind === 'stage') r.can = r.refusal ? { ok: false, why: r.said } : { ok: true, how: 'stage' };
       else if (r.kind === 'rule') this.matchRule(r);
-      else if (r.kind === 'fact' || r.kind === 'phrase') this.matchBang(r);
+      else if (isFactKind(r.kind)) this.matchBang(r);
       else if (r.kind === 'count') this.matchCount(r);
       else if (r.kind === 'sheet') r.can = { ok: true, how: 'sheet' };
     }
@@ -466,7 +446,7 @@ export class CheckBlock {
     if (r.kind === 'count') return [r.min, r.max].filter((x) => Number.isInteger(x)).some((n) => numberIn(said, n));
     // a money, time, number or date fact the person asked for BY NAME ("the release heading") is in the job too: the look's page words rarely echo the job's own words. A phrase or place is job-derived
     // only when its own words are in the person's text: a name the AI gave it is no proof (hamr 2026-11-15, live run mwi76vh8: "friendly" for "Select flight")
-    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && r.shape !== 'phrase' && r.shape !== 'place' && typeof r.name === 'string' && inText(said, r.name));
+    return (r.words ?? []).some((/** @type {string} */ w) => inText(said, w)) || (r.kind === 'fact' && !isPhraseShape(r.shape) && typeof r.name === 'string' && inText(said, r.name));
   }
 
   /**
@@ -509,7 +489,7 @@ export class CheckBlock {
     if (isCountable(r.text)) { this.matchCountRule(r); return; }
     // F-a (hamr 2026-11-13): a rule that carries a negation ("nonstop is not mandatory") says what is NOT needed; its words can never give a phrase bound ("must say"). The one negation reader is NEGATING_RE.
     const negated = NEGATING_RE.test(r.text);
-    const isPhrase = (/** @type {any} */ l) => l.shape === 'phrase' || l.shape === 'place';
+    const isPhrase = (/** @type {any} */ l) => isPhraseShape(l.shape);
     if (negated && (r.links ?? []).length && (r.links ?? []).every(isPhrase)) { r.can = { ok: false, why: REASON.negated }; return; }
     const links = (r.links ?? []).filter((/** @type {any} */ l) => !(negated && isPhrase(l)) && l.words.some((/** @type {string} */ w) => proved(this.textOf(l.source), w)));
     const said = this.said(r.line);
@@ -518,7 +498,7 @@ export class CheckBlock {
     for (const l of links) {
       let reading = l.reading;
       let ownWords = false;
-      if (l.shape === 'money' || l.shape === 'time') {
+      if (canReadLimit(l.shape)) {
         // the person's words win (hamr 2026-11-13): code's reading of the `~` words beats the look's and the AI's; theirs is used only when code cannot read the words
         const rd = this.wordsReading(l, r.text);
         // fwdloop run walk-m16-flights run-1: "under $150" on a euro fact fell back to the look's reading and checked 150 euros; a bound in another currency than the page fact is never replaced by the look's or the AI's reading
@@ -728,7 +708,7 @@ export class CheckBlock {
           return k ? factsOfLook(k) : null;
         };
         lineParts.push({ ...part, facts: facts.flatMap((f) => grownOf(f) ?? [f]) }); lineRows.push([...factRows.map((f) => f.r.key), ...(countRow ? [countRow.key] : [])]); foundFact = true; if (countRow) { countRow.state = 'built'; countRow.reason = null; } }
-    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && (x.kind === 'fact' || x.kind === 'phrase')) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
+    } else if (countRow) { countRow.state = 'not-checked'; countRow.reason = this.rowsOn(l.n).some((x) => x.held && isFactKind(x.kind)) ? REASON.countNeedsSuggested : REASON.countNeedsFact; }
     // facts+shape: the shape part follows the fact part (the same `results` list); its fields are the rules no truth check could take
     if (shapeRows.length > 0) this.buildShapePartOf(l, shapeRows, lineParts, lineRows);
     for (const { p, key } of pickParts) { lineParts.push(p); lineRows.push([key]); }
@@ -794,7 +774,7 @@ export class CheckBlock {
     const mk = (/** @type {string} */ name, /** @type {any} */ extra) => ({ name: cleanName(name), ...extra });
     const kindFields = (/** @type {any} */ f, /** @type {string} */ anchor, /** @type {any} */ extra) => mk(f.name, {
       shape: f.shape, anchor, ...(f.unit ? { unit: f.unit } : {}), ...(f.currency ? { currency: f.currency } : {}),
-      ...(f.decimal && (f.shape === 'money' || f.shape === 'number') ? { decimal: f.decimal } : {}), ...(f.lang && f.shape === 'date' ? { lang: f.lang } : {}), ...extra,
+      ...(f.decimal && isAmountShape(f.shape) ? { decimal: f.decimal } : {}), ...(f.lang && f.shape === 'date' ? { lang: f.lang } : {}), ...extra,
     });
     /** @type {any[]} */ let fs;
     if (r.kind === 'rule') {
@@ -1136,7 +1116,7 @@ export class CheckBlock {
 
   editAdd(/** @type {any} */ e) {
     if (e.kind === 'count') return this.addCount(e);
-    if (e.kind !== 'fact' && e.kind !== 'phrase') return { refusedBecause: 'an add is a fact, a phrase or a count' };
+    if (!isFactKind(e.kind)) return { refusedBecause: 'an add is a fact, a phrase or a count' };
     // an input the job does not have is refused alone (it would otherwise reach the draft gate as a red on code's own plan and stop the whole draft)
     if (e.source !== undefined && e.source !== null && !this.labels.includes(e.source)) return { refusedBecause: `"${String(e.source).slice(0, 60)}" is not one of the inputs` };
     // a job with more than one input never guesses which one an add quotes (code fills a missing source only when there is exactly one)
@@ -1165,13 +1145,12 @@ export class CheckBlock {
       const rs = wordSet(rr.text);
       if (wset.size && [...wset].every((w) => rs.has(w))) return `already on the list: a ~ rule says it (line ${line} rule ${rr.rule})`;
     }
-    if (this.rows.some((r) => (r.kind === 'fact' || r.kind === 'phrase') && r.line === line && (norm(r.name) === norm(name) || norm(r.words?.[0]) === norm(words[0])))) return 'already on the list';
+    if (this.rows.some((r) => isFactKind(r.kind) && r.line === line && (norm(r.name) === norm(name) || norm(r.words?.[0]) === norm(words[0])))) return 'already on the list';
     return null;
   }
 
   addCount(/** @type {any} */ e) {
-    const ok = (/** @type {unknown} */ x) => Number.isInteger(x) && /** @type {number} */ (x) >= 1;
-    if (![e.min, e.max].some(Number.isInteger) || [e.min, e.max].some((x) => x !== undefined && !ok(x)) || (Number.isInteger(e.min) && Number.isInteger(e.max) && e.min > e.max)) return { refusedBecause: 'no legal number given' };
+    if (!isLegalCount({ min: e.min, max: e.max })) return { refusedBecause: 'no legal number given' };
     if (this.rowsOn(e.line, 'count').length) return { refusedBecause: 'already on the list: this line has a result count' };
     const row = this.addRow({ key: `L${e.line}.count.${e.min ?? ''}-${e.max ?? ''}`, line: e.line, kind: 'count', by: 'agent', from: 'agent', min: e.min, max: e.max });
     return { accepted: true, landedKey: row.key };
@@ -1184,7 +1163,7 @@ export class CheckBlock {
 
   /** the one owner of "what do the person's own words say": code's reading of a `~` rule for a money/time fact, or undefined when it cannot read it */
   wordsReading(/** @type {any} */ l, /** @type {string} */ text) {
-    if (l.shape !== 'money' && l.shape !== 'time') return undefined;
+    if (!canReadLimit(l.shape)) return undefined;
     const own = readLimit(l.shape, text, l);
     const rd = 'reading' in own ? own.reading : undefined;
     return rd && validReading(l.shape, rd) && (rd.op === 'between' ? [rd.lo, rd.hi] : [rd.value]).every((b) => boundInWords(b, text)) ? rd : undefined;
@@ -1334,7 +1313,7 @@ export class CheckBlock {
     }
     if (r.by === 'you') return { ok: false, why: 'that check comes from a rule you wrote; edit the job to change it' };
     if (r.by !== 'agent' || !this.droppable(r)) return { ok: false, why: 'that check is code\'s own and stays' };
-    if (choice !== 'drop' && choice !== 'add') return { ok: false, why: 'not one of the choices' };
+    if (!isRowChoice(choice)) return { ok: false, why: 'not one of the choices' };
     if (r.kind === 'stage') {
       // a repo work stage: Drop takes it out of the close (never the last check on its line), Add puts it back
       if (choice === 'drop' && r.state !== 'built') return { ok: false, why: 'only a check that is on the card can be dropped' };
@@ -1355,7 +1334,7 @@ export class CheckBlock {
 
   /** the person's Drop/Add choices, tied to the line's words (not its number) and the row's own name, so a Revise keeps them @returns {{lineWords: string, occurrence: number, tail: string, choice: string}[]} */
   choicesRecord() {
-    return choiceEntries(this.lines, this.rows.filter((r) => r.kind !== 'sheet' && r.kind !== 'shape' && (r.choice === 'drop' || r.choice === 'add')).map((r) => ({ line: r.line, key: r.key, choice: String(r.choice) })));
+    return choiceEntries(this.lines, this.rows.filter((r) => r.kind !== 'sheet' && r.kind !== 'shape' && isRowChoice(r.choice)).map((r) => ({ line: r.line, key: r.key, choice: String(r.choice) })));
   }
 
   /** a Revise keeps the last draft's Drop/Add choices on the rows that are still there (same line words, same row); code still judges every one @param {{lineWords: string, occurrence: number, tail: string, choice: string}[]} rec */
@@ -1363,7 +1342,7 @@ export class CheckBlock {
     const seen = new Map();
     const lines = this.lines.map((l) => { const w = norm(l.text); const o = seen.get(w) ?? 0; seen.set(w, o + 1); return { n: l.n, w, o }; });
     for (const c of Array.isArray(rec) ? rec : []) {
-      if (!c || (c.choice !== 'drop' && c.choice !== 'add')) continue;
+      if (!c || !isRowChoice(c.choice)) continue;
       const line = lines.find((l) => l.w === c.lineWords && l.o === c.occurrence);
       const r = line ? this.rows.find((x) => x.line === line.n && this.droppable(x) && x.key.replace(/^L\d+\./, '') === c.tail) : undefined;
       if (r) { r.choice = c.choice; r.keptFromLast = true; }

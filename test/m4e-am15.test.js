@@ -89,7 +89,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
-import { draftToDir, signDraft, specHash, SPEC_HASH_FILE } from '../src/authoring.js';
+import { draftToDir, signDraft, specHash } from '../src/authoring.js';
+import { SPEC_HASH_FILE } from '../src/draftfiles.js';
 import {
   RATES, MODEL, job2Fixture, validArgs, fakeProvider, toolReply,
 } from './drafter-fixture.mjs';

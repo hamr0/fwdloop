@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { CheckBlock, REASON } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { buildShapes } from '../src/shapebuild.js';
 import { readShapeDropped, RECORD_FILE } from '../src/pickrecord.js';
 

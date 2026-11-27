@@ -47,8 +47,11 @@ test('D3: no stepList (an older draft, or no log) lists what it always did', () 
   assert.deepEqual(r.map((x) => x.id), ['drafted', 'checks']);
 });
 
-test('D4: while drafting the list is the one "drafting with <model>" line even if a stepList were present', () => {
-  assert.deepEqual(steps({ phase: 'drafting', card: {}, stepList: list }, ctx).map((x) => x.id), ['drafting']);
+// M20 am1 item 5 replaces D4's "even if a stepList were present": a draft with step lines lists the started steps; one with none keeps the one line
+test('D4: while drafting the list is the started steps (M20 am1 item 5); with none it is the one "drafting with <model>" line', () => {
+  assert.deepEqual(steps({ phase: 'drafting', card: {} }, ctx).map((x) => x.id), ['drafting']);
+  const live = [{ id: 'inputs', label: 'inputs', status: 'done', details: [], time: 'took 0:01' }, { id: 'drafted', label: 'drafted', status: 'running', details: [], time: '0:30 so far' }];
+  assert.deepEqual(steps({ phase: 'drafting', card: {}, stepList: live }, ctx).map((x) => [x.id, x.status, x.time]), [['inputs', 'done', 'took 0:01'], ['drafted', 'running', '0:30 so far']]);
 });
 
 test('D5: item 6 - the thinking sentence is no longer a block beside the plan (one place); the thinking line is red, the details grey with "> "', () => {

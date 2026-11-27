@@ -7,7 +7,7 @@
 
 import { lineRules } from './pagebits.js';
 import { MAX_CURRENCIES, MAX_UNITS, MAX_UNIT_CHARS, FACT_OPS, boundOk } from './pagebits.js';
-import { countExact, countPhrase, squash, normLabel } from './pagebits.js';
+import { countExact, countPhrase, squash, normLabel, isAmountShape } from './pagebits.js';
 
 /**
  * @typedef {{op: string, value?: string|number, lo?: string|number, hi?: string|number}} Reading what a `~` rule means as a limit (PRD v1.107 Part 5b): the same shape as a signed fact rule
@@ -40,13 +40,16 @@ export function tieOf(from, jobLines) {
   return out;
 }
 
+/** M20 am8: the one question "can CODE read a limit from the person's words for this fact shape" (money or time: readLimit reads those two) @param {unknown} shape @returns {shape is 'money'|'time'} */
+export const canReadLimit = (shape) => shape === 'money' || shape === 'time';
+
 /**
  * Is this a legal `reading` for a fact of this shape? Only a time or money fact carries one, with the op set and the bound types of a signed
  * fact rule (src/facts.js): no other key, no missing bound. A malformed one makes the whole map answer malformed (no repair).
  * @param {unknown} shape @param {unknown} r @returns {boolean}
  */
 export function validReading(shape, r) {
-  if (shape !== 'time' && shape !== 'money') return false;
+  if (!canReadLimit(shape)) return false;
   if (!isRec(r) || !FACT_OPS.includes(r.op)) return false;
   const keys = Object.keys(r).sort().join();
   return r.op === 'between' ? keys === 'hi,lo,op' && boundOk(shape, r.lo) && boundOk(shape, r.hi) : keys === 'op,value' && boundOk(shape, r.value);
@@ -220,7 +223,7 @@ export function applyPageRules(text, mapping, jobLines) {
       }
       pending.push({ f, kept, cur: [], uni: [] });
     } else if (VALUE_SHAPES.includes(String(f.shape))) {
-      const amount = f.shape === 'money' || f.shape === 'number';
+      const amount = isAmountShape(f.shape);
       /** labels the page holds (and, for an amount, that have a number right after them) */
       const labels = [];
       /** the AI's labels as U1 leaves them, a word the page does not hold included: the first of these is R1's reference */

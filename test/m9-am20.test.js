@@ -12,10 +12,11 @@ import { runFlow, resumeRun, makeParkingAskStep } from '../src/runner.js';
 import { answerAsk } from '../src/ask.js';
 import { createTriggerDoor, readOutcomes } from '../src/panel/authortrigger.js';
 import { createScheduler } from '../src/panel/scheduler.js';
-import { queueOf, readSeen, STABLE_POLLS } from '../src/trigger-files.js';
+import { queueOf, STABLE_POLLS } from '../src/trigger-files.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 import { greenWorld, setTrigger } from './m9-trigger-world.mjs';
 import { CAT, scheduledJob } from './m9-sched-job.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const DAILY = { kind: 'daily', hour: 9, minute: 0 };
@@ -74,11 +75,11 @@ function waitingAnywhere(flowDir) {
   const out = [];
   const one = path.join(flowDir, 'schedule-ledger.jsonl');
   if (existsSync(one)) {
-    const rows = readSeen(one);
-    for (const sig of new Set(rows.map((r) => r.sig))) out.push(...queueOf(readSeen(one, sig)).map((q) => q.name));
+    const rows = readTriggerLedger(one);
+    for (const sig of new Set(rows.map((r) => r.sig))) out.push(...queueOf(readTriggerLedger(one, sig)).map((q) => q.name));
   }
   const old = path.join(flowDir, 'triggers');
-  if (existsSync(old)) for (const h of readdirSync(old)) out.push(...queueOf(readSeen(path.join(old, h, 'seen.jsonl'))).map((q) => q.name));
+  if (existsSync(old)) for (const h of readdirSync(old)) out.push(...queueOf(readTriggerLedger(path.join(old, h, 'seen.jsonl'))).map((q) => q.name));
   return out.sort();
 }
 

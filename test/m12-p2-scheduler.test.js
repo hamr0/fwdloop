@@ -11,8 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 import { createScheduler } from '../src/panel/scheduler.js';
 import { ledgerOf } from '../src/schedule.js';
-import { readSeen, queueOf } from '../src/trigger-files.js';
+import { queueOf } from '../src/trigger-files.js';
 import { TICKET_LOOK_MS } from '../src/trigger-tickets.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-mcp-server.mjs');
 const SIG = 'sig-1';
@@ -55,7 +56,7 @@ function setup(t, { issues = newestFirst(5), env = {}, watch, busy = false } = {
     lookCalls: () => (existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n').length : 0),
     /** one tick (a look may start), the look settles, a second tick takes the queue: what two ticks 500 ms apart do */
     async step(advanceMs = 0) { clock.t += advanceMs; s.tick(); await s.settled(); s.tick(); },
-    rows: (kind) => readSeen(ledger, SIG).filter((r) => !kind || r.kind === kind),
+    rows: (kind) => readTriggerLedger(ledger, SIG).filter((r) => !kind || r.kind === kind),
   };
 }
 
@@ -88,7 +89,7 @@ test('new tickets get one `arrived` row each and start oldest first, one at a ti
   assert.deepEqual(f.rows('arrived').map((r) => r.number), [6, 7], 'oldest arrival first');
   assert.deepEqual(f.fires.map((x) => x.number), [6], 'the first start came on the tick after the look');
   assert.deepEqual(f.rows('ran').map((r) => r.sha), ['ticket:6']);
-  assert.deepEqual(queueOf(readSeen(f.ledger, SIG)).map((q) => q.number), [7]);
+  assert.deepEqual(queueOf(readTriggerLedger(f.ledger, SIG)).map((q) => q.number), [7]);
   await f.step(1000);
   assert.deepEqual(f.fires.map((x) => x.number), [6, 7]);
   assert.equal(f.fires[0].role, 'issues');
@@ -164,7 +165,7 @@ test('watched change on a ticket still queued behind a busy run: ONE queued run,
   await f.step();
   flip('CLOSED');
   await f.step(15 * MIN);
-  assert.equal(queueOf(readSeen(f.ledger, SIG)).length, 1, 'ticket 3 is queued behind the busy run');
+  assert.equal(queueOf(readTriggerLedger(f.ledger, SIG)).length, 1, 'ticket 3 is queued behind the busy run');
   flip('OPEN');
   await f.step(15 * MIN);
   assert.equal(f.rows('arrived').length, 1, 'a second change on a queued ticket queues nothing');

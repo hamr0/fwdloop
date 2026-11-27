@@ -744,11 +744,10 @@
   .audit-raw{color:var(--text-faint);font-size:11px;word-break:break-word;white-space:pre-wrap;margin-top:2px;}
   .chat-steps .step-raw{margin-top:2px;color:var(--text-faint);}
   .chat-steps .step-raw summary{cursor:pointer;}
-  .chat-steps .step.run .step-sign::after{content:"\2026";}
-  @keyframes step-dots{0%{content:"";}25%{content:".";}50%{content:"..";}75%{content:"...";}}
-  @media (prefers-reduced-motion: no-preference){
-    .chat-steps .step.run .step-sign::after{content:"";animation:step-dots 1.2s steps(1,end) infinite;}
-  }
+  /* borrowed-from: bareloop src/panel/index.html@v0.63.0 (7bc2719b): the step time and the "Drafting so far" line; the animated dots are gone */
+  .chat-steps .step-time{color:var(--text-faint);}
+  .chat-steps .step-so-far{padding:3px 0 0;color:var(--text-faint);}
+  .drafted-line{color:var(--text-faint);font-size:12px;margin-top:6px;}
 
   .chat-thread{display:flex;flex-direction:column;gap:10px;margin-bottom:10px;}
   .chat-thread:empty{display:none;}
@@ -1282,13 +1281,17 @@
               </div>
               <div class="field" id="jf-sched-field" data-testid="jf-sched-field">
                 <label for="jf-sched">Schedule</label>
-                <select id="jf-sched" data-testid="jf-sched" aria-label="Schedule">
-                  <option value="hand">By hand</option>
-                  <option value="new-ticket">When a new ticket arrives</option>
-                  <option value="daily">Every day at HH:MM</option>
-                </select>
+                <select id="jf-sched" data-testid="jf-sched" aria-label="Schedule"></select>
                 <div class="when-sub" id="jf-sched-clock" hidden>
+                  <select id="jf-sched-day" data-testid="jf-sched-day" aria-label="Day of the week">
+                    <option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option><option value="thu">Thursday</option>
+                    <option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option>
+                  </select>
                   <input id="jf-sched-time" type="time" value="09:00" data-testid="jf-sched-time" aria-label="Time, HH:MM">
+                </div>
+                <div class="when-sub" id="jf-sched-filebox" hidden>
+                  <select id="jf-sched-role" data-testid="jf-sched-role" aria-label="Which of the job's inputs"></select>
+                  <input id="jf-sched-path" type="text" autocomplete="off" spellcheck="false" data-testid="jf-sched-path" aria-label="File or folder">
                 </div>
                 <div class="hint" id="jf-sched-hint" data-testid="jf-sched-hint" hidden>off until the first green run, then turns on</div>
                 <div class="hint" id="jf-sched-ticket-hint" data-testid="jf-sched-ticket-hint" hidden>the first run reads the newest ticket at the time it starts; older tickets never run</div>
@@ -1374,15 +1377,7 @@
               </div>
               <div class="field" id="jf-when-field" data-testid="jf-when-field">
                 <label for="jf-when">When</label>
-                <select id="jf-when" data-testid="jf-when" aria-label="When this job runs">
-                  <option value="hand">By hand</option>
-                  <option value="daily">Every day at HH:MM</option>
-                  <option value="weekdays">Weekdays at HH:MM</option>
-                  <option value="weekly">Every &lt;day&gt; at HH:MM</option>
-                  <option value="file-updated">When &lt;file&gt; is updated</option>
-                  <option value="new-file">When a new file arrives in &lt;folder&gt;</option>
-                  <option value="new-ticket">When a new ticket arrives in &lt;input name&gt;</option>
-                </select>
+                <select id="jf-when" data-testid="jf-when" aria-label="When this job runs"></select>
                 <div class="when-sub" id="jf-when-clock" hidden>
                   <select id="jf-when-day" data-testid="jf-when-day" aria-label="Day of the week">
                     <option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option><option value="thu">Thursday</option>
@@ -1679,6 +1674,27 @@
 
   var PORT = "__FWDLOOP_PANEL_PORT__";
   var PLAN_CHECK_RULES = __FWDLOOP_PLAN_CHECK_RULES__;
+  // M20 am5 item 1: the one list of schedule choices per flow type (src/schedule-choices.js); the New job card's Schedule and the Run card's When both fill from it
+  var SCHEDULE_CHOICES = __FWDLOOP_SCHEDULE_CHOICES__;
+  // M20 am8a item 1: the origin tag words, the decisions that need a reason and the draft phases (a revise or redraft running; red or stopped) come from their owners (src/page-words.js); the page asks this list, never spells them
+  var PAGE_WORDS = __FWDLOOP_PAGE_WORDS__;
+  function inWords(list, word){ return list.indexOf(word) >= 0; }
+  // M20 am6: "is this a clock kind" is answered by the server (isClockKind in src/trigger-clock.js), carried on every choice as `clock`
+  function isClockKind(kind){
+    return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.clock; }); });
+  }
+  // M20 am7: "is this a file kind" is answered by the server (isFileKind in src/trigger-files.js), carried on every choice as `file`
+  function isFileKind(kind){
+    return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.file; }); });
+  }
+  // M20 am8: "is this a flow type" is answered by the server (isFlowType in src/declaration.js): the page takes the flow types from the keys of the schedule choices it gets (a test pins the keys to FLOW_TYPES)
+  function flowTypeOr(type){ return typeof type === "string" && Object.prototype.hasOwnProperty.call(SCHEDULE_CHOICES, type) ? type : "plain"; }
+  function fillScheduleOptions(sel, flowType, newCard){
+    var list = SCHEDULE_CHOICES[flowTypeOr(flowType)], keep = sel.value;
+    sel.innerHTML = "";
+    list.forEach(function(c){ var o = document.createElement("option"); o.value = c.kind; o.textContent = newCard ? c.newCardLabel : c.label; sel.appendChild(o); });
+    if(keep && list.some(function(c){ return c.kind === keep; })) sel.value = keep;
+  }
   // No token, no cookie (M4e amendment 4 item 8): the panel is local and trusted; the server checks Host and, on a POST, Origin.
   document.getElementById("host-line").textContent = "127.0.0.1:" + PORT;
 
@@ -3122,12 +3138,13 @@
     var box = document.getElementById("ended-block");
     var note = document.getElementById("catchup-note");
     var sc = sm.schedule || null;
-    if(sm.ended || sc){
+    var nowText = typeof sm.now === "string" && sm.now ? sm.now : null;
+    if(sm.ended || sc || nowText){
       var tone = glyphClass(detail.glyph); // M9 am14: the colour of that run's card in the runs list, one decider (its dot)
       if(sc && sc.red === true) tone = "red";
       box.hidden = false;
       box.className = "ended-block" + (tone ? " " + tone : "");
-      box.innerHTML = (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
+      box.innerHTML = (nowText ? summaryRow("NOW", nowText, "now-row") : "") + (sm.ended ? summaryRow("ENDED", sm.ended.reason, "ended-reason") + nextRow(sm.ended) : "") +
         (sc ? summaryRow("SCHEDULE", sc.line1, "sched-line1", sc.red === true) + (sc.line2 ? summaryRow("", sc.line2, "sched-line2", sc.red === true, sc.grey === true) : "") : "");
     } else { box.hidden = true; box.innerHTML = ""; }
     note.hidden = !sm.catchUp;
@@ -4189,12 +4206,13 @@
   // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result (server: `auditChecks`).
   // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape), appended inside #audit-groups
   // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
-  function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
+  function tagWordOf(by){ return typeof by === "string" && Object.prototype.hasOwnProperty.call(PAGE_WORDS.tags, by) ? PAGE_WORDS.tags[by] : ""; }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) byTagOf (the sign before the tag, section 3.7: `~ [you]`, `! [agent]`, `$ [default]`)
   function byTagOf(by, form){ return (tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + (by === "you" ? "~ " : by === "agent" ? "! " : "$ ") + tagWordOf(by) + '</span>') + (form === "shape" ? ' <span class="by" data-testid="plan-form" data-form="shape">[shape]</span>' : ""); }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) ckTagHtml, ckRowHtml, ckGroupHtml (the signed check-list look): a row is `[tag] kind words ... right`, the tag first in a fixed column,
   // the kind word second (`truth`, `shape`, `file`), the Drop / Add or the result at the right; a long reason sits behind "why", a failed row's red reason indented under it.
-  function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + (by ? "[" + escapeXml(by) + "]" : "") + "</span>"; }
+  // M20 am8b: the text inside the tag span is tagWordOf(by), the page's one answer to "what is the tag word of this row" (v0.61.0 built the brackets here itself)
+  function ckTagHtml(by){ return '<span class="by tagcol" data-testid="plan-by"' + (by ? ' data-by="' + escapeXml(by) + '"' : "") + ">" + tagWordOf(by) + "</span>"; }
   function ckRowHtml(o){
     var why = o.why ? ' <details class="ck-why" data-testid="ck-why"><summary>\u25B8 why</summary><div class="hint">' + escapeXml(o.why) + "</div></details>" : "";
     return '<div class="ck-row" data-testid="' + (o.testid || "plan-check") + '"' + (o.attrs || "") + (o.title ? ' title="' + escapeXml(o.title) + '"' : "") + ">" + ckTagHtml(o.by) + '<span class="kind" data-testid="ck-kind">' + (o.kind ? escapeXml(o.kind) : "") + '</span><span class="ck-t">' + escapeXml(o.text) + why + "</span>" + (o.right ? '<span class="ck-right">' + o.right + "</span>" : "") + (o.under || "") + "</div>";
@@ -5276,7 +5294,7 @@
   // The server's own refusal name (`refused`) is matched first; a library refusal is matched by what it says.
   function networkText(){ return "Could not reach the panel, so nothing is confirmed. Check it is still running; the header above shows what the books say."; }
   // A redo or rerun needs a reason. The page only saves the round trip: the library still judges every answer.
-  function reasonMissing(decision, value){ return (decision === "redo" || decision === "rerun") && String(value).trim() === ""; }
+  function reasonMissing(decision, value){ return inWords(PAGE_WORDS.reasonDecisions, decision) && String(value).trim() === ""; }
   function blankReasonText(decision){ return "Please write a reason for the " + (decision === "rerun" ? "rerun" : "redo") + "."; }
   function refusalText(r, decision){
     var byName = {
@@ -5937,7 +5955,7 @@
       if(st.phase === "drafting"){
         return {text: "Draft", action: "none", disabled: true};
       }
-      if((st.phase === "red" || st.phase === "stopped") && st.revisable){
+      if(inWords(PAGE_WORDS.notGreen, st.phase) && st.revisable){
         // amendment 14 items 3-4: a red revise keeps the edits; Draft is another revise, Start over (no revises left) a fresh draft
         return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", startOver: true, disabled: blocked};
       }
@@ -5947,7 +5965,7 @@
       if(st.phase === "stopped"){
         return {text: "Draft again", action: "draft", disabled: blocked};
       }
-      if(st.phase === "revising" || st.phase === "redrafting"){
+      if(inWords(PAGE_WORDS.reviseRunning, st.phase)){
         return {text: "Sign & run", action: "none", disabled: true};
       }
       if(st.phase === "questions-open"){
@@ -6020,7 +6038,8 @@
       function draftLines(fallback){
         if(!state || !Array.isArray(state.stepList) || state.stepList.length === 0) return fallback();
         state.stepList.forEach(function(st){
-          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : "done"), details: st.details || []};
+          var row = {id: st.id, label: st.label, status: st.status === "failed" ? "failed" : (st.status === "waiting" ? "waiting" : (st.status === "running" ? "running" : "done")), details: st.details || []};
+          if(typeof st.time === "string" && st.time) row.time = st.time;
           if(st.note === true) row.note = true;
           out.push(row);
         });
@@ -6029,7 +6048,8 @@
       var capPart = cap !== "" ? ", run cap $" + cap : "";
       if(state){
         if(state.phase === "drafting"){
-          out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []});
+          // M20 am1 item 5: the steps the drafter has started (its step lines), else the one line it always had
+          draftLines(function(){ out.push({id: "drafting", label: "drafting with " + who + capPart, status: "running", details: []}); });
         } else if(Array.isArray(state.revises)){
           // amendment 14: a draft whose first plan was green. One line per revise with its result; a red one shows its reds (its sentence is on the card error line).
           draftLines(function(){ out.push({id: "drafted", label: "drafted with " + who, status: "done", details: []}); });
@@ -6038,10 +6058,12 @@
             // an answer redraft (amendment 24 item 4) is not a revise and is not counted as one; the server names each one (`rv.name`) and, from the plan's own log,
             // writes its line (`rv.lines`, src/draft-steps.js `reviseStepList`): one line, facts joined by " · ", a red one with one plain reason and a Fix line (am15)
             var label = rv.name || (rv.kind === "answers" ? "drafted again with your answers" : "revise " + (reviseNo += 1));
-            if(rv.phase === "running") out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
+            if(rv.phase === "running" && !(Array.isArray(rv.lines) && rv.lines.length)) out.push({id: "revise-" + rv.n, label: label, status: "running", details: []});
             else if(Array.isArray(rv.lines) && rv.lines.length){
+              // M20 am1 item 5: a running revise lists its own started steps (its step lines), like the first draft
               rv.lines.forEach(function(l){
-                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : "done", details: []};
+                var row = {id: "revise-" + rv.n + "-" + l.id, label: l.label, status: l.status === "failed" ? "failed" : (l.status === "running" ? "running" : "done"), details: []};
+                if(typeof l.time === "string" && l.time) row.time = l.time;
                 if(l.note === true) row.note = true;
                 out.push(row);
               });
@@ -6256,18 +6278,45 @@
     }
     // M13 p5 (signed item 7, the mock's Schedule row): "When a new ticket arrives" only for Tickets; the time box and the two hints follow the pick
     function paintSchedule(){
-      var tk = schedEl.querySelector('option[value="new-ticket"]');
-      tk.hidden = tk.disabled = flowTypeEl.value !== "tickets";
-      if(schedEl.value === "new-ticket" && tk.disabled) schedEl.value = "hand";
-      byId("jf-sched-clock").hidden = schedEl.value !== "daily";
-      byId("jf-sched-hint").hidden = schedEl.value === "hand";
-      byId("jf-sched-ticket-hint").hidden = schedEl.value !== "new-ticket";
+      // M20 am5 item 1: the choices are the Run card's, from the one list (fillScheduleOptions); the file boxes name an Inputs line that is a file (a web page is never offered)
+      fillScheduleOptions(schedEl, flowTypeEl.value, true);
+      var roles = schedFileRoles();
+      Array.prototype.forEach.call(schedEl.options, function(o){ if(isFileKind(o.value)) o.hidden = o.disabled = roles.length === 0; });
+      if(schedEl.selectedOptions.length && schedEl.selectedOptions[0].disabled) schedEl.value = "hand";
+      var kind = schedEl.value;
+      var roleSel = byId("jf-sched-role"), keep = roleSel.value;
+      roleSel.innerHTML = "";
+      roles.forEach(function(r){ var o = document.createElement("option"); o.value = r; o.textContent = r; roleSel.appendChild(o); });
+      if(roles.indexOf(keep) >= 0) roleSel.value = keep;
+      byId("jf-sched-clock").hidden = !isClockKind(kind);
+      byId("jf-sched-day").hidden = kind !== "weekly";
+      byId("jf-sched-filebox").hidden = !isFileKind(kind);
+      byId("jf-sched-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
+      byId("jf-sched-hint").hidden = kind === "hand";
+      byId("jf-sched-ticket-hint").hidden = kind !== "new-ticket";
+    }
+    // the Inputs lines (`name: path`) that name a file: the roles the file choices can watch
+    function schedFileRoles(){
+      var out = [];
+      inputsBox.value.split("\n").forEach(function(line){
+        var m = /^\s*([^:\s]+)\s*:\s*(.*)$/.exec(line);
+        if(m && m[2].trim() !== "" && !/^https?:\/\//i.test(m[2].trim()) && out.indexOf(m[1]) === -1) out.push(m[1]);
+      });
+      return out;
     }
     function scheduleOfCard(){
-      if(schedEl.value === "new-ticket") return {kind: "new-ticket"};
-      if(schedEl.value !== "daily") return null;
+      var kind = schedEl.value;
+      if(kind === "hand") return null;
+      if(kind === "new-ticket") return {kind: "new-ticket"};
+      if(isFileKind(kind)){
+        var q = {kind: kind, role: byId("jf-sched-role").value};
+        q[kind === "new-file" ? "folder" : "path"] = byId("jf-sched-path").value.trim();
+        return q;
+      }
       var t = /^(\d{2}):(\d{2})$/.exec(schedTimeEl.value || "");
-      return {kind: "daily", hour: t ? Number(t[1]) : NaN, minute: t ? Number(t[2]) : NaN};
+      var o = {kind: kind, hour: t ? Number(t[1]) : NaN, minute: t ? Number(t[2]) : NaN};
+      if(kind === "weekly") o.day = byId("jf-sched-day").value;
+      return o;
     }
     function paintFlowType(){
       var generic = flowTypeEl.value === "mcp", tickets = flowTypeEl.value === "tickets";
@@ -6283,11 +6332,16 @@
       byId("jf-run-req-inputs").hidden = runInputsEl.children.length === 0;
     }
     function setFlow(type, server, sched){
-      flowTypeEl.value = (type === "mcp" || type === "tickets") ? type : "plain";
+      flowTypeEl.value = flowTypeOr(type);
       paintMcpOptions(server || "");
-      schedEl.value = sched && sched.kind === "daily" ? "daily" : (sched && sched.kind === "new-ticket" ? "new-ticket" : "hand");
-      if(sched && sched.kind === "daily" && Number.isInteger(sched.hour) && Number.isInteger(sched.minute)) schedTimeEl.value = ("0" + sched.hour).slice(-2) + ":" + ("0" + sched.minute).slice(-2);
+      fillScheduleOptions(schedEl, flowTypeEl.value, true);
+      schedEl.value = sched && schedEl.querySelector('option[value="' + sched.kind + '"]') ? sched.kind : "hand";
+      if(sched && Number.isInteger(sched.hour) && Number.isInteger(sched.minute)) schedTimeEl.value = ("0" + sched.hour).slice(-2) + ":" + ("0" + sched.minute).slice(-2);
+      if(sched && sched.day) byId("jf-sched-day").value = sched.day;
+      if(sched && sched.path !== undefined) byId("jf-sched-path").value = sched.path;
+      if(sched && sched.folder !== undefined) byId("jf-sched-path").value = sched.folder;
       paintFlowType();
+      if(sched && sched.role) byId("jf-sched-role").value = sched.role;
     }
     function loadMcpServers(){
       return getJSON("/api/settings/mcp").then(function(d){
@@ -6300,6 +6354,9 @@
     mcpEl.addEventListener("change", function(){ byId("jf-err-mcp").textContent = ""; });
     schedEl.addEventListener("change", function(){ paintSchedule(); byId("jf-err-schedule").textContent = ""; });
     schedTimeEl.addEventListener("input", function(){ byId("jf-err-schedule").textContent = ""; });
+    ["jf-sched-day", "jf-sched-role"].forEach(function(id){ byId(id).addEventListener("change", function(){ byId("jf-err-schedule").textContent = ""; }); });
+    byId("jf-sched-path").addEventListener("input", function(){ byId("jf-err-schedule").textContent = ""; });
+    inputsBox.addEventListener("input", paintSchedule);   // the file choices follow the Inputs lines
     runFlowTypeEl.addEventListener("change", function(){ runMcpFieldEl.hidden = runFlowTypeEl.value === "plain"; });
     byId("jf-run-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
     byId("jf-mcp-manage").addEventListener("click", function(ev){ ev.preventDefault(); document.getElementById("settings-open").click(); document.getElementById("stab-mcp").click(); });
@@ -6477,7 +6534,7 @@
       var on = cardLocked();
       whenSyncButton();
       card.querySelectorAll("input[type=text], textarea").forEach(function(el){ el.readOnly = on || el.hasAttribute("data-page"); el.classList.toggle("locked", on); });   // M10: a web-page row is always read-only
-      flowTypeEl.disabled = on; mcpEl.disabled = on; schedEl.disabled = on; schedTimeEl.disabled = on;
+      flowTypeEl.disabled = on; mcpEl.disabled = on; schedEl.disabled = on; schedTimeEl.disabled = on; byId("jf-sched-day").disabled = on; byId("jf-sched-role").disabled = on; byId("jf-sched-path").disabled = on;
       flowTypeEl.classList.toggle("locked", on); mcpEl.classList.toggle("locked", on); schedEl.classList.toggle("locked", on); schedTimeEl.classList.toggle("locked", on);
       runFlowTypeEl.disabled = on; runMcpEl.disabled = on;
       runFlowSel.disabled = on;
@@ -6602,7 +6659,7 @@
       jobBoxEl.hidden = !jobOpen; byId("jf-run-jobwrap").hidden = !jobOpen; byId("jf-run-job").hidden = jobOpen;
       jobBoxEl.value = jobOpen ? f.edit.card.job : "";
       fitCardBoxes();
-      runFlowTypeEl.value = f && (f.flowType === "mcp" || f.flowType === "tickets") ? f.flowType : "plain";
+      runFlowTypeEl.value = flowTypeOr(f ? f.flowType : undefined);
       paintMcpInto(runMcpEl, f && f.mcp ? f.mcp : "");
       runMcpFieldEl.hidden = runFlowTypeEl.value === "plain";
       byId("jf-err-run-job").textContent = (f && f.edit && f.edit.ok === false) ? f.edit.say : "";
@@ -6637,6 +6694,7 @@
     var whenConfirmText = ""; // the words the button shows after click 1 ("every day at 13:15", "cancel schedule"); read only while whenHash is set
     var whenLocked = false;   // ~1.5 s after a successful sign the main button is disabled, so a fast extra click cannot start a run
     var whenReady = false;   // the lock sync can run before this block has
+    fillScheduleOptions(document.getElementById("jf-when"), "plain", false);   // the list before a flow is picked; paintWhen fills it again for the picked flow's type
     function whenCanon(t){
       if(t !== null && t.kind === "new-ticket") t = {kind: t.kind, role: t.role};   // M12: the list, server and tool are filled by the server from the signed job
       return t === null ? "null" : JSON.stringify(Object.keys(t).sort().map(function(k){ return [k, t[k]]; }));
@@ -6644,7 +6702,7 @@
     function whenTriggerFromBoxes(){
       var kind = byId("jf-when").value;
       if(kind === "hand") return null;
-      if(kind === "daily" || kind === "weekdays" || kind === "weekly"){
+      if(isClockKind(kind)){
         var m = /^(\d{2}):(\d{2})$/.exec(byId("jf-when-time").value);
         var o = m ? {kind: kind, hour: Number(m[1]), minute: Number(m[2])} : {kind: kind};   // an empty time goes to the server, which says so
         if(kind === "weekly") o.day = byId("jf-when-day").value;
@@ -6657,9 +6715,9 @@
     }
     function whenShowSubs(){
       var kind = byId("jf-when").value;
-      byId("jf-when-clock").hidden = !(kind === "daily" || kind === "weekdays" || kind === "weekly");
+      byId("jf-when-clock").hidden = !isClockKind(kind);
       byId("jf-when-day").hidden = kind !== "weekly";
-      byId("jf-when-filebox").hidden = !(kind === "file-updated" || kind === "new-file" || kind === "new-ticket");
+      byId("jf-when-filebox").hidden = !(isFileKind(kind) || kind === "new-ticket");
       byId("jf-when-path").hidden = kind === "new-ticket";
       byId("jf-when-path").placeholder = kind === "new-file" ? "/full/path/to/folder" : "/full/path/to/file";
     }
@@ -6694,10 +6752,10 @@
       var roleSel = byId("jf-when-role");
       var fileRoles = whenFileRoles(f), ticketRoles = whenTicketRoles(f);
       // M13 p4 (signed item 5): MCP offers By hand and Every day at... only; Tickets adds "When a new ticket arrives" to today's options; plain keeps today's
-      var generic = !!f && f.flowType === "mcp";
-      ["file-updated", "new-file"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic || fileRoles.length === 0; });
-      ["weekdays", "weekly"].forEach(function(k){ var o = byId("jf-when").querySelector('option[value="' + k + '"]'); o.hidden = o.disabled = generic; });
-      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); tk.hidden = tk.disabled = generic || ticketRoles.length === 0;   // M12: only a Tickets job with a ticket-list input offers it
+      // M20 am5 item 1: the choices a flow type offers are the one list (SCHEDULE_CHOICES), the same the New job card's Schedule fills from; what the job has (a file input, a ticket list) decides which of them show
+      fillScheduleOptions(byId("jf-when"), f ? f.flowType : "plain", false);
+      Array.prototype.forEach.call(byId("jf-when").options, function(o){ if(isFileKind(o.value)) o.hidden = o.disabled = fileRoles.length === 0; });
+      var tk = byId("jf-when").querySelector('option[value="new-ticket"]'); if(tk) tk.hidden = tk.disabled = ticketRoles.length === 0;   // M12: only a Tickets job with a ticket-list input offers it
       var t = c ? c.trigger : null;
       sel.querySelector('option[value="hand"]').textContent = t ? "Cancel schedule" : "By hand";   // M9 am5: on a scheduled job, By hand reads Cancel schedule
       sel.value = t ? t.kind : "hand";
@@ -6912,22 +6970,24 @@
       var key = e.target && e.target.getAttribute ? e.target.getAttribute("data-fold") : null;
       if(key) progressOpen[key] = e.target.open === true;
     }, true);
-    function renderProgress(steps){
+    function renderProgress(steps, soFar){
       progressRow.hidden = steps.length === 0;
       var html = steps.map(function(st){
         var cls = st.status === "waiting" ? "wait" : (st.status === "running" ? "run" : (st.status === "failed" ? "bad" : "ok"));
-        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : ""));
+        var sign = st.note ? "" : (cls === "ok" ? "✓" : (cls === "bad" ? "✗" : (cls === "run" ? "▶" : "")));
+        // M20 am1 item 5: "took M:SS" / "M:SS so far", the server's words (src/draftspend.js withDraftTimes)
+        var time = typeof st.time === "string" && st.time ? '<span class="step-time" data-testid="step-time">' + escapeXml(st.time) + '</span>' : "";
         // M4d am15: a line with no ✓/✗ (the Fix line under a red plan check)
         if(st.note) cls += " note";
         return '<li class="step ' + cls + '" data-step="' + escapeXml(st.id) + '"><div class="step-line"><span class="step-label">' + escapeXml(st.label) + '</span>' +
-          '<span class="step-sign">' + sign + '</span></div>' +
+          '<span class="step-sign">' + sign + '</span>' + time + '</div>' +
           (st.details || []).map(function(d, k){
             var raw = st.raw || [];
             var key = st.id + ":" + k;
             var fold = typeof raw[k] === "string" && raw[k] !== "" ? '<details class="step-raw" data-fold="' + escapeXml(key) + '"' + (progressOpen[key] ? " open" : "") + '><summary>details</summary>' + escapeXml(raw[k]) + '</details>' : "";
             return '<div class="step-detail">' + escapeXml("> " + d) + fold + '</div>';
           }).join("") + '</li>';
-      }).join("");
+      }).join("") + (steps.length && typeof soFar === "string" && soFar ? '<li class="step-so-far" data-testid="drafting-so-far">' + escapeXml(soFar) + '</li>' : "");
       if(html === progressHtml) return false;
       progressHtml = html;
       progressRow.innerHTML = html;
@@ -6944,11 +7004,12 @@
     }
     function renderThread(state){
       // a revise being drafted leaves the plan on show until the new one replaces it (the view carries no plan meanwhile)
-      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      if(state && inWords(PAGE_WORDS.reviseRunning, state.phase)) return;
       var html = "";
       if(state && state.phase === "green" && state.readout){
         html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
-          '\n\nPlan hash: ' + escapeXml(state.hash || "") + '</div>';
+          '\n\nPlan hash: ' + escapeXml(state.hash || "") +
+          (typeof state.draftedLine === "string" && state.draftedLine ? '\n<span class="drafted-line" data-testid="drafted-line">' + escapeXml(state.draftedLine) + '</span>' : "") + '</div>';
       }
       if(html !== threadKey){ threadKey = html; thread.innerHTML = html; }
     }
@@ -6997,7 +7058,7 @@
     }
     // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
     function renderExtras(state){
-      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      if(state && inWords(PAGE_WORDS.reviseRunning, state.phase)) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
         var inner = b.action ? '<div class="who">fwdloop</div>' + actionRowHtml(b.action)
@@ -7056,7 +7117,7 @@
       var jt = state && state.card && state.card.job;
       var box = document.getElementById("jf-job");
       // F259: a red or stopped draft has left the boxes to the person (the card is open to fix and draft again); the poll never writes them back
-      if(!sessionLive || reviseOpen || state.phase === "stopped" || state.phase === "red" || typeof jt !== "string" || jt === box.value) return;
+      if(!sessionLive || reviseOpen || inWords(PAGE_WORDS.notGreen, state.phase) || typeof jt !== "string" || jt === box.value) return;
       setVal("jf-job", jt); fitCardBoxes();
     }
     // M19 am14b: the ONE writer of a draft refusal's lines. The box error is painted once per refusal (so a poll never brings back a line the person cleared by pressing Draft).
@@ -7089,8 +7150,8 @@
       // its words under the button. No grey copy: the grey card line carries every other sentence (a red plan from the AI keeps its own).
       var refusal = (state.phase === "stopped" && state.refusal && typeof state.refusal === "object") ? state.refusal : null;
       paintRefusal(state, refusal);
-      errEl.textContent = (!refusal && (state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
-      var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}));
+      errEl.textContent = (!refusal && inWords(PAGE_WORDS.notGreen, state.phase) && state.say) ? state.say : "";
+      var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}), state && state.draftSoFar);
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
       refreshStartEnabled();
       syncJobBoxFromSession(state);

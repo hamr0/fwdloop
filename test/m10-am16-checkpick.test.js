@@ -3,8 +3,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  keepOrDrop, codeScope, scopedRules, plainWords, rowsFromAnswer, checkAsks, SUGGEST_SCHEMA, SUGGEST_SYSTEM, suggestUserText, OFFERED, CANT_CHECK_WORDS,
+  codeScope, scopedRules, plainWords, rowsFromAnswer, checkAsks, SUGGEST_SCHEMA, SUGGEST_SYSTEM, suggestUserText, OFFERED, CANT_CHECK_WORDS,
 } from '../src/checkpick.js';
+import { keepOrDrop } from '../src/blockpick.js';
 
 const kept = (g, s) => { const r = keepOrDrop(g, s); assert.equal(r.kept, true, JSON.stringify(r)); return r.check; };
 const dropped = (g, s, why) => { const r = keepOrDrop(g, s); assert.equal(r.kept, false, `kept ${JSON.stringify(r)}`); if (why) assert.match(r.why, why); };

@@ -15,6 +15,7 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { getRunAsks, listStops } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(HERE, '..');
@@ -168,6 +169,7 @@ test('issue 2: the data says whether the expired ask had a late answer saved (la
 function clickScope(post) {
   const calls = { posts: 0, said: [] };
   const scope = new Function('post', 'calls', `
+    ${PAGE_WORDS_PRELUDE}
     var answerMsg = null, reasonDrafts = {}, pendingAnswer = null;
     function paintAnswerMsg(){}
     function say(f, r, cls, text){ calls.said.push(cls + ":" + text); }

@@ -7,13 +7,15 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { CheckBlock, REASON } from '../src/checkblock.js';
+import { CheckBlock } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { buildShapes } from '../src/shapebuild.js';
 import { cardOfBlock } from '../src/cardlist.js';
 import { ncRowsOf } from '../src/checklook.js';
 import { draftingSpent } from '../src/draftspend.js';
 import { killChildrenAfter } from './m4e-world.mjs';
 import { shapePlan, settle, readIn, readJsonIn, RAW_ENTRY } from './m19-s9-world.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 killChildrenAfter();
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -30,7 +32,7 @@ const fnSource = (/** @type {string} */ name) => {
 };
 const page = () => {
   const ctx = vm.createContext({});
-  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'planControlHTML', 'sheetBlockLines', 'planOfState'].map(fnSource).join('\n'), ctx);
+  vm.runInContext(PAGE_WORDS_PRELUDE + '\n' + ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'planControlHTML', 'sheetBlockLines', 'planOfState'].map(fnSource).join('\n'), ctx);
   return /** @type {any} */ (ctx);
 };
 const text = (/** @type {string} */ h) => h.replace(/<[^>]*>/g, ' ').replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();

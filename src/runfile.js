@@ -3,11 +3,15 @@
 // `writeRunStart` and nothing else; every reader of those three goes through this file's readers (`readRunModel` is in src/flowmodel.js, which owns the provider's
 // key-name check). Kept free of the provider on purpose: the learnings note code reads `inputs` and must reach no provider module.
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { readFileInside } from './flow.js';
+import { basename, join } from 'node:path';
+import { readFileInside } from './inside.js';
 
 /** the file's name in the run's folder */
 export const RUN_FILE = 'run.json';
+/** the folder inside a run that holds the frozen copy of each input */
+export const INPUTS_DIR = 'inputs';
+/** where the frozen copy named `name` lives, relative to the run folder (a name only; any folder part is dropped) @param {string} name */
+export const frozenRel = (name) => `${INPUTS_DIR}/${basename(name)}`;
 
 /**
  * The record as parsed, or why not. `missing` = no file; `unreadable` = the gateway refused it (a symlink, outside the folder); `invalid` = not a JSON object.
@@ -21,6 +25,16 @@ export function readRunRecord(runDir) {
     const j = JSON.parse(r.text);
     return j !== null && typeof j === 'object' && !Array.isArray(j) ? { ok: true, rec: j } : { ok: false, code: 'invalid', red: `${RUN_FILE} is not a JSON object` };
   } catch (err) { return { ok: false, code: 'invalid', red: `${RUN_FILE} is not valid JSON — ${/** @type {any} */ (err).message}` }; }
+}
+
+/**
+ * M20 am3 item 12: the ONE test for "this run began as a rerun": the human's words its `run.json` carries (`rerun.decision` is `rerun` and
+ * `rerun.words` is a string), or null. The Audit's first step and the carry memo ask it. @param {string|null} runDir @returns {string|null}
+ */
+export function readRerunWords(runDir) {
+  const rec = readRunRecord(runDir);
+  const rr = rec.ok ? rec.rec.rerun : null;
+  return rr && typeof rr === 'object' && rr.decision === 'rerun' && typeof rr.words === 'string' ? rr.words : null;
 }
 
 /**
@@ -44,6 +58,16 @@ export function readRunInputs(runDir) {
   if (!got.ok) return got;
   if (!Object.hasOwn(got.rec, 'inputs')) return { ok: false, code: 'missing', red: `${RUN_FILE} has no inputs` };
   return Array.isArray(got.rec.inputs) ? { ok: true, entries: got.rec.inputs } : { ok: false, code: 'invalid', red: `${RUN_FILE}: inputs is not a list` };
+}
+
+/**
+ * M20 am3e item 16: the place-rule rows the run recorded at its start (`placeRules.rows`), or null when there are none to read (no record, a refused or torn file,
+ * no `placeRules` section, rows that are not a list). Each caller maps null to its own none: the carry-forward reads it as no rows, a resume refuses by name.
+ * @param {string|null} runDir @returns {any[]|null}
+ */
+export function readPlaceRows(runDir) {
+  const got = readRunRecord(runDir);
+  return got.ok && Array.isArray(got.rec.placeRules?.rows) ? got.rec.placeRules.rows : null;
 }
 
 /**

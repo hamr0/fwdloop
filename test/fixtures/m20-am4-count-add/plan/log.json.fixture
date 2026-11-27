@@ -1,0 +1,644 @@
+{
+  "ok": true,
+  "stop": null,
+  "reds": [],
+  "rounds": 7,
+  "calls": 7,
+  "costUsd": 0.015260399999999997,
+  "spendComplete": true,
+  "modelId": "deepseek-flash",
+  "modelReturned": "deepseek-flash",
+  "structureRetries": 0,
+  "revisions": 0,
+  "thinking": {
+    "asked": "off",
+    "status": "applied",
+    "say": null
+  },
+  "inputs": [
+    {
+      "role": "expenses",
+      "detail": "4 columns"
+    },
+    {
+      "role": "notes",
+      "detail": "0 headings"
+    }
+  ],
+  "log": [
+    {
+      "round": 1,
+      "kind": "action-recognise",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "action": {
+          "line": 6
+        }
+      }
+    },
+    {
+      "round": 2,
+      "kind": "sheet-map",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered"
+    },
+    {
+      "round": 3,
+      "kind": "check-suggest",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "checks": [
+          {
+            "line": 4,
+            "guardrail": 1,
+            "rule": "maxWords",
+            "value": 100
+          }
+        ]
+      }
+    },
+    {
+      "round": 4,
+      "kind": "ledger-suggest",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "extra": [
+          {
+            "line": 4,
+            "kind": "count",
+            "min": 1,
+            "max": 4,
+            "source": "notes"
+          },
+          {
+            "line": 4,
+            "kind": "phrase",
+            "phrase": "Lunch on Friday moves to 1pm.",
+            "source": "notes"
+          }
+        ]
+      }
+    },
+    {
+      "round": 5,
+      "kind": "row-edit",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "edits": [
+          {
+            "op": "add",
+            "kind": "count",
+            "line": 2,
+            "min": 1,
+            "max": 20
+          },
+          {
+            "op": "pick",
+            "line": 4,
+            "rules": [
+              1
+            ],
+            "check": {
+              "rule": "maxWords",
+              "value": 100
+            }
+          }
+        ],
+        "sheetChecks": [
+          {
+            "line": 2,
+            "id": "expense-count-over-500",
+            "rule": "cells",
+            "table": "expenses",
+            "claim": "rows",
+            "op": "rows",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "covers": [
+              1
+            ]
+          },
+          {
+            "line": 2,
+            "id": "expense-over-500-count",
+            "rule": "cells",
+            "table": "expenses",
+            "claim": "count",
+            "op": "countIf",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "covers": [
+              1
+            ]
+          },
+          {
+            "line": 2,
+            "id": "expense-over-500-total",
+            "rule": "cells",
+            "table": "expenses",
+            "claim": "total",
+            "op": "sumIf",
+            "column": "Amount",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "covers": [
+              1
+            ]
+          }
+        ]
+      },
+      "edits": [
+        {
+          "op": "add",
+          "accepted": false,
+          "refusedBecause": "this line reads a sheet and its rules are checked by the sheet checks, so a row edit about it is not used"
+        },
+        {
+          "op": "pick",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "round": 6,
+      "kind": "row-edit-revision",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "outcome": "answered",
+      "args": {
+        "edits": [
+          {
+            "op": "pick",
+            "line": 4,
+            "rules": [
+              1
+            ],
+            "check": {
+              "rule": "maxWords",
+              "value": 100
+            }
+          }
+        ]
+      },
+      "edits": [
+        {
+          "op": "pick",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "round": 7,
+      "kind": "first",
+      "thinkingApplied": true,
+      "thinkingStatus": "applied",
+      "retention": [
+        {
+          "line": 1,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        },
+        {
+          "line": 2,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "green",
+          "classFinal": "green"
+        },
+        {
+          "line": 3,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        },
+        {
+          "line": 4,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": true,
+          "classAsked": "softgreen",
+          "classFinal": "softgreen"
+        },
+        {
+          "line": 5,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        },
+        {
+          "line": 6,
+          "aiParts": 0,
+          "kept": 0,
+          "dropped": 0,
+          "picks": false,
+          "classAsked": "hitl",
+          "classFinal": "hitl"
+        }
+      ],
+      "args": {
+        "steps": [
+          {
+            "primitives": [
+              "addressCells"
+            ],
+            "reads": [
+              "expenses"
+            ],
+            "emits": "expenses_rows",
+            "fromLine": 1,
+            "close": {
+              "class": "hitl"
+            }
+          },
+          {
+            "primitives": [
+              "read",
+              "grep"
+            ],
+            "reads": [
+              "expenses"
+            ],
+            "emits": "over_500_list",
+            "fromLine": 2,
+            "close": {
+              "class": "green",
+              "columns": [
+                {
+                  "source": "expenses",
+                  "column": "Amount"
+                }
+              ]
+            }
+          },
+          {
+            "primitives": [],
+            "reads": [
+              "over_500_list"
+            ],
+            "emits": "over_500_confirmed",
+            "fromLine": 3,
+            "close": {
+              "class": "hitl"
+            }
+          },
+          {
+            "primitives": [
+              "read"
+            ],
+            "reads": [],
+            "emits": "notes_summary",
+            "fromLine": 4,
+            "close": {
+              "class": "softgreen"
+            }
+          },
+          {
+            "primitives": [],
+            "reads": [
+              "notes_summary"
+            ],
+            "emits": "summary_confirmed",
+            "fromLine": 5,
+            "close": {
+              "class": "hitl"
+            }
+          },
+          {
+            "primitives": [
+              "write"
+            ],
+            "reads": [
+              "summary_confirmed"
+            ],
+            "emits": "final_output",
+            "fromLine": 6,
+            "close": {
+              "class": "hitl"
+            }
+          }
+        ],
+        "guardrailClasses": {
+          "2": "green",
+          "4": "softgreen"
+        },
+        "refused": []
+      },
+      "outcome": "valid"
+    },
+    {
+      "round": 8,
+      "kind": "row-edit-human",
+      "op": "add",
+      "key": "L4.phrase.lunch on friday moves to 1pm.",
+      "outcome": "answered",
+      "at": "2026-11-26T15:55:44.672Z"
+    }
+  ],
+  "checkCard": {
+    "rows": [
+      {
+        "key": "L1.$floor",
+        "line": 1,
+        "by": "default",
+        "state": "built",
+        "text": "the file exists and its text is not empty (code's own floor)",
+        "reason": null,
+        "drop": false,
+        "kind": "file"
+      },
+      {
+        "key": "L2.sheet.l2r1",
+        "line": 2,
+        "by": "you",
+        "state": "built",
+        "text": "rows — rows where Amount > 500 — covers \"Amount over 500\"",
+        "reason": null,
+        "drop": false
+      },
+      {
+        "key": "L2.sheet.l2a1",
+        "line": 2,
+        "by": "agent",
+        "state": "built",
+        "text": "count — count of rows where Amount > 500",
+        "reason": null,
+        "drop": true
+      },
+      {
+        "key": "L2.sheet.l2a2",
+        "line": 2,
+        "by": "agent",
+        "state": "built",
+        "text": "sum — sum of Amount where Amount > 500",
+        "reason": null,
+        "drop": true
+      },
+      {
+        "key": "L4.phrase.lunch on friday moves to 1pm.",
+        "line": 4,
+        "by": "agent",
+        "state": "built",
+        "text": "fact · Lunch on Friday moves to pm — phrase, must say \"Lunch on Friday moves to 1pm.\", quoted from \"notes\"",
+        "reason": null,
+        "drop": true,
+        "kind": "truth"
+      },
+      {
+        "key": "L4.~1",
+        "line": 4,
+        "by": "you",
+        "state": "built",
+        "text": "at most 100 words",
+        "reason": null,
+        "drop": false,
+        "kind": "truth"
+      },
+      {
+        "key": "L4.$floor",
+        "line": 4,
+        "by": "default",
+        "state": "built",
+        "text": "the file exists and its text is not empty (code's own floor)",
+        "reason": null,
+        "drop": false,
+        "kind": "file"
+      }
+    ],
+    "suggested": [
+      {
+        "key": "L4.count.1-4",
+        "line": 4,
+        "text": "fact · results — 1 to 4 results, each quoted from \"notes\""
+      }
+    ],
+    "notChecked": []
+  },
+  "sheetBuilt": {
+    "built": {
+      "2": {
+        "rows": [
+          {
+            "rule": 1,
+            "text": "Amount over 500",
+            "state": "built",
+            "reason": null,
+            "id": "l2r1"
+          }
+        ],
+        "ruleRows": [
+          {
+            "check": {
+              "id": "l2r1",
+              "rule": "cells",
+              "table": "expenses",
+              "op": "rows",
+              "where": [
+                {
+                  "column": "Amount",
+                  "cmp": "gt",
+                  "value": 500
+                }
+              ],
+              "claim": "l2r1",
+              "covers": [
+                1
+              ]
+            },
+            "covers": [
+              1
+            ]
+          }
+        ],
+        "agentRows": [
+          {
+            "check": {
+              "id": "l2a1",
+              "rule": "cells",
+              "table": "expenses",
+              "op": "countIf",
+              "where": [
+                {
+                  "column": "Amount",
+                  "cmp": "gt",
+                  "value": 500
+                }
+              ],
+              "claim": "l2a1",
+              "covers": [],
+              "row": "agent"
+            },
+            "covers": []
+          },
+          {
+            "check": {
+              "id": "l2a2",
+              "rule": "cells",
+              "table": "expenses",
+              "op": "sumIf",
+              "column": "Amount",
+              "where": [
+                {
+                  "column": "Amount",
+                  "cmp": "gt",
+                  "value": 500
+                }
+              ],
+              "claim": "l2a2",
+              "covers": [],
+              "row": "agent"
+            },
+            "covers": []
+          }
+        ],
+        "checks": [
+          {
+            "id": "l2r1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "rows",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2r1",
+            "covers": [
+              1
+            ]
+          },
+          {
+            "id": "l2a1",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "countIf",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a1",
+            "covers": [],
+            "row": "agent"
+          },
+          {
+            "id": "l2a2",
+            "rule": "cells",
+            "table": "expenses",
+            "op": "sumIf",
+            "column": "Amount",
+            "where": [
+              {
+                "column": "Amount",
+                "cmp": "gt",
+                "value": 500
+              }
+            ],
+            "claim": "l2a2",
+            "covers": [],
+            "row": "agent"
+          }
+        ],
+        "refused": []
+      }
+    },
+    "checks": [
+      {
+        "id": "l2r1",
+        "rule": "cells",
+        "table": "expenses",
+        "op": "rows",
+        "where": [
+          {
+            "column": "Amount",
+            "cmp": "gt",
+            "value": 500
+          }
+        ],
+        "claim": "l2r1",
+        "covers": [
+          1
+        ]
+      },
+      {
+        "id": "l2a1",
+        "rule": "cells",
+        "table": "expenses",
+        "op": "countIf",
+        "where": [
+          {
+            "column": "Amount",
+            "cmp": "gt",
+            "value": 500
+          }
+        ],
+        "claim": "l2a1",
+        "covers": [],
+        "row": "agent"
+      },
+      {
+        "id": "l2a2",
+        "rule": "cells",
+        "table": "expenses",
+        "op": "sumIf",
+        "column": "Amount",
+        "where": [
+          {
+            "column": "Amount",
+            "cmp": "gt",
+            "value": 500
+          }
+        ],
+        "claim": "l2a2",
+        "covers": [],
+        "row": "agent"
+      }
+    ],
+    "notChecked": {},
+    "refused": []
+  },
+  "action": {
+    "line": 6,
+    "by": "agent"
+  }
+}

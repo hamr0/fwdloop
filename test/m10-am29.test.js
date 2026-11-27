@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readQuestions } from '../src/authoring.js';
+import { readQuestions } from '../src/draftfiles.js';
 import { parseJobBox } from '../src/panel/authorcard.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { ruleOfAnswer } from '../src/pageask.js';

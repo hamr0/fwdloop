@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { readQuestions } from '../src/authoring.js';
+import { readQuestions } from '../src/draftfiles.js';
 import { isFwdloopAlive } from '../src/liveness.js';
 import { ruleOfAnswer } from '../src/pageask.js';
 import {

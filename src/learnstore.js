@@ -13,10 +13,14 @@ import { homedir } from 'node:os';
 import { compareNatural } from './natural.js';
 import { configHome, configDoorHome, readConfig } from './config.js';
 import { emptyLedger, redactDeep, countLedger, releasePending, recordHealth, buildCards, placeOf, renderHints } from './learn.js';
-import { readAudit, readHistory } from './books.js';
+import {
+  readAudit, readHistory, readLog, endRow, isTryVerdict, isRedTry, isNoiseEnding, isNotRunEnd,
+} from './books.js';
 import { readChecks } from './diary.js';
 import { readRunInputs } from './runfile.js';
-import { readFileInside, readdirInside, listFlowNames, listRunIds } from './flow.js';
+import { listFlowNames, listRunIds, readRunJobCopy } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
+import { loadCatalogue } from './catalogue.js';
 
 /**
  * M8 item 5a (loose end): the ONE function that turns a source as written into a place. The run-end notes (`learnAtRunEnd`: a path the panel/CLI gave the run) and
@@ -184,15 +188,8 @@ function unifiedDiff(a, b, ctx = 1) {
   return out.join('\n');
 }
 
-/** @param {string} runDir @param {string} rel @returns {any} the parsed JSON file inside the run folder, or null when absent / unreadable */
-function jsonIn(runDir, rel) {
-  const r = readFileInside(runDir, rel);
-  if (!r.ok) return null;
-  try { return JSON.parse(r.text); } catch { return null; }
-}
-
 /** audit.jsonl rows that are a step's TRY with a verdict on its output; a human redo (class hitl + red), a pause, a stop and a funding halt are not one. */
-const isTry = (/** @type {any} */ r) => Number.isInteger(r.attempt) && ['green', 'hitl', 'softgreen', 'red', 'not-done'].includes(r.verdict) && !(r.class === 'hitl' && r.verdict === 'red');
+const isTry = (/** @type {any} */ r) => Number.isInteger(r.attempt) && isTryVerdict(r.verdict) && !(r.class === 'hitl' && r.verdict === 'red');
 
 /**
  * One finished run's folder -> the event list buildCards reads, plus the check texts and the model. ONE adapter, map never invent
@@ -207,11 +204,13 @@ export function eventsOfRun(runDir, workflow) {
   const audit = readAudit(runDir);
   const rows = audit.filter(isTry);
   if (!rows.length) return null;
-  const log = jsonIn(runDir, 'log.json') ?? {};
-  const decl = jsonIn(runDir, 'job/declaration.json') ?? { steps: [] };
+  const log = readLog(runDir) ?? {};
+  const cat = loadCatalogue();
+  const job = cat.ok ? readRunJobCopy(runDir, cat.primitives) : { present: /** @type {false} */ (false) };   // M20 am3 item 2: a copy that fails its signature is no job
+  const decl = job.present && job.ok ? job.declaration : { steps: [] };
   const frozen = readRunInputs(runDir);
   const inputs = frozen.ok ? frozen.entries : null;
-  const prose = (() => { const r = readFileInside(runDir, 'job/prose.txt'); return r.ok ? r.text : ''; })();
+  const prose = job.present && job.ok ? (job.proseText ?? '') : '';
   const checks = readChecks(runDir);
   const made = new Set(readdirInside(runDir, 'artifacts'));
   const outBy = new Map((log.attempts || []).map((/** @type {any} */ a) => [`${a.step}#${a.attempt}`, a.modelOutput]));
@@ -239,7 +238,7 @@ export function eventsOfRun(runDir, workflow) {
     let diff = '';
     if (mo !== undefined) { const after = JSON.stringify(mo, null, 2); diff = unifiedDiff(prevOut.has(a.step) ? /** @type {string} */ (prevOut.get(a.step)) : '', after); prevOut.set(a.step, after); }
     if (made.has(`${a.step}.json`)) push({ type: 'attempt-diff', files: [{ path: `artifacts/${a.step}.json`, diff: diff.slice(0, 4096), truncated: diff.length > 4096 }], binary: [], truncated: false });
-    if ((a.verdict === 'red' || a.verdict === 'not-done') && typeof a.gap === 'string' && a.gap !== '') {
+    if (isRedTry(a.verdict) && typeof a.gap === 'string' && a.gap !== '') {
       const f = checks.find((c) => c.step === a.step && c.try === a.attempt)?.checks?.find((/** @type {any} */ x) => !x.ok);
       if (f && !questions.has(name)) questions.set(name, String(f.text));
       push({ type: 'exit-eval', step: a.step, results: [{ type: name, pass: false, detail: a.gap }] });
@@ -251,7 +250,7 @@ export function eventsOfRun(runDir, workflow) {
   // M8 am4 item 3: the two noise categories bareloop's buildCards reads off an `escalation` event, seen here in the audit: a provider red
   // (verdict 'provider-red', the transport fault twice) and a closer that crashed or was unparseable (verdict 'close-casualty'). Both end
   // the run, so a row of either is the run's last word. Neither is a try (isTry), so it never makes a red moment of its own.
-  const noiseRow = audit.findLast((r) => r.verdict === 'provider-red' || r.verdict === 'close-casualty');
+  const noiseRow = audit.findLast((r) => isNoiseEnding(r.verdict));
   if (noiseRow) push({ type: 'escalation', category: noiseRow.verdict === 'provider-red' ? 'provider-red' : 'close-crashed' });
   push({ type: 'job-end', outcome: log.outcome === 'complete' ? 'green' : String(log.outcome) });
   return { events, questions, model, source: typeof inputs?.[0]?.source === 'string' ? inputs[0].source : null };
@@ -276,8 +275,6 @@ export function learnAtRunEnd({ home, workflow, runId, runDir, now = new Date() 
   return { ...r, noise: build.noise, cards: build.cards.length };
 }
 
-/** M8 am4 item 2: a run waiting at an ask has not ended ('paused', or a Stop whose set-aside failed). ONE decider: the runner's run-end tally and the seed both read it. */
-export const NOT_A_RUN_END = new Set(['paused', 'stop-failed', 'skipped']); // M12 p3: a skipped ticket is not a job run with anything to learn from
 
 /**
  * M8 am6: seed the ledger from every run already recorded under `root` (every job, every ended run), oldest first by the run's own end time
@@ -307,13 +304,14 @@ export function seedLedger({ root, home }) {
       out.read += 1;
       const runDir = join(flowDir, 'runs', runId);
       try {
-        const log = jsonIn(runDir, 'log.json');
-        if (log && NOT_A_RUN_END.has(log.outcome)) { out.skipped['still-waiting'] += 1; continue; }
+        const log = readLog(runDir);
+        if (log && isNotRunEnd(log.outcome)) { out.skipped['still-waiting'] += 1; continue; }
         if (history === null) { out.skipped.unreadable += 1; continue; }
-        const endRow = history.findLast((r) => r?.runId === runId && !NOT_A_RUN_END.has(r.outcome) && Number.isFinite(Date.parse(r.at)));
-        if (!endRow) { out.skipped['no-end'] += 1; continue; }
+        const last = endRow(history, runDir, runId);
+        const end = last && !isNotRunEnd(last.outcome) && Number.isFinite(Date.parse(last.at)) ? last : null;
+        if (!end) { out.skipped['no-end'] += 1; continue; }
         if (!log) { out.skipped.unreadable += 1; continue; }
-        todo.push({ workflow, runId, runDir, end: new Date(endRow.at) });
+        todo.push({ workflow, runId, runDir, end: new Date(end.at) });
       } catch { out.skipped.unreadable += 1; }
     }
   }

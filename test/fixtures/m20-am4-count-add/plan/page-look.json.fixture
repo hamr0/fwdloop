@@ -1,0 +1,28 @@
+{
+  "pages": [],
+  "sheets": [
+    {
+      "role": "expenses",
+      "attempts": 1,
+      "facts": [
+        {
+          "line": 2,
+          "forRule": 1,
+          "name": "Amount",
+          "shape": "column",
+          "column": "Amount",
+          "words": [
+            "Amount"
+          ],
+          "source": "expenses"
+        }
+      ],
+      "asks": [],
+      "dropped": []
+    }
+  ],
+  "look": {
+    "facts": [],
+    "dropped": []
+  }
+}

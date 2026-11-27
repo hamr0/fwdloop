@@ -22,17 +22,17 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 
 import { flowValues, valuesHash } from '../runvalues.js';
 import { destinationRefusal, checkInputRows, runInputRows } from './authorcard.js';
-import { endRow, readHistory } from '../books.js';
+import { endRow, readHistory, isGoodEnding } from '../books.js';
 import { readRunInputs } from '../runfile.js';
-import { appendRow } from '../jsonl-append.js';
+import { appendRow, parseJsonl, readTriggerLedger } from '../jsonl-append.js';
 import { loadCatalogue } from '../catalogue.js';
 import { canFlowRun, willNotRunSay } from '../canrun.js';
-import {
-  FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, readFileInside, readFlow, readRunJobCopy, resolveRunDir,
-} from '../flow.js';
+import { FLOW_FILES, checkFlowName, listFlowNames, listRunIds, planForReuse, sameJob, readFlow, readRunJobCopy, resolveRunDir, signedHashOf } from '../flow.js';
+import { readFileInside } from '../inside.js';
 import { SCHEDULE_WAITING_SAY, scheduleHead, scheduledWords } from '../summary-words.js';
-import { armTrigger, nextSlot, readRows, validateSchedule } from '../trigger-clock.js';
-import { checkTarget, createFileTrigger, readSeen } from '../trigger-files.js';
+import { armTrigger, isClockKind, nextSlot, validateSchedule } from '../trigger-clock.js';
+import { createFileTrigger, fileTriggerWhy, isFileKind } from '../trigger-files.js';
+import { shapeOf } from '../schedule-shape.js';
 import { lookProblemOf } from '../trigger-tickets.js';
 import { WATCHABLE, ticketListsOf } from '../ticket-shape.js';
 import { LOOK_TOOL } from '../ticket-draft.js';
@@ -46,6 +46,7 @@ import { triggerHash, triggerLine } from '../trigger-line.js';
 
 /** @typedef {import('../trigger-line.js').Trigger} Trigger */
 /** @typedef {import('../schedule.js').Schedule} Schedule */
+/** @typedef {Extract<Trigger, {kind: 'file-updated' | 'new-file'}>} FileTrigger */
 
 /** A trigger in the words a row and a run reason use: `daily 09:00`, `new-file jd = file:/home/you/inbox`. @param {Trigger} t */
 const describe = (t) => triggerLine(t).replace('guardrail: trigger ', '');
@@ -59,7 +60,7 @@ const HISTORY_FILE = 'triggers.jsonl';
 export function readOutcomes(flowDir) {
   const f = readFileInside(flowDir, HISTORY_FILE);
   if (!f.ok) return [];
-  return f.text.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+  return parseJsonl(f.text);
 }
 
 /** The ONE writer of `triggers.jsonl`: append-only, one line per fire outcome. @param {string} flowDir @param {Record<string, any>} row */
@@ -73,27 +74,26 @@ export function appendOutcome(flowDir, row) {
  * A run from before runs kept a job copy has none to compare, so it counts only when its history row's signature is the job's current one.
  * @param {string} flowDir @returns {Generator<{runId: string, runDir: string, at: string}>}
  */
-function* greenRuns(flowDir) {
+export function* greenRuns(flowDir) {
   const cur = {};
   for (const f of FLOW_FILES) {
     const r = readFileInside(flowDir, f);
     if (!r.ok) return;
     cur[f] = r.text;
   }
-  let sig;
-  try { sig = JSON.parse(cur['signature.json']).flow; } catch { return; }
-  const key = (/** @type {string} */ prose, /** @type {string} */ decl) => `${prose.trimEnd()}\n\u0000${decl}`;
-  const want = key(cur['prose.txt'], cur['declaration.json']);
+  const sig = signedHashOf(flowDir);   // the one reader of the signature's `.flow`: none (no usable hash) counts no green run
+  if (sig === null) return;
+  const cat = loadCatalogue();
+  if (!cat.ok) return;
   const history = readHistory(flowDir);
   for (const id of listRunIds(flowDir)) {
     const r = resolveRunDir(flowDir, id);
     if (!r.ok) continue;
     const end = endRow(history, r.runDir, id);
-    if (end === null || end.outcome !== 'complete') continue;
-    const prose = readFileInside(r.runDir, 'job/prose.txt');
-    const decl = readFileInside(r.runDir, 'job/declaration.json');
+    if (end === null || !isGoodEnding(end.outcome)) continue;
+    const job = sameJob({ flowDir, runDir: r.runDir, catalogue: cat.primitives });   // a copy that fails its signature reads as no job: not green
     const at = typeof end.at === 'string' ? end.at : '';
-    if (prose.ok && decl.ok) { if (key(prose.text, decl.text) === want) yield { runId: id, runDir: r.runDir, at }; } else if (!prose.ok && prose.missing && end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
+    if (job.present) { if (job.ok && job.same) yield { runId: id, runDir: r.runDir, at }; } else if (end.signatureHash === sig) yield { runId: id, runDir: r.runDir, at };
   }
 }
 
@@ -157,37 +157,6 @@ function newTicketTrigger(read, trigger) {
 }
 
 /**
- * The trigger a body asks for, checked as data: null (By hand) or exactly one of the five shapes, the role one of the job's inputs, a full
- * path. Returns the typed trigger or the sentence that says what to fix.
- * @param {unknown} t @param {string[]} roles
- * @returns {{ok: true, trigger: Trigger|null} | {ok: false, say: string}}
- */
-function shapeOf(t, roles) {
-  if (t === null) return { ok: true, trigger: null };
-  if (!t || typeof t !== 'object' || Array.isArray(t)) return { ok: false, say: 'Pick when it runs from the choices. A schedule is not typed as text. Nothing was changed.' };
-  const o = /** @type {Record<string, unknown>} */ (t);
-  if (o.kind === 'file-updated' || o.kind === 'new-file') {
-    const where = o.kind === 'new-file' ? 'folder' : 'path';
-    const extra = Object.keys(o).filter((k) => !['kind', 'role', where].includes(k));
-    if (extra.length > 0) return { ok: false, say: `A "${o.kind}" trigger takes a kind, a role and a ${where}, not "${extra[0]}". Nothing was changed.` };
-    if (typeof o.role !== 'string' || !roles.includes(o.role)) return { ok: false, say: `This job has no input named "${String(o.role)}" (it takes: ${roles.join(', ') || 'none'}). Pick one of those. Nothing was changed.` };
-    const p = o[where];
-    // eslint-disable-next-line no-control-regex
-    if (typeof p !== 'string' || p === '' || !isAbsolute(p) || /[\x00-\x1f\x7f]/.test(p)) return { ok: false, say: `The ${where} must be a full path on one line, like /home/you/inbox. Nothing was changed.` };
-    return { ok: true, trigger: /** @type {Trigger} */ (o.kind === 'new-file' ? { kind: 'new-file', role: o.role, folder: p } : { kind: 'file-updated', role: o.role, path: p }) };
-  }
-  if (o.kind === 'new-ticket') {
-    // M12 piece 2: the person picks the input; the list address, the job's server and the look's tool are filled from the signed job (inspect), never typed here
-    const extra = Object.keys(o).filter((k) => !['kind', 'role', 'watch'].includes(k));
-    if (extra.length > 0) return { ok: false, say: `A "new-ticket" trigger takes a kind and a role, not "${extra[0]}". Nothing was changed.` };
-    if (typeof o.role !== 'string' || !roles.includes(o.role)) return { ok: false, say: `This job has no input named "${String(o.role)}" (it takes: ${roles.join(', ') || 'none'}). Pick one of those. Nothing was changed.` };
-    if (o.watch !== undefined && !(Array.isArray(o.watch) && o.watch.every((w) => WATCHABLE.includes(w)))) return { ok: false, say: `A ticket schedule can watch only ${WATCHABLE.join(' and ')}. Nothing was changed.` };
-    return { ok: true, trigger: /** @type {Trigger} */ ({ kind: 'new-ticket', role: o.role, list: '', server: '', tool: '', ...(o.watch ? { watch: o.watch } : {}) }) };
-  }
-  try { return { ok: true, trigger: validateSchedule(t) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was changed.` }; }
-}
-
-/**
  * THE builder of a Schedule record (the Run card's second click and the New job card's sign both call it): the hash binds exactly what the human was shown.
  * @param {{flow: string, flowSignatureHash: string, trigger: Trigger, model: Schedule['model'], destination: string|null, inputs: Schedule['inputs'], plan: Schedule['plan'], from: string|null, signedBy: string, at: number}} o
  * @returns {Schedule}
@@ -246,20 +215,13 @@ export function createTriggerDoor(opts) {
     if (trigger !== null && !hasGreenRunForJob(flowDir)) return reply(409, { refused: 'no-green-run', say: NO_GREEN_SAY });
     // M9 am20 item 3: neither Cancel nor a new schedule is refused because a run is starting, working or waiting: a run carries on from its own copy and
     // keeps its own signed values; the next fire uses the new schedule. (A schedule never touches the job, so there is nothing for a run to collide with.)
-    const fileTrigger = trigger !== null && (trigger.kind === 'file-updated' || trigger.kind === 'new-file') ? trigger : null;
+    const fileTrigger = trigger !== null && isFileKind(trigger.kind) ? /** @type {FileTrigger} */ (trigger) : null;
     if (fileTrigger !== null && Object.hasOwn(pageAddressesOf(read.arbiter), fileTrigger.role)) {
       return reply(400, { refused: 'bad-trigger', say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was changed.` }); // M10 am3
     }
     if (fileTrigger !== null) {
-      try {
-        checkTarget(fileTrigger.kind === 'new-file' ? 'new' : 'updated', fileTrigger.kind === 'new-file' ? fileTrigger.folder : fileTrigger.path);
-      } catch (e) {
-        return reply(400, { refused: 'bad-trigger', say: `${/** @type {Error} */ (e).message}. Nothing was changed.` });
-      }
-      // a file that does not exist yet may arrive (checkTarget allows it), but its folder must be there: a typo is caught now, not never
-      if (fileTrigger.kind === 'file-updated') {
-        try { realpathSync(dirname(fileTrigger.path)); } catch { return reply(400, { refused: 'bad-trigger', say: `The folder of ${fileTrigger.path} does not exist. Nothing was changed.` }); }
-      }
+      const why = fileTriggerWhy(fileTrigger);
+      if (why !== null) return reply(400, { refused: 'bad-trigger', say: `${why} Nothing was changed.` });
     }
     // M6 am5 item 3: a schedule may carry the model of the run it was made from (a run field). Checked now by the Run door's own model check; the same as
     // the job's recorded model is no change (null). It is bound into the hash, written beside the trigger's ledger, and read by the fire.
@@ -311,9 +273,9 @@ export function createTriggerDoor(opts) {
       if (!pf.ok) return reply(409, { refused: 'plan', say: pf.red.replace('Nothing was started.', 'Nothing was changed.') });
       scheduledFrom = planOf;
       if (!pf.same) {
-        const decl = readFileInside(rr.runDir, 'job/declaration.json');
-        if (!decl.ok) return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
-        scheduledPlan = { run: planOf, flowHash: String(pf.read.signature.flow), declSha: createHash('sha256').update(decl.text).digest('hex') };
+        const declText = pf.read.declarationText;
+        if (typeof declText !== 'string') return reply(409, { refused: 'plan', say: `The plan ${planOf} kept cannot be read. Nothing was changed.` });
+        scheduledPlan = { run: planOf, flowHash: String(pf.read.signature.flow), declSha: createHash('sha256').update(declText).digest('hex') };
       }
     }
     return {
@@ -362,8 +324,7 @@ export function createTriggerDoor(opts) {
       const cat = loadCatalogue();
       const rr = resolveRunDir(flowDir, planRec.run);
       const kept = rr.ok && cat.ok ? readRunJobCopy(rr.runDir, cat.primitives) : null;
-      const decl = rr.ok ? readFileInside(rr.runDir, 'job/declaration.json') : null;
-      const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && decl && decl.ok && createHash('sha256').update(decl.text).digest('hex') === planRec.declSha;
+      const good = kept && kept.present && kept.ok && kept.signature.flow === planRec.flowHash && typeof kept.declarationText === 'string' && createHash('sha256').update(kept.declarationText).digest('hex') === planRec.declSha;
       if (!good) return ({ outcome: 'refused', why: `The plan of ${planRec.run} is no longer the one that was signed, so nothing started. Set the schedule again.` });
       read = /** @type {any} */ (kept);
       planRun = planRec.run;
@@ -521,12 +482,24 @@ export function createTriggerDoor(opts) {
      * @returns {{ok: true, trigger: Trigger} | {ok: false, say: string}}
      */
     cardSchedule(spec, plan) {
+      // M20 am5 item 1: the card's choice is checked as the Run card checks its own (`shapeOf`, `fileTriggerWhy`, the web-page input refusal), on the plan about to be signed
+      const roles = (plan.arbiter.sources ?? []).map((/** @type {any} */ s) => s.role);
+      const unsigned = (/** @type {string} */ say) => ({ ok: /** @type {false} */ (false), say: say.replace(/ Nothing was changed\.$/, ' Nothing was signed.') });
       if (spec.kind === 'new-ticket') {
-        const roles = Object.keys(ticketListsOf(plan.arbiter));
-        if (roles.length !== 1) return { ok: false, say: 'When a new ticket arrives needs exactly one ticket list in Inputs. Nothing was signed.' };
-        return newTicketTrigger(plan, { role: roles[0] });
+        const lists = Object.keys(ticketListsOf(plan.arbiter));
+        if (lists.length !== 1) return { ok: false, say: 'When a new ticket arrives needs exactly one ticket list in Inputs. Nothing was signed.' };
+        return newTicketTrigger(plan, { role: lists[0] });
       }
-      try { return { ok: true, trigger: validateSchedule(spec) }; } catch (e) { return { ok: false, say: `${/** @type {Error} */ (e).message}. Nothing was signed.` }; }
+      const shaped = shapeOf(spec, roles);
+      if (!shaped.ok) return unsigned(shaped.say);
+      const trigger = shaped.trigger;
+      if (trigger !== null && isFileKind(trigger.kind)) {
+        const fileTrigger = /** @type {FileTrigger} */ (trigger);
+        if (Object.hasOwn(pageAddressesOf(plan.arbiter), fileTrigger.role)) return { ok: false, say: `The input "${fileTrigger.role}" is a web page, not a file, so no file arrival can start a run from it. Nothing was signed.` };
+        const why = fileTriggerWhy(fileTrigger);
+        if (why !== null) return { ok: false, say: `${why} Nothing was signed.` };
+      }
+      return trigger === null ? { ok: false, say: 'Pick when it runs from the choices. Nothing was signed.' } : { ok: true, trigger };
     },
 
     /**
@@ -640,17 +613,17 @@ export function createTriggerDoor(opts) {
       const flowDir = join(realRoot, flow);
       const sc = liveSchedule(flowDir, r.signature.flow);
       const trigger = sc === null ? null : sc.trigger;
-      const armedRow = sc === null ? undefined : readRows(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
+      const armedRow = sc === null ? undefined : readTriggerLedger(ledgerOf(flowDir), sc.sig).find((x) => x.kind === 'armed');
       const outcomes = sc === null ? [] : readOutcomes(flowDir).filter((o) => o.sig === sc.sig);
       const hasGreenRun = hasGreenRunForJob(flowDir);
-      const clockKind = trigger !== null && (trigger.kind === 'daily' || trigger.kind === 'weekdays' || trigger.kind === 'weekly');
+      const clockKind = trigger !== null && isClockKind(trigger.kind);
       return {
         flow, trigger, flowHash: r.signature.flow, sig: sc === null ? null : sc.sig, armed: armedRow !== undefined, armedAt: armedRow ? armedRow.at : null,
         nextSlotMs: clockKind && armedRow ? nextSlot(/** @type {any} */ (trigger), now()) : null,
         lastOutcome: outcomes.length > 0 ? outcomes[outcomes.length - 1] : null,
         hasGreenRun,
         // M13 item 9b.3: the cause when the newest look of a ticket schedule could not read (pass locked, a server error), else null
-        lookProblem: sc !== null && trigger !== null && trigger.kind === 'new-ticket' ? lookProblemOf(readSeen(ledgerOf(flowDir), sc.sig)) : null,
+        lookProblem: sc !== null && trigger !== null && trigger.kind === 'new-ticket' ? lookProblemOf(readTriggerLedger(ledgerOf(flowDir), sc.sig)) : null,
         // M13 piece 5: signed with the job and still off, because no run has been green yet (a green run not yet turned on by the next check is not waiting for one)
         waiting: sc !== null && armedRow === undefined && !hasGreenRun,
       };

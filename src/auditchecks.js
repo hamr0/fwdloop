@@ -4,6 +4,8 @@
 // What a run recorded for a check is read off its diary (`checks` rows: each check numbered with its `ok`, and for a list line its `part`); nothing is re-derived. What this throws away: the checks of a line off the list
 // (the sheet and the older plans keep their own Audit rows), and the per-try history (the LAST try of a step is the one that closed it).
 import { listLinesOf } from './checklistsign.js';
+import { tagOf } from './checkwords.js';
+import { newestChecksOf } from './diary.js';
 import { listPartRows, notCheckedView } from './checked.js';
 import { EVERY_STEP, EVERY_STEP_TEXTS } from './try-checks.js';
 import { sheetRowsOf } from './sheetrows.js';
@@ -25,7 +27,7 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   const sheetRows = sheetOn ? sheetRowsOf({ declaration, lines: jobLines, csvRoles }) : null;
   if (lines.size === 0 && !(sheetRows && sheetRows.card.length > 0)) return null;
   const steps = (Array.isArray(declaration?.steps) ? declaration.steps : []).filter((/** @type {any} */ st) => lines.has(st?.fromLine));
-  const lastTry = (/** @type {any} */ st) => (Array.isArray(diary) ? diary : []).filter((d) => d.step === (st.emits ?? st.goal ?? null)).at(-1);
+  const lastTry = (/** @type {any} */ st) => newestChecksOf(Array.isArray(diary) ? diary : [], st.emits ?? st.goal ?? null) ?? undefined;
   /** @type {AuditCheckRow[]} */
   const checks = [];
   // the same rows by the job line that owns them, their words without the `line N · ` prefix (S7: one block per line)
@@ -62,13 +64,13 @@ export function auditChecksOf(declaration, diary, notChecked, { lines: jobLines 
   // M17 am4 (C3): the Audit splits a reading note from Not checked as the card and the Job tab do (src/checked.js notCheckedView)
   const view = notCheckedView(notChecked?.items ?? [], declaration);
   /** @type {AuditCheckRow[]} */
-  const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: by[t] === 'you' || by[t] === 'agent' || by[t] === 'default' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
+  const notRows = view.items.map((t) => ({ ...splitNotChecked(t), by: tagOf(by[t]) !== '' ? /** @type {'you'|'agent'|'default'} */ (by[t]) : null, result: 'not-checked' }));
   // the two checks every step has (src/try-checks.js #1 and #2): passed when every step that ran them passed, failed when one did not
   const every = (/** @type {string} */ text) => {
-    const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (d.checks ?? []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));
+    const seen = (Array.isArray(diary) ? diary : []).flatMap((d) => (Array.isArray(d.checks) ? d.checks : []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text));
     return seen.length === 0 ? 'none' : seen.every((/** @type {any} */ c) => c.ok) ? 'passed' : 'failed';
   };
-  const everyWhy = (/** @type {string} */ text) => whyOf((Array.isArray(diary) ? diary : []).flatMap((d) => (d.checks ?? []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text)).find((/** @type {any} */ c) => !c.ok));
+  const everyWhy = (/** @type {string} */ text) => whyOf((Array.isArray(diary) ? diary : []).flatMap((d) => (Array.isArray(d.checks) ? d.checks : []).filter((/** @type {any} */ c) => c.source === EVERY_STEP && c.text === text)).find((/** @type {any} */ c) => !c.ok));
   /** @type {AuditCheckRow[]} */
   const always = EVERY_STEP_TEXTS.map((text) => ({ text, kind: 'file', by: /** @type {'default'} */ ('default'), result: every(text), ...everyWhy(text) }));
   // M19 S7: one block per job line (its checks, its Not checked rows) and the Not checked rows no line owns; the two every-step rows are the page's "Every line" block (a one-line job's Line 1 block)

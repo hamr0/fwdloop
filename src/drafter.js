@@ -49,11 +49,11 @@ import { questionsOfBlock } from './blockasks.js';
 import { NOTE_KIND, NOTE_TOOL, NOTE_SYSTEM, NOTE_SCHEMA, notePrompt, noteAnswers } from './noteask.js';
 import { ledgerRecord, LEDGER_SYSTEM, LEDGER_SCHEMA, LEDGER_TOOL, ledgerUserText } from './checklist.js';
 import { ROW_EDIT_SYSTEM, ROW_EDIT_REVISE, rowEditUserText, rowEditChannel, editsOf, ticketFilterBlock } from './rowedit.js';
-import { matchRecord, entriesFromAnswers, columnEntries, columnsOnLines } from './pickrecord.js';
+import { matchRecord, entriesFromAnswers, columnEntries, columnsOnLines, addedCountsOf } from './pickrecord.js';
 import { MAP_SYSTEM, mapPrompt } from './pagemap.js';
 import { tooManyAsksText, MAX_LOOK_ASKS } from './pageask.js';
 import { lineRules } from './pagebits.js';
-import { isCountGuardrail } from './declaration.js';
+import { isCountable } from './blockpick.js';
 import path from 'node:path';
 import { isCellsPath } from './closers.js';
 import { parseCsv, sheetTable } from './csv.js';
@@ -61,13 +61,14 @@ import { sheetSuggestProp, sheetOfferRules, agreedColumnWords } from './sheetoff
 import { uncoveredRules, csvRolesOf } from './sheetblock.js';
 import { withSheetRows, withSheetCard } from './sheetrows.js';
 import { buildSheetChecks, unbuiltSheetLines } from './sheetbuild.js';
-import { TICKET_FIELDS, ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
+import { ticketRuleField, proposalReds, withTicketRows } from './ticketrows.js';
+import { TICKET_FIELDS } from './checklistsign.js';
 import {
   makeProvider, ModelRefusal, sumMeterings, ceilingCostUsd, priceRecord,
 } from './provider.js';
 import { LIVE_PROVIDER_OPTIONS } from './model-step.js';
 import { ConfigError } from './config.js';
-import { thinkingSay, worstThinkingStatus } from './thinking.js';
+import { thinkingSay, worstThinkingStatus, isThinkingMode } from './thinking.js';
 import { repairTrailingBraces } from './jsonbrace.js';
 
 export const MAX_STRUCTURE_RETRIES = 2;
@@ -243,7 +244,7 @@ export function normalizeQuestions(raw, failedLines) {
 
 // M10 am27 (1): at draft time a count guardrail is hidden from the AI (the page look and the drafter); code keeps the ORIGINAL rule numbers and text.
 // M16 S5: not on a line the check block is given (`all`): its count rules are shown like any other (am27 (1) is replaced for the lines of the list)
-const shownRules = (/** @type {string} */ guardrail, all = false) => lineRules({ rule: guardrail }).filter((r) => all || !isCountGuardrail(r)).join('; ');
+const shownRules = (/** @type {string} */ guardrail, all = false) => lineRules({ rule: guardrail }).filter((r) => all || !isCountable(r)).join('; ');
 
 /**
  * The job lines as the page look may see them (no count rule), and `toOriginal`, which takes a look fact's / dropped entry's visible rule number back to the guardrail's own number.
@@ -251,10 +252,10 @@ const shownRules = (/** @type {string} */ guardrail, all = false) => lineRules({
  */
 export function hideCounts(jobLines, shown = /** @type {Set<number>} */ (new Set())) {
   // M16 item 5: the lines the check block is given show their count rules to the look (`shown`); every other line is as before
-  const seenLines = jobLines.map((l) => { const kept = lineRules(l).filter((r) => shown.has(l.n) || !isCountGuardrail(r)); return { n: l.n, text: l.text, ...(kept.length ? { rule: kept.join('; ') } : {}) }; });
+  const seenLines = jobLines.map((l) => { const kept = lineRules(l).filter((r) => shown.has(l.n) || !isCountable(r)); return { n: l.n, text: l.text, ...(kept.length ? { rule: kept.join('; ') } : {}) }; });
   const ruleMap = (/** @type {number} */ line, /** @type {number|undefined} */ vis) => {
     if (vis === undefined || shown.has(line)) return vis;
-    const orig = lineRules(jobLines.find((x) => x.n === line)).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountGuardrail(x.r));
+    const orig = lineRules(jobLines.find((x) => x.n === line)).map((r, i) => ({ r, no: i + 1 })).filter((x) => !isCountable(x.r));
     return orig[vis - 1]?.no ?? vis;
   };
   const toOriginal = (/** @type {any} */ f) => (f.forRule !== undefined ? { ...f, forRule: ruleMap(f.line, f.forRule) } : f.rule !== undefined ? { ...f, rule: ruleMap(f.line, f.rule) } : f);
@@ -392,7 +393,7 @@ export async function draft({
 
   // ---- $0 gates, before any provider is built -------------------------------
   // `draftThinking` ('on'|'off', M4d am6 item 7 / am7: the Chat tick-box, per job) is an intent only: turning thinking on or off on the wire is bareagent's (am7 item 3).
-  if (draftThinking !== 'on' && draftThinking !== 'off') return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
+  if (!isThinkingMode(draftThinking)) return fail([`config: draftThinking must be on | off, got ${JSON.stringify(draftThinking)}`]);
   if (actionMode !== null && actionMode !== 'check' && actionMode !== 'known') return fail([`config: actionMode must be check | known, got ${JSON.stringify(actionMode)}`]);
   const parsed = parseSignedText(proseText);
   if (!parsed.ok) return fail(parsed.reds.map((r) => `signed-text: ${r}`), { box: 'job' });
@@ -456,6 +457,8 @@ export async function draft({
   let unmetered = 0; // calls that failed with no metering: their cost is unknown
   const book = (inFlight) => onBook?.({
     inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
+    // M20 am1 item 5: the result so far, in log.json's shape, for the step lines (src/draftspend.js makeStepWriter)
+    partial: () => { const m = sumMeterings(meterings); return { ok: false, reds: [], rounds: m.rounds, modelId, costUsd: m.costUsd, spendComplete: unmetered === 0 && m.costUsd !== null, thinking: thinkingOf(), inputs: facts.list, log }; },
   });
 
   /** the result of a draft that stops before any drafting round with what it spent so far (a provider red, the budget); one literal for every such stop */
@@ -729,7 +732,7 @@ export async function draft({
   const shapeEverywhere = offerRules(lines, arbiter, [...look.facts, ...sheetFacts]);
   // M16 S1: the lines the block is given (step lines; a sheet line the sheet look tied to a column stays on the sheet path, R6). Their rules go to the block; every other shape rule keeps today's path.
   // a job with a CSV input: a line with a rule that is not a count belongs to the sheet path even when the sheet look tied none of its words (its sheet checks are the drafter's, M10b, which the list leaves as they are; the declaration is not there yet to say it)
-  const csvRuleLines = Object.keys(facts.sheets ?? {}).length ? jobLines.filter((l) => !askLines.has(l.n) && lineRules(l).some((r) => !isCountGuardrail(r))).map((l) => l.n) : [];
+  const csvRuleLines = Object.keys(facts.sheets ?? {}).length ? jobLines.filter((l) => !askLines.has(l.n) && lineRules(l).some((r) => !isCountable(r))).map((l) => l.n) : [];
   const blockPlan = blockJobLines(proseText, undefined, [...new Set([...sheetFacts.filter((f) => f.forRule !== undefined), ...sheetAsks, ...sheetLooks.flatMap((l) => l.dropped)].map((x) => x.line)), ...csvRuleLines]);
   if (blockPlan && !blockPlan.ok) return fail(blockPlan.reds.map((r) => `signed-text: ${r}`));
   const blockLineNums = new Set(blockPlan ? blockPlan.jobLines.map((l) => l.n) : []);
@@ -1094,6 +1097,7 @@ export async function draft({
     const planLookFacts = inPlan ? look.facts.filter((f) => !blockLineNums.has(f.line) || inPlan.has(`${f.line}:${f.name}`)) : look.facts;
     const verdict1 = validateDeclaration(declaration, {
       arbiter, lines, catalogue: validationCatalogue, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+      addedCounts: block ? addedCountsOf(block.choicesRecord(), lines) : new Set(),
       // M10 am7 item 1: the words of every cited fact are proved on the drafting copy of the page, against what the page-word map kept
       sheetWords: sheetTables ? { headers: Object.fromEntries(Object.entries(sheetTables).map(([role, t]) => [role, t.header])), facts: sheetFacts.filter((f) => f.shape === 'column' && !(sheetHitl?.lines ?? []).includes(f.line)), tables: sheetTables } : undefined,
       pageWords: { texts: { ...(facts.docs ?? {}), ...Object.fromEntries(Object.entries(pages).map(([role, pg]) => [role, pg.text])) }, look: pageSources.length ? { facts: planLookFacts, dropped: look.dropped } : null, docs: docRolesOf(arbiter.sources) },

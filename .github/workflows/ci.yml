@@ -17,7 +17,7 @@ concurrency:                # a newer push to a PR supersedes its older run; pus
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

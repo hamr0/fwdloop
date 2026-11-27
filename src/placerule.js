@@ -9,8 +9,8 @@
 // This module is the graduation (a REWRITE, never a copy) of the round-3 POC (F321). Pure except `lastPlaceRead`, which reads earlier runs' spines.
 
 import path from 'node:path';
-import { readFileInside, readdirInside } from './flow.js';
-import { readRunRecord } from './runfile.js';
+import { readFileInside, readdirInside } from './inside.js';
+import { readPlaceRows } from './runfile.js';
 
 /** the two rule kinds on the menu: the version in a heading, and the date on the same heading line */
 export const PLACE_KINDS = Object.freeze(['headingBetween', 'headingDateAfter']);
@@ -390,8 +390,7 @@ export function lastRunPlaceRead({ flowDir, runId }) {
   /** @type {Record<string, string>} */
   const out = {};
   for (const r of earlier) {
-    const got = readRunRecord(path.join(flowDir, 'runs', r.id));
-    const rows = got.ok && Array.isArray(got.rec.placeRules?.rows) ? got.rec.placeRules.rows : [];
+    const rows = readPlaceRows(path.join(flowDir, 'runs', r.id)) ?? [];
     for (const row of rows) if (isRec(row) && row.found === true && typeof row.value === 'string' && !Object.hasOwn(out, String(row.key))) out[String(row.key)] = row.value;
   }
   return out;

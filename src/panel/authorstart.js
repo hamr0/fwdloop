@@ -28,23 +28,26 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadCatalogue } from '../catalogue.js';
-import { scrub } from '../authoring.js';
-import { readHistory, readPidRows } from '../books.js';
-import {
-  PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readFileInside, readdirInside, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER,
-} from '../flow.js';
+import { scrub } from '../draftfiles.js';
+import { LOG_TAIL_CHARS } from '../draft-steps.js';
+import { endRow, haltFileExists, readHistory, processStarted } from '../books.js';
+import { PANEL_STARTS_DIR, checkRunId, claimRunId, freeRunId, readJsonFile, resolveRunDir, runOwnsPlan, copyRunPlan, RUN_PLAN_MARKER } from '../flow.js';
+import { readFileInside, readdirInside } from '../inside.js';
 import { booksFresh, runLiveness } from '../liveness.js';
 import { dropUnstartedValues, writeRunValues } from '../runvalues.js';
 import { TRIGGER_RECORD_FILE } from '../trigger-line.js';
 import {
-  childRunning, providerKeys, readJsonFile, spawnDetached, writePidFile,
+  childRunning, providerKeys, spawnDetached, writePidFile,
 } from './spawn.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', '..', 'bin', 'fwdloop');
 const ID_RE = /^s-[0-9a-z]{10}-[0-9a-f]{4}$/;
 const newId = () => `s-${Date.now().toString(36).padStart(10, '0')}-${randomBytes(2).toString('hex')}`;
-const LOG_TAIL_CHARS = 1500;
+/** the one writer of a start folder's `start.json`: the caller's fields, then when the start was made @param {string} dir @param {Record<string, any>} rec */
+function writeStartRecord(dir, rec) {
+  writeFileSync(join(dir, 'start.json'), `${JSON.stringify({ ...rec, startedAt: new Date().toISOString() }, null, 2)}\n`, { mode: 0o600 });
+}
 const NOTHING_SPENT = 'Nothing spent.';
 const ENDED_SAY = `The run process ended before it started. ${NOTHING_SPENT}`;
 
@@ -92,14 +95,14 @@ export function createStarter(opts) {
     // A Resume (M4e amendment 4): the run already has book rows from its first leg, so "took over" is read from the halt record
     // (`halt.json`), which only the continuing process consumes — still there means the child has not taken the run yet.
     if (st.kind === 'resume') {
-      const waiting = readFileInside(resolved.runDir, 'halt.json').ok;
+      const waiting = haltFileExists(resolved.runDir);
       if (!waiting) return { ...base, phase: 'started', state: carriedOn() };
       if (alive) return { ...base, phase: 'starting' };
-    } else if (readPidRows(resolved.runDir).length > 0) {
+    } else if (processStarted(resolved.runDir)) {
       return { ...base, phase: 'started', state: carriedOn() };
     } else if (alive) return { ...base, phase: 'starting' };
     // a SKIPPED run (hamr 2026-10-30) ends before its first pid row, but its history row is a real ending: a grey one, never a refusal
-    if (readHistory(flowDir).some((h) => h.runId === st.runId && h.outcome === 'skipped')) return { ...base, phase: 'started', state: 'ended' };
+    if (endRow(readHistory(flowDir), resolved.runDir, st.runId)?.outcome === 'skipped') return { ...base, phase: 'started', state: 'ended' };
     const log = readFileInside(dir, 'child.log');
     const tail = log.ok ? scrub(log.text, keys).trim().slice(-LOG_TAIL_CHARS).replace(/^fwdloop: /, '') : '';
     const say = tail === '' ? ENDED_SAY : (tail.includes(NOTHING_SPENT) ? tail : `${tail}\n${NOTHING_SPENT}`);
@@ -230,9 +233,7 @@ export function createStarter(opts) {
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });
       mkdirSync(dir, { mode: 0o700 });
-      writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
-        kind, flow, runId, sources, startedAt: new Date().toISOString(),
-      }, null, 2)}\n`, { mode: 0o600 });
+      writeStartRecord(dir, { kind, flow, runId, sources });
       // M12: `--ticket N` (the one ticket of the list this run reads) follows the sources
       const argv = ['run', flow, '--root', realpathSync(root), ...sources.flatMap((s) => ['--source', `${s.role}=${s.path}`]), ...sources.flatMap((s) => (s.ticket === undefined ? [] : ['--ticket', String(s.ticket), ...(s.anyway === true ? ['--anyway'] : [])])), '--run-id', runId, ...(pick ? ['--model', pick.model, '--provider', pick.slot] : [])]; // M4d am7b: a flow with no record runs with the model picked in Chat
       let child;
@@ -267,9 +268,7 @@ export function createStarter(opts) {
       const dir = join(sd, id);
       mkdirSync(sd, { recursive: true, mode: 0o700 });
       mkdirSync(dir, { mode: 0o700 });
-      writeFileSync(join(dir, 'start.json'), `${JSON.stringify({
-        kind: 'resume', flow, runId, version, sources: [], startedAt: new Date().toISOString(),
-      }, null, 2)}\n`, { mode: 0o600 });
+      writeStartRecord(dir, { kind: 'resume', flow, runId, version, sources: [] });
       let child;
       try {
         child = spawnDetached({

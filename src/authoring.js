@@ -31,7 +31,8 @@ import { sheetLineBlocks } from './sheetblock.js';
 import { loadCatalogue } from './catalogue.js';
 import { WIRED_VERBS } from './primitives.js';
 import { canonicalBytes } from './signature.js';
-import { writeFlow, writeRunPlan, readFlow, readFileInside, readdirInside, checkFlowName } from './flow.js';
+import { writeFlow, writeRunPlan, readFlow, readJsonFile, checkFlowName, readDraftLog } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { jobKeyOfSigned } from './jobkey.js';
 import { checkSendDestination } from './runner.js';
 import { checkKeyPreflight, appendSpendRow } from './provider.js';
@@ -40,28 +41,25 @@ import { readModelRecord, writeModelRecord, writeLearningsRecord, writeLearnings
 import { configDoorHome } from './config.js';
 import { hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
-import { sessionPriorSpend, writeDraftSpend } from './draftspend.js';
+import { makeStepWriter, sessionPriorSpend, writeDraftSpend } from './draftspend.js';
 import { writeSetup } from './setup.js';
-import { RECORD_FILE } from './pickrecord.js';
+import { RECORD_FILE, readKept, readRowChoices, recordPath, addedCountsOf } from './pickrecord.js';
 import { planMatchesCard, numbersWords } from './checkrows.js';
 import { csvRolesOf } from './sheetblock.js';
 import { mcpPickHere } from './mcp-pick.js';
 import { hitlWords, notCheckedView } from './checked.js';
+import {
+  SPEC_HASH_FILE, LEAK_MARKER_FILE, draftVerdict, QUESTIONS_FILE, ANSWER_FILE, NOT_CHECKED_FILE, readNotCheckedFile, readQuestions, scrub, readCard, cardFileName, readRedraftMarker, redraftFileName, readPlanTexts,
+} from './draftfiles.js';
 
-export const SPEC_HASH_FILE = 'spec.hash';
 /** The one folder under the flows root where the panel keeps its draft folders (M4e). Starts with a dot, so it is never a flow name. */
 export const PANEL_DRAFTS_DIR = '.drafts';
-/** Written when the end sweep finds a key in the draft dir; sign refuses a dir that has it. */
-export const LEAK_MARKER_FILE = 'scrub-leak.red';
 /** M4e amendments 24/25: the drafter's questions (written once by `fwdloop draft`), each human answer (`answer-<k>.json`, written once by the panel),
  *  and the drafter's own "not checked" reading (information only; never in the readout, so never in the hash). */
-export const QUESTIONS_FILE = 'questions.json';
-export const NOT_CHECKED_FILE = 'not-checked.json';
 /** M10: the drafting copy of each web page input is kept in this folder of the draft folder (a run freezes its own, never this one). */
 export const PAGES_DIR = 'pages';
 /** M10 item 3: what the page-word look kept and dropped, per page input (the map the AI named, the kept facts with their readings, every drop). Not signed. */
 export const PAGE_LOOK_FILE = 'page-look.json';
-export const ANSWER_FILE = (k) => `answer-${k}.json`;
 export const SIGN_LINE = (dir, hash) => `DRAFTED — NOT SIGNED. To sign: fwdloop sign ${dir} --approve ${hash}`;
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -91,42 +89,13 @@ export function specHash({
 }
 
 /**
- * The questions a plan folder raised and the answers on disk, READ from its files — the ONE reader (the panel's phase reader, the sign
- * checks and the page all use it). `questions` = [{ k, line, question, answer|null }], `open` = those with no answer. A blank or unreadable
- * answer file counts as no answer. No questions file = `{ questions: [], open: [] }`.
- * @param {string} planDir
- * A question the page look raised (M10 piece 3) also carries `source: 'look'`, `ask` ('reading' | 'cant-check'), `ruleNo`, `ruleText` and `proposal`; an answer file carries `at`.
- * @returns {{ questions: {k:number, line:number, question:string, answer:string|null, at?:string, rule?:string|null, choice?:'agree'|'drop'|'rule'|'column', source?:string, ask?:string, ruleNo?:number, ruleText?:string, proposal?:string|null, check?:Record<string, any>, pairRule?:number, columns?:string[], readings?:Record<string,string>}[], open: {k:number, line:number, question:string, answer:null}[] }}
+ * The flow name a draft will sign as: the `name` in `target.json` of a plan folder (`planDir`, read through the safe gateway). A string that is not empty,
+ * else null (no file, not JSON, not an object, no name, a name that is empty or not a string).
+ * @param {string} planDir @returns {string|null}
  */
-export function readQuestions(planDir) {
-  const none = { questions: [], open: [] };
-  const f = readFileInside(planDir, QUESTIONS_FILE);
-  if (!f.ok) return none;
-  let list;
-  try { list = JSON.parse(f.text)?.questions; } catch { return none; }
-  if (!Array.isArray(list)) return none;
-  const questions = list.map((q, i) => {
-    const k = i + 1;
-    const a = readFileInside(planDir, ANSWER_FILE(k));
-    let answer = null;
-    let at;
-    /** @type {string|null|undefined} the `~` rule the answer added (null = it left the rule Not checked), as the answer file recorded it */
-    let rule;
-    /** @type {'agree'|'drop'|'rule'|'column'|undefined} M10 am29: which one the answer used (`agree`, `drop` or `rule`), when the file records it */
-    let choice;
-    if (a.ok) {
-      try {
-        const j = JSON.parse(a.text);
-        const t = j?.answer;
-        if (typeof t === 'string' && t.trim() !== '') { answer = t; if (typeof j.at === 'string') at = j.at; if (j.rule === null || typeof j.rule === 'string') rule = j.rule; if (j.choice === 'agree' || j.choice === 'drop' || j.choice === 'rule' || j.choice === 'column') choice = j.choice; }
-      } catch { /* unreadable = unanswered */ }
-    }
-    return {
-      k, line: q.line, question: String(q.question), answer, ...(at === undefined ? {} : { at }), ...(rule === undefined ? {} : { rule }), ...(choice === undefined ? {} : { choice }),
-      ...(q.source === 'look' ? { source: 'look', ask: q.ask, ruleNo: q.ruleNo, ruleText: q.ruleText, proposal: typeof q.proposal === 'string' ? q.proposal : null, ...(q.check && typeof q.check === 'object' ? { check: q.check } : {}), ...(Number.isInteger(q.pairRule) ? { pairRule: q.pairRule } : {}), ...(Array.isArray(q.columns) && q.columns.length > 0 && q.readings && typeof q.readings === 'object' ? { columns: q.columns.map(String), readings: q.readings } : {}) } : {}),
-    };
-  });
-  return { questions, open: /** @type {any} */ (questions.filter((q) => q.answer === null)) };
+export function readTargetName(planDir) {
+  const name = readJsonFile(planDir, 'target.json')?.name;
+  return typeof name === 'string' && name !== '' ? name : null;
 }
 
 export const OPEN_QUESTION_SAY = 'A question the plan raised is still open. Answer it in the panel (fwdloop panel), then sign the plan it drafts after your answers. Nothing was signed.';
@@ -137,13 +106,6 @@ export function questionsRefusal(planDir) {
   const q = readQuestions(planDir);
   if (q.questions.length === 0) return null;
   return q.open.length > 0 ? OPEN_QUESTION_SAY : ANSWERED_QUESTION_SAY;
-}
-
-/** Literal (never RegExp) key scrub; a secret under 8 chars is skipped so it can't blank ordinary text. */
-export function scrub(text, secrets) {
-  let out = text;
-  for (const s of secrets) if (typeof s === 'string' && s.length >= 8) out = out.split(s).join('[redacted-key]');
-  return out;
 }
 
 /** Count files directly inside `dir` that contain a secret literally. */
@@ -385,7 +347,7 @@ export function writePlanFiles(dir, files, opts = {}) {
  * `onResult({ ok })` (M4d am32): called once, after the spend is booked and just before the result files are written (the CLI gives its monthly hold back there).
  */
 export async function draftToDir({
-  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
+  proseFile, dir, root, name, slot, model, draftThinking = /** @type {'on'|'off'} */ ('off'), keyNames, env = process.env, provider, rates, modelId, noQuestions = false, onResult, onStepLine, fetchPage, leftRules, columnAnswers, carriedColumns, checkPicks, carriedPicks, carriedChoices, carriedSheetDropped, carriedShapeDropped, proseRead,
   flowType = /** @type {'plain'|'mcp'|'tickets'} */ ('plain'), mcpServer = /** @type {string|undefined} */ (undefined), mcpPick = /** @type {any} */ (undefined), mcpServers = /** @type {string[]|undefined} */ (undefined),
   // M13 am11: what the card's tentative send line is (see draft()); null = the prose file is the truth
   actionMode = /** @type {null|'check'|'known'} */ (null),
@@ -428,9 +390,14 @@ export async function draftToDir({
   // Spend is booked per call into `<dir>/draft-spend.json` (src/draftspend.js), so a draft stopped between rounds
   // keeps what it paid. The first write is the mark that a call is in flight: if that cannot be written, the call is not made.
   let startedAt = null;
+  // M20 am1 item 5 (+ am2): the step lines, written by the CLI's `onStepLine` into the draft's existing child.log; none when nothing listens
+  const stepWriter = typeof onStepLine === 'function' ? makeStepWriter(onStepLine) : null;
   const onBook = ({
-    inFlight, calls, unmetered, metered, modelId: usedModel, price,
+    inFlight, calls, unmetered, metered, modelId: usedModel, price, partial,
   }) => {
+    if (stepWriter !== null && typeof partial === 'function') {
+      try { stepWriter(partial(), null, false); } catch { /* progress only: a failed line never fails the draft */ }
+    }
     const now = new Date().toISOString();
     startedAt ??= now;
     try {
@@ -522,6 +489,10 @@ export async function draftToDir({
     // M13 am11: the job's action (the last line the AI named, or the person agreed or typed), or null: the plan card's row `› line <n> writes everything before it`
     action: result.action ?? null,
   }), secrets);
+  // M20 am1 item 5: the last step lines (every step ended, final labels) are written before the result files, so a draft the panel sees finished already has them
+  if (stepWriter !== null) {
+    try { stepWriter(JSON.parse(files['log.json']), result.declaration ?? null, true); } catch { /* progress only */ }
+  }
   let hash = null;
   if (result.ok) {
     const declarationText = scrub(dj(result.declaration), secrets);
@@ -595,7 +566,8 @@ export function signDraft({
   dir, approve, signedBy, signedAt = new Date().toISOString(), env = process.env, keyNames, sessionDir, replaces, asRunOf,
 }) {
   const refuse = (...reds) => ({ ok: false, reds });
-  if (readFileInside(dir, LEAK_MARKER_FILE).ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
+  const dv = draftVerdict(dir);
+  if (dv.leak.ok) return refuse(`sign: "${dir}" carries a key-leak marker (${LEAK_MARKER_FILE}) — never signed`);
   const openQuestion = questionsRefusal(dir);
   if (openQuestion !== null) return refuse(`sign: ${openQuestion}`);
   // Sign is $0 and takes no key, so it can only sweep for the keys it is told of (`keyNames`, the rows set up in Settings).
@@ -606,7 +578,7 @@ export function signDraft({
   const read = (f) => readFileInside(dir, f);
   const parts = {};
   for (const f of ['prose.txt', 'declaration.json', 'input-facts.json', 'readout.txt', SPEC_HASH_FILE, 'target.json']) {
-    const r = read(f);
+    const r = f === SPEC_HASH_FILE ? dv.hashFile : read(f);
     if (!r.ok) return refuse(`sign: "${dir}" is not a green draft — ${f} ${r.missing ? 'is missing' : `is refused (${r.red})`}`);
     parts[f] = r.text;
   }
@@ -633,18 +605,18 @@ export function signDraft({
   if (!cat.ok) return refuse(`sign: catalogue: ${cat.reds.join('; ')}`);
   const verdict = validateDeclaration(declaration, {
     arbiter: signed.arbiter, lines: signed.lines, catalogue: cat.primitives, wired: WIRED_VERBS, verbatimGoals: true, fitJobLine: true,
+    addedCounts: addedCountsOf(readRowChoices(recordPath(dir)), signed.lines),
   });
   if (!verdict.ok) return { ok: false, reds: verdict.reds };
   // M19 am6 item 3 (bareloop `planMatchesClose`): the card a draft saved must equal the checks the signed plan runs, line by line; a difference refuses the sign at $0, naming the line.
   // Only a card saved with its own Not checked list (this build) is compared; an older saved card is drawn from the plan and not held to it.
   const cardReds = (() => {
     if (!Array.isArray(declaration.checkList)) return [];
-    const lg = read('log.json');
-    const rec = read(RECORD_FILE);
-    /** @type {any} */ let log = null; /** @type {any} */ let record = null;
-    try { log = lg.ok ? JSON.parse(lg.text) : null; record = rec.ok ? JSON.parse(rec.text) : null; } catch { return []; }
+    const keptRead = readKept(dir);
+    const log = readDraftLog(dir);
+    if (keptRead.torn) return [];   // an unreadable record: the check skips
     if (!log?.checkCard || !Array.isArray(log.checkCard.notChecked)) return [];
-    const kept = Array.isArray(record?.kept) ? record.kept.filter((/** @type {any} */ k) => k && Number.isInteger(k.line)) : [];
+    const kept = (keptRead.kept ?? []).filter((/** @type {any} */ k) => k && Number.isInteger(k.line));
     return planMatchesCard({ declaration, lines: signed.lines, csvRoles: csvRolesOf(signed.arbiter), kept, log: log.log }, log.checkCard);
   })();
   if (cardReds.length) return { ok: false, reds: cardReds };

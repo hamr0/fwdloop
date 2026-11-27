@@ -10,8 +10,8 @@ import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { killChildrenAfter, until, useHome, world } from './m4e-world.mjs';
 import { appendMcpCheck } from '../src/mcp-checks.js';
 import { ledgerOf, readSchedule } from '../src/schedule.js';
-import { readRows } from '../src/trigger-clock.js';
 import { LIST } from './m12-p2-world.mjs';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 killChildrenAfter();
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -46,7 +46,7 @@ async function greenDraft(w, card) {
   assert.equal(g.phase, 'green', JSON.stringify(g));
   return { id, g };
 }
-const armedRows = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? null : readRows(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); };
+const armedRows = (flowDir) => { const sc = readSchedule(flowDir); return sc === null ? null : readTriggerLedger(ledgerOf(flowDir), sc.sig).filter((r) => r.kind === 'armed'); };
 
 test('the card refuses a Schedule it cannot sign, at $0, naming the Schedule box: a new ticket on a plain job, a bad time, an unknown kind', async () => {
   const w = await tWorld();
@@ -56,7 +56,7 @@ test('the card refuses a Schedule it cannot sign, at $0, naming the Schedule box
   assert.equal(rs[0].say, 'Only a Tickets MCP job can start on a new ticket.');
   rs = await bad({ kind: 'daily', hour: 25, minute: 0 });
   assert.equal(rs[0].say, 'The time must be an hour 0-23 and a minute 0-59, like 09:00.');
-  rs = await bad({ kind: 'weekly', day: 'mon', hour: 9, minute: 0 });
+  rs = await bad({ kind: 'monthly', hour: 9, minute: 0 });
   assert.equal(rs[0].say, 'Pick when it runs from the choices.');
   assert.equal(w.starts().length, 0);
 });

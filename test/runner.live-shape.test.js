@@ -1,7 +1,7 @@
 // M2 piece 2 — the end-to-end live-shape test: job #2's REAL signed fixture
 // flow runs through `runFlow` with `makeLiveModelStep` on a FAKE provider
 // (canned tool calls, $0-priced via injected rates — zero real network,
-// zero real key) and the REAL file-ask protocol (`makeFileAskStep`),
+// zero real key) and an in-process ask step that accepts what it is shown,
 // answered by this test writing `answer.json` while the run is paused.
 // Proves: a planted softgreen red heals on attempt 2 (the M2 POC's own
 // question — "a step that sees only the gap can heal" — exercised here
@@ -23,7 +23,7 @@ import { writeFlow } from '../src/flow.js';
 import { loadCatalogue } from '../src/catalogue.js';
 import { runFlow } from '../src/runner.js';
 import { makeLiveModelStep } from '../src/model-step.js';
-import { makeFileAskStep, sha256Hex, serializeArtifact } from '../src/ask.js';
+import { sha256Hex, serializeArtifact } from '../src/ask.js';
 import { sandboxSend } from './send-sandbox.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -81,16 +81,6 @@ const GOOD_SUMMARY = {
   done: true,
 };
 
-async function waitFor(predicate, { timeoutMs = 3000, pollMs = 20 } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    if (predicate()) return true;
-    if (Date.now() >= deadline) return false;
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => { setTimeout(r, pollMs); });
-  }
-}
-
 test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file ask resumes on accept, the run completes with both books and modelMatch on every spend row', async () => {
   const root = tmpRoot('live-shape');
   const written = writeFlow({
@@ -124,7 +114,13 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
     spendPath, provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
   });
 
-  const askStep = makeFileAskStep({ pollMs: 20, timeoutMs: 5000 });
+  // M20 am3 item 5: the in-process file ask step is gone; an ask step that takes what it is shown, as the answer door records it
+  // (M13 am11: the sha256 of the shown artifact; without it nothing counts as accepted)
+  let askedQuestion = null;
+  const askStep = async ({ question, evidence }) => {
+    askedQuestion = question;
+    return { decision: 'accept', artifactSha256: sha256Hex(serializeArtifact(evidence.artifact)) };
+  };
   const sendStep = async (target, filename, content) => ({ ok: true, bytes: JSON.stringify(content ?? {}).length });
 
   const runPromise = runFlow({
@@ -140,17 +136,9 @@ test('job #2 live-shape: a planted softgreen red heals on attempt 2, the file as
     businessDate: '2026-06-01',
   });
 
-  // Wait for the ask to open, then answer it as a human would.
-  const askPath = path.join(runDir, 'ask.json');
-  const askOpened = await waitFor(() => existsSync(askPath));
-  assert.ok(askOpened, 'the run must reach the human ask (job #2 fromLine 4)');
-  const askJson = JSON.parse(readFileSync(askPath, 'utf8'));
-  assert.match(askJson.question, /check it with me/);
-  // M13 am11: an accept records the sha256 of what was shown (the answer door does this); without it nothing counts as accepted and the run would stop once more before the action
-  writeFileSync(path.join(runDir, 'answer.json'), JSON.stringify({ decision: 'accept', answeredAt: new Date().toISOString(), artifactSha256: sha256Hex(serializeArtifact(askJson.evidence.artifact)) }));
-
   const result = await runPromise;
   assert.equal(result.outcome, 'complete', result.red ?? JSON.stringify(result.reds));
+  assert.match(askedQuestion, /check it with me/, 'the run must reach the human ask (job #2 fromLine 4)');
 
   // The softgreen red on attempt 1, then a green on attempt 2 — proved via audit.jsonl, not
   // just the final outcome (the POC's own question: does a gap-only channel heal?).
@@ -211,9 +199,7 @@ function mktempInputs() {
 test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spends nothing beyond the steps already run', async () => {
   const root = tmpRoot('live-shape-timeout');
   // M3 scope item 1 (fixes F43): the runner now threads the SIGNED ttl into
-  // every ask, and no code default (e.g. `makeFileAskStep`'s own
-  // `timeoutMs`) ever overrides it — so this test needs a short SIGNED ttl
-  // ("ask 1s:") rather than relying on `timeoutMs` alone to fire fast.
+  // every ask — so this test uses a short SIGNED ttl ("ask 1s:").
   const shortTtlProse = sandboxSend(fixture('job2-with-sources.signed.txt')).replace('4. ask: check it with me,', '4. ask 1s: check it with me,');
   const written = writeFlow({
     root,
@@ -243,8 +229,8 @@ test('job #2 live-shape: an ask timeout halts the run "ask-timeout", a pause spe
   const modelStep = makeLiveModelStep({
     spendPath, provider, rates: { in: 0.001, out: 0.002 }, modelId: 'deepseek-flash',
   });
-  // The signed "ask 1s:" governs the wait (F43) — nobody ever answers.
-  const askStep = makeFileAskStep({ pollMs: 10, timeoutMs: 50 });
+  // The signed "ask 1s:" governs the wait (F43) — nobody ever answers: the step reports the wait ran out.
+  const askStep = async () => ({ decision: 'timeout' });
   const sendStep = async () => ({ ok: true, bytes: 1 });
 
   const result = await runFlow({

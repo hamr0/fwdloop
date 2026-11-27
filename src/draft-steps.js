@@ -8,6 +8,16 @@
 // Third outcomes: no log -> null (nothing to list); a cost that is null reads "cost unknown", an incomplete sum reads "at least $X", never 0.
 
 import { plainPlanCheck, pickPlanRed } from './plain-checks.js';
+import { isThinkingMode } from './thinking.js';
+
+/** a plan folder's card file: `card-<n>.json` (n = the redraft or revise number) */
+export const CARD_RE = /^card-(\d+)\.json$/;
+/** how much of the end of a child's log a person is shown when it stopped or refused */
+export const LOG_TAIL_CHARS = 1500;
+/** a revise's or an answer redraft's own log in a plan folder; `kind` is 'answers' for the redraft, anything else for the revise @param {string} kind @param {number} n */
+export const draftLogName = (kind, n) => `${kind === 'answers' ? 'redraft' : 'revise'}-${n}.log`;
+/** a name that is a revise's or a redraft's log */
+export const DRAFT_LOG_RE = /^(revise|redraft)-\d+\.log$/;
 
 const REBUILD_RE = /^declaration: steps\[(\d+)\]\.close\.shape cannot be built into a check — (.*)$/s;
 
@@ -55,7 +65,7 @@ export function draftStepList({ log, declaration, questionOpen = false }) {
   const out = [];
 
   const t = log.thinking;
-  if (t && (t.asked === 'on' || t.asked === 'off') && typeof t.status === 'string') {
+  if (t && isThinkingMode(t.asked) && typeof t.status === 'string') {
     if (t.status === 'applied') out.push({ id: 'thinking', label: `thinking ${t.asked}`, status: 'done', details: [] });
     else if (typeof t.say === 'string' && t.say !== '') out.push({ id: 'thinking', label: t.say, status: 'failed', details: [] });
   }

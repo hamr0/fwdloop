@@ -19,7 +19,8 @@
 import { renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 
-import { readdirInside, readFileInside } from './flow.js';
+import { readdirInside, readFileInside } from './inside.js';
+import { draftStepList, DRAFT_LOG_RE } from './draft-steps.js';
 import { readSpendRows, rowCeilingUsd, spendRowCost, unmeteredCalls } from './provider.js';
 import { parseSignedText } from './signed-text.js';
 
@@ -79,6 +80,17 @@ export const STARTED_OVER_FILE = 'started-over-from.json';
 const SESSION_ID_RE = /^d-[0-9a-z]{10}-[0-9a-f]{4}$/;
 
 /**
+ * M20 am3 item 12: the ONE reader of a session folder's `started-over-from.json`: the `startedOverFrom` value it holds, or null when
+ * there is no file, it is unreadable, or it holds none. (A value that is not a session id is the caller's to judge.)
+ * @param {string} sessionDir @returns {unknown}
+ */
+export function readStartedOverFrom(sessionDir) {
+  const so = readFileInside(sessionDir, STARTED_OVER_FILE);
+  if (!so.ok) return null;
+  try { return JSON.parse(so.text)?.startedOverFrom ?? null; } catch { return null; }
+}
+
+/**
  * M4d amendment 16 item 1: what ALL of a job's drafting spent — the one writer of that total. A panel draft's session folder holds one plan
  * folder per draft (`draft/`, `draft-<n>/` for each revise and the redraft after answers); each is read by `readDirSpendRows` and priced by
  * `spendRowCost`, the one cost rule. A round whose cost is not known counts at its WORST CASE (item 5): its own booked price's ceiling, else
@@ -108,22 +120,18 @@ export function draftingSpent(sessionDir, { ceilingUsd = 0, exclude } = {}, seen
   }
   // M4d am19 item 3: a Start over opens a new session folder that names the one it started over from (`started-over-from.json`, written once by the panel):
   // what the earlier session spent is still this job's drafting, so the chain is followed (a name that points back at a folder already counted is not).
-  const so = readFileInside(sessionDir, STARTED_OVER_FILE);
-  if (so.ok) {
-    let from = null;
-    try { from = JSON.parse(so.text)?.startedOverFrom; } catch { /* unreadable: no chain */ }
-    if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
-      const prev = join(dirname(sessionDir), from);
-      // M4d am21 item 2: a link naming a folder that is gone is NOT $0: what it spent cannot be counted (`missingEarlier`, never a clean figure)
-      if (!readFileInside(prev, 'card.json').ok) missingEarlier = true;
-      else {
-        const before = draftingSpent(prev, { ceilingUsd }, seen);
-        usd += before.usd;
-        notPriced += before.notPriced;
-        missingEarlier = before.missingEarlier;
-      }
-    } else if (typeof from === 'string' && !SESSION_ID_RE.test(from)) missingEarlier = true;
-  }
+  const from = readStartedOverFrom(sessionDir);
+  if (typeof from === 'string' && SESSION_ID_RE.test(from) && !seen.has(resolve(dirname(sessionDir), from))) {
+    const prev = join(dirname(sessionDir), from);
+    // M4d am21 item 2: a link naming a folder that is gone is NOT $0: what it spent cannot be counted (`missingEarlier`, never a clean figure)
+    if (!readFileInside(prev, 'card.json').ok) missingEarlier = true;
+    else {
+      const before = draftingSpent(prev, { ceilingUsd }, seen);
+      usd += before.usd;
+      notPriced += before.notPriced;
+      missingEarlier = before.missingEarlier;
+    }
+  } else if (typeof from === 'string' && !SESSION_ID_RE.test(from)) missingEarlier = true;
   return { usd, notPriced, complete: notPriced === 0 && !missingEarlier, missingEarlier };
 }
 
@@ -173,4 +181,144 @@ export function draftHoldUsd(proseText, outDir, ceilingUsd) {
  */
 export function capTooSmallText(kind, capUsd, minUsd, modelId) {
   return `Cap ${usdText(capUsd)} is below one ${kind} round's worst case for ${modelId}, $${minUsd.toFixed(4)}. Raise Cap $ or pick another model.`;
+}
+
+// M20 am1 items 5-6 + am2: the drafting step lines. The `fwdloop draft` child writes them into the draft's existing child.log (as `fwdloop: refusal-record`, M19 am14b):
+//   `fwdloop: step-start {no, id, label, at}` and `fwdloop: step-end {no, status, label, at}`.
+// `id` and `label` are `draftStepList`'s own (src/draft-steps.js) for the step; the `thinking` line and a `Fix:` note get no line (they have no time).
+// Throws away: the model's replies and every per-round figure but what the label carries. Third outcomes: a torn or unparseable line is skipped; no lines = no times.
+export const STEP_LINE_RE = /^fwdloop: (step-start|step-end) (\{.*\})$/;
+export const STEP_LINE_PREFIXES = ['fwdloop: step-start ', 'fwdloop: step-end '];
+
+/**
+ * The ONE writer of the step lines. `emit(kind, record)` prints one line (the CLI passes stderr). Each call is given the result so far
+ * (`log`, as log.json will hold it) and writes a start for every step not yet started, and an end for every step but the last (the running one);
+ * `final` ends them all. A step is keyed by its `id`: written once.
+ * @param {(kind: 'step-start'|'step-end', rec: Record<string, any>) => void} emit
+ */
+export function makeStepWriter(emit) {
+  /** @type {string[]} */
+  const started = [];
+  const ended = new Set();
+  return (/** @type {any} */ log, /** @type {any} */ declaration, final) => {
+    const list = draftStepList({ log, declaration, questionOpen: !final });
+    const items = (list ?? []).filter((st) => st.note !== true && st.id !== 'thinking');
+    items.forEach((st, i) => {
+      const at = new Date().toISOString();
+      if (!started.includes(st.id)) { started.push(st.id); emit('step-start', { no: started.length - 1, id: st.id, label: st.label, at }); }
+      if ((final || i < items.length - 1) && !ended.has(st.id)) {
+        ended.add(st.id);
+        emit('step-end', { no: started.indexOf(st.id), status: st.status === 'failed' ? 'failed' : 'done', label: st.label, at });
+      }
+    });
+  };
+}
+
+/**
+ * Fold the step lines of `<dir>/child.log` into one record per step, oldest first. A line that cannot be parsed is skipped.
+ * @param {string} dir the draft folder @param {string} [file] the child's log: `child.log` (the first draft), `revise-<n>.log` or `redraft-<n>.log`
+ * @returns {{no: number, id: string, label: string, status: 'running'|'done'|'failed', startedAt: string, endedAt: string|null, wallMs: number|null}[]}
+ */
+export function readDraftSteps(dir, file = 'child.log') {
+  const r = readFileInside(dir, file);
+  if (!r.ok) return [];
+  /** @type {Map<number, any>} */
+  const byNo = new Map();
+  for (const line of r.text.split('\n')) {
+    const m = STEP_LINE_RE.exec(line);
+    if (!m) continue;
+    let ev;
+    try { ev = JSON.parse(m[2]); } catch { continue; }
+    if (!ev || typeof ev !== 'object' || !Number.isInteger(ev.no)) continue;
+    if (m[1] === 'step-start') {
+      byNo.set(ev.no, { no: ev.no, id: String(ev.id), label: String(ev.label), status: 'running', startedAt: ev.at, endedAt: null, wallMs: null });
+    } else if (byNo.has(ev.no)) {
+      const x = byNo.get(ev.no);
+      x.status = ev.status === 'failed' ? 'failed' : 'done';
+      x.endedAt = ev.at;
+      if (typeof ev.label === 'string') x.label = ev.label;
+    }
+  }
+  const steps = [...byNo.values()].sort((a, b) => a.no - b.no);
+  for (const x of steps) {
+    const a = Date.parse(x.startedAt);
+    const b = x.endedAt === null ? NaN : Date.parse(x.endedAt);
+    x.wallMs = Number.isFinite(a) && Number.isFinite(b) ? Math.max(0, b - a) : null;
+  }
+  return steps;
+}
+
+// borrowed-from: bareloop src/draftspend.js@v0.63.0 (7bc2719b): TIME_STEP_MS, mmss, stepped, draftWallMs, withDraftTimes, draftedLine
+/** a running time moves in 30 s steps, never a ticking clock (the page polls often; the words change every 30 s) */
+export const TIME_STEP_MS = 30_000;
+
+/** M:SS, the ONE spelling of a drafting time ("took 0:42", "Drafting so far: 2:00"). @param {number} ms @returns {string} */
+export function mmss(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** a running time floored to its 30 s step @param {number} ms @returns {number} */
+export const stepped = (ms) => Math.floor(Math.max(0, ms) / TIME_STEP_MS) * TIME_STEP_MS;
+
+/**
+ * The drafting's whole time: the first step's start to the last step's end; `null` when no step has both times.
+ * @param {{startedAt: string, endedAt: string|null}[]} steps `readDraftSteps`' records
+ * @returns {number|null}
+ */
+export function draftWallMs(steps) {
+  const starts = steps.map((x) => Date.parse(x.startedAt)).filter(Number.isFinite);
+  const ends = steps.map((x) => (x.endedAt === null ? NaN : Date.parse(x.endedAt))).filter(Number.isFinite);
+  return starts.length && ends.length ? Math.max(0, Math.max(...ends) - Math.min(...starts)) : null;
+}
+
+/**
+ * The ONE owner of the times on the chat's drafting list. While the draft runs the list is the started steps (`no` order, latest label), each `time` "M:SS so far"
+ * (a finished one "took M:SS") and `draftSoFar` is "Drafting so far: M:SS". After it ends `list` is `draftStepList`'s list unchanged, each line taking the times of the
+ * step line with the same `id` (the first unused, in order); a line no step line matches (thinking, a Fix note) has no time. No lines = no times, `draftSoFar` null.
+ * A revise or answer redraft is read from its own log (`file`); its one `plan` line (`reviseStepList`) takes the draft's whole time (`wholeId`).
+ * @param {{dir: string, running: boolean, list: any[]|null, nowMs?: number, file?: string, wholeId?: string}} p `dir` = the draft folder, `file` = the child's log in it, `list` = draftStepList's (or reviseStepList's) list or null
+ * @returns {{list: any[]|null, draftSoFar: string|null}}
+ */
+export function withDraftTimes({ dir, running, list, nowMs = Date.now(), file = 'child.log', wholeId }) {
+  const logged = readDraftSteps(dir, file);
+  const timeOf = (/** @type {any} */ x) => {
+    const a = Date.parse(x.startedAt);
+    if (!Number.isFinite(a)) return null;
+    if (x.status === 'running') return `${mmss(stepped(nowMs - a))} so far`;
+    return x.wallMs !== null ? `took ${mmss(x.wallMs)}` : null;
+  };
+  const starts = logged.map((x) => Date.parse(x.startedAt)).filter(Number.isFinite);
+  const draftSoFar = running && logged.some((x) => x.status === 'running') && starts.length ? `Drafting so far: ${mmss(stepped(nowMs - Math.min(...starts)))}` : null;
+  if (running) {
+    return { list: logged.length ? logged.map((x) => ({ id: x.id, label: x.label, status: x.status === 'failed' ? 'failed' : (x.status === 'running' ? 'running' : 'done'), details: [], time: timeOf(x) })) : list, draftSoFar };
+  }
+  if (list === null) return { list, draftSoFar: null };
+  const used = new Set();
+  const whole = wholeId !== undefined ? draftWallMs(logged) : null;
+  return {
+    list: list.map((st) => {
+      if (st.id === wholeId) return { ...st, time: whole === null ? null : `took ${mmss(whole)}` };
+      const x = logged.find((l) => l.id === st.id && !used.has(l.no));
+      if (x) used.add(x.no);
+      return { ...st, time: x ? timeOf(x) : null };
+    }),
+    draftSoFar: null,
+  };
+}
+
+/** the logs of every draft of a session folder: the first draft's `child.log`, then each revise's and answer redraft's own */
+const draftLogFiles = (/** @type {string} */ dir) => ['child.log', ...readdirInside(dir, '.').filter((n) => DRAFT_LOG_RE.test(n))];
+
+/**
+ * The plan card's one line: "Drafted in M:SS · $X". The time is the session's first step start to its last step end across ALL its drafts (the first, each revise,
+ * each answer redraft); the money is the session's drafting spend (`draftingSpent`, handed in as `spentUsd`; "at least" when `complete` is false). `null` when no
+ * step line has a time or the spend is not a number (a Reuse, an old draft, a session that never knew its cost): nothing is made up.
+ * @param {{dir: string, spentUsd: number|null, complete: boolean}} p `dir` = the session's draft folder
+ * @returns {string|null}
+ */
+export function draftedLine({ dir, spentUsd, complete }) {
+  const ms = draftWallMs(draftLogFiles(dir).flatMap((f) => readDraftSteps(dir, f)));
+  if (ms === null || typeof spentUsd !== 'number') return null;
+  return `Drafted in ${mmss(ms)} \u00B7 ${complete ? '' : 'at least '}${usdText(spentUsd)}`;
 }

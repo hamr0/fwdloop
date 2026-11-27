@@ -10,15 +10,14 @@ import { isCellsPath } from './closers.js';
 import { plainWords, OFFERED } from './checkwords.js';
 
 export { plainWords, OFFERED };
-import { guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount, isCountGuardrail } from './declaration.js';
+import { isCountable, keepOrDrop, countCheck } from './blockpick.js';
+import { HOW_TO_ANSWER } from './pageask.js';
 
 /** the one tool the suggestion call is forced to use */
 export const SUGGEST_TOOL = 'suggest_checks';
 const VOCAB = /** @type {Record<string, {description: string, fields: Record<string, {type: string, required?: boolean}>}>} */ (rubricVocabulary.rules);
 /** fields code sets, or that never decide: never offered, never kept */
 const IGNORED = new Set(['id', 'field', 'text', 'strict']);
-const NUM_FIELDS = ['value', 'size', 'wordsPerSection'];
-const WORD_FIELDS = ['names', 'phrases'];
 
 // ---- scope, decided by CODE before the call ------------------------------------------------------------------------------------------------
 /** @param {any[]|undefined} sources the job's signed inputs @returns {boolean} a CSV file or a web page routes its guardrails to another signed part (M10 items 1-3, M12) */
@@ -28,7 +27,7 @@ export const hasRoutingInput = (sources) => (sources ?? []).some((s) => (s.kind 
  * (the one thing the shape reader still takes in such a job). A page job whose guardrail is a count therefore counts as in (F144b caveat).
  * @param {any[]|undefined} sources @param {string} g @returns {'in'|'out'}
  */
-export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountGuardrail(g) ? 'out' : 'in');
+export const codeScope = (sources, g) => (hasRoutingInput(sources) && !isCountable(g) ? 'out' : 'in');
 
 /**
  * Every guardrail rule on a step line (not a signed ask or send line) that this call settles, in line order. `rule` is the rule's number on its line (the one
@@ -57,57 +56,9 @@ export function scopedRules(lines, arbiter) {
  * The rules the suggestion call offers for a draft: `scopedRules` less the ones a kept page or sheet fact already serves (the look tied it: line + rule number).
  * @param {{n: number, guardrail?: string}[]} lines @param {any} arbiter @param {{line: number, forRule?: number}[]} facts `look.facts` + the sheets' facts
  */
-export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountGuardrail(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
+export const offerRules = (lines, arbiter, facts) => scopedRules(lines, arbiter).filter((r) => isCountable(r.text) || !facts.some((f) => f.line === r.line && f.forRule === r.rule));
 
-// ---- code's keep-or-drop (am16 (2)) --------------------------------------------------------------------------------------------------------
-const norm = (/** @type {unknown} */ t) => String(t).toLowerCase().replace(/\s+/g, ' ').trim();
-const tokens = (/** @type {unknown} */ t) => new Set(norm(t).match(/[\p{L}\p{N}]+/gu) ?? []);
-
-/**
- * Keep a suggestion only if its rule is on bareguard's list, it carries only that rule's own fields, every number in it is a number the guardrail names and
- * every word in it is a word of the guardrail. Anything else is dropped, with the reason. `none` is a drop with the reason `none`.
- * @param {string} guardrail @param {any} sug the model's entry for this guardrail
- * @returns {{kept: true, check: Record<string, any>}|{kept: false, why: string}}
- */
-export function keepOrDrop(guardrail, sug) {
-  if (sug == null || typeof sug !== 'object') return { kept: false, why: 'unreadable suggestion' };
-  const { rule } = sug;
-  if (rule === 'none' || rule === undefined || rule === null) return { kept: false, why: 'none' };
-  if (typeof rule !== 'string' || !Object.hasOwn(VOCAB, rule)) return { kept: false, why: `rule "${rule}" is not on bareguard's list` };
-  if (!OFFERED.includes(rule)) return { kept: false, why: `rule "${rule}" is on bareguard's list but is not offered here` };
-  const own = Object.keys(VOCAB[rule].fields).filter((k) => !IGNORED.has(k));
-  for (const k of own) if (VOCAB[rule].fields[k].required && sug[k] == null) return { kept: false, why: `${rule} needs ${k}` };
-  const allowed = new Set([...own, 'rule', 'line', 'guardrail']);
-  for (const k of Object.keys(sug)) if (sug[k] != null && !allowed.has(k)) return { kept: false, why: `${rule} does not take ${k}` };
-  /** @type {Record<string, any>} */
-  const check = { rule };
-  for (const k of own) {
-    const v = sug[k];
-    if (v == null) continue;
-    if (NUM_FIELDS.includes(k)) {
-      if (!Number.isInteger(v) || v < 1) return { kept: false, why: `${k} ${JSON.stringify(v)} is not a whole number >= 1` };
-      const named = rule === 'maxWords' || rule === 'minWords' ? guardrailWordNumbers(guardrail)
-        : k === 'wordsPerSection' ? [guardrailWordsPerSection(guardrail)].filter((x) => x !== null)
-          : guardrailStandaloneNumbers(guardrail);
-      if (!named.includes(v)) return { kept: false, why: `${k} ${v} is not a number the guardrail names (${named.join(', ') || 'it names none'})` };
-      check[k] = v;
-    } else if (WORD_FIELDS.includes(k)) {
-      if (!Array.isArray(v) || v.length === 0 || v.some((s) => typeof s !== 'string' || s.trim() === '')) return { kept: false, why: `${k} is not a list of words` };
-      const gTok = tokens(guardrail);
-      const gNorm = norm(guardrail);
-      for (const s of v) {
-        if (!gNorm.includes(norm(s))) return { kept: false, why: `${k} "${s}" is not in the guardrail's words` };
-        for (const t of tokens(s)) if (!gTok.has(t)) return { kept: false, why: `${k} word "${t}" is not a word of the guardrail` };
-      }
-      check[k] = v;
-    }
-  }
-  if (rule === 'sections' || rule === 'sectionOrder' || rule === 'sectionWords') {
-    const want = guardrailSectionCount(guardrail);
-    if (want !== null && check.names.length !== want) return { kept: false, why: `the guardrail says ${want} sections; the check has ${check.names.length}` };
-  }
-  return { kept: true, check };
-}
+// ---- code's keep-or-drop: src/blockpick.js (M20 am8 item 3: keepOrDrop and countCheck have one body there) ----------------------------------------------------------
 
 // ---- the call: prompt, answer form -------------------------------------------------------------------------------------------------------
 const vocabBlock = OFFERED.map((r) => `- ${VOCAB[r].description}`).join('\n');
@@ -181,31 +132,9 @@ export function rowsFromAnswer(scoped, args) {
   });
 }
 
-// borrowed-from: bareloop src/checkpick.js@0408a8f (countCheck, 5a81681; one reader file differs: fwdloop's declaration.js has the same three readers)
-/**
- * The check CODE proposes for a count rule when the call yields none: a bullets / list-items / points count -> listItems N, a lines count -> maxLines N, ONE word number ->
- * minWords N when the rule says "at least / minimum / more than", else maxWords N. A section count names no sections, so none is built; a rule naming two different counts is
- * not built either; a rule with several word numbers or a range is not guessed. The result passes `keepOrDrop`, so every number is one the rule names.
- * @param {string} text @returns {Record<string, any>|null}
- */
-export function countCheck(text) {
-  const items = guardrailItemCount(text);
-  const words = guardrailWordNumbers(text);
-  /** @type {Record<string, any>|null} */
-  let built = null;
-  if (items !== null && (words.length > 0 || guardrailSectionCount(text) !== null)) return null;
-  if (items !== null) built = { rule: /\blines?\b/i.test(text) && !/\b(bullets?|items?|points?)\b/i.test(text) ? 'maxLines' : 'listItems', value: items };
-  else if (words.length === 1 && !/\bbetween\b|\d\s*(?:-|–|to)\s*\d/i.test(text)) built = { rule: /\b(at least|min(?:imum)?|more than|over|no fewer than)\b/i.test(text) ? 'minWords' : 'maxWords', value: words[0] };
-  if (built === null) return null;
-  const res = keepOrDrop(text, built);
-  return res.kept ? res.check : null;
-}
-
 // ---- the asks (words are item 4's) -----------------------------------------------------------------------------------------------------
 /** the can't-check ask, as the signed words say it */
 export const CANT_CHECK_WORDS = "I can't check this. Your own words, or Not checked?";
-/** how every answer is told, once (am2 item 2's words) */
-export const HOW_TO_ANSWER = (/** @type {number} */ line, /** @type {boolean} */ agree) => `${agree ? 'Answer "agree" to use it, or type your own words' : 'Type your own words'} (your answer replaces that ~ rule on line ${line}), or answer "drop it" to leave it Not checked.`;
 
 /**
  * The asks for the rows: `Line n, guardrail "<…>": I propose <check in plain words>.` for a kept check, `Line n, guardrail "<…>": I can't check this. Your own words, or

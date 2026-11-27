@@ -9,11 +9,11 @@ import { fileURLToPath } from 'node:url';
 
 import { lookTickets, recordLook, seenNumbers } from '../src/trigger-tickets.js';
 import { queueOf } from '../src/trigger-files.js';
-import { readSeen } from '../src/trigger-files.js';
 import { freezeInputs, rerunSourcesOf } from '../src/runner.js';
 import { compareNatural } from '../src/natural.js';
 import { listRunIds } from '../src/flow.js';
 import { buildJobGrid } from '../src/panel/jobgrid.js';
+import { readTriggerLedger } from '../src/jsonl-append.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(HERE, 'fixtures', 'fake-mcp-server.mjs');
@@ -49,7 +49,7 @@ describe('9.2 closed seen tickets queue no runs (item 6: new = higher than the h
     const seen = new Set(Array.from({ length: 10 }, (_, i) => 91 + i));
     const r = await w.look({ seen });
     recordLook(ledger, sig, r, 1000);
-    assert.equal(queueOf(readSeen(ledger, sig)).length, 1);
+    assert.equal(queueOf(readTriggerLedger(ledger, sig)).length, 1);
     assert.deepEqual([...seenNumbers(ledger, sig)], [101]);
   });
 });

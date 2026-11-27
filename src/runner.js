@@ -47,11 +47,10 @@ import { parseCsv } from './csv.js';
 import { resetRunStore } from './run-store.js';
 import { fileURLToPath } from 'node:url';
 
+import { readPlan, readRunPlan, runOwnsPlan, resolveRunDir, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy } from './flow.js';
+import { readFileInside, readdirInside, resolveInside } from './inside.js';
 import {
-  readPlan, readRunPlan, runOwnsPlan, resolveRunDir, readFileInside, readdirInside, resolveInside, FLOW_FILES, PANEL_STARTS_DIR, writeRunJobCopy,
-} from './flow.js';
-import {
-  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer,
+  writeAskArchive, readAcceptedHashesByEmits, serializeArtifact, normalizeDecision, answerTiming, effectiveExpiresAt, withReopen, setAsideAnswer, readAskFile, needsReason,
 } from './ask.js';
 import {
   findUnwiredVerbStep, unwiredRed, findUnbuildableCheckStep, unbuildableRed, findMcpPlanRed,
@@ -63,19 +62,20 @@ import { citedLineOf, writeCitedLine, quotesOfLines } from './cited-record.js';
 import { sheetRolesOf, tableShaOfFrozen, readRunSheets } from './sheetrun.js';
 import { writeSheetLine } from './sheet-record.js';
 import {
-  appendAudit, appendHistory, readAudit, readHistory, endRow, HALT_OUTCOMES,
+  appendAudit, appendHistory, readAudit, readHistory, endRow,
+  readHaltRecord, readLog, readRunState, readSavedAnswer, consumedAnswerName, nextHaltConsumedName, HALT_FILE, isNotRunEnd, isSpendFloorEnding, isResumableEnding, isGoodEnding, isStopNote,
 } from './books.js';
-import { learnAtRunEnd, NOT_A_RUN_END, hintsForRun, placeSpecOf } from './learnstore.js';
+import { learnAtRunEnd, hintsForRun, placeSpecOf } from './learnstore.js';
 import { redactSecrets } from './redact.js';
 import { appendRow } from './jsonl-append.js';
 import { applyRunValues, pickRunValues } from './runvalues.js';
 import { stepThinkingMode, stepHintsWanted } from './thinking.js';
-import { appendChecks, nextRound } from './diary.js';
+import { appendChecks, appendTryStart, nextRound } from './diary.js';
 import {
   doneRecord, happenedRecord, outputRecord, closeRecords,
 } from './try-checks.js';
 import { readJobThinking, readModelRecord, takeLearningsRecord } from './flowmodel.js';
-import { readRunInputs, readRunRecord, writeRunStart } from './runfile.js';
+import { readRunInputs, readPlaceRows, writeRunStart, INPUTS_DIR, frozenRel } from './runfile.js';
 // borrowed-from: bareloop src/userrun.js@v0.56.0 (3383cce) (the place-rule read at run start and its stop words; fwd keeps the read value in run.json, not a spine)
 import { citedPlaceFactsOf, bindCitedPlaceValues, readPlaceRules, valueInWords, stopWords, placeValuesOfEvents, lastRunPlaceRead, PLACE_EVENT, NO_PLACE_RECORD_WORDS } from './placerule.js';
 import { buildMemo } from './memo.js';
@@ -88,7 +88,7 @@ import { createMCPBridge, discoverServers } from 'bare-agent/mcp';
 import { mcpToolName } from './primitives.js';
 import { decideTicket, readTicketFields } from './ticket-labels.js';
 import {
-  readResumeLock, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
+  readResumeLock, lockMayBeHeld, recordPid, writeLockHolder, procStartOf, LOCK_NO_HOLDER,
 } from './liveness.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -130,7 +130,7 @@ export const SPEND_TOLERANCE_USD = 1e-9;
 // ---------------------------------------------------------------------------
 
 export const STOP_FILE = 'stop.request';
-export const HALT_FILE = 'halt.json';
+export { HALT_FILE };
 
 /** The panel's one write of a stop request. `'exists'` = already asked, nothing more to do. @param {string} runDir */
 export function requestStop(runDir) {
@@ -205,13 +205,6 @@ function settleStop({
 
 function clearStop(runDir) {
   try { unlinkSync(join(runDir, STOP_FILE)); } catch { /* none pending */ }
-}
-
-/** The one reader of halt.json: `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
-export function readHaltRecord(runDir) {
-  const r = readFileInside(runDir, HALT_FILE);
-  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
-  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
 }
 
 // ---------------------------------------------------------------------------
@@ -438,7 +431,7 @@ export async function freezePage(dir, id, url, { fetchPage = fetchPageText } = {
  *  `ticketRead` and frozen like a page; its manifest entry also carries `mcp`, the record of what the server exposed and each call made (kept in `run.json`, no new file).
  *  @param {{fetchPage?: (url: string) => Promise<{ok: true, text: string, url: string}|{ok: false, error: string}>, tableRoles?: string[], mcp?: {server: string, tools: string[]}, ticketRead?: typeof readTicketMcp, ticketFilter?: {priority?: string[], labels?: string[]}}} [o] */
 export async function freezeInputs(runDir, sources, { fetchPage, tableRoles = [], mcp, ticketRead = readTicketMcp, ticketFilter } = {}) {
-  const inputsDir = join(runDir, 'inputs');
+  const inputsDir = join(runDir, INPUTS_DIR);
   mkdirSync(inputsDir, { recursive: true });
   const manifest = [];
   /** M12 piece 3: the first ticket the signed labels (or its state) skip: its reason; the run ends `skipped` after its start record is written */
@@ -497,7 +490,7 @@ export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
   if (facts.length === 0) return { ok: /** @type {true} */ (true), rows: null, values: {} };
   const read = readPlaceRules(facts.map((fact) => {
     const entry = manifest.find((e) => e?.id === fact.source);
-    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, `inputs/${basename(entry.frozen)}`) : null;
+    const file = entry && typeof entry.frozen === 'string' ? readFileInside(runDir, frozenRel(entry.frozen)) : null;
     return { fact, text: file && file.ok ? file.text : null, was: earlier[fact.key] ?? valueInWords(fact.place, fact.phrase) };
   }));
   if (!read.proceed) return { ok: /** @type {false} */ (false), words: stopWords(read.rows) };
@@ -511,8 +504,8 @@ export function readRunPlaceRules(runDir, steps, manifest, earlier = {}) {
  */
 export function stepsWithRecordedPlaces(runDir, steps) {
   if (citedPlaceFactsOf(steps).length === 0) return { ok: /** @type {true} */ (true), steps };
-  const got = readRunRecord(runDir);
-  const values = got.ok && Array.isArray(got.rec.placeRules?.rows) ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: got.rec.placeRules.rows }]) : null;
+  const placed = readPlaceRows(runDir);
+  const values = placed !== null ? placeValuesOfEvents([{ type: PLACE_EVENT, rows: placed }]) : null;
   if (values === null) return { ok: /** @type {false} */ (false), words: NO_PLACE_RECORD_WORDS };
   return { ok: /** @type {true} */ (true), steps: bindCitedPlaceValues(steps, values) };
 }
@@ -721,7 +714,7 @@ function readInputCells(runDir, id) {
   if (!manifest.ok) return manifest.code === 'missing' ? { ok: false, missing: true } : { ok: false, missing: false, red: manifest.red };
   const entry = manifest.entries.find((e) => e?.id === id);
   if (!entry || !isCellsPath(entry.frozen)) return { ok: false, missing: true };
-  const file = readFileInside(runDir, `inputs/${basename(entry.frozen)}`);
+  const file = readFileInside(runDir, frozenRel(entry.frozen));
   if (!file.ok) return file.missing ? { ok: false, missing: false, red: 'the frozen copy is missing' } : { ok: false, missing: false, red: file.red };
   if (createHash('sha256').update(file.text).digest('hex') !== entry.sha256) return { ok: false, missing: false, red: 'the frozen copy changed since it was frozen' };
   return { ok: true, value: { kind: 'cells', ...parseCsv(file.text) } };
@@ -780,7 +773,7 @@ export const LEARN_ERROR_FILE = 'learn-error.jsonl';
 function recordRunNotes({
   flowName, runId, runDir, outcome, now,
 }) {
-  if (NOT_A_RUN_END.has(outcome)) return;
+  if (isNotRunEnd(outcome)) return; // M8 am4 item 2 / M12 p3: a pause, a failed stop and a skipped ticket are not a run end (src/books.js ENDINGS)
   const door = configDoorHome();
   if (door.skip) return;
   try {
@@ -1055,6 +1048,8 @@ async function runStepTries({
     const stopSeam = readStop ? Object.freeze({ stopRequested: readStop }) : undefined;
 
     const startedAt = Date.now();
+    // M20 am1 item 8: the try begins - one report-only diary row, so the Run tab can say "AI working" and since when
+    if (runDir !== null) appendTryStart(runDir, { step: stepMeta.step, try: attempt, at: now() });
     // eslint-disable-next-line no-await-in-loop
     let result = await modelStep(executorContext, grantedTools, stepMeta, stopSeam);
     if (result && result.ok === false && result.transport === true) {
@@ -1216,7 +1211,7 @@ async function runStepTries({
     tryChecks.push(...closeRecords(step, artifact, closed, checkList, jobLines));
     saveTry();
 
-    if (closed.verdict === 'green' || closed.verdict === 'hitl') {
+    if (isGoodEnding(closed.verdict)) {
       recordAudit(rowOf({
         step, attempt, verdict: closed.verdict, gap: null, usd: attemptUsd, spendComplete: true, wallMs, model: result.model, modelMatch: result.modelMatch, strike: false, at: now(), tokens: result.tokens ?? null, tools: result.tools ?? null, ungranted: result.ungranted, refused: result.refused, thinking: result.thinking,
       }), result.artifact);
@@ -1596,8 +1591,7 @@ export async function runFlow({
 // ---------------------------------------------------------------------------
 
 /** An ask step that never waits — it immediately tells the fold to park.
- *  The counterpart to `makeFileAskStep`'s in-process poll (M2 scope item 6);
- *  a caller wanting park-and-exit behaviour from a FRESH `runFlow` call
+ *  A caller wanting park-and-exit behaviour from a FRESH `runFlow` call
  *  passes this (or an equivalent) as `askStep`.
  *  @returns {(opts?: any) => Promise<{decision: 'park'}>} */
 export function makeParkingAskStep() {
@@ -1631,10 +1625,13 @@ function makeOneShotThenParkAskStep({ decision, reason, artifactSha256 }) {
 function lastTryNumber(runDir, stepId) {
   let last = 0;
   for (const r of readAudit(runDir)) {
-    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured' && r.attempt > last) last = r.attempt;
+    if (r.step === stepId && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt' && !isStopNote(r.verdict) && r.attempt > last) last = r.attempt;
   }
   return last;
 }
+
+/** M20 am8: the one question "did the ask slot's loop already end the run" (it returned `paused` or `stopped`: its `result` is the run's own return value) @param {{type?: unknown}} r a loop's return @returns {boolean} */
+export const endsRun = (r) => r.type === 'paused' || r.type === 'stopped';
 
 /**
  * One signed ask slot's own loop (M2's ask branch, unchanged in spirit,
@@ -1699,7 +1696,7 @@ async function runAskSlot({
       const askedAt = now();
       const expiresAt = new Date(Date.parse(askedAt) + askSlot.ttlMs).toISOString();
       // F45 finding 2: a parked ask.json must carry the SAME evidence a
-      // human sees in-process (`makeFileAskStep`'s `{ artifact, unjudged }`)
+      // human sees (`{ artifact, unjudged }`)
       // — the draft under review and the unjudged evidence, never just the
       // question. `evidence` above is already recomputed at the top of every
       // loop iteration (including a re-park after a redo, where
@@ -1801,7 +1798,7 @@ async function runAskSlot({
     const isRedo = answer.decision === 'redo' || answer.decision === 'rerun';
     const reason = typeof answer.reason === 'string' ? answer.reason.trim() : '';
 
-    if (isRedo && reason.length === 0) {
+    if (needsReason(answer.decision) && reason.length === 0) {
       recordAudit(makeAuditRow({
         step, attempt: redone + 1, verdict: 'refused', gap: 'a redo/rerun needs a reason', usd: 0, spendComplete: true, wallMs: 0, strike: false, at: now(),
       }), undefined, unjudgedCount);
@@ -2033,7 +2030,7 @@ async function foldFromStep({
             startedAt,
             runStartedAt,
           });
-          if (stop.type === 'paused' || stop.type === 'stopped') return stop.result;
+          if (endsRun(stop)) return stop.result;
           if (stop.type === 'halted') {
             return haltRun({
               flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value, attempts: attemptsLog, artifacts, outcome: stop.outcome, red: stop.red,
@@ -2153,7 +2150,7 @@ async function foldFromStep({
         runStartedAt,
       });
 
-      if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
+      if (endsRun(askResult)) return askResult.result;
       if (askResult.type === 'halted') {
         return haltRun({
           flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs, signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
@@ -2253,18 +2250,11 @@ function sumAuditUsd(runDir, { skipVerdicts = /** @type {string[]} */ ([]) } = {
   // raw `readFileSync` — a symlinked `audit.jsonl` (or a symlinked ancestor
   // directory) reads as "missing" (total 0), never as some outside file's
   // content summed into a cap check.
-  const result = readFileInside(runDir, 'audit.jsonl');
-  if (!result.ok) return { ok: true, total: 0, complete: true };
-  const lines = result.text.split('\n').filter((line) => line.trim().length > 0);
+  const read = readAudit(runDir, { strict: true });
+  if (!read.ok) return read;
   let total = 0;
   let complete = true;
-  for (const line of lines) {
-    let row;
-    try {
-      row = JSON.parse(line);
-    } catch (err) {
-      return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` };
-    }
+  for (const row of read.rows) {
     // a row of a verdict the caller names cost nothing and carries `usd: null` on purpose (a cap-halt: the round was never bought)
     if (skipVerdicts.includes(row.verdict)) continue;
     if (row.spendComplete === false) complete = false;
@@ -2315,7 +2305,7 @@ async function takeResumeLock(runDir, runId, lockPath) {
       await new Promise((r) => { setTimeout(r, 150); });
       lock = readResumeLock(runDir);
     }
-    if (lock.state === 'live' || lock.state === 'unknown') {
+    if (lockMayBeHeld(lock.state)) {
       return { ok: false, red: `resume: run "${runId}" is locked by another resumer (pid ${lock.pid}, ${lockPath})` };
     }
     if (lock.state === 'empty') {
@@ -2430,19 +2420,14 @@ export async function resumeRun({
     // symlinked run dir ancestor) is refused by name here, never read
     // through to an outside file's content (the same class `answer.json`
     // and `audit.jsonl` above already close).
-    const stateResult = readFileInside(runDir, 'state.json');
+    const stateResult = readRunState(runDir, { strict: true });
     if (!stateResult.ok) {
       if (stateResult.missing) {
         return { outcome: 'refused', red: `resume: no parked state for run "${runId}" (${statePath})` };
       }
       return { outcome: 'refused', red: `resume: state.json for run "${runId}" — ${stateResult.red}` };
     }
-    let state;
-    try {
-      state = JSON.parse(stateResult.text);
-    } catch (err) {
-      return { outcome: 'refused', red: `resume: state.json for run "${runId}" is not valid JSON — ${err.message}` };
-    }
+    const state = stateResult.state;
 
     // F45 finding 3: the run's TRUE wall-clock start, restored from the
     // parked state rather than this process's own `startedAt` — otherwise
@@ -2571,26 +2556,21 @@ export async function resumeRun({
       };
     }
 
-    const answerPath = join(runDir, 'answer.json');
-    // F48 round 3: `answer.json` goes through `resolveInside` too — a
-    // symlinked answer file (or a symlinked run dir ancestor) is refused by
-    // name here, the same as "no answer yet", never read through to an
-    // outside file's content.
-    const answerResolved = resolveInside(runDir, 'answer.json');
-    if (!answerResolved.ok) {
-      if (answerResolved.missing) {
+    // F48 round 3: `answer.json` goes through the gateway (`readSavedAnswer`) — a symlinked answer file (or a symlinked run dir ancestor) is refused by
+    // name here, the same as "no answer yet", never read through to an outside file's content.
+    const savedAnswer = readSavedAnswer(runDir);
+    if (!savedAnswer.ok) {
+      if (savedAnswer.missing) {
         return { outcome: 'refused', red: `resume: no answer yet for run "${runId}"` };
       }
-      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${answerResolved.red}` };
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" — ${savedAnswer.red}` };
     }
-    let answer;
-    try {
-      answer = JSON.parse(readFileSync(answerPath, 'utf8'));
-    } catch (err) {
-      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${err.message}` };
+    if (savedAnswer.parseError !== null) {
+      return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not valid JSON — ${savedAnswer.parseError}` };
     }
+    let answer = savedAnswer.value;
     // Valid JSON that is not an object (`null`, a number, a string, an array) has no askId to read: refused by name.
-    if (answer === null || typeof answer !== 'object' || Array.isArray(answer)) {
+    if (!savedAnswer.isObject) {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" is not a JSON object (it holds ${answer === null ? 'null' : Array.isArray(answer) ? 'an array' : `a ${typeof answer}`})` };
     }
     // M4b amendment 3: a consumed/saved answer that says `reject` (an older
@@ -2602,7 +2582,7 @@ export async function resumeRun({
 
     // M4c amendment 3: an answer's saved time, never the restart's clock, says whether it was on time. A missing or
     // unreadable one is refused by name here, before the consume, so the answer stays replayable.
-    const timing = answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
+    const timing = savedAnswer.broken ? 'unreadable' : answerTiming(answer.answeredAt, effectiveExpiresAt(runDir, state.askId, state.expiresAt));
     if (timing === 'unreadable') {
       return { outcome: 'refused', red: `resume: answer.json for run "${runId}" has a missing or unreadable answeredAt ("${answer.answeredAt}") — refusing rather than treating it as on time` };
     }
@@ -2632,8 +2612,8 @@ export async function resumeRun({
 
     // Consume-once, BEFORE acting on the decision (F44) — the rename is
     // itself a one-winner gate, on top of the lock above.
-    const consumedPath = join(runDir, `answer.${answer.askId}.consumed.json`);
-    renameSync(answerPath, consumedPath);
+    const consumedPath = join(runDir, consumedAnswerName(answer.askId));
+    renameSync(join(runDir, 'answer.json'), consumedPath);
     // M4c: the answer is ours and every guard has passed — record this resume process before its first step.
     recordPid(runDir, 'resume', now());
 
@@ -2860,7 +2840,7 @@ export async function resumeRun({
       runStartedAt,
     });
 
-    if (askResult.type === 'paused' || askResult.type === 'stopped') return askResult.result;
+    if (endsRun(askResult)) return askResult.result;
     if (askResult.type === 'halted') {
       return haltRun({
         flowDir, runDir, runId, capUsd, startedAt: runStartedAt, now, nowMs: getNowMs, signatureHash: state.signatureHash, spent, priorSpendComplete: spendComplete.value && askResult.stop?.book?.spendComplete !== false, attempts: attemptsLog, artifacts, outcome: askResult.outcome, red: askResult.red,
@@ -3049,8 +3029,7 @@ export async function continueRun({
     if (!recordedHashes.ok) return { outcome: 'refused', red: recordedHashes.red };
 
     // Consume-once BEFORE acting (the answer's own rule, F44): the rename is a one-winner gate on top of the lock.
-    const taken = readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
-    renameSync(join(runDir, HALT_FILE), join(runDir, `halt.${taken + 1}.consumed.json`));
+    renameSync(join(runDir, HALT_FILE), join(runDir, nextHaltConsumedName(runDir)));
     settleStop({ runDir, now, outcome: halt.outcome ?? 'halted' }); // a request left over from before the halt is not this continue's
     recordPid(runDir, 'continue', now());
 
@@ -3083,8 +3062,9 @@ export async function continueRun({
 
     // Amendment 7 item 8: a Stop that cut the step short leaves its tries in the books; Resume re-enters it as a NEW try, numbered after them.
     // A try the Stop cut mid-way (its `stopped` row) wears a number but is replaced, not counted against the step's limit. Read from the
-    // books (the source of truth), never a second record. A cap-halt re-entry keeps its own, earlier behaviour.
+    // books (the source of truth), never a second record. A cap-halt re-entry (M4d am30, F275) only numbers its tries after the step's last; its limit is the step's own, as before.
     const resumeTries = { numbered: 0, done: 0 };
+    if (halt.outcome === 'cap-halt' && steps[halt.stepIndex]) resumeTries.numbered = lastTryNumber(runDir, steps[halt.stepIndex].emits ?? null);
     if (halt.outcome === 'stopped' && steps[halt.stepIndex]) {
       const tries = readAudit(runDir).filter((r) => r.step === steps[halt.stepIndex].emits && Number.isInteger(r.attempt) && r.verdict !== 'cap-halt');
       resumeTries.numbered = tries.length;
@@ -3209,7 +3189,7 @@ export async function stopParkedRun({
     const ask = readAsk(runDir);
     const state = readRunState(runDir);
     if (!ask || typeof ask.askId !== 'string' || !state || state.askId !== ask.askId) return refused(`run "${runId}" is not waiting at an ask`);
-    if (existsSync(join(runDir, `answer.${ask.askId}.consumed.json`))) return refused(`run "${runId}" already took its answer`);
+    if (existsSync(join(runDir, consumedAnswerName(ask.askId)))) return refused(`run "${runId}" already took its answer`);
     if (endRow(readHistory(flowDir), runDir, runId) !== null) return refused(`run "${runId}" has ended`);
     if (!Number.isInteger(state.stepIndex) || state.stepIndex < 0) return refused(`run "${runId}" state.json field "stepIndex" is not a step number`);
     const audit = auditSpend(runDir);
@@ -3261,33 +3241,6 @@ function writeLog(runDir, payload) {
 }
 
 /**
- * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
- * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
- * hasn't reached an exit path yet (still running, or parked before any
- * halt/complete), or the file is present but not valid JSON (a torn write),
- * never a thrown error.
- * @param {string} runDir
- * @returns {any|null}
- */
-export function readLog(runDir) {
-  const result = readFileInside(runDir, 'log.json');
-  if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
-}
-
-/**
- * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
- * when the run has never parked, or the file is present but not valid JSON.
- * @param {string} runDir
- * @returns {any|null}
- */
-export function readRunState(runDir) {
-  const result = readFileInside(runDir, 'state.json');
-  if (!result.ok) return null;
-  try { return JSON.parse(result.text); } catch { return null; }
-}
-
-/**
  * `ask.json`'s own sibling reader (same rule as {@link readLog}) — the
  * parking ask protocol's own writer lives in {@link runAskSlot} above.
  * `null` when there is no open ask for this run, or the file is present but
@@ -3296,10 +3249,10 @@ export function readRunState(runDir) {
  * @returns {any|null}
  */
 export function readAsk(runDir) {
-  const result = readFileInside(runDir, 'ask.json');
-  if (!result.ok) return null;
+  const result = readAskFile(runDir);
+  if (!result.ok || result.parseError !== null) return null;
   // The deadline every reader sees is the effective one (`withReopen`: a reopened ask's new deadline).
-  try { return withReopen(runDir, JSON.parse(result.text)); } catch { return null; }
+  try { return withReopen(runDir, result.value); } catch { return null; }
 }
 
 /**
@@ -3341,8 +3294,7 @@ function haltRun({
   // now passes `runStartedAt` under this key — see call sites), so `wallMs`
   // times the whole run, pauses included, never just the halting process.
   const wallMs = nowMs() - startedAt;
-  const spendComplete = priorSpendComplete
-    && outcome !== 'provider-red' && outcome !== 'pricing-red' && outcome !== 'cap-halt';
+  const spendComplete = priorSpendComplete && !isSpendFloorEnding(outcome);
   mkdirSync(flowDir, { recursive: true });
   try {
     if (existsSync(runDir)) {
@@ -3351,7 +3303,7 @@ function haltRun({
         runId, outcome, red, ...(detail ? { detail } : {}), ...(skip ? { skipReason: skip } : {}), attempts, artifacts,
       });
       // M4e amendment 4 item 4: a cap-halted or stopped run leaves the one record Resume continues from (its only writer).
-      if (resumeAt && HALT_OUTCOMES.includes(outcome)) {
+      if (resumeAt && isResumableEnding(outcome)) {
         writeFileSync(join(runDir, HALT_FILE), `${JSON.stringify({
           runId, outcome, at: now(), flow: { root: resumeAt.flowRoot, name: resumeAt.flowName }, signatureHash, inputsManifest: resumeAt.inputsManifest,
           stepIndex: resumeAt.stepIndex, startedAt, unjudged: resumeAt.unjudged ?? [],

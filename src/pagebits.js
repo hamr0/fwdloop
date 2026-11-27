@@ -7,7 +7,14 @@ export const MAX_CURRENCIES = 3;
 export const MAX_UNITS = 10;
 export const MAX_UNIT_CHARS = 100;
 export const asList = (/** @type {unknown} */ v) => (Array.isArray(v) ? v.map(String) : (typeof v === 'string' ? [v] : []));
-export const boundOk = (/** @type {string} */ shape, /** @type {unknown} */ v) => (shape === 'number' || shape === 'money' ? typeof v === 'number' && Number.isFinite(v) : typeof v === 'string' && v !== '');
+/** M20 am8: the one question "is this fact shape phrase-like" (the words of a phrase or a place are looked for on the page) @param {unknown} shape @returns {boolean} */
+export const isPhraseShape = (shape) => shape === 'phrase' || shape === 'place';
+/** M20 am8: the one question "is this a legal result count": `{min, max}` only, at least one of them, whole numbers 1 or more, min no more than max (each caller keeps its own words for a refusal) @param {any} c @returns {boolean} */
+export const isLegalCount = (c) => isRec(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (c.min !== undefined || c.max !== undefined)
+  && ['min', 'max'].every((k) => c[k] === undefined || (Number.isInteger(c[k]) && c[k] >= 1)) && (c.min === undefined || c.max === undefined || c.min <= c.max);
+/** M20 am8: the one question "is this fact shape an amount" (money or number: read as a plain number, carries the decimal mark, its bounds are numbers) @param {unknown} shape @returns {boolean} */
+export const isAmountShape = (shape) => shape === 'money' || shape === 'number';
+export const boundOk = (/** @type {string} */ shape, /** @type {unknown} */ v) => (isAmountShape(shape) ? typeof v === 'number' && Number.isFinite(v) : typeof v === 'string' && v !== '');
 
 // borrowed-from: bareloop src/factwords.js@18ab77c (squash, loose, countExact, countPhrase - rewritten without a built pattern, same count, see test/m10-pagebits.test.js)
 const WS = /[\s   ]+/g;

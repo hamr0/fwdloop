@@ -31,6 +31,7 @@ import { signFlow, verifyFlow } from './signature.js';
 import { validateDeclaration } from './declaration.js';
 import { describeChange } from './signed-diff.js';
 import { stripTrigger } from './trigger-line.js';
+import { readFileInside } from './inside.js';
 
 /** @typedef {import('./types.js').WriteFlowResult} WriteFlowResult */
 /** @typedef {import('./types.js').ReadFlowResult} ReadFlowResult */
@@ -313,85 +314,24 @@ export function claimRunId(flowDir) {
 }
 
 /**
- * F48 round 3 (docs/logs/FINDINGS.md): the ONE mechanism every book reader
- * in src/ and bin/ routes through to read a file that lives inside a run
- * dir or flow dir — closing the symlink-escape class at the source instead
- * of patching each reader a second time. `resolveInside(baseDir, relPath)`
- * requires the target to both (a) not itself be a symlink and (b) realpath
- * to somewhere inside `realpath(baseDir)` — the second check alone also
- * catches a symlinked ANCESTOR directory partway down `relPath` (e.g.
- * `asks/` itself replaced by a symlink to an outside directory), the same
- * shape `readFlow`'s own `runs/` check and `resolveRunDir` already apply one
- * level up. A path that does not exist yet is reported as `missing: true`
- * (never a red) so every existing caller keeps its own "not written yet"
- * behaviour unchanged.
- *
- * @param {string} baseDir
- * @param {string} relPath
- * @returns {{ok:true, full:string}|{ok:false, missing:true}|{ok:false, missing:false, red:string}}
+ * M20 am1 item 4: the ONE reader of a DRAFT's `log.json` (`<dir>/<rel>/log.json`, or `<dir>/log.json` with no `rel`): what the drafter kept of its rounds,
+ * its `checkCard` and its `action`. The run's `log.json` is another file, read only by `readLog` (src/books.js). `null` when missing, refused by the
+ * gateway, unparseable or not an object (a torn write), never a thrown error.
+ * @param {string} dir @param {string} [rel] a plan folder under `dir` (`draft`, `draft-<n>`)
+ * @returns {any|null}
  */
-export function resolveInside(baseDir, relPath) {
-  const full = path.join(baseDir, relPath);
-  let stat;
-  try {
-    stat = lstatSync(full);
-  } catch {
-    return { ok: false, missing: true };
-  }
-  if (stat.isSymbolicLink()) {
-    return { ok: false, missing: false, red: `"${relPath}" is a symlink, refused` };
-  }
-  let realBase;
-  let realFull;
-  try {
-    realBase = realpathSync(baseDir);
-    realFull = realpathSync(full);
-  } catch (err) {
-    return { ok: false, missing: false, red: `could not resolve "${relPath}" — ${err.message}` };
-  }
-  if (realFull !== realBase && !realFull.startsWith(realBase + path.sep)) {
-    return { ok: false, missing: false, red: `"${relPath}" resolves outside its directory — refused` };
-  }
-  return { ok: true, full };
+export function readDraftLog(dir, rel = '') {
+  return readJsonFile(dir, rel === '' ? 'log.json' : `${rel}/log.json`);
 }
 
 /**
- * `resolveInside` plus the actual read — every raw-text book reader's one
- * gateway. Same result shape as `resolveInside`, plus `{ok:true, text}`.
- * @param {string} baseDir
- * @param {string} relPath
- * @returns {{ok:true, text:string}|{ok:false, missing:true}|{ok:false, missing:false, red:string}}
+ * M20 am3 item 12: the ONE tolerant JSON read of a file in a folder, through the gateway: the parsed object, or null when the file is missing, refused,
+ * unparseable (a torn write) or not an object. Never throws. @param {string} dir @param {string} rel @returns {any|null}
  */
-export function readFileInside(baseDir, relPath) {
-  const resolved = resolveInside(baseDir, relPath);
-  if (!resolved.ok) return resolved;
-  try {
-    return { ok: true, text: readFileSync(resolved.full, 'utf8') };
-  } catch (err) {
-    return { ok: false, missing: false, red: `could not read "${relPath}" — ${err.message}` };
-  }
-}
-
-/**
- * `readdirSync` guarded the same way: refuses (returns `[]`) when `relDir`
- * itself is a symlink or resolves outside `baseDir`, and skips (never
- * follows) any individual entry that is itself a symlink — a directory
- * listing must never hand a caller a name that, joined back onto `relDir`,
- * would escape `baseDir`. `[]` when `relDir` doesn't exist.
- * @param {string} baseDir
- * @param {string} relDir
- * @returns {string[]}
- */
-export function readdirInside(baseDir, relDir) {
-  const resolved = resolveInside(baseDir, relDir);
-  if (!resolved.ok) return [];
-  let entries;
-  try {
-    entries = readdirSync(resolved.full, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  return entries.filter((e) => !e.isSymbolicLink()).map((e) => e.name);
+export function readJsonFile(dir, rel) {
+  const r = readFileInside(dir, rel);
+  if (!r.ok) return null;
+  try { const j = JSON.parse(r.text); return j !== null && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
 }
 
 function readTextFile(filePath, label, reds) {
@@ -709,19 +649,31 @@ function replaceSigned({
 export function planForReuse({
   root, name, runDir, catalogue,
 }) {
-  const kept = readRunJobCopy(runDir, catalogue);
-  if (!kept.present) return { ok: true, same: true };
+  const job = sameJob({ flowDir: path.join(root, name), runDir, catalogue });
+  if (!job.present) return { ok: true, same: true };
   const runId = path.basename(runDir);
-  if (!kept.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${kept.reds[0]}), so it cannot be reused. Nothing was started.` };
-  const flowDir = path.join(root, name);
-  const a = readFileInside(runDir, `${RUN_JOB_DIR}/declaration.json`);
-  const b = readFileInside(flowDir, 'declaration.json');
-  const ap = readFileInside(runDir, `${RUN_JOB_DIR}/prose.txt`);
-  const bp = readFileInside(flowDir, 'prose.txt');
-  if (a.ok && b.ok && ap.ok && bp.ok && a.text === b.text && stripTrigger(ap.text) === stripTrigger(bp.text)) return { ok: true, same: true };
-  const { present, ...rest } = kept;
-  void present;
+  if (!job.ok) return { ok: false, red: `The plan ${runId} kept does not match its signature (${job.reds[0]}), so it cannot be reused. Nothing was started.` };
+  if (job.same) return { ok: true, same: true };
+  const { present, same, ...rest } = job;
+  void present; void same;
   return { ok: true, same: false, read: /** @type {any} */ (rest) };
+}
+
+/**
+ * M20 am3 item 1 (as am3a): the ONE rule for "this run ran the job the flow holds now": the run's verified job copy (`readRunJobCopy`), the exact
+ * declaration, the prose without its trigger line. `{present:false}` = the run kept no copy (before M6); `{present:true, ok:false, reds}` = a copy that
+ * fails its signature; `{present:true, ok:true, same, ...copy}` otherwise.
+ * @param {{flowDir: string, runDir: string, catalogue: unknown}} a
+ * @returns {{present: false} | {present: true, ok: false, reds: string[]} | ({present: true, same: boolean} & ReadFlowResult & {ok: true})}
+ */
+export function sameJob({ flowDir, runDir, catalogue }) {
+  const kept = readRunJobCopy(runDir, catalogue);
+  if (!kept.present) return { present: false };
+  if (!kept.ok) return /** @type {any} */ ({ present: true, ok: false, reds: kept.reds });
+  const b = readFileInside(flowDir, 'declaration.json');
+  const bp = readFileInside(flowDir, 'prose.txt');
+  const same = b.ok && bp.ok && kept.declarationText === b.text && stripTrigger(kept.proseText ?? '') === stripTrigger(bp.text);
+  return /** @type {any} */ ({ ...kept, same });
 }
 
 /**
@@ -1024,11 +976,14 @@ export function readRunJobCopy(runDir, catalogue) {
   if (reds.length > 0) return { present: true, ok: false, reds };
   const verified = verifyFlow({ proseText, declarationText, signature: signatureJson });
   if (!verified.ok) return { present: true, ok: false, reds: [...verified.reds] };
+  const read = interpretSigned({
+    proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
+  });
+  // a good read carries the verified bytes, so no caller reads `job/` a second time (M20 am3 item 2)
   return {
     present: /** @type {true} */ (true),
-    ...interpretSigned({
-      proseText: /** @type {string} */ (proseText), declarationJson, signatureJson, catalogue, dir,
-    }),
+    ...read,
+    ...(read.ok ? { proseText: /** @type {string} */ (proseText), declarationText: /** @type {string} */ (declarationText) } : {}),
   };
 }
 

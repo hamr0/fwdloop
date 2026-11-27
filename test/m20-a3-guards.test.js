@@ -1,0 +1,614 @@
+// M20 am3 item 13: each owner named in am3 has a guard that fails when a second reader of its file or fact appears outside its allow-list.
+// One file, one `strays` per owner; each allow-list entry carries its reason. Batch 1: items 11, 7, 9, 2, 1, 3. Batch 2: items 5, 6, 8, 10, 12 (4 waits for am3b).
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { mkdtempSync } from '../scripts/tmp-track.mjs';
+import { listRunValues, pickRunValues } from '../src/runvalues.js';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SRC = path.join(ROOT, 'src');
+
+function walk(dir) {
+  const out = [];
+  for (const n of readdirSync(dir)) {
+    const p = path.join(dir, n);
+    if (statSync(p).isDirectory()) out.push(...walk(p));
+    else if (n.endsWith('.js') || n.endsWith('.mjs')) out.push(p);
+  }
+  return out;
+}
+export const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
+/** src-relative path -> text, plus bin/fwdloop as 'bin/fwdloop' */
+export function load() {
+  const files = {};
+  for (const f of walk(SRC)) files[path.relative(SRC, f)] = readFileSync(f, 'utf8');
+  files['bin/fwdloop'] = readFileSync(path.join(ROOT, 'bin', 'fwdloop'), 'utf8');
+  return files;
+}
+/** files that match `re` in code and are not on the allow-list @param {Record<string,string>} files @param {RegExp} re @param {Record<string,string>} allow */
+export const strays = (files, re, allow) => Object.keys(files).filter((f) => !Object.hasOwn(allow, f) && re.test(code(files[f])));
+
+// item 11: audit.jsonl and state.json are read by one reader each (readAudit, readRunState, both with a named strict mode); halt.<n>.consumed.json is named in one place
+const AUDIT = { 'books.js': 'readAudit: the one reader and the appender', 'liveness.js': 'BOOK_FILES: a name in a list whose mtime says the run is alive; reads nothing' };
+const STATE = {
+  'books.js': 'readRunState: the one reader',
+  'liveness.js': 'BOOK_FILES: mtime only; reads nothing',
+  'runner.js': 'the parked-state writer (park) and the set-aside rename on stop; neither reads',
+};
+const HALT_CONSUMED = { 'books.js': 'haltConsumedCount / nextHaltConsumedName: the one place the name is spelled' };
+
+test('item 11: only the listed files name audit.jsonl, state.json, halt.<n>.consumed.json in code', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`]audit\.jsonl['"`]/, AUDIT), []);
+  assert.deepEqual(strays(files, /['"`]state\.json['"`]/, STATE), []);
+  assert.deepEqual(strays(files, /halt\\\.\\d|halt\.\$\{[^}]*\}\.consumed/, HALT_CONSUMED), []);
+});
+
+// item 7: a run's trigger.json is read by readTriggerRecord (src/books.js) only
+const TRIGGER = {
+  'trigger-line.js': 'declares the file name',
+  'books.js': 'readTriggerRecord: the one reader',
+  'panel/authorstart.js': 'the one writer (the start claim, flag wx)',
+  'runvalues.js': 'a name in the "folder holds no run yet" list; reads nothing',
+  'bin/fwdloop': 'a name in the "folder holds no run yet" list; reads nothing',
+};
+test('item 7: only the listed files name trigger.json in code', () => {
+  assert.deepEqual(strays(load(), /TRIGGER_RECORD_FILE|['"`]trigger\.json['"`]/, TRIGGER), []);
+});
+
+// item 9: a run's run.json and diary.jsonl are read through readRunRecord (runfile.js) and the diary readers (diary.js) only
+const RUN_DIARY = {
+  'runfile.js': 'the run.json writer and readRunRecord, its one reader',
+  'diary.js': 'the diary writer and readKind, its one reader',
+  'panel/authorflows.js': 'the file\'s mtime only (lstat to order runs); content goes through readRunInputs',
+  'mcp-use.js': 'the file\'s mtime only (statSync after readRunRecord accepted it); content goes through readRunRecord and readTools',
+};
+test('item 9: only the listed files name run.json or diary.jsonl in code', () => {
+  assert.deepEqual(strays(load(), /['"`]run\.json['"`]|['"`]diary\.jsonl['"`]|\bRUN_FILE\b|\bDIARY_FILE\b/, RUN_DIARY), []);
+});
+
+// item 2: a run's job/ copy (prose.txt, declaration.json, signature.json) is read only inside src/flow.js, through readRunJobCopy (the copier and planForReuse live there too)
+const JOB_COPY = { 'flow.js': 'readRunJobCopy: the one reader; writeRunJobCopy / copyRunPlan write and copy it; planForReuse is its caller' };
+test('item 2: only src/flow.js names a run\'s job/ files in code', () => {
+  assert.deepEqual(strays(load(), /job\/(prose\.txt|declaration\.json|signature\.json)|\bRUN_JOB_DIR\b/, JOB_COPY), []);
+});
+
+// item 1 (am3a): "this run ran the job the flow holds now" is sameJob (src/flow.js): the prose-without-trigger-line comparison is spelled there only.
+// runJobEdited (panel/data.js) asks a different question (the halt record's signature hash against the run's own job) and does not compare prose, so it is not on this list.
+const SAME_JOB = {
+  'trigger-line.js': 'declares stripTrigger',
+  'flow.js': 'sameJob: the one rule (planForReuse and greenRuns ask it)',
+};
+test('item 1: only sameJob compares a run\'s prose with the flow\'s (stripTrigger)', () => {
+  assert.deepEqual(strays(load(), /\bstripTrigger\b/, SAME_JOB), []);
+});
+
+// item 3 (am3a): three questions, three owners; each list of file names is spelled in its owner only
+test('item 3: each "folder holds ..." list is spelled once, in its owner', () => {
+  const files = load();
+  const ONLY = (re, owner, why) => assert.deepEqual(strays(files, re, { [owner]: why }), [], why);
+  ONLY(/valuesFileName\(0\)[^\n]*TRIGGER_RECORD_FILE|TRIGGER_RECORD_FILE[^\n]*valuesFileName\(0\)/, 'runvalues.js', 'dropUnstartedValues: may these pre-start files be deleted (2 names)');
+  ONLY(/['"]setup\.jsonl['"][\s\S]{0,300}['"]plan\.json['"]|['"]plan\.json['"][\s\S]{0,300}['"]setup\.jsonl['"]/, 'bin/fwdloop', 'the CLI: does this folder hold no run yet (6 names)');
+  ONLY(/['"]ask\.json['"]\s*,\s*['"]answer\.json['"]/, 'runner.js', 'checkFreshRunDir: is a stale ask or answer left here (2 names)');
+});
+
+// item 5: the consumed-answer name `answer.<askId>.consumed.json` is spelled in src/books.js only (consumedAnswerName, askIdOfConsumedName); the in-process file ask step and its `answer.stale.<n>.json` are gone
+const CONSUMED = { 'books.js': 'consumedAnswerName / askIdOfConsumedName: the one place the name is spelled' };
+test('item 5: only src/books.js spells the consumed-answer name; makeFileAskStep and answer.stale are gone', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\.consumed\.json|consumed\\\.json/, CONSUMED), []);
+  assert.deepEqual(strays(files, /makeFileAskStep|\bsafeStamp\b|answer\.stale/, {}), []);
+});
+
+// item 6: signed-values files are read by runvalues.js only (pickRunValues for the version in force, listRunValues for the Audit's list: one parser, readValuesFile)
+const SIGNED_VALUES = {
+  'runvalues.js': 'the writer, readValuesFile (the one parser), listRunValues, pickRunValues',
+  'bin/fwdloop': 'a name in the "folder holds no run yet" list (item 3); reads nothing',
+};
+test('item 6: only runvalues.js names the signed-values files in code', () => {
+  assert.deepEqual(strays(load(), /signed-values|VALUES_FILE_RE|\bvaluesFileName\b/, SIGNED_VALUES), []);
+});
+
+test('item 6: a version the run refuses is listed as refused with the parser\'s own words, the same as pickRunValues gives', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'fwdloop-a3-values-'));
+  writeFileSync(path.join(dir, 'signed-values.json'), JSON.stringify({ version: 0, flow: 'f', flowSignatureHash: 'x', hash: 'not-the-hash', values: { capUsd: 1, destination: null, askWaits: {} } }));
+  const [e] = listRunValues(dir);
+  assert.equal(e.ok, false);
+  assert.match(e.red, /does not match its own hash/);
+  assert.deepEqual(pickRunValues(dir), { ok: false, red: e.red });
+});
+
+// item 8: "the draft/start child is alive" is childState (src/panel/spawn.js); pid.json and isFwdloopAlive are named there only
+const CHILD_PID = {
+  'panel/spawn.js': 'writePidFile, childState / childAlive / childRunning: the one writer and the one owner of "is it alive"',
+  'panel/authorstart.js': 'presence only: a start folder holding pid.json had a process started (deadStarts); asks no liveness',
+};
+test('item 8: only spawn.js names pid.json or asks isFwdloopAlive for a panel child', () => {
+  const panel = Object.fromEntries(Object.entries(load()).filter(([f]) => f.startsWith('panel/')));
+  assert.deepEqual(strays(panel, /['"`]pid\.json['"`]|\bisFwdloopAlive\b/, CHILD_PID), []);
+});
+
+// item 12 (draft verdict): a plan folder's verdict is draftVerdict (src/draftfiles.js, since am3b item 2); spec.hash and scrub-leak.red are named there only (the writers use the constants)
+const VERDICT = { 'draftfiles.js': 'SPEC_HASH_FILE / LEAK_MARKER_FILE declared, written by writePlanFiles (authoring.js, through the constants), read by draftVerdict' };
+test('item 12 (draft verdict): only draftfiles.js names spec.hash or scrub-leak.red in code', () => {
+  assert.deepEqual(strays(load(), /['"`/]spec\.hash\b|['"`/]scrub-leak\.red\b/, VERDICT), []);
+});
+
+// item 12 (draft spend row, started-over-from): a draft folder's spend rows are readDirSpendRows and started-over-from.json is readStartedOverFrom, both in src/draftspend.js
+const DRAFT_SPEND = { 'draftspend.js': 'DRAFT_SPEND_FILE / STARTED_OVER_FILE: the writer, readDraftSpend, readDirSpendRows, readStartedOverFrom' };
+test('item 12 (draft spend, started-over): only draftspend.js names draft-spend.json or started-over-from.json, or reads a draft dir\'s spend rows', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]draft-spend\.json|['"`/]started-over-from\.json|\breadDraftSpend\b/, DRAFT_SPEND), []);
+  // the draft folder's own spend.jsonl is read through readDirSpendRows (setup.js, monthly.js, draftspend.js); no other file may read `join(<plan folder>, 'spend.jsonl')` itself for a draft
+  assert.deepEqual(strays(files, /readSpendRows\(join\(sessionDir/, {}), []);
+});
+
+// item 12 (rerun test): "this run began as a rerun" is readRerunWords (src/runfile.js); the run record's `rerun` is read there only
+test('item 12 (rerun): only runfile.js reads the run record\'s rerun', () => {
+  assert.deepEqual(strays(load(), /\.rec\.rerun\b|\brec\??\.rerun\b/, { 'runfile.js': 'readRerunWords: the one test; writeRunStart writes it' }), []);
+});
+
+// item 12 (ledger, tolerant reads): one tolerant JSONL parse, one ledger reader and appender (src/jsonl-append.js), one tolerant JSON-object read (src/flow.js readJsonFile)
+test('item 12 (ledger): only jsonl-append.js parses a JSONL text line by line, reads or appends a trigger ledger', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /flatMap\(\(l\) => \{ try \{ return \[JSON\.parse\(l\)\]/, { 'jsonl-append.js': 'parseJsonl: the one tolerant JSONL parse' }), []);
+  assert.deepEqual(strays(files, /\b(readSeen|readRows|appendSeen|appendOnce)\b/, {}), [], 'the old per-ledger names are gone: readTriggerLedger and appendTriggerLedger are the only ones');
+});
+test('item 12 (tolerant JSON): only flow.js reads one JSON object file tolerantly (readJsonFile); no local readJson', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /return j !== null && typeof j === 'object' && !Array\.isArray\(j\) \? j : null/, { 'flow.js': 'readJsonFile: the one tolerant JSON-object read; readDraftLog asks it' }), []);
+  assert.deepEqual(strays(files, /\bconst readJson\b|\bfunction readJson\b/, {}), []);
+});
+
+// item 12 (frozen input path): where a run keeps the frozen copy of an input (`inputs/<name>`) is INPUTS_DIR and frozenRel (src/runfile.js); no other file spells the folder
+test('item 12 (frozen input path): only runfile.js spells the run\'s inputs/ folder in a path', () => {
+  assert.deepEqual(strays(load(), /['"`]inputs\/|join\([^)\n]*['"`]inputs['"`]/, { 'runfile.js': 'INPUTS_DIR / frozenRel: the one place the folder is spelled' }), []);
+});
+
+// item 12 (draft log names): CARD_RE, LOG_TAIL_CHARS, the revise/redraft log names (draftLogName, DRAFT_LOG_RE) are declared in src/draft-steps.js only
+test('item 12 (draft log names): only draft-steps.js declares CARD_RE, LOG_TAIL_CHARS, or spells a revise or redraft log name', () => {
+  const files = load();
+  const own = { 'draft-steps.js': 'CARD_RE, LOG_TAIL_CHARS, draftLogName, DRAFT_LOG_RE: the one place' };
+  assert.deepEqual(strays(files, /(const|let)\s+(CARD_RE|LOG_TAIL_CHARS)\b|card-\(\\d\+\)|(revise|redraft)-\$\{[^}]*\}\.log|\(revise\|redraft\)/, own), []);
+});
+
+// item 12 (process started): "has a process started on this run" is processStarted (src/books.js); no other file tests the pid rows' length
+test('item 12 (process started): only books.js tests whether a run has a pid row', () => {
+  assert.deepEqual(strays(load(), /readPidRows\([^)]*\)\.length/, { 'books.js': 'processStarted: the one test' }), []);
+});
+
+// item 12 (asks/<id>.json): an archived ask is parsed by readArchivedAsk (src/ask.js) only; no file reads `asks/<entry>` itself, and src/ask.js does it once
+test('item 12 (archived ask): only readArchivedAsk reads asks/<entry>', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*join\('asks'/, { 'ask.js': 'readArchivedAsk: the one parse' }), []);
+  assert.equal((code(files['ask.js']).match(/readFileInside\([^)\n]*join\('asks'/g) ?? []).length, 1, 'one read of asks/<entry> in src/ask.js');
+});
+
+// item 12 (start.json): a start folder's start.json is written by writeStartRecord (src/panel/authorstart.js) only: one writeFileSync of it in the file
+test('item 12 (start.json): only authorstart.js writes start.json, once', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`]start\.json['"`]/, { 'panel/authorstart.js': 'writeStartRecord: the one writer; readStart reads it' }), []);
+  assert.equal((code(files['panel/authorstart.js']).match(/writeFileSync\(join\(dir, 'start\.json'\)/g) ?? []).length, 1);
+});
+
+// am3c item 1: Not checked has two owners, one per question. notCheckedBlock = the drafter's own list kept word for word with its label (setup.js records it); notCheckedView = what the screen shows (card, Job tab, Audit).
+// They stay two functions: one for both changes a screen (68 of 228 files differ on the P1 copy). Every other reader goes through one of them.
+const NC_BLOCK = {
+  'checked.js': 'notCheckedBlock: the recorded list (the view builds on it)',
+  'setup.js': 'the recorded list as the drafter made it, label and items, in the draft\'s setup row',
+};
+const NC_VIEW = {
+  'checked.js': 'notCheckedView: what the screen shows',
+  'auditchecks.js': 'the Audit\'s Checks fold',
+  'authoring.js': 'the card\'s Not checked rows',
+  'panel/author.js': 'the card',
+  'panel/data.js': 'the Job tab',
+};
+test('am3c item 1: notCheckedBlock and notCheckedView stay two functions; only the listed files call each', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\bnotCheckedBlock\b/, NC_BLOCK), []);
+  assert.deepEqual(strays(files, /\bnotCheckedView\b/, NC_VIEW), []);
+  const checked = code(files['checked.js']);
+  assert.match(checked, /export function notCheckedBlock\(/);
+  assert.match(checked, /export function notCheckedView\(/);
+});
+
+// am3c items 2 and 3: target.json. The flow name is readTargetName (src/authoring.js) only; the bytes (hash, rebuilt-plan copy) and the object (sign, rebuild) are their own owners on this list.
+const TARGET = {
+  'authoring.js': 'the writer; the hash\'s bytes (specHash); readTargetName (the name); the sign\'s object read after the hash check',
+  'planrebuild.js': 'a rebuilt plan copies the bytes and reads the object for the plan it rebuilds',
+};
+test('am3c items 2 and 3: only the listed files name target.json; the flow name is read in readTargetName only', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]target\.json/, TARGET), []);
+  assert.deepEqual(strays(files, /target\.json[^\n]*\)\??\.name\b/, { 'authoring.js': 'readTargetName: the one reader of the name' }), []);
+  assert.equal((code(files['authoring.js']).match(/readJsonFile\([^)\n]*'target\.json'\)\??\.name/g) ?? []).length, 1, 'one name read in authoring.js');
+  assert.deepEqual(strays(files, /JSON\.parse\([^)\n]*target[^)\n]*\)\??\.name/, {}), []);
+});
+
+// am3b item 1: a run's saved answer.json is read by readSavedAnswer (src/books.js) only; Resume, answerAsk, reopenAsk and the panel read its fields (askId, broken, ...), none parses the file itself
+test('am3b item 1: only books.js reads answer.json (readSavedAnswer); the other files only name it to set it aside, rename it or list it', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*['"`]answer\.json['"`]|readFileSync\([^)\n]*answer(Path|\.json)|JSON\.parse\([^)\n]*(saved|answer)[A-Za-z]*\.text/, { 'books.js': 'readSavedAnswer: the one reader' }), []);
+  assert.deepEqual(strays(files, /\bfunction readSavedAnswer\b/, { 'books.js': 'the one definition' }), []);
+});
+
+// am3d: the signature's `.flow` (this flow's signed hash) is read from signature.json by signedHashOf (src/flow.js) only
+test('am3d: only signedHashOf parses signature.json for its .flow', () => {
+  assert.deepEqual(strays(load(), /JSON\.parse\([^)\n]*\)\??\.flow\b/, { 'flow.js': 'signedHashOf: the one reader (a string that is not empty, else none)' }), []);
+});
+
+// am3 item 10 (first half): a plan folder's not-checked.json is read by readNotCheckedFile (src/draftfiles.js) only; the writers (authoring.js, planrebuild.js) use NOT_CHECKED_FILE
+test('item 10: only draftfiles.js names not-checked.json or reads NOT_CHECKED_FILE; the writers use the constant', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /['"`/]not-checked\.json/, { 'draftfiles.js': 'NOT_CHECKED_FILE declared; readNotCheckedFile: the one reader' }), []);
+  assert.deepEqual(strays(files, /readJsonFile\([^)\n]*NOT_CHECKED_FILE/, { 'draftfiles.js': 'readNotCheckedFile' }), []);
+});
+
+// am3e item 16: run.json's `placeRules` rows are read by readPlaceRows (src/runfile.js) only; the writer writes the section there too
+test('am3e item 16: only runfile.js reads the placeRules section of run.json', () => {
+  assert.deepEqual(strays(load(), /rec\.placeRules\b/, { 'runfile.js': 'readPlaceRows' }), []);
+});
+
+// am3e item 17: a session folder's card files are named and read by cardFileName / readCard (src/draftfiles.js); draftspend.js asks "is there a readable file" (true for a torn card.json, which the money count needs), a different question
+test('am3e item 17: only draftfiles.js spells card.json / card-<n>.json (draftspend.js: the readable-file check for the money count)', () => {
+  assert.deepEqual(strays(load(), /['"`]card\.json['"`]|card-\$\{/, {
+    'draftfiles.js': 'cardFileName / readCard: the one name and the one read',
+    'draftspend.js': 'asks only "is there a readable file" (true for a torn card.json) for the money count',
+  }), []);
+});
+
+// am3e item 18: redraft-<n>.json is named and read by redraftFileName / readRedraftMarker (src/draftfiles.js) only; `rowEdit` is typed there
+test('am3e item 18: only draftfiles.js spells redraft-<n>.json', () => {
+  assert.deepEqual(strays(load(), /redraft-\$\{[^}]*\}\.json|redraft-\(\\d/, { 'draftfiles.js': 'redraftFileName / readRedraftMarker: the one name and the one read, rowEdit typed' }), []);
+});
+
+// am3e item 19: the picks record's `kept` list is read by readKept (src/pickrecord.js) only; planrebuild.js reads the whole record to carry it over and author.js asks only whether a plan folder holds one
+test('am3e item 19: only pickrecord.js reads `kept` from the picks record; the whole-record read and the presence check are on the list', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\brecord\??\.kept\b|(readJsonFile|JSON\.parse)\([^)\n]*\)\??\.kept\b/, { 'pickrecord.js': 'readKept: the one reader of the list', 'planrebuild.js': 'the whole record, carried over; it takes the kept keys the rebuild already holds from it' }), []);
+  assert.deepEqual(strays(files, /readJsonFile\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'planrebuild.js': 'the whole record, to carry it over into the rebuilt record' }), []);
+  assert.deepEqual(strays(files, /readFileInside\([^)\n]*(?<![A-Z_])RECORD_FILE/, { 'pickrecord.js': 'the readers of the record\'s fields', 'panel/author.js': 'presence only: does a plan folder hold a record (--carry)' }), []);
+});
+
+// am3e item 20: a draft plan folder's prose.txt and declaration.json are read by readPlanTexts (src/draftfiles.js) only; flow.js is the signed flow folder's (readFlow and its loaders)
+test('am3e item 20: only draftfiles.js reads a draft plan folder\'s prose.txt / declaration.json; flow.js, author.js:stepListOf and data.js are on the list', () => {
+  assert.deepEqual(strays(load(), /(readFileInside|readJsonFile)\([^)\n]*(prose\.txt|declaration\.json)/, {
+    'draftfiles.js': 'readPlanTexts: the one reader of a draft plan folder',
+    'flow.js': 'a signed flow folder and its kept copies: readFlow and the loaders verify them (planForReuse / sameJob compare them)',
+    'panel/author.js': 'stepListOf: falls back to declaration.rejected.json, a different question',
+    'panel/data.js': 'the Audit tag: reads a signed flow\'s declaration even when its signature fails',
+  }), []);
+  // inside author.js the allow-list is one site: no second read of the plan folder's files
+  assert.equal((code(load()['panel/author.js']).match(/(readFileInside|readJsonFile)\([^)\n]*(prose\.txt|declaration\.json)/g) ?? []).length, 1);
+});
+
+// am3e item 15: a run's ask.json is read (found as it is) by readAskFile (src/ask.js) only; readAsk adds withReopen; the presence check in authorstart.js asks only "is there a file"
+test('am3e item 15: only ask.js reads ask.json; authorstart.js asks only whether the file is there, runner.js writes it and sets it aside', () => {
+  assert.deepEqual(strays(load(), /(readFileInside|readJsonFile)\([^)\n]*['"`]ask\.json['"`]/, {
+    'ask.js': 'readAskFile: the one reader',
+    'panel/authorstart.js': 'presence only: "is there an ask.json" (parked), true for a torn file too',
+  }), []);
+});
+
+// am3g item 22: why a run is red is redWhyOf (src/books.js); the Run tab and the Result tab ask it, nobody finds the last red audit row for it again
+test('am3g item 22: only books.js picks the last red audit row (isRedTry) for a run\'s red reason', () => {
+  assert.deepEqual(strays(load(), /findLast\(\(r\) => isRedTry|\bisRedTry\(r\.verdict\)/, { 'books.js': 'redWhyOf: the one rule', 'learnstore.js': 'a red moment per try (learnings), a different question' }), []);
+});
+
+// am3g item 23: a step's newest-try checks are newestChecksOf (src/diary.js): no other file reduces the diary's rows to the highest try
+test('am3g item 23: only diary.js picks a step\'s newest-try checks row (the highest try, a tie to the later row)', () => {
+  assert.deepEqual(strays(load(), /r\.try >= (m|prev|newest)\.try/, { 'diary.js': 'newestChecksOf: the one rule' }), []);
+  assert.deepEqual(strays(load(), /\.filter\(\(d\) => d\.step === \([^)]*\)\)\.at\(-1\)|checkRows\[checkRows\.length - 1\]/, {}), []);
+});
+
+// am3g item 24: a run's money NUMBER is runMoney (src/panel/jobgrid.js): the history total, else the priced spend rows as a floor, else unknown. Its words stay two writers:
+// "exact $0 is written `$0.0000` on the Runs list and Run tab (data.js) and `$0` on the ticket grid (jobgrid.js moneyWords)": no screen changes.
+test('am3g item 24: only jobgrid.js sums a run\'s priced spend rows; the words are written in data.js (costDisplay) and jobgrid.js (moneyWords)', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /\bspendFloorDisplay\b|filter\(\(r\) => isNum\(r\?\.costUsd\)\)/, { 'panel/jobgrid.js': 'runMoney: the one number rule' }), []);
+  assert.deepEqual(strays(files, /export function costDisplay|export function moneyWords/, {
+    'panel/data.js': 'costDisplay: exact $0 is written `$0.0000` on the Runs list and Run tab',
+    'panel/jobgrid.js': 'moneyWords: exact $0 is written `$0` on the ticket grid',
+  }), []);
+});
+
+// am3g item 25: "every step" checks stay two owners: the Audit (src/auditchecks.js) shows them from ANY try, the ticket grid (src/panel/jobgrid.js) from the NEWEST try. Different questions; no third file reads the `every step` source.
+test('am3g item 25: only auditchecks.js (any try) and jobgrid.js (newest try) test a check row\'s every-step source', () => {
+  assert.deepEqual(strays(load(), /source === EVERY_STEP/, {
+    'auditchecks.js': 'the Audit shows an every-step row from any try (a whole-run row)',
+    'panel/jobgrid.js': 'the ticket grid shows them from each step\'s newest try (a per-step cell)',
+  }), []);
+});
+
+// am3g item 26: "what counts as a try row" stays six owners, one question each (a cap halt, a pause, a hitl row and a stop split them; one rule would change 135 of 141 real runs' counts)
+test('am3g item 26: the try-row rules are spelled only in their six owners, each with its question', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /export function isTryRow/, { 'audit-fold.js': 'tries to SHOW (the Audit fold, try marks, Run tab counts)' }), []);
+  assert.deepEqual(strays(files, /const isTry = /, { 'learnstore.js': 'tries to LEARN from (a hitl red and a pause are not tries)' }), []);
+  assert.deepEqual(strays(files, /r\.model != null && typeof r\.step === 'string' && r\.verdict !== 'stopped'/, { 'memo.js': 'tries to TELL the model (a model try, not a hitl row)' }), []);
+  assert.deepEqual(strays(files, /Number\.isInteger\(r\.attempt\) && r\.verdict !== 'cap-halt'/, { 'runner.js': 'attempt numbers USED (lastTryNumber) and numbers Resume must skip (a stopped row counts)' }), []);
+  assert.deepEqual(strays(files, /const own = rows\.filter\(\(r\) => !isStopNote\(r\.verdict\)\)/, { 'panel/data.js': 'a step group\'s STATE: stop notes dropped, then the last row\'s verdict' }), []);
+});
+
+// am3g item 27: "green run" stays two owners: greenRuns = "a green run of this exact job" (the schedule gate); runsOf = "a run that ended well" (the Signed flow list). They differ on 6 real runs by design.
+test('am3g item 27: only authortrigger.js (greenRuns) and authorflows.js (runsOf) turn a good ending into a green run', () => {
+  assert.deepEqual(strays(load(), /isGoodEnding\(end\.outcome\)/, {
+    'panel/authortrigger.js': 'greenRuns: a green run of this exact job (sameJob), the schedule gate',
+    'panel/authorflows.js': 'runsOf: a run that ended well, for the Signed flow list and its pickable runs',
+  }), []);
+});
+
+// am5 item 1: the schedule choices per flow type are src/schedule-choices.js (the page fills both cards from it); the typed-schedule shape check is schedule-shape.js, the file/folder check trigger-files.js
+test('am5 item 1: one list of schedule choices and one shape check', () => {
+  const files = load();
+  assert.deepEqual(strays(files, /Weekdays at HH:MM|Every <day> at HH:MM|When a new file arrives in <folder>/, { 'schedule-choices.js': 'the one list, in the Run card\'s words' }), []);
+  assert.deepEqual(strays(files, /function shapeOf\(/, { 'schedule-shape.js': 'the one shape check of a typed schedule (the Run card\'s door and the New job card)' }), []);
+  assert.deepEqual(strays(files, /function fileTriggerWhy\(/, { 'trigger-files.js': 'the one "is this file or folder there" check' }), []);
+  const page = readFileSync(path.join(SRC, 'panel', 'index.html'), 'utf8');
+  assert.ok(!/<option value="(weekdays|weekly|daily|file-updated|new-file|new-ticket)"/.test(page), 'no schedule option is spelled in the page: both cards fill from SCHEDULE_CHOICES');
+});
+
+// M20 am7 item 2: a statement wrapped over several lines is still one statement: the matcher reads up to the next `;` or brace, not only to the end of the line
+const together = (...kinds) => new RegExp(kinds.map((k) => `['"\`]${k}['"\`]`).join('[^;{}]*'));
+const CLOCK_TOGETHER = together('daily', 'weekdays', 'weekly');
+const FILE_TOGETHER = together('file-updated', 'new-file');
+const FILE_TOGETHER_REV = together('new-file', 'file-updated');
+const filesAndPage = () => {
+  const files = load();
+  for (const f of pageFiles(SRC)) files[path.relative(SRC, f)] = readFileSync(f, 'utf8');
+  return files;
+};
+const pageFiles = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? pageFiles(p) : n.endsWith('.html') ? [p] : []; });
+
+// M20 am7 item 3: a non-owner file may carry a hit only for a NAMED statement (file + verbatim snippet + reason), never as a whole file
+/** every statement (up to the neighbouring `;`, `{` or `}`) of `files` that matches `re`, outside the owner, and not one of the named allowed ones; plus allowed entries that matched nothing @param {Record<string,string>} files @param {RegExp} re @param {string} owner @param {{file:string, snippet:string, why:string}[]} allowed */
+const copies = (files, re, owner, allowed) => {
+  const g = new RegExp(re.source, 'g');
+  const used = new Set();
+  const out = [];
+  for (const f of Object.keys(files)) {
+    if (f === owner) continue;
+    const text = code(files[f]);
+    for (const m of text.matchAll(g)) {
+      const from = Math.max(text.lastIndexOf(';', m.index), text.lastIndexOf('{', m.index), text.lastIndexOf('}', m.index)) + 1;
+      const ends = [';', '{', '}'].map((c) => text.indexOf(c, m.index + m[0].length)).filter((i) => i >= 0);
+      const stmt = text.slice(from, ends.length ? Math.min(...ends) : text.length);
+      const ok = allowed.find((a) => a.file === f && stmt.includes(a.snippet));
+      if (ok) used.add(ok); else out.push(`${f}: ${stmt.trim().slice(0, 80)}`);
+    }
+  }
+  for (const a of allowed) if (!used.has(a)) out.push(`stale allow-list entry (matches nothing): ${a.file}: ${a.snippet}`);
+  return out;
+};
+
+// M20 am6 item 1: "is this schedule kind daily, weekdays or weekly" has one owner (isClockKind / CLOCK_KINDS in src/trigger-clock.js); no other file names the three together in one statement
+const CLOCK_KINDS_OWNER = 'trigger-clock.js'; // CLOCK_KINDS and isClockKind: the one owner
+const CLOCK_ALLOWED = [
+  { file: 'schedule-choices.js', snippet: "const PLAIN = Object.freeze(['hand', 'daily'", why: 'PLAIN: the choices a card OFFERS (By hand and the file kinds sit in it too), not the question "is this a clock kind"' },
+];
+test('am6 item 1: only src/trigger-clock.js names daily, weekdays and weekly together in code (page script included)', () => {
+  assert.deepEqual(copies(filesAndPage(), CLOCK_TOGETHER, CLOCK_KINDS_OWNER, CLOCK_ALLOWED), []);
+});
+
+// M20 am7 item 1: "is this schedule kind file-updated or new-file" has one owner (isFileKind / FILE_KINDS in src/trigger-files.js)
+const FILE_KINDS_OWNER = 'trigger-files.js'; // FILE_KINDS and isFileKind: the one owner
+const FILE_ANY = new RegExp(`${FILE_TOGETHER.source}|${FILE_TOGETHER_REV.source}`);
+const FILE_ALLOWED = [
+  { file: 'schedule-choices.js', snippet: "const PLAIN = Object.freeze(['hand', 'daily'", why: 'PLAIN: the choices a card OFFERS, not the question "is this a file kind"' },
+  { file: 'schedule-choices.js', snippet: "'file-updated': 'When <file> is updated'", why: 'LABELS: the words a card shows per kind, not the question "is this a file kind"' },
+];
+test('am7 item 1: only src/trigger-files.js names file-updated and new-file together in code (page script included)', () => {
+  assert.deepEqual(copies(filesAndPage(), FILE_ANY, FILE_KINDS_OWNER, FILE_ALLOWED), []);
+});
+
+// M20 am7 item 2: both guards see the kinds wrapped over more than one line
+test('am7 item 2: the clock and file-kind guards go red on kinds wrapped over two lines', () => {
+  assert.ok(CLOCK_TOGETHER.test(code("const k = ['daily', 'weekdays',\n  'weekly'];")), 'clock kinds wrapped over two lines');
+  assert.ok(FILE_TOGETHER.test(code("const a = kind === 'file-updated' ||\n  kind === 'new-file';")), 'file kinds wrapped over two lines');
+  assert.ok(FILE_TOGETHER_REV.test(code("if (k === 'new-file' ||\n k === 'file-updated') {")), 'file kinds wrapped, other order');
+  assert.ok(!FILE_TOGETHER.test(code("const a = 'file-updated';\nconst b = 'new-file';")), 'two statements are not one');
+});
+
+// M20 am7 item 3 (planted copy): a copy of either question inside a file the guards let through must be reported
+const planted = (name, extra) => { const files = filesAndPage(); files[name] += `\n${extra}\n`; return files; };
+test('am7 item 3: a copy planted in schedule-shape.js (file kinds) and in schedule-choices.js (clock kinds) is reported', () => {
+  const f = planted('schedule-shape.js', "if (t.kind === 'file-updated' || t.kind === 'new-file') {}");
+  assert.notDeepEqual(copies(f, FILE_ANY, FILE_KINDS_OWNER, FILE_ALLOWED), [], 'file-kind copy in schedule-shape.js');
+  const c = planted('schedule-choices.js', "const X = ['daily', 'weekdays', 'weekly'];");
+  assert.notDeepEqual(copies(c, CLOCK_TOGETHER, CLOCK_KINDS_OWNER, CLOCK_ALLOWED), [], 'clock-kind copy in schedule-choices.js');
+});
+
+// M20 am8 item 1: every question named below has one owner; a second statement that names the same words together (any order, up to the neighbouring `;`, `{` or `}`) is a copy unless it is named here with its reason
+/** the kinds together in one statement, in any order @param {...string} kinds */
+const anyOrder = (...kinds) => {
+  const perms = (xs) => (xs.length < 2 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
+  return new RegExp(perms(kinds).map((p) => together(...p).source).join('|'));
+};
+
+// am8 item 1a: "may someone still hold this run's resume lock" (live or unknown) is lockMayBeHeld (src/liveness.js)
+test('am8 item 1a: only src/liveness.js names the resume-lock states live and unknown together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('live', 'unknown'), 'liveness.js', []), []);
+});
+
+// am8 item 1b: "did the closer give no judgment" (crash or unparseable, a third outcome) is noJudgment (src/closers.js)
+test('am8 item 1b: only src/closers.js names the verdicts crash and unparseable together, and only the runner tests a closed verdict against red alone', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('crash', 'unparseable'), 'closers.js', []), []);
+  assert.deepEqual(copies(filesAndPage(), /closed\.verdict !== 'red'/, 'closers.js', [
+    { file: 'runner.js', snippet: "closed.verdict !== 'red'", why: "a negated form: it is true for every verdict that is not red, so a future verdict would be a casualty here; it asks 'is it anything but red' after green and hitl returned, a different test from the named pair" },
+  ]), []);
+});
+
+// am8 item 1c: "is this ask's answer being picked up" (starting or not-started, for THIS ask) is answerPickedUp (src/panel/data.js); the guard counts inside data.js too, so the owner's own statement is named
+test('am8 item 1c: in code, only answerPickedUp names the resume states starting and not-started together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('starting', 'not-started'), '', [
+    { file: 'panel/data.js', snippet: 'const answerPickedUp =', why: 'the one owner' },
+    { file: 'panel/data.js', snippet: "ctx.resume && (ctx.resume.state === 'starting'", why: 'asks a different question: any answer saved for the run, with no askId test (the run-level stop reason has no ask in hand)' },
+  ]), []);
+});
+
+// am8 item 1d: "did a fire start nothing" (busy, monthly-exhausted or refused) is startedNothing (src/summary-words.js); data.js no longer spells the three
+test('am8 item 1d: only src/summary-words.js names the fire outcomes busy, monthly-exhausted and refused together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('busy', 'monthly-exhausted', 'refused'), 'summary-words.js', []), []);
+});
+
+// am8 item 1e: "is this a legal Drop or Add choice" is isRowChoice (src/pickrecord.js, which owns the picks record); the door, the record reader and the check block ask it
+test('am8 item 1e: only src/pickrecord.js names the row choices drop and add together, apart from two named statements that ask which choice it is', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('drop', 'add'), 'pickrecord.js', [
+    { file: 'checkblock.js', snippet: "r.choice !== 'add' && (!r.derived || r.choice === 'drop')", why: "asks 'is this row held': one choice against the other, not 'is it a legal choice'" },
+    { file: 'checkblock.js', snippet: "r.held = r.choice === 'drop' || (r.field?.held === true && r.choice !== 'add')", why: "asks 'is this shape row held': one choice against the other, not 'is it a legal choice'" },
+  ]), []);
+});
+
+// am8 item 1f: "is this an origin tag (you, agent, default)" is tagOf (src/checkwords.js), `tagOf(by) !== ''`
+test('am8 item 1f: only src/checkwords.js names the origin tags you, agent and default together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('you', 'agent', 'default'), 'checkwords.js', []), []);
+});
+
+// am8b item 1: the page draws the tag word in one place, tagWordOf (it asks the handed list); no other page function puts brackets round a row's `by`
+const BRACKETED_BY = /['"]\[['"]\s*\+[^;{}]*\bby\b[^;{}]*\+\s*['"]\]['"]/;
+test('am8b item 1: no page function but tagWordOf builds a tag word from a row\'s by', () => {
+  assert.deepEqual(copies(filesAndPage(), BRACKETED_BY, '', []), []);
+  assert.ok(BRACKETED_BY.test(code('function f(by){ return by ? "[" + escapeXml(by) + "]" : ""; }')), 'the old ckTagHtml shape is caught');
+});
+
+// am8a item 1: the page asks f (origin tags), g (decisions that need a reason) and k (phases of a running revise or redraft; red or stopped) through the one list the server hands it (src/page-words.js, built from the owners)
+// am8 item 1g: "does this decision need a reason" (redo or rerun) is needsReason (src/ask.js)
+test('am8 item 1g: only src/ask.js names the decisions redo and rerun together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('redo', 'rerun'), 'ask.js', [
+    { file: 'runner.js', snippet: "const isRedo = answer.decision === 'redo'", why: "the ask loop's handling branch (it counts a redo, writes a red row, runs the step again): asks what the answer IS, not whether it needs a reason" },
+    { file: 'panel/data.js', snippet: "accepted: 'accept', redo: 'redo', reran: 'rerun'", why: 'WORKING_WORD: a table from an archive status to a decision word, not a question' },
+    { file: 'panel/index.html', snippet: 'accepted: "accepted", redo: "redo", reran: "rerun"', why: 'a table from a decision to its status word, not a question' },
+    { file: 'panel/index.html', snippet: 'decision === "rerun" ? "rerun" : "redo"', why: 'which word the hint says (rerun or redo), not whether a reason is needed' },
+  ]), []);
+  // the runner's re-check of a saved answer asks needsReason, never the handling flag `isRedo` (the allowed statement above)
+  assert.deepEqual(copies(filesAndPage(), /isRedo && reason/, '', []), []);
+});
+
+// am8 item 1h: "is this a flow type" (plain, mcp or tickets) is isFlowType (src/declaration.js, next to FLOW_TYPES); the page asks through the keys of the schedule choices it already gets
+test('am8 item 1h: only src/declaration.js names the flow types plain, mcp and tickets together (page script included)', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('plain', 'mcp', 'tickets'), 'declaration.js', [
+    { file: 'authoring.js', snippet: "flowType === 'mcp' ? 'MCP' : flowType === 'tickets' ? 'Tickets MCP' : 'plain'", why: "the card's own word for a type in the readout, not the question 'is this a flow type'" },
+    { file: 'panel/index.html', snippet: '<option value="plain">plain</option>', why: 'the Flow type select the New job card and the Run card OFFER, not the question "is this a flow type"' },
+  ]), []);
+});
+
+// am8 item 1i: "is this a thinking mode" (on or off) is isThinkingMode (src/thinking.js)
+test('am8 item 1i: only src/thinking.js names the thinking modes on and off together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('on', 'off'), 'thinking.js', [
+    { file: 'bin/fwdloop', snippet: "draftThinking: values.thinking === true ? 'on' : 'off'", why: 'MAKES a mode from the --thinking flag; it does not ask whether a value is one' },
+    { file: 'panel/index.html', snippet: 'isOnline ? "on" : "off"', why: 'a CSS class of the online dot, not a thinking mode' },
+    { file: 'panel/index.html', snippet: 'legacyIn.checked ? "on" : "off"', why: 'the Settings legacy-token word beside its tick box, not a thinking mode' },
+  ]), []);
+});
+
+// am8 item 1j: "does this ask-loop outcome end the run" (paused or stopped) is endsRun (src/runner.js); the guard counts inside runner.js too, so the owner's own statement is named
+test('am8 item 1j: in code, only endsRun names the ask-loop outcomes paused and stopped together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('paused', 'stopped'), '', [
+    { file: 'runner.js', snippet: 'const endsRun =', why: 'the one owner' },
+  ]), []);
+});
+
+// am8a item 1 (k): "is a revise or a redraft running" (revising or redrafting) and "did the draft end not green" (red or stopped) are asked of the owners in src/panel/author.js (REVISE_PHASES, NOT_GREEN_PHASES); the page asks the list the server hands it
+test('am8a item 1 k: only REVISE_PHASES and NOT_GREEN_PHASES (src/panel/author.js) name the phases revising and redrafting together, and red and stopped together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('revising', 'redrafting'), '', [
+    { file: 'panel/author.js', snippet: 'const REVISE_PHASES =', why: 'the one owner' },
+    { file: 'panel/author.js', snippet: "cur.kind === 'answers' ? 'redrafting' : 'revising'", why: 'MAKES the phase word of a running child (two statements), not a question about a phase' },
+    { file: 'panel/index.html', snippet: 'ph === "drafting" || ph === "revising" || ph === "redrafting" || ph === "questions-open"', why: 'cardLocked: every phase that locks the New job card (drafting, questions-open and an unopened green too), a wider question than "a revise or redraft is running"' },
+  ]), []);
+  assert.deepEqual(copies(filesAndPage(), anyOrder('red', 'stopped'), '', [
+    { file: 'panel/author.js', snippet: 'const NOT_GREEN_PHASES =', why: 'the one owner' },
+    { file: 'panel/data.js', snippet: "'[✗]': endingWord('red') ?? ''", why: 'the run-state glyph table (glyph to ending word): a run ending, not a draft phase' },
+    { file: 'panel/index.html', snippet: 'if(state === "stopped") return "red"', why: 'a run state to a colour class ("red" is the colour), not a draft phase' },
+  ]), []);
+});
+
+// am8 item 1l: in src/checkblock.js "is this check row's kind a fact or a phrase" is isFactKind; in src/pageask.js "is this a shape ask" (check or no-check) is isShapeAsk. The guard counts inside both files and across the rest, so each owner's own statement is named
+test('am8 item 1l: in code, only isFactKind names the row kinds fact and phrase together, and only isShapeAsk the asks check and no-check', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('fact', 'phrase'), '', [
+    { file: 'checkblock.js', snippet: 'const isFactKind =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "kind: 'fact', by: 'agent', from: 'look', name: d.fact", why: 'BUILDS a look fact row (its kind and its shape are two fields), not a question about a kind' },
+    { file: 'checkblock.js', snippet: "r.by === 'agent' && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'isBang: fact, phrase or COUNT (and agent), a wider question than fact-or-phrase' },
+    { file: 'checkblock.js', snippet: "this.isSheetLine(l.n) && (r.kind === 'fact' || r.kind === 'phrase' || r.kind === 'count')", why: 'the sheet-line refusal: fact, phrase or COUNT, a wider question than fact-or-phrase' },
+    { file: 'checkblock.js', snippet: "e.kind === 'phrase' ? 'phrase' : 'fact'", why: 'MAKES a row key word from a kind, not a question about a kind' },
+    { file: 'checkrows.js', snippet: "const FACT_KINDS = new Set(['fact', 'phrase', 'count'])", why: 'fact, phrase or COUNT: the Not checked list\'s wider question' },
+    { file: 'rowresults.js', snippet: "const LINE_KINDS = ['rule', 'fact', 'phrase', 'count'", why: 'the vocabulary of every row kind in its order, not a question' },
+  ]), []);
+  assert.deepEqual(copies(filesAndPage(), anyOrder('check', 'no-check'), '', [
+    { file: 'pageask.js', snippet: 'const isShapeAsk =', why: 'the one owner' },
+  ]), []);
+});
+
+// am8 item 1m: picks-record.json is opened by readJsonFile (src/flow.js) in every reader; each reader keeps its own field. readKept (torn is not missing) and the presence check stay apart, named
+test('am8 item 1m: no reader opens picks-record.json with readFileInside and parses it itself, apart from two named statements', () => {
+  assert.deepEqual(copies(filesAndPage(), /readFileInside\([^;\n]*(?<![A-Z_])(RECORD_FILE|basename\(file\))/, '', [
+    { file: 'pickrecord.js', snippet: 'const g = readFileInside(dir, `$', why: 'readKept: tells a torn record from a missing one (the sign-time card check skips on a torn one); readJsonFile reads both as null' },
+    { file: 'panel/author.js', snippet: 'readFileInside(join(dir, r), RECORD_FILE).ok', why: 'asks only whether a record is there (which plan folder carries one), reads no field' },
+  ]), []);
+});
+
+// am8 item 1n (amount shape): "is this fact shape an amount (money or number)" is isAmountShape (src/pagebits.js, the leaf every site already imports)
+test('am8 item 1n amount: only isAmountShape names the fact shapes money and number together, apart from named lists and other vocabularies', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'number'), '', [
+    { file: 'pagebits.js', snippet: 'const isAmountShape =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms are reached: a number or date fact tied to a `~` rule is kept Not checked, am8a item 2); not 'is it an amount'" },
+    { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
+    { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text), not 'is it an amount'" },
+    { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
+    { file: 'labelscan.js', snippet: "['money', /[$€£]", why: 'the scanners table, one pattern per shape, not a question' },
+    { file: 'pagelook.js', snippet: "shape === 'money' || shape === 'number' || shape === 'time'", why: "the shapes whose value sits after a label (three, with time): 'does the value follow a label', not 'is it an amount'" },
+    { file: 'pagerules.js', snippet: "const VALUE_SHAPES = ['money', 'time', 'number']", why: 'the same three value shapes, as a list' },
+    { file: 'shapebuild.js', snippet: "kind === 'number' || kind === 'money'", why: "bareguard's shape-field KIND words (a field kind, not a fact shape)" },
+    { file: 'shapebuild.js', snippet: "kind !== 'number' && kind !== 'money'", why: "bareguard's shape-field KIND words (a field kind, not a fact shape)" },
+  ]), []);
+});
+
+// am8 item 1n (code-readable limit): "can code read a limit from the person's words for this fact shape" (money or time) is canReadLimit (src/pagerules.js, which owns validReading)
+test('am8 item 1n limit: only canReadLimit names the fact shapes money and time together, apart from named lists and other questions', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'time'), '', [
+    { file: 'pagerules.js', snippet: 'const canReadLimit =', why: 'the one owner' },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms are reached: they keep a number or date fact tied to a `~` rule Not checked, am8a item 2); not 'can code read a limit'" },
+    { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
+    { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text)" },
+    { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
+    { file: 'pagedry.js', snippet: "f.shape === 'money' || f.shape === 'time'", why: "'does a result-line finder exist for this shape' (moneyResultLines, timeCandidateLines): a capability of another function, not 'can code read a limit'" },
+    { file: 'pagelook.js', snippet: "shape === 'money' || shape === 'number' || shape === 'time'", why: "the shapes whose value sits after a label (three): not 'can code read a limit'" },
+    { file: 'pagemap.js', snippet: 'export const MAP_SHAPES =', why: "the vocabulary of the AI's map shapes, not a question" },
+    { file: 'pagerules.js', snippet: "const VALUE_SHAPES = ['money', 'time', 'number']", why: 'the three value shapes, as a list' },
+  ]), []);
+});
+
+// am8 item 1n (phrase-like): "is this fact shape phrase-like" (phrase or place) is isPhraseShape (src/pagebits.js)
+test('am8 item 1n phrase: only isPhraseShape names the fact shapes phrase and place together, apart from named lists and dispatches', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('phrase', 'place'), '', [
+    { file: 'pagebits.js', snippet: 'const isPhraseShape =', why: 'the one owner' },
+    { file: 'pagerules.js', snippet: "f.shape === 'place' || f.shape === 'phrase'", why: "the AI's raw map: which of the two a fact is decides how its words are counted (countExact or countPhrase), a dispatch on the map, not the kept fact's test" },
+    { file: 'pagerules.js', snippet: "p.f.shape === 'place' ? 'phrase'", why: 'MAKES the kept shape (place becomes phrase), not a question' },
+    { file: 'pagerules.js', snippet: "['place', 'phrase', 'value']", why: 'the kinds of the map, as a list' },
+    { file: 'pagemap.js', snippet: 'export const MAP_SHAPES =', why: "the vocabulary of the AI's map shapes, not a question" },
+    { file: 'citedcheck.js', snippet: "has('phrase') || has('place')", why: 'which FIELD the fact carries (phrase, place), not its shape' },
+    { file: 'checkblock.js', snippet: "r.can.how === 'place'", why: "how the check was built (the place route), a different field from the fact's shape" },
+    { file: 'citedcheck.js', snippet: "const FACT_FIELDS =", why: 'the vocabulary of fact fields, not a question' },
+  ]), []);
+});
+
+// am8 item 1n (result count): "is this a legal result count" ({min, max}, whole numbers 1 or more, min no more than max) is isLegalCount (src/pagebits.js)
+test('am8 item 1n count: only isLegalCount tests a result count`s keys (min and max) as a whole', () => {
+  assert.deepEqual(copies(filesAndPage(), /k === 'min' \|\| k === 'max'|Number\.isInteger\(e\.min\)|\[e\.min, e\.max\]/, 'pagebits.js', []), []);
+});
+
+// am8 item 2: the guardrail readers and the count-rule test have one body each, in src/blockpick.js (src/declaration.js re-exports the five readers); no other file defines one or spells its regex
+test('am8 item 2: only src/blockpick.js defines guardrailWordNumbers, guardrailStandaloneNumbers, guardrailWordsPerSection, guardrailSectionCount, guardrailItemCount and isCountable', () => {
+  const defines = /\b(?:function|const|let|var)\s+(?:guardrailWordNumbers|guardrailStandaloneNumbers|guardrailWordsPerSection|guardrailSectionCount|guardrailItemCount|isCountGuardrail|isCountable)\b|words\?\\b\(\?!\\s\*\(\?:each|\(\?:bullets\?\|bullet\\s\+points\?|\\s\+\(\?:\\w\+\\s\+\)\?sections\?\\b/;
+  assert.deepEqual(copies(filesAndPage(), defines, 'blockpick.js', []), []);
+});
+
+// am8 item 3: keepOrDrop and countCheck have one body each, in src/blockpick.js; src/checkpick.js neither defines nor passes them on
+test('am8 item 3: only src/blockpick.js defines keepOrDrop and countCheck; nothing imports them from src/checkpick.js', () => {
+  const defines = /\b(?:function|const|let|var)\s+(?:keepOrDrop|countCheck)\b|\b(?:keepOrDrop|countCheck)\b[^;]*from\s*['"]\.\/checkpick\.js['"]/;
+  assert.deepEqual(copies(filesAndPage(), defines, 'blockpick.js', []), []);
+});

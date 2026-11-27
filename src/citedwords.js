@@ -9,7 +9,7 @@
 // Pure: no I/O, no model. Compared white-space blind. Third outcome, named: a source with no page-read (md text, a page the look never read) is a red
 // `unread` - a check whose words were never proved against the source is never signed. What this throws away: nothing; every red is a sentence.
 
-import { asList, boundInWords, countExact, countPhrase, normLabel, wordsSaidOn } from './pagebits.js';
+import { asList, boundInWords, countExact, countPhrase, isAmountShape, normLabel, wordsSaidOn } from './pagebits.js';
 import { validReading } from './pagerules.js';
 import { ruleWords } from './pageask.js';
 import { dropSentence } from './pagedropwords.js';
@@ -123,7 +123,7 @@ export function numberRuleReds({ part, jobLine }) {
   const reds = [];
   const said = numbersSaid(wordsSaidOn(jobLine));
   const isSaid = (/** @type {string} */ shape, /** @type {unknown} */ b) => {
-    if (shape === 'money' || shape === 'number') return typeof b === 'number' && (said.bare.has(b) || said.amount.has(b));
+    if (isAmountShape(shape)) return typeof b === 'number' && (said.bare.has(b) || said.amount.has(b));
     if (shape === 'time') return typeof b === 'string' && said.time.has(timeKey(b));
     if (shape === 'date') return typeof b === 'string' && said.date.has(b);
     return false;
@@ -148,9 +148,10 @@ const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5,
 /**
  * Signed (am7 item 1): "List 3 ..." is the count, 3 results. A count the person never said as a bare number or a word number (not inside a time, a date or an
  * amount) is refused. Same reader as the number rules.
- * @param {{part: any, jobLine: {n: number, text?: string, rule?: string, rules?: string[]}}} o @returns {WordRed[]}
+ * M20 am4: a number the person switched on with Add (`added`, src/pickrecord.js `addedCountsOf`: `<line>:min:<n>` / `<line>:max:<n>`) reads as said.
+ * @param {{part: any, jobLine: {n: number, text?: string, rule?: string, rules?: string[]}, added?: Set<string>}} o @returns {WordRed[]}
  */
-export function countReds({ part, jobLine }) {
+export function countReds({ part, jobLine, added }) {
   /** @type {WordRed[]} */
   const reds = [];
   const text = wordsSaidOn(jobLine);
@@ -158,7 +159,7 @@ export function countReds({ part, jobLine }) {
   for (const w of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) { const n = NUMBER_WORDS[/** @type {'one'} */ (w)]; if (n !== undefined) said.add(n); }
   const c = part.count && typeof part.count === 'object' ? part.count : {};
   for (const k of ['min', 'max']) {
-    if (c[k] === undefined || said.has(c[k])) continue;
+    if (c[k] === undefined || said.has(c[k]) || added?.has(`${jobLine.n}:${k}:${c[k]}`)) continue;
     reds.push({ code: 'count-unsigned', detail: `line ${jobLine.n}: the result count has the number ${c[k]}, but ${c[k]} is not in your words on line ${jobLine.n}. The count is the number you asked for ("List 3" is 3 results); say it on the line, or leave the count out.` });
   }
   return reds;
@@ -220,15 +221,15 @@ export function boundReds({
 
 /**
  * Every word red for one cited part, in the order a person fixes them.
- * @param {{part: any, text: string|undefined, line: number, jobLine: any, look: {facts?: any[], dropped?: any[]}|null|undefined, doc?: boolean}} o @returns {WordRed[]}
+ * @param {{part: any, text: string|undefined, line: number, jobLine: any, look: {facts?: any[], dropped?: any[]}|null|undefined, doc?: boolean, added?: Set<string>}} o @returns {WordRed[]}
  */
 export function citedWordReds({
-  part, text, line, jobLine, look, doc = false,
+  part, text, line, jobLine, look, doc = false, added,
 }) {
   // M10 piece 5 (item 2): a DOCUMENT has no page-word map; its words are proved on its text alone (a label need not be one a map kept)
   const kept = doc ? { labels: null, words: new Set(), dropped: new Map() } : keptSetOf(look, part.source);
   if (typeof text !== 'string' || kept === null) {
     return [{ code: 'unread', detail: `line ${line}: the input "${part.source}" was not read here to prove the words against it, so a check on it cannot be drafted. A check on quotes works on a saved web page.` }];
   }
-  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...countReds({ part, jobLine }), ...placeReds({ part, line, look }), ...boundReds({ part, line, jobLine, look })];
+  return [...factWordReds({ part, text, line, kept }), ...numberRuleReds({ part, jobLine }), ...countReds({ part, jobLine, added }), ...placeReds({ part, line, look }), ...boundReds({ part, line, jobLine, look })];
 }

@@ -48,6 +48,8 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync } from 'node:fs';
+import { scheduleChoices } from '../schedule-choices.js';
+import { pageWords } from '../page-words.js';
 import { pageRules } from '../plain-checks.js';
 import { readOwnVersion } from '../version.js';
 import path, { dirname, join } from 'node:path';
@@ -60,7 +62,7 @@ import { resolveRunDir } from '../flow.js';
 import { readAsk, requestStop, stopParkedRun } from '../runner.js';
 import { removeFromNeedsYou } from './needsyou.js';
 import {
-  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, readSavedAnswer, hasConsumedAnswer, resolveFlowDir,
+  listRuns, listScheduled, summarizeJobs, RUNS_LIST_LIMITS, getRunDetail, getRunControls, getRunAudit, getRunJob, listStops, inboxOpenCount, getRunAsks, getRunResult, getJobGrid, getTicketList, getRunDownload, savedAnswerOf, hasConsumedAnswer, resolveFlowDir,
 } from './data.js';
 import { ticketAnyway, arriveAnywayOf } from './tickets.js';
 import { createResumer } from './resume.js';
@@ -157,7 +159,7 @@ function resolveRun(res, root, flow, runId) {
  *  for it and none was consumed? Then a resume child still alive for the run is only closing.
  *  @param {string} runDir @param {string} askId */
 function parkedOnYou(runDir, askId) {
-  return readAsk(runDir)?.askId === askId && readSavedAnswer(runDir) === null && !hasConsumedAnswer(runDir, askId);
+  return readAsk(runDir)?.askId === askId && savedAnswerOf(runDir) === null && !hasConsumedAnswer(runDir, askId);
 }
 
 /**
@@ -243,7 +245,7 @@ function removeLockRoute(res, body, root, resumer) {
   const { flow, runId } = b;
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
-  const saved = readSavedAnswer(runDir);
+  const saved = savedAnswerOf(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
@@ -328,7 +330,7 @@ function resumeRoute(res, body, root, resumer) {
   const { flow, runId } = b;
   const runDir = resolveRun(res, root, flow, runId);
   if (runDir === null) return;
-  const saved = readSavedAnswer(runDir);
+  const saved = savedAnswerOf(runDir);
   if (!saved) {
     refuse(res, 409, 'no-saved-answer', 'this run has no saved, unconsumed answer — a resume would have nothing to apply');
     return;
@@ -532,6 +534,8 @@ export function handleRequest(req, res, opts) {
     const version = opts.version !== undefined ? opts.version : readOwnVersion(opts.packagePath); // M4d am17: the header's number from fwdloop's own package.json; M4b am5 item 5: the one read at panel start (opts.version), not at serve time
     html = version === null ? html.replace(/v__FWDLOOP_VERSION__/g, 'version unknown').replace(/__FWDLOOP_VERSION__/g, '') : html.replace(/__FWDLOOP_VERSION__/g, version);
     html = html.replace(/__FWDLOOP_PLAN_CHECK_RULES__/g, () => JSON.stringify(pageRules())); // M4d am15: the one copy of the plain words
+    html = html.replace(/__FWDLOOP_SCHEDULE_CHOICES__/g, () => JSON.stringify(scheduleChoices())); // M20 am5 item 1: the one list of schedule choices per flow type
+    html = html.replace(/__FWDLOOP_PAGE_WORDS__/g, () => JSON.stringify(pageWords())); // M20 am8a item 1: the origin tags, the decisions that need a reason and the draft phases, from their owners
     if (method === 'HEAD') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(html) });
       res.end();

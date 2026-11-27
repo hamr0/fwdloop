@@ -1,0 +1,12 @@
+{
+  "picks": [],
+  "kept": [],
+  "rowChoices": [
+    {
+      "lineWords": "read the notes and sum them up in a short summary",
+      "occurrence": 0,
+      "tail": "phrase.lunch on friday moves to 1pm.",
+      "choice": "add"
+    }
+  ]
+}

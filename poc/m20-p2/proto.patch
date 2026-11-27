@@ -1,0 +1,84 @@
+diff --git a/src/authoring.js b/src/authoring.js
+index b628391..0e49a23 100644
+--- a/src/authoring.js
++++ b/src/authoring.js
+@@ -20,6 +20,7 @@ import {
+ import path from 'node:path';
+ 
+ import { draft } from './drafter.js';
++import { draftStepList } from './draft-steps.js';
+ import { parseSignedText, unsignedAskTtls } from './signed-text.js';
+ import { validateDeclaration, flowTypeOf } from './declaration.js';
+ import { factRows, factSentence, countSentence } from './citedcheck.js';
+@@ -430,9 +431,22 @@ export async function draftToDir({
+   // Spend is booked per call into `<dir>/draft-spend.json` (src/draftspend.js), so a draft stopped between rounds
+   // keeps what it paid. The first write is the mark that a call is in flight: if that cannot be written, the call is not made.
+   let startedAt = null;
++  // P2 prototype: the ONE writer of the step lines; labels come from draftStepList over the result so far, never built by hand
++  const started = new Set();
++  const ended = new Set();
++  const stepLine = (kind, rec) => process.stderr.write(`fwdloop: ${kind} ${JSON.stringify(rec)}\n`);
++  const writeSteps = (list, all) => {
++    list.forEach((st, i) => {
++      if (st.note) return;
++      const at = new Date().toISOString();
++      if (!started.has(i)) { started.add(i); stepLine('step-start', { no: i, label: st.label, at }); }
++      if ((all || i < list.length - 1) && !ended.has(i)) { ended.add(i); stepLine('step-end', { no: i, status: st.status === 'failed' ? 'failed' : 'done', ...(process.env.P2_END_LABEL === '1' ? { label: st.label } : {}), at }); }
++    });
++  };
+   const onBook = ({
+-    inFlight, calls, unmetered, metered, modelId: usedModel, price,
++    inFlight, calls, unmetered, metered, modelId: usedModel, price, partial,
+   }) => {
++    if (partial) writeSteps(draftStepList({ log: partial(), declaration: null, questionOpen: true }), false);
+     const now = new Date().toISOString();
+     startedAt ??= now;
+     try {
+@@ -525,6 +539,7 @@ export async function draftToDir({
+     action: result.action ?? null,
+   }), secrets);
+   let hash = null;
++  try { writeSteps(draftStepList({ log: JSON.parse(files['log.json']), declaration: result.declaration ?? null }), true); } catch { /* prototype */ }
+   if (result.ok) {
+     const declarationText = scrub(dj(result.declaration), secrets);
+     const inputFactsText = scrub(dj(result.declaration.inputFacts), secrets);
+diff --git a/src/drafter.js b/src/drafter.js
+index e8e7b4a..132691f 100644
+--- a/src/drafter.js
++++ b/src/drafter.js
+@@ -456,6 +456,7 @@ export async function draft({
+   let unmetered = 0; // calls that failed with no metering: their cost is unknown
+   const book = (inFlight) => onBook?.({
+     inFlight, calls, unmetered, metered: sumMeterings(meterings), modelId, price: priceRecord(prices, rates),
++    partial: () => { const m = sumMeterings(meterings); return { ok: false, reds: [], rounds: m.rounds, modelId, costUsd: m.costUsd, spendComplete: unmetered === 0 && m.costUsd !== null, thinking: thinkingOf(), inputs: facts.list, log }; },
+   });
+ 
+   /** the result of a draft that stops before any drafting round with what it spent so far (a provider red, the budget); one literal for every such stop */
+diff --git a/src/panel/author.js b/src/panel/author.js
+index 2ad5df2..c899371 100644
+--- a/src/panel/author.js
++++ b/src/panel/author.js
+@@ -164,9 +164,22 @@ export function createAuthor(opts) {
+    * The draft's state, READ from its files. `keys` = the provider key values to scrub from anything quoted.
+    * @param {string} dir the draft folder @param {string} id @param {string[]} keys
+    */
++  function stepLinesOf(dir) {
++    const t = readFileInside(dir, 'child.log');
++    const by = new Map();
++    if (t.ok) for (const l of t.text.split('\n')) {
++      const m = /^fwdloop: (step-start|step-end) (\{.*\})$/.exec(l);
++      if (!m) continue;
++      let r; try { r = JSON.parse(m[2]); } catch { continue; }
++      if (m[1] === 'step-start') by.set(r.no, { no: r.no, label: r.label, status: 'running', startedAt: r.at, endedAt: null });
++      else if (by.has(r.no)) Object.assign(by.get(r.no), { status: r.status, endedAt: r.at, ...(typeof r.label === 'string' ? { endLabel: r.label } : {}) });
++    }
++    return [...by.values()].sort((a, b) => a.no - b.no);
++  }
++
+   function readDraft(dir, id, keys) {
+     const card = readJson(dir, 'card.json');
+-    const base = { draftId: id, card };
++    const base = { draftId: id, card, steps: stepLinesOf(dir) };
+     if (readJson(dir, 'abandoned.json')) return { ...base, phase: 'abandoned' };
+     const signed = readJson(dir, 'signed.json');
+     if (signed) return { ...base, phase: 'signed' };

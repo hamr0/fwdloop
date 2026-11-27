@@ -33,7 +33,7 @@ import { readDocxText } from './docx.js';
 import { parseCsv } from './csv.js';
 import { makeCtxTools } from './ctx-tools.js';
 import { diaryPaths } from './diary.js';
-import { readdirInside } from './flow.js';
+import { readdirInside } from './inside.js';
 
 // bare-agent >=0.47.0: `noFollowSymlinks: true` makes shell_read/write/edit/
 // grep throw `err.code === 'ELOOP'` when the path's FINAL component is a

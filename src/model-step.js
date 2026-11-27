@@ -29,7 +29,7 @@ import { Loop, HaltError } from 'bare-agent';
 import { GateRefusal } from './primitives.js';
 import { appendCall, appendTool, nextRound } from './diary.js';
 import { ConfigError } from './config.js';
-import { worstThinkingStatus } from './thinking.js';
+import { worstThinkingStatus, isThinkingMode } from './thinking.js';
 import { citedBrief, toldPicks } from './citedcheck.js';
 import { shapeBriefOf, shapeLineBrief } from './rubricstep.js';
 
@@ -392,7 +392,7 @@ export function makeLiveModelStep({
     const diaryStep = stepMeta.step ?? null;
     const diaryTry = typeof stepMeta.attempt === 'number' ? stepMeta.attempt : null;
     const toolSchema = buildEmitArtifactSchema(stepMeta.class, stepMeta.class === 'green' && Boolean(stepMeta.cited), stepMeta.class === 'green' && Array.isArray(stepMeta.sheet) ? stepMeta.sheet : null, stepMeta.class === 'green' && stepMeta.withText === true, isRec(stepMeta.itemShape));
-    const thinkingMode = stepMeta.thinkingMode === 'on' || stepMeta.thinkingMode === 'off' ? stepMeta.thinkingMode : null;
+    const thinkingMode = isThinkingMode(stepMeta.thinkingMode) ? /** @type {'on'|'off'} */ (stepMeta.thinkingMode) : null;
     const systemPrompt = 'You are executing one step of a signed, human-authored automation. '
       + 'Call emit_artifact exactly once with this step\'s result. Ground every value in the '
       + 'reads you were handed or the tools you were granted — never invent a figure.';

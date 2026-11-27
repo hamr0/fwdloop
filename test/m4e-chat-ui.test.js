@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
@@ -16,7 +17,7 @@ const SECTION = PAGE.slice(PAGE.indexOf('<section id="panel-chat"'), PAGE.indexO
 
 /** Cut `function name(` .. its closing "\n    }" (the Chat IIFE's indent) out of the Chat block. */
 const fnSrc = (name) => cutFn(CHAT, name, '    ');
-const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
+const load = (name, prelude = '') => new Function(`${PAGE_WORDS_PRELUDE}\n${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 
 const base = { mode: 'new', session: false, startOk: true, busy: false };
 

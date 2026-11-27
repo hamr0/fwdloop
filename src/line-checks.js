@@ -4,7 +4,7 @@
 // its lines are. The write is a temporary file, then a rename, so a reader sees the old file or the new one; the other section is carried over untouched.
 import { writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { readFileInside } from './flow.js';
+import { readFileInside } from './inside.js';
 import { isRec } from './isrec.js';
 
 /** the record's name in the run's own folder */

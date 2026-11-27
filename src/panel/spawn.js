@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, openSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { readFileInside } from '../flow.js';
+import { readJsonFile } from '../flow.js';
 import { isFwdloopAlive, procStartOf } from '../liveness.js';
 import { keyValues } from '../keysfile.js';
 
@@ -44,11 +44,23 @@ export function writePidFile(dir, child) {
   writeFileSync(join(dir, 'pid.json'), `${JSON.stringify({ pid: child.pid, procStart: procStartOf(/** @type {number} */ (child.pid)), startedAt: Date.now() })}\n`, { mode: 0o600 });
 }
 
-/** One JSON file of a panel folder through the one safe gateway; null when missing, unreadable or not an object. @param {string} dir @param {string} rel */
-export function readJsonFile(dir, rel) {
-  const r = readFileInside(dir, rel);
-  if (!r.ok) return null;
-  try { const j = JSON.parse(r.text); return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
+/**
+ * M20 am3 item 8: the ONE owner of "is the draft/start child alive": the child recorded in `<dir>/pid.json` (null when none is
+ * recorded) and whether it is ours and running now: true / false, or null when it cannot be told (no /proc). `childRunning` and the
+ * draft door's abandon both ask it.
+ * @param {string} dir
+ * @returns {{pid: number, procStart: string|null, startedAt: unknown, alive: boolean|null}|null}
+ */
+export function childState(dir) {
+  const rec = readJsonFile(dir, 'pid.json');
+  if (!rec || !Number.isInteger(rec.pid)) return null;
+  const child = { pid: rec.pid, procStart: typeof rec.procStart === 'string' ? rec.procStart : null, startedAt: rec.startedAt };
+  return { ...child, alive: childAlive(child) };
+}
+
+/** The same question again for a child `childState` returned (the abandon loop asks it after each signal). @param {{pid: number, procStart: string|null}} child @returns {boolean|null} */
+export function childAlive(child) {
+  return isFwdloopAlive(child.pid, child.procStart);
 }
 
 /**
@@ -57,11 +69,10 @@ export function readJsonFile(dir, rel) {
  * @param {string} dir
  */
 export function childRunning(dir) {
-  const pid = readJsonFile(dir, 'pid.json');
-  if (!pid || !Number.isInteger(pid.pid)) return false;
-  const alive = isFwdloopAlive(pid.pid, typeof pid.procStart === 'string' ? pid.procStart : null);
-  if (alive !== null) return alive;
-  return typeof pid.startedAt === 'number' && Date.now() - pid.startedAt <= UNKNOWN_FRESH_MS;
+  const child = childState(dir);
+  if (!child) return false;
+  if (child.alive !== null) return child.alive;
+  return typeof child.startedAt === 'number' && Date.now() - child.startedAt <= UNKNOWN_FRESH_MS;
 }
 
 /**

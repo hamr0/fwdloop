@@ -1,29 +1,15 @@
-// M2 piece 2 (docs/wiki/the-module-ladder.md, "M2 — scope, exit, negative —
-// SIGNED", scope item 6): the file-checkpoint ask, in-process. Writes
-// `ask.json` (question + evidence + askedAt + attempt) into the run dir and
-// polls for `answer.json` (`{ decision: accept|redo|rerun, reason?,
-// answeredAt }`). Consumed exactly once (renamed away on read); a stale
-// answer — `answeredAt` older than THIS ask's `askedAt` — is quarantined
-// (renamed to `answer.stale.<n>.json`, audited `stale-answer-ignored`) and
-// never applied; a timeout returns `{ decision: 'timeout' }`, which
-// `src/runner.js` must treat as a halt (a pause spends nothing).
-//
-// borrowed-from: fwdloop poc/m0/runner.mjs@76a3607 (`checkpointAsk`'s file
-// protocol: `ask.json` out / poll `answer.json`, and the "ASK OPEN" stderr
-// line so a human watching knows a run is waiting on them) and
-// fwdloop poc/m0/answer.mjs@76a3607 (the answer file's own shape). Rewritten
-// off bare-agent's `Checkpoint` (M0's dependency) onto a plain poll loop —
-// M2's signed scope (item 6) calls for "M0's file checkpoint, in-process",
-// not a second Checkpoint instance layered on top of the same file protocol.
+// The ask's files and rules: the answer door (`answerAsk`), the reopen record, the archive of asked questions, the
+// one evidence reader, and the one decision table. (M2 piece 2's in-process file-checkpoint step was removed by M20 am3
+// item 5: the runner parks an ask and the Resume path reads the answer.)
 
 import {
-  existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync,
+  existsSync, linkSync, mkdirSync, unlinkSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
-import { appendAudit } from './books.js';
-import { readFileInside, resolveInside, readdirInside } from './flow.js';
+import { appendAudit, consumedAnswerName, readSavedAnswer } from './books.js';
+import { readFileInside, resolveInside, readdirInside } from './inside.js';
 
 /**
  * M4c amendment 3: the ONE rule for "was this answer saved in time" — the
@@ -66,6 +52,11 @@ export function stripControl(text) {
   return String(text).replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, '');
 }
 
+/** M20 am8a: the decisions that need a reason, as a list (the panel hands it to the page, which asks it instead of spelling them) */
+export const REASON_DECISIONS = Object.freeze(['redo', 'rerun']);
+/** M20 am8: the one question "does this decision need a reason" (a redo or a rerun; an accept does not): the answer door and the runner's re-check of a saved answer ask it @param {unknown} decision @returns {boolean} */
+export const needsReason = (decision) => REASON_DECISIONS.includes(/** @type {string} */ (decision));
+
 /** The one decision -> status table, used by `listArchivedAsks` here and by the panel's legacy-ask rows.
  *  Look it up with `normalizeDecision(decision)`. */
 export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran' };
@@ -75,96 +66,6 @@ export const DECISION_STATUS = { accept: 'accepted', redo: 'redo', rerun: 'reran
 export function decisionStatus(decision) {
   const word = normalizeDecision(decision);
   return typeof word === 'string' && Object.hasOwn(DECISION_STATUS, word) ? DECISION_STATUS[word] : undefined;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => { setTimeout(resolve, ms); });
-}
-
-function safeStamp(iso) {
-  return String(iso).replace(/[^0-9A-Za-z]/g, '-');
-}
-
-/**
- * @param {{ timeoutMs?: number, pollMs?: number, clock?: () => string, writeLine?: (line:string) => void }} [opts]
- * @returns {(opts:{question:string, evidence:unknown, runDir:string, ttlMs?: number}) => Promise<{decision:string, reason?:string}>}
- */
-export function makeFileAskStep({
-  timeoutMs = 120_000,
-  pollMs = 500,
-  clock = () => new Date().toISOString(),
-  writeLine = (line) => { process.stderr.write(`${line}\n`); },
-} = {}) {
-  let attemptCounter = 0;
-
-  return async function fileAskStep({
-    question, evidence, runDir, ttlMs,
-  }) {
-    attemptCounter += 1;
-    const attempt = attemptCounter;
-
-    // M3 scope item 1 (fixes F43): a signed `ttlMs` threaded in by the
-    // runner always governs — this constructor's own `timeoutMs` is only
-    // ever the fallback for a DIRECT call that carries no signed ttl (e.g.
-    // this module's own unit tests). No code default overrides a signed
-    // value.
-    const effectiveTimeoutMs = typeof ttlMs === 'number' ? ttlMs : timeoutMs;
-
-    mkdirSync(runDir, { recursive: true });
-    const askPath = join(runDir, 'ask.json');
-    const answerPath = join(runDir, 'answer.json');
-    const askedAt = clock();
-    const askId = randomUUID();
-    const expiresAt = new Date(Date.parse(askedAt) + effectiveTimeoutMs).toISOString();
-
-    writeFileSync(askPath, JSON.stringify({
-      askId, question, evidence, askedAt, expiresAt, attempt,
-    }, null, 2));
-    writeLine(`ASK OPEN (expires in ${Math.round(effectiveTimeoutMs / 1000)}s): ${question} — answer by writing ${answerPath}`);
-
-    const deadline = Date.now() + effectiveTimeoutMs;
-    let staleCount = 0;
-
-    for (;;) {
-      // F48 round 3: `answer.json` is checked with `resolveInside`
-      // (`src/flow.js`) before it is ever read — a symlinked answer file (or
-      // a symlinked run-dir ancestor) is treated exactly like "no answer
-      // yet" (kept polling), never read through to an outside file's
-      // content standing in for the human's real decision.
-      const answerResolved = resolveInside(runDir, 'answer.json');
-      if (answerResolved.ok) {
-        let raw = null;
-        try { raw = readFileSync(answerPath, 'utf8'); } catch { raw = null; }
-        let parsed = null;
-        if (raw !== null) { try { parsed = JSON.parse(raw); } catch { parsed = null; } }
-
-        if (parsed) {
-          const { answeredAt } = parsed;
-          const isStale = typeof answeredAt === 'string' && typeof askedAt === 'string' && answeredAt < askedAt;
-          if (isStale) {
-            staleCount += 1;
-            let staleName = join(runDir, `answer.stale.${staleCount}.json`);
-            while (existsSync(staleName)) { staleCount += 1; staleName = join(runDir, `answer.stale.${staleCount}.json`); }
-            renameSync(answerPath, staleName);
-            appendAudit(runDir, {
-              step: 'ask', attempt, class: null, verdict: 'stale-answer-ignored', gap: `answeredAt ${answeredAt} predates this ask's askedAt ${askedAt}`, usd: 0, spendComplete: true, wallMs: 0, model: null, modelMatch: null, strike: false, at: clock(), tokens: null, tools: null, refused: [],
-            });
-            // Keep polling — a stale file quarantined does not mean THIS
-            // ask has been answered.
-          } else {
-            renameSync(answerPath, join(runDir, `answer.${safeStamp(askedAt)}.consumed.json`));
-            return { decision: normalizeDecision(parsed.decision), reason: parsed.reason, artifactSha256: parsed.artifactSha256 };
-          }
-        }
-      }
-
-      if (Date.now() >= deadline) {
-        return { decision: 'timeout' };
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(pollMs);
-    }
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -311,15 +212,14 @@ export function sha256Hex(serialised) {
  * M4c-fix amendment 1 (a): why a saved `answer.json` is not a usable answer for the open ask `openAskId`, or `null`
  * when it is usable. The resume refuses each of these by name before it consumes the file, so without a way aside
  * the file would block every new answer (`answerAsk`'s exclusive create).
- * @param {string} text the file's text @param {string} openAskId
+ * @param {Extract<ReturnType<typeof readSavedAnswer>, {ok: true}>} saved `readSavedAnswer`'s result (the one reader of the file) @param {string} openAskId
  * @returns {string|null}
  */
-export function brokenAnswerWhy(text, openAskId) {
-  let a;
-  try { a = JSON.parse(text); } catch { return 'it is not valid JSON'; }
-  if (a === null || typeof a !== 'object' || Array.isArray(a)) return 'it is not a JSON object';
-  if (a.askId !== openAskId) return `it names another ask ("${a.askId}")`;
-  if (Number.isNaN(Date.parse(typeof a.answeredAt === 'string' ? a.answeredAt : ''))) return 'it carries no readable saved time';
+export function brokenAnswerWhy(saved, openAskId) {
+  if (saved.parseError !== null) return 'it is not valid JSON';
+  if (!saved.isObject) return 'it is not a JSON object';
+  if (saved.value.askId !== openAskId) return `it names another ask ("${saved.value.askId}")`;
+  if (saved.broken) return 'it carries no readable saved time';
   return null;
 }
 
@@ -381,6 +281,20 @@ export function effectiveExpiresAt(runDir, askId, original) {
 }
 
 /**
+ * M20 am3e item 15: the ONE reader of a run's `ask.json`, as found, through the safe gateway: `{ok: false, missing, red}` when the gateway gives nothing (missing, a symlink,
+ * outside the folder), else `{ok: true, value, parseError}`: `value` is the parsed JSON as it is (any shape), `parseError` the parser's message when the text is not JSON
+ * (`value` is then undefined). It applies nothing: each caller keeps its own refusal words and its own `withReopen` step (`readAsk` in src/runner.js is this plus
+ * `withReopen`, null on any trouble).
+ * @param {string} runDir
+ * @returns {{ok: false, missing: boolean, red?: string}|{ok: true, value: any, parseError: string|null}}
+ */
+export function readAskFile(runDir) {
+  const r = readFileInside(runDir, 'ask.json');
+  if (!r.ok) return r;
+  try { return { ok: true, value: JSON.parse(r.text), parseError: null }; } catch (err) { return { ok: true, value: undefined, parseError: /** @type {any} */ (err).message }; }
+}
+
+/**
  * An `ask.json`-shaped object as every reader should see it: `expiresAt` is the effective deadline, and `waitMs`
  * is the signed wait the ask was parked with (its own `expiresAt` minus `askedAt`, written from the signed ttl),
  * which a reopen repeats. `waitMs` is `null` when either time cannot be read.
@@ -414,22 +328,21 @@ export function reopenAsk({
   if (typeof runDir !== 'string' || runDir.length === 0) return { ok: false, red: 'reopenAsk: "runDir" must be a non-empty string' };
   if (typeof askId !== 'string' || askId.length === 0) return { ok: false, red: 'reopenAsk: "askId" must be a non-empty string' };
   if (typeof by !== 'string' || by.length === 0) return { ok: false, red: 'reopenAsk: "by" must name who reopened it' };
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) return { ok: false, red: `reopenAsk: no open ask for run ${runDir}` };
-  let raw;
-  try { raw = JSON.parse(askRead.text); } catch (err) { return { ok: false, red: `reopenAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` }; }
+  if (askRead.parseError !== null) return { ok: false, red: `reopenAsk: ask.json for run ${runDir} is not valid JSON — ${askRead.parseError}` };
+  const raw = askRead.value;
   if (raw === null || typeof raw !== 'object' || raw.askId !== askId) return { ok: false, red: `reopenAsk: askId "${askId}" is unknown for run ${runDir}` };
   const ask = withReopen(runDir, raw);
   if (Number.isNaN(Date.parse(ask.expiresAt))) return { ok: false, red: `reopenAsk: askId "${askId}" has an unparseable expiresAt — refusing` };
   if (ask.waitMs === null) return { ok: false, red: `reopenAsk: askId "${askId}" carries no readable wait (askedAt/expiresAt) to repeat — refusing` };
-  if (existsSync(join(runDir, `answer.${askId}.consumed.json`))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
+  if (existsSync(join(runDir, consumedAnswerName(askId)))) return { ok: false, red: `reopenAsk: askId "${askId}" already answered for run ${runDir}` };
   if (Date.parse(nowIso) <= Date.parse(ask.expiresAt)) return { ok: false, red: `reopenAsk: askId "${askId}" has not expired (it runs until ${ask.expiresAt})` };
-  const saved = readFileInside(runDir, 'answer.json');
+  const saved = readSavedAnswer(runDir);
   let timing = null;
   if (saved.ok) {
-    let a = null;
-    try { a = JSON.parse(saved.text); } catch { /* broken: set aside below */ }
-    timing = a !== null && typeof a === 'object' && a.askId === askId ? answerTiming(a.answeredAt, ask.expiresAt) : 'unreadable';
+    // a broken answer, or one for another ask, is set aside below
+    timing = !saved.broken && saved.askId === askId ? answerTiming(saved.answeredAt, ask.expiresAt) : 'unreadable';
     if (timing === 'on-time') return { ok: false, red: `reopenAsk: askId "${askId}" has an answer saved in time — resume it, it is not expired` };
   }
   // Amendment 3 (b): the stale answer is moved aside FIRST. If that fails nothing is written (no record, no audit
@@ -492,19 +405,17 @@ export function answerAsk({
   // F48 round 3: routed through `readFileInside` — a symlinked `ask.json`
   // (or a symlinked run-dir ancestor) reads as "no open ask", never as some
   // outside file's content.
-  const askRead = readFileInside(runDir, 'ask.json');
+  const askRead = readAskFile(runDir);
   if (!askRead.ok) {
     if (askRead.missing) {
       return { ok: false, red: `answerAsk: no open ask for run ${runDir}` };
     }
     return { ok: false, red: `answerAsk: ask.json for run ${runDir} — ${askRead.red}` };
   }
-  let ask;
-  try {
-    ask = JSON.parse(askRead.text);
-  } catch (err) {
-    return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${err.message}` };
+  if (askRead.parseError !== null) {
+    return { ok: false, red: `answerAsk: ask.json for run ${runDir} is not valid JSON — ${askRead.parseError}` };
   }
+  const ask = askRead.value;
   if (ask.askId !== askId) {
     return { ok: false, red: `answerAsk: askId "${askId}" is unknown for run ${runDir}` };
   }
@@ -532,12 +443,12 @@ export function answerAsk({
   // A consumed marker survives long after the run has moved on (or ended) —
   // it must still refuse a second answer naming the SAME askId, never only
   // while answer.json happens to still be sitting there.
-  if (existsSync(join(runDir, `answer.${askId}.consumed.json`))) {
+  if (existsSync(join(runDir, consumedAnswerName(askId)))) {
     return { ok: false, red: `answerAsk: askId "${askId}" already answered for run ${runDir}` };
   }
 
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if ((decision === 'redo' || decision === 'rerun') && trimmedReason.length === 0) {
+  if (needsReason(decision) && trimmedReason.length === 0) {
     return { ok: false, red: `answerAsk: askId "${askId}" needs a non-blank reason to ${decision}` };
   }
 
@@ -566,9 +477,9 @@ export function answerAsk({
   // M4c-fix amendment 1 (a): a saved answer that is broken (not JSON, not an object, names another ask, no readable
   // time) would block this write for good — it is moved aside as a record first (never deleted). Only a broken one.
   let setAside = null;
-  const savedRead = readFileInside(runDir, 'answer.json');
+  const savedRead = readSavedAnswer(runDir);
   if (savedRead.ok) {
-    const why = brokenAnswerWhy(savedRead.text, askId);
+    const why = brokenAnswerWhy(savedRead, askId);
     if (why !== null) {
       const moved = setAsideAnswer(runDir, askId, 'broken');
       if (!moved.ok) return { ok: false, red: `answerAsk: askId "${askId}" — a broken saved answer (${why}) is in the way — ${moved.red}` };
@@ -656,6 +567,18 @@ export function writeAskArchive({
 }
 
 /**
+ * The one parse of an archived ask, `asks/<entry>` (entry = `<askId>.json`), through the safe gateway. `unreadable` keeps the gateway's own result in `read`
+ * (missing, a symlink, outside the folder); `invalid` is text that is not JSON, with the parser's message. The callers decide what a failure means.
+ * @param {string} runDir @param {string} entry
+ * @returns {{ok: true, ask: any}|{ok: false, code: 'unreadable', read: any}|{ok: false, code: 'invalid', message: string}}
+ */
+function readArchivedAsk(runDir, entry) {
+  const read = readFileInside(runDir, join('asks', entry));
+  if (!read.ok) return { ok: false, code: 'unreadable', read };
+  try { return { ok: true, ask: JSON.parse(read.text) }; } catch (err) { return { ok: false, code: 'invalid', message: err.message }; }
+}
+
+/**
  * M4b amendment 2: for each archived ask that carries `emits`, joins it BY
  * askId to its consumed answer and returns the recorded `artifactSha256` of
  * an ACCEPT. Only `decision: accept` with a string hash counts; never
@@ -674,12 +597,11 @@ export function readAcceptedHashesByEmits(runDir) {
   for (const entry of readdirInside(runDir, 'asks').sort()) {
     if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
     const askId = entry.slice(0, -'.json'.length);
-    const archiveRead = readFileInside(runDir, join('asks', entry));
-    if (!archiveRead.ok) continue; // eslint-disable-line no-continue
-    let emits;
-    try { emits = JSON.parse(archiveRead.text)?.emits; } catch { continue; } // eslint-disable-line no-continue
+    const archived = readArchivedAsk(runDir, entry);
+    if (!archived.ok) continue; // eslint-disable-line no-continue
+    const emits = archived.ask?.emits;
     if (typeof emits !== 'string' || emits.length === 0) continue; // eslint-disable-line no-continue
-    const markerRead = readFileInside(runDir, `answer.${askId}.consumed.json`);
+    const markerRead = readFileInside(runDir, consumedAnswerName(askId));
     if (!markerRead.ok) continue; // eslint-disable-line no-continue
     let marker;
     try { marker = JSON.parse(markerRead.text); } catch { continue; } // eslint-disable-line no-continue
@@ -730,9 +652,10 @@ export function listArchivedAsks(runDir) {
     if (!entry.endsWith('.json')) continue; // eslint-disable-line no-continue
     const askId = entry.slice(0, -'.json'.length);
     const archivePath = join(runDir, 'asks', entry);
-    const archiveRead = readFileInside(runDir, join('asks', entry));
+    const archived = readArchivedAsk(runDir, entry);
     let ask;
-    if (!archiveRead.ok) {
+    if (!archived.ok && archived.code === 'unreadable') {
+      const archiveRead = archived.read;
       asks.push({
         askId, question: undefined, askedAt: undefined, expiresAt: undefined,
         evidence: {
@@ -746,18 +669,17 @@ export function listArchivedAsks(runDir) {
       });
       continue; // eslint-disable-line no-continue
     }
-    try {
-      ask = JSON.parse(archiveRead.text);
-    } catch (err) {
+    if (!archived.ok) {
       asks.push({
         askId, question: undefined, askedAt: undefined, expiresAt: undefined,
-        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${err.message}` },
+        evidence: { draft: null, unjudged: [], why: `${archivePath} is not valid JSON — ${archived.message}` },
         answer: { status: 'open' },
       });
       continue; // eslint-disable-line no-continue
     }
+    ask = archived.ask;
 
-    const consumedRelPath = `answer.${askId}.consumed.json`;
+    const consumedRelPath = consumedAnswerName(askId);
     const consumedRead = readFileInside(runDir, consumedRelPath);
     let answer = { status: 'open' };
     if (consumedRead.ok) {

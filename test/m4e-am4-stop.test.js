@@ -15,8 +15,9 @@ import { loadCatalogue } from '../src/catalogue.js';
 import { readHistory, readAudit } from '../src/books.js';
 import { answerAsk } from '../src/ask.js';
 import {
-  runFlow, resumeRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop, readHaltRecord,
+  runFlow, resumeRun, makeParkingAskStep, STOP_FILE, HALT_FILE, requestStop,
 } from '../src/runner.js';
+import { readHaltRecord } from '../src/books.js';
 import { sendViaPrimitive } from '../src/send.js';
 import { getRunDetail, listRuns } from '../src/panel/data.js';
 import {
@@ -180,7 +181,7 @@ test('am4 (d): the Stop door over HTTP — running -> 202 and a stop file; the r
   assert.equal((await w.get('/api/runs/job2/r2')).json().glyph, '[■]');
 });
 
-test('am4: a cap-halted run that has its halt record reads [■] stopped (resumable); one without it (a run from before the record existed) stays failed', async () => {
+test('am4: a cap-halted run that has its halt record reads [■] stopped (resumable); one without it (a run from before the record existed) reads [■] capped', async () => {
   const w = mk('cap');
   const { fn } = step();
   const r = await runFlow({ ...args(w, fn, 'run-1', { ceilingUsd: 0.01 }), sources: w.sources });
@@ -202,8 +203,8 @@ test('am4: a cap-halted run that has its halt record reads [■] stopped (resuma
   // the same run as an old one: remove the record -> failed, no Resume
   unlinkSync(path.join(w2.root, 'small', 'runs', 'run-1', HALT_FILE));
   const old = getRunDetail({ root: w2.root, flow: 'small', runId: 'run-1', catalogue: CAT });
-  assert.equal(old.glyph, '[✗]');
-  assert.equal(old.word, 'failed');
+  assert.equal(old.glyph, '[■]', 'M20 am1 item 9: a cap-halt that cannot be resumed wears [■], no longer [✗]');
+  assert.equal(old.word, 'capped');
   assert.equal(old.controls.canResume, false);
   assert.equal(listRuns({ root: w2.root, catalogue: CAT }).find((x) => x.runId === 'run-1').controls.canResume, false);
 });

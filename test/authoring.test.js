@@ -9,9 +9,8 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 
-import {
-  draftToDir, signDraft, specHash, LEAK_MARKER_FILE, sweepForSecrets, scrub, SPEC_HASH_FILE, SIGN_LINE,
-} from '../src/authoring.js';
+import { draftToDir, signDraft, specHash, sweepForSecrets, SIGN_LINE } from '../src/authoring.js';
+import { LEAK_MARKER_FILE, scrub, SPEC_HASH_FILE } from '../src/draftfiles.js';
 import { readSpendRows, ceilingCostUsd } from '../src/provider.js';
 import { tickedHome } from './fixtures/m4d-ticked.mjs';
 import {

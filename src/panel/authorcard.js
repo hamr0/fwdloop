@@ -15,7 +15,9 @@ import {
 import { isAbsolute, join } from 'node:path';
 
 import { checkFlowName } from '../flow.js';
+import { isFlowType } from '../declaration.js';
 import { sameRuleWords } from '../blockpick.js';
+import { isShapeAsk } from '../pageask.js';
 import { isColumnChoiceRule, columnChoiceParts, swapColumnWord } from '../sheetoffer.js';
 import { isWebUrl } from '../pagefetch.js';
 import { checkSendDestination } from '../runner.js';
@@ -24,7 +26,10 @@ import { capTooSmallText } from '../draftspend.js';
 import { startableMcpServers, mcpConfigFor } from '../mcp-sources.js';
 import { mcpPickFor } from '../mcp-pick.js';
 import { isTicketListUrl } from '../ticket-draft.js';
-import { validateSchedule } from '../trigger-clock.js';
+import { isClockKind, validateSchedule } from '../trigger-clock.js';
+import { scheduleKindsOf } from '../schedule-choices.js';
+import { shapeOf } from '../schedule-shape.js';
+import { fileTriggerWhy, isFileKind } from '../trigger-files.js';
 import { remoteRefusal } from '../ticket-mcp.js';
 import { readPriceConfig, resolveUsableModel, ceilingCostUsd } from '../provider.js';
 
@@ -193,7 +198,7 @@ export function applyAnswers(job, all) {
     } else appends.push({ line: x.line, answer: x.rule });
   }
   const grown = appendAnswersToJob(out, appends);
-  const picks = all.filter((x) => (x.ask === 'check' || x.ask === 'no-check') && !x.left)
+  const picks = all.filter((x) => isShapeAsk(x.ask) && !x.left)
     .map((x) => ({ line: x.line, rule: x.ruleNo, check: x.check ?? null, ...(x.own ? { own: true } : {}) }));
   const left = all.filter((x) => x.left).map((x) => ({ line: x.line, rule: x.ruleNo }));
   return { job: grown.job, added: grown.added + done + columns.length, picks, left, columns };
@@ -261,7 +266,10 @@ export function cardFields(body) {
     ...(str(b.flowType).trim() !== '' && str(b.flowType).trim() !== 'plain' ? { flowType: str(b.flowType).trim(), mcp: str(b.mcp).trim() } : {}),
     // M13 piece 5 (item 7): the Schedule row, signed with the job. Absent = By hand (no schedule.json). Only the typed fields are kept.
     ...(b.schedule && typeof b.schedule === 'object' && !Array.isArray(b.schedule)
-      ? { schedule: b.schedule.kind === 'new-ticket' ? { kind: 'new-ticket' } : { kind: b.schedule.kind, hour: b.schedule.hour, minute: b.schedule.minute } } : {}),
+      ? { schedule: b.schedule.kind === 'new-ticket' ? { kind: 'new-ticket' } : {
+        // only the typed fields the page sent, so a file choice carries no time and a clock choice no file (`shapeOf` refuses a field the kind does not take)
+        kind: b.schedule.kind, ...Object.fromEntries(['hour', 'minute', 'day', 'role', 'path', 'folder'].filter((k) => b.schedule[k] !== undefined).map((k) => [k, b.schedule[k]])),
+      } } : {}),
   };
 }
 
@@ -475,7 +483,7 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
   // M13 piece 4: the Flow type and its MCP. MCP and Tickets name an MCP fwdloop can start whose tools have been checked (R1: the job gets every tool of the newest OK check;
   // never a started server here). Tickets needs the ticket list address as an Inputs line; MCP may have none.
   const flow = /** @type {{flowType?: string, mcp?: string}} */ (card).flowType ?? 'plain';
-  if (!['plain', 'mcp', 'tickets'].includes(flow)) no('flowType', 'Flow type must be plain, MCP or Tickets MCP.');
+  if (!isFlowType(flow)) no('flowType', 'Flow type must be plain, MCP or Tickets MCP.');
   else if (flow !== 'plain') {
     const server = String(/** @type {any} */ (card).mcp ?? '');
     if (server === '') no('mcp', 'Pick an MCP.');
@@ -490,11 +498,16 @@ export function checkCard(card, { root, keys = [], home, runOf }) {
   // M13 piece 5 (item 7): the Schedule row. Every day at HH:MM for any flow type; When a new ticket arrives only for Tickets. The trigger itself (list, server, tool) is filled from the signed job at sign.
   const sched = /** @type {any} */ (card).schedule;
   if (sched !== undefined) {
-    if (sched.kind === 'new-ticket') {
-      if (flow !== 'tickets') no('schedule', 'Only a Tickets MCP job can start on a new ticket.');
-    } else if (sched.kind === 'daily') {
+    // M20 am5 item 1: the kinds a flow type offers are the one list (src/schedule-choices.js); a file or folder choice is checked as the Run card checks it (src/schedule-shape.js)
+    if (sched.kind === 'new-ticket' && flow !== 'tickets') no('schedule', 'Only a Tickets MCP job can start on a new ticket.');
+    else if (sched.kind === 'hand' || !scheduleKindsOf(flow).includes(sched.kind)) no('schedule', 'Pick when it runs from the choices.');
+    else if (isClockKind(sched.kind)) {
       try { validateSchedule(sched); } catch { no('schedule', 'The time must be an hour 0-23 and a minute 0-59, like 09:00.'); }
-    } else no('schedule', 'Pick when it runs from the choices.');
+    } else if (isFileKind(sched.kind)) {
+      const shaped = shapeOf(sched, parseInputLines(card.inputs).filter((i) => !isWebUrl(i.path)).map((i) => i.role));
+      if (!shaped.ok) no('schedule', shaped.say.replace(/ Nothing was changed\.$/, ''));
+      else if (shaped.trigger !== null) { const why = fileTriggerWhy(/** @type {any} */ (shaped.trigger)); if (why !== null) no('schedule', why); }
+    }
   }
 
   // inputs: one `name: path` per line; a role and a path on every line, no repeated role; each path a readable regular file (realpath)

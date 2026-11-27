@@ -8,7 +8,8 @@ import path from 'node:path';
 import { mkdtempSync } from '../scripts/tmp-track.mjs';
 import { cardFields, cardToProse } from '../src/panel/authorcard.js';
 import { draft, hideCounts } from '../src/drafter.js';
-import { countCheck, retentionOf } from '../src/checkpick.js';
+import { retentionOf } from '../src/checkpick.js';
+import { countCheck } from '../src/blockpick.js';
 import { RATES, MODEL, fakeProvider, toolReply } from './drafter-fixture.mjs';
 
 const JOB = [

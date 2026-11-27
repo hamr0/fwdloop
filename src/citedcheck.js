@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { createRubric, checkStep } from 'bareguard';
 import { plainWords } from './checkwords.js';
-import { asList, FACT_OPS, boundOk, MAX_CURRENCIES, MAX_UNITS, MAX_UNIT_CHARS } from './pagebits.js';
+import { asList, FACT_OPS, boundOk, isAmountShape, isPhraseShape, isLegalCount, MAX_CURRENCIES, MAX_UNITS, MAX_UNIT_CHARS } from './pagebits.js';
 import { ruleWords, moneyAs } from './pageask.js';
 import { placeRuleProblem } from './placerule.js';
 
@@ -69,7 +69,7 @@ function unitsOnce(units) {
  * @param {any} k a fact from `lookFactOf` (src/pagelook.js) @returns {Record<string, any>[]}
  */
 export function factsOfLook(k) {
-  if (k.shape === 'phrase' || k.shape === 'place') {
+  if (isPhraseShape(k.shape)) {
     // M19 am5: a plain phrase fact (no `phrases`) with several look words signs ALL of them as one fact (any one, on word edges); one word signs `phrase` as before
     const alts = Array.isArray(k.phrases) ? [] : [...new Set(/** @type {unknown[]} */ (Array.isArray(k.words) ? k.words : []).map(String))];
     if (alts.length > 1) return [{ name: String(k.name), shape: 'phrase', anyOf: alts }];
@@ -121,7 +121,7 @@ export function factPartReds(part) {
     if (f.shape !== 'phrase' && (f.phrase !== undefined || f.anyOf !== undefined)) reds.push(`${w} "${f.name}": only a phrase fact carries phrase`);
     // the four fields of bareloop v0.56.0 (M16 am3 (3)); each is checked only when present, so a fact without them is judged exactly as before
     if (f.lang !== undefined && (f.shape !== 'date' || typeof f.lang !== 'string' || !Object.hasOwn(FACT_LANGS, f.lang))) reds.push(`${w} "${f.name}": lang is for a date fact, one of ${Object.keys(FACT_LANGS).join(', ')}`);
-    if (f.decimal !== undefined && ((f.shape !== 'number' && f.shape !== 'money') || !FACT_DECIMALS.includes(f.decimal))) reds.push(`${w} "${f.name}": decimal is for a number or money fact, "." or ","`);
+    if (f.decimal !== undefined && (!isAmountShape(f.shape) || !FACT_DECIMALS.includes(f.decimal))) reds.push(`${w} "${f.name}": decimal is for a number or money fact, "." or ","`);
     if (f.place !== undefined) { const bad = f.shape === 'phrase' ? placeRuleProblem(f.place) : 'only a phrase fact carries a place rule'; if (bad !== null) reds.push(`${w} "${f.name}": ${bad}`); }
     if (f.aiProposal !== undefined && typeof f.aiProposal !== 'boolean') reds.push(`${w} "${f.name}": aiProposal is true or false`);
     if (f.until !== undefined && (f.anchor === undefined || f.shape !== 'text')) reds.push(`${w} "${f.name}": until closes a text fact that has an anchor, and nothing else`);
@@ -136,9 +136,7 @@ export function factPartReds(part) {
   });
   const c = part.count;
   if (c !== undefined) {
-    const ok = isRec(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (c.min !== undefined || c.max !== undefined)
-      && ['min', 'max'].every((k) => c[k] === undefined || (Number.isInteger(c[k]) && c[k] >= 1)) && (c.min === undefined || c.max === undefined || c.min <= c.max);
-    if (!ok) reds.push('the result count is {min, max}: whole numbers, 1 or more, min no more than max');
+    if (!isLegalCount(c)) reds.push('the result count is {min, max}: whole numbers, 1 or more, min no more than max');
   }
   return reds;
 }
@@ -320,7 +318,7 @@ export function factShapeReds(part, w, red) {
         else if (typeof f.lang !== 'string' || !Object.hasOwn(FACT_LANGS, f.lang)) red('invalid-value', `${fw}.lang`, `one of ${Object.keys(FACT_LANGS).join(' | ')}`);
       }
       if (has('decimal')) {
-        if (f.shape !== 'number' && f.shape !== 'money') red('invalid-value', `${fw}.decimal`, 'only a number or money fact carries decimal (the mark the page writes before the decimals)');
+        if (!isAmountShape(f.shape)) red('invalid-value', `${fw}.decimal`, 'only a number or money fact carries decimal (the mark the page writes before the decimals)');
         else if (!FACT_DECIMALS.includes(f.decimal)) red('invalid-value', `${fw}.decimal`, 'one of "." | ","');
       }
       if (f.shape === 'phrase') {
@@ -349,10 +347,7 @@ export function factShapeReds(part, w, red) {
   }
   if (Object.hasOwn(part, 'count')) {
     const c = part.count;
-    const ok = isRec(c) && Object.keys(c).every((k) => k === 'min' || k === 'max') && (Object.hasOwn(c, 'min') || Object.hasOwn(c, 'max'))
-      && ['min', 'max'].every((k) => !Object.hasOwn(c, k) || (Number.isInteger(c[k]) && c[k] >= 1))
-      && (!Object.hasOwn(c, 'min') || !Object.hasOwn(c, 'max') || c.min <= c.max);
-    if (!ok) red('invalid-value', `${w}.count`, '{min?, max?} — how many results the person asked for (integers, 1 or more, min no more than max)');
+    if (!isLegalCount(c)) red('invalid-value', `${w}.count`, '{min?, max?} — how many results the person asked for (integers, 1 or more, min no more than max)');
   }
 }
 

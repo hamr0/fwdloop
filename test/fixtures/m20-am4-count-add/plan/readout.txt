@@ -1,0 +1,58 @@
+DRAFT READOUT — NOT SIGNED — flow "m20-long-2"
+
+Drafted by: deepseek-flash in 7 round(s), cost $0.0153
+Flows root: @@DIR@@/flows  (the flow is written to <flows root>/m20-long-2 when you sign)
+Cap per run (signed by you in the prose): $0.5
+
+INPUTS
+  expenses = @@DIR@@/inputs/expenses.csv  [headings: none]
+  notes = @@DIR@@/inputs/notes.txt  [headings: none]
+  flow type: plain
+
+STEPS
+  1. (line 1) Read the expenses sheet
+     grants: addressCells | reads: expenses | emits: expenses_rows | check: No machine check of the content: you check it at the ask.
+     CHECKED · 1
+       [default]  file   the file exists and its text is not empty (code's own floor)
+  2. (line 2) List every expense over 500, with how many there are and their total
+     grants: read, grep | reads: expenses | emits: over_500_list | check: green
+     cells only from column 'Amount' of expenses
+     CHECKED · 3
+       [you]      truth  rows — rows where Amount > 500 — covers "Amount over 500"
+       [agent]    truth  count — count of rows where Amount > 500
+       [agent]    truth  sum — sum of Amount where Amount > 500
+  3. (line 3) check the list with me
+     grants: none (pure stop) | reads: over_500_list | emits: over_500_confirmed | check: hitl
+  4. (line 4) Read the notes and sum them up in a short summary
+     grants: read | reads: notes | emits: notes_summary | check: green
+     CHECKED · 3
+       [agent]    truth  fact · Lunch on Friday moves to pm — phrase, must say "Lunch on Friday moves to 1pm.", quoted from "notes"
+       [you]      truth  at most 100 words
+       [default]  file   the file exists and its text is not empty (code's own floor)
+     SUGGESTED · add if you want it
+       [agent]    truth  fact · results — 1 to 4 results, each quoted from "notes"
+  5. (line 5) check the summary with me
+     grants: none (pure stop) | reads: notes_summary, expenses_rows, over_500_list | emits: summary_confirmed | check: hitl
+  6. (line 6) Write it out
+     grants: write | reads: summary_confirmed | emits: final_output | check: No machine check of the content; you check it after you accept.
+  EVERY LINE
+     CHECKED · 2
+       [default]  file   the output exists and isn't empty
+       [default]  file   the model said done: true
+
+ASKS (human stops)
+  line 3: "check the list with me" (ttl 1h)
+  line 5: "check the summary with me" (ttl 1h)
+
+SEND TARGET (nothing leaves before an accepted ask)
+  line 6 -> file:@@DIR@@/out
+
+JOB LINES
+  1. Read the expenses sheet
+  2. List every expense over 500, with how many there are and their total
+  ~ Amount over 500
+  3. check the list with me
+  4. Read the notes and sum them up in a short summary
+  ~ at most 100 words
+  5. check the summary with me
+  6. Write it out

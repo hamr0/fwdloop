@@ -21,7 +21,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { readFileInside, readdirInside } from './flow.js';
+import { readFileInside, readdirInside } from './inside.js';
 import { appendRow } from './jsonl-append.js';
 import { TRIGGER_RECORD_FILE } from './trigger-line.js';
 
@@ -29,6 +29,15 @@ function appendLine(filePath, row) {
   mkdirSync(dirname(filePath), { recursive: true });
   appendRow(filePath, row);
 }
+
+/**
+ * M20 am3 item 5: the ONE place the consumed-answer file name is spelled: `answer.<askId>.consumed.json`, what the resume
+ * renames `answer.json` to (F44). `askIdOfConsumedName` is its inverse (null for any other name, `answer.stale.<n>.json` included).
+ * @param {string} askId
+ */
+export const consumedAnswerName = (askId) => `answer.${askId}.consumed.json`;
+/** @param {string} name @returns {string|null} */
+export const askIdOfConsumedName = (name) => /^answer\.(.+)\.consumed\.json$/.exec(name)?.[1] ?? null;
 
 /**
  * M4c piece 1: the ONE writer of a run dir's `pids.jsonl` — append-only, never
@@ -48,6 +57,39 @@ export function appendPidRow(runDir, row) {
  */
 export function readPidRows(runDir) {
   return readLines(runDir, 'pids.jsonl');
+}
+
+/**
+ * M20 am3b item 1: the ONE reader of a run's saved answer, `answer.json` (what `answerAsk` writes; the resume consumes it by renaming it away). Through the safe
+ * gateway (a symlink or a file outside the folder is refused). It parses nothing else's words: each caller keeps its own refusal sentence and reads these fields.
+ * `broken` = no JSON object, no `askId`, or no readable `answeredAt`: the file is not a usable answer for any ask. `value` is the parsed JSON as it is (any shape),
+ * `parseError` the parser's message when the text is not JSON, `isObject` says `value` is a plain JSON object. `decision` is the file's own word, not normalised.
+ * @param {string} runDir
+ * @returns {{ok: false, missing: boolean, red: string}
+ *   | {ok: true, value: any, parseError: string|null, isObject: boolean, askId: string|null, decision: string|null, answeredAt: string|null, broken: boolean}}
+ */
+export function readSavedAnswer(runDir) {
+  const r = readFileInside(runDir, 'answer.json');
+  if (!r.ok) return r.missing ? { ok: false, missing: true, red: 'answer.json is missing' } : { ok: false, missing: false, red: r.red };
+  const text = r.text;
+  let value;
+  try { value = JSON.parse(text); } catch (err) {
+    return { ok: true, value: undefined, parseError: err.message, isObject: false, askId: null, decision: null, answeredAt: null, broken: true };
+  }
+  const isObject = value !== null && typeof value === 'object' && !Array.isArray(value);
+  const askId = isObject && typeof value.askId === 'string' && value.askId.length > 0 ? value.askId : null;
+  const answeredAt = isObject && typeof value.answeredAt === 'string' ? value.answeredAt : null;
+  return {
+    ok: true, value, parseError: null, isObject, askId,
+    decision: isObject && typeof value.decision === 'string' ? value.decision : null,
+    answeredAt,
+    broken: !isObject || askId === null || Number.isNaN(Date.parse(answeredAt ?? '')),
+  };
+}
+
+/** Has a process started on this run? (the run wrote its first pid row; a run with none is still starting, or never started) @param {string} runDir */
+export function processStarted(runDir) {
+  return readPidRows(runDir).length > 0;
 }
 
 /**
@@ -274,11 +316,33 @@ export function auditRowAt(row) {
  * Read back every row `appendAudit` has written for one run, in file order
  * (append order — never re-sorted). `[]` when the file doesn't exist yet
  * (a run that hasn't made an attempt), never a thrown error.
+ * `{ strict: true }` is the one named mode for the money sum: `{ok:true, rows}` or `{ok:false, red}` on a torn line.
  * @param {string} runDir
- * @returns {any[]}
+ * @param {{strict?: boolean}} [opts]
+ * @returns {any}
  */
-export function readAudit(runDir) {
-  return readLines(runDir, 'audit.jsonl');
+export function readAudit(runDir, { strict = false } = {}) {
+  if (!strict) return readLines(runDir, 'audit.jsonl');
+  // strict mode (M20 am3 item 11): the money sum must balance, so a torn line is a red, never skipped; a missing or refused file is no rows
+  const result = readFileInside(runDir, 'audit.jsonl');
+  if (!result.ok) return { ok: true, rows: [] };
+  const rows = [];
+  for (const line of result.text.split('\n')) {
+    if (line.trim().length === 0) continue;
+    try { rows.push(JSON.parse(line)); } catch (err) { return { ok: false, red: `audit.jsonl line is not valid JSON — ${err.message}` }; }
+  }
+  return { ok: true, rows };
+}
+
+/**
+ * The one reader of a run's `trigger.json` (why it started): an object, or `null` (a hand run, a missing, refused or unreadable file, a non-object).
+ * @param {string} runDir
+ * @returns {Record<string, any>|null}
+ */
+export function readTriggerRecord(runDir) {
+  const f = readFileInside(runDir, TRIGGER_RECORD_FILE);
+  if (!f.ok) return null;
+  try { const j = JSON.parse(f.text); return j && typeof j === 'object' ? j : null; } catch { return null; }
 }
 
 /**
@@ -291,10 +355,8 @@ export function readAudit(runDir) {
 export function appendHistory(flowDir, row) {
   checkCostField(row, 'spentUsd', 'appendHistory');
   // M9 (am2 item 1): a run a trigger started says so in its history row, read from the record the start wrote into the run's own folder
-  const rec = typeof row.runId === 'string' && row.trigger === undefined ? readFileInside(join(flowDir, 'runs', row.runId), TRIGGER_RECORD_FILE) : null;
-  let trigger;
-  if (rec !== null && rec.ok) { try { trigger = JSON.parse(rec.text); } catch { trigger = undefined; } }
-  appendLine(join(flowDir, 'history.jsonl'), trigger === undefined ? row : { ...row, trigger });
+  const trigger = typeof row.runId === 'string' && row.trigger === undefined ? readTriggerRecord(join(flowDir, 'runs', row.runId)) : null;
+  appendLine(join(flowDir, 'history.jsonl'), trigger === null ? row : { ...row, trigger });
 }
 
 /**
@@ -308,8 +370,92 @@ export function readHistory(flowDir) {
   return readLines(flowDir, 'history.jsonl');
 }
 
-/** The two outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
-export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
+export const HALT_FILE = 'halt.json';
+
+/**
+ * M20 am1 item 1: the ONE table of endings. Every history outcome and every audit verdict fwd writes is a key; the flags say what it
+ * means, and every reader asks a helper below (never its own list of words):
+ *   good        the run or try passed                         resumable   `halt.json` is left, the run can be continued
+ *   notFailed   not a failure of the job (complete, a stop, a cap halt, a rerun, an expired ask, a skipped ticket)
+ *   noise       the instrument failed, not the work (learnings set the run aside)
+ *   blocked     a verdict that stopped a step, the Run tab's "blocked" line
+ *   open        the Audit's `·` mark: waiting / a human note, not yet resolved either way
+ *   waiting     a step whose last row is this is parked        stopNote    a Stop's own note row, never a try
+ *   humanNo     the human's own no (the ask fold's `✗`)         redTry      a try that said the output was wrong
+ *   tryVerdict  a step's try with a verdict on its output       spendFloor  a halt whose spend can be a floor
+ *   draftRow    a verdict a drafting row of the Audit can carry (anything else reads not-done)
+ *   notRunEnd   not an end of a run (a pause, a failed stop, a skipped ticket): learnings wait
+ *   word        the Runs list's bold word for it (`null` = none: a run the human ended with rerun)
+ *   wordUnresumed  its word when the run cannot be continued (M20 am1 item 9: a cap-halt with no usable halt.json reads "capped")
+ * Outcome (history.jsonl) and verdict (audit.jsonl) are not split: one word means one thing on either book.
+ * Not here, by design: the scheduler's own words (busy, monthly-exhausted, refused fire), the closers' verdicts (done, crash,
+ * unparseable), and the Run tab's ending sentences (src/summary-words.js stays their one owner).
+ */
+export const ENDINGS = Object.freeze({
+  complete: { good: true, notFailed: true, word: 'passed' },
+  skipped: { notFailed: true, notRunEnd: true, word: 'skipped' },
+  stopped: { resumable: true, notFailed: true, open: true, humanNo: true, word: 'stopped' },
+  'cap-halt': { resumable: true, notFailed: true, blocked: true, spendFloor: true, word: 'stopped', wordUnresumed: 'capped' },
+  rerun: { notFailed: true, word: null },
+  'ask-expired': { notFailed: true, blocked: true, open: true, word: 'expired' },
+  'ask-timeout': { blocked: true, open: true, word: 'failed' },
+  refused: { blocked: true, open: true, waiting: true, word: 'failed' },
+  red: { blocked: true, humanNo: true, redTry: true, tryVerdict: true, draftRow: true, word: 'failed' },
+  'not-done': { blocked: true, redTry: true, tryVerdict: true, word: 'failed' },
+  'provider-red': { blocked: true, noise: true, spendFloor: true, word: 'failed' },
+  'pricing-red': { blocked: true, spendFloor: true, word: 'failed' },
+  'close-casualty': { blocked: true, noise: true, word: 'failed' },
+  'preflight-red': { word: 'failed' },
+  'struck-out': { word: 'failed' },
+  'attempt-fallback': { word: 'failed' },
+  'redo-halt': { word: 'failed' },
+  'stop-failed': { notRunEnd: true, word: 'failed' },
+  green: { good: true, tryVerdict: true, draftRow: true },
+  hitl: { good: true, tryVerdict: true },
+  softgreen: { tryVerdict: true }, // fwd writes no such verdict today; the learnings read audits shaped like bareloop's, so it stays a try
+  paused: { open: true, waiting: true, notRunEnd: true },
+  'ask-reopened': { open: true },
+  'lock-removed': { open: true },
+  'stop-asked': { open: true, stopNote: true },
+  'stop-not-honoured': { open: true, stopNote: true },
+  'stale-answer-ignored': {},
+  'answer-after-run': {},
+});
+
+/** @param {unknown} word @param {string} flag */
+const endingHas = (word, flag) => typeof word === 'string' && Object.hasOwn(ENDINGS, word) && /** @type {any} */ (ENDINGS)[word][flag] === true;
+export const isGoodEnding = (/** @type {unknown} */ w) => endingHas(w, 'good');
+/** a history outcome that is a failure of the job; a word the table does not know counts as one */
+export const isFailedEnding = (/** @type {unknown} */ w) => !endingHas(w, 'notFailed');
+export const isNoiseEnding = (/** @type {unknown} */ w) => endingHas(w, 'noise');
+export const isBlockedEnding = (/** @type {unknown} */ w) => endingHas(w, 'blocked');
+export const isOpenEnding = (/** @type {unknown} */ w) => endingHas(w, 'open');
+export const isWaitingEnding = (/** @type {unknown} */ w) => endingHas(w, 'waiting');
+export const isStopNote = (/** @type {unknown} */ w) => endingHas(w, 'stopNote');
+export const isHumanNo = (/** @type {unknown} */ w) => endingHas(w, 'humanNo');
+export const isRedTry = (/** @type {unknown} */ w) => endingHas(w, 'redTry');
+/**
+ * M20 am3g item 22: the ONE rule for why a run is red: the log's own `red` when it is a non-empty string, else the LAST red audit row as `<step>: <gap>` (a step can fail,
+ * redo and fail again differently; the most recent stop is where the run sits now), else null. The Run tab and the Result tab ask it and keep their own guards and words.
+ * @param {any} logJson the run's log.json (or null) @param {any[]} auditRows @returns {string|null}
+ */
+export function redWhyOf(logJson, auditRows) {
+  if (typeof logJson?.red === 'string' && logJson.red.length > 0) return logJson.red;
+  const row = auditRows.findLast((r) => isRedTry(r.verdict));
+  return row ? `${row.step}: ${row.gap}` : null;
+}
+export const isTryVerdict = (/** @type {unknown} */ w) => endingHas(w, 'tryVerdict');
+export const isSpendFloorEnding = (/** @type {unknown} */ w) => endingHas(w, 'spendFloor');
+export const isDraftRowVerdict = (/** @type {unknown} */ w) => endingHas(w, 'draftRow');
+export const isNotRunEnd = (/** @type {unknown} */ w) => endingHas(w, 'notRunEnd');
+/** The outcomes a run can be continued from (M4e amendment 4 item 4): the runner leaves `halt.json` for them. */
+export const isResumableEnding = (/** @type {unknown} */ w) => endingHas(w, 'resumable');
+/** the Runs list's bold word for an ending (`null` for none); `resumable` false asks the word of a run that cannot be continued @param {string} w @param {boolean} [resumable] @returns {string|null} */
+export function endingWord(w, resumable = true) {
+  if (!Object.hasOwn(ENDINGS, w)) return null;
+  const e = /** @type {any} */ (ENDINGS)[w];
+  return resumable === false && typeof e.wordUnresumed === 'string' ? e.wordUnresumed : e.word ?? null;
+}
 
 /**
  * The ONE rule for "how did this run end": the LAST history row of the run (a run that was stopped or cap-halted and
@@ -323,8 +469,67 @@ export const HALT_OUTCOMES = Object.freeze(['cap-halt', 'stopped']);
 export function endRow(historyRows, runDir, runId) {
   let last = null;
   for (const r of historyRows) if (r && r.runId === runId) last = r;
-  if (last === null || !HALT_OUTCOMES.includes(last.outcome)) return last;
+  if (last === null || !isResumableEnding(last.outcome)) return last;
   const names = readdirInside(runDir, '.');
-  const continuing = !names.includes('halt.json') && names.some((n) => /^halt\.\d+\.consumed\.json$/.test(n));
+  const continuing = !names.includes('halt.json') && haltConsumedCount(runDir) > 0;
   return continuing ? null : last;
+}
+
+/** The one place `halt.<n>.consumed.json` is named: how many a run holds, and the name the next continue renames halt.json to. @param {string} runDir */
+export function haltConsumedCount(runDir) {
+  return readdirInside(runDir, '.').filter((n) => /^halt\.\d+\.consumed\.json$/.test(n)).length;
+}
+/** @param {string} runDir */
+export function nextHaltConsumedName(runDir) {
+  return `halt.${haltConsumedCount(runDir) + 1}.consumed.json`;
+}
+
+/** The one reader of halt.json (the run is waiting = the file EXISTS, parse or not: see {@link haltFileExists}): `{ok:true, halt}`, `{ok:false, missing:true}` (not resumable), or `{ok:false, red}`. @param {string} runDir */
+export function readHaltRecord(runDir) {
+  const r = readFileInside(runDir, HALT_FILE);
+  if (!r.ok) return r.missing ? { ok: false, missing: true } : { ok: false, red: `halt.json — ${r.red}` };
+  try { return { ok: true, halt: JSON.parse(r.text) }; } catch (err) { return { ok: false, red: `halt.json is not valid JSON — ${err.message}` }; }
+}
+
+/**
+ * `writeLog`'s own sibling reader (M4a piece 2, docs/wiki/the-module-
+ * ladder.md M4a scope item 2: "one reader per book") — `null` when the run
+ * hasn't reached an exit path yet (still running, or parked before any
+ * halt/complete), or the file is present but not valid JSON (a torn write),
+ * never a thrown error.
+ * @param {string} runDir
+ * @returns {any|null}
+ */
+export function readLog(runDir) {
+  const result = readFileInside(runDir, 'log.json');
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * `state.json`'s own sibling reader (same rule as {@link readLog}) — `null`
+ * when the run has never parked, or the file is present but not valid JSON. `{ strict: true }` (Resume) returns
+ * `{ok:true, state}`, `{ok:false, missing:true}` or `{ok:false, red}` instead.
+ * @param {string} runDir
+ * @param {{strict?: boolean}} [opts]
+ * @returns {any}
+ */
+export function readRunState(runDir, { strict = false } = {}) {
+  const result = readFileInside(runDir, 'state.json');
+  if (strict) {
+    // strict mode (M20 am3 item 11, Resume): missing, refused and torn stay three different words
+    if (!result.ok) return result.missing ? { ok: false, missing: true } : { ok: false, red: result.red };
+    try { return { ok: true, state: JSON.parse(result.text) }; } catch (err) { return { ok: false, red: `is not valid JSON — ${err.message}` }; }
+  }
+  if (!result.ok) return null;
+  try { return JSON.parse(result.text); } catch { return null; }
+}
+
+/**
+ * "Is this run waiting to be resumed?" as the panel's start watcher has always read it: a `halt.json` that EXISTS means
+ * waiting, even when it does not parse (unlike {@link readHaltRecord}, where a torn file is a red). One name for that rule.
+ * @param {string} runDir
+ */
+export function haltFileExists(runDir) {
+  return readFileInside(runDir, HALT_FILE).ok;
 }

@@ -9,11 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { kindOfCheck, splitNotChecked, ncRowsOf, LOOK } from '../src/checklook.js';
 import { auditChecksOf } from '../src/auditchecks.js';
 import { buildReadout } from '../src/authoring.js';
-import { REASON } from '../src/checkblock.js';
+import { REASON } from '../src/reasons.js';
 import { ASK_LINE_REASON } from '../src/blockassemble.js';
-import { NO_VALUE_WHY } from '../src/ticketrows.js';
 import { dropLine, dropRows, dropSentence } from '../src/pagedropwords.js';
 import { lineRules } from '../src/pagebits.js';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HTML = readFileSync(path.join(HERE, '../src/panel/index.html'), 'utf8').split('\n');
@@ -28,7 +28,7 @@ const fnSource = (/** @type {string} */ name) => {
 };
 const page = () => {
   const ctx = vm.createContext({});
-  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
+  vm.runInContext(PAGE_WORDS_PRELUDE + '\n' + ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
   return /** @type {any} */ (ctx);
 };
 const text = (/** @type {string} */ h) => h.replace(/<[^>]*>/g, ' ').replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
@@ -110,7 +110,7 @@ const listDecl = () => ({
 test('D Must-fail 2: an Ask line\'s `~` row, the action row, a Tickets filter row, a watch row and "How the page was read" are on the card and the Audit', () => {
   const p = page();
   const watch = 'run a ticket again when its state changes';
-  const items = [ASK_ITEM, `not checked · "priority P1 only" — ${NO_VALUE_WHY}`, `not checked · "${watch}" — ${NO_VALUE_WHY}`];
+  const items = [ASK_ITEM, `not checked · "priority P1 only" — ${REASON.noPick}`, `not checked · "${watch}" — ${REASON.noPick}`];
   const by = Object.fromEntries(items.map((i) => [i, 'you']));
   // the card
   const html = p.planViewHtml({ lines: [{ n: 1, text: 'one', rules: [], checks: [] }], suggested: [], ncRows: ncRowsOf(items, by), readNotes: ['a note on how the page was read'], alwaysOn: [] });
@@ -146,7 +146,7 @@ test('D Must-fail 3: the card and the Job tab read one model: the same signed No
 test('A Must-fail 1: a list reason says "at Accept", never "at the Ask", for a rule that is not on an Ask line', () => {
   const rows = dropRows([{ line: 1, fact: 'Price', word: 'US dollars', reason: 'r1l', other: 'US dollars' }]);
   assert.ok(rows.length > 0);
-  for (const w of [REASON.noPick, REASON.nothingOnPage, NO_VALUE_WHY]) {
+  for (const w of [REASON.noPick, REASON.nothingOnPage]) {
     assert.match(w, /judge it at Accept\.$/, w);
     assert.ok(!/at the Ask/.test(w), w);
   }

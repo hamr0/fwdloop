@@ -1,7 +1,7 @@
 // borrowed-from: bareloop src/checkpick.js@v0.57.0 (c18df406)
+// fwd changed (M20 am8 item 2): guardrailItemCount keeps fwd's lookbehind (a number right after $ € £ . , is not an item count), and these readers are the one copy fwd's src/declaration.js re-exports.
 // first ported from: bareloop src/checkpick.js@v0.56.0 (3383cce) (isCountable, keepOrDrop, countCheck, partOfPick, sameRuleWords and what they call; HOW_TO_ANSWER and CANT_CHECK_WORDS are fwd's own, src/checkpick.js, the same words)
-// This file is bareloop's checkpick.js. fwd already has a src/checkpick.js (the M10 am16 pick path, whose keepOrDrop and countCheck differ from these); the check block calls THESE,
-// so they live here under another name and the am16 module is left as it is.
+// This file is bareloop's checkpick.js. fwd's src/checkpick.js (the M10 am16 pick path) calls THESE keepOrDrop and countCheck (M20 am8 item 3: its own two are gone), as does the check block.
 // The pick vocabulary and its keep-or-drop: a suggested check is kept only if its rule is on bareguard's list and offered here, it carries only that rule's own fields, and every
 // number is one the person's rule names.
 import { rubricVocabulary } from 'bareguard';
@@ -18,7 +18,7 @@ const NUM_FIELDS = ['value', 'size', 'wordsPerSection'];
 
 const WORD_FIELDS = ['names', 'phrases'];
 
-// ---- the guardrail readers (fwd src/declaration.js@v0.29.0) ------------------------------------------------------------------------------
+// ---- the guardrail readers: THE one copy (M20 am8 item 2; src/declaration.js re-exports them) ------------------------------------------------------------------------------
 const readNumber = (/** @type {string} */ t) => Number(t.replace(/,/g, ''));
 
 /** every whole-output word number in a guardrail ("under 600 words" -> [600]); a "<n> words each" / "per section" size is never listed here @param {unknown} g @returns {number[]} */
@@ -48,9 +48,9 @@ export function guardrailSectionCount(g) {
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
 }
 
-/** the first "<N> bullets / list items / items / lines / points" in a guardrail (digits, or one..ten), or null @param {unknown} g @returns {number|null} */
+/** the first "<N> bullets / list items / items / lines / points" in a guardrail (digits, or one..ten; not a price like "$5 per item" or a decimal), or null @param {unknown} g @returns {number|null} */
 export function guardrailItemCount(g) {
-  const m = typeof g === 'string' ? /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|bullet\s+points?|list\s+items?|items?|lines?|points?)\b/i.exec(g) : null;
+  const m = typeof g === 'string' ? /(?<![$€£\d.,])\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:\w+\s+)?(?:bullets?|bullet\s+points?|list\s+items?|items?|lines?|points?)\b/i.exec(g) : null;
   if (!m) return null;
   return /^\d+$/.test(m[1]) ? Number(m[1]) : NUMBER_WORDS[m[1].toLowerCase()];
 }

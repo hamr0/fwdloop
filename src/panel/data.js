@@ -28,17 +28,17 @@ import { plainPlanCheck, pickPlanRed } from '../plain-checks.js';
 import { compareNatural } from '../natural.js';
 import { join, sep } from 'node:path';
 
+import { readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName } from '../flow.js';
+import { readFileInside, readdirInside } from '../inside.js';
 import {
-  readFlow, readPlan, readRunPlan, readRunJobCopy, listFlowNames, listRunIds, resolveRunDir, checkFlowName, readFileInside, readdirInside,
-} from '../flow.js';
-import {
-  readAudit, readHistory, endRow, readPidRows, auditRowTokens, auditRowAt, auditRowTools,
+  readAudit, readHistory, endRow, readPidRows, readSavedAnswer, processStarted, readRunState, readLog, readHaltRecord, readTriggerRecord, consumedAnswerName, askIdOfConsumedName,
+  endingWord, isBlockedEnding, isGoodEnding, isOpenEnding, isWaitingEnding, isStopNote, isResumableEnding, redWhyOf, isDraftRowVerdict, auditRowTokens, auditRowAt, auditRowTools,
 } from '../books.js';
 import {
-  readAsk, readRunState, readLog, readHaltRecord, stopPending,
+  readAsk, stopPending,
 } from '../runner.js';
 import { readSpendRows } from '../provider.js';
-import { applyRunValues, parseWaitMs, pickRunValues, VALUES_FILE_RE } from '../runvalues.js';
+import { applyRunValues, listRunValues, parseWaitMs, pickRunValues } from '../runvalues.js';
 import { readSetup } from '../setup.js';
 import { parseHintBlock } from '../learn.js';
 import { checkedLines, notCheckedView, notCheckedLabelOf, listPartRows } from '../checked.js';
@@ -50,14 +50,15 @@ import { panelQuestionText, decidedWords } from '../pageask.js';
 import { csvRolesOf, askSheetCard } from '../sheetblock.js';
 import { readSheetChecks } from '../sheet-record.js';
 import {
-  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedWords,
+  NO_COPY_SAY, catchUpWords, endedLineWords, endedWords, needsLeftWords, nextInWords, nextTimeWords, scheduleAuditWords, scheduleBlockWords, scheduleFieldWords, scheduledNextFor, scheduledWords, startedNothing, startedWords,
 } from '../summary-words.js';
 import { MAX_STRUCTURE_RETRIES } from '../drafter.js';
 import { hasResultCards, checkTypeOf, buildResult, downloadOf, readCitedChecks } from './result.js';
 import { ticketListOf, ticketScheduleOf } from './tickets.js';
-import { buildJobGrid } from './jobgrid.js';
-import { readChecks } from '../diary.js';
-import { readRunInputs, readRunRecord } from '../runfile.js';
+import { buildJobGrid, runMoney } from './jobgrid.js';
+import { readChecks, readTryStarts } from '../diary.js';
+import { mmss, stepped } from '../draftspend.js';
+import { readRerunWords, readRunInputs } from '../runfile.js';
 import { filterUnsure } from '../ticket-labels.js';
 import { readSchedule } from '../schedule.js';
 import { flowTypeOf } from '../declaration.js';
@@ -68,7 +69,7 @@ import {
   isTryRow, loadDiaries, deriveFold, cardLine, summaryLines,
 } from '../audit-fold.js';
 import {
-  runLiveness, booksFresh, readResumeLock,
+  runLiveness, booksFresh, readResumeLock, lockMayBeHeld,
 } from '../liveness.js';
 import {
   readAskEvidence, listArchivedAsks, normalizeDecision, DECISION_STATUS, decisionStatus, answerTiming,
@@ -161,31 +162,19 @@ export function hasConsumedAnswer(runDir, askId) {
   // consumed answer that isn't really there by planting a symlink named to
   // match the pattern.
   const names = readdirInside(runDir, '.');
-  return names.includes(`answer.${askId}.consumed.json`);
+  return names.includes(consumedAnswerName(askId));
 }
 
 /**
- * M4b piece 2: a SAVED, not-yet-consumed answer — `answer.json` (what
- * `answerAsk` writes; the resume consumes it by renaming it away, F44). Read
- * through `readFileInside` (a symlinked file is "none"). `null` when there is
- * none or it is unreadable/unparseable or names no askId.
+ * M4b piece 2: a SAVED, not-yet-consumed answer, as the panel shows it: `readSavedAnswer` (src/books.js, the one reader) read for an answer that names an ask.
+ * `null` when there is none or it is unreadable, unparseable or names no askId. `broken` is the reader's own field (M20 am3b item 1).
  * @param {string} runDir
- * @returns {{askId: string, decision: string|null, answeredAt: string|null}|null}
+ * @returns {{askId: string, decision: string|null, answeredAt: string|null, broken: boolean}|null}
  */
-export function readSavedAnswer(runDir) {
-  const r = readFileInside(runDir, 'answer.json');
-  if (!r.ok) return null;
-  try {
-    const a = JSON.parse(r.text);
-    if (a && typeof a.askId === 'string' && a.askId.length > 0) {
-      return {
-        askId: a.askId,
-        decision: typeof a.decision === 'string' ? normalizeDecision(a.decision) : null,
-        answeredAt: typeof a.answeredAt === 'string' ? a.answeredAt : null,
-      };
-    }
-  } catch { /* unparseable: not a usable answer */ }
-  return null;
+export function savedAnswerOf(runDir) {
+  const r = readSavedAnswer(runDir);
+  if (!r.ok || r.askId === null) return null;
+  return { askId: r.askId, decision: r.decision === null ? null : normalizeDecision(r.decision), answeredAt: r.answeredAt, broken: r.broken };
 }
 
 /** What the `resume` field says when the panel has no attempt record for a run
@@ -202,7 +191,7 @@ export const RESUME_REASON_UNKNOWN = 'reason unknown: the panel restarted, so it
  * answer for that ask that was NOT saved in time, once the deadline has passed, is not a resumable answer: it reads
  * as none, so the ask is expired and offers the reopen (M4c-fix amendment 1 (b)). One with no readable time, before
  * the deadline, reads `broken` (amendment 1 (a)).
- * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null}|null, attempt: any, ask?: any}} ctx
+ * @param {{savedAnswer: {askId:string, decision:string|null, answeredAt?:string|null, broken?: boolean}|null, attempt: any, ask?: any}} ctx
  * @returns {{state: 'starting'|'not-started'|'broken'|'took-over', askId: string|null, tries: number|null, maxTries: number|null, reason: string|null, label: string}|null}
  */
 export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = null }) {
@@ -216,7 +205,7 @@ export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = nul
   if (saved) {
     // M4c-fix amendment 1 (a): a saved answer with no readable time is broken — the resume would refuse it every
     // time. It is not stuck, not "answer saved": the doors come back with a note, and answering again sets it aside.
-    if (Number.isNaN(Date.parse(saved.answeredAt ?? ''))) {
+    if (saved.broken) {
       return {
         state: 'broken', askId: saved.askId, tries: null, maxTries: null, reason: BROKEN_ANSWER_WHY, label: BROKEN_LABEL,
       };
@@ -244,6 +233,10 @@ export function deriveResumeState({ savedAnswer: savedOnDisk, attempt, ask = nul
   return null;
 }
 
+/** M20 am8: the one question "is THIS ask's saved answer being picked up, or the run stopped before using it" (`resume` = `deriveResumeState`: starting or not-started, for this ask) @param {any} resume @param {unknown} askId @returns {boolean} */
+export const answerPickedUp = (resume, askId) => resume != null && resume.askId === askId
+  && (resume.state === 'starting' || resume.state === 'not-started');
+
 export const WAITING_LABEL = 'waiting on you (parked, unanswered)';
 export const STUCK_LABEL = 'stuck — your answer is saved; the run stopped before using it';
 export const STUCK_LOCK_LABEL = 'stuck — an old resume lock is in the way';
@@ -257,7 +250,7 @@ export const CRASHED_LABEL = 'crashed after taking your answer — start a fresh
  * @type {Record<string, string>}
  */
 export const SIGN_WORDS = {
-  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': 'expired', '[?]': 'crashed', '[✓]': 'passed', '[✗]': 'failed', '[■]': 'stopped', '[–]': 'skipped',
+  '[▶]': 'running', '[·]': 'waiting', '[II]': 'stuck', '[!]': endingWord('ask-expired') ?? '', '[?]': 'crashed', '[✓]': endingWord('complete') ?? '', '[✗]': endingWord('red') ?? '', '[■]': endingWord('stopped') ?? '', '[–]': endingWord('skipped') ?? '',
 };
 
 /**
@@ -265,11 +258,12 @@ export const SIGN_WORDS = {
  * opens with the word ("stuck — …") or is the word itself ("passed") loses that repeat, so it is never said twice.
  * `noWord`: a run the human ended on purpose with rerun wears `[✗]` but is never called "failed" (M4b amendment 3),
  * so it shows its plain line alone.
- * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord]
+ * @param {string} glyph a `computeGlyph` sign @param {string} label its plain line @param {boolean} [noWord] @param {{outcome: string|null|undefined, resumable: boolean}|null} [ending] the run's end row outcome and whether it can be continued
  * @returns {{word: string|null, line: string|null}}
  */
-export function signParts(glyph, label, noWord = false) {
-  const word = noWord ? null : (SIGN_WORDS[glyph] ?? null);
+export function signParts(glyph, label, noWord = false, ending = null) {
+  // M20 am1 items 1 and 9: a run that has ended reads the word of its ENDING (the one table, src/books.js); a sign alone gives the word for the rest
+  const word = noWord ? null : ((ending && ending.outcome ? endingWord(ending.outcome, ending.resumable) : null) ?? SIGN_WORDS[glyph] ?? null);
   if (word === null) return { word: null, line: label ?? null };
   if (typeof label !== 'string' || label === word) return { word, line: null };
   if (label.startsWith(`${word} — `)) return { word, line: label.slice(word.length + 3) };
@@ -305,7 +299,7 @@ export const STUCK_REASONS = {
  * @returns {{stuck: false, reason: null, label: null, why: null}|{stuck: true, reason: 'retry'|'lock-no-holder', label: string, why: string|null}}
  */
 export function stuckState({ resume, liveness, lock }) {
-  if (!resume || resume.state !== 'not-started' || liveness === 'running' || lock === 'live' || lock === 'unknown') {
+  if (!resume || resume.state !== 'not-started' || liveness === 'running' || lockMayBeHeld(lock)) {
     return {
       stuck: false, reason: null, label: null, why: null,
     };
@@ -402,12 +396,14 @@ export function computeGlyph({
     // M12 piece 3 (item 9): a ticket the signed labels do not match, or a closed one: grey, never failed
     if (historyRow.outcome === 'skipped') return { glyph: '[–]', label: typeof historyRow.skipReason === 'string' && historyRow.skipReason !== '' ? `skipped — ${historyRow.skipReason}` : 'skipped' };
     // M6 amendment 4: a stopped (or cap-halted) run whose job was edited and signed since cannot be resumed; the words say so.
-    if (jobEdited === true && (historyRow.outcome === 'stopped' || historyRow.outcome === 'cap-halt')) return { glyph: '[■]', label: JOB_EDITED_LINE };
+    if (jobEdited === true && isResumableEnding(historyRow.outcome)) return { glyph: '[■]', label: JOB_EDITED_LINE };
     // M4e amendment 4 item 4: a run the human stopped, or one that hit its money cap and can be continued, is `[■]` stopped — never "failed".
     if (historyRow.outcome === 'stopped') {
       return { glyph: '[■]', label: stoppedAtAsk ? `${stoppedAtAsk}${STOPPED_AT_ASK_START_RE.test(stoppedAtAsk) ? ';' : ' —'} Resume to go on` : 'stopped — after the step that was running; Resume to go on' };
     }
     if (historyRow.outcome === 'cap-halt' && resumable) return { glyph: '[■]', label: 'stopped — the money cap was reached; raise it and Resume' };
+    // M20 am1 item 9: a cap-halt that cannot be resumed wears the stop sign with its own word, never "failed (cap-halt)"
+    if (historyRow.outcome === 'cap-halt') return { glyph: '[■]', label: endingWord('cap-halt', false) ?? '' };
     // M4b amendment 3: a run the human ended on purpose with rerun is not a failure.
     if (historyRow.outcome === 'rerun') return { glyph: '[✗]', label: 'stopped by you (rerun), a fresh run was started' };
     // M4c-fix amendment 1 (c): a run ended because its ask expired is `[!]` expired, never failed (it spent nothing more).
@@ -472,18 +468,15 @@ export function costDisplay(spentUsd, spendComplete) {
 }
 
 /**
- * A floor summed from whatever priced rows a run's own `spend.jsonl`
- * already recorded — used ONLY when there is no history row yet (died or
- * still parked) to show "at least $X" rather than nothing/zero. `null`
- * (never `$0`) when zero rows are priced yet.
- * @param {any[]} spendRows
- * @returns {string|null}
+ * A run's spend in the Runs list and the Run tab's words (four decimals even for an exact zero; the ticket grid writes a bare zero, src/panel/jobgrid.js `moneyWords`, on the guard's
+ * allow-list). The NUMBER is `runMoney`'s (M20 am3g item 24): the history row's total, else the priced spend rows as an "at least" floor (used ONLY when there is no history
+ * row yet), else null (never `$0` for unknown). A history row whose total is not a number gives null, never the rows' floor.
+ * @param {any} historyRow @param {any[]} spendRows @returns {string|null}
  */
-function spendFloorDisplay(spendRows) {
-  const priced = spendRows.filter((r) => typeof r.costUsd === 'number' && Number.isFinite(r.costUsd));
-  if (priced.length === 0) return null;
-  const sum = priced.reduce((acc, r) => acc + r.costUsd, 0);
-  return `at least $${sum.toFixed(4)}`;
+function runSpendDisplay(historyRow, spendRows) {
+  const m = runMoney(historyRow ?? null, historyRow ? [] : spendRows);
+  const cd = m.usd === null ? null : costDisplay(m.usd, m.complete);
+  return cd !== null && cd.ok ? cd.display : null;
 }
 
 /**
@@ -670,11 +663,8 @@ export function deriveAuditAtWhy(row) {
  * @param {string|null|undefined} verdict
  * @returns {boolean}
  */
-const BLOCKED_VERDICTS = new Set([
-  'not-done', 'red', 'refused', 'ask-timeout', 'ask-expired', 'cap-halt', 'provider-red', 'pricing-red', 'close-casualty',
-]);
 export function isBlockedVerdict(verdict) {
-  return typeof verdict === 'string' && BLOCKED_VERDICTS.has(verdict);
+  return isBlockedEnding(verdict);
 }
 
 /**
@@ -694,8 +684,8 @@ export function isBlockedVerdict(verdict) {
  */
 function markForVerdict(verdict, closeClass) {
   if (closeClass === 'hitl' && verdict === 'red') return '✗'; // the human's own redo
-  if (verdict === 'green' || verdict === 'hitl') return '✓';
-  if (verdict === 'paused' || verdict === 'refused' || verdict === 'ask-timeout' || verdict === 'ask-expired' || verdict === 'ask-reopened' || verdict === 'lock-removed' || verdict === 'stop-asked' || verdict === 'stopped' || verdict === 'stop-not-honoured') return '·';
+  if (isGoodEnding(verdict)) return '✓';
+  if (isOpenEnding(verdict)) return '·';
   return '✗';
 }
 
@@ -760,11 +750,11 @@ function auditStepName(step) {
  */
 export function deriveStepGroupState(rows) {
   // a Stop's notes (asked / not honoured) say nothing about the step's own state; a step with only notes reads as stopped
-  const own = rows.filter((r) => r.verdict !== 'stop-asked' && r.verdict !== 'stop-not-honoured');
+  const own = rows.filter((r) => !isStopNote(r.verdict));
   const last = own.length > 0 ? own[own.length - 1] : rows[rows.length - 1];
-  if (last.verdict === 'paused' || last.verdict === 'refused') return 'waiting';
+  if (isWaitingEnding(last.verdict)) return 'waiting';
   if (last.verdict === 'stopped') return 'user-stopped';
-  return (last.verdict === 'green' || last.verdict === 'hitl') ? 'done' : 'stopped';
+  return isGoodEnding(last.verdict) ? 'done' : 'stopped';
 }
 
 /**
@@ -939,7 +929,7 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
   const stateJson = readRunState(runDir);
   const consumedAnswerExists = hasConsumedAnswer(runDir, askJson && typeof askJson.askId === 'string' ? askJson.askId : null);
   // A finished run has no resume to report (its history row says how it ended).
-  const savedAnswer = historyRow ? null : readSavedAnswer(runDir);
+  const savedAnswer = historyRow ? null : savedAnswerOf(runDir);
   const resume = historyRow ? null : deriveResumeState({ savedAnswer, attempt, ask: askJson });
   const stuckInputs = historyRow ? { liveness: 'unknown', lock: 'none' } : readStuckInputs(runDir);
 
@@ -975,6 +965,8 @@ function loadRunContext(root, flowDir, runDir, flowName, runId, catalogue, attem
     liveness: stuckInputs.liveness,
     lock: stuckInputs.lock,
     booksFresh: historyRow ? false : booksFresh(runDir),
+    // M20 am1 item 8: the newest `try-start` diary row of a run with no end row (the NOW row reads it), else null
+    tryStart: historyRow ? null : (readTryStarts(runDir).at(-1) ?? null),
     // M4c exit walk: when the process that is working on the run started (its newest pid row's
     // own `startedAt`), so a `[▶]` run has a real time and never "parked or died". Not a book change.
     startedAt: historyRow ? null : lastPidStartedAt(runDir),
@@ -1016,7 +1008,7 @@ function lastStoppedAtAsk(runDir, auditRows, hasHistoryRow) {
   const stopped = auditRows.filter((r) => r.verdict === 'stopped' && typeof r.gap === 'string' && !Number.isInteger(r.attempt));
   const last = stopped.length > 0 ? stopped[stopped.length - 1] : null;
   if (!last || !STOPPED_AT_ASK_RE.test(last.gap)) return null;
-  const ordered = runAsksInOrder(runDir, hasHistoryRow);
+  const ordered = runAsksInOrder(runDir, hasHistoryRow, auditRows);
   const stepOf = deriveAskStepInfo(ordered, auditRows, null);
   const words = stoppedAskWords(ordered, auditRows);
   const i = stepOf.findIndex((x) => x.step !== null && x.step === last.step);
@@ -1034,13 +1026,6 @@ function lastPidStartedAt(runDir) {
 function firstPidStartedAt(runDir) {
   for (const r of readPidRows(runDir)) if (typeof r.startedAt === 'string' && !Number.isNaN(Date.parse(r.startedAt))) return r.startedAt;
   return null;
-}
-
-/** The run's own `trigger.json` (why it started), or null for a hand run. @param {string} runDir */
-function readTriggerRecord(runDir) {
-  const f = readFileInside(runDir, 'trigger.json');
-  if (!f.ok) return null;
-  try { const j = JSON.parse(f.text); return j && typeof j === 'object' ? j : null; } catch { return null; }
 }
 
 /** The ONE running rule for wording is the glyph's own (`computeGlyph` -> `[▶]`, which already
@@ -1062,7 +1047,7 @@ export function runControls(ctx, glyph, label = '') {
   const running = isRunningNow(ctx, glyph) && (!ctx.askJson || ctx.consumedAnswerExists || ctx.resume?.state === 'not-started');
   // M4e amendment 13: a run waiting at its ask (open, unanswered, not expired) shows Stop too; it stops the run at the ask.
   const atAsk = !ctx.historyRow && !!ctx.askJson && glyph === '[·]' && label === WAITING_LABEL;
-  const starting = !ctx.historyRow && !ctx.askJson && readPidRows(ctx.runDir).length === 0;
+  const starting = !ctx.historyRow && !ctx.askJson && !processStarted(ctx.runDir);
   const canResume = ctx.resumable === true && ctx.sameJob === true;
   return {
     canStop: running || atAsk,
@@ -1154,17 +1139,11 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
       const controls = runControls(ctx, glyph, label);
       // M4c amendment 1 (c): the ask waiting on the human, by the same rule
       // listStops uses (deriveAskOpenFields) — the least time left if several.
-      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow)
+      const waitingAsk = runAsksInOrder(run.runDir, !!ctx.historyRow, ctx.auditRows)
         .map((ask) => ({ ask, ...deriveAskOpenFields(ask, !!ctx.historyRow, ctx.resume) }))
         .filter((r) => r.waiting)
         .reduce((best, r) => (best === null || (r.timeLeftMs ?? Infinity) < (best.timeLeftMs ?? Infinity) ? r : best), /** @type {any} */ (null));
-      let spend;
-      if (ctx.historyRow) {
-        const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
-        spend = cd.ok ? cd.display : null;
-      } else {
-        spend = spendFloorDisplay(ctx.spendRows);
-      }
+      const spend = runSpendDisplay(ctx.historyRow, ctx.spendRows);
       // browser re-walk bug #4: a parked run's ask.json holds a real,
       // book-held timestamp (`askedAt`) — a run with an open ask is never
       // "unknown", even with no history row yet. `atWhy`'s generic "no
@@ -1179,7 +1158,7 @@ export function listRuns({ root, catalogue, resumeAttempt, startingRun, now = Da
         runId,
         glyph,
         label,
-        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+        ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun', ctx.historyRow ? { outcome: ctx.historyRow.outcome, resumable: ctx.resumable === true } : null),
         pulse: glyphPulses({ glyph, label }),
         stuck: glyph === '[II]',
         controls,
@@ -1324,8 +1303,8 @@ export function needsYouOf({
  */
 function runReopenOffer(runDir, ctx) {
   if (ctx.historyRow || !ctx.askJson) return null;
-  const savedAskId = readSavedAnswer(runDir)?.askId;
-  for (const a of runAsksInOrder(runDir, false)) {
+  const savedAskId = savedAnswerOf(runDir)?.askId;
+  for (const a of runAsksInOrder(runDir, false, ctx.auditRows)) {
     const offer = reopenOffer(a, ctx.askJson, ctx.resume, savedAskId === a.askId);
     if (offer !== null) return { askId: a.askId, ...offer };
   }
@@ -1485,11 +1464,11 @@ function waitingLineOf(ctx) {
  */
 function jobWaitingLine(root, flowDir, flow, catalogue) {
   const ids = listRunIds(flowDir).sort((a, b) => compareNatural(b, a));
-  const history = readHistory(flowDir);   // `atAsk` needs no end row (`runControls`), so an ended run is skipped by the same `endRow` rule before a context is built for it
   for (const id of ids) {
     const run = resolveRunDir(flowDir, id);
-    if (!run.ok || endRow(history, run.runDir, id) !== null || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
+    if (!run.ok || !readAsk(run.runDir)) continue; // eslint-disable-line no-continue
     const ctx = loadRunContext(root, flowDir, run.runDir, flow, id, catalogue, null);
+    if (ctx.historyRow !== null) continue; // `atAsk` needs no end row (`runControls`): an ended run is skipped by the same `endRow` rule
     const g = computeGlyph(ctx);
     if (runControls(ctx, g.glyph, g.label).atAsk) return waitingLineOf(ctx);
   }
@@ -1511,7 +1490,7 @@ function scheduleBlockOf({ root, flowDir, flow, catalogue, t, home, now }) {
     trigger: t && t.trigger ? t.trigger : null, home,
     last: lastStart ? { at: lastStart.at, runId: lastStart.runId, outcome: lastGlyph ? (SIGN_WORDS[lastGlyph.glyph] ?? 'ended') : 'ended', catchUp: !!(lastRec && lastRec.catchUp === true) } : null,
     nextSlotMs: t ? t.nextSlotMs : null, armed: !!(t && t.armed), waiting: !!(t && t.waiting), lookProblem: t ? t.lookProblem ?? null : null, nowMs: now(),
-    problem: latest && latest.outcome !== 'started' && ['busy', 'monthly-exhausted', 'refused'].includes(latest.outcome) ? latest : null,
+    problem: startedNothing(latest) ? latest : null,
   });
 }
 
@@ -1530,11 +1509,25 @@ function jobHasRunningRun({ root, flow, catalogue, resumeAttempt, startingRun })
   return false;
 }
 
+// borrowed-from: bareloop src/panel/server.js@v0.63.0 (7bc2719b): nowOf (the NOW row's words and its 30 s steps); fwd reads its own report-only `try-start` diary row, and the try ends at the first audit row written at or after it (an equal time counts as ended)
+/**
+ * M20 am1 item 8: the Run tab's NOW row, "AI working · M:SS", only while the run is live (`[▶]`, no end row) and a model step's try is running: the newest
+ * `try-start` row has no audit row written at or after it. Anything else is null (nothing is made up between tries). The time moves in 30 s steps (`stepped`).
+ * @param {any} ctx `loadRunContext`'s result @param {string} glyph `computeGlyph`'s sign @param {number} nowMs @returns {string|null}
+ */
+export function nowOf(ctx, glyph, nowMs) {
+  if (!isRunningNow(ctx, glyph) || !ctx.tryStart) return null;
+  const from = Date.parse(ctx.tryStart.at);
+  if (!Number.isFinite(from)) return null;
+  if (ctx.auditRows.some((r) => typeof r.at === 'string' && r.at >= ctx.tryStart.at)) return null;
+  return `AI working \u00B7 ${mmss(stepped(nowMs - from))}`;
+}
+
 /**
  * M9 piece 6 (ladder M9 item 7): the summary block at the top of a run page, as data. Words come from `src/summary-words.js` only, built
  * from typed facts (the history row's outcome, the declared step's line, the signed trigger and its ledger). `ended` is null while the run
  * is live; `scheduled` is null when the job has no trigger; `canSchedule` (am3 item 1) is the trigger door's own `hasGreenRun` answer; `catchUp` is a fixed sentence when this run was started late (am2 item 1).
- * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, schedule: {line1: string, line2: string|null, red: boolean}, canSchedule: boolean, catchUp: string|null}}
+ * @returns {{ended: {reason: string, next: string}|null, scheduled: {text: string, next: string, nextRed: boolean}|null, schedule: {line1: string, line2: string|null, red: boolean}, canSchedule: boolean, catchUp: string|null, now: string|null}}
  */
 function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
   const died = !ctx.historyRow && glyph === '[?]';
@@ -1561,12 +1554,10 @@ function runSummary(ctx, glyph, { root, catalogue, triggerRead, now, home }) {
     });
     scheduled = { text: String(scheduledWords(t.trigger, home)), next: nx.text, nextRed: nx.red };
   }
-  let rec = null;
-  const f = readFileInside(ctx.runDir, 'trigger.json');
-  if (f.ok) { try { rec = JSON.parse(f.text); } catch { rec = null; } }
+  const rec = readTriggerRecord(ctx.runDir);
   // M9 am7 items 3-4: the SCHEDULE block replaces the SCHEDULED / NEXT rows. Words: src/summary-words.js, the same owner as the Job tab's Schedule field.
   const schedule = scheduleBlockOf({ root, flowDir: ctx.flowDir, flow: ctx.flowName, catalogue, t, home, now });
-  return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec) };
+  return { ended, scheduled, schedule, canSchedule: !!(t && t.hasGreenRun), catchUp: catchUpWords(rec), now: nowOf(ctx, glyph, now()) };
 }
 
 /**
@@ -1695,7 +1686,7 @@ export function getRunDetail({
           tryMarks: group ? group.tryMarks : [],
           // Filled below, ONLY on the one step that actually stopped this
           // run (never guessed onto every step) — see stoppedStepEmits.
-          stoppedReason: null,
+          stoppedReason: /** @type {string|null} */ (null),
         };
       });
     }
@@ -1731,6 +1722,7 @@ export function getRunDetail({
   // (`askJson` present, no consumed answer — the same test `computeGlyph`
   // uses for "waiting on you") reports the ask's own question as its whole
   // "why", never an unrelated earlier attempt's gap.
+  /** @type {string|null} */
   let stopReason = null;
   let stopReasonWhy = null;
   if (ctx.historyRow && ctx.historyRow.outcome === 'complete') {
@@ -1747,18 +1739,11 @@ export function getRunDetail({
     stopReasonWhy = ctx.resume.reason ? `${ctx.resume.label}: ${ctx.resume.reason}` : ctx.resume.label;
   } else if (!ctx.historyRow && ctx.askJson && !ctx.consumedAnswerExists) {
     stopReasonWhy = `waiting on you: ${typeof ctx.askJson.question === 'string' && ctx.askJson.question.length > 0 ? ctx.askJson.question : 'no question recorded'}`;
-  } else if (ctx.logJson && typeof ctx.logJson.red === 'string' && ctx.logJson.red.length > 0) {
-    stopReason = ctx.logJson.red;
   } else {
-    // The LAST matching row, not the first — a step can fail, then redo and
-    // fail again differently (or fail on a later step entirely); the most
-    // recent stop is the one that actually describes where the run sits now.
-    let redRow = null;
-    for (const r of ctx.auditRows) {
-      if (r.verdict === 'not-done' || r.verdict === 'red') redRow = r;
-    }
-    if (redRow) {
-      stopReason = `${redRow.step}: ${redRow.gap}`;
+    // the log's red, else the LAST red audit row (`redWhyOf`, the one rule the Result tab asks too)
+    const why = redWhyOf(ctx.logJson, ctx.auditRows);
+    if (why !== null) {
+      stopReason = why;
     } else {
       stopReasonWhy = 'run has not stopped on a red/not-done step (still parked, waiting, or clean so far)';
     }
@@ -1796,13 +1781,7 @@ export function getRunDetail({
     : (ctx.historyRow ? 'history row has no wallMs recorded'
       : isRunningNow(ctx, glyph) ? RUNNING_WHY : 'no history row yet (parked or died before completion)');
 
-  let spend;
-  if (ctx.historyRow) {
-    const cd = costDisplay(ctx.historyRow.spentUsd, ctx.historyRow.spendComplete);
-    spend = cd.ok ? cd.display : null;
-  } else {
-    spend = spendFloorDisplay(ctx.spendRows);
-  }
+  const spend = runSpendDisplay(ctx.historyRow, ctx.spendRows);
 
   // hamr's review #1 (Summary tab): model + spend.jsonl totals — read here
   // ONCE, off the same auditRows/spendRows this function already loaded, so
@@ -1818,7 +1797,7 @@ export function getRunDetail({
     runId,
     glyph,
     label,
-    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun'),
+    ...signParts(glyph, label, ctx.historyRow?.outcome === 'rerun', ctx.historyRow ? { outcome: ctx.historyRow.outcome, resumable: ctx.resumable === true } : null),
     signWords: SIGN_WORDS,
     pulse: glyphPulses({ glyph, label }),
     controls: runControls(ctx, glyph, label),
@@ -1919,7 +1898,7 @@ export function getDraftBlock(flowDir, runDir) {
     attempt, step: 'drafting', class: 'hitl', verdict: 'hitl', at: r.at ?? null, setup: true, blocked: false, action: 'human', tokensDisplay: { kind: 'no-model' }, ...extra,
   });
   const model = (r, attempt, label) => ({
-    attempt, step: 'drafting', class: null, verdict: r.verdict === 'green' ? 'green' : (r.verdict === 'red' ? 'red' : 'not-done'), gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
+    attempt, step: 'drafting', class: null, verdict: isDraftRowVerdict(r.verdict) ? r.verdict : 'not-done', gap: r.gap ?? '', at: r.at ?? null, setup: true, blocked: false,
     action: `${label} · ${r.model ?? 'model not recorded'}${r.hash ? ` · plan ${String(r.hash).slice(0, 8)}` : ''}`,
     usd: typeof r.costUsd === 'number' ? r.costUsd : undefined, spendComplete: r.spendComplete === true, tokensDisplay: { kind: 'no-model' },
     ...(typeof r.wallMs === 'number' ? { wallMs: r.wallMs } : {}),
@@ -1971,28 +1950,20 @@ export function getDraftBlock(flowDir, runDir) {
       else if (r.kind === 'sign') rows.push(human(r, n, { action: `sign (${r.signedBy ?? 'you'})`, gap: `plan ${String(r.hash ?? '').slice(0, 12)}` }));
     });
   }
-  const versions = [];
-  for (const f of readdirInside(runDir, '.')) {
-    const m = VALUES_FILE_RE.exec(f);
-    if (m !== null) versions.push({ file: f, version: m[1] === undefined ? 0 : Number(m[1]) });
-  }
-  versions.sort((a, b) => a.version - b.version);
-  for (const { file, version } of versions) {
-    const t = readFileInside(runDir, file);
-    let rec = null;
-    try { rec = t.ok ? JSON.parse(t.text) : null; } catch { rec = null; }
-    const v = rec && typeof rec === 'object' ? rec.values : null;
-    const waits = v && typeof v === 'object' && v.askWaits && typeof v.askWaits === 'object'
-      ? Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) })) : [];
-    const head = v && typeof v === 'object' ? [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean) : [];
-    const gap = v && typeof v === 'object'
-      ? [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ')
-      : `${file} could not be read`;
-    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec?.signedBy ?? 'you'})`);
-    rows.push(human({ at: rec?.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec?.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
+  const versions = listRunValues(runDir);
+  for (const e of versions) {
+    // M20 am3 item 6: the run's own parser read this file; a version it refuses shows as that refusal, never as a signed row
+    if (!e.ok) { rows.push(human({ at: undefined }, rows.length + 1, { action: e.red, gap: '' })); continue; } // eslint-disable-line no-continue -- a refused version is not a signed one
+    const { version, record: rec } = e;
+    const v = rec.values;
+    const waits = Object.entries(v.askWaits).map(([line, wait]) => ({ line, wait: String(wait), waitMs: parseWaitMs(wait) }));
+    const head = [`cap $${v.capUsd}`, v.destination ? `destination ${v.destination}` : null].filter(Boolean);
+    const gap = [...head, waits.length ? `ask waits ${waits.map((w) => `line ${w.line}: ${w.wait}`).join(', ')}` : null].filter(Boolean).join(' · ');
+    happened.push(`${version === 0 ? 'signed to run' : 'signed to resume'} (${rec.signedBy ?? 'you'})`);
+    rows.push(human({ at: rec.at }, rows.length + 1, { action: `${version === 0 ? 'Sign & run' : 'Sign & resume'} (${rec.signedBy ?? 'you'})`, gap, ...(waits.length ? { gapHead: head, gapWaits: waits } : {}) }));
   }
   const lastSign = setup.present ? [...setup.rows].reverse().find((r) => r.kind === 'sign') : undefined;
-  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise' || r.kind === 'redraft').length + versions.length : null;
+  const humanChecks = setup.present ? setup.rows.filter((r) => r.kind === 'note' || r.kind === 'sign' || r.kind === 'revise' || r.kind === 'redraft').length + versions.filter((e) => e.ok).length : null;
   const totals = setup.present
     ? draftTotals(setup.rows.filter((r) => r.kind === 'draft' || r.kind === 'change' || r.kind === 'revise' || r.kind === 'redraft' || r.kind === 'startover'), { cardAt: setup.rows.find((r) => r.kind === 'card')?.at, signAt: lastSign?.at, humanChecks })
     : null;
@@ -2018,9 +1989,8 @@ function attachFolds(groups, runDir, flowDir, { root, flow, catalogue }) {
     if (job.ok) steps = job.declaration.steps ?? [];
   }
   // M14 am1 item 1: a rerun's own run.json holds the reason it started with; the Audit shows it on the first step, where that reason was handed
-  const rec = readRunRecord(runDir);
-  const rr = rec.ok ? rec.rec.rerun : null;
-  let rerun = rr && typeof rr === 'object' && rr.decision === 'rerun' && typeof rr.words === 'string' ? { words: rr.words } : null;
+  const rerunWords = readRerunWords(runDir);
+  let rerun = rerunWords !== null ? { words: rerunWords } : null;
   for (const g of groups) {
     if (g.run) continue;
     const decl = steps?.find((x) => x.emits === g.step);
@@ -2046,7 +2016,7 @@ export function getRunAudit({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const rawRows = readAudit(run.runDir);
+  const rawRows = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).auditRows;
   // hamr's review #6: the Audit tab's "Action" column is derived server-side
   // (never guessed client-side from partial data) — `action` is added to
   // each row here, off that SAME row's own fields, book order preserved.
@@ -2213,7 +2183,7 @@ export function getRunJob({
   // per-attempt `audit.jsonl` field the Run tab's summary uses
   // (`deriveRunModel`) and says so plainly when it does, rather than
   // pretending the signed prose named it.
-  const auditRows = readAudit(run.runDir);
+  const auditRows = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null).auditRows;
   const model = deriveRunModel(auditRows);
   // the run's own signed values (cap, send folder, ask waits) when it has them; the flow's own otherwise
   const applied = applyRunValues(flowRead.arbiter, flow, sig.flow, pickRunValues(run.runDir));
@@ -2464,14 +2434,12 @@ function isOpenStatus(status) {
 function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
   // M4c amendment 3: an ask past its deadline reads `expired`, but one whose answer was saved in time
   // (`resume` is null for a late/unreadable one, `deriveResumeState`) is still open: it can be carried on.
-  const answerSaved = resume != null && resume.askId === ask.askId
-    && (resume.state === 'starting' || resume.state === 'not-started');
+  const answerSaved = answerPickedUp(resume, ask.askId);
   const open = (isOpenStatus(ask.status) || (ask.status === 'expired' && answerSaved)) && !hasHistoryRow;
   // M4b fix: the ONE decision "is this ask waiting on the human". An open ask
   // whose answer is already saved (`resume` = `deriveResumeState` for THIS
   // ask, the run's own label) is open but not waiting: the human answered.
-  const answered = open && resume != null && resume.askId === ask.askId
-    && (resume.state === 'starting' || resume.state === 'not-started');
+  const answered = open && answerPickedUp(resume, ask.askId);
   const waiting = open && !answered;
   const expiresMs = waiting && typeof ask.expiresAt === 'string' ? Date.parse(ask.expiresAt) : NaN;
   return {
@@ -2493,7 +2461,7 @@ function deriveAskOpenFields(ask, hasHistoryRow, resume = null) {
  */
 function reopenOffer(ask, openAskJson, resume, lateAnswerSaved = false) {
   if (!openAskJson || openAskJson.askId !== ask.askId || ask.status !== 'expired') return null;
-  if (resume && resume.askId === ask.askId && (resume.state === 'starting' || resume.state === 'not-started')) return null;
+  if (answerPickedUp(resume, ask.askId)) return null;
   // `late`: an answer was saved but came after the deadline (the page says so, instead of "nobody answered");
   // `why` is that line, the one the Ask tab and the Inbox row both draw.
   return Number.isFinite(openAskJson.waitMs)
@@ -2545,13 +2513,6 @@ function normalizeArchivedRow(a) {
   };
 }
 
-/** `^answer\.<askId>\.consumed\.json$` — deliberately excludes
- *  `answer.stale.<n>.json` (no capture group would match "stale" as a real
- *  askId; the stale-quarantine writer in `src/ask.js` uses that different
- *  name specifically so this convention-based scan never mistakes a
- *  quarantined stale answer for a real consumed one). */
-const CONSUMED_ANSWER_RE = /^answer\.(.+)\.consumed\.json$/;
-
 /** The line under an ask that ended expired though an answer was saved: the answer came too late. */
 const LATE_ANSWER_WHY = 'Your answer came after the deadline.';
 /** The line under an expired ask nobody answered. */
@@ -2588,12 +2549,10 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   const askJson = readAsk(runDir);
   const currentAskId = askJson && typeof askJson.askId === 'string' ? askJson.askId : null;
 
-  const consumedFiles = names.filter((n) => CONSUMED_ANSWER_RE.test(n)).sort();
+  const consumedFiles = names.filter((n) => askIdOfConsumedName(n) !== null).sort();
 
   for (const file of consumedFiles) {
-    const match = CONSUMED_ANSWER_RE.exec(file);
-    if (!match) continue; // eslint-disable-line no-continue -- filtered by the same regex above; never actually null
-    const askId = match[1];
+    const askId = /** @type {string} */ (askIdOfConsumedName(file));
     const fileRead = readFileInside(runDir, file);
     if (!fileRead.ok) {
       continue; // eslint-disable-line no-continue -- missing/symlink-refused, same as a torn write: skipped, never invented
@@ -2631,7 +2590,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
   // "still open" stop at that point, no matter what its own askId says.
   if (askJson && !hasHistoryRow) {
     const hasConsumed = currentAskId !== null
-      && consumedFiles.includes(`answer.${currentAskId}.consumed.json`);
+      && consumedFiles.includes(consumedAnswerName(currentAskId));
     if (!hasConsumed) {
       if (currentAskId === null) {
         // A genuine pre-M3 ask.json: no askId/expiresAt at all — cannot be
@@ -2685,7 +2644,7 @@ function legacyRunAsks(runDir, hasHistoryRow) {
  *   (hamr's 2026-09-27 live check).
  * @returns {any[]}
  */
-function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false, jobEdited = false) {
+function runAsksInOrder(runDir, hasHistoryRow, auditRows, endedExpired = false, jobEdited = false) {
   const archivedResult = listArchivedAsks(runDir);
   const rows = archivedResult.archived
     ? archivedResult.asks.map(normalizeArchivedRow)
@@ -2708,7 +2667,7 @@ function runAsksInOrder(runDir, hasHistoryRow, endedExpired = false, jobEdited =
   // reader of which step each ask belongs to) names for it, matched to the `stopped at the ask of step N` row written for that step.
   // Never by counting those rows in order: a Stop that landed before any ask parked writes one too, with no ask behind it.
   if (ordered.some((a) => a.status === 'stopped')) {
-    const words = stoppedAskWords(ordered, readAudit(runDir));
+    const words = stoppedAskWords(ordered, auditRows);
     for (let i = 0; i < ordered.length; i++) {
       if (ordered[i].status === 'stopped' && words[i] !== null) ordered[i] = { ...ordered[i], statusText: words[i] };
     }
@@ -2860,21 +2819,20 @@ export function getRunAsks({
   const run = resolveRunPath(root, flow, runId);
   if (!run.ok) return null;
   if (!existsSync(run.runDir)) return null;
-  const histRow = endRow(readHistory(run.flowDir), run.runDir, runId) ?? undefined;
+  const ctx = loadRunContext(root, run.flowDir, run.runDir, flow, runId, catalogue, null);
+  const histRow = ctx.historyRow ?? undefined;
   const hasHistoryRow = !!histRow;
   // hamr's 2026-09-27 browser-walk bug #4: the Ask tab's own asks must carry
   // the SAME `open`/`timeLeftMs` fields listStops already computes for the
   // Inbox — otherwise an open ask's Ask-tab header/body falls back to the
   // raw status word "unanswered" and no time-left, disagreeing with the
   // Inbox row for that exact same ask.
-  const { read: flowRead } = readRunJob({
-    root, name: flow, catalogue, runDir: run.runDir,
-  });
-  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, histRow?.outcome === 'ask-expired', runJobEdited(readHaltRecord(run.runDir), histRow ?? null, flowRead));
-  const auditRows = readAudit(run.runDir);
+  const flowRead = ctx.flowRead;
+  const auditRows = ctx.auditRows;
+  const ordered = runAsksInOrder(run.runDir, hasHistoryRow, auditRows, histRow?.outcome === 'ask-expired', ctx.jobEdited);
   const declSteps = flowRead.ok ? flowRead.declaration.steps : null;
   const stepInfo = deriveAskStepInfo(ordered, auditRows, declSteps);
-  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
+  let resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: savedAnswerOf(run.runDir), attempt: resumeAttempt?.(flow, runId) ?? null, ask: readAsk(run.runDir) });
   // M4c amendment 2: the Ask tab says what the run list says — stuck, by the one rule (`stuckState`).
   let runStuckNow = false;
   if (resume) {
@@ -2914,7 +2872,7 @@ export function getRunAsks({
   const asks = ordered.map(withSheet).map(withCited).map((ask, i) => ({
     ...ask,
     ...deriveAskOpenFields(ask, hasHistoryRow, resume),
-    reopen: reopenOffer(ask, openAskJson, resume, readSavedAnswer(run.runDir)?.askId === ask.askId),
+    reopen: reopenOffer(ask, openAskJson, resume, savedAnswerOf(run.runDir)?.askId === ask.askId),
     stuck: runStuckNow && resume?.askId === ask.askId,
     index: i + 1,
     total: ordered.length,
@@ -2954,22 +2912,21 @@ export function listStops({ root, resumeAttempt, catalogue }) {
   const rows = [];
   for (const flowName of listFlowNames(root)) {
     const flowDir = join(root, flowName);
-    const historyRows = readHistory(flowDir).filter((r) => r && typeof r.runId === 'string');
     for (const runId of listRunIds(flowDir)) {
       const run = resolveRunPath(root, flowName, runId);
       if (!run.ok) continue;
-      const end = endRow(historyRows, run.runDir, runId);
+      const ctx = loadRunContext(root, flowDir, run.runDir, flowName, runId, catalogue, null);
+      const end = ctx.historyRow;
       const hasHistoryRow = end !== null;
-      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: readSavedAnswer(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
+      const resume = hasHistoryRow ? null : deriveResumeState({ savedAnswer: savedAnswerOf(run.runDir), attempt: resumeAttempt?.(flowName, runId) ?? null, ask: readAsk(run.runDir) });
       // M4c amendment 2: stuck by the ONE rule (`stuckState`), marked on the ask whose answer is saved.
       const st = runStuck(run.runDir, resume);
       const stuckAskId = !hasHistoryRow && st.stuck ? (resume?.askId ?? null) : null;
       const openAskJson = hasHistoryRow ? null : readAsk(run.runDir);
-      const savedAskId = readSavedAnswer(run.runDir)?.askId;
+      const savedAskId = savedAnswerOf(run.runDir)?.askId;
       // M6 amendment 4: read the job only for a run that ended stopped / cap-halted (and only when the caller gave the catalogue to read it with)
-      const jobEdited = end !== null && (end.outcome === 'stopped' || end.outcome === 'cap-halt') && catalogue !== undefined
-        && runJobEdited(readHaltRecord(run.runDir), end, readRunJob({ root, name: flowName, catalogue, runDir: run.runDir }).read);
-      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
+      const jobEdited = end !== null && isResumableEnding(end.outcome) && catalogue !== undefined && ctx.jobEdited;
+      const runAsks = runAsksInOrder(run.runDir, hasHistoryRow, ctx.auditRows, end?.outcome === 'ask-expired', jobEdited).map((ask) => ({
         flow: flowName,
         runId,
         ...ask,
