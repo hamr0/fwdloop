@@ -24,6 +24,7 @@ import { answerAsk } from '../src/ask.js';
 import { getRunAsks, getRunDetail, groupAskBlocks } from '../src/panel/data.js';
 import { sandboxSend } from './send-sandbox.js';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, '..', 'bin', 'fwdloop');
@@ -201,6 +202,7 @@ const fnSrc = (name) => cutFn(page, name, '');
 function clickHarness(post) {
   const calls = { live: [], said: [], reload: 0 };
   const scope = new Function('post', 'calls', `
+    ${PAGE_WORDS_PRELUDE}
     var answerMsg = null, reasonDrafts = {}, pendingAnswer = null;
     function paintAnswerMsg(){}
     function say(f, r, cls, text){ answerMsg = { flow: f, runId: r, cls: cls, text: text }; calls.said.push(cls + ":" + text); }

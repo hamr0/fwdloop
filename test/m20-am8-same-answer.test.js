@@ -302,3 +302,45 @@ test('am8 item 3 probes: list rules the old first filter dropped are kept with t
   // the old src/checkpick.js:192 countCheck built listItems 3 for this text
   assert.deepEqual(via('at least 3 items', { rule: 'none' }).check, { rule: 'minListItems', value: 3 });
 });
+
+// ---- am8a item 1: the page asks f, g and k through the one list the server hands it (src/page-words.js) -------------------------------------------
+import { pageWords } from '../src/page-words.js';
+import { TAG } from '../src/checkwords.js';
+import { REVISE_PHASES, NOT_GREEN_PHASES } from '../src/panel/author.js';
+import { REASON_DECISIONS } from '../src/ask.js';
+
+// the page's own helper functions, read out of src/panel/index.html and run against the list exactly as the server injects it (JSON text)
+const PAGE_SRC = readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
+const pageFn = (name) => { const m = PAGE_SRC.match(new RegExp(`function ${name}\\([^)]*\\)\\{[^\\n]*\\}`)); assert.ok(m, `page function ${name}`); return m[0]; };
+const PAGE = new Function('PAGE_WORDS', `${pageFn('inWords')}${pageFn('tagWordOf')}${pageFn('reasonMissing')}return { inWords, tagWordOf, reasonMissing };`)(JSON.parse(JSON.stringify(pageWords())));
+const PHASES = ['drafting', 'revising', 'redrafting', 'questions-open', 'green', 'red', 'stopped', 'abandoned', 'signed', 'running', 'Red', ' stopped', 'constructor', '__proto__'];
+
+test('am8a: the handed list holds the owners\' words and nothing else', () => {
+  assert.deepEqual(Object.keys(pageWords()).sort(), ['notGreen', 'reasonDecisions', 'reviseRunning', 'tags']);
+  assert.deepEqual(pageWords().tags, TAG);
+  assert.deepEqual(pageWords().reasonDecisions, [...REASON_DECISIONS]);
+  assert.deepEqual(pageWords().reviseRunning, [...REVISE_PHASES]);
+  assert.deepEqual(pageWords().notGreen, [...NOT_GREEN_PHASES]);
+});
+
+test('am8a f: the page\'s tag word is what it was (old site src/panel/index.html:4206), also on names that live on every object and on non-strings', () => {
+  same('tag word', ['you', 'agent', 'default'], (by) => (by === 'you' || by === 'agent' || by === 'default' ? '[' + by + ']' : ''), PAGE.tagWordOf);
+  same('tag word odd', ['constructor', 'toString', '__proto__', 'hasOwnProperty', ['you'], ['agent'], 'You', 'you '], (by) => (by === 'you' || by === 'agent' || by === 'default' ? '[' + by + ']' : ''), PAGE.tagWordOf);
+});
+
+test('am8a g: the page\'s reason test is what it was (old site src/panel/index.html:5293), on every decision, empty, missing and unknown, with and without a reason', () => {
+  for (const d of ['accept', 'redo', 'rerun', 'reject', 'Redo', ' redo']) {
+    for (const v of ['', '  ', 'because', null, undefined, 0]) {
+      assert.equal(PAGE.reasonMissing(d, v), (d === 'redo' || d === 'rerun') && String(v).trim() === '', `${d} / ${JSON.stringify(v)}`);
+    }
+  }
+});
+
+test('am8a k: the page\'s two phase questions and the server\'s revise check are what they were (old sites index.html:5954, 5964, 7003, 7057, 7116, 7149; author.js:794)', () => {
+  // old sites: `st.phase === "revising" || st.phase === "redrafting"` (5964, 7003, 7057) and author.js:794
+  same('revise running (page)', PHASES, (p) => p === 'revising' || p === 'redrafting', (p) => PAGE.inWords(pageWords().reviseRunning, p));
+  same('revise running (server)', PHASES, (p) => p === 'revising' || p === 'redrafting', (p) => REVISE_PHASES.includes(p));
+  // old sites: `phase === "red" || phase === "stopped"` (5954, 7149) and `=== "stopped" || === "red"` (7116)
+  same('not green', PHASES, (p) => p === 'red' || p === 'stopped', (p) => PAGE.inWords(pageWords().notGreen, p));
+  same('not green reversed', PHASES, (p) => p === 'stopped' || p === 'red', (p) => PAGE.inWords(pageWords().notGreen, p));
+});

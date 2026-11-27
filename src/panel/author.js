@@ -93,8 +93,12 @@ const RUN_OF_FILE = 'run-of.json';
 const RED_SAY = 'The drafter\'s plan did not pass the checks. Nothing was signed and nothing was sent. Fix the job and draft again; this draft is kept on disk and is never reused.';
 /** Up to 2 revises per draft (amendment 14 item 3); a revise is used once its `draft-<n>/` exists (a refusal at $0 makes none). */
 export const MAX_REVISES = 2;
+/** M20 am8a: the phases in which a revise or the redraft after the human's answers is running over an existing plan (a first draft is `drafting`: another refusal). The panel hands the list to the page. */
+export const REVISE_PHASES = Object.freeze(['revising', 'redrafting']);
+/** M20 am8a: the phases where the draft ended not green, red or stopped (the card is open to fix and draft again). The panel hands the list to the page. */
+export const NOT_GREEN_PHASES = Object.freeze(['red', 'stopped']);
 /** The phases in which a draft child is running (a first draft, a revise, or the redraft after the human's answers). */
-const LIVE_PHASES = new Set(['drafting', 'revising', 'redrafting']);
+const LIVE_PHASES = new Set(['drafting', ...REVISE_PHASES]);
 const ANSWERS_NOT_DRAFTED_SAY = 'Your answers are saved, but the plan was not drafted again with them (the process did not start). Nothing was signed. Draft again from the card.';
 const REDRAFT_RED_SAY = 'The plan drafted with your answers did not pass the checks. Nothing can be signed until a plan is green. Your answers are kept in the card: change it and draft again.';
 const BLANK_ANSWER_SAY = 'Write an answer. A question can\'t be skipped; the plan waits for it.';
@@ -791,7 +795,7 @@ export function createAuthor(opts) {
       const dir = dd === null ? null : join(dd, id);
       const v = dir === null ? null : /** @type {any} */ (readDraft(dir, id, keys));
       if (dir === null || v === null || v.card === null) return { status: 404, body: { ok: false, refused: 'no-such-draft' } };
-      if (v.phase === 'revising' || v.phase === 'redrafting') return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A plan is already being drafted. Wait for it.' } };
+      if (REVISE_PHASES.includes(v.phase)) return { status: 409, body: { ok: false, refused: 'draft-live', say: 'A plan is already being drafted. Wait for it.' } };
       if (v.phase === 'questions-open') return { status: 409, body: { ok: false, refused: 'question-open', say: 'A question the plan raised is still open. Answer it first; it is not a revise.' } };
       // only a draft whose first plan was green has revises (`withRevises` is the one reader that sets them)
       if (!Array.isArray(v.revises)) return { status: 409, body: { ok: false, refused: 'not-revisable', say: `This draft is ${v.phase}, so it cannot be revised. Draft again from the card.` } };

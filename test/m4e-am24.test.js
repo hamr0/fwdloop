@@ -389,12 +389,13 @@ test('C4: a green plan carries Checked and Not checked (labelled) in its state a
 // eslint-disable-next-line import/first
 import { rq } from './m4e-world.mjs';
 import { fnSrc as cutFn } from '../scripts/panel-fixtures/fn-src.mjs';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const PAGE = readFileSync(path.join(HERE, '..', 'src', 'panel', 'index.html'), 'utf8');
 const CHAT = PAGE.slice(PAGE.indexOf('// ---- Chat tab: describe, draft, sign and run'), PAGE.indexOf('// ---- M4d piece 4: Settings.'));
 const fnSrc = (name) => cutFn(CHAT, name, '    ');
 const SHEET_LINES = cutFn(PAGE, 'sheetBlockLines', '  '); // M10b piece 4: extrasFor draws a sheet line's block with the page's one function
-const load = (name, prelude = '') => new Function(`${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
+const load = (name, prelude = '') => new Function(`${PAGE_WORDS_PRELUDE}\n${prelude}\n${fnSrc(name)}\nreturn ${name};`)();
 const openState = { draftId: 'd-1', phase: 'questions-open', openK: 1, total: 2, questions: [
   { k: 1, line: 3, lineText: 'write me a summary resume', question: 'What does "3 sections" mean?', answered: false },
   { k: 2, line: 3, lineText: 'write me a summary resume', question: 'Which words count?', answered: false }] };

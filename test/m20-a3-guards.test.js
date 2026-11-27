@@ -466,11 +466,10 @@ test('am8 item 1e: only src/pickrecord.js names the row choices drop and add tog
 
 // am8 item 1f: "is this an origin tag (you, agent, default)" is tagOf (src/checkwords.js), `tagOf(by) !== ''`
 test('am8 item 1f: only src/checkwords.js names the origin tags you, agent and default together', () => {
-  assert.deepEqual(copies(filesAndPage(), anyOrder('you', 'agent', 'default'), 'checkwords.js', [
-    { file: 'panel/index.html', snippet: 'return by === "you" || by === "agent" || by === "default"', why: 'tagWordOf: the page is a classic script and cannot import tagOf; how it asks the server (a flag on its data, or the TAG map the server injects) is not settled by the signed text: reported for a ruling' },
-  ]), []);
+  assert.deepEqual(copies(filesAndPage(), anyOrder('you', 'agent', 'default'), 'checkwords.js', []), []);
 });
 
+// am8a item 1: the page asks f (origin tags), g (decisions that need a reason) and k (phases of a running revise or redraft; red or stopped) through the one list the server hands it (src/page-words.js, built from the owners)
 // am8 item 1g: "does this decision need a reason" (redo or rerun) is needsReason (src/ask.js)
 test('am8 item 1g: only src/ask.js names the decisions redo and rerun together', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('redo', 'rerun'), 'ask.js', [
@@ -478,7 +477,6 @@ test('am8 item 1g: only src/ask.js names the decisions redo and rerun together',
     { file: 'panel/data.js', snippet: "accepted: 'accept', redo: 'redo', reran: 'rerun'", why: 'WORKING_WORD: a table from an archive status to a decision word, not a question' },
     { file: 'panel/index.html', snippet: 'accepted: "accepted", redo: "redo", reran: "rerun"', why: 'a table from a decision to its status word, not a question' },
     { file: 'panel/index.html', snippet: 'decision === "rerun" ? "rerun" : "redo"', why: 'which word the hint says (rerun or redo), not whether a reason is needed' },
-    { file: 'panel/index.html', snippet: 'return (decision === "redo" || decision === "rerun") && String(value).trim()', why: 'reasonMissing: the page is a classic script and cannot import needsReason; how it asks the server is not settled by the signed text: reported for a ruling (it only saves a round trip, the door still refuses)' },
   ]), []);
   // the runner's re-check of a saved answer asks needsReason, never the handling flag `isRedo` (the allowed statement above)
   assert.deepEqual(copies(filesAndPage(), /isRedo && reason/, '', []), []);
@@ -505,6 +503,20 @@ test('am8 item 1i: only src/thinking.js names the thinking modes on and off toge
 test('am8 item 1j: in code, only endsRun names the ask-loop outcomes paused and stopped together', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('paused', 'stopped'), '', [
     { file: 'runner.js', snippet: 'const endsRun =', why: 'the one owner' },
+  ]), []);
+});
+
+// am8a item 1 (k): "is a revise or a redraft running" (revising or redrafting) and "did the draft end not green" (red or stopped) are asked of the owners in src/panel/author.js (REVISE_PHASES, NOT_GREEN_PHASES); the page asks the list the server hands it
+test('am8a item 1 k: only REVISE_PHASES and NOT_GREEN_PHASES (src/panel/author.js) name the phases revising and redrafting together, and red and stopped together', () => {
+  assert.deepEqual(copies(filesAndPage(), anyOrder('revising', 'redrafting'), '', [
+    { file: 'panel/author.js', snippet: 'const REVISE_PHASES =', why: 'the one owner' },
+    { file: 'panel/author.js', snippet: "cur.kind === 'answers' ? 'redrafting' : 'revising'", why: 'MAKES the phase word of a running child (two statements), not a question about a phase' },
+    { file: 'panel/index.html', snippet: 'ph === "drafting" || ph === "revising" || ph === "redrafting" || ph === "questions-open"', why: 'cardLocked: every phase that locks the New job card (drafting, questions-open and an unopened green too), a wider question than "a revise or redraft is running"' },
+  ]), []);
+  assert.deepEqual(copies(filesAndPage(), anyOrder('red', 'stopped'), '', [
+    { file: 'panel/author.js', snippet: 'const NOT_GREEN_PHASES =', why: 'the one owner' },
+    { file: 'panel/data.js', snippet: "'[✗]': endingWord('red') ?? ''", why: 'the run-state glyph table (glyph to ending word): a run ending, not a draft phase' },
+    { file: 'panel/index.html', snippet: 'if(state === "stopped") return "red"', why: 'a run state to a colour class ("red" is the colour), not a draft phase' },
   ]), []);
 });
 

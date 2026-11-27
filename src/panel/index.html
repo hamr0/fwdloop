@@ -1676,6 +1676,9 @@
   var PLAN_CHECK_RULES = __FWDLOOP_PLAN_CHECK_RULES__;
   // M20 am5 item 1: the one list of schedule choices per flow type (src/schedule-choices.js); the New job card's Schedule and the Run card's When both fill from it
   var SCHEDULE_CHOICES = __FWDLOOP_SCHEDULE_CHOICES__;
+  // M20 am8a item 1: the origin tag words, the decisions that need a reason and the draft phases (a revise or redraft running; red or stopped) come from their owners (src/page-words.js); the page asks this list, never spells them
+  var PAGE_WORDS = __FWDLOOP_PAGE_WORDS__;
+  function inWords(list, word){ return list.indexOf(word) >= 0; }
   // M20 am6: "is this a clock kind" is answered by the server (isClockKind in src/trigger-clock.js), carried on every choice as `clock`
   function isClockKind(kind){
     return Object.keys(SCHEDULE_CHOICES).some(function(t){ return SCHEDULE_CHOICES[t].some(function(c){ return c.kind === kind && c.clock; }); });
@@ -4203,7 +4206,7 @@
   // M16 item 5 (hamr ruling A, 2026-11-13): the card's own sections - Checks, Not checked, Always checked - each row with its tag and, after the run, its recorded result (server: `auditChecks`).
   // borrowed-from: bareloop src/panel/index.html@v0.56.0 (3383cce) :3845-3885 (auditCheckRowHtml, auditChecksSignClass, auditChecksEl), drawn in fwdloop's own fold (the learnings fold's header and body shape), appended inside #audit-groups
   // the tag of a row by its kind (M16 item 5, one spelling: src/checkwords.js TAG): `~` rows [you], `!` rows [agent], `$` rows [default]; the plan card and the Audit both draw it
-  function tagWordOf(by){ return by === "you" || by === "agent" || by === "default" ? "[" + by + "]" : ""; }
+  function tagWordOf(by){ return typeof by === "string" && Object.prototype.hasOwnProperty.call(PAGE_WORDS.tags, by) ? PAGE_WORDS.tags[by] : ""; }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) byTagOf (the sign before the tag, section 3.7: `~ [you]`, `! [agent]`, `$ [default]`)
   function byTagOf(by, form){ return (tagWordOf(by) === "" ? "" : ' <span class="by" data-testid="plan-by" data-by="' + by + '">' + (by === "you" ? "~ " : by === "agent" ? "! " : "$ ") + tagWordOf(by) + '</span>') + (form === "shape" ? ' <span class="by" data-testid="plan-form" data-form="shape">[shape]</span>' : ""); }
   // borrowed-from: bareloop src/panel/index.html@v0.61.0 (fc56e1f3) ckTagHtml, ckRowHtml, ckGroupHtml (the signed check-list look): a row is `[tag] kind words ... right`, the tag first in a fixed column,
@@ -5290,7 +5293,7 @@
   // The server's own refusal name (`refused`) is matched first; a library refusal is matched by what it says.
   function networkText(){ return "Could not reach the panel, so nothing is confirmed. Check it is still running; the header above shows what the books say."; }
   // A redo or rerun needs a reason. The page only saves the round trip: the library still judges every answer.
-  function reasonMissing(decision, value){ return (decision === "redo" || decision === "rerun") && String(value).trim() === ""; }
+  function reasonMissing(decision, value){ return inWords(PAGE_WORDS.reasonDecisions, decision) && String(value).trim() === ""; }
   function blankReasonText(decision){ return "Please write a reason for the " + (decision === "rerun" ? "rerun" : "redo") + "."; }
   function refusalText(r, decision){
     var byName = {
@@ -5951,7 +5954,7 @@
       if(st.phase === "drafting"){
         return {text: "Draft", action: "none", disabled: true};
       }
-      if((st.phase === "red" || st.phase === "stopped") && st.revisable){
+      if(inWords(PAGE_WORDS.notGreen, st.phase) && st.revisable){
         // amendment 14 items 3-4: a red revise keeps the edits; Draft is another revise, Start over (no revises left) a fresh draft
         return (st.left || 0) > 0 ? {text: "Draft", action: "revise", disabled: blocked} : {text: "Start over", action: "draft", startOver: true, disabled: blocked};
       }
@@ -5961,7 +5964,7 @@
       if(st.phase === "stopped"){
         return {text: "Draft again", action: "draft", disabled: blocked};
       }
-      if(st.phase === "revising" || st.phase === "redrafting"){
+      if(inWords(PAGE_WORDS.reviseRunning, st.phase)){
         return {text: "Sign & run", action: "none", disabled: true};
       }
       if(st.phase === "questions-open"){
@@ -7000,7 +7003,7 @@
     }
     function renderThread(state){
       // a revise being drafted leaves the plan on show until the new one replaces it (the view carries no plan meanwhile)
-      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      if(state && inWords(PAGE_WORDS.reviseRunning, state.phase)) return;
       var html = "";
       if(state && state.phase === "green" && state.readout){
         html = '<div class="msg bot" data-testid="chat-plan"><div class="who">fwdloop</div>' + readoutHtml(state) +
@@ -7054,7 +7057,7 @@
     }
     // Your answers / Checked / Not checked; a plan being drafted again leaves them on show (like the plan), anything else without a green plan clears them
     function renderExtras(state){
-      if(state && (state.phase === "revising" || state.phase === "redrafting")) return;
+      if(state && inWords(PAGE_WORDS.reviseRunning, state.phase)) return;
       var v = extrasFor(state);
       var html = v ? v.blocks.map(function(b){
         var inner = b.action ? '<div class="who">fwdloop</div>' + actionRowHtml(b.action)
@@ -7113,7 +7116,7 @@
       var jt = state && state.card && state.card.job;
       var box = document.getElementById("jf-job");
       // F259: a red or stopped draft has left the boxes to the person (the card is open to fix and draft again); the poll never writes them back
-      if(!sessionLive || reviseOpen || state.phase === "stopped" || state.phase === "red" || typeof jt !== "string" || jt === box.value) return;
+      if(!sessionLive || reviseOpen || inWords(PAGE_WORDS.notGreen, state.phase) || typeof jt !== "string" || jt === box.value) return;
       setVal("jf-job", jt); fitCardBoxes();
     }
     // M19 am14b: the ONE writer of a draft refusal's lines. The box error is painted once per refusal (so a poll never brings back a line the person cleared by pressing Draft).
@@ -7146,7 +7149,7 @@
       // its words under the button. No grey copy: the grey card line carries every other sentence (a red plan from the AI keeps its own).
       var refusal = (state.phase === "stopped" && state.refusal && typeof state.refusal === "object") ? state.refusal : null;
       paintRefusal(state, refusal);
-      errEl.textContent = (!refusal && (state.phase === "red" || state.phase === "stopped") && state.say) ? state.say : "";
+      errEl.textContent = (!refusal && inWords(PAGE_WORDS.notGreen, state.phase) && state.say) ? state.say : "";
       var progressChanged = renderProgress(stepsFor(state, {model: drafterModel, starting: startId !== null, signClicked: signClickedOnce}), state && state.draftSoFar);
       sessionLive = CLIENT_TERMINAL_PHASES.indexOf(state.phase) === -1;
       refreshStartEnabled();
