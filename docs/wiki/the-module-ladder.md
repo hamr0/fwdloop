@@ -4792,3 +4792,14 @@ bareloop's `and nothing else` is left out because fwd's `emit_artifact` schema a
 **Done when:** the am8 guards for f, g and k fail while the page or the server spells these lists itself (red before the change); a same-answer test compares the page's old copies with the handed list on every value plus empty, missing and unknown; a test ties a number fact to a `~` rule and finds it Not checked with today's words; the P1 snapshot is byte-identical; the full suite is green; the live panel check at 1280, 390 and 320 passes.
 
 **Must fail when:** the page spells one of these lists itself; the number or date arms are deleted; anything on screen differs from today.
+
+**M20 amendment 8b — SIGNED by hamr 2026-11-27 ("sign m20 am8b."), the text exactly as shown (.claude/scratch/m20-one-owner/m20-am8b-sign.md, sha256 8404842007bd…).**
+
+**M20 amendment 8b — one painter for the tag word on the page.** Found 2026-11-27 by reading the page after am8a ($0), not seen on screen; asked by hamr ("it shouldn't be two"). The page draws the tag word (`[you]`, `[agent]`, `[default]`) in two places: `tagWordOf` (after a line in the plan readout, the action row, the suggested list and the Tickets grid; it asks the handed list since am8a) and `ckTagHtml` (the tag column of every check row: the plan card, the Job tab and the Audit), which puts brackets around any word it is given. Both came from bareloop (`ckTagHtml` with M19 from v0.61.0; bareloop v0.63.0 still has both). The am8a map searched for the three words spelled together, and `ckTagHtml` spells none of them, so it was missed. This adds one site to am8 item 1f; every other signed line stands, M19's check-list look included.
+
+1. **One painter.** `ckTagHtml` takes its tag word from `tagWordOf`, the page's one answer to "what is the tag word of this row". Its span, class, `data-testid` and `data-by` stay as they are. No behaviour changes: every row the server sends today carries `you`, `agent`, `default` or nothing, and each draws the same tag as today.
+2. **bareloop copies it from us.** The difference from bareloop v0.61.0 is listed under M19 "Built after signing"; the `loop` session is told, and copies it from fwd's released tag.
+
+**Done when:** a guard fails while any page function other than `tagWordOf` builds a tag word from a row's `by` (red on today's page); a same-answer test compares the old `ckTagHtml` with the new one on `you`, `agent`, `default`, empty, missing and an unknown word, and they agree on the first five; the P1 snapshot is byte-identical; the full suite is green; the live panel check at 1280, 390 and 320 shows the same tags on the plan card, the Job tab and the Audit.
+
+**Must fail when:** a second page function builds the tag word itself; any tag on screen differs from today for a row the server sends.
