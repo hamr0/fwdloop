@@ -548,7 +548,7 @@ test('am8 item 1m: no reader opens picks-record.json with readFileInside and par
 test('am8 item 1n amount: only isAmountShape names the fact shapes money and number together, apart from named lists and other vocabularies', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'number'), '', [
     { file: 'pagebits.js', snippet: 'const isAmountShape =', why: 'the one owner' },
-    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms reach nothing: am8 item 4 deletes them); not 'is it an amount'" },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms are reached: a number or date fact tied to a `~` rule is kept Not checked, am8a item 2); not 'is it an amount'" },
     { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
     { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text), not 'is it an amount'" },
     { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
@@ -564,7 +564,7 @@ test('am8 item 1n amount: only isAmountShape names the fact shapes money and num
 test('am8 item 1n limit: only canReadLimit names the fact shapes money and time together, apart from named lists and other questions', () => {
   assert.deepEqual(copies(filesAndPage(), anyOrder('money', 'time'), '', [
     { file: 'pagerules.js', snippet: 'const canReadLimit =', why: 'the one owner' },
-    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (am8 item 4 deletes the dead arms); not 'can code read a limit'" },
+    { file: 'checkblock.js', snippet: "l.shape === 'money' || l.shape === 'time' || l.shape === 'number' || l.shape === 'date'", why: "a reading link's four shapes (the number and date arms are reached: they keep a number or date fact tied to a `~` rule Not checked, am8a item 2); not 'can code read a limit'" },
     { file: 'citedcheck.js', snippet: 'export const FACT_SHAPES =', why: 'the vocabulary of every fact shape, not a question' },
     { file: 'factwords.js', snippet: "['money', 'number', 'date', 'time'].includes(shape)", why: "listOf: which label list a fact's anchor comes from (a total map to text)" },
     { file: 'labelscan.js', snippet: 'export const LABEL_SHAPES =', why: 'the vocabulary of the label scans, not a question' },
