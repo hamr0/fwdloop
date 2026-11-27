@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { draftStepList } from '../src/draft-steps.js';
 import { draftedLine, makeStepWriter, mmss, stepped, withDraftTimes } from '../src/draftspend.js';
 import { killChildrenAfter, until, world, JOB } from './m4e-world.mjs';
+import { childGone } from './m19-s9-world.mjs';
 
 killChildrenAfter();
 const T0 = Date.parse('2026-11-25T10:00:00.000Z');
@@ -152,6 +153,7 @@ test('real child: a revise shows its own live list, then times and the session\'
   const w = await world();
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   await until(async () => (await poll(w, id)())?.phase === 'green', 60000);
+  await childGone(w, id);
   const first = (await poll(w, id)()).draftedLine;
   const r = await w.post(`/api/author/${id}/revise`, w.card({ job: JOB, capUsd: '0.30' }));
   assert.equal(r.status, 202, r.text);
@@ -171,6 +173,7 @@ test('real child, hung revise (HANGMARK): the revise lists its own started steps
   const w = await world();
   const id = (await w.post('/api/author/draft', w.card({ job: JOB }))).json().draftId;
   await until(async () => (await poll(w, id)())?.phase === 'green', 60000);
+  await childGone(w, id);
   const r = await w.post(`/api/author/${id}/revise`, w.card({ job: JOB.replace('Read my resume,', 'Read my resume HANGMARK,') }));
   assert.equal(r.status, 202, r.text);
   const j = await until(async () => { const s = await poll(w, id)(); return s?.phase === 'revising' && s.revises?.[0]?.lines?.length >= 2 ? s : null; }, 60000);
