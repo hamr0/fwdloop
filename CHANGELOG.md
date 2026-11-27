@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] - 2026-11-27
+
+M20: the draft times and the NOW row copied from bareloop v0.63.0, a few fixes found in hamr's walks, and one owner for
+each question the code answered in more than one place. The POCs behind it (F263-F277) are in `docs/logs/FINDINGS.md`.
+
+### Added
+- While a draft runs, the chat shows the drafting list: one line per step, `✓` done, `▶` running, `✗` failed, a finished
+  step `took M:SS`, the running one `M:SS so far`, and `Drafting so far: M:SS` under the list. Times move in 30 s steps,
+  cost $0, and are read from the draft's own `child.log`. A revise or an answer redraft shows its own list. A draft made
+  before this shows no times.
+- Under the plan: `Drafted in M:SS · $X` (`at least $X` when a call was unpriced), counted over the whole session
+  (first draft, each revise and redraft). A draft with no recorded step times has no line.
+- While a model step's try runs on a live run, the ENDED / NEXT / SCHEDULE box has a first row, `AI working · M:SS`.
+  It comes from a report-only `try-start` row in the run's `diary.jsonl`; it changes no check, cost or count.
+- The New job card's Schedule offers every choice the Run card offers for the same job type (Weekdays, weekly, when a
+  file is updated, when a new file arrives, and the others), from one list. It is still signed in the same sign and off
+  until the first green run. A file or folder choice that does not exist is refused at $0.
+- A suggested count you Add (for example `1 to 4 results` under SUGGESTED) now passes the count check and shows under
+  CHECKED. Before, Add was refused with "the result count has the number 1, but 1 is not in your words". A count the
+  drafter writes on its own is still refused when its number is not in the line's words.
+
+### Changed
+- A run that hit its money cap and cannot be continued (no usable `halt.json`) wears `[■]` with the word `capped`,
+  not `[✗] failed (cap-halt)`. A cap-halt you can continue keeps `[■] stopped`.
+- A suggested list rule worded "more than N", "fewer than N" or "no more than 0" items is kept with its limit, and "at
+  least 3 items" is a minimum of 3. Before, the first filter dropped the first three and read the last as exactly 3.
+  The saved drafts replay with no change (0 of 125).
+- A tag word the server never sends (not `you`, `agent` or `default`) draws an empty tag, not `[word]`. Every row the
+  server sends today draws the same tag as before.
+- Under the hood, no change in what the screens, runs or checks do: each question the code answered in several places
+  (the ending of a run, which reader opens a run or draft file, "is this a clock or file schedule", "may someone hold the
+  resume lock", the tag words and the decisions that need a reason, the guardrail readers) now has one owner and guard
+  tests that fail if a second copy appears. The page reads its tag, reason and draft-phase words from one list the
+  server hands it.
+
+### Fixed
+- A cap-halt Continue numbers its tries after the step's last, as the signed M4d rule says; the try limit is unchanged
+  (F275).
+- After a revise, the first draft's lines keep their times.
+- The Audit no longer crashes on a diary row whose `checks` is not a list; it reads it as a row with no checks.
+- A signed-values version the run refuses shows in the Audit as its refusal words, never as a signed row.
+
 ## [0.38.0] - 2026-11-25
 
 M19 amendments 12 to 15a: a job needs at least one rule of yours, a draft refusal shows under the box it is about, and a
