@@ -13,6 +13,7 @@ import { REASON } from '../src/reasons.js';
 import { ASK_LINE_REASON } from '../src/blockassemble.js';
 import { dropLine, dropRows, dropSentence } from '../src/pagedropwords.js';
 import { lineRules } from '../src/pagebits.js';
+import { PAGE_WORDS_PRELUDE } from './page-words.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HTML = readFileSync(path.join(HERE, '../src/panel/index.html'), 'utf8').split('\n');
@@ -27,7 +28,7 @@ const fnSource = (/** @type {string} */ name) => {
 };
 const page = () => {
   const ctx = vm.createContext({});
-  vm.runInContext(['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
+  vm.runInContext(PAGE_WORDS_PRELUDE + '\n' + ['escapeXml', 'glyphClass', 'stateDotHTML', 'tagWordOf', 'byTagOf', 'ckTagHtml', 'ckRowHtml', 'ckGroupHtml', 'planFoldHtml', 'planLegend', 'planViewHtml', 'actionRowHtml', 'planControlHTML', 'auditCheckRowHtml'].map(fnSource).join('\n'), ctx);
   return /** @type {any} */ (ctx);
 };
 const text = (/** @type {string} */ h) => h.replace(/<[^>]*>/g, ' ').replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
